@@ -45,12 +45,12 @@ impl SequencerAdminAPIClient for QueuedSequencerAdminAPIClient {
         rx.await.map_err(|_| SequencerAdminAPIError::ResponseError)?
     }
 
-    async fn start_sequencer(&self) -> Result<(), SequencerAdminAPIError> {
+    async fn start_sequencer(&self, head: B256) -> Result<(), SequencerAdminAPIError> {
         let (tx, rx) = oneshot::channel();
 
-        self.request_tx.send(SequencerAdminQuery::StartSequencer(tx)).await.map_err(|_| {
-            SequencerAdminAPIError::RequestError("request channel closed".to_string())
-        })?;
+        self.request_tx.send(SequencerAdminQuery::StartSequencer(head, tx)).await.map_err(
+            |_| SequencerAdminAPIError::RequestError("request channel closed".to_string()),
+        )?;
         rx.await.map_err(|_| SequencerAdminAPIError::ResponseError)?
     }
 

@@ -32,8 +32,6 @@ func TestLeadershipTransferMovesActiveSequencer(gt *testing.T) {
 // transfer moves leadership and sequencing to another healthy voter.
 func TestLeadershipTransferSelectsAnotherActiveSequencer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node conductor support is tracked by #21906")
-
 	sys := presets.NewMinimalWithConductors(t)
 
 	leader := sys.Conductors.AwaitOneActiveSequencer()

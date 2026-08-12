@@ -82,14 +82,14 @@ where
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
-    async fn admin_start_sequencer(&self) -> RpcResult<()> {
+    async fn admin_start_sequencer(&self, head: B256) -> RpcResult<()> {
         // If the sequencer is not enabled (mode runs in validator mode), return an error.
         let Some(ref sequencer_client) = self.sequencer_admin_client else {
             return Err(ErrorObject::from(ErrorCode::MethodNotFound));
         };
 
         sequencer_client
-            .start_sequencer()
+            .start_sequencer(head)
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
