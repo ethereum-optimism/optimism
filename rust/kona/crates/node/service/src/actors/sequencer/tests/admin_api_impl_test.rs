@@ -103,10 +103,10 @@ async fn test_start_sequencer(
     // start the sequencer
     let result = async {
         match via_channel {
-            false => actor.start_sequencer().await,
+            false => actor.start_sequencer(B256::ZERO).await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StartSequencer(tx)).await;
+                actor.handle_admin_query(SequencerAdminQuery::StartSequencer(B256::ZERO, tx)).await;
                 rx.await.unwrap()
             }
         }
@@ -370,7 +370,7 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     {
         // immediately drop receiver
         let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::StartSequencer(tx));
+        queries.push(SequencerAdminQuery::StartSequencer(B256::ZERO, tx));
     }
     {
         // immediately drop receiver
