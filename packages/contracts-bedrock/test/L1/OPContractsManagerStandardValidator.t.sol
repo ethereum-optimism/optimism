@@ -1345,6 +1345,17 @@ contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is
         );
         assertEq("PDDG-ANCHORP-60,CKDG-ANCHORP-60", _validate(true));
     }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry in the game args is not the one the OptimismPortal uses.
+    function test_validate_anchorStateRegistryNotUsedByPortal_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2),
+            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
+            abi.encode(address(0xbad))
+        );
+        assertEq("PDDG-ANCHORP-70,CKDG-ANCHORP-70", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_DelayedWETH_Test
@@ -1866,6 +1877,23 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(l2ChainId + 1));
         assertEq("SYSCON-140", _validate(true));
     }
+
+    /// @notice Tests that the validate function returns SPDG-ANCHORP-70 and SCKDG-ANCHORP-70 when
+    ///         the portal uses a different AnchorStateRegistry than the super games do.
+    function test_validate_anchorStateRegistryNotUsedByPortal_succeeds() public {
+        address otherAsr = makeAddr("otherAnchorStateRegistry");
+        vm.mockCall(
+            address(systemConfig.optimismPortal()),
+            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
+            abi.encode(otherAsr)
+        );
+        vm.mockCall(
+            otherAsr,
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.SUPER_CANNON_KONA)
+        );
+        assertEq("SPDG-ANCHORP-70,SCKDG-ANCHORP-70", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_SuperRootDisputeGames_Test
@@ -2006,7 +2034,7 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
 
-        assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20", _validate(true));
+        assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20,SPDG-ANCHORP-70", _validate(true));
     }
 
     /// @notice Tests SPDG-120 when SUPER_PERMISSIONED's anchor root is zero.
@@ -2386,6 +2414,23 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         // challengerBond occupies bytes [68-99] (uint256).
         DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 68, abi.encodePacked(uint256(0)));
         assertEq("ZKDG-110", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-ANCHORP-70 when the portal uses a different AnchorStateRegistry than the
+    ///         one encoded in the ZK game args.
+    function test_validate_zkDisputeGameAnchorStateRegistryNotUsedByPortal_succeeds() public {
+        address otherAsr = makeAddr("otherAnchorStateRegistry");
+        vm.mockCall(
+            address(systemConfig.optimismPortal()),
+            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
+            abi.encode(otherAsr)
+        );
+        vm.mockCall(
+            otherAsr,
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.SUPER_CANNON_KONA)
+        );
+        assertEq("SPDG-ANCHORP-70,SCKDG-ANCHORP-70,ZKDG-ANCHORP-70", _validate(true));
     }
 }
 
