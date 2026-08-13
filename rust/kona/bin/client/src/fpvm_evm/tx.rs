@@ -226,7 +226,29 @@ impl FromRecoveredTx<TxPostExec> for FpvmOpTx {
 
 impl FromTxWithEncoded<TxPostExec> for FpvmOpTx {
     fn from_encoded_tx(tx: &TxPostExec, caller: Address, encoded: Bytes) -> Self {
-        let base = TxEnv { tx_type: tx.ty(), caller, kind: tx.kind(), ..Default::default() };
+        let base = alloy_op_evm::tx::post_exec_tx_env(tx, caller);
         Self(OpTransaction { base, enveloped_tx: Some(encoded), deposit: Default::default() })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use op_alloy_consensus::build_post_exec_tx;
+
+    /// The post-exec [`TxEnv`] must reflect the transaction rather than [`TxEnv::default`], whose
+    /// mainnet `chain_id: Some(1)`, 2^24 gas limit, and empty calldata leak into any consumer that
+    /// inspects the env (and fail revm's chain-id validation outright on non-mainnet chains).
+    #[test]
+    fn post_exec_tx_env_reflects_transaction_fields() {
+        let tx = build_post_exec_tx(7, vec![]);
+
+        let FpvmOpTx(op_tx) = FpvmOpTx::from_recovered_tx(&tx, Address::ZERO);
+
+        assert_eq!(op_tx.base.chain_id, None, "post-exec txs carry no chain id");
+        assert_eq!(op_tx.base.gas_limit, tx.gas_limit());
+        assert_eq!(op_tx.base.data, *tx.input());
+        assert_eq!(op_tx.base.kind, tx.kind());
+        assert_eq!(op_tx.base.tx_type, tx.ty());
     }
 }

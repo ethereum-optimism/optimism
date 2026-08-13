@@ -25,6 +25,24 @@ fn deposit_tx_env(tx: &TxDeposit, caller: Address) -> TxEnv {
     }
 }
 
+/// Builds the [`TxEnv`] for a post-exec transaction.
+///
+/// `chain_id` must be set explicitly: `TxEnv::default()` assumes mainnet (`Some(1)`), which fails
+/// revm's chain-id validation on any other chain. The remaining fields mirror the transaction so
+/// the env stays honest for anything that inspects it — post-exec transactions themselves are
+/// never transacted (the EVM short-circuits them with the consensus-defined no-op result).
+pub fn post_exec_tx_env(tx: &TxPostExec, caller: Address) -> TxEnv {
+    TxEnv {
+        caller,
+        chain_id: tx.chain_id(),
+        data: tx.input().clone(),
+        gas_limit: tx.gas_limit(),
+        kind: tx.kind(),
+        tx_type: tx.ty(),
+        ..Default::default()
+    }
+}
+
 /// Newtype wrapper around [`OpTransaction<TxEnv>`] that allows implementing foreign traits.
 #[derive(Clone, Debug, Default)]
 pub struct OpTx(pub OpTransaction<TxEnv>);
@@ -254,17 +272,7 @@ impl FromRecoveredTx<TxPostExec> for OpTx {
 
 impl FromTxWithEncoded<TxPostExec> for OpTx {
     fn from_encoded_tx(tx: &TxPostExec, caller: Address, encoded: Bytes) -> Self {
-        // `chain_id` must be set explicitly: `TxEnv::default()` assumes mainnet (`Some(1)`),
-        // which fails revm's chain-id validation on any other chain.
-        let base = TxEnv {
-            caller,
-            chain_id: tx.chain_id(),
-            data: tx.input().clone(),
-            gas_limit: tx.gas_limit(),
-            kind: tx.kind(),
-            tx_type: tx.ty(),
-            ..Default::default()
-        };
+        let base = post_exec_tx_env(tx, caller);
         Self(OpTransaction { base, enveloped_tx: Some(encoded), deposit: Default::default() })
     }
 }
