@@ -12,7 +12,36 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
 };
 
+use crate::prefixed_env_var;
+
 static INIT: OnceLock<Result<()>> = OnceLock::new();
+
+struct LoggerConfig {
+    service_name: String,
+    otlp_endpoint: String,
+    otlp_enabled: bool,
+    log_format: String,
+}
+
+impl LoggerConfig {
+    fn from_env(prefix: &str) -> Self {
+        let logger_name = prefixed_env_var(prefix, "LOGGER_NAME");
+        let otlp_endpoint = prefixed_env_var(prefix, "OTLP_ENDPOINT");
+        let otlp_enabled = prefixed_env_var(prefix, "OTLP_ENABLED");
+        let log_format = prefixed_env_var(prefix, "LOG_FORMAT");
+
+        Self {
+            service_name: env::var(logger_name).unwrap_or_else(|_| "kona-sp1".to_string()),
+            otlp_endpoint: env::var(otlp_endpoint)
+                .unwrap_or_else(|_| "http://localhost:4317".to_string()),
+            otlp_enabled: env::var(otlp_enabled)
+                .unwrap_or_else(|_| "false".to_string())
+                .parse::<bool>()
+                .unwrap_or(false),
+            log_format: env::var(log_format).unwrap_or_else(|_| "pretty".to_string()),
+        }
+    }
+}
 
 fn build_env_filter() -> EnvFilter {
     let mut filter = EnvFilter::new("info")
@@ -47,36 +76,26 @@ fn build_env_filter() -> EnvFilter {
 
 /// Set up the logger with optional `OpenTelemetry` export.
 ///
-/// # Environment Variables
-/// - `LOGGER_NAME`: Service name for opentelemetry logs (defaults to `kona-sp1`)
-/// - `OTLP_ENDPOINT`: `OpenTelemetry` endpoint (defaults to <http://localhost:4317>)
-/// - `OTLP_ENABLED`: Whether to enable `OpenTelemetry` export (defaults to false)
-/// - `RUST_LOG`: Standard Rust log level configuration
-/// - `LOG_FORMAT`: Output format (pretty or json, defaults to pretty)
-pub fn setup_logger() {
-    INIT.get_or_init(|| {
-        let logger_name = std::env::var("LOGGER_NAME").ok();
-        let otlp_endpoint =
-            std::env::var("OTLP_ENDPOINT").unwrap_or_else(|_| "http://localhost:4317".to_string());
-
-        let otlp_enabled = std::env::var("OTLP_ENABLED")
-            .unwrap_or_else(|_| "false".to_string())
-            .parse::<bool>()
-            .unwrap_or(false);
-
-        let service_name = logger_name.unwrap_or_else(|| "kona-sp1".to_string());
-
+/// # Environment variables
+/// - `<PREFIX>_LOGGER_NAME`: service name (default `kona-sp1`)
+/// - `<PREFIX>_OTLP_ENDPOINT`: export endpoint (default <http://localhost:4317>)
+/// - `<PREFIX>_OTLP_ENABLED`: enable export (default `false`)
+/// - `<PREFIX>_LOG_FORMAT`: `pretty` or `json` (default `pretty`)
+/// - `RUST_LOG`: standard Rust log filtering
+/// - `NO_COLOR`: disable ANSI output
+pub fn setup_logger(prefix: &str) {
+    let config = LoggerConfig::from_env(prefix);
+    INIT.get_or_init(move || {
         let params = vec![
-            KeyValue::new("service.name", service_name),
+            KeyValue::new("service.name", config.service_name),
             KeyValue::new("service.version", env!("CARGO_PKG_VERSION").to_string()),
         ];
 
         let resource = Resource::builder_empty().with_attributes(params).build();
         global::set_text_map_propagator(TraceContextPropagator::new());
 
-        let log_format = std::env::var("LOG_FORMAT").unwrap_or_else(|_| "pretty".to_string());
         let fmt_layer: Option<Box<dyn Layer<_> + Send + Sync>> =
-            match log_format.to_lowercase().as_str() {
+            match config.log_format.to_lowercase().as_str() {
                 "json" => {
                     // Initialize with JSON formatting
                     Some(Box::new(
@@ -105,11 +124,11 @@ pub fn setup_logger() {
                 }
             };
 
-        let log_export_layer: Option<Box<dyn Layer<_> + Send + Sync>> = if otlp_enabled {
+        let log_export_layer: Option<Box<dyn Layer<_> + Send + Sync>> = if config.otlp_enabled {
             let export_layer = LogExporter::builder()
                 .with_tonic()
                 .with_export_config(ExportConfig {
-                    endpoint: Some(otlp_endpoint.clone()),
+                    endpoint: Some(config.otlp_endpoint.clone()),
                     protocol: Protocol::Grpc,
                     ..Default::default()
                 })
@@ -127,8 +146,8 @@ pub fn setup_logger() {
         };
 
         Registry::default().with(log_export_layer).with(fmt_layer).init();
-        if otlp_enabled {
-            tracing::info!("OTLP endpoint configured: {}", otlp_endpoint);
+        if config.otlp_enabled {
+            tracing::info!("OTLP endpoint configured: {}", config.otlp_endpoint);
         }
         Ok(())
     });

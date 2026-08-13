@@ -18,6 +18,8 @@ use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result};
 use tokio::{sync::Mutex, time::Duration};
 
+use crate::env_var;
+
 /// Number of L1 confirmations required before a transaction is considered included.
 pub const NUM_CONFIRMATIONS: u64 = 3;
 
@@ -83,47 +85,54 @@ impl Signer {
         Ok(Self::LocalSigner(private_key))
     }
 
-    /// Builds a signer from the environment: `SIGNER_URL` + `SIGNER_ADDRESS` selects
-    /// [`Signer::Web3Signer`], otherwise `PRIVATE_KEY` selects [`Signer::LocalSigner`].
-    /// Setting only one of `SIGNER_URL` / `SIGNER_ADDRESS` is an error rather than a
-    /// silent fallback to the local key.
+    /// Builds a signer from the environment. `KONA_SP1_PROPOSER_SIGNER_URL` and
+    /// `KONA_SP1_PROPOSER_SIGNER_ADDRESS` select [`Signer::Web3Signer`]; otherwise,
+    /// `KONA_SP1_PROPOSER_PRIVATE_KEY` selects [`Signer::LocalSigner`]. Setting only one
+    /// `Web3Signer` variable is an error instead of falling back to the local key.
     pub async fn from_env() -> Result<Self> {
-        let signer_url = std::env::var("SIGNER_URL").ok();
-        let signer_address = std::env::var("SIGNER_ADDRESS").ok();
+        let signer_url_name = env_var("SIGNER_URL");
+        let signer_address_name = env_var("SIGNER_ADDRESS");
+        let private_key_name = env_var("PRIVATE_KEY");
+        let signer_url = std::env::var(&signer_url_name).ok();
+        let signer_address = std::env::var(&signer_address_name).ok();
         match (signer_url, signer_address) {
             (Some(url), Some(address)) => {
-                let signer_url = Url::parse(&url).context("Failed to parse SIGNER_URL")?;
-                let signer_address =
-                    Address::from_str(&address).context("Failed to parse SIGNER_ADDRESS")?;
+                let signer_url = Url::parse(&url)
+                    .with_context(|| format!("Failed to parse {signer_url_name}"))?;
+                let signer_address = Address::from_str(&address)
+                    .with_context(|| format!("Failed to parse {signer_address_name}"))?;
                 tracing::info!(
                     url = %crate::config::redacted_url(&signer_url),
                     address = %signer_address,
-                    "Using Web3Signer (SIGNER_URL + SIGNER_ADDRESS)"
+                    "Using Web3Signer ({signer_url_name} + {signer_address_name})"
                 );
                 Ok(Self::new_web3_signer(signer_url, signer_address))
             }
             (Some(_), None) => {
                 anyhow::bail!(
-                    "SIGNER_URL is set but SIGNER_ADDRESS is not; set both to use the Web3Signer"
+                    "{signer_url_name} is set but {signer_address_name} is not; set both to use \
+                     the Web3Signer"
                 )
             }
             (None, Some(_)) => {
                 anyhow::bail!(
-                    "SIGNER_ADDRESS is set but SIGNER_URL is not; set both to use the Web3Signer"
+                    "{signer_address_name} is set but {signer_url_name} is not; set both to use \
+                     the Web3Signer"
                 )
             }
             (None, None) => {
-                let private_key_str = std::env::var("PRIVATE_KEY").map_err(|_| {
+                let private_key_str = std::env::var(&private_key_name).map_err(|_| {
                     anyhow::anyhow!(
                         "None of the required signer configurations are set in environment:\n\
-                        - For Web3Signer: SIGNER_URL and SIGNER_ADDRESS\n\
-                        - For Local: PRIVATE_KEY"
+                        - For Web3Signer: {signer_url_name} and {signer_address_name}\n\
+                        - For Local: {private_key_name}"
                     )
                 })?;
-                let signer = Self::new_local_signer(&private_key_str)?;
+                let signer = Self::new_local_signer(&private_key_str)
+                    .with_context(|| format!("Failed to parse {private_key_name}"))?;
                 tracing::info!(
                     address = %signer.address(),
-                    "Using local private-key signer (PRIVATE_KEY)"
+                    "Using local private-key signer ({private_key_name})"
                 );
                 Ok(signer)
             }
@@ -232,11 +241,6 @@ impl SignerLock {
         Self { inner: Arc::new(Mutex::new(signer)), cached_address }
     }
 
-    /// Creates a `SignerLock` from environment variables.
-    pub async fn from_env() -> Result<Self> {
-        Ok(Self::new(Signer::from_env().await?))
-    }
-
     /// Returns the address of the signer without acquiring a lock.
     pub const fn address(&self) -> Address {
         self.cached_address
@@ -265,8 +269,18 @@ impl SignerLock {
 
 #[cfg(test)]
 mod tests {
-    use super::{FeeCaps, clamp_fee_caps};
+    use super::{FeeCaps, Signer, clamp_fee_caps};
     use alloy_rpc_types_eth::TransactionRequest;
+
+    use crate::env_var;
+
+    fn set_signer_env(suffix: &str, value: &str) {
+        unsafe { std::env::set_var(env_var(suffix), value) };
+    }
+
+    fn remove_signer_env(suffix: &str) {
+        unsafe { std::env::remove_var(env_var(suffix)) };
+    }
 
     fn filled_request(max_fee: u128, max_priority: u128) -> TransactionRequest {
         TransactionRequest {
@@ -328,5 +342,44 @@ mod tests {
         );
         assert_eq!(request.max_fee_per_gas, None);
         assert_eq!(request.max_priority_fee_per_gas, None);
+    }
+
+    #[tokio::test]
+    async fn signer_configuration_selection() {
+        unsafe {
+            std::env::set_var("SIGNER_URL", "http://127.0.0.1:8000");
+            std::env::set_var("SIGNER_ADDRESS", "0x0000000000000000000000000000000000000001");
+            std::env::set_var(
+                "PRIVATE_KEY",
+                "0x0000000000000000000000000000000000000000000000000000000000000002",
+            );
+        }
+        set_signer_env("SIGNER_URL", "http://127.0.0.1:9000");
+        set_signer_env("SIGNER_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+        let signer = Signer::from_env().await.unwrap();
+        assert!(matches!(signer, Signer::Web3Signer(_, _)));
+
+        remove_signer_env("SIGNER_URL");
+        remove_signer_env("SIGNER_ADDRESS");
+        set_signer_env(
+            "PRIVATE_KEY",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+        );
+        let signer = Signer::from_env().await.unwrap();
+        assert!(matches!(signer, Signer::LocalSigner(_)));
+
+        remove_signer_env("PRIVATE_KEY");
+        set_signer_env("SIGNER_URL", "http://127.0.0.1:9000");
+        let err = Signer::from_env().await.unwrap_err().to_string();
+        assert!(err.contains("KONA_SP1_PROPOSER_SIGNER_ADDRESS"), "unexpected error: {err}");
+
+        remove_signer_env("SIGNER_URL");
+        set_signer_env("SIGNER_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+        let err = Signer::from_env().await.unwrap_err().to_string();
+        assert!(err.contains("KONA_SP1_PROPOSER_SIGNER_URL"), "unexpected error: {err}");
+
+        remove_signer_env("SIGNER_ADDRESS");
+        let err = Signer::from_env().await.unwrap_err().to_string();
+        assert!(err.contains("KONA_SP1_PROPOSER_PRIVATE_KEY"), "unexpected error: {err}");
     }
 }

@@ -74,8 +74,8 @@ pub type TaskMap = HashMap<TaskId, (TaskHandle, TaskInfo)>;
 /// most one task per variant runs at a time (see
 /// `has_active_task_of_type`). `GameProving` is exempt from that rule and
 /// deduplicated PER GAME instead: several games can be proven
-/// concurrently (defense bounded by `MAX_CONCURRENT_DEFENSE_TASKS`, fast
-/// finality by `FAST_FINALITY_PROVING_LIMIT`).
+/// concurrently (defense bounded by `KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS`, fast
+/// finality by `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT`).
 #[derive(Clone, Debug)]
 pub enum TaskInfo {
     /// Task creating a new game at the given super-root timestamp.
@@ -171,7 +171,7 @@ pub struct Game {
 impl Game {
     /// Returns true when the proposer owns this game's defense, resolution, and
     /// claim lifecycle: its `absolutePrestate()` is in the known-prestates set
-    /// (artifacts loadable from `PRESTATES_URL`, proving keys not poisoned).
+    /// (artifacts loadable from `KONA_SP1_PROPOSER_PRESTATES_URL`, proving keys not poisoned).
     ///
     /// Lifecycle ownership is prestate-based, not creator-based. Claims stay
     /// credit-driven, so iterating foreign games costs nothing where the proposer
@@ -393,7 +393,7 @@ where
     /// `DisputeGameFactory` contract instance used to create and enumerate games.
     pub factory: Arc<DisputeGameFactoryInstance<P>>,
     /// Prestate program cache: loaded ELFs keyed by `absolutePrestate()`
-    /// hash, fetched from `PRESTATES_URL` on demand (see [`PrestateCache`]).
+    /// hash, fetched from `KONA_SP1_PROPOSER_PRESTATES_URL` on demand (see [`PrestateCache`]).
     pub prestates: Arc<PrestateCache>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
@@ -577,7 +577,7 @@ where
         let game_args = self.registered_game_args(BlockId::latest()).await?;
         if !self.prestates.ensure_loaded(game_args.absolute_prestate).await {
             // Not fatal: creation stays paused until the artifacts appear
-            // under PRESTATES_URL (PrestateCache::ensure_loaded logged why).
+            // under KONA_SP1_PROPOSER_PRESTATES_URL (PrestateCache::ensure_loaded logged why).
             tracing::warn!(
                 registered = %game_args.absolute_prestate,
                 "registered prestate programs unavailable; creation will pause"
@@ -2381,7 +2381,7 @@ where
     /// Check if we should create a game.
     ///
     /// In fast finality mode this FIRST spawns proving for owned
-    /// unchallenged games without one (up to `FAST_FINALITY_PROVING_LIMIT`,
+    /// unchallenged games without one (up to `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT`,
     /// counting ALL in-flight proving tasks), then skips creation while at
     /// that capacity: never create games faster than they can be proven.
     ///
@@ -2584,7 +2584,7 @@ where
     /// Count ALL active proving tasks, defense and fast finality alike.
     ///
     /// This is the fast-finality capacity number: defense load counts
-    /// against `FAST_FINALITY_PROVING_LIMIT` (upstream parity), so heavy
+    /// against `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT` (upstream parity), so heavy
     /// defense pauses fast-finality proving AND game creation.
     async fn count_active_proving_tasks(&self) -> u64 {
         let tasks = self.tasks.lock().await;
@@ -3236,7 +3236,7 @@ pub enum UnknownPrestatePolicy {
 pub const UNKNOWN_PRESTATE_POLICY: UnknownPrestatePolicy = UnknownPrestatePolicy::Pause;
 
 /// How long a failed prestate artifact load is cached before the next fetch
-/// attempt. Bounds `PRESTATES_URL` traffic and log noise for genuinely
+/// attempt. Bounds `KONA_SP1_PROPOSER_PRESTATES_URL` traffic and log noise for genuinely
 /// unknown prestates while keeping them retryable: an operator can publish
 /// artifacts later and the proposer self-heals without a restart.
 pub const UNKNOWN_PRESTATE_RETRY: Duration = Duration::from_secs(60);
@@ -3288,7 +3288,7 @@ impl std::fmt::Display for PrestateKeyError {
 impl std::error::Error for PrestateKeyError {}
 
 /// Prestate program cache: loaded ELFs keyed by `absolutePrestate()` hash,
-/// fetched from the base `PRESTATES_URL` on demand, plus per-prestate SP1
+/// fetched from the base `KONA_SP1_PROPOSER_PRESTATES_URL` on demand, plus per-prestate SP1
 /// proving keys for the defend path.
 ///
 /// The artifact directory is consulted live on every cache miss (subject to
@@ -3352,10 +3352,11 @@ impl PrestateCache {
                     if *poisoned == programs {
                         // Identical artifacts would poison again; keep the
                         // stored verdict and re-check on the next window.
+                        let prestates_url = crate::env_var("PRESTATES_URL");
                         tracing::warn!(
                             prestate = %prestate,
                             "Prestate stays poisoned: published artifacts are unchanged \
-                             (publish corrected artifacts under PRESTATES_URL to heal)"
+                             (publish corrected artifacts under {prestates_url} to heal)"
                         );
                         self.misses.write().await.insert(prestate, Instant::now());
                         return unknown;
@@ -3383,12 +3384,13 @@ impl PrestateCache {
                 true
             }
             Err(e) => {
+                let prestates_url = crate::env_var("PRESTATES_URL");
                 tracing::warn!(
                     prestate = %prestate,
                     error = %e,
                     retry_seconds = self.unknown_retry.as_secs(),
                     "Failed to load prestate programs \
-                     (publish the artifacts under PRESTATES_URL if this is a hardfork)"
+                     (publish the artifacts under {prestates_url} if this is a hardfork)"
                 );
                 ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
                 self.misses.write().await.insert(prestate, Instant::now());
