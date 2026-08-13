@@ -62,9 +62,10 @@ Upgrade 20 removes `batchInbox()` and clears its legacy storage slot.
 It also removes the deprecated `setGasConfig(uint256,uint256)` function, which could leave `scalar()` out of sync with the fee scalar values that OPCM preserves during an upgrade.
 The updated `SystemConfig` has contract version `4.0.0`.
 
-The deprecated `overhead()` getter remains available for compatibility with existing integrations.
-Because `setGasConfig(uint256,uint256)` was its only writer, the stored value is no longer writable and does not change during the upgrade.
-To preserve the two-word `FEE_SCALARS` event payload without requiring a hardfork, calls to `setGasConfigEcotone(uint32,uint32)` encode zero in the first word instead of the stored `overhead()` value.
+The deprecated `overhead()` getter remains available for compatibility with existing integrations, but the upgrade sets the stored value to zero.
+Because `setGasConfig(uint256,uint256)` was its only writer, the value stays zero after the upgrade.
+This does not affect fees or derivation because OP Stack clients ignore the value after Ecotone.
+To preserve the two-word `FEE_SCALARS` event payload without requiring a hardfork, calls to `setGasConfigEcotone(uint32,uint32)` encode zero in the first word.
 
 ## Breaking Changes
 
@@ -91,11 +92,12 @@ Update an integration if it does any of the following:
 
 * Calls `SystemConfig.batchInbox()` or `SystemConfig.setGasConfig(uint256,uint256)`.
 * Decodes the first word of a `FEE_SCALARS` `ConfigUpdate` event as the current `overhead()` value.
+* Reads `SystemConfig.overhead()` and expects the legacy value to remain unchanged.
 * Reads Dispute Game root claims directly and assumes the claim is an Output Root.
 * Uses an OP Stack SDK to check, prove, or finalize L2-to-L1 withdrawals.
 
 For Super Root Dispute Games, direct Dispute Game integrations must recognize game types `5` and `9` and use `rootClaimByChainId(uint256)` to obtain the chain's Output Root.
-The `overhead()` getter remains available for compatibility but is deprecated.
+The `overhead()` getter remains available for compatibility but is deprecated, and it returns zero after Upgrade 20.
 Applications that use `viem/op-stack` for withdrawal proving must upgrade to `viem` `2.51.0` or later and follow the [withdrawal tooling changes](#update-withdrawal-tooling).
 Bridge operators and developers of withdrawal tooling that read Dispute Game contracts directly must follow the same guidance.
 Tooling that delegates the withdrawal flow to an SDK must use a version that supports Super Root Dispute Games.
@@ -132,6 +134,7 @@ If your tooling reads or writes `SystemConfig` directly:
 * Read the batch inbox address from the chain's rollup configuration or its entry in the [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry).
 * Replace `setGasConfig(uint256,uint256)` calls with [`setGasConfigEcotone(uint32,uint32)`](/chain-operators/reference/fee-parameters) for the base fee and blob base fee scalars.
 * If you decode `FEE_SCALARS` `ConfigUpdate` events, treat the first word as zero rather than the current value returned by `overhead()`.
+* If you read `overhead()`, expect zero. The upgrade clears any legacy value.
 
 ## Update withdrawal tooling
 
