@@ -5,7 +5,9 @@
 //! cross-chain safe/finalized timestamp views that gate proposal cadence.
 
 use alloy_primitives::B256;
+use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result, anyhow};
+use futures::future::join_all;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use kona_sp1_client_utils::super_root::{encode_super_root_proof, hash_super_root_proof};
 pub use kona_sp1_super_range_executor::{
@@ -18,7 +20,7 @@ use crate::config::ProposalSafety;
 /// Thin supernode client wrapper.
 #[derive(Clone, Debug)]
 pub struct SuperrootClient {
-    client: HttpClient,
+    clients: Vec<HttpClient>,
 }
 
 /// Canonical super-root material for one timestamp.
@@ -32,11 +34,16 @@ pub struct SuperRootAt {
 
 impl SuperrootClient {
     /// Builds a client for the supernode (or single-chain op-node) RPC.
-    pub fn new(url: &str) -> Result<Self> {
-        let client = HttpClientBuilder::default()
-            .build(url)
-            .with_context(|| format!("failed to build super-root client for {url}"))?;
-        Ok(Self { client })
+    pub fn new(urls: &[Url]) -> Result<Self> {
+        let clients = urls
+            .iter()
+            .map(|url| {
+                HttpClientBuilder::default()
+                    .build(url.as_str())
+                    .with_context(|| format!("failed to build super-root client for {url}"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self { clients })
     }
 
     /// Raw `superroot_atTimestamp` response.
@@ -44,7 +51,12 @@ impl SuperrootClient {
         &self,
         timestamp: u64,
     ) -> Result<SuperRootAtTimestampResponse> {
-        fetch_superroot_at_timestamp(&self.client, timestamp).await
+        let results = join_all(
+            self.clients.iter().map(|client| fetch_superroot_at_timestamp(client, timestamp)),
+        )
+        .await;
+
+        select_highest_response(results)
     }
 
     /// The highest timestamp the proposer may propose at under the
@@ -89,6 +101,36 @@ impl SuperrootClient {
         }
         Ok(Some(SuperRootAt { proof_bytes, super_root: B256::from(*super_root) }))
     }
+}
+
+fn select_highest_response(
+    results: Vec<Result<SuperRootAtTimestampResponse>>,
+) -> Result<SuperRootAtTimestampResponse> {
+    let mut errors = Vec::new();
+    let mut highest_response: Option<SuperRootAtTimestampResponse> = None;
+    for (idx, result) in results.into_iter().enumerate() {
+        match result {
+            Ok(response) => {
+                let is_higher = highest_response
+                    .as_ref()
+                    .is_none_or(|highest| response.current_l1.number > highest.current_l1.number);
+                if is_higher {
+                    highest_response = Some(response);
+                }
+            }
+            Err(err) => {
+                tracing::warn!(
+                    idx,
+                    error = %err,
+                    "Failed to retrieve super-root"
+                );
+                errors.push(format!("supernode {idx}: {err:#}"));
+            }
+        }
+    }
+
+    highest_response
+        .ok_or_else(|| anyhow!("no valid super-root response received: {}", errors.join("; ")))
 }
 
 /// Builds ZK dispute game extraData: `parentIndex (4B BE) || superRootProof`.
@@ -175,5 +217,42 @@ mod tests {
         let mut response = response_at(101);
         response.data = None;
         assert!(SuperrootClient::super_root_at(&response, 101).unwrap().is_none());
+    }
+
+    #[test]
+    fn response_selection_falls_over_to_a_healthy_source() {
+        let expected = response_at(101);
+        let response = select_highest_response(vec![
+            Err(anyhow!("first source unavailable")),
+            Ok(expected.clone()),
+        ])
+        .unwrap();
+
+        assert_eq!(response, expected);
+    }
+
+    #[test]
+    fn response_selection_uses_the_highest_l1_view() {
+        let mut lagging = response_at(101);
+        lagging.current_l1.number = 10;
+        let mut expected = response_at(101);
+        expected.current_l1.number = 12;
+
+        let response = select_highest_response(vec![Ok(lagging), Ok(expected.clone())]).unwrap();
+
+        assert_eq!(response, expected);
+    }
+
+    #[test]
+    fn response_selection_reports_all_source_failures() {
+        let err = select_highest_response(vec![
+            Err(anyhow!("first source unavailable")),
+            Err(anyhow!("second source unavailable")),
+        ])
+        .unwrap_err()
+        .to_string();
+
+        assert!(err.contains("supernode 0: first source unavailable"));
+        assert!(err.contains("supernode 1: second source unavailable"));
     }
 }

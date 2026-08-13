@@ -76,7 +76,7 @@ pub struct ProposerConfig {
 
     /// The RPC URL serving `superroot_atTimestamp`, provided by an op-supernode
     /// or a single-chain op-node.
-    pub superroot_rpc: Url,
+    pub superroot_rpcs: Vec<Url>,
 
     /// The address of the `DisputeGameFactory` contract.
     pub factory_address: Address,
@@ -244,9 +244,12 @@ impl ProposerConfig {
         let l2_rpcs_name = env_var("L2_RPCS");
         let l2_rpcs = parse_url_list(&required_env("L2_RPCS")?)
             .with_context(|| format!("invalid {l2_rpcs_name}"))?;
+        let superroot_rpcs_name = env_var("SUPERROOT_RPCS");
+        let superroot_rpcs = parse_url_list(&required_env("SUPERROOT_RPCS")?)
+            .with_context(|| format!("invalid {superroot_rpcs_name}"))?;
         Ok(Self {
             l1_rpc: parsed_required_env("L1_RPC")?,
-            superroot_rpc: parsed_required_env("SUPERROOT_RPC")?,
+            superroot_rpcs,
             factory_address: parsed_required_env("FACTORY_ADDRESS")?,
             prestates_url: parsed_required_env("PRESTATES_URL")?,
             proposal_interval_seconds: parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?,
@@ -732,7 +735,7 @@ mod tests {
         #[test]
         fn from_env_requires_defend_path_vars() {
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
-            set_proposer_env("SUPERROOT_RPC", "http://127.0.0.1:9545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545,http://127.0.0.1:9546");
             set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
             set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
 
@@ -752,6 +755,7 @@ mod tests {
             set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
             let config = ProposerConfig::from_env().unwrap();
             assert_eq!(config.proof_provider, ProofProviderKind::Mock);
+            assert_eq!(config.superroot_rpcs.len(), 2);
             assert_eq!(config.l2_rpcs.len(), 2);
             assert!(config.rollup_config_paths.is_none());
             assert_eq!(config.range_split_count, RangeSplitCount::one());
@@ -767,7 +771,7 @@ mod tests {
         #[test]
         fn zero_defense_cap_is_rejected() {
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
-            set_proposer_env("SUPERROOT_RPC", "http://127.0.0.1:9545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
             set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
             set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
             set_proposer_env("PROOF_PROVIDER", "mock");
@@ -787,7 +791,7 @@ mod tests {
         #[test]
         fn zero_spn_timeouts_are_rejected() {
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
-            set_proposer_env("SUPERROOT_RPC", "http://127.0.0.1:9545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
             set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
             set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
             set_proposer_env("PROOF_PROVIDER", "mock");
