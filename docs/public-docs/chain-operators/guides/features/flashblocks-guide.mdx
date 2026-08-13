@@ -1,17 +1,25 @@
 ---
-title: "Enable Flashblocks on your chain"
-description: "Configure rollup-boost, op-rbuilder, and flashblocks-websocket-proxy to stream Flashblocks pre-confirmations, in single-sequencer and HA multi-sequencer setups."
+title: "Run the Flashblocks stack"
+description: "Configure rollup-boost, op-rbuilder, and flashblocks-websocket-proxy to stream pre-confirmations, in single-sequencer and HA multi-sequencer setups."
 diataxis: how-to
 ---
 
-This guide shows how to enable Flashblocks on an OP Stack chain: running `rollup-boost` as the block-building coordination layer, streaming flashblocks from `op-rbuilder`, and serving the stream to RPC providers through `flashblocks-websocket-proxy` — in both single-sequencer and high-availability (HA) multi-sequencer setups.
+This guide covers the Flashblocks stack: running `rollup-boost` as the block-building coordination layer, streaming from `op-rbuilder`, and serving the stream to RPC providers through `flashblocks-websocket-proxy`, in both single-sequencer and high-availability (HA) multi-sequencer setups.
 
-For what Flashblocks are, the component architecture, and the lifecycle of a flashblock, see the [Flashblocks explainer](/op-stack/features/flashblocks).
-For full details on design choices, data structures, and invariants, see the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html).
+<Warning>
+  **This stack is unsupported.**
+  Pre-confirmations on OP Stack chains are now produced by [Subblocks](/op-stack/features/subblocks), which the sequencer's execution client generates directly with no sidecar.
+  The Flashblocks stack below may still run, but OP Labs offers **no support** for it. It may stop working at a future fork.
+  The supported migration path is available to OP Enterprise customers — contact your OP Labs representative to plan it.
+</Warning>
+
+The steps below are kept for chains still running the Flashblocks stack.
+For what pre-confirmations are and how the payload is structured, see the [Subblocks explainer](/op-stack/features/subblocks).
+For design choices, data structures, and invariants, see the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html).
 
 ## What you'll run
 
-A Flashblocks-enabled sequencer runs these services side by side:
+A sequencer running the Flashblocks stack runs these services side by side:
 
 *   **`rollup-boost`**: Coordination layer with Flashblocks enabled
 *   **`op-rbuilder`**: Execution client and builder with Flashblocks support
@@ -20,7 +28,7 @@ A Flashblocks-enabled sequencer runs these services side by side:
 *   **`op-conductor`** *(optional but recommended)*: Manages multiple sequencers, ensuring only one healthy leader streams blocks
 
 Flashblocks are streamed from the `op-rbuilder` to `rollup-boost` over WebSockets, minimizing latency between the sequencer and the pre-confirmed state.
-The role each component plays is described in the [architecture section of the Flashblocks explainer](/op-stack/features/flashblocks#architecture).
+For how this differs from the sidecar-free arrangement that replaced it, see the [architecture section of the Subblocks explainer](/op-stack/features/subblocks#architecture).
 
 ## How to set up and run rollup-boost
 
@@ -88,6 +96,6 @@ Optional rate limits for `flashblocks-websocket-proxy`:
 
 ## Next steps
 
-*   Learn how Flashblocks work in the [Flashblocks explainer](/op-stack/features/flashblocks).
-*   Point your app developers to the [Flashblocks integration guide](/app-developers/guides/transactions/integrating-flashblocks).
+*   Learn how pre-confirmations work now in the [Subblocks explainer](/op-stack/features/subblocks).
+*   Point your app developers to the [Subblocks integration guide](/app-developers/guides/transactions/integrating-subblocks).
 *   Review the [technical specs](https://specs.optimism.io/protocol/flashblocks.html) for architecture details.

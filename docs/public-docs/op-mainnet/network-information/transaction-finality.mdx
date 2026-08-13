@@ -4,7 +4,7 @@ description: "How long transactions take to reach each finality stage on OP Main
 diataxis: explanation
 ---
 
-OP Mainnet follows the standard OP Stack finality model. A transaction reaches soft finality as soon as the Sequencer processes it (sub-second preconfirmation with Flashblocks) and reaches hard finality, guaranteed by Ethereum, once the batch containing it is included in an Ethereum block and that block is finalized, typically 15 to 30 minutes after submission. For the full explanation of the journey from soft finality to hard finality, including the trust assumptions at each stage, see [Transaction finality](/op-stack/transactions/transaction-finality).
+OP Mainnet follows the standard OP Stack finality model. A transaction reaches soft finality as soon as the Sequencer processes it (sub-second preconfirmation with Subblocks) and reaches hard finality, guaranteed by Ethereum, once the batch containing it is included in an Ethereum block and that block is finalized, typically 15 to 30 minutes after submission. For the full explanation of the journey from soft finality to hard finality, including the trust assumptions at each stage, see [Transaction finality](/op-stack/transactions/transaction-finality).
 
 <Note>
 A common misconception is that transactions on OP Mainnet take 7 days to finalize. **This is incorrect.** Only *withdrawals* to Ethereum through the Standard Bridge wait 7 days; transaction finality itself typically takes about 15 to 30 minutes.
@@ -14,7 +14,7 @@ A common misconception is that transactions on OP Mainnet take 7 days to finaliz
 
 | Stage                      | What has happened                                                                        | Typical time after submission |
 | -------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------- |
-| Flashblock preconfirmation | The Sequencer includes the transaction in a [Flashblock](/op-stack/features/flashblocks) | ~250 milliseconds             |
+| Subblock preconfirmation | The Sequencer includes the transaction in a [subblock](/op-stack/features/subblocks) | ~200 milliseconds             |
 | Soft finality (L2 block inclusion) | The transaction is in an L2 block distributed over the peer-to-peer network             | ~2 seconds                    |
 | Data on Ethereum  | A batch containing the transaction lands in an Ethereum block                            | A few minutes                 |
 | Hard finality (finalized)                  | Ethereum finalizes the block containing the batch                                        | ~15 to 30 minutes             |
