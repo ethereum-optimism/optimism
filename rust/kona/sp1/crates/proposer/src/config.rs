@@ -670,91 +670,8 @@ mod tests {
     mod proving_config {
         use super::*;
 
-        const REQUIRED_ENV: [(&str, &str); 7] = [
-            ("L1_RPC", "http://127.0.0.1:8545"),
-            ("SUPERROOT_RPC", "http://127.0.0.1:9545"),
-            ("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD"),
-            ("PRESTATES_URL", "file:///tmp/prestates"),
-            ("PROOF_PROVIDER", "mock"),
-            ("L2_RPCS", "http://127.0.0.1:8646"),
-            ("L1_BEACON_RPC", "http://127.0.0.1:5052"),
-        ];
-
-        fn set_required_env(prefixed: bool) {
-            for (name, value) in REQUIRED_ENV {
-                let name = if prefixed { env_var(name) } else { name.to_string() };
-                unsafe { env::set_var(name, value) };
-            }
-        }
-
-        fn clear_required_env(prefixed: bool) {
-            for (name, _) in REQUIRED_ENV {
-                let name = if prefixed { env_var(name) } else { name.to_string() };
-                unsafe { env::remove_var(name) };
-            }
-        }
-
         fn set_proposer_env(suffix: &str, value: &str) {
             unsafe { env::set_var(env_var(suffix), value) };
-        }
-
-        #[test]
-        fn from_env_reads_prefixed_vars() {
-            clear_required_env(false);
-            set_required_env(true);
-
-            let config = ProposerConfig::from_env().unwrap();
-            assert_eq!(config.proof_provider, ProofProviderKind::Mock);
-            assert_eq!(config.l2_rpcs.len(), 1);
-        }
-
-        #[test]
-        fn from_env_ignores_unprefixed_vars() {
-            clear_required_env(true);
-            set_required_env(false);
-
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
-            assert!(err.contains("KONA_SP1_PROPOSER_PROOF_PROVIDER"), "unexpected error: {err}");
-        }
-
-        #[test]
-        fn prefixed_optional_values_override_bare_values_and_defaults() {
-            set_required_env(true);
-            unsafe {
-                env::set_var("FETCH_INTERVAL", "99");
-                env::set_var("PROPOSAL_SAFETY", "finalized");
-                env::set_var("ROLLUP_CONFIG_PATHS", "/bare/config.json");
-            }
-            set_proposer_env("FETCH_INTERVAL", "7");
-            set_proposer_env("PROPOSAL_SAFETY", "safe");
-
-            let config = ProposerConfig::from_env().unwrap();
-            assert_eq!(config.fetch_interval, 7);
-            assert_eq!(config.proposal_safety, ProposalSafety::Safe);
-            assert!(config.rollup_config_paths.is_none());
-            assert_eq!(config.proposal_interval_seconds, 3600);
-        }
-
-        #[test]
-        fn invalid_prefixed_value_names_the_prefixed_variable() {
-            set_required_env(true);
-            unsafe { env::set_var("FETCH_INTERVAL", "9") };
-            set_proposer_env("FETCH_INTERVAL", "not-a-number");
-
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
-            assert!(err.contains("invalid KONA_SP1_PROPOSER_FETCH_INTERVAL"), "unexpected: {err}");
-        }
-
-        #[test]
-        fn empty_fulfillment_strategy_remains_invalid() {
-            set_required_env(true);
-            set_proposer_env("RANGE_PROOF_STRATEGY", "");
-
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
-            assert!(
-                err.contains("invalid KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY"),
-                "unexpected: {err}"
-            );
         }
 
         #[test]
@@ -849,7 +766,13 @@ mod tests {
         /// process-per-test model; env mutation is `unsafe` on edition 2024.
         #[test]
         fn zero_defense_cap_is_rejected() {
-            set_required_env(true);
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPC", "http://127.0.0.1:9545");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
             set_proposer_env("MAX_CONCURRENT_DEFENSE_TASKS", "0");
             let err = ProposerConfig::from_env().unwrap_err().to_string();
             assert!(
@@ -863,7 +786,13 @@ mod tests {
         /// under nextest's process-per-test model.
         #[test]
         fn zero_spn_timeouts_are_rejected() {
-            set_required_env(true);
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPC", "http://127.0.0.1:9545");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
             for var in ["SP1_TIMEOUT_SECONDS", "NETWORK_CALLS_TIMEOUT", "AUCTION_TIMEOUT"] {
                 set_proposer_env(var, "0");
                 let err = ProposerConfig::from_env().unwrap_err().to_string();

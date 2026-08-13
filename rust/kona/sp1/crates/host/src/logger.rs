@@ -16,33 +16,6 @@ use crate::prefixed_env_var;
 
 static INIT: OnceLock<Result<()>> = OnceLock::new();
 
-struct LoggerConfig {
-    service_name: String,
-    otlp_endpoint: String,
-    otlp_enabled: bool,
-    log_format: String,
-}
-
-impl LoggerConfig {
-    fn from_env(prefix: &str) -> Self {
-        let logger_name = prefixed_env_var(prefix, "LOGGER_NAME");
-        let otlp_endpoint = prefixed_env_var(prefix, "OTLP_ENDPOINT");
-        let otlp_enabled = prefixed_env_var(prefix, "OTLP_ENABLED");
-        let log_format = prefixed_env_var(prefix, "LOG_FORMAT");
-
-        Self {
-            service_name: env::var(logger_name).unwrap_or_else(|_| "kona-sp1".to_string()),
-            otlp_endpoint: env::var(otlp_endpoint)
-                .unwrap_or_else(|_| "http://localhost:4317".to_string()),
-            otlp_enabled: env::var(otlp_enabled)
-                .unwrap_or_else(|_| "false".to_string())
-                .parse::<bool>()
-                .unwrap_or(false),
-            log_format: env::var(log_format).unwrap_or_else(|_| "pretty".to_string()),
-        }
-    }
-}
-
 fn build_env_filter() -> EnvFilter {
     let mut filter = EnvFilter::new("info")
         .add_directive("single_hint_handler=error".parse().unwrap())
@@ -84,10 +57,20 @@ fn build_env_filter() -> EnvFilter {
 /// - `RUST_LOG`: standard Rust log filtering
 /// - `NO_COLOR`: disable ANSI output
 pub fn setup_logger(prefix: &str) {
-    let config = LoggerConfig::from_env(prefix);
-    INIT.get_or_init(move || {
+    INIT.get_or_init(|| {
+        let service_name = env::var(prefixed_env_var(prefix, "LOGGER_NAME"))
+            .unwrap_or_else(|_| "kona-sp1".to_string());
+        let otlp_endpoint = env::var(prefixed_env_var(prefix, "OTLP_ENDPOINT"))
+            .unwrap_or_else(|_| "http://localhost:4317".to_string());
+        let otlp_enabled = env::var(prefixed_env_var(prefix, "OTLP_ENABLED"))
+            .unwrap_or_else(|_| "false".to_string())
+            .parse::<bool>()
+            .unwrap_or(false);
+        let log_format = env::var(prefixed_env_var(prefix, "LOG_FORMAT"))
+            .unwrap_or_else(|_| "pretty".to_string());
+
         let params = vec![
-            KeyValue::new("service.name", config.service_name),
+            KeyValue::new("service.name", service_name),
             KeyValue::new("service.version", env!("CARGO_PKG_VERSION").to_string()),
         ];
 
@@ -95,7 +78,7 @@ pub fn setup_logger(prefix: &str) {
         global::set_text_map_propagator(TraceContextPropagator::new());
 
         let fmt_layer: Option<Box<dyn Layer<_> + Send + Sync>> =
-            match config.log_format.to_lowercase().as_str() {
+            match log_format.to_lowercase().as_str() {
                 "json" => {
                     // Initialize with JSON formatting
                     Some(Box::new(
@@ -124,11 +107,11 @@ pub fn setup_logger(prefix: &str) {
                 }
             };
 
-        let log_export_layer: Option<Box<dyn Layer<_> + Send + Sync>> = if config.otlp_enabled {
+        let log_export_layer: Option<Box<dyn Layer<_> + Send + Sync>> = if otlp_enabled {
             let export_layer = LogExporter::builder()
                 .with_tonic()
                 .with_export_config(ExportConfig {
-                    endpoint: Some(config.otlp_endpoint.clone()),
+                    endpoint: Some(otlp_endpoint.clone()),
                     protocol: Protocol::Grpc,
                     ..Default::default()
                 })
@@ -146,8 +129,8 @@ pub fn setup_logger(prefix: &str) {
         };
 
         Registry::default().with(log_export_layer).with(fmt_layer).init();
-        if config.otlp_enabled {
-            tracing::info!("OTLP endpoint configured: {}", config.otlp_endpoint);
+        if otlp_enabled {
+            tracing::info!("OTLP endpoint configured: {}", otlp_endpoint);
         }
         Ok(())
     });

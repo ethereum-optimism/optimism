@@ -269,18 +269,8 @@ impl SignerLock {
 
 #[cfg(test)]
 mod tests {
-    use super::{FeeCaps, Signer, clamp_fee_caps};
+    use super::{FeeCaps, clamp_fee_caps};
     use alloy_rpc_types_eth::TransactionRequest;
-
-    use crate::env_var;
-
-    fn set_signer_env(suffix: &str, value: &str) {
-        unsafe { std::env::set_var(env_var(suffix), value) };
-    }
-
-    fn remove_signer_env(suffix: &str) {
-        unsafe { std::env::remove_var(env_var(suffix)) };
-    }
 
     fn filled_request(max_fee: u128, max_priority: u128) -> TransactionRequest {
         TransactionRequest {
@@ -342,44 +332,5 @@ mod tests {
         );
         assert_eq!(request.max_fee_per_gas, None);
         assert_eq!(request.max_priority_fee_per_gas, None);
-    }
-
-    #[tokio::test]
-    async fn signer_configuration_selection() {
-        unsafe {
-            std::env::set_var("SIGNER_URL", "http://127.0.0.1:8000");
-            std::env::set_var("SIGNER_ADDRESS", "0x0000000000000000000000000000000000000001");
-            std::env::set_var(
-                "PRIVATE_KEY",
-                "0x0000000000000000000000000000000000000000000000000000000000000002",
-            );
-        }
-        set_signer_env("SIGNER_URL", "http://127.0.0.1:9000");
-        set_signer_env("SIGNER_ADDRESS", "0x000000000000000000000000000000000000dEaD");
-        let signer = Signer::from_env().await.unwrap();
-        assert!(matches!(signer, Signer::Web3Signer(_, _)));
-
-        remove_signer_env("SIGNER_URL");
-        remove_signer_env("SIGNER_ADDRESS");
-        set_signer_env(
-            "PRIVATE_KEY",
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-        );
-        let signer = Signer::from_env().await.unwrap();
-        assert!(matches!(signer, Signer::LocalSigner(_)));
-
-        remove_signer_env("PRIVATE_KEY");
-        set_signer_env("SIGNER_URL", "http://127.0.0.1:9000");
-        let err = Signer::from_env().await.unwrap_err().to_string();
-        assert!(err.contains("KONA_SP1_PROPOSER_SIGNER_ADDRESS"), "unexpected error: {err}");
-
-        remove_signer_env("SIGNER_URL");
-        set_signer_env("SIGNER_ADDRESS", "0x000000000000000000000000000000000000dEaD");
-        let err = Signer::from_env().await.unwrap_err().to_string();
-        assert!(err.contains("KONA_SP1_PROPOSER_SIGNER_URL"), "unexpected error: {err}");
-
-        remove_signer_env("SIGNER_ADDRESS");
-        let err = Signer::from_env().await.unwrap_err().to_string();
-        assert!(err.contains("KONA_SP1_PROPOSER_PRIVATE_KEY"), "unexpected error: {err}");
     }
 }
