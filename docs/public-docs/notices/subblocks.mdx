@@ -1,6 +1,6 @@
 ---
-title: Flashblocks evolve into subblocks
-description: Subblocks bring a 200 ms interval to OP Sepolia and OP Mainnet, and zero four fields in the stream payload.
+title: "Subblocks: 200 ms interval and stream payload changes"
+description: Subblocks (formerly Flashblocks) move to a 200 ms interval on OP Sepolia and OP Mainnet, and zero four fields in the stream payload.
 date: 2026-08-14
 diataxis: reference
 lang: en-US
@@ -17,9 +17,10 @@ audit-source:
   - rust/rollup-boost/crates/rollup-boost/src/flashblocks/primitives.rs
 ---
 
-Flashblocks are evolving into *subblocks*, a more native in-house implementation of pre-confirmation streaming.
-The change brings a shorter subblock interval and four zeroed fields in the stream payload.
-Both apply to OP Sepolia and OP Mainnet.
+Subblocks (formerly Flashblocks) stream pre-confirmations on OP Stack chains.
+Two changes are rolling out to OP Sepolia and OP Mainnet: the subblock interval drops from 250 ms to 200 ms, and four fields in the stream payload are set to their zero value.
+
+The stream keeps its existing wire format, and the payload type is still named `ExecutionPayloadFlashblockDeltaV1`.
 
 <Warning>
   The subblock stream sets `state_root`, `block_hash`, `withdrawals_root`, and `withdrawals` to their zero value.
