@@ -553,6 +553,125 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_overlap_mismatch_drops_span_and_flushes_unread_batches() {
+        let trace_store: TraceStorage = Default::default();
+        let layer = CollectingLayer::new(trace_store.clone());
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let parent_hash = b256!("1111111111111111111111111111111111111111000000000000000000000000");
+        let l1_block_hash =
+            b256!("3333333333333333333333333333333333333333000000000000000000000000");
+        let config = Arc::new(RollupConfig {
+            seq_window_size: 100,
+            block_time: 10,
+            hardforks: HardForkConfig {
+                delta_time: Some(0),
+                holocene_time: Some(0),
+                ..Default::default()
+            },
+            genesis: ChainGenesis {
+                l2: BlockNumHash { number: 40, hash: parent_hash },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+        let l1_block =
+            BlockInfo { number: 10, timestamp: 5, hash: l1_block_hash, ..Default::default() };
+        let l1_blocks = vec![l1_block];
+        // A two-block overlap: blocks 41 and 42 are already safe.
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo { number: 42, timestamp: 20, ..Default::default() },
+            l1_origin: l1_block.id(),
+            ..Default::default()
+        };
+        let l2_parent = L2BlockInfo {
+            block_info: BlockInfo {
+                number: 40,
+                hash: parent_hash,
+                timestamp: 0,
+                ..Default::default()
+            },
+            l1_origin: BlockNumHash { number: 9, ..Default::default() },
+            ..Default::default()
+        };
+        // The canonical overlapped blocks carry only their L1 info deposit (origin 9).
+        let l1_info = kona_protocol::L1BlockInfoBedrock::new(
+            9,
+            0,
+            0,
+            alloy_primitives::B256::ZERO,
+            0,
+            alloy_primitives::Address::ZERO,
+            alloy_primitives::U256::ZERO,
+            alloy_primitives::U256::ZERO,
+        );
+        let info_tx = op_alloy_consensus::OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(
+            op_alloy_consensus::TxDeposit {
+                input: l1_info.encode_calldata(),
+                ..Default::default()
+            },
+        ));
+        let op_block_41 = OpBlock {
+            header: Header { number: 41, ..Default::default() },
+            body: BlockBody {
+                transactions: vec![info_tx.clone()],
+                ommers: vec![],
+                withdrawals: None,
+            },
+        };
+        let op_block_42 = OpBlock {
+            header: Header { number: 42, ..Default::default() },
+            body: BlockBody { transactions: vec![info_tx], ommers: vec![], withdrawals: None },
+        };
+
+        // The span's first overlapped element matches the safe chain; only the second
+        // diverges (it carries a transaction the canonical block does not), exercising the
+        // overlap comparison loop beyond its first iteration.
+        let span_batch = SpanBatch {
+            batches: vec![
+                SpanBatchElement { epoch_num: 9, timestamp: 10, ..Default::default() },
+                SpanBatchElement {
+                    epoch_num: 9,
+                    timestamp: 20,
+                    transactions: vec![alloy_primitives::Bytes::from_static(&[0x02, 0x01])],
+                },
+                SpanBatchElement { epoch_num: 10, timestamp: 30, ..Default::default() },
+            ],
+            parent_check: FixedBytes::<20>::from_slice(&parent_hash[..20]),
+            l1_origin_check: FixedBytes::<20>::from_slice(&l1_block_hash[..20]),
+            ..Default::default()
+        };
+
+        // An unread sentinel sits behind the conflicting span in the channel (batches are
+        // served back-to-front): it only surviving the drop would prove the flush was
+        // signaled but not performed.
+        let sentinel = Batch::Single(SingleBatch::default());
+        let mut prev =
+            TestBatchStreamProvider::new(vec![Ok(sentinel), Ok(Batch::Span(span_batch))]);
+        prev.origin = Some(l1_block);
+
+        let mut provider = TestL2ChainProvider::default();
+        provider.blocks.push(l2_parent);
+        provider.op_blocks.push(op_block_41);
+        provider.op_blocks.push(op_block_42);
+
+        let mut stream = BatchStream::new(prev, config, provider);
+        let err = stream.next_batch(l2_safe_head, &l1_blocks).await.unwrap_err();
+
+        assert_eq!(err, PipelineError::NotEnoughData.temp());
+        assert!(stream.span.is_none());
+        assert_eq!(stream.span_buffer_size(), 0);
+        // The flush must have discarded the unread sentinel along with the rest of the channel.
+        assert!(stream.prev.batches.is_empty());
+
+        let logs = trace_store.get_by_level(tracing::Level::WARN);
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].contains("overlapped block's tx count does not match"));
+    }
+
+    #[tokio::test]
     async fn test_single_batch_pass_through() {
         let data = vec![Ok(Batch::Single(SingleBatch::default()))];
         let config = Arc::new(RollupConfig {

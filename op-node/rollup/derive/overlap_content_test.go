@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"io"
 	"math/big"
 	"testing"
 
@@ -72,10 +73,10 @@ func TestBatchStage_OverlapContent(t *testing.T) {
 		}, cfg.Genesis.L2Time, chainId)
 	}
 
-	newStage := func(lgr log.Logger, span *SpanBatch, fetcher SafeBlockFetcher) *BatchStage {
+	newStage := func(lgr log.Logger, fetcher SafeBlockFetcher, spans ...Batch) *BatchStage {
 		input := &fakeBatchQueueInput{
-			batches: []Batch{span},
-			errors:  []error{nil},
+			batches: spans,
+			errors:  make([]error, len(spans)),
 			origin:  l1[2],
 		}
 		stage := NewBatchStage(lgr, cfg, input, fetcher)
@@ -85,22 +86,74 @@ func TestBatchStage_OverlapContent(t *testing.T) {
 
 	t.Run("conflicting overlap is dropped", func(t *testing.T) {
 		lgr, logs := testlog.CaptureLogger(t, log.LevelWarn)
-		stage := newStage(lgr, deniedLineageSpan(), newFetcher())
+		// The sentinel span behind the conflicting one would be accepted if it were ever read:
+		// it only surviving the drop would prove the flush was logged but not performed.
+		stage := newStage(lgr, newFetcher(), deniedLineageSpan(), matchingLineageSpan())
 
 		batch, _, err := stage.NextBatch(context.Background(), safeHead)
 		require.ErrorIs(t, err, NotEnoughData)
 		require.Nil(t, batch)
 		logs.RequireMessageContainedOnce(t, "overlapped block's tx count does not match")
 		logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (span batch overlap checks)")
+
+		// The flush must have discarded the unread sentinel along with the rest of the channel.
+		batch, _, err = stage.NextBatch(context.Background(), safeHead)
+		require.ErrorIs(t, err, io.EOF)
+		require.Nil(t, batch)
 	})
 
 	t.Run("matching overlap is accepted", func(t *testing.T) {
 		lgr := testlog.Logger(t, log.LevelCrit)
-		stage := newStage(lgr, matchingLineageSpan(), newFetcher())
+		stage := newStage(lgr, newFetcher(), matchingLineageSpan())
 
 		batch, _, err := stage.NextBatch(context.Background(), safeHead)
 		require.NoError(t, err)
 		require.Equal(t, uint64(24), batch.Timestamp)
+	})
+
+	t.Run("multi-block overlap: early match, late mismatch", func(t *testing.T) {
+		// A two-block overlap where the first overlapped element matches the safe chain and
+		// only the second diverges, exercising the comparison loop beyond its first iteration.
+		safe1Batch := b(cfg.L2ChainID, 22, l1[1])
+		safe1Ref := singularBatchToBlockRef(t, safe1Batch, 1)
+		safe1Payload := singularBatchToPayload(t, safe1Batch, 1)
+		safe2Batch := b(cfg.L2ChainID, 24, l1[1])
+		safe2Ref := singularBatchToBlockRef(t, safe2Batch, 2)
+		safe2Payload := singularBatchToPayload(t, safe2Batch, 2)
+		fetcher := newFakeSafeBlockFetcher()
+		fetcher.addBlock(parentRef, &parentPayload)
+		fetcher.addBlock(safe1Ref, &safe1Payload)
+		fetcher.addBlock(safe2Ref, &safe2Payload)
+
+		// Height 2's element carries no transactions, unlike canonical safe2Batch.
+		divergent24 := &SingularBatch{
+			ParentHash: safe1Ref.Hash,
+			Timestamp:  24,
+			EpochNum:   rollup.Epoch(l1[1].Number),
+			EpochHash:  l1[1].Hash,
+		}
+		lateMismatchSpan := initializedSpanBatch([]*SingularBatch{
+			b(cfg.L2ChainID, 22, l1[1]), // matches the safe chain at height 1
+			divergent24,                 // diverges at height 2
+			b(cfg.L2ChainID, 26, l1[1]), // the tail that must not splice
+		}, cfg.Genesis.L2Time, chainId)
+		sentinel := initializedSpanBatch([]*SingularBatch{
+			b(cfg.L2ChainID, 26, l1[1]),
+		}, cfg.Genesis.L2Time, chainId)
+
+		lgr, logs := testlog.CaptureLogger(t, log.LevelWarn)
+		stage := newStage(lgr, fetcher, lateMismatchSpan, sentinel)
+
+		batch, _, err := stage.NextBatch(context.Background(), safe2Ref)
+		require.ErrorIs(t, err, NotEnoughData)
+		require.Nil(t, batch)
+		logs.RequireMessageContainedOnce(t, "overlapped block's tx count does not match")
+		logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (span batch overlap checks)")
+
+		// The flush must have discarded the unread sentinel along with the rest of the channel.
+		batch, _, err = stage.NextBatch(context.Background(), safe2Ref)
+		require.ErrorIs(t, err, io.EOF)
+		require.Nil(t, batch)
 	})
 
 	t.Run("overlapped origin mismatch is dropped", func(t *testing.T) {
@@ -118,7 +171,7 @@ func TestBatchStage_OverlapContent(t *testing.T) {
 		}, cfg.Genesis.L2Time, chainId)
 
 		lgr, logs := testlog.CaptureLogger(t, log.LevelWarn)
-		stage := newStage(lgr, originMismatchSpan, fetcher)
+		stage := newStage(lgr, fetcher, originMismatchSpan)
 
 		batch, _, err := stage.NextBatch(context.Background(), txSafeHead)
 		require.ErrorIs(t, err, NotEnoughData)
@@ -132,7 +185,7 @@ func TestBatchStage_OverlapContent(t *testing.T) {
 		fetcher := newFakeSafeBlockFetcher()
 		fetcher.addBlock(parentRef, &parentPayload)
 		fetcher.addBlock(safeHead, nil) // ref known, payload unavailable
-		stage := newStage(lgr, deniedLineageSpan(), fetcher)
+		stage := newStage(lgr, fetcher, deniedLineageSpan())
 
 		batch, _, err := stage.NextBatch(context.Background(), safeHead)
 		require.ErrorIs(t, err, NotEnoughData)
