@@ -14,6 +14,7 @@ pub use kona_sp1_super_range_executor::{
     SuperRootAtTimestampResponse, SuperRootResponseData, fetch_superroot_at_timestamp,
     proof_from_super_v1,
 };
+use std::time::Duration;
 
 use crate::config::ProposalSafety;
 
@@ -39,6 +40,7 @@ impl SuperrootClient {
             .iter()
             .map(|url| {
                 HttpClientBuilder::default()
+                    .request_timeout(Duration::from_secs(30))
                     .build(url.as_str())
                     .with_context(|| format!("failed to build super-root client for {url}"))
             })

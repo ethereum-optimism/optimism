@@ -75,7 +75,7 @@ pub struct ProposerConfig {
     pub l1_rpc: Url,
 
     /// The RPC URL serving `superroot_atTimestamp`, provided by an op-supernode
-    /// or a single-chain op-node.
+    /// or a single-chain op-node. Multiple URLs are accepted for redundancy
     pub superroot_rpcs: Vec<Url>,
 
     /// The address of the `DisputeGameFactory` contract.
