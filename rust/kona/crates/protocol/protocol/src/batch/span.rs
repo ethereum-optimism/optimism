@@ -547,6 +547,9 @@ impl SpanBatch {
         fetcher: &mut BV,
     ) -> BatchValidity {
         let parent_num = parent_block.block_info.number;
+        // Reused encoding buffer for the per-transaction comparison below, hoisted out of the
+        // loops to avoid one allocation per compared transaction.
+        let mut buf = Vec::new();
         for i in 0..(l2_safe_head.block_info.number - parent_num) {
             let safe_block_num = parent_num + i + 1;
             let safe_block_payload = match fetcher.block_by_number(safe_block_num).await {
@@ -573,7 +576,7 @@ impl SpanBatch {
             let batch_txs_len = batch_txs.len();
             #[allow(clippy::needless_range_loop)]
             for j in 0..batch_txs_len {
-                let mut buf = Vec::new();
+                buf.clear();
                 safe_block.transactions[j + deposit_count].encode_2718(&mut buf);
                 if buf != batch_txs[j].0 {
                     warn!(target: "batch_span", "overlapped block's transaction does not match");
