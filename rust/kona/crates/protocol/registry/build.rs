@@ -408,7 +408,8 @@ fn merge_custom_depsets(custom_dir: &Path, target: &Path, superchains_path: &Pat
     let mut existing: Vec<DependencySet> = read_json(target);
 
     // A custom depset supersedes the inferred self-only default of a chain that declares no
-    // `[interop]` block. A declared cluster is never replaced, single-chain or not.
+    // `[interop]` block. A declared cluster is never replaced, single-chain or not. Drop the
+    // superseded defaults before merging so the result does not depend on custom file order.
     let inferred: BTreeSet<u64> = read_json::<Superchains>(superchains_path)
         .superchains
         .iter()
@@ -416,14 +417,14 @@ fn merge_custom_depsets(custom_dir: &Path, target: &Path, superchains_path: &Pat
         .filter(|c| c.interop.is_none())
         .map(|c| c.chain_id)
         .collect();
+    let claimed: BTreeSet<u64> =
+        custom.iter().flat_map(|ds| ds.dependencies.keys().copied()).collect();
+    existing.retain(|ds| {
+        ds.dependencies.len() != 1 ||
+            !ds.dependencies.keys().all(|id| inferred.contains(id) && claimed.contains(id))
+    });
 
     for new_ds in custom {
-        existing.retain(|ds| {
-            ds.dependencies.len() != 1 ||
-                !ds.dependencies
-                    .keys()
-                    .all(|id| inferred.contains(id) && new_ds.dependencies.contains_key(id))
-        });
         for existing_ds in &existing {
             let collisions: Vec<u64> = new_ds
                 .dependencies
