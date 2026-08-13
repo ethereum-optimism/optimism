@@ -487,23 +487,29 @@ mod tests {
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_evm::{
         EvmInternals, FromRecoveredTx,
+        evm::EvmFactoryExt,
         precompiles::{Precompile, PrecompileInput},
     };
     use alloy_primitives::{Signature, TxKind, U256};
+    use core::convert::Infallible;
     use op_revm::{
         OpTransactionError,
         precompiles::{bls12_381, bn254_pair},
     };
     use revm::{
         context::CfgEnv,
-        context_interface::{ContextTr, result::InvalidTransaction},
-        database::{EmptyDB, InMemoryDB},
+        context_interface::{
+            ContextTr,
+            result::{EVMError, InvalidTransaction},
+        },
+        database::{CacheDB, EmptyDB, InMemoryDB},
         inspector::JournalExt,
         interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
         precompile::PrecompileHalt,
         primitives::eip7825::TX_GAS_LIMIT_CAP,
         state::AccountInfo,
     };
+    use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
     use super::*;
 
@@ -601,20 +607,20 @@ mod tests {
 
     /// Post-exec transactions only appear in Lagoon-active blocks, so the replay env under test
     /// runs with the Lagoon spec.
-    fn evm_on_chain_901<DB: Database>(db: DB) -> OpEvm<DB, NoOpInspector, PrecompilesMap> {
-        OpEvmFactory::<OpTx>::default().create_evm(
-            db,
-            EvmEnv::new(
-                CfgEnv::new_with_spec(OpSpecId::LAGOON).with_chain_id(901),
-                BlockEnv::default(),
-            ),
-        )
+    fn lagoon_env_on_chain_901() -> EvmEnv<OpSpecId> {
+        EvmEnv::new(CfgEnv::new_with_spec(OpSpecId::LAGOON).with_chain_id(901), BlockEnv::default())
+    }
+
+    fn lagoon_test_evm_on_chain_901<DB: Database>(
+        db: DB,
+    ) -> OpEvm<DB, NoOpInspector, PrecompilesMap> {
+        OpEvmFactory::<OpTx>::default().create_evm(db, lagoon_env_on_chain_901())
     }
 
     #[test_case::test_case(false; "without inspector")]
     #[test_case::test_case(true; "with inspector")]
     fn transact_raw_short_circuits_post_exec_tx(inspect: bool) {
-        let mut evm = evm_on_chain_901(EmptyDB::default());
+        let mut evm = lagoon_test_evm_on_chain_901(EmptyDB::default());
         evm.set_inspector_enabled(inspect);
 
         let result = evm.transact_raw(post_exec_op_tx()).expect("post-exec tx short-circuits");
@@ -628,7 +634,7 @@ mod tests {
     /// `chain_id: Some(1)`, which revm rejects on any non-mainnet chain.
     #[test]
     fn transact_raw_rejects_mainnet_chain_id_on_other_chain() {
-        let mut evm = evm_on_chain_901(EmptyDB::default());
+        let mut evm = lagoon_test_evm_on_chain_901(EmptyDB::default());
 
         let stale_chain_id_tx = OpTx(OpTransaction {
             base: TxEnv { gas_limit: 100_000, ..Default::default() },
@@ -639,6 +645,63 @@ mod tests {
 
         let err = evm.transact_raw(stale_chain_id_tx).expect_err("chain id mismatch");
         assert!(format!("{err:?}").contains("InvalidChainId"));
+    }
+
+    /// `debug_trace*` replays each transaction through `Evm::transact` with a tracing inspector
+    /// attached — the exact path that failed with `InvalidChainId` before the post-exec
+    /// short-circuit. A post-exec tx must yield a successful, empty trace instead of aborting the
+    /// whole block trace.
+    #[test]
+    fn tracing_inspector_traces_post_exec_tx_as_noop() {
+        let mut inspector = TracingInspector::new(TracingInspectorConfig::default_geth());
+        let mut evm = OpEvmFactory::<OpTx>::default().create_evm_with_inspector(
+            EmptyDB::default(),
+            lagoon_env_on_chain_901(),
+            &mut inspector,
+        );
+
+        let result = evm.transact(post_exec_op_tx()).expect("tracing a post-exec tx succeeds");
+        assert!(matches!(result.result, revm::context::result::ExecutionResult::Success { .. }));
+        assert_eq!(result.result.tx_gas_used(), 0);
+        drop(evm);
+
+        let nodes = inspector.traces().nodes();
+        assert_eq!(nodes.len(), 1, "only the arena's placeholder root remains");
+        assert!(
+            nodes[0].children.is_empty() && nodes[0].trace.steps.is_empty(),
+            "a no-op replay records no call frames and no steps",
+        );
+    }
+
+    /// The `trace_*` namespace iterates a block's transactions through `TxTracer::try_trace_many`,
+    /// which ends the iteration early — without surfacing an error — when a replay fails. A block
+    /// carrying a post-exec tx must produce one trace result per transaction, not a silently
+    /// truncated list.
+    #[test]
+    fn try_trace_many_covers_every_tx_in_a_post_exec_block() {
+        let mut tracer = OpEvmFactory::<OpTx>::default().create_tracer(
+            CacheDB::new(EmptyDB::default()),
+            lagoon_env_on_chain_901(),
+            TracingInspector::new(TracingInspectorConfig::default_geth()),
+        );
+
+        let traced_gas = tracer
+            .try_trace_many(
+                vec![
+                    legacy_op_tx(
+                        0,
+                        Address::with_last_byte(0xEE),
+                        Address::with_last_byte(1),
+                        21_000,
+                    ),
+                    post_exec_op_tx(),
+                ],
+                |ctx| Ok::<_, EVMError<Infallible, OpTxError>>(ctx.result.tx_gas_used()),
+            )
+            .collect::<Result<Vec<_>, _>>()
+            .expect("both transactions trace");
+
+        assert_eq!(traced_gas, vec![21_000, 0], "the post-exec tx must not truncate the iteration");
     }
 
     /// EIP-7825 caps a transaction's gas limit, and a transaction above the cap is rejected before
