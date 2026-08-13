@@ -38,6 +38,9 @@ type L2CLConfig struct {
 	// SequencerMaxSafeLag caps the gap between unsafe and safe L2 heads;
 	// the sequencer stalls block production when the gap is exceeded. 0 disables.
 	SequencerMaxSafeLag uint64
+
+	// EngineRPCProxy may wrap the L2 EL Engine API endpoint. It runs after the endpoint is resolved.
+	EngineRPCProxy func(engineRPC string) string
 }
 
 func L2CLSequencer() L2CLOption {
@@ -49,6 +52,13 @@ func L2CLSequencer() L2CLOption {
 func L2CLFollowSource(source string) L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.FollowSource = source
+	})
+}
+
+// L2CLEngineRPCProxy wraps the resolved Engine API endpoint used by matching L2 CLs.
+func L2CLEngineRPCProxy(proxy func(engineRPC string) string) L2CLOption {
+	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.EngineRPCProxy = proxy
 	})
 }
 

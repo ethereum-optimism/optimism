@@ -171,7 +171,7 @@ func startL2CLForKey(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil, l2CLOpts...)
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
@@ -320,6 +320,10 @@ func startL2CLNode(
 	}
 
 	logger := t.Logger().New("component", "l2cl-"+startCfg.Key)
+	engineRPC := l2EL.EngineRPC()
+	if cfg.EngineRPCProxy != nil {
+		engineRPC = cfg.EngineRPCProxy(engineRPC)
+	}
 
 	// Build P2P config through the same path as sysgo op-node setup.
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
@@ -376,7 +380,7 @@ func startL2CLNode(
 		},
 		L1ChainConfig: l1Net.genesis.Config,
 		L2: &config.L2EndpointConfig{
-			L2EngineAddr:      l2EL.EngineRPC(),
+			L2EngineAddr:      engineRPC,
 			L2EngineJWTSecret: jwtSecret,
 		},
 		L2FollowSource: &config.L2FollowSourceConfig{

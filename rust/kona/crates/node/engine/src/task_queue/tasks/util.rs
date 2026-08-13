@@ -50,10 +50,59 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
     .execute(state)
     .await?;
 
+    // `BuildTask` advertises the attributes parent as the forkchoice head. Keep the in-memory
+    // unsafe head in sync with that FCU before `SealTask` verifies the build parent. This matters
+    // when derivation builds a replacement block behind the current unsafe tip.
+    state.sync_state = state.sync_state.apply_update(crate::state::EngineSyncStateUpdate {
+        unsafe_head: Some(attributes.parent),
+        cross_unsafe_head: Some(attributes.parent),
+        ..Default::default()
+    });
+
     // Execute the seal task with the payload ID from the build
     SealTask::new(engine, cfg, payload_id, attributes, is_attributes_derived, None)
         .execute(state)
         .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{
+        MockEngineClient, TestAttributesBuilder, TestEngineStateBuilder, test_block_info,
+    };
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum};
+
+    #[tokio::test]
+    async fn reorgs_in_memory_unsafe_head_before_sealing() {
+        let cfg = Arc::new(RollupConfig::default());
+        let parent = test_block_info(1);
+        let current_unsafe = test_block_info(2);
+        let attributes = TestAttributesBuilder::new().with_parent(parent).build();
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(cfg.clone())
+                .with_fork_choice_updated_v2_response(ForkchoiceUpdated {
+                    payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
+                    payload_id: Some(PayloadId::new([1; 8])),
+                })
+                .build(),
+        );
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(current_unsafe)
+            .with_safe_head(parent)
+            .with_finalized_head(parent)
+            .build();
+
+        let err = build_and_seal(&mut state, client, cfg, attributes, true).await.unwrap_err();
+
+        assert!(!matches!(
+            err,
+            BuildAndSealError::Seal(SealTaskError::UnsafeHeadChangedSinceBuild)
+        ));
+        assert_eq!(state.sync_state.unsafe_head(), parent);
+        assert_eq!(state.sync_state.cross_unsafe_head(), parent);
+    }
 }

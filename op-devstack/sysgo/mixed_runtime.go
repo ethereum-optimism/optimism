@@ -565,6 +565,7 @@ func startMixedKonaNode(
 	elKey string,
 	isSequencer bool,
 	depSet coredepset.DependencySet,
+	l2CLOpts ...L2CLOption,
 ) *KonaNode {
 	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
@@ -580,10 +581,22 @@ func startMixedKonaNode(
 	t.Require().NoError(err, "must write l1 chain config")
 	t.Require().NoError(os.WriteFile(tempL1CfgPath, l1CfgData, 0o640))
 
+	cfg := DefaultL2CLConfig()
+	cfg.IsSequencer = isSequencer
+	for _, opt := range l2CLOpts {
+		if opt != nil {
+			opt.Apply(t, NewComponentTarget(clKey, l2Net.ChainID()), cfg)
+		}
+	}
+	engineRPC := l2EL.EngineRPC()
+	if cfg.EngineRPCProxy != nil {
+		engineRPC = cfg.EngineRPCProxy(engineRPC)
+	}
+
 	envVars := []string{
 		"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
 		"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
-		"KONA_NODE_L2_ENGINE_RPC=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
+		"KONA_NODE_L2_ENGINE_RPC=" + strings.ReplaceAll(engineRPC, "ws://", "http://"),
 		"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
 		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
