@@ -172,18 +172,18 @@ rotation, old-signer games stay eligible for defense, resolution, and claims,
 but the restart scan does not fast-finalize them.
 
 **Operational requirement**: rotated-out prestate artifacts must remain published
-under `PRESTATES_URL` for as long as games created under them can be live, or the
+under `KONA_SP1_PROPOSER_PRESTATES_URL` for as long as games created under them can be live, or the
 proposer loses the ability to defend, resolve, and claim those games.
 
 ### Proof providers
 
-- `PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
+- `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
   Proving keys are set up per prestate on first use, and the aggregation
   verifying key must hash to the on-chain prestate (mismatches poison the
   prestate and remove its games from the owned set). The registered prestate's
   keys are verified BEFORE any game is created on it, so the proposer never
   bonds a game it has not proven it can defend.
-- `PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
+- `KONA_SP1_PROPOSER_PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
   collection computes the real range/consolidation outputs and the aggregation
   inputs are validated), then submits placeholder proof bytes. Only a deployment
   with a mock game verifier (devstack) accepts them. No ELFs, no SPN credentials.
@@ -212,41 +212,84 @@ slot (blocking a later defense of that game): watch
 
 ### Environment
 
-Required:
+All proposer-owned variables use the `KONA_SP1_PROPOSER_` prefix.
+
+Required core configuration:
 
 | Variable | Purpose |
 |---|---|
-| `L1_RPC` | L1 execution RPC |
-| `SUPERROOT_RPC` | op-supernode or single-chain op-node RPC serving `superroot_atTimestamp` |
-| `FACTORY_ADDRESS` | `DisputeGameFactory` address |
-| `PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
-| `PROOF_PROVIDER` | `network` or `mock`; no default |
-| `L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
-| `L2_RPCS` | comma-separated L2 EL RPCs, one per chain (order-irrelevant) |
-| `PRIVATE_KEY` or `SIGNER_URL`+`SIGNER_ADDRESS` | L1 transaction signer |
+| `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC |
+| `KONA_SP1_PROPOSER_SUPERROOT_RPC` | op-supernode or single-chain op-node RPC serving `superroot_atTimestamp` |
+| `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | `DisputeGameFactory` address |
+| `KONA_SP1_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
+| `KONA_SP1_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
+| `KONA_SP1_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
+| `KONA_SP1_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain (order-irrelevant) |
 
-Optional (defaults in parentheses):
+Optional core and operational configuration:
 
 | Variable | Purpose |
 |---|---|
-| `ROLLUP_CONFIG_PATHS`, `L1_CONFIG_PATH`, `DEPENDENCY_SET_PATH` | chain config files; absent = superchain-registry fallback, matching the executor CLI |
-| `PROPOSAL_INTERVAL_SECONDS` (3600), `PROPOSAL_SAFETY` (finalized), `FETCH_INTERVAL` (30) | proposal cadence |
-| `METRICS_PORT` (0 = disabled, `auto` = a free port reported on the startup line), `SYNC_L1_CONFIRMATIONS` (0), `TX_CONFIRMATION_TIMEOUT` (60) | operations |
-| `MAX_FEE_PER_GAS`, `MAX_PRIORITY_FEE_PER_GAS` | L1 fee caps in wei (unset = uncapped) |
-| `RANGE_SPLIT_COUNT` (1, max 16) | chunks a defended span is split into |
-| `MAX_CONCURRENT_RANGE_PROOFS` (1) | child-proof concurrency within one game |
-| `MAX_CONCURRENT_DEFENSE_TASKS` (8) | games defended concurrently (must be >= 1) |
-| `FAST_FINALITY_MODE` (false) | prove signer-created owned games while unchallenged |
-| `FAST_FINALITY_PROVING_LIMIT` (1) | total in-flight proving tasks (defense included) before creation pauses |
-| `NETWORK_PRIVATE_KEY` (network mode; `USE_KMS_REQUESTER` for AWS KMS) | SPN requester key |
-| `RANGE_PROOF_STRATEGY`, `AGG_PROOF_STRATEGY` (reserved) | SPN fulfillment strategies |
-| `SP1_TIMEOUT_SECONDS` (14400), `NETWORK_CALLS_TIMEOUT` (15), `AUCTION_TIMEOUT` (60) | SPN timeouts |
-| `RANGE_CYCLE_LIMIT`, `RANGE_GAS_LIMIT`, `AGG_CYCLE_LIMIT`, `AGG_GAS_LIMIT` (1e12) | SPN request limits |
-| `MAX_PRICE_PER_PGU` (3e8), `MIN_AUCTION_PERIOD` (1) | SPN pricing |
+| `KONA_SP1_PROPOSER_ROLLUP_CONFIG_PATHS` | comma-separated rollup config files; absent = registry fallback |
+| `KONA_SP1_PROPOSER_L1_CONFIG_PATH` | L1 chain config file; absent = registry fallback |
+| `KONA_SP1_PROPOSER_DEPENDENCY_SET_PATH` | dependency-set config file; absent = registry fallback |
+| `KONA_SP1_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval (default `3600`) |
+| `KONA_SP1_PROPOSER_PROPOSAL_SAFETY` | `safe` or `finalized` (default `finalized`) |
+| `KONA_SP1_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
+| `KONA_SP1_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
+| `KONA_SP1_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
+| `KONA_SP1_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `60`) |
+| `KONA_SP1_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
+| `KONA_SP1_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
+| `KONA_SP1_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `1`, maximum `16`) |
+| `KONA_SP1_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
+| `KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
+| `KONA_SP1_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
+| `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
+
+SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`:
+
+| Variable | Purpose |
+|---|---|
+| `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` | SPN requester private key, or AWS KMS key ARN when KMS is enabled |
+| `KONA_SP1_PROPOSER_NETWORK_RPC_URL` | SPN RPC override; absent or empty uses the SP1 SDK default for the selected network mode |
+| `KONA_SP1_PROPOSER_USE_KMS_REQUESTER` | use AWS KMS for request signing (default `false`) |
+| `KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `reserved`) |
+| `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `reserved`) |
+| `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | overall proof timeout (default `14400`) |
+| `KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` | individual network-call timeout (default `15`) |
+| `KONA_SP1_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `60`) |
+| `KONA_SP1_PROPOSER_RANGE_CYCLE_LIMIT` | range request cycle limit (default `1e12`) |
+| `KONA_SP1_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `1e12`) |
+| `KONA_SP1_PROPOSER_AGG_CYCLE_LIMIT` | aggregation request cycle limit (default `1e12`) |
+| `KONA_SP1_PROPOSER_AGG_GAS_LIMIT` | aggregation request gas limit (default `1e12`) |
+| `KONA_SP1_PROPOSER_MAX_PRICE_PER_PGU` | maximum price per proving gas unit (default `3e8`) |
+| `KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `1`) |
+
+Transaction signing requires one of these configurations:
+
+| Variable | Purpose |
+|---|---|
+| `KONA_SP1_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key |
+| `KONA_SP1_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `KONA_SP1_PROPOSER_SIGNER_ADDRESS` |
+| `KONA_SP1_PROPOSER_SIGNER_ADDRESS` | Web3Signer address; requires `KONA_SP1_PROPOSER_SIGNER_URL` |
+
+Logging and telemetry:
+
+| Variable | Purpose |
+|---|---|
+| `KONA_SP1_PROPOSER_LOGGER_NAME` | OpenTelemetry service name (default `kona-sp1`) |
+| `KONA_SP1_PROPOSER_OTLP_ENDPOINT` | OpenTelemetry endpoint (default `http://localhost:4317`) |
+| `KONA_SP1_PROPOSER_OTLP_ENABLED` | enable OpenTelemetry export (default `false`) |
+| `KONA_SP1_PROPOSER_LOG_FORMAT` | `pretty` or `json` (default `pretty`) |
+
+The proposer and its dependencies also observe the standard `RUST_LOG`, `NO_COLOR`,
+`SSL_CERT_DIR`, `SSL_CERT_FILE`, `OTEL_*`, proxy, AWS credential, and SP1 worker/debug
+variables. `KONA_SP1_ELF_DIR` configures shared build/test infrastructure.
 
 ### Fast finality
 
-With `FAST_FINALITY_MODE=true` the proposer proves every signer-created owned
+With `KONA_SP1_PROPOSER_FAST_FINALITY_MODE=true` the proposer proves every signer-created owned
 game while it is still unchallenged, spawned by the per-tick scan one fetch
 interval after creation. A proven game is over immediately, so it resolves as
 soon as its parent does instead of waiting out `maxChallengeDuration`: proof
@@ -256,7 +299,7 @@ Off by default.
 Spend framing: in network mode this proves every game created by this signer
 whose prestate artifacts are available. At a one-hour proposal interval that is
 a baseline of 24 aggregation proofs per day; the default
-`FAST_FINALITY_PROVING_LIMIT=1` serializes them. An unchallenged game created by
+`KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT=1` serializes them. An unchallenged game created by
 another proposer is not proven, even when it uses a known prestate. Enabling the
 mode on a chain with an existing unchallenged backlog proves the signer-created
 owned backlog.
@@ -267,7 +310,7 @@ Concurrency interaction:
 |---|---|
 | active proving tasks (defense + fast finality) >= limit | no new fast-finality proving; game creation paused this tick |
 | defense tasks alone >= limit | same: defense load pauses creation (upstream parity) |
-| fast-finality tasks in flight | never count against `MAX_CONCURRENT_DEFENSE_TASKS` |
+| fast-finality tasks in flight | never count against `KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` |
 | game challenged while a fast-finality proof is in flight | the proof stays valid; per-game dedup prevents a second task |
 | a fast-finality proof keeps failing at the limit | creation stays paused until it succeeds or is classified unprovable; watch `kona_sp1_proposer_game_proving_error` |
 ## Building
