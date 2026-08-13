@@ -1,15 +1,14 @@
 //! Command that backfills OP proofs storage to an older earliest block.
 
 use clap::Parser;
+use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
-use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{
     ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
     ProofsStorageVersion,
 };
-use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
     BackfillJob, OpProofsBackfillStore, OpProofsProviderRO, db::MdbxProofsStorageV2,
 };
@@ -40,9 +39,9 @@ pub struct BackfillCommand<C: ChainSpecParser> {
     pub backfill_args: ProofsHistoryBackfillArgs,
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
+impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> BackfillCommand<C> {
     /// Execute [`BackfillCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {

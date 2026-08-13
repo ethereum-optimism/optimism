@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -108,22 +107,7 @@ func applyConfigLocalContractSources(t devtest.T, _ devkeys.Keys, builder intent
 }
 
 func applyConfigCommons(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID, builder intentbuilder.Builder) {
-	_, l1Config := builder.WithL1(l1ChainID)
-
-	l1StartTimestamp := uint64(time.Now().Unix()) + 1
-	l1Config.WithTimestamp(l1StartTimestamp)
-	l1Config.WithL1ForkAtGenesis(forks.Prague)
-
-	funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
-	t.Require().NoError(err, "need funder addr")
-	l1Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
-
-	addrFor := intentbuilder.RoleToAddrProvider(t, keys, l1ChainID)
-	_, superCfg := builder.WithSuperchain()
-	intentbuilder.WithDevkeySuperRoles(t, keys, l1ChainID, superCfg)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
+	WithCommons(l1ChainID)(t, keys, builder)
 }
 
 func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID eth.ChainID, builder intentbuilder.Builder) {
@@ -149,10 +133,14 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, key string, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
 	switch k := devstackL2ELKind(); k {
 	case MixedL2ELOpGeth:
+		// op-reth options have no analogue on these kinds. Dropping them silently would make a
+		// binary override look like it took effect on a node that never saw it.
+		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
 	case MixedL2ELOpRethV2:
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
 	case MixedOpRbuilder:
+		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
 		return startBuilderEL(t, l2Net, jwtPath, identity)
 	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth v1
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opts...)

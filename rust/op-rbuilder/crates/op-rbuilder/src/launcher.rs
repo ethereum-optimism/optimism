@@ -21,7 +21,7 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_cli::chainspec::OpChainSpecParser;
 use reth_optimism_node::{
     OpNode,
-    node::{OpAddOns, OpAddOnsBuilder, OpEngineValidatorBuilder, OpPoolBuilder},
+    node::{OpAddOns, OpAddOnsBuilder, OpEngineValidatorBuilder},
 };
 use reth_transaction_pool::TransactionPool;
 use std::marker::PhantomData;
@@ -136,18 +136,17 @@ where
                 op_node
                     .components()
                     .pool(
-                        OpPoolBuilder::<FBPooledTransaction>::default()
+                        op_node
+                            .standard_pool_builder::<FBPooledTransaction>()
                             .with_enable_tx_conditional(
                                 // Revert protection uses the same internal pool logic as conditional transactions
                                 // to garbage collect transactions out of the bundle range.
                                 rollup_args.enable_tx_conditional
                                     || builder_args.enable_revert_protection,
                             )
-                            .with_interop(
-                                rollup_args.interop_http.clone(),
-                                rollup_args.interop_min_responses,
-                                rollup_args.interop_safety_level,
-                            )
+                            // The payload builder reads the failsafe through `builder_config`, so
+                            // the pool must be pointed at that same handle rather than the node's
+                            // own, or the filter client and the builder observe different flags.
                             .with_interop_failsafe(interop_failsafe),
                     )
                     .payload(B::new_service(builder_config)?),

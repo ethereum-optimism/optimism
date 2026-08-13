@@ -19,6 +19,9 @@ kona-sp1-client-utils.workspace = true
 kona-sp1-host-utils.workspace = true
 kona-sp1-super-range-executor.workspace = true
 
+# sp1
+sp1-sdk.workspace = true
+
 # alloy
 alloy-consensus.workspace = true
 alloy-eips.workspace = true
@@ -33,13 +36,18 @@ alloy-contract.workspace = true
 
 # general
 anyhow.workspace = true
+futures.workspace = true
 async-trait.workspace = true
+clap = { workspace = true, features = ["derive"] }
 strum.workspace = true
 strum_macros.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 flate2.workspace = true
 jsonrpsee = { workspace = true, features = ["http-client"] }
+
+[dev-dependencies]
+kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
 
 [[bin]]
 name = "kona-sp1-proposer"

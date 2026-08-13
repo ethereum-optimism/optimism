@@ -9,8 +9,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -291,7 +291,7 @@ func processBlockRange(
 	for i := 0; i < len(blocks); i++ {
 		b := blocks[i]
 		matches := 0
-		blockNumber := b.BlockID().Number
+		blockNumber := uint64(b.Number)
 		res := result{
 			BlockNumber: blockNumber,
 			Nonces:      []uint64{},
@@ -316,19 +316,27 @@ func processBlockRange(
 	return results, nil
 }
 
+// rpcBlock is a minimal eth_getBlockBy* result carrying what this tool reads.
+// Transactions decode as op-geth typed transactions: the tool extracts the
+// effective deposit nonce, JSON-only data that op-geth's decoder captures.
+type rpcBlock struct {
+	Number       hexutil.Uint64       `json:"number"`
+	Transactions []*types.Transaction `json:"transactions"`
+}
+
 // batchBlockByNumber will batch a list of block numbers into a single batch rpc request
 // it uses the iterative batch call to make the request
 // and returns the results
-func batchBlockByNumber(ctx context.Context, c *ethclient.Client, blockNumbers []rpc.BlockNumber) ([]*sources.RPCBlock, error) {
-	makeBlockByNumberRequest := func(blockNumber rpc.BlockNumber) (*sources.RPCBlock, rpc.BatchElem) {
-		out := new(sources.RPCBlock)
+func batchBlockByNumber(ctx context.Context, c *ethclient.Client, blockNumbers []rpc.BlockNumber) ([]*rpcBlock, error) {
+	makeBlockByNumberRequest := func(blockNumber rpc.BlockNumber) (*rpcBlock, rpc.BatchElem) {
+		out := new(rpcBlock)
 		return out, rpc.BatchElem{
 			Method: "eth_getBlockByNumber",
 			Args:   []any{blockNumber, true},
 			Result: &out,
 		}
 	}
-	batchReq := batching.NewIterativeBatchCall[rpc.BlockNumber, *sources.RPCBlock](
+	batchReq := batching.NewIterativeBatchCall[rpc.BlockNumber, *rpcBlock](
 		blockNumbers,
 		makeBlockByNumberRequest,
 		c.Client().BatchCallContext,

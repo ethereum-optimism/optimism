@@ -2,8 +2,10 @@ package sysgo
 
 import (
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -27,9 +30,14 @@ import (
 // emits once config validation and provider construction have completed; the
 // launcher matches it to detect startup.
 const (
-	zkProposerReadyMessage = "kona-sp1-proposer started"
-	konaSP1ELFDirEnv       = "KONA_SP1_ELF_DIR"
+	zkProposerReadyMessage   = "kona-sp1-proposer started"
+	konaSP1ELFDirEnv         = "KONA_SP1_ELF_DIR"
+	konaSP1ProposerEnvPrefix = "KONA_SP1_PROPOSER"
 )
+
+func zkProposerEnv(suffix, value string) string {
+	return konaSP1ProposerEnvPrefix + "_" + suffix + "=" + value
+}
 
 func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 	if elfDir == "" {
@@ -60,6 +68,8 @@ func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 
 type zkProposerConfig struct {
 	ProposalInterval *time.Duration
+	FastFinality     bool
+	Metrics          bool
 }
 
 // ZKProposerOption configures the kona-sp1-proposer process started by
@@ -71,6 +81,26 @@ type ZKProposerOption func(cfg *zkProposerConfig)
 func WithZKProposalInterval(interval time.Duration) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.ProposalInterval = &interval
+	}
+}
+
+// WithZKFastFinality makes the proposer prove every game it owns while it
+// is still unchallenged.
+func WithZKFastFinality() ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.FastFinality = true
+	}
+}
+
+// WithZKMetrics exposes the proposer's Prometheus metrics on a port the
+// proposer picks and reports, returned by StartZKProposer (metrics are
+// disabled by default). Tests use this to observe internal counters, e.g.
+// concurrent defense-task spawning. The proposer owns the port so that no
+// window exists between choosing it and binding it, in which another socket
+// could take it.
+func WithZKMetrics() ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.Metrics = true
 	}
 }
 
@@ -93,20 +123,25 @@ func newZKProposerConfig(opts ...ZKProposerOption) (zkProposerConfig, error) {
 }
 
 // startZKProposer launches the Rust kona-sp1-proposer binary against the ZK
-// dispute game type. Modeled on the kona-node launcher (l2_cl_kona.go), minus
-// the RPC proxy: the proposer serves no HTTP API. The proposer is configured
-// exclusively through environment variables.
+// dispute game type. The process has no HTTP API and is configured through
+// environment variables. It returns the loopback address of the proposer's
+// metrics endpoint, empty unless WithZKMetrics was set.
 func startZKProposer(
 	t devtest.T,
 	keys devkeys.Keys,
 	proposerChainID eth.ChainID,
+	l1Net *L1Network,
 	l1EL L1ELNode,
-	supernodeRPC string,
+	l1CL *L1CLNode,
+	depSet depset.DependencySet,
+	superRootRPC string,
+	l2Nets []*L2Network,
+	l2ELs []L2ELNode,
 	factoryAddr common.Address,
 	programVKey common.Hash,
 	elfDir string,
 	proposerOpts ...ZKProposerOption,
-) {
+) string {
 	require := t.Require()
 	cfg, err := newZKProposerConfig(proposerOpts...)
 	require.NoError(err, "invalid ZK proposer config")
@@ -122,14 +157,14 @@ func startZKProposer(
 	require.NoError(err, "prepare kona-sp1-proposer binary")
 	require.NotEmpty(execPath, "kona-sp1-proposer binary path resolved")
 
-	// The proposer checks (and, with the defend path, loads) program
-	// artifacts at PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz,
-	// mirroring op-challenger's --prestates-url convention. The aggregation
-	// vkey embeds the range program's vkey, so it keys both ELFs. Devstack
-	// publishes the real ELFs, gzipped, when KONA_SP1_ELF_DIR is set;
-	// otherwise stub bytes suffice, since the devstack deploys the mock
-	// verifier and the create path only loads artifacts without verifying
-	// them against the vkey. Either way the file:// path is exercised.
+	// The proposer checks and loads program artifacts at
+	// KONA_SP1_PROPOSER_PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz, mirroring
+	// op-challenger's --prestates-url convention. The aggregation vkey embeds
+	// the range program's vkey, so it keys both ELFs. Devstack publishes the
+	// real ELFs, gzipped, when KONA_SP1_ELF_DIR is set; otherwise stub bytes
+	// suffice, since the devstack deploys the mock verifier and the mock
+	// proof provider never executes the ELFs and skips vkey verification.
+	// Either way the file:// path is exercised.
 	prestatesDir := t.TempDir()
 	sources := map[string]func() (io.ReadCloser, error){
 		".agg.bin.gz":   elfSource(elfDir, "super-aggregation-elf"),
@@ -139,19 +174,65 @@ func startZKProposer(
 		writePrestateArtifact(t, open, filepath.Join(prestatesDir, programVKey.Hex()+suffix))
 	}
 
+	// InteropHost witness collection requires the L1 beacon, every L2 EL,
+	// and the rollup, dependency-set, and L1 chain configs.
+	require.Len(l2ELs, len(l2Nets), "need matching L2 ELs for the ZK proposer")
+	configDir := t.TempDir()
+	l2RPCs := make([]string, len(l2ELs))
+	rollupPaths := make([]string, len(l2Nets))
+	for i, l2Net := range l2Nets {
+		l2RPCs[i] = l2ELs[i].UserRPC()
+		rollupData, err := json.Marshal(l2Net.rollupCfg)
+		require.NoError(err, "must marshal rollup config")
+		rollupPath := filepath.Join(configDir, fmt.Sprintf("rollup-%v.json", l2Net.ChainID()))
+		require.NoError(os.WriteFile(rollupPath, rollupData, 0o640), "must write rollup config")
+		rollupPaths[i] = rollupPath
+	}
+
+	l1CfgPath := filepath.Join(configDir, "l1-chain-config.json")
+	l1CfgData, err := json.Marshal(l1Net.genesis.Config)
+	require.NoError(err, "must marshal l1 chain config")
+	require.NoError(os.WriteFile(l1CfgPath, l1CfgData, 0o640), "must write l1 chain config")
+
+	depSetPath := filepath.Join(configDir, "interop-depset.json")
+	depSetData, err := json.Marshal(depSet)
+	require.NoError(err, "must marshal interop dependency set")
+	require.NoError(os.WriteFile(depSetPath, depSetData, 0o640), "must write interop dependency set")
+
 	env := []string{
-		"L1_RPC=" + l1EL.UserRPC(),
-		"SUPERNODE_RPC=" + supernodeRPC,
-		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
-		"PRESTATES_URL=file://" + prestatesDir,
-		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
-		"PROPOSAL_SAFETY=safe",
-		"FETCH_INTERVAL=2",
-		"LOG_FORMAT=json",
+		zkProposerEnv("L1_RPC", l1EL.UserRPC()),
+		zkProposerEnv("SUPERROOT_RPC", superRootRPC),
+		zkProposerEnv("FACTORY_ADDRESS", factoryAddr.Hex()),
+		zkProposerEnv("PRESTATES_URL", "file://"+prestatesDir),
+		zkProposerEnv("PRIVATE_KEY", hexutil.Encode(crypto.FromECDSA(proposerSecret))),
+		// The mock provider skips SP1 proving but still runs the full witness
+		// pipeline against these endpoints and configs.
+		zkProposerEnv("PROOF_PROVIDER", "mock"),
+		zkProposerEnv("L1_BEACON_RPC", l1CL.beaconHTTPAddr),
+		// Order-irrelevant: kona-host keys L2 providers by queried eth_chainId.
+		zkProposerEnv("L2_RPCS", strings.Join(l2RPCs, ",")),
+		zkProposerEnv("ROLLUP_CONFIG_PATHS", strings.Join(rollupPaths, ",")),
+		zkProposerEnv("L1_CONFIG_PATH", l1CfgPath),
+		zkProposerEnv("DEPENDENCY_SET_PATH", depSetPath),
+		zkProposerEnv("PROPOSAL_SAFETY", "safe"),
+		zkProposerEnv("FETCH_INTERVAL", "2"),
+		zkProposerEnv("LOG_FORMAT", "json"),
 	}
 	if cfg.ProposalInterval != nil {
-		env = append(env, "PROPOSAL_INTERVAL_SECONDS="+strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10))
+		env = append(env, zkProposerEnv("PROPOSAL_INTERVAL_SECONDS", strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10)))
 	}
+	if cfg.FastFinality {
+		env = append(env, zkProposerEnv("FAST_FINALITY_MODE", "true"))
+	}
+	// Always pin the metrics port so inherited host configuration cannot
+	// reach every devstack proposer and collide across parallel systems.
+	// 0 keeps metrics disabled; "auto" has the proposer
+	// bind a free port and report it on its startup line.
+	metricsPort := "0"
+	if cfg.Metrics {
+		metricsPort = "auto"
+	}
+	env = append(env, zkProposerEnv("METRICS_PORT", metricsPort))
 
 	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stdout"), log.LevelWarn)
 	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stderr"), log.LevelWarn)
@@ -181,11 +262,12 @@ func startZKProposer(
 
 	// Wait for the startup line, but fail fast if the process exits first
 	// (e.g. a crash on boot) rather than blocking until the test times out.
+	var started logpipe.LogEntry
 	select {
-	case <-startedChan:
+	case started = <-startedChan:
 	case <-sub.Exited():
 		select {
-		case <-startedChan:
+		case started = <-startedChan:
 		default:
 			require.FailNow("kona-sp1-proposer exited before its startup line was emitted")
 		}
@@ -193,7 +275,25 @@ func startZKProposer(
 		require.NoError(t.Ctx().Err(), "need kona-sp1-proposer startup")
 	}
 
-	t.Logger().Info("kona-sp1-proposer is up", "chain", proposerChainID, "factory", factoryAddr)
+	var metricsAddr string
+	if cfg.Metrics {
+		metricsAddr = loopbackMetricsAddr(t, started)
+	}
+
+	t.Logger().Info("kona-sp1-proposer is up",
+		"chain", proposerChainID, "factory", factoryAddr, "metricsAddr", metricsAddr)
+	return metricsAddr
+}
+
+// loopbackMetricsAddr reads the metrics address the proposer reports on its
+// startup line, rewritten to loopback: the proposer serves on all interfaces,
+// which is not an address the test process can dial.
+func loopbackMetricsAddr(t devtest.T, started logpipe.LogEntry) string {
+	reported, _ := started.FieldValue("metrics_addr").(string)
+	t.Require().NotEmpty(reported, "kona-sp1-proposer must report its metrics address")
+	_, port, err := net.SplitHostPort(reported)
+	t.Require().NoErrorf(err, "parse reported metrics address %q", reported)
+	return net.JoinHostPort("127.0.0.1", port)
 }
 
 // elfSource returns an opener for the program ELF in elfDir, or for

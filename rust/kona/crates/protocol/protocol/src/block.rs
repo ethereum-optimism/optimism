@@ -1,20 +1,16 @@
 //! Block Types for Optimism.
 
 use crate::{DecodeError, L1BlockInfoTx};
-use alloc::vec::Vec;
 use alloy_consensus::{Block, Header, Transaction, Typed2718};
 use alloy_eips::{
     BlockNumHash,
     eip2718::{Decodable2718, Eip2718Error},
-    eip7685::EMPTY_REQUESTS_HASH,
 };
 use alloy_primitives::{B256, Bytes, Sealed};
-use alloy_rpc_types_engine::{CancunPayloadFields, PraguePayloadFields};
 use alloy_rpc_types_eth::Block as RpcBlock;
 use derive_more::Display;
 use kona_genesis::ChainGenesis;
-use op_alloy_consensus::{OpBlock, OpTxEnvelope};
-use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadSidecar, OpPayloadError};
+use op_alloy_consensus::{OpTransaction, OpTxEnvelope};
 
 /// Block Header Info
 #[derive(Debug, Clone, Display, Copy, Eq, Hash, PartialEq, Default)]
@@ -149,9 +145,6 @@ pub enum FromBlockError {
     /// Failed to decode the [`L1BlockInfoTx`] from the deposit transaction.
     #[error("Failed to decode the L1BlockInfoTx from the deposit transaction: {0}")]
     BlockInfoDecodeError(#[from] DecodeError),
-    /// Failed to convert [`OpExecutionPayload`] to [`OpBlock`].
-    #[error(transparent)]
-    OpPayload(#[from] OpPayloadError),
 }
 
 impl PartialEq<Self> for FromBlockError {
@@ -182,9 +175,9 @@ impl L2BlockInfo {
 
     /// Constructs an [`L2BlockInfo`] from a [`BlockInfo`] and the decoded first transaction of
     /// the block, if any, applying the [`ChainGenesis`] rules.
-    fn from_block_info_and_first_tx(
+    fn from_block_info_and_first_tx<T: Typed2718 + OpTransaction>(
         block_info: BlockInfo,
-        first_tx: Option<&OpTxEnvelope>,
+        first_tx: Option<&T>,
         genesis: &ChainGenesis,
     ) -> Result<Self, FromBlockError> {
         let (l1_origin, sequence_number) = if block_info.number == genesis.l2.number {
@@ -209,13 +202,13 @@ impl L2BlockInfo {
     }
 
     /// Constructs an [`L2BlockInfo`] from a given OP [`Block`] and [`ChainGenesis`].
-    pub fn from_block_and_genesis<T: Typed2718 + AsRef<OpTxEnvelope>>(
+    pub fn from_block_and_genesis<T: Typed2718 + OpTransaction>(
         block: &Block<T>,
         genesis: &ChainGenesis,
     ) -> Result<Self, FromBlockError> {
         Self::from_block_info_and_first_tx(
             BlockInfo::from(block),
-            block.body.transactions.first().map(AsRef::as_ref),
+            block.body.transactions.first(),
             genesis,
         )
     }
@@ -255,35 +248,6 @@ impl L2BlockInfo {
                 .transpose()?
         };
         Self::from_block_info_and_first_tx(block_info, first_tx.as_ref(), genesis)
-    }
-
-    /// Constructs an [`L2BlockInfo`] From a given [`OpExecutionPayload`] and [`ChainGenesis`].
-    pub fn from_payload_and_genesis(
-        payload: OpExecutionPayload,
-        parent_beacon_block_root: Option<B256>,
-        genesis: &ChainGenesis,
-    ) -> Result<Self, FromBlockError> {
-        let block: OpBlock = match payload {
-            OpExecutionPayload::V4(_) => {
-                let sidecar = OpExecutionPayloadSidecar::v4(
-                    CancunPayloadFields::new(
-                        parent_beacon_block_root.unwrap_or_default(),
-                        Vec::new(),
-                    ),
-                    PraguePayloadFields::new(EMPTY_REQUESTS_HASH),
-                );
-                payload.try_into_block_with_sidecar(&sidecar)?
-            }
-            OpExecutionPayload::V3(_) => {
-                let sidecar = OpExecutionPayloadSidecar::v3(CancunPayloadFields::new(
-                    parent_beacon_block_root.unwrap_or_default(),
-                    Vec::new(),
-                ));
-                payload.try_into_block_with_sidecar(&sidecar)?
-            }
-            _ => payload.try_into_block()?,
-        };
-        Self::from_block_and_genesis(&block, genesis)
     }
 }
 
@@ -532,6 +496,49 @@ mod tests {
         let err =
             L2BlockInfo::from_header_and_first_tx(&sealed, Some(&trailing), &genesis).unwrap_err();
         assert!(matches!(err, FromBlockError::TxEnvelopeDecodeError(_)));
+    }
+
+    /// A non-`OpTxEnvelope` wrapper (here `Recovered<OpTxEnvelope>`, the shape a downstream caller
+    /// holds) must derive an identical [`L2BlockInfo`] to the bare-envelope path.
+    #[test]
+    fn test_from_block_and_genesis_wrapper_parity() {
+        use crate::test_utils::RAW_BEDROCK_INFO_TX;
+        use alloc::{vec, vec::Vec};
+        use alloy_consensus::transaction::Recovered;
+        use alloy_primitives::Address;
+
+        let genesis = ChainGenesis {
+            l1: BlockNumHash { hash: B256::from([4; 32]), number: 2 },
+            l2: BlockNumHash { hash: B256::from([5; 32]), number: 1 },
+            ..Default::default()
+        };
+        let deposit =
+            OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(op_alloy_consensus::TxDeposit {
+                input: alloy_primitives::Bytes::from(&RAW_BEDROCK_INFO_TX),
+                ..Default::default()
+            }));
+        let header = alloy_consensus::Header { number: 3, timestamp: 1, ..Default::default() };
+
+        // Baseline: bare `OpTxEnvelope`.
+        let base_block: OpBlock = alloy_consensus::Block {
+            header: header.clone(),
+            body: alloy_consensus::BlockBody {
+                transactions: vec![deposit.clone()],
+                ..Default::default()
+            },
+        };
+        let baseline = L2BlockInfo::from_block_and_genesis(&base_block, &genesis).unwrap();
+
+        // Same block, first tx wrapped in `Recovered<OpTxEnvelope>`.
+        let wrapped_txs: Vec<Recovered<OpTxEnvelope>> =
+            vec![Recovered::new_unchecked(deposit, Address::ZERO)];
+        let wrapped_block = alloy_consensus::Block {
+            header,
+            body: alloy_consensus::BlockBody { transactions: wrapped_txs, ..Default::default() },
+        };
+        let wrapped = L2BlockInfo::from_block_and_genesis(&wrapped_block, &genesis).unwrap();
+
+        assert_eq!(wrapped, baseline);
     }
 
     #[test]

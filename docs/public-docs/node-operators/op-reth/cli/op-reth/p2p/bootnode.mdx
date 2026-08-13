@@ -23,12 +23,14 @@ Options:
           This will also deterministically set the peer ID. If a path is provided but no key exists at that path, a new random secret will be generated and stored there. If no path is specified, a new ephemeral random secret will be used.
 
       --nat <NAT>
-          NAT resolution method (any|none|upnp|publicip|extip:\<IP\>)
+          NAT resolution method (any|none|upnp|publicip|extip:\<IP\>).
+
+          Can be repeated with one IPv4 and one IPv6 `extip:<IP>` to advertise a dual-stack discv5 ENR (discv4 binds a single socket and always advertises only the `--addr` family).
 
           [default: any]
 
       --v5
-          Run a v5 topic discovery bootnode
+          Also run discv5, sharing the discv4 UDP port (`--addr`)
 
   -h, --help
           Print help (see a summary with '-h')
@@ -47,7 +49,7 @@ Logging:
       --log.stdout.filter <FILTER>
           The filter to use for logs written to stdout
 
-          [default: ]
+          [default: ""]
 
       --log.file.format <FORMAT>
           The format to use for logs written to the log file
@@ -80,9 +82,9 @@ Logging:
           [default: 200]
 
       --log.file.max-files <COUNT>
-          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
 
-          [default: 5]
+          Default: 5 for `node` command, 0 for non-node utility subcommands.
 
       --log.journald
           Write logs to journald

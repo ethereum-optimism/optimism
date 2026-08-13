@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -76,7 +75,7 @@ func setRespectedGameTypeForRuntime(
 		txplan.WithAgainstLatestBlockEthClient(client),
 		txplan.WithEstimator(client, true),
 		txplan.WithRetrySubmission(client, 5, retry.Exponential()),
-		txplan.WithRetryInclusion(client, 5, retry.Exponential()))
+		txplan.WithRetryInclusion(txplan.FromGethReceipts(client), 5, retry.Exponential()))
 
 	asrBindings := bindings.NewBindings[bindings.AnchorStateRegistry](bindings.WithTo(asrAddr), bindings.WithTest(t))
 	rcpt, err := contractio.Write(asrBindings.SetRespectedGameType(uint32(gameType)), t.Ctx(), txOpts)
@@ -146,17 +145,13 @@ func addGameTypesForRuntime(
 		},
 	}
 
-	// Download the contracts artifacts once; reused for the mock verifier deploy and the upgrade.
+	// Download the contracts artifacts for the upgrade.
 	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
 	require.NoError(err, "failed to download artifacts")
 
 	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
-		// Deploy the no-op ZKMockVerifier so the verifier address has code (ZKDG-80). DEV ONLY;
-		// op-deployer owns the deploy. ZK proofs are never verified in devstack.
-		mockVerifier, mErr := deployer.DeployZKMockVerifier(t.Ctx(), client, l1PAOKey, artifactsFS)
-		require.NoError(mErr, "failed to deploy ZKMockVerifier")
-		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, mockVerifier)
+		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime()
 	}
 
 	// OPCMv2 requires all 6 game configs in order. Keep the legacy Cannon Kona
@@ -224,14 +219,12 @@ func addGameTypesForRuntime(
 }
 
 // ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.
-// verifier must be a deployed contract address (code.length > 0); use deployMockZKVerifier for devstack.
 // AbsolutePrestate is a fixed dummy hash — ZK proofs are never verified in devstack.
-func ZKDisputeGameConfigForRuntime(t devtest.CommonT, verifier common.Address) *embedded.ZKDisputeGameConfig {
+func ZKDisputeGameConfigForRuntime() *embedded.ZKDisputeGameConfig {
 	return &embedded.ZKDisputeGameConfig{
 		AbsolutePrestate:     common.Hash{0x01}, // dummy for devstack, not validated at claim time
-		Verifier:             verifier,
-		MaxChallengeDuration: 604800, // 7 days
-		MaxProveDuration:     259200, // 3 days
+		MaxChallengeDuration: 604800,            // 7 days
+		MaxProveDuration:     259200,            // 3 days
 		ChallengerBond:       eth.GWei(80_000_000).ToBig(),
 	}
 }

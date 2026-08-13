@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -81,6 +82,9 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 		txplan.WithTo(&bobAddr),
 		txplan.WithValue(eth.GWei(1)),
 		txplan.WithAccessList(accessList),
+		// The fabricated entry does not decode as a message, so the wait cannot be planned. The
+		// node is what has to reject this tx.
+		txintent.WithoutInteropDependencyWait(),
 		txplan.WithGasLimit(100_000),
 	)
 

@@ -159,18 +159,25 @@ type MultiChainRuntime struct {
 	TimeTravel         *clock.AdvancingClock
 	TestSequencer      *TestSequencerRuntime
 	L2ChallengerConfig *challengerconfig.Config
-	startZKProposerFn  func()
+	startZKProposerFn  func() string
+	zkMetricsAddr      string
 	DelaySeconds       uint64
 	InteropFilter      *InteropFilter // nil if not using interop filter
 	SyncTester         *SyncTesterRuntime
 }
 
 // StartZKProposer starts the configured kona-sp1-proposer. It is intended for
-// tests that use WithoutHonestProposer to seed dispute games before allowing
-// the proposer to observe them.
+// tests that seed dispute games with WithoutHonestProposer before allowing the
+// proposer to observe them.
 func (r *MultiChainRuntime) StartZKProposer(t devtest.T) {
 	start := r.startZKProposerFn
 	t.Require().NotNil(start, "ZK proposer is not configured or already started")
 	r.startZKProposerFn = nil
-	start()
+	r.zkMetricsAddr = start()
+}
+
+// ZKProposerMetricsAddr returns the running proposer's metrics address. It is
+// empty unless metrics are enabled and the proposer has started.
+func (r *MultiChainRuntime) ZKProposerMetricsAddr() string {
+	return r.zkMetricsAddr
 }

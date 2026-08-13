@@ -4,7 +4,7 @@ use kona_gossip::P2pRpcRequest;
 use kona_rpc::NetworkAdminQuery;
 use kona_sources::BlockSignerError;
 use libp2p::TransportError;
-use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpNetworkPayloadEnvelope};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::{
     self, select,
@@ -134,7 +134,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 Ok(())
             }
             Some(block) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
-                let timestamp = block.execution_payload.timestamp();
+                let timestamp = block.timestamp();
                 let selector = |handler: &kona_gossip::BlockHandler| {
                     handler.topic(timestamp)
                 };
@@ -150,14 +150,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 let payload_hash = block.payload_hash();
                 let signature = signer.sign_block(payload_hash, chain_id, sender_address).await?;
 
-                let payload = OpNetworkPayloadEnvelope {
-                    payload: block.execution_payload,
-                    parent_beacon_block_root: block.parent_beacon_block_root,
-                    signature,
-                    payload_hash,
-                };
-
-                match self.handler.gossip.publish(selector, Some(payload)) {
+                match self.handler.gossip.publish(selector, block, signature) {
                     Ok(id) => info!("Published unsafe payload | {:?}", id),
                     Err(e) => warn!("Failed to publish unsafe payload: {:?}", e),
                 }
@@ -169,8 +162,8 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                     return Err(NetworkActorError::ChannelClosed);
                 };
 
-                if let Some(payload) = self.handler.gossip.handle_event(event)
-                    && self.unsafe_block_tx.send(payload.into()).is_err()
+                if let Some(payload) = self.handler.gossip.handle_event(event) &&
+                    self.unsafe_block_tx.send(payload).is_err()
                 {
                     warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
                 }
@@ -211,11 +204,10 @@ mod tests {
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
     use arbitrary::Arbitrary;
-    use op_alloy_rpc_types_engine::OpExecutionPayload;
     use rand::Rng;
 
     #[test]
-    fn test_payload_signature_roundtrip_v1() {
+    fn test_payload_signature_v1() {
         let mut bytes = [0u8; 4096];
         rand::rng().fill(bytes.as_mut_slice());
 
@@ -223,33 +215,20 @@ mod tests {
         let expected_address = pubkey.address();
         const CHAIN_ID: u64 = 1337;
 
-        let block = OpExecutionPayloadEnvelope {
-            execution_payload: OpExecutionPayload::V1(
-                ExecutionPayloadV1::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap(),
-            ),
-            parent_beacon_block_root: None,
-        };
+        let block = OpExecutionPayloadEnvelope::V1(
+            ExecutionPayloadV1::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap(),
+        );
 
         let payload_hash = block.payload_hash();
-        let signature = pubkey.sign_hash_sync(&payload_hash.signature_message(CHAIN_ID)).unwrap();
-        let payload = OpNetworkPayloadEnvelope {
-            payload: block.execution_payload,
-            parent_beacon_block_root: block.parent_beacon_block_root,
-            signature,
-            payload_hash,
-        };
-        let encoded_payload = payload.encode_v1().unwrap();
-
-        let decoded_payload = OpNetworkPayloadEnvelope::decode_v1(&encoded_payload).unwrap();
-
-        let msg = decoded_payload.payload_hash.signature_message(CHAIN_ID);
-        let msg_signer = decoded_payload.signature.recover_address_from_prehash(&msg).unwrap();
+        let message = payload_hash.signature_message(CHAIN_ID);
+        let signature = pubkey.sign_hash_sync(&message).unwrap();
+        let msg_signer = signature.recover_address_from_prehash(&message).unwrap();
 
         assert_eq!(expected_address, msg_signer);
     }
 
     #[test]
-    fn test_payload_signature_roundtrip_v3() {
+    fn test_payload_signature_v3() {
         let mut bytes = [0u8; 4096];
         rand::rng().fill(bytes.as_mut_slice());
 
@@ -257,27 +236,16 @@ mod tests {
         let expected_address = pubkey.address();
         const CHAIN_ID: u64 = 1337;
 
-        let block = OpExecutionPayloadEnvelope {
-            execution_payload: OpExecutionPayload::V3(
-                ExecutionPayloadV3::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap(),
-            ),
-            parent_beacon_block_root: Some(B256::random()),
+        let block = OpExecutionPayloadEnvelope::V3 {
+            payload: ExecutionPayloadV3::arbitrary(&mut arbitrary::Unstructured::new(&bytes))
+                .unwrap(),
+            parent_beacon_block_root: B256::random(),
         };
 
         let payload_hash = block.payload_hash();
-        let signature = pubkey.sign_hash_sync(&payload_hash.signature_message(CHAIN_ID)).unwrap();
-        let payload = OpNetworkPayloadEnvelope {
-            payload: block.execution_payload,
-            parent_beacon_block_root: block.parent_beacon_block_root,
-            signature,
-            payload_hash,
-        };
-        let encoded_payload = payload.encode_v3().unwrap();
-
-        let decoded_payload = OpNetworkPayloadEnvelope::decode_v3(&encoded_payload).unwrap();
-
-        let msg = decoded_payload.payload_hash.signature_message(CHAIN_ID);
-        let msg_signer = decoded_payload.signature.recover_address_from_prehash(&msg).unwrap();
+        let message = payload_hash.signature_message(CHAIN_ID);
+        let signature = pubkey.sign_hash_sync(&message).unwrap();
+        let msg_signer = signature.recover_address_from_prehash(&message).unwrap();
 
         assert_eq!(expected_address, msg_signer);
     }

@@ -39,7 +39,7 @@ func NewAnchorStateMonitor(logger log.Logger, metrics AnchorStateMetrics, newCon
 
 // CheckAnchorState reads the current anchor state L2 sequence number for every distinct
 // AnchorStateRegistry referenced by the monitored games and records it as a metric.
-func (m *AnchorStateMonitor) CheckAnchorState(ctx context.Context, blockHash common.Hash, games []*types.EnrichedGameData) {
+func (m *AnchorStateMonitor) CheckAnchorState(ctx context.Context, blockHash common.Hash, games []*types.CommonGameData) {
 	seen := make(map[common.Address]bool)
 	for _, game := range games {
 		asr := game.AnchorStateRegistry

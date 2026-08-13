@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,13 +16,17 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +45,7 @@ func newEndpointProvider() *mockL2EndpointProvider {
 	}
 }
 
-func (p *mockL2EndpointProvider) EthClient(context.Context) (dial.EthClientInterface, error) {
+func (p *mockL2EndpointProvider) PayloadSource(context.Context) (dial.PayloadSource, error) {
 	return p.ethClient, p.ethClientErr
 }
 
@@ -320,7 +325,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 
 			// Add a block to the channel manager so unsafeDABytes() returns > 0
 			testBlock := newMiniL2Block(5) // Create a block with 5 transactions
-			err := bs.channelMgr.AddL2Block(testBlock)
+			err := bs.channelMgr.AddL2Block(mustPayloadFromGeth(testBlock))
 			require.NoError(t, err, "Should be able to add block to channel manager")
 
 			// Simulate block loading by calling sendToThrottlingLoop periodically
@@ -467,4 +472,46 @@ func TestBatchSubmitter_CriticalError(t *testing.T) {
 		assert.False(t, isCriticalThrottlingRPCError(e), "false negative: %s", e)
 	}
 
+}
+
+// TestBatchSubmitter_LoadBlocksIntoState_DepositPayload loads a deposit-bearing
+// payload through loadBlocksIntoState, covering the L1-info extraction from the
+// payload's opaque first transaction (derive.PayloadToBlockRef): payload
+// transactions carry raw encodings, so the deposit must decode without
+// go-ethereum's typed-transaction support.
+func TestBatchSubmitter_LoadBlocksIntoState_DepositPayload(t *testing.T) {
+	const blockNumber = uint64(5)
+	const blockTimestamp = uint64(1000)
+
+	mkPayload := func(t *testing.T, firstTx []byte) *eth.ExecutionPayloadEnvelope {
+		return &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+			BlockHash:    common.Hash{0x01},
+			ParentHash:   common.Hash{0x02},
+			BlockNumber:  hexutil.Uint64(blockNumber),
+			Timestamp:    hexutil.Uint64(blockTimestamp),
+			Transactions: []eth.Data{firstTx},
+		}}
+	}
+
+	t.Run("l1 info deposit first tx", func(t *testing.T) {
+		bs, ep := setup(t, nil)
+		rng := rand.New(rand.NewSource(789))
+		l1Info := testutils.RandomBlockInfo(rng)
+		l1InfoTx, err := derive.L1InfoDepositBytes(bs.RollupConfig, params.MergedTestChainConfig,
+			eth.SystemConfig{BatcherAddr: common.Address{0x42}}, 3, l1Info, blockTimestamp)
+		require.NoError(t, err)
+		ep.ethClient.ExpectPayloadByNumber(blockNumber, mkPayload(t, l1InfoTx), nil)
+
+		require.NoError(t, bs.loadBlocksIntoState(context.Background(), blockNumber, blockNumber, nil, nil))
+		ep.ethClient.AssertExpectations(t)
+	})
+
+	t.Run("non-deposit first tx rejected", func(t *testing.T) {
+		bs, ep := setup(t, nil)
+		ep.ethClient.ExpectPayloadByNumber(blockNumber, mkPayload(t, []byte{0x02, 0xc0}), nil)
+
+		err := bs.loadBlocksIntoState(context.Background(), blockNumber, blockNumber, nil, nil)
+		require.ErrorContains(t, err, "failed to decode L1 info deposit")
+		ep.ethClient.AssertExpectations(t)
+	})
 }

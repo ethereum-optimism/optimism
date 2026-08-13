@@ -9,17 +9,35 @@ on:
       - develop
     tags:
       - "*/v*"
+      - "op-reth/bench*"
+  pull_request:
+    branches:
+      - develop
+    # Mirror the (now-disabled) docker build-images.yaml triggers: build on the
+    # same source changes, with docker-specific paths swapped for apko ones.
+    paths:
+      - "op-*/**"
+      - "cannon/**"
+      - "packages/contracts-bedrock/**"
+      - "rust/**"
+      - "ops/scripts/compute-git-versions.sh"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/build-images.apko.yaml"
+      - ".github/images.apko.json"
+      - "apko/**"
+      - "melange/**"
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   SOURCE_DATE_EPOCH: 0
-  REGISTRY: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus
+  REGISTRY: us-docker.pkg.dev/oplabs-tools-artifacts/images
 
 jobs:
   plan:
@@ -42,7 +60,7 @@ jobs:
 
       - name: Plan melange, apko, and smoke matrices
         id: plan
-        uses: ethereum-optimism/factory/actions/apko-plan@0e7698dcc639d694b5751e7168918aab481a0767
+        uses: ethereum-optimism/factory/actions/apko-plan@12411827f96e70e564f1b459a1c50bd6e3bd6199
         with:
           config: .github/images.apko.json
 
@@ -59,7 +77,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@0e7698dcc639d694b5751e7168918aab481a0767
+    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@12411827f96e70e564f1b459a1c50bd6e3bd6199
     with:
       stack: ${{ matrix.stack }}
       arch: ${{ matrix.arch }}
@@ -72,7 +90,8 @@ jobs:
       source-submodules: ${{ matrix.source_submodules }}
       use-gha-cache: ${{ matrix.use_gha_cache }}
       cache-key-files: ${{ matrix.cache_key_files }}
-      cargo-profile: maxperf
+      cargo-profile: ${{ github.event_name == 'pull_request' && 'fast-build' || 'maxperf' }}
+      build-version: ${{ matrix.build_version }}
 
   apko:
     name: apko (${{ matrix.service }})
@@ -91,11 +110,11 @@ jobs:
       attestations: write
       artifact-metadata: write
       actions: read
-    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@0e7698dcc639d694b5751e7168918aab481a0767
+    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@12411827f96e70e564f1b459a1c50bd6e3bd6199
     with:
       service: ${{ matrix.service }}
       needs-melange-apks: ${{ matrix.needs_melange_apks }}
-      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       publish-tag: ${{ matrix.publish_tag }}
       archs: ${{ matrix.archs }}
 
@@ -114,10 +133,11 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@0e7698dcc639d694b5751e7168918aab481a0767
+    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@12411827f96e70e564f1b459a1c50bd6e3bd6199
     with:
       service: ${{ matrix.service }}
-      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       arch: ${{ matrix.arch }}
       runner: ${{ matrix.runner }}
       smoke-test: ${{ matrix.smoke_test }}
+      expected-version: ${{ matrix.expected_version }}

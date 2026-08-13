@@ -25,14 +25,20 @@ func (ev PayloadSuccessEvent) String() string {
 }
 
 func (e *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
-	if ev.DerivedFrom == ReplaceBlockSource {
-		e.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
+	e.finalizePayload(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom, ev.Envelope, ev.BuildStarted, ev.InsertStarted)
+}
+
+// finalizePayload handles unsafe/safe head updates and the engine forkchoice update after a successful NewPayload.
+// It does NOT acquire e.mu (caller is responsible).
+func (e *EngineController) finalizePayload(ctx context.Context, ref eth.L2BlockRef, concluding bool, derivedFrom eth.L1BlockRef, envelope *eth.ExecutionPayloadEnvelope, buildStarted time.Time, insertStarted time.Time) {
+	if derivedFrom == ReplaceBlockSource {
+		e.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ref)
 		// Change the engine state to make the replacement block the cross-safe head of the chain,
 		// And continue syncing from there.
-		e.forceReset(ctx, ev.Ref, ev.Ref, ev.Ref, ev.Ref, e.Finalized(), false)
+		e.forceReset(ctx, ref, ref, ref, ref, e.Finalized(), false)
 		e.emitter.Emit(ctx, InteropReplacedBlockEvent{
-			Envelope: ev.Envelope,
-			Ref:      ev.Ref.BlockRef(),
+			Envelope: envelope,
+			Ref:      ref.BlockRef(),
 		})
 		// Apply it to the execution engine
 		e.tryUpdateEngine(ctx)
@@ -42,11 +48,11 @@ func (e *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSucce
 	}
 
 	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, tryUpdateEngine must be sequentially invoked
-	e.tryUpdateUnsafe(ctx, ev.Ref)
+	e.tryUpdateUnsafe(ctx, ref)
 	// If derived from L1, then it can be considered (pending) safe
-	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		e.tryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
-		e.tryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+	if derivedFrom != (eth.L1BlockRef{}) {
+		e.tryUpdatePendingSafe(ctx, ref, concluding, derivedFrom)
+		e.tryUpdateLocalSafe(ctx, ref, concluding, derivedFrom)
 	}
 	// Now if possible synchronously call FCU
 	err := e.tryUpdateEngineInternal(ctx)
@@ -54,28 +60,28 @@ func (e *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSucce
 		e.log.Error("Failed to update engine", "error", err)
 	} else {
 		updateEngineFinish := time.Now()
-		e.logBlockProcessingMetrics(updateEngineFinish, ev)
+		e.logBlockProcessingMetrics(updateEngineFinish, envelope, buildStarted, insertStarted)
 	}
 }
 
-func (e *EngineController) logBlockProcessingMetrics(updateEngineFinish time.Time, ev PayloadSuccessEvent) {
+func (e *EngineController) logBlockProcessingMetrics(updateEngineFinish time.Time, envelope *eth.ExecutionPayloadEnvelope, buildStarted, insertStarted time.Time) {
 	// Protect against nil pointer dereferences
-	if ev.Envelope == nil || ev.Envelope.ExecutionPayload == nil {
+	if envelope == nil || envelope.ExecutionPayload == nil {
 		e.log.Info("Envelope.ExecutionPayload not found, skipping block processing metrics")
 		return
 	}
 
-	mgas := float64(ev.Envelope.ExecutionPayload.GasUsed) / 1e6
+	mgas := float64(envelope.ExecutionPayload.GasUsed) / 1e6
 	buildTime := time.Duration(0)
-	insertTime := updateEngineFinish.Sub(ev.InsertStarted)
+	insertTime := updateEngineFinish.Sub(insertStarted)
 	totalTime := insertTime
 
 	// BuildStarted may be zero if sequencer already built + gossiped a block, but failed during
 	// insertion and needed a retry of the insertion. In that case we use the default values above,
 	// otherwise we calculate buildTime and totalTime below
-	if !ev.BuildStarted.IsZero() {
-		buildTime = ev.InsertStarted.Sub(ev.BuildStarted)
-		totalTime = updateEngineFinish.Sub(ev.BuildStarted)
+	if !buildStarted.IsZero() {
+		buildTime = insertStarted.Sub(buildStarted)
+		totalTime = updateEngineFinish.Sub(buildStarted)
 	}
 
 	// Protect against divide-by-zero
@@ -87,8 +93,8 @@ func (e *EngineController) logBlockProcessingMetrics(updateEngineFinish time.Tim
 	}
 
 	e.log.Info("Inserted new L2 unsafe block",
-		"hash", ev.Envelope.ExecutionPayload.BlockHash,
-		"number", uint64(ev.Envelope.ExecutionPayload.BlockNumber),
+		"hash", envelope.ExecutionPayload.BlockHash,
+		"number", uint64(envelope.ExecutionPayload.BlockNumber),
 		"build_time", common.PrettyDuration(buildTime),
 		"insert_time", common.PrettyDuration(insertTime),
 		"total_time", common.PrettyDuration(totalTime),

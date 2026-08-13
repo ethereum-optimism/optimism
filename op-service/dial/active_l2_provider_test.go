@@ -87,7 +87,7 @@ func (et *endpointProviderTest) newActiveL2EndpointProvider(checkDuration time.D
 		return nil, fmt.Errorf("unknown test url: %s", url)
 	}
 
-	mockEthDialer := func(ctx context.Context, log log.Logger, url string) (EthClientInterface, error) {
+	mockEthDialer := func(ctx context.Context, log log.Logger, url string) (PayloadSource, error) {
 		for i, client := range et.ethClients {
 			if url == fmt.Sprintf("eth%d", i) {
 				if !et.ethDialOutcomes[i] {
@@ -182,7 +182,7 @@ func TestEndpointProvider_FailoverOnInactiveSequencer(t *testing.T) {
 	activeProvider, err := ept.newActiveL2EndpointProvider(0)
 	require.NoError(t, err)
 
-	firstSequencerUsed, err := activeProvider.EthClient(context.Background())
+	firstSequencerUsed, err := activeProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], firstSequencerUsed)
 
@@ -190,7 +190,7 @@ func TestEndpointProvider_FailoverOnInactiveSequencer(t *testing.T) {
 	secondarySequencer.ExpectSequencerActive(true, nil)
 	primarySequencer.MaybeClose()
 	ept.ethClients[0].MaybeClose() // we close the ethclient when we switch over to the next sequencer
-	secondSequencerUsed, err := activeProvider.EthClient(context.Background())
+	secondSequencerUsed, err := activeProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[1], secondSequencerUsed)
 	ept.assertAllExpectations(t)
@@ -235,7 +235,7 @@ func TestEndpointProvider_FailoverOnErroredSequencer(t *testing.T) {
 	require.NoError(t, err)
 
 	primarySequencer.ExpectSequencerActive(true, nil) // respond true again when the test calls `EthClient()` the first time
-	firstSequencerUsed, err := activeProvider.EthClient(context.Background())
+	firstSequencerUsed, err := activeProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, primaryEthClient, firstSequencerUsed)
 
@@ -244,7 +244,7 @@ func TestEndpointProvider_FailoverOnErroredSequencer(t *testing.T) {
 	primaryEthClient.MaybeClose()
 	secondarySequencer.ExpectSequencerActive(true, nil)
 
-	secondSequencerUsed, err := activeProvider.EthClient(context.Background())
+	secondSequencerUsed, err := activeProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, secondaryEthClient, secondSequencerUsed)
 	ept.assertAllExpectations(t)
@@ -285,7 +285,7 @@ func TestEndpointProvider_NoExtraCheckOnActiveSequencer(t *testing.T) {
 
 	primarySequencer.ExpectSequencerActive(true, nil) // default test provider, which always checks, checks again on EthClient()
 
-	firstEthClientUsed, err := endpointProvider.EthClient(context.Background())
+	firstEthClientUsed, err := endpointProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], firstEthClientUsed)
 	ept.assertAllExpectations(t)
@@ -343,7 +343,7 @@ func TestEndpointProvider_FailoverAndReturn(t *testing.T) {
 	secondarySequencer.ExpectSequencerActive(true, nil)
 
 	// Fails over to secondary
-	secondEthClient, err := endpointProvider.EthClient(context.Background())
+	secondEthClient, err := endpointProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[1], secondEthClient)
 
@@ -354,7 +354,7 @@ func TestEndpointProvider_FailoverAndReturn(t *testing.T) {
 	ept.ethClients[1].MaybeClose()
 
 	// // Should return to primary
-	thirdSequencerUsed, err := endpointProvider.EthClient(context.Background())
+	thirdSequencerUsed, err := endpointProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], thirdSequencerUsed)
 	ept.assertAllExpectations(t)
@@ -600,11 +600,11 @@ func TestEndpointProvider_LongCheckDuration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should return the same client without extra checks
-	firstEthClient, err := endpointProvider.EthClient(context.Background())
+	firstEthClient, err := endpointProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], firstEthClient)
 
-	secondEthClient, err := endpointProvider.EthClient(context.Background())
+	secondEthClient, err := endpointProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], secondEthClient)
 	ept.assertAllExpectations(t)
@@ -646,7 +646,7 @@ func TestEndpointProvider_ErrorWhenAllSequencersInactive(t *testing.T) {
 		sequencer.MaybeClose()
 	}
 
-	_, err = endpointProvider.EthClient(context.Background())
+	_, err = endpointProvider.PayloadSource(context.Background())
 	require.Error(t, err) // Expect an error as all sequencers are inactive
 	ept.assertAllExpectations(t)
 }
@@ -693,7 +693,7 @@ func TestEndpointProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration(t 
 
 	// Primary sequencer becomes inactive, but the provider won't check immediately due to longCheckDuration
 	primarySequencer.ExpectSequencerActive(false, nil)
-	firstEthClientUsed, err := endpointProvider.EthClient(context.Background())
+	firstEthClientUsed, err := endpointProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], firstEthClientUsed)
 
@@ -701,7 +701,7 @@ func TestEndpointProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration(t 
 	require.NoError(t, err)
 	require.False(t, active)
 
-	secondEthClientUsed, err := endpointProvider.EthClient(context.Background())
+	secondEthClientUsed, err := endpointProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], secondEthClientUsed)
 	ept.assertAllExpectations(t)
@@ -789,13 +789,13 @@ func TestEndpointProvider_HandlesSingleSequencer(t *testing.T) {
 	require.NoError(t, err)
 
 	onlySequencer.ExpectSequencerActive(true, nil) // respond true a once more on fall-through check in `EthClient()`
-	firstEthClientUsed, err := endpointProvider.EthClient(context.Background())
+	firstEthClientUsed, err := endpointProvider.PayloadSource(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], firstEthClientUsed)
 
 	onlySequencer.ExpectSequencerActive(false, nil) // become inactive after that
 	onlySequencer.MaybeClose()
-	secondEthClientUsed, err := endpointProvider.EthClient(context.Background())
+	secondEthClientUsed, err := endpointProvider.PayloadSource(context.Background())
 	require.Error(t, err)
 	require.Nil(t, secondEthClientUsed)
 	ept.assertAllExpectations(t)

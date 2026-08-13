@@ -74,7 +74,7 @@ func (e *ExecMsgSpammer) Spam(t devtest.T) error {
 	// Get an initiating message from the source and execute it.
 	initMsg := e.source.Get()
 	start := time.Now()
-	tx, err := e.l2.Include(t, planExecMsg(t, initMsg, e.l2.BlockTime, e.l2.EL.Escape().EthClient()))
+	tx, err := e.l2.Include(t, planExecMsg(t, initMsg))
 	if err != nil {
 		return fmt.Errorf("include exec msg: %w", err)
 	}

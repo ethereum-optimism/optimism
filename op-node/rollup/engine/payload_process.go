@@ -2,11 +2,19 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+var (
+	// ErrPayloadDenied is returned when a payload is denied by the SuperAuthority denylist.
+	ErrPayloadDenied = errors.New("payload denied by SuperAuthority")
+	// ErrPayloadInvalid is returned when a payload's execution is invalid.
+	ErrPayloadInvalid = errors.New("payload execution invalid")
 )
 
 type PayloadProcessEvent struct {
@@ -25,12 +33,31 @@ func (ev PayloadProcessEvent) String() string {
 }
 
 func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProcessEvent) {
+	insertStarted, err := e.processNewPayload(ctx, ev.Envelope, ev.Ref, ev.DerivedFrom)
+	if err != nil {
+		return
+	}
+	e.emitter.Emit(ctx, PayloadSuccessEvent{
+		Concluding:    ev.Concluding,
+		DerivedFrom:   ev.DerivedFrom,
+		BuildStarted:  ev.BuildStarted,
+		InsertStarted: insertStarted,
+		Envelope:      ev.Envelope,
+		Ref:           ev.Ref,
+	})
+}
+
+// processNewPayload handles the SuperAuthority check and NewPayload RPC call.
+// It does NOT acquire e.mu (caller is responsible).
+// Returns the insert start time on success, or an error.
+// Emits error events for other listeners, but does NOT emit PayloadSuccessEvent (caller's job).
+func (e *EngineController) processNewPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, derivedFrom eth.L1BlockRef) (time.Time, error) {
 	rpcCtx, cancel := context.WithTimeout(e.ctx, payloadProcessTimeout)
 	defer cancel()
 
 	// Check SuperAuthority denylist before inserting the payload
-	if e.superAuthority != nil && ev.Envelope != nil && ev.Envelope.ExecutionPayload != nil {
-		payload := ev.Envelope.ExecutionPayload
+	if e.superAuthority != nil && envelope != nil && envelope.ExecutionPayload != nil {
+		payload := envelope.ExecutionPayload
 		denied, err := e.superAuthority.IsDenied(uint64(payload.BlockNumber), payload.BlockHash)
 		if err != nil {
 			e.log.Error("Failed to check SuperAuthority denylist, proceeding with payload",
@@ -39,60 +66,78 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 				"err", err,
 			)
 		} else if denied {
-			if ev.DerivedFrom != (eth.L1BlockRef{}) {
+			if derivedFrom != (eth.L1BlockRef{}) {
 				e.log.Warn("Requesting deposits-only replacement for derived payload",
 					"blockNumber", payload.BlockNumber,
 					"blockHash", payload.BlockHash,
-					"derivedFrom", ev.DerivedFrom,
+					"derivedFrom", derivedFrom,
 				)
-				e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
+				e.emitDepositsOnlyPayloadAttributesRequest(ctx, ref.ParentID(), derivedFrom)
 			} else {
 				e.log.Warn("Unsafe payload denied by SuperAuthority, dropping",
 					"blockNumber", payload.BlockNumber,
 					"blockHash", payload.BlockHash,
 				)
 			}
-			return
+			return time.Time{}, ErrPayloadDenied
 		}
 	}
 
 	insertStart := time.Now()
 	status, err := e.engine.NewPayload(rpcCtx,
-		ev.Envelope.ExecutionPayload, ev.Envelope.ParentBeaconBlockRoot)
+		envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
-		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
-			Err: fmt.Errorf("failed to insert execution payload: %w", err),
-		})
-		return
+		insertErr := fmt.Errorf("failed to insert execution payload: %w", err)
+		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: insertErr})
+		return time.Time{}, insertErr
 	}
 	switch status.Status {
 	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
 		// Depending on execution engine, not all block-validity checks run immediately on build-start
 		// at the time of the forkchoiceUpdated engine-API call, nor during getPayload.
-		if ev.DerivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(ev.DerivedFrom.Time) {
-			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
-			return
+		if derivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(derivedFrom.Time) {
+			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ref.ParentID(), derivedFrom)
+			return time.Time{}, ErrPayloadInvalid
 		}
 
 		e.emitter.Emit(ctx, PayloadInvalidEvent{
-			Envelope: ev.Envelope,
-			Err:      eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
+			Envelope: envelope,
+			Err:      eth.NewPayloadErr(envelope.ExecutionPayload, status),
 		})
-		return
+		return time.Time{}, ErrPayloadInvalid
 	case eth.ExecutionValid:
-		e.emitter.Emit(ctx, PayloadSuccessEvent{
-			Concluding:    ev.Concluding,
-			DerivedFrom:   ev.DerivedFrom,
-			BuildStarted:  ev.BuildStarted,
-			InsertStarted: insertStart,
-			Envelope:      ev.Envelope,
-			Ref:           ev.Ref,
-		})
-		return
+		return insertStart, nil
 	default:
-		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
-			Err: eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
-		})
-		return
+		statusErr := eth.NewPayloadErr(envelope.ExecutionPayload, status)
+		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: statusErr})
+		return time.Time{}, statusErr
 	}
+}
+
+// ProcessPayload inserts a payload via NewPayload, updates unsafe head, and finalizes via FCU.
+// Acquires e.mu. Combines processNewPayload and finalizePayload for the direct-call path.
+// Emits UnsafeUpdateEvent on success. On error, emits appropriate error events before returning.
+// Returns ErrStaleBuild without inserting when the payload no longer extends the unsafe head.
+// A nil return means the payload was inserted (NewPayload valid) and the unsafe head updated;
+// the concluding forkchoice update may still have failed transiently — it is logged and
+// retried implicitly, since every subsequent build-start and engine update carries the full
+// forkchoice state.
+// Does NOT emit PayloadSuccessEvent.
+func (e *EngineController) ProcessPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	// The unsafe head may have moved (competing insert, block replacement) since
+	// the payload was sealed; inserting it anyway would reorg the head backwards.
+	if envelope.ExecutionPayload.ParentHash != e.unsafeHead.Hash {
+		e.log.Warn("dropping stale sequencer payload, parent is not the unsafe head",
+			"payload", ref, "parent", envelope.ExecutionPayload.ParentHash, "unsafe", e.unsafeHead)
+		e.requestForkchoiceUpdate(ctx)
+		return ErrStaleBuild
+	}
+	insertStarted, err := e.processNewPayload(ctx, envelope, ref, eth.L1BlockRef{})
+	if err != nil {
+		return err
+	}
+	e.finalizePayload(ctx, ref, false, eth.L1BlockRef{}, envelope, buildStarted, insertStarted)
+	return nil
 }

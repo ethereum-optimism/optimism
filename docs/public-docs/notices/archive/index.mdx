@@ -1,0 +1,57 @@
+---
+title: "Notice archive"
+sidebarTitle: "Archive"
+description: "Completed network notices for OP Stack operators, newest first, with the date each change took effect."
+diataxis: reference
+---
+
+{/*
+  MAINTENANCE: this page is the browse entry point for every notice under
+  notices/archive/. The archived pages are deliberately not in the docs.json
+  sidebar (they are listed in scripts/lint/nav-allowlist.json instead), so a
+  notice that is missing from the table below is unreachable by browsing.
+  When you archive a notice: add a row here, keep the table sorted newest
+  first, and set the page's date: frontmatter to the same value.
+  Archived URLs never change. Do not move or rename these files.
+*/}
+
+Every notice on this page is finished: the upgrade activated, the deprecation
+took effect, or the exercise completed. They are kept because live pages link
+into them and because they record what operators were asked to do at the time.
+Their URLs are permanent.
+
+For notices that still need action, see [Notices](/notices). For the permanent
+record of a network upgrade (activation timestamps, governing specification,
+and minimum component versions), see the
+[hardfork registry](/op-stack/protocol/network-upgrades); contract-only
+upgrades are in the registry's
+[contract upgrades table](/op-stack/protocol/network-upgrades#contract-upgrades).
+
+## Archived notices
+
+The **Effective** column is the date the change took effect: mainnet hardfork
+activation, the end-of-support date, the mainnet execution date of a contract
+upgrade, or the start of a time-boxed experiment. A few notices never recorded
+one. Those rows say so and are placed at their nearest known point in the
+sequence rather than given a date they cannot support.
+
+| Effective | Notice | What it covered |
+| --- | --- | --- |
+| 2026-07-08 | [Upgrade 19: Karst hard fork](/notices/archive/upgrade-19) | Karst: the L2 Contract Manager (L2CM), `CANNON_KONA` promoted to the respected game type, a subset of Osaka EIPs on L2, and a preemptive BN256 pairing input-size reduction. |
+| 2026-06-26 | [Deprecation of Req/Res CL P2P sync](/notices/archive/req-resp-cl-sync-deprecation) | Retirement of the `op-node` request-response consensus-layer P2P sync client in favor of syncing through the execution client. Removed in `op-node/v1.19.1`. |
+| 2026-05-31 | [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation) | End of support for op-geth and op-program, neither of which supports Karst. Migrate execution to op-reth and fault proofs to kona-client. |
+| 2026-05-26 | [Stake-based priority ordering on OP Mainnet](/notices/archive/stake-based-priority-ordering) | A time-boxed OP Mainnet experiment giving stakers in the `PolicyEngineStaking` contract priority in transaction ordering, capped at four weeks. |
+| Not dated | [Deprecation of op-deployer upgrade and manage commands](/notices/archive/op-deployer-upgrade-deprecation) | `op-deployer manage` retired, and `op-deployer upgrade` capped at `op-contracts/v5.0.0`. L1 contract upgrades beyond that use superchain-ops or OPCM directly. Postdates `op-contracts/v6.0.0`. |
+| Not dated | [Upgrade 18: Cannon + Kona and Custom Gas Token v2](/notices/archive/upgrade-18) | Contract-only upgrade adding the `CANNON_KONA` (8) game type alongside `CANNON` (0), Custom Gas Token v2, and the creator-pattern dispute game refactor. Shipped in [`op-contracts/v6.0.0`](/releases/op-contracts) (released 2026-03-16). |
+| 2025-12-03 | [Fusaka upgrade notice](/notices/archive/fusaka-notice) | Readiness work so OP Stack chains keep deriving from an L1 that has activated Fusaka and its blob parameter-only forks. Not Fusaka adoption on L2. |
+| 2025-12-02 | [Upgrade 17: Jovian hard fork](/notices/archive/upgrade-17) | Jovian: a configurable minimum base fee, the data-availability footprint block limit, and Cannon support for Go 1.24. |
+| 2025-10-02 | [Upgrade 16a](/notices/archive/upgrade-16a) | Maintenance contract upgrade superseding Upgrade 16: removes the unused interop withdrawal-proving code and adds `SystemConfig` feature toggles. |
+| 2025-07-24 | [Upgrade 16: preparing for interop](/notices/archive/upgrade-16) | Contract upgrade making `OptimismPortal` interop-ready, meeting updated Stage 1 requirements, adding Go 1.23 support in Cannon, and raising `MAX_GAS_LIMIT` to 500M. Invalidated existing withdrawal proofs. |
+| 2025-05-14 | [Superchain withdrawal pause test](/notices/archive/superchain-withdrawal-pause-test) | A scheduled exercise of the Superchain-wide `pause` and `unpause` incident-response path. No user or operator action was required. |
+| 2025-05-09 | [Upgrade 15: Isthmus hard fork](/notices/archive/upgrade-15) | Isthmus: Prague features on the OP Stack, the L2 withdrawals root in the block header, and the operator fee. |
+| Not dated | [Upgrade 14: MT-Cannon and Isthmus L1 contracts](/notices/archive/upgrade-14) | Contract upgrade shipping multithreaded 64-bit Cannon (MT-Cannon) and the Isthmus L1 contracts. Shipped in [`op-contracts/v3.0.0`](/releases/op-contracts) (released 2025-05-08); the notice's own mainnet date was an estimate. |
+| Not dated | [L1 Pectra user fees and chain profitability](/notices/archive/pectra-fees) | How the [EIP-7623](https://eips.ethereum.org/EIPS/eip-7623) gas repricing at L1 Pectra affected chains still posting data as calldata rather than blobs, and which Ecotone scalars to check. |
+| 2025-04-02 | [Upgrade 13: OPCM and incident response](/notices/archive/upgrade-13) | Contract upgrade introducing the OP Contracts Manager (OPCM), fault-proof incident response improvements, and the `DeputyPauseModule`. |
+| 2025-03-20 | [Superchain testnets' blob fee bug](/notices/archive/blob-fee-bug) | A testnet-only blob base fee miscalculation that overcharged L1 fees, and the hardfork activation that fixed it. Mainnet chains were never affected. |
+| Not dated | [Preparing for Pectra breaking changes](/notices/archive/pectra-changes) | Breaking changes for chain and node operators when Pectra activated on L1. The page carries only tentative L1 slot times that were later superseded; it was last revised 2025-03-11. |
+| 2025-01-09 | [Preparing for Holocene breaking changes](/notices/archive/holocene-changes) | Holocene: stricter block derivation, EIP-1559 parameters made configurable through `SystemConfig`, and the MIPS contract upgrade. |

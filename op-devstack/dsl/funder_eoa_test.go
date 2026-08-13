@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -54,7 +55,7 @@ type funderTestEthClient struct {
 	receiptsReady chan struct{}
 	balances      map[common.Address]*big.Int
 	transactions  []*types.Transaction
-	receipts      map[common.Hash]*types.Receipt
+	receipts      map[common.Hash]*optypes.Receipt
 }
 
 var _ apis.EthClient = (*funderTestEthClient)(nil)
@@ -66,7 +67,7 @@ func newFunderTestEthClient(chainID *big.Int, pendingNonce uint64) *funderTestEt
 		sendsReady:    make(chan struct{}),
 		receiptsReady: make(chan struct{}),
 		balances:      make(map[common.Address]*big.Int),
-		receipts:      make(map[common.Hash]*types.Receipt),
+		receipts:      make(map[common.Hash]*optypes.Receipt),
 	}
 }
 
@@ -124,14 +125,14 @@ func (c *funderTestEthClient) SendTransaction(ctx context.Context, tx *types.Tra
 	to := *tx.To()
 	balance := copyBig(c.balances[to])
 	c.balances[to] = balance.Add(balance, tx.Value())
-	c.receipts[txHash] = &types.Receipt{Status: types.ReceiptStatusSuccessful, TxHash: txHash}
+	c.receipts[txHash] = &optypes.Receipt{Receipt: types.Receipt{Status: types.ReceiptStatusSuccessful, TxHash: txHash}}
 	if len(c.transactions) == 2 {
 		close(c.receiptsReady)
 	}
 	return nil
 }
 
-func (c *funderTestEthClient) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+func (c *funderTestEthClient) TransactionReceipt(ctx context.Context, txHash common.Hash) (*optypes.Receipt, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()

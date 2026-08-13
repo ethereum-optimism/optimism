@@ -7,29 +7,32 @@ pub mod v4;
 use crate::{OpExecutionPayloadSidecar, OpExecutionPayloadV4};
 use alloc::vec::Vec;
 use alloy_consensus::{Block, BlockHeader, HeaderInfo, Transaction};
-use alloy_eips::{Decodable2718, Encodable2718, Typed2718, eip7685::EMPTY_REQUESTS_HASH};
+use alloy_eips::{Decodable2718, Encodable2718};
 use alloy_primitives::{Address, B256, Bytes, Sealable, U256};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadInputV2, ExecutionPayloadV1, ExecutionPayloadV2,
-    ExecutionPayloadV3, PayloadError,
+    ExecutionPayloadV3,
 };
-use error::OpPayloadError;
 
-/// An execution payload, which can be either [`ExecutionPayloadV2`], [`ExecutionPayloadV3`], or
-/// [`OpExecutionPayloadV4`].
+/// A versioned OP execution payload.
+///
+/// V1 through V3 use the corresponding Alloy execution payload types. V4 uses the OP-specific
+/// Isthmus payload, which adds a withdrawals root and differs from Alloy's execution payload V4.
+/// Its transparent SSZ encoding does not include a version discriminator, so decoding requires an
+/// externally supplied payload version.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(feature = "std", derive(ssz_derive::Encode, ssz_derive::Decode))]
+#[cfg_attr(feature = "std", derive(ssz_derive::Encode))]
 #[cfg_attr(feature = "std", ssz(enum_behaviour = "transparent"))]
 #[cfg_attr(feature = "serde", serde(untagged))]
 pub enum OpExecutionPayload {
-    /// V1 payload
+    /// Pre-Canyon execution payload.
     V1(ExecutionPayloadV1),
-    /// V2 payload
+    /// Canyon execution payload.
     V2(ExecutionPayloadV2),
-    /// V3 payload
+    /// Ecotone execution payload.
     V3(ExecutionPayloadV3),
-    /// V4 payload
+    /// OP-specific Isthmus execution payload.
     V4(OpExecutionPayloadV4),
 }
 
@@ -224,17 +227,23 @@ impl<'de> serde::Deserialize<'de> for OpExecutionPayload {
                         .ok_or_else(|| serde::de::Error::missing_field("transactions"))?,
                 };
 
-                // Ensure `withdrawals` is present before proceeding
-                let withdrawals =
-                    withdrawals.ok_or_else(|| serde::de::Error::missing_field("withdrawals"))?;
+                // Match Alloy's V1 through V3 field-based decoding, with the OP-specific
+                // withdrawals root as the V4 discriminator.
+                let Some(withdrawals) = withdrawals else {
+                    return if blob_gas_used.is_none() &&
+                        excess_blob_gas.is_none() &&
+                        withdrawals_root.is_none()
+                    {
+                        Ok(OpExecutionPayload::V1(v1))
+                    } else {
+                        Err(serde::de::Error::custom("invalid enum variant"))
+                    };
+                };
 
-                // Construct base V2 payload
                 let payload_v2 = ExecutionPayloadV2 { payload_inner: v1, withdrawals };
 
-                // Ensure `blob_gas_used` and `excess_blob_gas` are either both present or both
-                // absent
                 match (blob_gas_used, excess_blob_gas) {
-                    // If both are present, create V3
+                    // Both blob gas fields distinguish V3 from V2.
                     (Some(blob_gas_used), Some(excess_blob_gas)) => {
                         let payload_v3 = ExecutionPayloadV3 {
                             payload_inner: payload_v2,
@@ -242,7 +251,7 @@ impl<'de> serde::Deserialize<'de> for OpExecutionPayload {
                             excess_blob_gas,
                         };
 
-                        // If `withdrawals_root` is present, wrap into V4; otherwise, return V3
+                        // The withdrawals root distinguishes the OP-specific V4 from V3.
                         if let Some(withdrawals_root) = withdrawals_root {
                             Ok(OpExecutionPayload::V4(OpExecutionPayloadV4 {
                                 payload_inner: payload_v3,
@@ -252,11 +261,14 @@ impl<'de> serde::Deserialize<'de> for OpExecutionPayload {
                             Ok(OpExecutionPayload::V3(payload_v3))
                         }
                     }
-                    // If one is missing, reject as invalid
+                    // An incomplete V3 payload is invalid.
                     (Some(_), None) | (None, Some(_)) => {
                         Err(serde::de::Error::custom("invalid enum variant"))
                     }
-                    // If neither are present, return V2
+                    // A withdrawals root without the V3 fields is also invalid.
+                    (None, None) if withdrawals_root.is_some() => {
+                        Err(serde::de::Error::custom("invalid enum variant"))
+                    }
                     (None, None) => Ok(OpExecutionPayload::V2(payload_v2)),
                 }
             }
@@ -518,170 +530,6 @@ impl OpExecutionPayload {
         }
     }
 
-    /// Converts [`OpExecutionPayload`] to [`Block`] with raw transactions.
-    ///
-    /// Caution: This does not set fields that are not part of the payload and only part of the
-    /// [`OpExecutionPayloadSidecar`]:
-    /// - `parent_beacon_block_root`
-    ///
-    /// See also: [`OpExecutionPayload::into_block_with_sidecar_raw`]
-    pub fn into_block_raw(self) -> Result<Block<alloy_primitives::Bytes>, PayloadError> {
-        match self {
-            Self::V1(payload) => payload.into_block_raw(),
-            Self::V2(payload) => payload.into_block_raw(),
-            Self::V3(payload) => payload.into_block_raw(),
-            Self::V4(payload) => payload.into_block_raw(),
-        }
-    }
-
-    /// Creates a new unsealed block from the given payload and payload sidecar with raw
-    /// transactions.
-    ///
-    /// This sets the `parent_beacon_block_root` and `requests_hash` if present in the sidecar.
-    /// Also validates that L1 withdrawals are empty.
-    ///
-    /// See also: [`OpExecutionPayload::try_into_block_with_sidecar`]
-    pub fn into_block_with_sidecar_raw(
-        self,
-        sidecar: &OpExecutionPayloadSidecar,
-    ) -> Result<Block<alloy_primitives::Bytes>, OpPayloadError> {
-        if let Some(payload) = self.as_v2() &&
-            !payload.withdrawals.is_empty()
-        {
-            return Err(OpPayloadError::NonEmptyL1Withdrawals);
-        }
-
-        let mut block = self.into_block_raw()?;
-
-        if let Some(blobs_hashes) = sidecar.versioned_hashes() &&
-            !blobs_hashes.is_empty()
-        {
-            return Err(OpPayloadError::NonEmptyBlobVersionedHashes);
-        }
-        if let Some(reqs_hash) = sidecar.requests_hash() {
-            if reqs_hash != EMPTY_REQUESTS_HASH {
-                return Err(OpPayloadError::NonEmptyELRequests);
-            }
-            block.header.requests_hash = Some(EMPTY_REQUESTS_HASH)
-        }
-        block.header.parent_beacon_block_root = sidecar.parent_beacon_block_root();
-
-        Ok(block)
-    }
-
-    #[allow(rustdoc::broken_intra_doc_links)]
-    /// Converts [`OpExecutionPayload`] to [`Block`].
-    ///
-    /// Checks that payload doesn't contain:
-    /// - blob transactions
-    /// - L1 withdrawals
-    ///
-    /// Caution: This does not set fields that are not part of the payload and only part of the
-    /// [`OpExecutionPayloadSidecar`]:
-    /// - `parent_beacon_block_root`
-    ///
-    /// See also: [`OpExecutionPayload::try_into_block_with_sidecar`]
-    pub fn try_into_block<T: Decodable2718 + Typed2718>(self) -> Result<Block<T>, OpPayloadError> {
-        self.try_into_block_with(|tx| {
-            T::decode_2718_exact(tx.as_ref())
-                .map_err(alloy_rlp::Error::from)
-                .map_err(PayloadError::from)
-        })
-    }
-
-    #[allow(rustdoc::broken_intra_doc_links)]
-    /// Converts [`OpExecutionPayload`] to [`Block`] with a custom transaction mapper.
-    ///
-    /// Checks that payload doesn't contain:
-    /// - blob transactions
-    /// - L1 withdrawals
-    ///
-    /// Caution: This does not set fields that are not part of the payload and only part of the
-    /// [`OpExecutionPayloadSidecar`]:
-    /// - `parent_beacon_block_root`
-    ///
-    /// See also: [`OpExecutionPayload::try_into_block_with_sidecar_with`]
-    pub fn try_into_block_with<T, F, E>(self, f: F) -> Result<Block<T>, OpPayloadError>
-    where
-        T: Typed2718,
-        F: FnMut(alloy_primitives::Bytes) -> Result<T, E>,
-        E: Into<PayloadError>,
-    {
-        if let Some(payload) = self.as_v2() &&
-            !payload.withdrawals.is_empty()
-        {
-            return Err(OpPayloadError::NonEmptyL1Withdrawals);
-        }
-        let block = match self {
-            Self::V1(payload) => return Ok(payload.try_into_block_with(f)?),
-            Self::V2(payload) => return Ok(payload.try_into_block_with(f)?),
-            Self::V3(payload) => payload.try_into_block_with(f)?,
-            Self::V4(payload) => payload.try_into_block_with(f)?,
-        };
-        if block.body.has_eip4844_transactions() {
-            return Err(OpPayloadError::BlobTransaction);
-        }
-
-        Ok(block)
-    }
-
-    /// Tries to create a new unsealed block from the given payload and payload sidecar.
-    ///
-    /// Additional to checks performed in [`OpExecutionPayload::try_into_block`], which is called
-    /// under the hood, also checks that sidecar doesn't contain:
-    /// - blob versioned hashes
-    /// - execution layer requests
-    ///
-    /// See also docs for
-    /// [`ExecutionPayload::try_into_block_with_sidecar`](alloy_rpc_types_engine::ExecutionPayload::try_into_block_with_sidecar).
-    pub fn try_into_block_with_sidecar<T: Decodable2718 + Typed2718>(
-        self,
-        sidecar: &OpExecutionPayloadSidecar,
-    ) -> Result<Block<T>, OpPayloadError> {
-        self.try_into_block_with_sidecar_with(sidecar, |tx| {
-            T::decode_2718_exact(tx.as_ref())
-                .map_err(alloy_rlp::Error::from)
-                .map_err(PayloadError::from)
-        })
-    }
-
-    /// Tries to create a new unsealed block from the given payload and payload sidecar with a
-    /// custom transaction mapper.
-    ///
-    /// Additional to checks performed in [`OpExecutionPayload::try_into_block_with`], which is
-    /// called under the hood, also checks that sidecar doesn't contain:
-    /// - blob versioned hashes
-    /// - execution layer requests
-    ///
-    /// See also docs for
-    /// [`ExecutionPayload::try_into_block_with_sidecar_with`](alloy_rpc_types_engine::ExecutionPayload::try_into_block_with_sidecar_with).
-    pub fn try_into_block_with_sidecar_with<T, F, E>(
-        self,
-        sidecar: &OpExecutionPayloadSidecar,
-        f: F,
-    ) -> Result<Block<T>, OpPayloadError>
-    where
-        T: Typed2718,
-        F: FnMut(alloy_primitives::Bytes) -> Result<T, E>,
-        E: Into<PayloadError>,
-    {
-        let mut base_payload = self.try_into_block_with(f)?;
-        if let Some(blobs_hashes) = sidecar.versioned_hashes() &&
-            !blobs_hashes.is_empty()
-        {
-            return Err(OpPayloadError::NonEmptyBlobVersionedHashes);
-        }
-        if let Some(reqs_hash) = sidecar.requests_hash() {
-            if reqs_hash != EMPTY_REQUESTS_HASH {
-                return Err(OpPayloadError::NonEmptyELRequests);
-            }
-            base_payload.header.requests_hash = Some(EMPTY_REQUESTS_HASH)
-        }
-        base_payload.header.parent_beacon_block_root = sidecar.parent_beacon_block_root();
-
-        Ok(base_payload)
-    }
-
     /// Returns an iterator over the decoded transactions in this payload.
     ///
     /// This iterator will decode transactions on the fly.
@@ -755,6 +603,43 @@ impl OpExecutionPayload {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn serde_payload_input_enum_v1() {
+        let payload = OpExecutionPayload::V1(ExecutionPayloadV1::from_block_unchecked(
+            B256::ZERO,
+            &Block::<op_alloy_consensus::OpTxEnvelope>::default(),
+        ));
+        let mut json = serde_json::to_value(&payload).unwrap();
+
+        assert!(json.get("withdrawals").is_none());
+        assert_eq!(serde_json::from_value::<OpExecutionPayload>(json.clone()).unwrap(), payload);
+
+        // Later-fork fields without withdrawals must not be silently discarded as a V1 payload.
+        json["withdrawalsRoot"] = serde_json::Value::String(B256::ZERO.to_string());
+        assert!(serde_json::from_value::<OpExecutionPayload>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn serde_payload_input_enum_rejects_v2_with_withdrawals_root() {
+        let payload = OpExecutionPayload::V2(ExecutionPayloadV2 {
+            payload_inner: ExecutionPayloadV1::from_block_unchecked(
+                B256::ZERO,
+                &Block::<op_alloy_consensus::OpTxEnvelope>::default(),
+            ),
+            withdrawals: Vec::new(),
+        });
+        let mut json = serde_json::to_value(&payload).unwrap();
+
+        assert!(json.get("withdrawals").is_some());
+        assert!(json.get("blobGasUsed").is_none());
+        assert!(json.get("excessBlobGas").is_none());
+
+        json["withdrawalsRoot"] = serde_json::Value::String(B256::ZERO.to_string());
+        assert!(serde_json::from_value::<OpExecutionPayload>(json).is_err());
+    }
 
     #[test]
     #[cfg(feature = "serde")]

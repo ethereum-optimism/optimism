@@ -1,9 +1,81 @@
 {
-  "$comment": "Allowlist for validate-nav.ts. Every entry needs a reason string. Entries here are either deliberately hidden pages or pre-existing violations grandfathered when the guardrail was introduced (tracked in ethereum-optimism/solutions#955); the grandfathered set only shrinks — new violations always fail CI.",
+  "$comment": "Allowlist for validate-nav.ts. Every entry needs a reason string. Entries fall into two categories. (1) Pages deliberately kept out of the sidebar — hidden feature pages, and completed notices under notices/archive/ that keep a permanent URL and are browsed from notices/archive/index.mdx; this category grows and shrinks as pages are deliberately unnavigated or renavigated. (2) Pre-existing violations grandfathered when the guardrail was introduced (tracked in ethereum-optimism/solutions#955); that set only shrinks — new accidental orphans always fail CI.",
   "orphans": [
     {
       "path": "chain-operators/guides/features/sequencer-defined-metering",
       "reason": "Deliberately hidden (frontmatter hidden: true): documents Sequencer Defined Metering, which is not yet live (expected with the Lagoon hardfork). Add to the Chain Operators > Guides > Features nav group when the feature ships."
+    },
+    {
+      "path": "notices/archive/upgrade-19",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/req-resp-cl-sync-deprecation",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/op-geth-deprecation",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/stake-based-priority-ordering",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/op-deployer-upgrade-deprecation",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/upgrade-18",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/fusaka-notice",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/upgrade-17",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/upgrade-16a",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/upgrade-16",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/superchain-withdrawal-pause-test",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/upgrade-15",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/upgrade-14",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/pectra-fees",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/upgrade-13",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/blob-fee-bug",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/pectra-changes",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
+      "path": "notices/archive/holocene-changes",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
     }
   ],
   "duplicateNavEntries": []

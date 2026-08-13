@@ -451,8 +451,22 @@ func (b *OPRBuilderNode) Stop() {
 		b.logger.Warn("OPRbuilderNode already stopped")
 		return
 	}
+	b.clearProxyUpstreams()
 	b.p.Require().NoError(b.sub.Stop(true))
 	b.sub = nil
+}
+
+// Callers must hold b.mu.
+func (b *OPRBuilderNode) clearProxyUpstreams() {
+	if b.rpcProxy != nil {
+		b.rpcProxy.ClearUpstream()
+	}
+	if b.authProxy != nil {
+		b.authProxy.ClearUpstream()
+	}
+	if b.wsProxy != nil {
+		b.wsProxy.ClearUpstream()
+	}
 }
 
 func (b *OPRBuilderNode) EngineRPC() string {

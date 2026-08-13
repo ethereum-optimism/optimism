@@ -199,23 +199,6 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			shouldPass:    false,
 		},
 		{
-			name: "ZK_DISPUTE_GAME with zero Verifier returns error",
-			gameConfig: DisputeGameConfig{
-				Enabled:  true,
-				InitBond: big.NewInt(1000),
-				GameType: GameTypeZKDisputeGame,
-				ZKDisputeGameConfig: &ZKDisputeGameConfig{
-					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-					Verifier:             common.Address{}, // zero
-					MaxChallengeDuration: 3600,
-					MaxProveDuration:     7200,
-					ChallengerBond:       new(big.Int).SetUint64(1e9),
-				},
-			},
-			errorContains: "Verifier must not be zero address",
-			shouldPass:    false,
-		},
-		{
 			name: "ZK_DISPUTE_GAME with zero AbsolutePrestate returns error",
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
@@ -223,7 +206,6 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 				GameType: GameTypeZKDisputeGame,
 				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.Hash{}, // zero
-					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,
 					ChallengerBond:       new(big.Int).SetUint64(1e9),
@@ -240,7 +222,6 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 				GameType: GameTypeZKDisputeGame,
 				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 0, // zero
 					MaxProveDuration:     7200,
 					ChallengerBond:       new(big.Int).SetUint64(1e9),
@@ -257,7 +238,6 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 				GameType: GameTypeZKDisputeGame,
 				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     0, // zero
 					ChallengerBond:       new(big.Int).SetUint64(1e9),
@@ -274,7 +254,6 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 				GameType: GameTypeZKDisputeGame,
 				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,
 					ChallengerBond:       nil, // nil
@@ -291,7 +270,6 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 				GameType: GameTypeZKDisputeGame,
 				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,
 					ChallengerBond:       big.NewInt(0), // zero
@@ -368,7 +346,6 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 				GameType: GameTypeZKDisputeGame,
 				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,
 					ChallengerBond:       new(big.Int).SetUint64(1e9),
@@ -661,7 +638,6 @@ func TestEncodedUpgradeInputV2_GameArgsEncoding(t *testing.T) {
 
 	t.Run("ZKDisputeGameConfig encodes correctly", func(t *testing.T) {
 		absolutePrestate := common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
-		verifier := common.HexToAddress("0x3333333333333333333333333333333333333333")
 		// maxChallengeDuration = 3600 = 0xe10
 		// maxProveDuration = 7200 = 0x1c20
 		// challengerBond = 1e18 = 0xde0b6b3a7640000
@@ -679,7 +655,6 @@ func TestEncodedUpgradeInputV2_GameArgsEncoding(t *testing.T) {
 						GameType: GameTypeZKDisputeGame,
 						ZKDisputeGameConfig: &ZKDisputeGameConfig{
 							AbsolutePrestate:     absolutePrestate,
-							Verifier:             verifier,
 							MaxChallengeDuration: 3600,
 							MaxProveDuration:     7200,
 							ChallengerBond:       challengerBond,
@@ -696,16 +671,15 @@ func TestEncodedUpgradeInputV2_GameArgsEncoding(t *testing.T) {
 		expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
 			"0000000000000000000000000100000000000000000000000000000000000000" + // systemConfig
 			"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
-			"00000000000000000000000000000000000000000000000000000000000001e0" + // offset to extraInstructions
+			"00000000000000000000000000000000000000000000000000000000000001c0" + // offset to extraInstructions
 			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs.length
 			"0000000000000000000000000000000000000000000000000000000000000020" + // offset to disputeGameConfigs[0]
 			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs[0].enabled
 			"00000000000000000000000000000000000000000000000000000000000003e8" + // disputeGameConfigs[0].initBond (1000)
 			"000000000000000000000000000000000000000000000000000000000000000a" + // disputeGameConfigs[0].gameType (10)
 			"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
-			"00000000000000000000000000000000000000000000000000000000000000a0" + // gameArgs.length (160 bytes)
+			"0000000000000000000000000000000000000000000000000000000000000080" + // gameArgs.length (128 bytes)
 			"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c" + // absolutePrestate
-			"0000000000000000000000003333333333333333333333333333333333333333" + // verifier
 			"0000000000000000000000000000000000000000000000000000000000000e10" + // maxChallengeDuration (3600)
 			"0000000000000000000000000000000000000000000000000000000000001c20" + // maxProveDuration (7200)
 			"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // challengerBond (1e18)

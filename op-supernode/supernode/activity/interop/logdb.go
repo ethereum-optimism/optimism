@@ -98,7 +98,7 @@ func (i *Interop) sealFetchedBlockIntoLogsDB(chainID eth.ChainID, blockID eth.Bl
 	if err != nil {
 		return fmt.Errorf("chain %s: failed to fetch receipts for block %v: %w", chainID, blockID, err)
 	}
-	return i.sealBlockDataIntoLogsDB(chainID, blockID, blockInfo, receipts, ts, false)
+	return i.sealBlockDataIntoLogsDB(chainID, blockID, blockInfo, receipts.Geth(), ts, false)
 }
 
 // sealBlockDataIntoLogsDB seals logs for an already-fetched block using ts for verifyCanAddTimestamp.

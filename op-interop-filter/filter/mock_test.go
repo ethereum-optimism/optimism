@@ -12,6 +12,7 @@ import (
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop"
@@ -351,7 +352,7 @@ func (m *MockEthClient) InfoByNumber(ctx context.Context, number uint64) (eth.Bl
 }
 
 // FetchReceipts implements EthClient.
-func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, gethTypes.Receipts, error) {
+func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -367,11 +368,11 @@ func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash
 	// Find the block info for this hash
 	for _, block := range m.blocksByNumber {
 		if block.Hash() == blockHash {
-			return block, receipts, nil
+			return block, optypes.FromGethReceipts(receipts), nil
 		}
 	}
 
-	return nil, receipts, nil
+	return nil, optypes.FromGethReceipts(receipts), nil
 }
 
 // Close implements EthClient.

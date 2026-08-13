@@ -133,7 +133,7 @@
     },
     {
       "source": "/app-developers/tools/data-and-dashboards",
-      "destination": "/app-developers/tools/data/data-and-dashboards"
+      "destination": "/app-developers/tools-sdks/data/data-and-dashboards"
     },
     {
       "source": "/builders",
@@ -157,15 +157,15 @@
     },
     {
       "source": "/builders/tools/block-explorers",
-      "destination": "/app-developers/tools/block-explorers"
+      "destination": "/app-developers/tools-sdks/block-explorers"
     },
     {
       "source": "/builders/tools/faucets",
-      "destination": "/app-developers/tools/faucets"
+      "destination": "/app-developers/tools-sdks/faucets"
     },
     {
       "source": "/builders/tools/oracles",
-      "destination": "/app-developers/tools/data/oracles"
+      "destination": "/app-developers/tools-sdks/data/oracles"
     },
     {
       "source": "/builders/tools/nft-tools",
@@ -173,11 +173,11 @@
     },
     {
       "source": "/builders/tools/account-abstraction",
-      "destination": "/app-developers/tools/account-abstraction"
+      "destination": "/app-developers/tools-sdks/account-abstraction"
     },
     {
       "source": "/builders/tools/analytics-tools",
-      "destination": "/app-developers/tools/data/analytics-tools"
+      "destination": "/app-developers/tools-sdks/data/analytics-tools"
     },
     {
       "source": "/builders/dapp-developers/dapp-developer-overview",
@@ -237,7 +237,7 @@
     },
     {
       "source": "/builders/dapp-developers/contracts/account-abstraction",
-      "destination": "/app-developers/tools/account-abstraction"
+      "destination": "/app-developers/tools-sdks/account-abstraction"
     },
     {
       "source": "/builders/dapp-developers/contracts/cheap-dapp",
@@ -465,11 +465,11 @@
     },
     {
       "source": "/stack/interop/tools",
-      "destination": "/app-developers/tools/supersim"
+      "destination": "/app-developers/tools-sdks/supersim"
     },
     {
       "source": "/stack/interop/tools/supersim",
-      "destination": "/app-developers/tools/supersim"
+      "destination": "/app-developers/tools-sdks/supersim"
     },
     {
       "source": "/stack/interop/tools/devnet",
@@ -609,19 +609,19 @@
     },
     {
       "source": "/app-developers/tools/build/account-abstraction",
-      "destination": "/app-developers/tools/account-abstraction"
+      "destination": "/app-developers/tools-sdks/account-abstraction"
     },
     {
       "source": "/app-developers/tools/build/analytics-tools",
-      "destination": "/app-developers/tools/data/analytics-tools"
+      "destination": "/app-developers/tools-sdks/data/analytics-tools"
     },
     {
       "source": "/app-developers/tools/build/block-explorers",
-      "destination": "/app-developers/tools/block-explorers"
+      "destination": "/app-developers/tools-sdks/block-explorers"
     },
     {
       "source": "/app-developers/tools/infrastructure/block-explorers",
-      "destination": "/app-developers/tools/block-explorers"
+      "destination": "/app-developers/tools-sdks/block-explorers"
     },
     {
       "source": "/app-developers/tools/build/ecosystem-overview",
@@ -629,11 +629,11 @@
     },
     {
       "source": "/app-developers/tools/build/faucets",
-      "destination": "/app-developers/tools/faucets"
+      "destination": "/app-developers/tools-sdks/faucets"
     },
     {
       "source": "/app-developers/tools/testing/faucets",
-      "destination": "/app-developers/tools/faucets"
+      "destination": "/app-developers/tools-sdks/faucets"
     },
     {
       "source": "/app-developers/tools/build/nft-tools",
@@ -645,7 +645,7 @@
     },
     {
       "source": "/app-developers/tools/build/oracles",
-      "destination": "/app-developers/tools/data/oracles"
+      "destination": "/app-developers/tools-sdks/data/oracles"
     },
     {
       "source": "/app-developers/tools/connect",
@@ -653,7 +653,7 @@
     },
     {
       "source": "/app-developers/tools/connect/networks",
-      "destination": "/app-developers/reference/networks"
+      "destination": "/op-mainnet/network-information/connecting-to-op"
     },
     {
       "source": "/app-developers/tools/connect/rpc-providers",
@@ -661,11 +661,11 @@
     },
     {
       "source": "/app-developers/tools/development/supersim",
-      "destination": "/app-developers/tools/supersim"
+      "destination": "/app-developers/tools-sdks/supersim"
     },
     {
       "source": "/app-developers/tools/wallets/account-abstraction",
-      "destination": "/app-developers/tools/account-abstraction"
+      "destination": "/app-developers/tools-sdks/account-abstraction"
     },
     {
       "source": "/app-developers/transactions",
@@ -820,6 +820,10 @@
       "destination": "/op-stack/introduction/op-stack"
     },
     {
+      "source": "/op-stack",
+      "destination": "/op-stack/introduction/op-stack"
+    },
+    {
       "source": "/get-started/superchain",
       "destination": "/op-stack/introduction/op-stack"
     },
@@ -897,7 +901,7 @@
     },
     {
       "source": "/interop/tools",
-      "destination": "/app-developers/tools/supersim"
+      "destination": "/app-developers/tools-sdks/supersim"
     },
     {
       "source": "/interop/tools/devnet",
@@ -909,7 +913,7 @@
     },
     {
       "source": "/interop/tools/supersim",
-      "destination": "/app-developers/tools/supersim"
+      "destination": "/app-developers/tools-sdks/supersim"
     },
     {
       "source": "/interop/tutorials",
@@ -1885,11 +1889,11 @@
     },
     {
       "source": "/app-developers/tools/data-and-dashboards/overview",
-      "destination": "/app-developers/tools/data/data-and-dashboards"
+      "destination": "/app-developers/tools-sdks/data/data-and-dashboards"
     },
     {
       "source": "/app-developers/tools/data-and-dashboards/data-glossary",
-      "destination": "/app-developers/tools/data/data-glossary"
+      "destination": "/app-developers/tools-sdks/data/data-glossary"
     },
     {
       "source": "/reference/contribute/docs-contribute",
@@ -1977,11 +1981,11 @@
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts_in_static_files",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders_in_static_files",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/app-developers/guides/superchain",
@@ -2077,7 +2081,7 @@
     },
     {
       "source": "/rust/kona/node/faq/profiling",
-      "destination": "/node-operators/kona-node/faq/profiling"
+      "destination": "/node-operators/kona-node/monitoring"
     },
     {
       "source": "/rust/op-reth",
@@ -2089,7 +2093,11 @@
     },
     {
       "source": "/rust/op-reth/run/opstack",
-      "destination": "/node-operators/op-reth/run/opstack"
+      "destination": "/node-operators/guides/configuration/execution-clients"
+    },
+    {
+      "source": "/node-operators/op-reth/run/opstack",
+      "destination": "/node-operators/guides/configuration/execution-clients"
     },
     {
       "source": "/rust/op-reth/run/faq/sync-op-mainnet",
@@ -2221,31 +2229,31 @@
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_changesets",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/storages_history",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storages_history"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_history",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_history"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/storage_changesets",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/account-storage",
@@ -2586,6 +2594,86 @@
     {
       "source": "/chain-operators/reference/standard-configuration",
       "destination": "/op-stack/protocol/superchain-registry"
+    },
+    {
+      "source": "/app-developers/tutorials/bridging/standard-bridge-custom-token",
+      "destination": "/app-developers/tutorials/bridging/standard-bridge-standard-token"
+    },
+    {
+      "source": "/app-developers/tools/faucets",
+      "destination": "/app-developers/tools-sdks/faucets"
+    },
+    {
+      "source": "/app-developers/tools/block-explorers",
+      "destination": "/app-developers/tools-sdks/block-explorers"
+    },
+    {
+      "source": "/app-developers/tools/supersim",
+      "destination": "/app-developers/tools-sdks/supersim"
+    },
+    {
+      "source": "/app-developers/tools/account-abstraction",
+      "destination": "/app-developers/tools-sdks/account-abstraction"
+    },
+    {
+      "source": "/app-developers/tools/data/data-and-dashboards",
+      "destination": "/app-developers/tools-sdks/data/data-and-dashboards"
+    },
+    {
+      "source": "/app-developers/tools/data/data-glossary",
+      "destination": "/app-developers/tools-sdks/data/data-glossary"
+    },
+    {
+      "source": "/app-developers/tools/data/analytics-tools",
+      "destination": "/app-developers/tools-sdks/data/analytics-tools"
+    },
+    {
+      "source": "/app-developers/tools/data/oracles",
+      "destination": "/app-developers/tools-sdks/data/oracles"
+    },
+    {
+      "source": "/chain-operators/archive/snap-sync",
+      "destination": "/chain-operators/guides/features/snap-sync"
+    },
+    {
+      "source": "/node-operators/kona-node/faq/profiling",
+      "destination": "/node-operators/kona-node/monitoring"
+    },
+    {
+      "source": "/app-developers/reference/networks",
+      "destination": "/op-mainnet/network-information/connecting-to-op"
+    },
+    {
+      "source": "/app-developers/tools",
+      "destination": "/app-developers/guides/building-apps"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/storages_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     }
   ],
   "interaction": {
@@ -2602,7 +2690,8 @@
               "index",
               "ai-docs",
               "chain-operators/quickstart",
-              "/op-stack/reference/glossary"
+              "chain-operators/launch-paths",
+              "op-stack/reference/glossary"
             ]
           },
           {
@@ -2619,24 +2708,24 @@
           {
             "group": "Contribute",
             "pages": [
-              "/op-stack/contribute/index",
-              "/op-stack/contribute/content-guide",
-              "/op-stack/contribute/link-policy",
-              "/op-stack/contribute/curation-policy",
-              "/op-stack/contribute/learn-track-syllabus",
-              "/op-stack/contribute/style-guide",
+              "op-stack/contribute/index",
+              "op-stack/contribute/content-guide",
+              "op-stack/contribute/link-policy",
+              "op-stack/contribute/curation-policy",
+              "op-stack/contribute/learn-track-syllabus",
+              "op-stack/contribute/style-guide",
               {
                 "group": "Choose a content type",
                 "pages": [
-                  "/op-stack/contribute/choose-a-content-type",
-                  "/op-stack/contribute/solution-guide",
-                  "/op-stack/contribute/learning-unit",
-                  "/op-stack/contribute/curriculum-hub",
-                  "/op-stack/contribute/router-landing",
-                  "/op-stack/contribute/notice"
+                  "op-stack/contribute/choose-a-content-type",
+                  "op-stack/contribute/solution-guide",
+                  "op-stack/contribute/learning-unit",
+                  "op-stack/contribute/curriculum-hub",
+                  "op-stack/contribute/router-landing",
+                  "op-stack/contribute/notice"
                 ]
               },
-              "/op-stack/contribute/component-hub-template"
+              "op-stack/contribute/component-hub-template"
             ]
           }
         ]
@@ -2644,6 +2733,12 @@
       {
         "tab": "Chain Operators",
         "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "chain-operators/index"
+            ]
+          },
           {
             "group": "Guides",
             "pages": [
@@ -2667,7 +2762,8 @@
                   "chain-operators/guides/features/flashblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
                   "chain-operators/guides/features/blobs",
-                  "chain-operators/guides/features/enable-span-batches"
+                  "chain-operators/guides/features/enable-span-batches",
+                  "chain-operators/guides/features/snap-sync"
                 ]
               },
               {
@@ -2709,17 +2805,32 @@
                   "chain-operators/tutorials/l1-contract-upgrades/upgrade-op-contracts-1-3-1-8"
                 ]
               },
-              "chain-operators/tutorials/absolute-prestate",
-              "chain-operators/tutorials/kona-custom-prestate",
-              "chain-operators/tutorials/adding-derivation-attributes",
-              "chain-operators/tutorials/adding-precompiles",
-              "chain-operators/tutorials/dispute-games",
-              "chain-operators/tutorials/integrating-da-layer",
-              "chain-operators/tutorials/merge-shared-dispute-game",
-              "chain-operators/tutorials/migrating-permissionless",
-              "chain-operators/tutorials/modifying-predeploys",
-              "chain-operators/tutorials/rewind-op-geth",
-              "chain-operators/tutorials/upgrade-chain-to-super-roots"
+              {
+                "group": "Customize your chain",
+                "pages": [
+                  "chain-operators/tutorials/adding-precompiles",
+                  "chain-operators/tutorials/modifying-predeploys",
+                  "chain-operators/tutorials/adding-derivation-attributes",
+                  "chain-operators/tutorials/integrating-da-layer"
+                ]
+              },
+              {
+                "group": "Proofs & disputes",
+                "pages": [
+                  "chain-operators/tutorials/absolute-prestate",
+                  "chain-operators/tutorials/kona-custom-prestate",
+                  "chain-operators/tutorials/dispute-games",
+                  "chain-operators/tutorials/migrating-permissionless",
+                  "chain-operators/tutorials/merge-shared-dispute-game"
+                ]
+              },
+              {
+                "group": "Operations",
+                "pages": [
+                  "chain-operators/tutorials/rewind-op-geth",
+                  "chain-operators/tutorials/upgrade-chain-to-super-roots"
+                ]
+              }
             ]
           },
           {
@@ -2788,8 +2899,7 @@
           {
             "group": "Archive",
             "pages": [
-              "chain-operators/tutorials/archive/op-program-prestate",
-              "chain-operators/guides/features/snap-sync"
+              "chain-operators/tutorials/archive/op-program-prestate"
             ]
           }
         ]
@@ -2881,8 +2991,7 @@
                     "group": "FAQ",
                     "pages": [
                       "node-operators/kona-node/faq/overview",
-                      "node-operators/kona-node/faq/ports",
-                      "node-operators/kona-node/faq/profiling"
+                      "node-operators/kona-node/faq/ports"
                     ]
                   },
                   {
@@ -2901,18 +3010,7 @@
                 "group": "op-reth",
                 "pages": [
                   "node-operators/op-reth/index",
-                  {
-                    "group": "Run a Node",
-                    "pages": [
-                      "node-operators/op-reth/run/opstack",
-                      {
-                        "group": "FAQ",
-                        "pages": [
-                          "node-operators/op-reth/run/faq/sync-op-mainnet"
-                        ]
-                      }
-                    ]
-                  }
+                  "node-operators/op-reth/run/faq/sync-op-mainnet"
                 ]
               }
             ]
@@ -2958,16 +3056,19 @@
                             "pages": [
                               "node-operators/op-reth/cli/op-reth/db/checksum",
                               "node-operators/op-reth/cli/op-reth/db/checksum/mdbx",
-                              "node-operators/op-reth/cli/op-reth/db/checksum/static-file"
+                              "node-operators/op-reth/cli/op-reth/db/checksum/static-file",
+                              "node-operators/op-reth/cli/op-reth/db/checksum/rocksdb"
                             ]
                           },
+                          "node-operators/op-reth/cli/op-reth/db/copy",
                           "node-operators/op-reth/cli/op-reth/db/diff",
                           {
                             "group": "op-reth db get",
                             "pages": [
                               "node-operators/op-reth/cli/op-reth/db/get",
                               "node-operators/op-reth/cli/op-reth/db/get/mdbx",
-                              "node-operators/op-reth/cli/op-reth/db/get/static-file"
+                              "node-operators/op-reth/cli/op-reth/db/get/static-file",
+                              "node-operators/op-reth/cli/op-reth/db/get/rocksdb"
                             ]
                           },
                           "node-operators/op-reth/cli/op-reth/db/drop",
@@ -2999,18 +3100,30 @@
                                 "group": "op-reth db settings set",
                                 "pages": [
                                   "node-operators/op-reth/cli/op-reth/db/settings/set",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/receipts",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storages_history",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_history",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/v2"
                                 ]
                               }
                             ]
                           },
-                          "node-operators/op-reth/cli/op-reth/db/account-storage"
+                          {
+                            "group": "op-reth db prune-checkpoints",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/prune-checkpoints",
+                              "node-operators/op-reth/cli/op-reth/db/prune-checkpoints/get",
+                              "node-operators/op-reth/cli/op-reth/db/prune-checkpoints/set"
+                            ]
+                          },
+                          {
+                            "group": "op-reth db stage-checkpoints",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/stage-checkpoints",
+                              "node-operators/op-reth/cli/op-reth/db/stage-checkpoints/get",
+                              "node-operators/op-reth/cli/op-reth/db/stage-checkpoints/set"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/account-storage",
+                          "node-operators/op-reth/cli/op-reth/db/state",
+                          "node-operators/op-reth/cli/op-reth/db/migrate-v2"
                         ]
                       },
                       {
@@ -3052,12 +3165,31 @@
                               "node-operators/op-reth/cli/op-reth/p2p/rlpx/ping"
                             ]
                           },
-                          "node-operators/op-reth/cli/op-reth/p2p/bootnode"
+                          "node-operators/op-reth/cli/op-reth/p2p/bootnode",
+                          "node-operators/op-reth/cli/op-reth/p2p/enode"
                         ]
                       },
                       "node-operators/op-reth/cli/op-reth/config",
                       "node-operators/op-reth/cli/op-reth/prune",
-                      "node-operators/op-reth/cli/op-reth/re-execute"
+                      "node-operators/op-reth/cli/op-reth/re-execute",
+                      {
+                        "group": "op-reth proofs",
+                        "pages": [
+                          "node-operators/op-reth/cli/op-reth/proofs",
+                          "node-operators/op-reth/cli/op-reth/proofs/init",
+                          "node-operators/op-reth/cli/op-reth/proofs/backfill",
+                          "node-operators/op-reth/cli/op-reth/proofs/prune",
+                          {
+                            "group": "op-reth proofs snapshot",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/proofs/snapshot",
+                              "node-operators/op-reth/cli/op-reth/proofs/snapshot/init",
+                              "node-operators/op-reth/cli/op-reth/proofs/snapshot/drop"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/proofs/unwind"
+                        ]
+                      }
                     ]
                   }
                 ]
@@ -3070,8 +3202,9 @@
         "tab": "App Developers",
         "groups": [
           {
-            "group": "Quickstarts",
+            "group": "Get started",
             "pages": [
+              "app-developers/index",
               "app-developers/quickstarts/get-started",
               "app-developers/quickstarts/actions"
             ]
@@ -3082,7 +3215,37 @@
               "app-developers/guides/building-apps",
               "app-developers/guides/testing-apps",
               "app-developers/guides/configuring-actions",
-              "app-developers/guides/connect-wallet-to-actions"
+              "app-developers/guides/connect-wallet-to-actions",
+              {
+                "group": "Bridging",
+                "pages": [
+                  "app-developers/guides/bridging/basics",
+                  "app-developers/guides/bridging/custom-bridge",
+                  "app-developers/guides/bridging/messaging",
+                  "app-developers/guides/bridging/standard-bridge",
+                  "app-developers/guides/bridging/verify-bridged-tokens"
+                ]
+              },
+              {
+                "group": "Interoperability",
+                "pages": [
+                  "app-developers/guides/interoperability/get-started",
+                  "app-developers/guides/interoperability/message-passing",
+                  "app-developers/guides/interoperability/reading-logs",
+                  "app-developers/guides/interoperability/message-expiration"
+                ]
+              },
+              {
+                "group": "Transactions",
+                "pages": [
+                  "app-developers/guides/transactions/estimates",
+                  "app-developers/guides/transactions/flashblocks-and-gas-usage",
+                  "app-developers/guides/transactions/integrating-flashblocks",
+                  "app-developers/guides/transactions/parameters",
+                  "app-developers/guides/transactions/statuses",
+                  "app-developers/guides/transactions/troubleshooting"
+                ]
+              }
             ]
           },
           {
@@ -3092,21 +3255,13 @@
               {
                 "group": "Bridging",
                 "pages": [
+                  "app-developers/tutorials/bridging/standard-bridge-standard-token",
                   "app-developers/tutorials/bridging/cross-dom-bridge-erc20",
                   "app-developers/tutorials/bridging/cross-dom-solidity",
-                  "app-developers/tutorials/bridging/standard-bridge-custom-token",
-                  "app-developers/tutorials/bridging/standard-bridge-standard-token",
                   "app-developers/tutorials/bridging/cross-dom-bridge-eth",
                   "app-developers/tutorials/bridging/bridge-crosschain-eth",
                   "app-developers/tutorials/bridging/deposit-transactions",
                   "app-developers/tutorials/bridging/replay-failed-deposit"
-                ]
-              },
-              {
-                "group": "Supersim",
-                "pages": [
-                  "app-developers/tutorials/development/supersim/first-steps",
-                  "app-developers/tutorials/development/supersim/installation"
                 ]
               },
               {
@@ -3120,6 +3275,13 @@
                 ]
               },
               {
+                "group": "Supersim",
+                "pages": [
+                  "app-developers/tutorials/development/supersim/first-steps",
+                  "app-developers/tutorials/development/supersim/installation"
+                ]
+              },
+              {
                 "group": "Transactions",
                 "pages": [
                   "app-developers/tutorials/transactions/sdk-estimate-costs",
@@ -3127,36 +3289,6 @@
                   "app-developers/tutorials/transactions/send-tx-from-eth"
                 ]
               }
-            ]
-          },
-          {
-            "group": "Bridging",
-            "pages": [
-              "app-developers/guides/bridging/basics",
-              "app-developers/guides/bridging/custom-bridge",
-              "app-developers/guides/bridging/messaging",
-              "app-developers/guides/bridging/standard-bridge",
-              "app-developers/guides/bridging/verify-bridged-tokens"
-            ]
-          },
-          {
-            "group": "Interoperability",
-            "pages": [
-              "app-developers/guides/interoperability/get-started",
-              "app-developers/guides/interoperability/message-passing",
-              "app-developers/guides/interoperability/reading-logs",
-              "app-developers/guides/interoperability/message-expiration"
-            ]
-          },
-          {
-            "group": "Transactions",
-            "pages": [
-              "app-developers/guides/transactions/estimates",
-              "app-developers/guides/transactions/flashblocks-and-gas-usage",
-              "app-developers/guides/transactions/integrating-flashblocks",
-              "app-developers/guides/transactions/parameters",
-              "app-developers/guides/transactions/statuses",
-              "app-developers/guides/transactions/troubleshooting"
             ]
           },
           {
@@ -3180,25 +3312,24 @@
                 ]
               },
               "app-developers/tools-sdks/op-revm",
-              "app-developers/tools/faucets",
-              "app-developers/tools/block-explorers",
+              "app-developers/tools-sdks/faucets",
+              "app-developers/tools-sdks/block-explorers",
               {
                 "group": "Data",
                 "pages": [
-                  "app-developers/tools/data/data-and-dashboards",
-                  "app-developers/tools/data/data-glossary",
-                  "app-developers/tools/data/analytics-tools",
-                  "app-developers/tools/data/oracles"
+                  "app-developers/tools-sdks/data/data-and-dashboards",
+                  "app-developers/tools-sdks/data/data-glossary",
+                  "app-developers/tools-sdks/data/analytics-tools",
+                  "app-developers/tools-sdks/data/oracles"
                 ]
               },
-              "app-developers/tools/supersim",
-              "app-developers/tools/account-abstraction"
+              "app-developers/tools-sdks/supersim",
+              "app-developers/tools-sdks/account-abstraction"
             ]
           },
           {
             "group": "Reference",
             "pages": [
-              "app-developers/reference/networks",
               "app-developers/reference/rpc-providers",
               {
                 "group": "Actions SDK",
@@ -3241,94 +3372,99 @@
           {
             "group": "Introduction",
             "pages": [
-              "/op-stack/introduction/op-stack",
-              "/op-stack/introduction/fact-sheet",
-              "/op-stack/learn/index"
+              "op-stack/introduction/op-stack",
+              "op-stack/introduction/fact-sheet",
+              "op-stack/learn/index"
             ]
           },
           {
             "group": "Features",
             "pages": [
-              "/op-stack/features/flashblocks",
-              "/op-stack/features/custom-gas-token",
-              "/op-stack/features/bridged-usdc-standard",
-              "/op-stack/features/span-batches",
-              "/op-stack/features/send-raw-transaction-conditional",
-              "/op-stack/features/l2-contract-manager",
-              "/op-stack/features/osaka-on-l2",
-              "/op-stack/features/preinstalls",
-              "/op-stack/features/experimental/alt-da-mode"
+              "op-stack/features/flashblocks",
+              "op-stack/features/custom-gas-token",
+              "op-stack/features/bridged-usdc-standard",
+              "op-stack/features/span-batches",
+              "op-stack/features/send-raw-transaction-conditional",
+              "op-stack/features/l2-contract-manager",
+              "op-stack/features/osaka-on-l2",
+              "op-stack/features/preinstalls",
+              "op-stack/features/experimental/alt-da-mode"
             ]
           },
           {
             "group": "Protocol Information",
             "pages": [
-              "/op-stack/protocol/index",
-              "/op-stack/protocol/overview",
-              "/op-stack/protocol/design-principles",
-              "/op-stack/protocol/differences",
-              "/op-stack/protocol/components",
-              "/op-stack/protocol/derivation-pipeline",
-              "/op-stack/protocol/outages",
+              "op-stack/protocol/index",
+              "op-stack/protocol/overview",
+              "op-stack/protocol/design-principles",
+              "op-stack/protocol/differences",
+              "op-stack/protocol/components",
+              "op-stack/protocol/derivation-pipeline",
+              "op-stack/protocol/outages",
               {
-                "group": "Network Upgrades",
+                "group": "Network upgrade explainers",
                 "pages": [
-                  "/op-stack/protocol/network-upgrades",
-                  "/op-stack/protocol/hardforks/lagoon",
-                  "/op-stack/protocol/hardforks/karst",
-                  "/op-stack/protocol/hardforks/jovian",
-                  "/op-stack/protocol/hardforks/isthmus",
-                  "/op-stack/protocol/hardforks/holocene",
-                  "/op-stack/protocol/hardforks/granite",
-                  "/op-stack/protocol/hardforks/fjord",
-                  "/op-stack/protocol/hardforks/ecotone",
-                  "/op-stack/protocol/hardforks/delta",
-                  "/op-stack/protocol/hardforks/canyon",
-                  "/op-stack/protocol/hardforks/regolith"
+                  "op-stack/protocol/network-upgrades",
+                  "op-stack/protocol/hardforks/lagoon",
+                  "op-stack/protocol/hardforks/karst",
+                  "op-stack/protocol/hardforks/jovian",
+                  "op-stack/protocol/hardforks/isthmus",
+                  "op-stack/protocol/hardforks/holocene",
+                  "op-stack/protocol/hardforks/granite",
+                  "op-stack/protocol/hardforks/fjord",
+                  "op-stack/protocol/hardforks/ecotone",
+                  "op-stack/protocol/hardforks/delta",
+                  "op-stack/protocol/hardforks/canyon",
+                  "op-stack/protocol/hardforks/regolith"
                 ]
               },
-              "/op-stack/protocol/smart-contracts",
-              "/op-stack/protocol/privileged-roles",
-              "/op-stack/protocol/blockspace-charter",
-              "/op-stack/protocol/superchain-registry",
-              "/op-stack/research/block-time-research"
+              "op-stack/protocol/blockspace-charter",
+              "op-stack/research/block-time-research",
+              {
+                "group": "Reference",
+                "pages": [
+                  "op-stack/protocol/smart-contracts",
+                  "op-stack/protocol/superchain-registry",
+                  "op-stack/protocol/privileged-roles"
+                ]
+              }
             ]
           },
           {
             "group": "Stack Components",
             "pages": [
-              "/op-stack/components/index",
+              "op-stack/components/index",
               {
                 "group": "Sequencing",
                 "pages": [
-                  "/op-stack/components/op-batcher",
-                  "/op-stack/components/op-conductor"
+                  "op-stack/components/op-batcher",
+                  "op-stack/components/op-conductor"
                 ]
               },
               {
                 "group": "Derivation & Execution",
                 "pages": [
-                  "/op-stack/components/op-node",
-                  "/op-stack/components/kona-node",
-                  "/op-stack/components/op-reth"
+                  "op-stack/components/op-node",
+                  "op-stack/components/kona-node",
+                  "op-stack/components/op-reth"
                 ]
               },
               {
                 "group": "Settlement & Proofs",
                 "pages": [
-                  "/op-stack/components/op-proposer",
-                  "/op-stack/components/op-challenger",
-                  "/op-stack/components/cannon",
-                  "/op-stack/components/kona-client",
-                  "/op-stack/components/kona-host",
-                  "/op-stack/components/op-contracts"
+                  "op-stack/components/op-proposer",
+                  "op-stack/components/op-challenger",
+                  "op-stack/components/cannon",
+                  "op-stack/components/kona-client",
+                  "op-stack/components/kona-host",
+                  "op-stack/components/op-contracts"
                 ]
               },
               {
                 "group": "Deployment & Infrastructure",
                 "pages": [
-                  "/op-stack/components/op-deployer",
-                  "/op-stack/components/proxyd"
+                  "op-stack/components/op-deployer",
+                  "op-stack/components/proxyd"
                 ]
               }
             ]
@@ -3336,19 +3472,19 @@
           {
             "group": "Bridging",
             "pages": [
-              "/op-stack/bridging/cross-domain",
-              "/op-stack/bridging/deposit-flow",
-              "/op-stack/bridging/withdrawal-flow"
+              "op-stack/bridging/cross-domain",
+              "op-stack/bridging/deposit-flow",
+              "op-stack/bridging/withdrawal-flow"
             ]
           },
           {
             "group": "Transactions",
             "pages": [
-              "/op-stack/transactions/fees",
-              "/op-stack/transactions/fee-vaults",
-              "/op-stack/transactions/forced-transaction",
-              "/op-stack/transactions/transaction-finality",
-              "/op-stack/transactions/transaction-flow"
+              "op-stack/transactions/fees",
+              "op-stack/transactions/fee-vaults",
+              "op-stack/transactions/forced-transaction",
+              "op-stack/transactions/transaction-finality",
+              "op-stack/transactions/transaction-flow"
             ]
           },
           {
@@ -3356,11 +3492,12 @@
             "pages": [
               "op-stack/fault-proofs/index",
               "op-stack/fault-proofs/explainer",
-              "/op-stack/fault-proofs/fp-security",
+              "op-stack/fault-proofs/fp-security",
               "op-stack/fault-proofs/fp-components",
               "op-stack/fault-proofs/cannon",
               "op-stack/fault-proofs/mips",
               "op-stack/fault-proofs/challenger",
+              "op-stack/fault-proofs/reference",
               {
                 "group": "Kona",
                 "pages": [
@@ -3392,21 +3529,21 @@
           {
             "group": "Security",
             "pages": [
-              "/op-stack/security/security-policy",
-              "/op-stack/security/audit-reports",
-              "/op-stack/security/faq-sec-model",
-              "/op-stack/security/pause",
-              "/op-stack/security/interop-security"
+              "op-stack/security/security-policy",
+              "op-stack/security/audit-reports",
+              "op-stack/security/faq-sec-model",
+              "op-stack/security/pause",
+              "op-stack/security/interop-security"
             ]
           },
           {
             "group": "Interoperability",
             "pages": [
-              "/op-stack/interop/index",
-              "/op-stack/interop/explainer",
-              "/op-stack/interop/supernode",
-              "/op-stack/interop/reorg",
-              "/op-stack/interop/superchain-eth-bridge"
+              "op-stack/interop/index",
+              "op-stack/interop/explainer",
+              "op-stack/interop/supernode",
+              "op-stack/interop/reorg",
+              "op-stack/interop/superchain-eth-bridge"
             ]
           }
         ]
@@ -3415,7 +3552,13 @@
         "tab": "OP Mainnet",
         "groups": [
           {
-            "group": "Network Information",
+            "group": "Get started",
+            "pages": [
+              "op-mainnet/index"
+            ]
+          },
+          {
+            "group": "Reference",
             "pages": [
               "op-mainnet/network-information/connecting-to-op",
               "op-mainnet/network-information/op-addresses",
@@ -3471,29 +3614,7 @@
                   "notices/specialized-node-topology"
                 ]
               },
-              {
-                "group": "Archive",
-                "pages": [
-                  "notices/archive/upgrade-19",
-                  "notices/archive/op-geth-deprecation",
-                  "notices/archive/op-deployer-upgrade-deprecation",
-                  "notices/archive/req-resp-cl-sync-deprecation",
-                  "notices/archive/stake-based-priority-ordering",
-                  "notices/archive/upgrade-18",
-                  "notices/archive/upgrade-17",
-                  "notices/archive/fusaka-notice",
-                  "notices/archive/upgrade-16a",
-                  "notices/archive/upgrade-16",
-                  "notices/archive/blob-fee-bug",
-                  "notices/archive/pectra-changes",
-                  "notices/archive/pectra-fees",
-                  "notices/archive/upgrade-15",
-                  "notices/archive/upgrade-14",
-                  "notices/archive/upgrade-13",
-                  "notices/archive/holocene-changes",
-                  "notices/archive/superchain-withdrawal-pause-test"
-                ]
-              }
+              "notices/archive/index"
             ]
           },
           {

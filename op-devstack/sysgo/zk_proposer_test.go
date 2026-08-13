@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -44,13 +45,34 @@ func TestLoadZKProgramVKey(t *testing.T) {
 
 func TestZKProposerOptions(t *testing.T) {
 	cfg, err := newZKProposerConfig(
-		WithZKProposalInterval(12 * time.Second),
+		WithZKProposalInterval(12*time.Second),
+		WithZKFastFinality(),
+		WithZKMetrics(),
 	)
 	require.NoError(t, err)
 	require.Equal(t, 12*time.Second, *cfg.ProposalInterval)
+	require.True(t, cfg.FastFinality)
+	require.True(t, cfg.Metrics)
+}
+
+func TestZKProposerDisablesMetricsByDefault(t *testing.T) {
+	cfg, err := newZKProposerConfig()
+	require.NoError(t, err)
+	require.False(t, cfg.Metrics)
 }
 
 func TestZKProposerConfigRejectsInvalidProposalInterval(t *testing.T) {
 	_, err := newZKProposerConfig(WithZKProposalInterval(1500 * time.Millisecond))
 	require.EqualError(t, err, "ZK proposer interval must use whole seconds")
+}
+
+func TestStartZKProposerStoresMetricsAddress(t *testing.T) {
+	const metricsAddr = "127.0.0.1:1234"
+	runtime := &MultiChainRuntime{
+		startZKProposerFn: func() string { return metricsAddr },
+	}
+
+	runtime.StartZKProposer(devtest.SerialT(t))
+
+	require.Equal(t, metricsAddr, runtime.ZKProposerMetricsAddr())
 }

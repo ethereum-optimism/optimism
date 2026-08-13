@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -56,6 +57,18 @@ func TestDelayedWeth_GetBalanceAndDelay(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, balance, actualBalance)
 	require.Equal(t, delay, actualDelay)
+}
+
+func TestDelayedWeth_GetBalanceAndDelayRejectsDurationOverflow(t *testing.T) {
+	stubRpc, weth := setupDelayedWethTest(t)
+	block := rpcblock.ByNumber(482)
+	tooManySeconds := big.NewInt(math.MaxInt64/int64(time.Second) + 1)
+
+	stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(delayedWeth, block, big.NewInt(23984)))
+	stubRpc.SetResponse(delayedWeth, methodDelay, block, nil, []interface{}{tooManySeconds})
+
+	_, _, err := weth.GetBalanceAndDelay(t.Context(), block)
+	require.ErrorContains(t, err, "withdrawal delay too big for time.Duration")
 }
 
 func setupDelayedWethTest(t *testing.T) (*batchingTest.AbiBasedRpc, *DelayedWETHContract) {

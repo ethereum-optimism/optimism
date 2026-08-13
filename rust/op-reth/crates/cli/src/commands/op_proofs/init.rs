@@ -1,16 +1,14 @@
 //! Command that initializes the OP proofs storage with the current state of the chain.
 
 use clap::Parser;
-use reth_chainspec::ChainInfo;
+use reth_chainspec::{ChainInfo, EthChainSpec};
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
-use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{
     ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
     ProofsStorageVersion,
 };
-use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
     BackfillJob, InitializationJob, OpProofsProviderRO, OpProofsStorageError, OpProofsStore,
     RethTrieStorageLayout,
@@ -54,9 +52,9 @@ pub struct InitCommand<C: ChainSpecParser> {
     pub backfill_args: ProofsHistoryBackfillArgs,
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
+impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> InitCommand<C> {
     /// Execute `initialize-op-proofs` command
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {

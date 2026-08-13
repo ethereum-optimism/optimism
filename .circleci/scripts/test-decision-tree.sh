@@ -178,6 +178,12 @@ run_scenario \
   scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke circleci_schedule_trigger_check
 
 run_scenario \
+  "Scheduled: build_weekly" \
+  "scheduled_pipeline" "" "" "build_weekly" \
+  '{}' \
+  scheduled_rust_nightly_bump
+
+run_scenario \
   "API: main_dispatch (no github event)" \
   "api" "" "" "" \
   '{"c-main_dispatch": true, "c-github-event-type": "__not_set__"}' \
@@ -188,6 +194,12 @@ run_scenario \
   "api" "" "" "" \
   '{"c-main_dispatch": false, "c-rust_ci_dispatch": true, "c-github-event-type": "__not_set__"}' \
   release rust_ci
+
+run_scenario \
+  "API: rust_nightly_bump_dispatch" \
+  "api" "" "" "" \
+  '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  release scheduled_rust_nightly_bump
 
 run_scenario \
   "API: publish_contract_artifacts_dispatch" \

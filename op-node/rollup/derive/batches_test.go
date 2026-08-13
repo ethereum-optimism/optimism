@@ -1252,6 +1252,28 @@ func TestValidBatch(t *testing.T) {
 			ConfigMod:   deltaAtGenesis,
 		},
 		{
+			Name:       "postExec tx included pre-SDM in span batch",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: initializedSpanBatch([]*SingularBatch{
+					{
+						ParentHash: l2A1.ParentHash,
+						EpochNum:   rollup.Epoch(l2A1.L1Origin.Number),
+						EpochHash:  l2A1.L1Origin.Hash,
+						Timestamp:  l2A1.Time,
+						Transactions: []hexutil.Bytes{
+							postExecTxData,
+						},
+					},
+				}, uint64(0), big.NewInt(0)),
+			},
+			Expected:    BatchDrop,
+			ExpectedLog: "sequencers may not embed any PostExec transactions before SDM",
+			ConfigMod:   deltaAtGenesis,
+		},
+		{
 			Name:       "valid batch same epoch",
 			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
 			L2SafeHead: l2A0,

@@ -87,11 +87,6 @@ var (
 		EnvVars: deployer.PrefixEnvVar("SOURCE_GAME_TYPES"),
 		Value:   "9",
 	}
-	ZKVerifierFlag = &cli.StringFlag{
-		Name:    "zk-verifier-address",
-		Usage:   "Address of the IZKVerifier contract for the ZK dispute game.",
-		EnvVars: deployer.PrefixEnvVar("ZK_VERIFIER_ADDRESS"),
-	}
 	ZKMaxChallengeDurationFlag = &cli.Uint64Flag{
 		Name:    "zk-max-challenge-duration",
 		Usage:   "Max challenge duration (seconds) for the ZK dispute game.",
@@ -133,7 +128,6 @@ var Commands = cli.Commands{
 			InitialBondFlag,
 			SourceGameTypesFlag,
 			DisputeAbsolutePrestateFlag,
-			ZKVerifierFlag,
 			ZKMaxChallengeDurationFlag,
 			ZKMaxProveDurationFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),

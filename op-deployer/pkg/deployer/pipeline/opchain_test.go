@@ -121,7 +121,8 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			if got.Opcm != tt.expectedOpcm {
 				t.Errorf("makeDCI() Opcm = %v, want %v", got.Opcm, tt.expectedOpcm)
 			}
-			require.Equal(t, standard.DisputeAbsolutePrestate, got.CannonAbsolutePrestate)
+			// The standard deploy selects SUPER_PERMISSIONED, which installs no CANNON_KONA fallback.
+			require.Equal(t, common.Hash{}, got.CannonAbsolutePrestate)
 			require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 			require.Equal(t, common.Big0, got.StartingAnchorRoot.L2SequenceNumber)
 		})
@@ -248,11 +249,6 @@ func Test_makeDCI_RejectsInvalidInitialGameTypeBeforePermissionlessHandling(t *t
 			wantErr:  "unsupported initial dispute game type 0",
 		},
 		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: uint32(embedded.GameTypeSuperPermissioned),
-			wantErr:  "derived fallback and is not an initial-deploy selector",
-		},
-		{
 			name:     "ZK_DISPUTE_GAME",
 			gameType: uint32(embedded.GameTypeZKDisputeGame),
 			wantErr:  "unsupported initial dispute game type 10",
@@ -343,6 +339,7 @@ func TestRecordOPChainDeploymentAppliesImplementationReadback(t *testing.T) {
 	var readback opcm.ReadImplementationAddressesOutput
 	readback.SystemConfig = common.HexToAddress("0x1111111111111111111111111111111111111111")
 	readback.SuperFaultDisputeGame = common.HexToAddress("0x2222222222222222222222222222222222222222")
+	readback.SP1PlonkAdapter = common.HexToAddress("0x3333333333333333333333333333333333333333")
 
 	var contracts addresses.OpChainContracts
 	result := OPChainDeploymentResult{
@@ -357,6 +354,29 @@ func TestRecordOPChainDeploymentAppliesImplementationReadback(t *testing.T) {
 	require.NoError(t, RecordOPChainDeployment(st, result))
 	require.Equal(t, readback.SystemConfig, st.ImplementationsDeployment.SystemConfigImpl)
 	require.Equal(t, readback.SuperFaultDisputeGame, st.ImplementationsDeployment.SuperFaultDisputeGameImpl)
+	require.Equal(t, readback.SP1PlonkAdapter, st.ImplementationsDeployment.SP1PlonkAdapterImpl)
+}
+
+func TestChainContractsForRecordedStatePreservesPreparedAddresses(t *testing.T) {
+	prepared := addresses.OpChainContracts{
+		OpChainCoreContracts: addresses.OpChainCoreContracts{
+			SystemConfigProxy: common.Address{0x01},
+		},
+		OpChainFaultProofsContracts: addresses.OpChainFaultProofsContracts{
+			FaultDisputeGameImpl:        common.Address{0x02},
+			PermissionedDisputeGameImpl: common.Address{0x03},
+		},
+	}
+	var readback opcm.ReadImplementationAddressesOutput
+	readback.FaultDisputeGame = common.Address{0x04}
+	readback.PermissionedDisputeGame = common.Address{0x05}
+
+	recorded := chainContractsForRecordedState(readback, prepared)
+	require.Equal(t, prepared.SystemConfigProxy, recorded.SystemConfigProxy)
+	require.Equal(t, readback.FaultDisputeGame, recorded.FaultDisputeGameImpl)
+	require.Equal(t, readback.PermissionedDisputeGame, recorded.PermissionedDisputeGameImpl)
+	require.Equal(t, common.Address{0x02}, prepared.FaultDisputeGameImpl)
+	require.Equal(t, common.Address{0x03}, prepared.PermissionedDisputeGameImpl)
 }
 
 func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
@@ -383,14 +403,14 @@ func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			intent, chain, st := continuationDCITestInputs(chainID, tt.gameType)
 
-			got, err := BuildContinuationDCI(intent, chainID, st)
+			got, err := BuildContinuationDCI(chainID, st)
 			require.NoError(t, err)
 			require.Equal(t, uint32(tt.gameType), got.DisputeGameType)
 			require.Equal(t, st.Chains[0].Prestate, got.DisputeAbsolutePrestate)
 			require.Equal(t, st.Chains[0].StartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 			require.Equal(t, big.NewInt(42), got.StartingAnchorRoot.L2SequenceNumber)
 			require.Equal(t, tt.expectedFallback, got.CannonAbsolutePrestate)
-			require.Equal(t, *st.L1PredictOPCMAddress, got.Opcm)
+			require.Equal(t, st.PreparedDeployment.OPCM, got.Opcm)
 			require.NotEqual(t, *intent.OPCMAddress, got.Opcm)
 			require.Equal(t, *intent.SuperchainConfigProxy, got.SuperchainConfig)
 			require.Equal(t, chain.Roles.L1ProxyAdminOwner, got.OpChainProxyAdminOwner)
@@ -412,9 +432,9 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	st.Chains[0].Prestate = common.Hash{}
 	st.Chains[0].StartingAnchorRoot = nil
 
-	got, err := BuildContinuationDCI(intent, chainID, st)
+	got, err := BuildContinuationDCI(chainID, st)
 	require.NoError(t, err)
-	second, err := BuildContinuationDCI(intent, chainID, st)
+	second, err := BuildContinuationDCI(chainID, st)
 	require.NoError(t, err)
 	require.Equal(t, uint32(embedded.GameTypePermissionedCannon), got.DisputeGameType)
 	require.Equal(t, proofPrestate, got.DisputeAbsolutePrestate)
@@ -425,7 +445,7 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	require.NotSame(t, got.StartingAnchorRoot.L2SequenceNumber, second.StartingAnchorRoot.L2SequenceNumber)
 	got.StartingAnchorRoot.L2SequenceNumber.SetUint64(1)
 	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
-	require.Equal(t, *st.L1PredictOPCMAddress, got.Opcm)
+	require.Equal(t, st.PreparedDeployment.OPCM, got.Opcm)
 	require.NotEqual(t, *intent.OPCMAddress, got.Opcm)
 	require.Equal(t, *intent.SuperchainConfigProxy, got.SuperchainConfig)
 	require.Nil(t, st.ImplementationsDeployment)
@@ -444,7 +464,7 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 		{
 			name: "gate 1 requires prepared state",
 			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.Prepared = false
+				st.PreparedDeployment = nil
 			},
 			wantErrors: []string{"op-deployer prepare"},
 		},
@@ -458,28 +478,14 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 		{
 			name: "gate 3 requires sender pin",
 			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.L1PredictSenderAddress = nil
-			},
-			wantErrors: []string{"predicted sender", "op-deployer prepare"},
-		},
-		{
-			name: "gate 3 rejects zero sender pin",
-			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.L1PredictSenderAddress = ptr.New(common.Address{})
+				st.PreparedDeployment.Deployer = common.Address{}
 			},
 			wantErrors: []string{"predicted sender", "op-deployer prepare"},
 		},
 		{
 			name: "gate 4 requires OPCM pin",
 			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.L1PredictOPCMAddress = nil
-			},
-			wantErrors: []string{"predicted OPCM", "op-deployer prepare"},
-		},
-		{
-			name: "gate 4 rejects zero OPCM pin",
-			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.L1PredictOPCMAddress = ptr.New(common.Address{})
+				st.PreparedDeployment.OPCM = common.Address{}
 			},
 			wantErrors: []string{"predicted OPCM", "op-deployer prepare"},
 		},
@@ -505,11 +511,11 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 			wantErrors: []string{"state prepared for chain", "chain not found", "op-deployer prepare"},
 		},
 		{
-			name: "gate 6 binds chain intent",
-			mutate: func(intent *state.Intent, _ *state.ChainIntent, _ *state.State) {
-				intent.Chains[0].ID = otherChainID
+			name: "gate 6 binds prepared chain",
+			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
+				st.PreparedDeployment.Chains[0].ID = otherChainID
 			},
-			wantErrors: []string{"failed to get chain intent", "not found"},
+			wantErrors: []string{"prepared chain not found"},
 		},
 		{
 			name: "gate 7 requires prepared game type",
@@ -526,21 +532,13 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 			wantErrors: []string{"initial game type changed after prepare", "op-deployer prepare"},
 		},
 		{
-			name: "gate 8 rejects unknown prepared game type",
+			name: "gate 7 rejects unsupported prepared game type",
 			mutate: func(_ *state.Intent, chain *state.ChainIntent, st *state.State) {
 				const unknownGameType = uint32(999)
 				chain.DeployOverrides["respectedGameType"] = unknownGameType
 				st.Chains[0].InitialGameType = ptr.New(unknownGameType)
 			},
 			wantErrors: []string{"unsupported initial dispute game type 999", "op-deployer prepare"},
-		},
-		{
-			name: "gate 8 rejects SUPER_PERMISSIONED selector",
-			mutate: func(_ *state.Intent, chain *state.ChainIntent, st *state.State) {
-				chain.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperPermissioned
-				st.Chains[0].InitialGameType = ptr.New(uint32(embedded.GameTypeSuperPermissioned))
-			},
-			wantErrors: []string{"derived fallback and is not an initial-deploy selector", "op-deployer prepare"},
 		},
 		{
 			name: "gate 9 requires committed prestate",
@@ -555,13 +553,6 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 				st.Chains[0].Prestate = opcm.PermissionedCannonFallbackPrestatePlaceholder
 			},
 			wantErrors: []string{"reserved permissioned prestate placeholder", "op-deployer prestate"},
-		},
-		{
-			name: "gate 11 rejects prestate override drift",
-			mutate: func(_ *state.Intent, chain *state.ChainIntent, _ *state.State) {
-				chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
-			},
-			wantErrors: []string{"override differs from the committed prestate", "op-deployer prestate"},
 		},
 		{
 			name: "gate 12 requires starting anchor proposal",
@@ -598,7 +589,7 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 			intent, chain, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
 			tt.mutate(intent, chain, st)
 
-			_, err := BuildContinuationDCI(intent, chainID, st)
+			_, err := BuildContinuationDCI(chainID, st)
 			require.Error(t, err)
 			for _, want := range tt.wantErrors {
 				require.ErrorContains(t, err, want)
@@ -607,14 +598,12 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 	}
 }
 
-func TestBuildContinuationDCI_PrestateOverrideDrift(t *testing.T) {
+func TestBuildContinuationDCI_UsesLateBoundPrestate(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 
 	tests := []struct {
-		name       string
-		configure  func(*state.Intent, *state.ChainIntent, common.Hash)
-		wantErr    bool
-		wantErrMsg string
+		name      string
+		configure func(*state.Intent, *state.ChainIntent, common.Hash)
 	}{
 		{
 			name: "no override uses committed value instead of the default",
@@ -636,16 +625,12 @@ func TestBuildContinuationDCI_PrestateOverrideDrift(t *testing.T) {
 			configure: func(_ *state.Intent, chain *state.ChainIntent, _ common.Hash) {
 				chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
 			},
-			wantErr:    true,
-			wantErrMsg: "op-deployer prestate",
 		},
 		{
 			name: "differing global override",
 			configure: func(intent *state.Intent, _ *state.ChainIntent, _ common.Hash) {
 				intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
 			},
-			wantErr:    true,
-			wantErrMsg: "op-deployer prestate",
 		},
 		{
 			name: "chain override shadows differing global override",
@@ -665,11 +650,7 @@ func TestBuildContinuationDCI_PrestateOverrideDrift(t *testing.T) {
 				tt.configure(intent, chain, prestate)
 			}
 
-			got, err := BuildContinuationDCI(intent, chainID, st)
-			if tt.wantErr {
-				require.ErrorContains(t, err, tt.wantErrMsg)
-				return
-			}
+			got, err := BuildContinuationDCI(chainID, st)
 			require.NoError(t, err)
 			require.Equal(t, prestate, got.DisputeAbsolutePrestate)
 		})
@@ -680,10 +661,10 @@ func TestBuildContinuationDCI_LosslessAnchorSequenceTransport(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 
 	t.Run("uint64 max minus one is transported exactly", func(t *testing.T) {
-		intent, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
+		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
 		st.Chains[0].StartingAnchorRoot.L2SequenceNumber = math.MaxUint64 - 1
 
-		got, err := BuildContinuationDCI(intent, chainID, st)
+		got, err := BuildContinuationDCI(chainID, st)
 		require.NoError(t, err)
 		require.Equal(
 			t,
@@ -693,10 +674,10 @@ func TestBuildContinuationDCI_LosslessAnchorSequenceTransport(t *testing.T) {
 	})
 
 	t.Run("uint64 max is rejected by the generic transport bound", func(t *testing.T) {
-		intent, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
+		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
 		st.Chains[0].StartingAnchorRoot.L2SequenceNumber = math.MaxUint64
 
-		_, err := BuildContinuationDCI(intent, chainID, st)
+		_, err := BuildContinuationDCI(chainID, st)
 		require.ErrorContains(t, err, "starting anchor sequence number that is too large")
 	})
 }
@@ -706,9 +687,9 @@ func continuationDCITestInputs(
 	gameType embedded.GameType,
 ) (*state.Intent, *state.ChainIntent, *state.State) {
 	opcmAddr := common.HexToAddress("0x2222222222222222222222222222222222222222")
-	intentOPCMAddr := common.HexToAddress("0x5555555555555555555555555555555555555555")
 	superchainConfig := common.HexToAddress("0x3333333333333333333333333333333333333333")
 	predictSender := common.HexToAddress("0x4444444444444444444444444444444444444444")
+	intentOPCMAddr := common.HexToAddress("0x5555555555555555555555555555555555555555")
 	chain := &state.ChainIntent{
 		ID: chainID,
 		Roles: state.ChainRoles{
@@ -725,16 +706,19 @@ func continuationDCITestInputs(
 		},
 	}
 	intent := &state.Intent{
-		OPCMAddress:           &intentOPCMAddr,
 		SuperchainConfigProxy: &superchainConfig,
+		OPCMAddress:           &intentOPCMAddr,
 		GlobalDeployOverrides: make(map[string]any),
 		Chains:                []*state.ChainIntent{chain},
 	}
 	st := &state.State{
-		Prepared:                  true,
+		PreparedDeployment: &state.PreparedDeployment{
+			Intent:   intent,
+			Deployer: predictSender,
+			OPCM:     opcmAddr,
+			Chains:   []*state.PreparedChainState{{ID: chainID}},
+		},
 		Create2Salt:               common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234"),
-		L1PredictSenderAddress:    &predictSender,
-		L1PredictOPCMAddress:      &opcmAddr,
 		ImplementationsDeployment: nil,
 		SuperchainDeployment:      nil,
 		Chains: []*state.ChainState{{
@@ -748,49 +732,6 @@ func continuationDCITestInputs(
 		}},
 	}
 	return intent, chain, st
-}
-
-func TestResolveChainProofParams(t *testing.T) {
-	t.Run("uses defaults", func(t *testing.T) {
-		got, err := ResolveChainProofParams(&state.Intent{}, &state.ChainIntent{})
-		require.NoError(t, err)
-		require.Equal(t, state.ChainProofParams{
-			DisputeGameType:         standard.DisputeGameType,
-			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
-			DisputeMaxGameDepth:     standard.DisputeMaxGameDepth,
-			DisputeSplitDepth:       standard.DisputeSplitDepth,
-			DisputeClockExtension:   standard.DisputeClockExtension,
-			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
-		}, got)
-	})
-
-	t.Run("chain overrides global", func(t *testing.T) {
-		globalPrestate := common.HexToHash("0x11")
-		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"respectedGameType":                        embedded.GameTypeCannonKona,
-			state.FaultGameAbsolutePrestateOverrideKey: globalPrestate,
-			"faultGameMaxDepth":                        uint64(101),
-		}}
-		chain := &state.ChainIntent{DeployOverrides: map[string]any{
-			"respectedGameType": embedded.GameTypeSuperCannonKona,
-			"faultGameMaxDepth": uint64(202),
-		}}
-
-		got, err := ResolveChainProofParams(intent, chain)
-		require.NoError(t, err)
-		require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), got.DisputeGameType)
-		require.Equal(t, globalPrestate, got.DisputeAbsolutePrestate)
-		require.Equal(t, uint64(202), got.DisputeMaxGameDepth)
-	})
-
-	t.Run("rejects malformed absolute prestate", func(t *testing.T) {
-		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			state.FaultGameAbsolutePrestateOverrideKey: "not-a-hash",
-		}}
-
-		_, err := ResolveChainProofParams(intent, &state.ChainIntent{})
-		require.Error(t, err)
-	})
 }
 
 func TestResolvePreparedGameType(t *testing.T) {
@@ -839,6 +780,49 @@ func TestResolvePreparedGameType(t *testing.T) {
 	})
 }
 
+func TestResolveChainProofParams(t *testing.T) {
+	t.Run("uses defaults", func(t *testing.T) {
+		got, err := ResolveChainProofParams(&state.Intent{}, &state.ChainIntent{})
+		require.NoError(t, err)
+		require.Equal(t, state.ChainProofParams{
+			DisputeGameType:         standard.DisputeGameType,
+			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
+			DisputeMaxGameDepth:     standard.DisputeMaxGameDepth,
+			DisputeSplitDepth:       standard.DisputeSplitDepth,
+			DisputeClockExtension:   standard.DisputeClockExtension,
+			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
+		}, got)
+	})
+
+	t.Run("chain overrides global", func(t *testing.T) {
+		globalPrestate := common.HexToHash("0x11")
+		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
+			"respectedGameType":                        embedded.GameTypeCannonKona,
+			state.FaultGameAbsolutePrestateOverrideKey: globalPrestate,
+			"faultGameMaxDepth":                        uint64(101),
+		}}
+		chain := &state.ChainIntent{DeployOverrides: map[string]any{
+			"respectedGameType": embedded.GameTypeSuperCannonKona,
+			"faultGameMaxDepth": uint64(202),
+		}}
+
+		got, err := ResolveChainProofParams(intent, chain)
+		require.NoError(t, err)
+		require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), got.DisputeGameType)
+		require.Equal(t, globalPrestate, got.DisputeAbsolutePrestate)
+		require.Equal(t, uint64(202), got.DisputeMaxGameDepth)
+	})
+
+	t.Run("rejects malformed absolute prestate", func(t *testing.T) {
+		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
+			state.FaultGameAbsolutePrestateOverrideKey: "not-a-hash",
+		}}
+
+		_, err := ResolveChainProofParams(intent, &state.ChainIntent{})
+		require.Error(t, err)
+	})
+}
+
 func TestResolveInitialDeployRequirements(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -859,7 +843,7 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 		{
 			name:     "SUPER_PERMISSIONED",
 			gameType: uint32(embedded.GameTypeSuperPermissioned),
-			wantErr:  "SUPER_PERMISSIONED (5) is a derived fallback and is not an initial-deploy selector",
+			want:     InitialDeployRequirements{},
 		},
 		{
 			name:     "CANNON_KONA",
@@ -904,6 +888,45 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateInitialGameTypeForOPCM(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+
+	// Mirrors DeployOPChain.s.sol: GameTypes.isSuperGame(gameType) == isSuperRoot.
+	tests := []struct {
+		gameType embedded.GameType
+		superOK  bool
+	}{
+		{embedded.GameTypePermissionedCannon, false},
+		{embedded.GameTypeCannonKona, false},
+		{embedded.GameTypeSuperPermissioned, true},
+		{embedded.GameTypeSuperCannonKona, true},
+	}
+	for _, tt := range tests {
+		t.Run(initialGameTypeName(uint32(tt.gameType)), func(t *testing.T) {
+			require.NoError(t, ValidateInitialGameTypeForOPCM(uint32(tt.gameType), tt.superOK, opcmAddr))
+
+			err := ValidateInitialGameTypeForOPCM(uint32(tt.gameType), !tt.superOK, opcmAddr)
+			require.ErrorContains(t, err, initialGameTypeName(uint32(tt.gameType)))
+			require.ErrorContains(t, err, "is not deployable by the OPCM")
+			require.ErrorContains(t, err, opcmAddr.Hex())
+			if tt.superOK {
+				require.ErrorContains(t, err, "SUPER_ROOT_GAMES_MIGRATION disabled")
+				require.ErrorContains(t, err, "CANNON_KONA (8) or PERMISSIONED_CANNON (1)")
+			} else {
+				require.ErrorContains(t, err, "SUPER_ROOT_GAMES_MIGRATION enabled")
+				require.ErrorContains(t, err, "SUPER_CANNON_KONA (9) or SUPER_PERMISSIONED (5)")
+			}
+		})
+	}
+
+	t.Run("unsupported selector", func(t *testing.T) {
+		for _, superRoot := range []bool{false, true} {
+			err := ValidateInitialGameTypeForOPCM(uint32(embedded.GameTypeCannon), superRoot, opcmAddr)
+			require.ErrorContains(t, err, "unsupported initial dispute game type 0")
+		}
+	})
 }
 
 func TestValidateInitialGameTypeSet(t *testing.T) {
@@ -995,6 +1018,11 @@ func TestBuildDeployOPChainInputCannonAbsolutePrestate(t *testing.T) {
 		{
 			name:     "SUPER_CANNON_KONA leaves unread field zero",
 			gameType: embedded.GameTypeSuperCannonKona,
+			want:     common.Hash{},
+		},
+		{
+			name:     "SUPER_PERMISSIONED leaves unread field zero",
+			gameType: embedded.GameTypeSuperPermissioned,
 			want:     common.Hash{},
 		},
 	}

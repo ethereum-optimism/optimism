@@ -137,7 +137,7 @@ impl LocalInstance {
             .with_components(
                 op_node
                     .components()
-                    .pool(pool_component(&args, interop_failsafe))
+                    .pool(pool_component(&op_node, &args, interop_failsafe))
                     .payload(P::new_service(builder_config)?),
             )
             .with_add_ons(addons)
@@ -384,21 +384,20 @@ fn task_manager() -> Runtime {
 }
 
 fn pool_component(
+    op_node: &OpNode,
     args: &OpRbuilderArgs,
     interop_failsafe: reth_optimism_txpool::interop::InteropFailsafe,
 ) -> OpPoolBuilder<FBPooledTransaction> {
-    let rollup_args = &args.rollup_args;
-    OpPoolBuilder::<FBPooledTransaction>::default()
+    op_node
+        .standard_pool_builder::<FBPooledTransaction>()
         .with_enable_tx_conditional(
             // Revert protection uses the same internal pool logic as conditional transactions
             // to garbage collect transactions out of the bundle range.
-            rollup_args.enable_tx_conditional || args.enable_revert_protection,
+            args.rollup_args.enable_tx_conditional || args.enable_revert_protection,
         )
-        .with_interop(
-            rollup_args.interop_http.clone(),
-            rollup_args.interop_min_responses,
-            rollup_args.interop_safety_level,
-        )
+        // The payload builder reads the failsafe through `builder_config`, so the pool must be
+        // pointed at that same handle rather than the node's own, or the filter client and the
+        // builder observe different flags.
         .with_interop_failsafe(interop_failsafe)
 }
 

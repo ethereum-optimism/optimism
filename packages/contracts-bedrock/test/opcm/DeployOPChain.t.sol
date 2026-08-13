@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { Test } from "test/setup/Test.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
+import { MockSP1Verifier } from "test/dispute/zk/MockSP1Verifier.sol";
 
 // Scripts
 import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
@@ -31,6 +32,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 contract DeployOPChain_TestBase is Test, FeatureFlags {
     DeploySuperchain deploySuperchain;
@@ -64,7 +66,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     uint256 l2ChainId = 300;
     string saltMixer = "saltMixer";
     uint64 gasLimit = 60_000_000;
-    GameType disputeGameType = GameTypes.PERMISSIONED_CANNON;
+    GameType disputeGameType;
     // Prestates are real release hashes from the superchain registry's standard-prestates.toml;
     // the tests only need them to be non-zero and distinct from each other.
     // cannon32 v1.3.1 (op-program).
@@ -92,9 +94,11 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
 
     function setUp() public virtual {
         resolveFeaturesFromEnv();
+        disputeGameType = _permissionedGameType();
         deploySuperchain = new DeploySuperchain();
         deployImplementations = new DeployImplementations();
         deployOPChain = new DeployOPChain();
+        ISP1Verifier sp1Verifier = new MockSP1Verifier();
 
         // 1) DeploySuperchain
         DeploySuperchain.Output memory dso = deploySuperchain.run(
@@ -122,7 +126,10 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
                 superchainProxyAdmin: dso.superchainProxyAdmin,
                 l1ProxyAdminOwner: dso.superchainProxyAdmin.owner(),
                 challenger: challenger,
-                devFeatureBitmap: devFeatureBitmap
+                devFeatureBitmap: devFeatureBitmap,
+                sp1Verifier: DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
+                    ? sp1Verifier
+                    : ISP1Verifier(address(0))
             })
         );
         opcmAddr = address(dio.opcmV2);
@@ -166,6 +173,14 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
         deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
         deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
     }
+
+    /// @notice The permissioned initial deploy selector for the OPCM's mode. The script rejects the
+    ///         other family's type rather than promoting it.
+    function _permissionedGameType() internal view returns (GameType) {
+        return isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+            ? GameTypes.SUPER_PERMISSIONED
+            : GameTypes.PERMISSIONED_CANNON;
+    }
 }
 
 contract DeployOPChain_Test is DeployOPChain_TestBase {
@@ -196,9 +211,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
 
         // Check dispute game deployments
         // Validate permissionedDisputeGame (PDG) address
-        GameType permGameType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED
-            : GameTypes.PERMISSIONED_CANNON;
+        GameType permGameType = _permissionedGameType();
         IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(opcmAddr).implementations();
         address expectedPDGAddress = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
             ? impls.superPermissionedDisputeGameImpl
@@ -237,10 +250,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         view
         returns (IPermissionedDisputeGame)
     {
-        GameType permGameType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED
-            : GameTypes.PERMISSIONED_CANNON;
-        return IPermissionedDisputeGame(address(doo.disputeGameFactoryProxy.gameImpls(permGameType)));
+        return IPermissionedDisputeGame(address(doo.disputeGameFactoryProxy.gameImpls(_permissionedGameType())));
     }
 
     function test_runWithBytes_succeeds() public {
@@ -381,7 +391,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         _setPermissionlessInput(GameTypes.CANNON_KONA);
 
-        vm.expectRevert("DeployOPChainInput: dispute game type does not match OPCM mode");
+        vm.expectRevert("DeployOPChain: dispute game type does not match OPCM super root mode");
         deployOPChain.run(deployOPChainInput);
     }
 
@@ -390,7 +400,26 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
 
-        vm.expectRevert("DeployOPChainInput: dispute game type does not match OPCM mode");
+        vm.expectRevert("DeployOPChain: dispute game type does not match OPCM super root mode");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    /// @notice PERMISSIONED_CANNON is rejected when the OPCM uses super roots instead of being
+    ///         promoted to SUPER_PERMISSIONED.
+    function test_run_permissionedCannonGameTypeWithSuperRoot_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        deployOPChainInput.disputeGameType = GameTypes.PERMISSIONED_CANNON;
+
+        vm.expectRevert("DeployOPChain: dispute game type does not match OPCM super root mode");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    /// @notice SUPER_PERMISSIONED is rejected when the OPCM does not use super roots.
+    function test_run_superPermissionedGameTypeWithoutSuperRoot_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        deployOPChainInput.disputeGameType = GameTypes.SUPER_PERMISSIONED;
+
+        vm.expectRevert("DeployOPChain: dispute game type does not match OPCM super root mode");
         deployOPChain.run(deployOPChainInput);
     }
 
@@ -501,14 +530,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     }
 
     /// @notice Tests that faultDisputeGame is set to address(0) and permissionedDisputeGame is set to the correct
-    /// implementation for GameTypes.PERMISSIONED_CANNON.
-    function test_run_faultDisputeGamePermissionedCannon_succeeds() public {
-        deployOPChainInput.disputeGameType = GameTypes.PERMISSIONED_CANNON;
+    /// implementation for the permissioned game type of the OPCM's mode.
+    function test_run_faultDisputeGamePermissioned_succeeds() public {
+        GameType permType = _permissionedGameType();
+        deployOPChainInput.disputeGameType = permType;
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
-        GameType permType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED
-            : GameTypes.PERMISSIONED_CANNON;
         address expectedPermissioned = address(doo.disputeGameFactoryProxy.gameImpls(permType));
         assertEq(address(doo.permissionedDisputeGame), expectedPermissioned, "PDG impl");
         assertEq(address(doo.faultDisputeGame), address(0), "FDG should be set to address(0)");
@@ -551,7 +578,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         );
 
         bool isSuperRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
+        GameType permType = _permissionedGameType();
 
         // The legacy permissioned game keeps the default bond. The super permissioned game
         // has no bonded participation path, so its init bond must be zero.

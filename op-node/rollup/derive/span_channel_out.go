@@ -7,10 +7,10 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type SpanChannelOut struct {
@@ -156,12 +156,12 @@ func (co *SpanChannelOut) swapRLP() {
 // and an error if there is a problem adding the block. The only sentinel error
 // that it returns is ErrTooManyRLPBytes. If this error is returned, the channel
 // should be closed and a new one should be made.
-func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block) (*L1BlockInfo, error) {
+func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (*L1BlockInfo, error) {
 	if co.closed {
 		return nil, ErrChannelOutAlreadyClosed
 	}
 
-	batch, l1Info, err := BlockToSingularBatch(rollupCfg, block)
+	batch, l1Info, err := PayloadToSingularBatch(rollupCfg, payload)
 	if err != nil {
 		return nil, fmt.Errorf("converting block to batch: %w", err)
 	}

@@ -3,6 +3,7 @@ package messages
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -570,5 +571,72 @@ func TestEncodeAccessList(t *testing.T) {
 		}
 		require.Empty(t, list, "need to exhaust entries, expecting to be done")
 		require.Equal(t, accObjects, result, "roundtrip of random entries should work")
+	})
+}
+
+func TestDecodeAccessList(t *testing.T) {
+	accesses := []Access{
+		{BlockNumber: testBlockNumber, Timestamp: testTimestamp, LogIndex: testLogIndex,
+			ChainID: testChainID, Checksum: MessageChecksum(testChecksum)},
+		{BlockNumber: testBlockNumber + 1, Timestamp: testTimestamp + 2, LogIndex: 0,
+			ChainID: eth.ChainIDFromBytes32([32]byte{0: 0xff}), Checksum: MessageChecksum(testChecksum)},
+	}
+
+	t.Run("roundtrip", func(t *testing.T) {
+		result, err := DecodeAccessList(ethTypes.AccessList{{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: EncodeAccessList(accesses),
+		}})
+		require.NoError(t, err)
+		require.Equal(t, accesses, result)
+	})
+
+	t.Run("across tuples", func(t *testing.T) {
+		result, err := DecodeAccessList(ethTypes.AccessList{
+			{Address: predeploys.CrossL2InboxAddr, StorageKeys: EncodeAccessList(accesses[:1])},
+			{Address: predeploys.CrossL2InboxAddr, StorageKeys: EncodeAccessList(accesses[1:])},
+		})
+		require.NoError(t, err)
+		require.Equal(t, accesses, result)
+	})
+
+	t.Run("split across tuples", func(t *testing.T) {
+		entries := EncodeAccessList(accesses)
+		for split := 1; split < len(entries); split++ {
+			t.Run(fmt.Sprintf("after entry %d", split), func(t *testing.T) {
+				result, err := DecodeAccessList(ethTypes.AccessList{
+					{Address: predeploys.CrossL2InboxAddr, StorageKeys: entries[:split]},
+					{Address: common.Address{0xaa}, StorageKeys: []common.Hash{{0x01}}},
+					{Address: predeploys.CrossL2InboxAddr, StorageKeys: entries[split:]},
+				})
+				require.NoError(t, err)
+				require.Equal(t, accesses, result)
+			})
+		}
+	})
+
+	t.Run("ignores other addresses", func(t *testing.T) {
+		result, err := DecodeAccessList(ethTypes.AccessList{{
+			Address:     common.Address{0xaa},
+			StorageKeys: []common.Hash{{0x01}},
+		}})
+		require.NoError(t, err)
+		require.Empty(t, result)
+	})
+
+	t.Run("unknown entry type", func(t *testing.T) {
+		_, err := DecodeAccessList(ethTypes.AccessList{{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: []common.Hash{{0: 0x09}},
+		}})
+		require.ErrorIs(t, err, errUnexpectedEntryType)
+	})
+
+	t.Run("truncated", func(t *testing.T) {
+		_, err := DecodeAccessList(ethTypes.AccessList{{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: []common.Hash{{0: PrefixLookup}},
+		}})
+		require.ErrorIs(t, err, errExpectedEntry)
 	})
 }

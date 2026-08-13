@@ -9,11 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -130,7 +128,7 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 // Panics if the block is not in state.
 func (s *channelManager) rewindToBlock(block eth.BlockID) {
 	initialCursor := s.blockCursor
-	idx := block.Number - bigs.Uint64Strict(s.blocks[0].Number())
+	idx := block.Number - s.blocks[0].NumberU64()
 	if s.blocks[idx].Hash() == block.Hash && idx < uint64(s.blockCursor) {
 		s.blockCursor = int(idx)
 	} else {
@@ -447,7 +445,7 @@ func (s *channelManager) processBlocks() error {
 		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
-		latestL2ref = l2BlockRefFromBlockAndL1Info(block.Block, l1info)
+		latestL2ref = l2BlockRefFromPayloadAndL1Info(block.ExecutionPayload, l1info)
 		s.metr.RecordL2BlockInChannel(block.RawSize(), block.EstimatedDABytes())
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
@@ -505,25 +503,25 @@ func (s *channelManager) outputFrames() error {
 // AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
 // if the block does not extend the last block loaded into the state. If no
 // blocks were added yet, the parent hash check is skipped.
-func (s *channelManager) AddL2Block(block *types.Block) error {
-	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
+func (s *channelManager) AddL2Block(payload *eth.ExecutionPayload) error {
+	if s.tip != (common.Hash{}) && s.tip != payload.ParentHash {
 		return ErrReorg
 	}
 
-	b := ToSizedBlock(block)
+	b := ToSizedBlock(payload)
 	s.metr.RecordL2BlockInPendingQueue(b.RawSize(), b.EstimatedDABytes())
 	s.blocks.Enqueue(b)
-	s.tip = block.Hash()
+	s.tip = payload.BlockHash
 
 	return nil
 }
 
-func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info *derive.L1BlockInfo) eth.L2BlockRef {
+func l2BlockRefFromPayloadAndL1Info(payload *eth.ExecutionPayload, l1info *derive.L1BlockInfo) eth.L2BlockRef {
 	return eth.L2BlockRef{
-		Hash:           block.Hash(),
-		Number:         block.NumberU64(),
-		ParentHash:     block.ParentHash(),
-		Time:           block.Time(),
+		Hash:           payload.BlockHash,
+		Number:         uint64(payload.BlockNumber),
+		ParentHash:     payload.ParentHash,
+		Time:           uint64(payload.Timestamp),
 		L1Origin:       eth.BlockID{Hash: l1info.BlockHash, Number: l1info.Number},
 		SequenceNumber: l1info.SequenceNumber,
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -20,26 +21,25 @@ import (
 
 // TestProposerChainsSecondZKGameOnFirst covers the create path end to end: the
 // proposer's first game is a well-formed root game (max-uint32 parent sentinel,
-// non-zero sequence number) and its second game chains on the first.
+// sequence number beyond the anchor) and its second game chains on the first.
 // Broader root-game lifecycle behavior (challenge, prove, anchor) is covered by
 // TestChallengedValidProposalAnchors.
 func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t, presets.WithZK())
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestProposer(),
+	)
 	factory := sys.DisputeGameFactory()
+	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
+
+	sys.StartZKProposer()
 
 	game0 := factory.WaitForZKGameAtIndex(0)
 	t.Require().Equal(uint32(math.MaxUint32), game0.ParentIndex(),
 		"first proposer game must be a root game using the max-uint32 parent sentinel")
-	// TODO(#22086): strengthen back to an anchor comparison by recording the
-	// anchor before the proposer starts, once the start-proposer-mid-test
-	// hook from #22105 is available (adopt whichever PR lands first).
-	// Not compared against the live anchor: with the always-on proposer the
-	// anchor may already have advanced past game0 by the time this test
-	// runs (the proposer-creates-beyond-the-anchor rule is unit-tested on
-	// the Rust side in proposal_timing).
-	t.Require().NotZero(game0.L2SequenceNumber(),
-		"root game must carry a super-root timestamp")
+	t.Require().Greater(game0.L2SequenceNumber(), anchorSequence,
+		"root game must propose a sequence number beyond the anchor")
 
 	game1 := factory.WaitForZKGameAtIndex(1)
 	t.Require().Equal(uint32(0), game1.ParentIndex(),
@@ -206,6 +206,43 @@ func TestProposerClaimsBondAfterResolution(gt *testing.T) {
 
 	t.Require().True(game0.Credit(proposerAddr).IsZero(), "claimed game must hold no credit for the proposer")
 	t.Require().Zero(weth.Withdrawal(game0.Address, proposerAddr).Amount.Sign(), "claimed game must hold no pending withdrawal")
+}
+
+// TestProposerFastFinalityProvesAtCreation covers fast finality mode end to
+// end: the proposer proves its own game while it is still unchallenged, and
+// the game resolves DefenderWins BEFORE the challenge window elapses. Nothing
+// ever challenges, and L1 never time-travels past the deadline before
+// resolution (every other test advances L1 past the deadline first).
+func TestProposerFastFinalityProvesAtCreation(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	// The challenger resolves all games, not just those it challenges; disable
+	// it so this test proves the proposer alone proves and resolves.
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
+	)
+	factory := sys.DisputeGameFactory()
+
+	game0 := factory.WaitForZKGameAtIndex(0)
+	// The challenge deadline; nothing challenges in this test, so it is
+	// never rewritten.
+	deadline := game0.ClaimData().Deadline
+
+	// Fast finality proves the game with NO challenge.
+	game0.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	t.Require().Equal(zkProposerAddress(t, sys), game0.ClaimData().Prover,
+		"the proposer itself must be the prover")
+
+	// The proven game resolves without waiting out the challenge window:
+	// deliberately no advanceL1To before this wait.
+	game0.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
+	t.Require().Less(game0.ResolvedAt(), deadline,
+		"fast finality must resolve before the challenge window elapses")
+
+	// The early-resolved game feeds the anchor like any other win.
+	advanceL1To(&sys.SingleChainInterop, game0.ResolvedAt()+uint64(presets.DefaultZKFinalityDelay/time.Second)+1)
+	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRootAtLeast(game0)
 }
 
 // zkProposerAddress derives the address the sysgo ZK proposer signs with: the

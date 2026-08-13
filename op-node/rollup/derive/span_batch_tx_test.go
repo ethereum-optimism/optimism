@@ -99,10 +99,10 @@ func testPostExecTx() *optypes.PostExecTx {
 }
 
 // testPostExecGethTx decodes the canonical post-exec encoding into a go-ethereum
-// transaction, mirroring how AddTxs receives post-exec txs from raw batch bytes.
-// The 0x7D type byte keeps this on the typed-transaction decode path (only first
-// bytes > 0x7f decode as legacy RLP); the payload after it — RLP itself, so it can
-// look legacy-shaped — is carried as opaque bytes with no further envelope.
+// transaction, to pin op-geth's view of a post-exec tx against the span batch
+// fields derived from the encoding itself. Only op-geth decodes the 0x7D class;
+// upstream go-ethereum rejects it, which is why nothing but this reference decodes
+// post-exec txs into go-ethereum transactions.
 func testPostExecGethTx(t *testing.T) *types.Transaction {
 	raw, err := testPostExecTx().MarshalBinary()
 	require.NoError(t, err)
@@ -112,33 +112,27 @@ func testPostExecGethTx(t *testing.T) *types.Transaction {
 }
 
 func TestSpanBatchTxPostExecConvert(t *testing.T) {
-	tx := testPostExecGethTx(t)
-	v, r, s := tx.RawSignatureValues()
-
-	sbtx, err := newSpanBatchTx(tx)
+	raw, err := testPostExecTx().MarshalBinary()
 	require.NoError(t, err)
+	sbtx := &spanBatchTx{inner: &spanBatchPostExecTxData{Data: testPostExecTx().Data}}
 
 	// Deliberately pass non-canonical tx envelope fields. PostExec reconstruction
 	// must ignore them and preserve only the opaque payload bytes.
-	tx2Encoded, err := sbtx.convertToFullTx(123, 456, nil, big.NewInt(901), v, r, s)
+	encoded, err := sbtx.convertToFullTx(123, 456, nil, big.NewInt(901), big.NewInt(1), big.NewInt(2), big.NewInt(3))
 	require.NoError(t, err)
-
-	txEncoded, err := tx.MarshalBinary()
-	require.NoError(t, err)
-	require.Equal(t, txEncoded, tx2Encoded)
+	require.Equal(t, raw, encoded)
 }
 
 func TestSpanBatchTxPostExecRoundTrip(t *testing.T) {
-	tx := testPostExecGethTx(t)
-
-	sbtx, err := newSpanBatchTx(tx)
+	raw, err := testPostExecTx().MarshalBinary()
 	require.NoError(t, err)
+	sbtx := &spanBatchTx{inner: &spanBatchPostExecTxData{Data: testPostExecTx().Data}}
 
+	// A post-exec tx has no envelope fields to strip, so its span batch tx data is
+	// its canonical encoding.
 	sbtxEncoded, err := sbtx.MarshalBinary()
 	require.NoError(t, err)
-	txEncoded, err := tx.MarshalBinary()
-	require.NoError(t, err)
-	require.Equal(t, txEncoded, sbtxEncoded)
+	require.Equal(t, raw, sbtxEncoded)
 
 	var sbtx2 spanBatchTx
 	err = sbtx2.UnmarshalBinary(sbtxEncoded)

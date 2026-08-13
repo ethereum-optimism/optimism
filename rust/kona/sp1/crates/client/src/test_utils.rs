@@ -83,3 +83,35 @@ pub fn valid_aggregation_inputs() -> SuperAggregationInputs {
         ],
     }
 }
+
+/// Returns the canonical valid single-chain fixture for super-aggregation tests.
+pub fn valid_single_chain_aggregation_inputs() -> SuperAggregationInputs {
+    let starting_super_root_proof = SuperRootProof::new(99, vec![output(10, 0x01)]);
+    let starting_root_hash =
+        hash_super_root_proof(&starting_super_root_proof).expect("starting root hashes");
+    let final_super_root = B256::from([0x44; 32]);
+    let timestamp_100 = vec![optimistic(10, 0x11, 0x12)];
+
+    SuperAggregationInputs {
+        l1_head: B256::from([0x99; 32]),
+        starting_root_hash,
+        starting_super_root_proof,
+        root_claim: final_super_root,
+        l2_sequence_number: 100,
+        prover: address!("0x1234567890123456789012345678901234567890"),
+        range_outputs: vec![SuperRangeOutputs {
+            span: TimestampSpan::new(100, 100).expect("valid span"),
+            l1_head: B256::from([0x99; 32]),
+            previous_super_roots: vec![starting_root_hash],
+            transitions: vec![SuperRangeTransition {
+                timestamp: 100,
+                optimistic_block: timestamp_100[0],
+            }],
+        }],
+        consolidation_outputs: vec![SuperConsolidationOutputs {
+            span: TimestampSpan::new(100, 100).expect("valid span"),
+            previous_super_root: starting_root_hash,
+            transitions: vec![consolidation_transition(100, timestamp_100, 0x44)],
+        }],
+    }
+}

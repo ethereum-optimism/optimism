@@ -614,6 +614,23 @@ impl<Txs> OpBuilder<'_, Txs> {
     }
 }
 
+/// The gas a committed transaction used, in both of the senses a block builder needs.
+///
+/// Both are reported because which one is correct depends on the question being asked:
+/// [`Self::evm_gas_used`] for anything comparing against the block gas limit, since that is
+/// what [`ExecutionInfo::is_tx_over_limits`] measures, and [`Self::canonical_gas_used`] for
+/// anything accounting in receipt-visible terms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommittedTxGas {
+    /// Receipt-visible gas after post-exec (SDM) settlement — the block header's `gasUsed`
+    /// and the basis for what the sender pays.
+    pub canonical_gas_used: u64,
+    /// Gas the EVM burned before post-exec (SDM) settlement — the real compute performed.
+    /// Settlement only rebates today, so this is `>= canonical_gas_used`; refunds return gas
+    /// but not build time, which is why block-limit admission is gated on this figure.
+    pub evm_gas_used: u64,
+}
+
 /// A [`PayloadTransactions`] iterator that is notified of the gas used by each
 /// yielded transaction once it is actually committed to the block.
 ///
@@ -631,9 +648,12 @@ pub trait PayloadTransactionsWithCommitHook: PayloadTransactions {
     /// after it is successfully executed and committed to the block, and BEFORE any
     /// subsequent `next()` call, with the gas that transaction used. It is NOT invoked
     /// for transactions that are skipped or rejected — whether or not `mark_invalid`
-    /// was called for them. Implementors may therefore attribute `gas_used` to the
+    /// was called for them. Implementors may therefore attribute the gas to the
     /// most-recently-yielded transaction.
-    fn on_commit(&mut self, gas_used: u64);
+    ///
+    /// The two figures in [`CommittedTxGas`] are not interchangeable; see its docs for
+    /// which one a given use calls for.
+    fn on_commit(&mut self, gas: CommittedTxGas);
 }
 
 /// Adapts a plain [`PayloadTransactions`] to [`PayloadTransactionsWithCommitHook`] by ignoring
@@ -655,7 +675,7 @@ impl<T: PayloadTransactions> PayloadTransactions for RethPayloadTransactions<T> 
 }
 
 impl<T: PayloadTransactions> PayloadTransactionsWithCommitHook for RethPayloadTransactions<T> {
-    fn on_commit(&mut self, _gas_used: u64) {}
+    fn on_commit(&mut self, _gas: CommittedTxGas) {}
 }
 
 /// A type that returns a the [`PayloadTransactions`] that should be included in the pool.
@@ -1177,7 +1197,7 @@ where
             // Report the gas used by each committed transaction so a custom
             // `best_txs` can update its own per-inclusion state. `RethPayloadTransactions`
             // makes this a no-op for a plain `PayloadTransactions`.
-            best_txs.on_commit(tx_gas_used);
+            best_txs.on_commit(CommittedTxGas { canonical_gas_used: tx_gas_used, evm_gas_used });
 
             // Record the successfully committed transaction for callers that want per-call
             // visibility.

@@ -1,5 +1,5 @@
 ---
-title: Releases
+title: op-deployer versioning and releases
 description: Reference for where to find OP Deployer releases and how each OP Deployer version maps to a supported contract release.
 diataxis: reference
 ---

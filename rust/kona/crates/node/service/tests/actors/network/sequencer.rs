@@ -29,8 +29,7 @@ async fn test_sequencer_network_conn() -> anyhow::Result<()> {
         .await
         .ok_or_else(|| anyhow::anyhow!("No block received"))?;
 
-    assert_eq!(block.parent_beacon_block_root, envelope.parent_beacon_block_root);
-    assert_eq!(block.execution_payload, envelope.execution_payload);
+    assert_eq!(block, envelope);
 
     Ok(())
 }
@@ -74,8 +73,7 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
         let block =
             network.blocks_rx.recv().await.ok_or_else(|| anyhow::anyhow!("No block received"))?;
 
-        assert_eq!(block.parent_beacon_block_root, envelope.parent_beacon_block_root);
-        assert_eq!(block.execution_payload, envelope.execution_payload);
+        assert_eq!(block, envelope);
     }
 
     Ok(())

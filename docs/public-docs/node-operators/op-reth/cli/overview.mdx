@@ -7,8 +7,8 @@ diataxis: explanation
 This page explains how the `op-reth` command-line interface is organized, so
 you can find the right command and understand where its configuration comes
 from. To install and start a node, follow
-[Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack). For the full
-flag catalogue of every command, see the
+[Execution client configuration](/node-operators/guides/configuration/execution-clients).
+For the full flag catalogue of every command, see the
 [generated CLI reference](/node-operators/op-reth/cli/op-reth).
 
 ## One binary, many commands
@@ -34,6 +34,7 @@ so you rarely run them while the node is running. A couple (`config` and
 | [`config`](/node-operators/op-reth/cli/op-reth/config) | Write the configuration to stdout |
 | [`prune`](/node-operators/op-reth/cli/op-reth/prune) | Prune according to the configuration without any limits |
 | [`re-execute`](/node-operators/op-reth/cli/op-reth/re-execute) | Re-execute blocks in parallel to verify historical sync correctness |
+| [`proofs`](/node-operators/op-reth/cli/op-reth/proofs) | Manage storage of historical proofs within the fault proof window |
 
 The [CLI reference](/node-operators/op-reth/cli/op-reth) mirrors this structure: each
 page reproduces the output of `op-reth <command> --help`, and nested
@@ -52,7 +53,7 @@ The `Rollup` group is OP Stack-specific: flags such as `--rollup.sequencer`
 (the sequencer endpoint that transactions are forwarded to) and
 `--rollup.disable-tx-pool-gossip` configure behavior that only exists on OP
 Stack chains. These are covered with examples in
-[Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack).
+[Execution client configuration](/node-operators/guides/configuration/execution-clients).
 
 ### Initializing and importing
 
@@ -131,8 +132,8 @@ is the quickest way to see what is configurable through the file.
 
 ## Next steps
 
-*   Follow [Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack) to
-    install op-reth and pair it with a rollup node.
+*   Follow [Execution client configuration](/node-operators/guides/configuration/execution-clients)
+    to install op-reth and pair it with a consensus client.
 *   Browse the [CLI reference](/node-operators/op-reth/cli/op-reth) for the complete
     flag catalogue of every command.
 *   See [Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet) if you are

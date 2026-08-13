@@ -345,6 +345,23 @@ target "kona-client" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-client:${tag}"]
 }
 
+target "kona-sp1-proposer" {
+  dockerfile = "kona/docker/apps/kona_app_generic.dockerfile"
+  context = "rust"
+  contexts = {
+    nuts-bundles = "op-core/nuts/bundles"
+    contracts-bedrock-abis = "packages/contracts-bedrock/snapshots/abi"
+  }
+  args = {
+    REPO_LOCATION = "local"
+    BUILDER_VARIANT = "contract-abis"
+    BIN_TARGET = "kona-sp1-proposer"
+    BUILD_PROFILE = "release"
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-sp1-proposer:${tag}"]
+}
+
 target "op-reth" {
   dockerfile = "op-reth/DockerfileOp"
   context = "rust"

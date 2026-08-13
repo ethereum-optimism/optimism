@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-karst/karsttest"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -177,6 +178,17 @@ func makeAllCommand() *cli.Command {
 // aren't needed by the EIP-7934 check.
 type ethclientLatestBlockAdapter struct{ *ethclient.Client }
 
+// TransactionReceipt adapts the go-ethereum receipt to the optypes shape the
+// karst checks consume; the JSON-only OP fee fields stay nil (the checks read
+// only standard fields).
+func (a *ethclientLatestBlockAdapter) TransactionReceipt(ctx context.Context, txHash common.Hash) (*optypes.Receipt, error) {
+	receipt, err := a.Client.TransactionReceipt(ctx, txHash)
+	if err != nil || receipt == nil {
+		return nil, err
+	}
+	return optypes.FromGethReceipt(receipt), nil
+}
+
 func (a *ethclientLatestBlockAdapter) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
 	if label != eth.Unsafe {
 		return nil, nil, fmt.Errorf("unsupported block label %q (only %q is supported)", label, eth.Unsafe)
@@ -248,7 +260,7 @@ func makeDepositCommand() *cli.Command {
 			}
 
 			if _, err := karsttest.CheckEIP7825DepositBypass(
-				env.ctx, env.logger, env.l2,
+				env.ctx, env.logger, &ethclientLatestBlockAdapter{env.l2},
 				common.HexToAddress(portalHex),
 				crypto.PubkeyToAddress(l1Key.PublicKey),
 				karsttest.NewBasePlan(l1Cl, l1Key),

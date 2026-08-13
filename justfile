@@ -248,9 +248,9 @@ reproducible-prestate:
   (cd rust && just build-kona-reproducible-prestate)
   (cd rust && just output-kona-prestate-hash)
 
-# Builds the kona prestates natively (hashes will not match release builds).
+# Builds the kona prestates, natively when the MIPS64 cross-linker is installed and via Docker otherwise.
 cannon-prestates:
-  cd rust && just build-kona-prestates
+  cd rust && just build-kona-prestates-auto
 
 # Verifies the reproducibility of released cannon prestates against the
 # superchain-registry standard prestates. Only kona-client/v* releases are
@@ -349,20 +349,34 @@ _go-tests-ci-internal go_test_flags="": build-superchain-go
   if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
       NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
       NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
-      PARALLEL_PACKAGES=$(echo "$ALL_PACKAGES" | tr ' ' '\n' | awk -v idx="$NODE_INDEX" -v total="$NODE_TOTAL" 'NR % total == idx' | tr '\n' ' ')
-      if [ -n "$PARALLEL_PACKAGES" ]; then
-          echo "Node $NODE_INDEX/$NODE_TOTAL running packages: $PARALLEL_PACKAGES"
-          ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
-              --junitfile=./tmp/test-results/results-"$NODE_INDEX".xml \
-              --jsonfile=./tmp/testlogs/log-"$NODE_INDEX".json \
-              --rerun-fails=3 \
-              --rerun-fails-max-failures=50 \
-              --packages="$PARALLEL_PACKAGES" \
-              -- -p=4 -parallel="$PARALLEL" {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
-      else
-          echo "ERROR: Node $NODE_INDEX/$NODE_TOTAL has no packages to run! Perhaps parallelism is set too high? (package list has $(echo "$ALL_PACKAGES" | wc -w) packages)"
+      if [ -z "${ALL_PACKAGES// /}" ]; then
+          echo "ERROR: list-test-packages produced no packages" >&2
           exit 1
       fi
+      # Split by historical timing instead of round-robin: timing-balanced
+      # packing keyed on the JUnit classname (= Go import path) that gotestsum
+      # uploads via store_test_results. list-test-packages already emits one
+      # concrete import path per line; `circleci tests split` reads
+      # CIRCLE_NODE_TOTAL/INDEX itself and falls back to name-based splitting
+      # for packages with no timing data yet.
+      PARALLEL_PACKAGES=$(printf '%s\n' $ALL_PACKAGES \
+          | circleci tests split --split-by=timings --timings-type=classname \
+          | tr '\n' ' ')
+      # An empty share for one node is a legitimate timing-bucketing outcome;
+      # the packages run on the other nodes. Only an empty package list
+      # (checked above) means the job would silently test nothing.
+      if [ -z "${PARALLEL_PACKAGES// /}" ]; then
+          echo "No packages assigned to node $NODE_INDEX/$NODE_TOTAL, skipping."
+          exit 0
+      fi
+      echo "Node $NODE_INDEX/$NODE_TOTAL running packages: $PARALLEL_PACKAGES"
+      ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
+          --junitfile=./tmp/test-results/results-"$NODE_INDEX".xml \
+          --jsonfile=./tmp/testlogs/log-"$NODE_INDEX".json \
+          --rerun-fails=3 \
+          --rerun-fails-max-failures=50 \
+          --packages="$PARALLEL_PACKAGES" \
+          -- -p=4 -parallel="$PARALLEL" {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
   else
       ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
           --junitfile=./tmp/test-results/results.xml \
@@ -413,8 +427,10 @@ update-op-geth:
   ./ops/scripts/update-op-geth.py
 
 # Build all Rust binaries (release) for sysgo tests.
+# Every binary needs an explicit `-p`: a bare `--bin` only resolves against the
+# `default-members` of the workspace, and op-reth-sdm-fixture is a plain member.
 build-rust-release:
-  cd rust && cargo build --release --bin kona-node --bin kona-host --bin op-reth
+  cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth -p op-reth-sdm-fixture --bin op-reth-sdm-fixture
   cd rust/op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
   cd rust/rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 

@@ -108,6 +108,18 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want:      0,
 		},
 		{
+			name:      "minimal allows op-reth options",
+			supported: minimalPresetSupportedOptionKinds,
+			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-superset")),
+			want:      0,
+		},
+		{
+			name:      "conductors allow op-reth options",
+			supported: minimalWithConductorsPresetSupportedOptionKinds,
+			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-superset")),
+			want:      0,
+		},
+		{
 			name:      "flashblocks allows builder and deployer adapters",
 			supported: singleChainWithFlashblocksPresetSupportedOptionKinds,
 			opts: Combine(
@@ -158,6 +170,18 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			supported: supernodeProofsPresetSupportedOptionKinds,
 			opts:      WithZKProposerOption(sysgo.WithZKProposalInterval(time.Minute)),
 			want:      optionKindZKProposer,
+		},
+		{
+			name:      "single chain supernode proofs reject op-reth options",
+			supported: supernodeProofsPresetSupportedOptionKinds,
+			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-sdm-fixture")),
+			want:      optionKindOpReth,
+		},
+		{
+			name:      "single chain no-supernode proofs accept op-reth options",
+			supported: singleChainInteropNoSupernodePresetSupportedOptionKinds,
+			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-sdm-fixture")),
+			want:      0,
 		},
 		{
 			name:      "two l2 supernode rejects time travel",

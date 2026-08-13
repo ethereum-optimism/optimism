@@ -398,9 +398,9 @@ where
             return false;
         }
 
-        // Do not include transactions in the first Interop block.
+        // Do not include transactions in the first Lagoon block.
         if self.rollup_config.is_first_interop_block(attributes.payload_attributes.timestamp) {
-            info!(target: "sequencer", "Sequencing interop upgrade block");
+            info!(target: "sequencer", "Sequencing lagoon upgrade block");
             return false;
         }
 
@@ -533,7 +533,6 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
         SealTaskError::UnsafeHeadChangedSinceBuild => false,
         SealTaskError::DepositOnlyPayloadFailed |
         SealTaskError::DepositOnlyPayloadReattemptFailed |
-        SealTaskError::FromBlock(_) |
         SealTaskError::MpscSend(_) |
         SealTaskError::ClockWentBackwards => true,
     }

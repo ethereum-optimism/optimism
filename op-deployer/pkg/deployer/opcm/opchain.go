@@ -56,7 +56,8 @@ type DeployOPChainInput struct {
 	DisputeAbsolutePrestate common.Hash // Selected game prestate.
 	StartingAnchorRoot      Proposal
 	// CannonAbsolutePrestate configures the CANNON_KONA guardian fallback.
-	// PERMISSIONED_CANNON mirrors the selected prestate. SUPER_CANNON_KONA leaves it zero.
+	// PERMISSIONED_CANNON mirrors the selected prestate. The super types (SUPER_CANNON_KONA,
+	// SUPER_PERMISSIONED) leave it zero.
 	CannonAbsolutePrestate       common.Hash
 	DisputeMaxGameDepth          *big.Int
 	DisputeSplitDepth            *big.Int
@@ -138,6 +139,7 @@ type ReadImplementationAddressesOutput struct {
 	ZkDisputeGame                common.Address
 	OpcmStandardValidator        common.Address
 	OpcmInteropMigrator          common.Address
+	SP1PlonkAdapter              common.Address `evm:"sp1PlonkAdapter" abi:"sp1PlonkAdapter"`
 }
 
 type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImplementationAddressesInput, ReadImplementationAddressesOutput]

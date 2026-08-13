@@ -7,6 +7,8 @@ test args='./...': build-contracts copy-contract-artifacts
 
 build-contracts:
   just ../packages/contracts-bedrock/build-no-tests
+  # In-process devstack genesis tests explicitly opt into this mock verifier.
+  just ../packages/contracts-bedrock/forge-build test/dispute/zk/MockSP1Verifier.sol
 
 copy-contract-artifacts:
     #!/bin/bash
@@ -90,9 +92,15 @@ pre-deploy: build build-contracts
 
 # Run with:
 # PRIVATE_KEY=0x1234.... NETWORK=sepolia just deploy-opcm
+# Set DEV_FEATURE_BITMAP when deploying a ZK-enabled OPCM release. Set SP1_VERIFIER_ADDRESS only to
+# override the network default or when deploying to a network without one.
 deploy-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
+  sp1_verifier_args=()
+  if [ -n "${SP1_VERIFIER_ADDRESS:-}" ]; then
+    sp1_verifier_args+=(--sp1-verifier-address "$SP1_VERIFIER_ADDRESS")
+  fi
   go run ./cmd/op-deployer bootstrap implementations \
     --l1-rpc-url $ETH_RPC_URL \
     --private-key $PRIVATE_KEY \
@@ -100,6 +108,8 @@ deploy-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
     --upgrade-controller $L1_PROXY_ADMIN_OWNER \
     --superchain-proxy-admin $SUPERCHAIN_PROXY_ADMIN \
     --challenger $CHALLENGER \
+    --dev-feature-bitmap ${DEV_FEATURE_BITMAP:-0x0000000000000000000000000000000000000000000000000000000000000000} \
+    "${sp1_verifier_args[@]}" \
     --outfile deploy-${NETWORK}.json
 
 # Verifies the OPCM and the associated implementations contracts on Etherscan.

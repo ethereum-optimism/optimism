@@ -32,6 +32,8 @@ auto_impl = { workspace = true }
 
 [dev-dependencies]
 alloy-hardforks = { workspace = true }
+revm-inspectors.workspace = true
+test-case.workspace = true
 
 [features]
 default = ["std"]
