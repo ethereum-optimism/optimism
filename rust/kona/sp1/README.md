@@ -219,7 +219,7 @@ Required core configuration:
 | Variable | Purpose |
 |---|---|
 | `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC |
-| `KONA_SP1_PROPOSER_SUPERROOT_RPC` | op-supernode or single-chain op-node RPC serving `superroot_atTimestamp` |
+| `KONA_SP1_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple RPCs can be provided for failover |
 | `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | `DisputeGameFactory` address |
 | `KONA_SP1_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
 | `KONA_SP1_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
