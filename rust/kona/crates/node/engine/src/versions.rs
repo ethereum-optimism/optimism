@@ -17,7 +17,76 @@
 //! Adapted from the [OP Node version providers](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/types.go#L546).
 
 use alloy_hardforks::EthereumHardforks;
+use derive_more::Display;
 use kona_genesis::RollupConfig;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use thiserror::Error;
+
+/// The structural version of an OP execution payload envelope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+pub enum ExecutionPayloadEnvelopeVersion {
+    /// Pre-Canyon payload envelope.
+    V1,
+    /// Canyon payload envelope.
+    V2,
+    /// Ecotone payload envelope.
+    V3,
+    /// Isthmus payload envelope.
+    V4,
+}
+
+impl ExecutionPayloadEnvelopeVersion {
+    /// Returns the envelope version required by the fork active at `timestamp`.
+    pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
+        if cfg.is_isthmus_active(timestamp) {
+            Self::V4
+        } else if cfg.is_ecotone_active(timestamp) {
+            Self::V3
+        } else if cfg.is_canyon_active(timestamp) {
+            Self::V2
+        } else {
+            Self::V1
+        }
+    }
+
+    /// Returns the structural version of `payload`.
+    pub const fn from_payload(payload: &OpExecutionPayloadEnvelope) -> Self {
+        match payload {
+            OpExecutionPayloadEnvelope::V1(_) => Self::V1,
+            OpExecutionPayloadEnvelope::V2(_) => Self::V2,
+            OpExecutionPayloadEnvelope::V3 { .. } => Self::V3,
+            OpExecutionPayloadEnvelope::V4 { .. } => Self::V4,
+        }
+    }
+}
+
+/// A payload envelope does not match the fork active at its timestamp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[error(
+    "payload version {actual} is invalid at timestamp {timestamp}; expected version {expected}"
+)]
+pub struct ExecutionPayloadEnvelopeVersionError {
+    /// The envelope version supplied by the caller.
+    pub actual: ExecutionPayloadEnvelopeVersion,
+    /// The envelope version required at the payload timestamp.
+    pub expected: ExecutionPayloadEnvelopeVersion,
+    /// The payload timestamp used to select the version.
+    pub timestamp: u64,
+}
+
+/// Validates that a payload envelope matches the fork active at its timestamp.
+pub fn validate_execution_payload_envelope_version(
+    cfg: &RollupConfig,
+    payload: &OpExecutionPayloadEnvelope,
+) -> Result<(), ExecutionPayloadEnvelopeVersionError> {
+    let timestamp = payload.timestamp();
+    let actual = ExecutionPayloadEnvelopeVersion::from_payload(payload);
+    let expected = ExecutionPayloadEnvelopeVersion::from_cfg(cfg, timestamp);
+    if actual != expected {
+        return Err(ExecutionPayloadEnvelopeVersionError { actual, expected, timestamp });
+    }
+    Ok(())
+}
 
 /// Engine API version for `engine_forkchoiceUpdated` method calls.
 ///
@@ -120,6 +189,7 @@ mod tests {
     fn cfg() -> RollupConfig {
         RollupConfig {
             hardforks: HardForkConfig {
+                canyon_time: Some(7),
                 ecotone_time: Some(10),
                 isthmus_time: Some(20),
                 karst_time: Some(30),
@@ -127,6 +197,27 @@ mod tests {
             },
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn envelope_version_selects_by_active_hardfork() {
+        let cfg = cfg();
+        assert_eq!(
+            ExecutionPayloadEnvelopeVersion::from_cfg(&cfg, 5),
+            ExecutionPayloadEnvelopeVersion::V1
+        );
+        assert_eq!(
+            ExecutionPayloadEnvelopeVersion::from_cfg(&cfg, 8),
+            ExecutionPayloadEnvelopeVersion::V2
+        );
+        assert_eq!(
+            ExecutionPayloadEnvelopeVersion::from_cfg(&cfg, 15),
+            ExecutionPayloadEnvelopeVersion::V3
+        );
+        assert_eq!(
+            ExecutionPayloadEnvelopeVersion::from_cfg(&cfg, 25),
+            ExecutionPayloadEnvelopeVersion::V4
+        );
     }
 
     #[test]

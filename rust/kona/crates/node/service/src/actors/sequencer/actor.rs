@@ -20,7 +20,7 @@ use crate::{
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
-use kona_engine::{InsertTaskError, SealTaskError, SynchronizeTaskError};
+use kona_engine::{InsertTaskErrorKind, SealTaskError, SynchronizeTaskError};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -516,17 +516,20 @@ where
 // added, this approach guarantees compilation will fail until it is handled here.
 fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
     match err {
-        SealTaskError::PayloadInsertionFailed(insert_err) => match &**insert_err {
-            InsertTaskError::ForkchoiceUpdateFailed(synchronize_error) => match synchronize_error {
-                SynchronizeTaskError::FinalizedAheadOfUnsafe(_, _) => true,
-                SynchronizeTaskError::ForkchoiceUpdateFailed(_) |
-                SynchronizeTaskError::InvalidForkchoiceState |
-                SynchronizeTaskError::UnexpectedPayloadStatus(_) => false,
-            },
-            InsertTaskError::FromBlockError(_) | InsertTaskError::L2BlockInfoConstruction(_) => {
-                true
+        SealTaskError::PayloadInsertionFailed(insert_err) => match insert_err.kind() {
+            InsertTaskErrorKind::ForkchoiceUpdateFailed(synchronize_error) => {
+                match synchronize_error {
+                    SynchronizeTaskError::FinalizedAheadOfUnsafe(_, _) => true,
+                    SynchronizeTaskError::ForkchoiceUpdateFailed(_) |
+                    SynchronizeTaskError::InvalidForkchoiceState |
+                    SynchronizeTaskError::UnexpectedPayloadStatus(_) => false,
+                }
             }
-            InsertTaskError::InsertFailed(_) | InsertTaskError::UnexpectedPayloadStatus(_) => false,
+            InsertTaskErrorKind::FromBlockError(_) |
+            InsertTaskErrorKind::UnexpectedPayloadVersion(_) |
+            InsertTaskErrorKind::L2BlockInfoConstruction(_) => true,
+            InsertTaskErrorKind::InsertFailed(_) |
+            InsertTaskErrorKind::UnexpectedPayloadStatus(_) => false,
         },
         SealTaskError::GetPayloadFailed(_) |
         SealTaskError::HoloceneInvalidFlush |

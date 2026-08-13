@@ -3,7 +3,8 @@ pub use attributes::TestAttributesBuilder;
 
 mod engine_client;
 pub use engine_client::{
-    MockEngineClient, MockEngineClientBuilder, MockEngineStorage, test_engine_client_builder,
+    MockEngineCall, MockEngineClient, MockEngineClientBuilder, MockEngineStorage,
+    MockNewPayloadResponse, test_engine_client_builder,
 };
 
 mod engine_state;

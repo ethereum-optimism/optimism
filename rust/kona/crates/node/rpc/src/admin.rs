@@ -9,7 +9,10 @@ use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
+use kona_engine::validate_execution_payload_envelope_version;
+use kona_genesis::RollupConfig;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
+use std::sync::Arc;
 
 /// The query types to the network actor for the admin api.
 #[derive(Debug)]
@@ -30,6 +33,8 @@ pub struct AdminRpc<SequencerAdminAPIClient> {
     pub sequencer_admin_client: Option<SequencerAdminAPIClient>,
     /// The sender to the network actor.
     pub network_sender: NetworkAdminQuerySender,
+    /// Rollup configuration used to validate payload versions.
+    pub rollup_config: Arc<RollupConfig>,
 }
 
 impl<SequencerAdminAPIClient_> AdminRpc<SequencerAdminAPIClient_>
@@ -43,6 +48,7 @@ where
     /// - `sequencer_sender`: The [`SequencerAdminAPIClient`] used to fulfill sequencer admin
     ///   queries.
     /// - `network_sender`: The sender to the network actor.
+    /// - `rollup_config`: The rollup configuration used to validate payload versions.
     ///
     /// # Returns
     ///
@@ -50,8 +56,9 @@ where
     pub const fn new(
         sequencer_admin_client: Option<SequencerAdminAPIClient_>,
         network_sender: NetworkAdminQuerySender,
+        rollup_config: Arc<RollupConfig>,
     ) -> Self {
-        Self { sequencer_admin_client, network_sender }
+        Self { sequencer_admin_client, network_sender, rollup_config }
     }
 }
 
@@ -65,6 +72,13 @@ where
         payload: OpExecutionPayloadEnvelope,
     ) -> RpcResult<()> {
         kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload");
+
+        validate_execution_payload_envelope_version(&self.rollup_config, &payload).map_err(
+            |err| {
+                tracing::warn!(target: "rpc", %err, "admin_postUnsafePayload: rejecting payload");
+                ErrorObject::owned(ErrorCode::InvalidParams.code(), err.to_string(), None::<()>)
+            },
+        )?;
 
         payload.check_block_hash().map_err(|err| {
             tracing::warn!(

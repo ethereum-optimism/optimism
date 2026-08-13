@@ -77,8 +77,11 @@ mockall.workspace = true
 alloy-primitives = { workspace = true, features = ["k256"] }
 alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }
 alloy-consensus = { workspace = true, features = ["arbitrary"] }
+alloy-json-rpc.workspace = true
 op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
-kona-derive = {workspace = true, features = ["test-utils"]}
+kona-derive = { workspace = true, features = ["test-utils"] }
+kona-engine = { workspace = true, features = ["test-utils"] }
+kona-protocol = { workspace = true, features = ["test-utils"] }
 
 [features]
 default = []

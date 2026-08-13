@@ -8,7 +8,6 @@ use crate::{
     InsertTaskError,
     task_queue::{SealTask, SealTaskError},
 };
-use alloy_rpc_types_engine::PayloadStatusEnum;
 use async_trait::async_trait;
 use derive_more::Display;
 use std::cmp::Ordering;
@@ -23,6 +22,9 @@ pub enum EngineTaskErrorSeverity {
     /// The error is temporary and the task is retried.
     #[display("temporary")]
     Temporary,
+    /// The task should be dropped.
+    #[display("drop")]
+    Drop,
     /// The error is critical and is propagated to the engine actor.
     #[display("critical")]
     Critical,
@@ -111,17 +113,9 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
     /// Executes the task without consuming it.
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {
-            Self::Insert(task) => match task.execute(state).await {
-                // INVALID is terminal for an externally sourced unsafe payload. Drop it so the
-                // queue can process competing or subsequent payloads instead of retrying forever.
-                Err(InsertTaskError::UnexpectedPayloadStatus(
-                    status @ PayloadStatusEnum::Invalid { .. },
-                )) => {
-                    warn!(target: "engine", %status, "Dropping invalid unsafe payload");
-                }
-                Err(err) => return Err(err.into()),
-                Ok(_) => {}
-            },
+            Self::Insert(task) => {
+                task.execute(state).await?;
+            }
             Self::Seal(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
@@ -212,7 +206,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
     type Error = EngineTaskErrors;
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), Self::Error> {
-        // Retry the task until it succeeds or a critical error occurs.
         while let Err(e) = self.execute_inner(state).await {
             let severity = e.severity();
 
@@ -228,6 +221,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 
                     // Yield the task to allow other tasks to execute to avoid starvation.
                     yield_now().await;
+                }
+                EngineTaskErrorSeverity::Drop => {
+                    warn!(target: "engine", "Dropping permanently invalid engine task: {e}");
+                    return Err(e);
                 }
                 EngineTaskErrorSeverity::Critical => {
                     error!(target: "engine", "{e}");
@@ -253,17 +250,37 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::MockEngineClient;
+    use crate::{
+        ExecutionPayloadEnvelopeVersion, ExecutionPayloadEnvelopeVersionError, InsertTaskErrorKind,
+        PayloadEnvelopeOrigin, test_utils::MockEngineClient,
+    };
     use alloy_consensus::Block;
+    use alloy_json_rpc::ErrorPayload;
     use alloy_primitives::Bytes;
-    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus, PayloadStatusEnum};
+    use alloy_transport::{RpcError, TransportErrorKind};
     use kona_genesis::RollupConfig;
     use op_alloy_consensus::OpTxEnvelope;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use std::{sync::Arc, time::Duration};
 
+    fn insert_error(origin: PayloadEnvelopeOrigin, kind: InsertTaskErrorKind) -> InsertTaskError {
+        InsertTaskError::new(origin, kind)
+    }
+
+    fn rpc_error(origin: PayloadEnvelopeOrigin, code: i64) -> InsertTaskError {
+        insert_error(
+            origin,
+            InsertTaskErrorKind::InsertFailed(RpcError::ErrorResp(ErrorPayload {
+                code,
+                message: "test error".into(),
+                data: None,
+            })),
+        )
+    }
+
     #[tokio::test]
-    async fn invalid_unsafe_payload_completes_without_retry() {
+    async fn invalid_remote_payload_returns_drop_without_retry() {
         let config = Arc::new(RollupConfig::default());
         let client = Arc::new(
             MockEngineClient::builder()
@@ -279,12 +296,133 @@ mod tests {
             client,
             config,
             OpExecutionPayloadEnvelope::V1(payload),
-            false,
+            PayloadEnvelopeOrigin::RemoteSequencer,
         )));
 
-        tokio::time::timeout(Duration::from_secs(1), task.execute(&mut EngineState::default()))
-            .await
-            .expect("invalid unsafe payload task should not retry")
-            .unwrap();
+        let error =
+            tokio::time::timeout(Duration::from_secs(1), task.execute(&mut EngineState::default()))
+                .await
+                .expect("invalid remote payload task should not retry")
+                .expect_err("invalid remote payload should be dropped");
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Drop);
+    }
+
+    #[test]
+    fn payload_origin_controls_payload_specific_error_severity() {
+        let invalid_status = || {
+            InsertTaskErrorKind::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid {
+                validation_error: "invalid state root".to_string(),
+            })
+        };
+        assert_eq!(
+            insert_error(PayloadEnvelopeOrigin::RemoteSequencer, invalid_status()).severity(),
+            EngineTaskErrorSeverity::Drop
+        );
+        for local_origin in
+            [PayloadEnvelopeOrigin::L1Derived, PayloadEnvelopeOrigin::LocalSequencer]
+        {
+            assert_eq!(
+                insert_error(local_origin, invalid_status()).severity(),
+                EngineTaskErrorSeverity::Temporary
+            );
+        }
+
+        let invalid_version = || {
+            InsertTaskErrorKind::UnexpectedPayloadVersion(ExecutionPayloadEnvelopeVersionError {
+                actual: ExecutionPayloadEnvelopeVersion::V3,
+                expected: ExecutionPayloadEnvelopeVersion::V4,
+                timestamp: 10,
+            })
+        };
+        assert_eq!(
+            insert_error(PayloadEnvelopeOrigin::RemoteSequencer, invalid_version()).severity(),
+            EngineTaskErrorSeverity::Drop
+        );
+        for local_origin in
+            [PayloadEnvelopeOrigin::L1Derived, PayloadEnvelopeOrigin::LocalSequencer]
+        {
+            assert_eq!(
+                insert_error(local_origin, invalid_version()).severity(),
+                EngineTaskErrorSeverity::Critical
+            );
+        }
+
+        for code in [ErrorPayload::<()>::invalid_params().code, -38004] {
+            assert_eq!(
+                rpc_error(PayloadEnvelopeOrigin::RemoteSequencer, code).severity(),
+                EngineTaskErrorSeverity::Drop,
+                "remote payload-specific RPC error {code} should be dropped"
+            );
+            for local_origin in
+                [PayloadEnvelopeOrigin::L1Derived, PayloadEnvelopeOrigin::LocalSequencer]
+            {
+                assert_eq!(
+                    rpc_error(local_origin, code).severity(),
+                    EngineTaskErrorSeverity::Critical,
+                    "local payload-specific RPC error {code} should be critical"
+                );
+            }
+        }
+
+        assert_eq!(
+            insert_error(
+                PayloadEnvelopeOrigin::RemoteSequencer,
+                InsertTaskErrorKind::UnexpectedPayloadStatus(PayloadStatusEnum::Accepted),
+            )
+            .severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
+    }
+
+    #[test]
+    fn surfaces_client_and_el_capability_errors_as_critical() {
+        for code in [
+            ErrorPayload::<()>::invalid_request().code,
+            ErrorPayload::<()>::method_not_found().code,
+            -38005,
+        ] {
+            assert_eq!(
+                rpc_error(PayloadEnvelopeOrigin::RemoteSequencer, code).severity(),
+                EngineTaskErrorSeverity::Critical,
+                "client or EL capability error {code} should be critical"
+            );
+        }
+
+        let capability_errors = [
+            RpcError::UnsupportedFeature("test"),
+            RpcError::<TransportErrorKind>::local_usage_str("test"),
+            RpcError::SerError(
+                serde_json::from_str::<serde_json::Value>("{").expect_err("invalid JSON"),
+            ),
+            TransportErrorKind::non_retryable_str("test"),
+        ];
+        for error in capability_errors {
+            assert_eq!(
+                insert_error(
+                    PayloadEnvelopeOrigin::RemoteSequencer,
+                    InsertTaskErrorKind::InsertFailed(error),
+                )
+                .severity(),
+                EngineTaskErrorSeverity::Critical
+            );
+        }
+    }
+
+    #[test]
+    fn retries_transient_rpc_errors() {
+        assert_eq!(
+            rpc_error(PayloadEnvelopeOrigin::RemoteSequencer, -32603).severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
+        assert_eq!(
+            insert_error(
+                PayloadEnvelopeOrigin::RemoteSequencer,
+                InsertTaskErrorKind::InsertFailed(RpcError::Transport(
+                    TransportErrorKind::BackendGone,
+                )),
+            )
+            .severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
     }
 }

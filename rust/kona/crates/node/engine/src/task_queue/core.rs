@@ -22,9 +22,7 @@ use tokio::sync::watch::Sender;
 ///  Because tasks are executed one at a time, they are considered to be atomic operations over the
 /// [`EngineState`], and are given exclusive access to the engine state during execution.
 ///
-/// Tasks within the queue are also considered fallible. If they fail with a temporary error,
-/// they are not popped from the queue, the error is returned, and they are retried on the
-/// next call to [`Engine::drain`].
+/// Temporary failures remain queued for retry. Permanently invalid tasks are removed.
 #[derive(Debug)]
 pub struct Engine<EngineClient_: EngineClient> {
     /// The state of the engine.
@@ -104,7 +102,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
                     warn!(target: "engine", ?err, "Forkchoice update failed during reset. Trying again...");
                     start = find_starting_forkchoice(&config, client.as_ref()).await?;
                 }
-                EngineTaskErrorSeverity::Critical => {
+                EngineTaskErrorSeverity::Drop | EngineTaskErrorSeverity::Critical => {
                     return Err(EngineResetError::Forkchoice(err));
                 }
             }
@@ -120,21 +118,19 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         self.tasks.clear();
     }
 
-    /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
-    /// an error along the way, it is not popped from the queue (in case it must be retried) and
-    /// the error is returned.
+    /// Executes queued tasks in priority order, retaining failures unless marked `Drop`.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
-        // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         while let Some(task) = self.tasks.peek() {
-            // Execute the task
-            task.execute(&mut self.state).await?;
+            match task.execute(&mut self.state).await {
+                Ok(()) => {
+                    // Update the state and notify the engine actor.
+                    self.state_sender.send_replace(self.state);
+                }
+                Err(err) if err.severity() == EngineTaskErrorSeverity::Drop => {}
+                Err(err) => return Err(err),
+            }
 
-            // Update the state and notify the engine actor.
-            self.state_sender.send_replace(self.state);
-
-            // Pop the task from the queue now that it's been executed.
             self.tasks.pop();
-
             self.task_queue_length.send_replace(self.tasks.len());
         }
 
@@ -151,4 +147,65 @@ pub enum EngineResetError {
     /// An error occurred while traversing the L1 for the sync starting point.
     #[error(transparent)]
     SyncStart(#[from] SyncStartError),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        InsertTask,
+        test_utils::{TestEngineStateBuilder, test_engine_client_builder},
+    };
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus, PayloadStatusEnum};
+    use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+    use std::time::Duration;
+    use tokio::{sync::watch, time::timeout};
+
+    #[tokio::test]
+    async fn drops_permanently_invalid_unsafe_payload() {
+        let config = Arc::new(RollupConfig::default());
+        let client = test_engine_client_builder()
+            .with_config(config.clone())
+            .with_new_payload_v1_response(PayloadStatus {
+                status: PayloadStatusEnum::Invalid {
+                    validation_error: "invalid state root".to_string(),
+                },
+                latest_valid_hash: None,
+            })
+            .build();
+        let state = TestEngineStateBuilder::new().build();
+        let (state_sender, _) = watch::channel(state);
+        let (queue_length_sender, queue_length) = watch::channel(0);
+        let mut engine = Engine::new(state, state_sender, queue_length_sender);
+
+        engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+            Arc::new(client),
+            config,
+            OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
+                parent_hash: Default::default(),
+                fee_recipient: Default::default(),
+                state_root: Default::default(),
+                receipts_root: Default::default(),
+                logs_bloom: Default::default(),
+                prev_randao: Default::default(),
+                block_number: 1,
+                gas_limit: 0,
+                gas_used: 0,
+                timestamp: 2,
+                extra_data: Default::default(),
+                base_fee_per_gas: Default::default(),
+                block_hash: Default::default(),
+                transactions: Vec::new(),
+            }),
+            false,
+        ))));
+        assert_eq!(*queue_length.borrow(), 1);
+
+        timeout(Duration::from_secs(1), engine.drain())
+            .await
+            .expect("drain timed out")
+            .expect("drain failed");
+
+        assert_eq!(*queue_length.borrow(), 0);
+    }
 }

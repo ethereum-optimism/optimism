@@ -2,8 +2,7 @@
 use super::SealTaskError;
 use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, InsertTask,
-    InsertTaskError::{self},
-    task_queue::build_and_seal,
+    InsertTaskErrorKind, PayloadEnvelopeOrigin, task_queue::build_and_seal,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
@@ -138,27 +137,34 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
         payload: OpExecutionPayloadEnvelope,
     ) -> Result<L2BlockInfo, SealTaskError> {
         // Insert the new block into the engine.
+        let origin = if self.is_attributes_derived {
+            PayloadEnvelopeOrigin::L1Derived
+        } else {
+            PayloadEnvelopeOrigin::LocalSequencer
+        };
         let new_block_ref = match InsertTask::new(
             Arc::clone(&self.engine),
             self.cfg.clone(),
             payload,
-            self.is_attributes_derived,
+            origin,
         )
         .execute(state)
         .await
         {
-            Err(InsertTaskError::UnexpectedPayloadStatus(e))
-                if self.attributes.is_deposits_only() =>
+            Err(error)
+                if matches!(error.kind(), InsertTaskErrorKind::UnexpectedPayloadStatus(_)) &&
+                    self.attributes.is_deposits_only() =>
             {
-                error!(target: "engine", error = ?e, "Critical: Deposit-only payload import failed");
+                error!(target: "engine", ?error, "Critical: Deposit-only payload import failed");
                 return Err(SealTaskError::DepositOnlyPayloadFailed);
             }
-            Err(InsertTaskError::UnexpectedPayloadStatus(e))
-                if self.cfg.is_holocene_active(
-                    self.attributes.attributes().payload_attributes.timestamp,
-                ) =>
+            Err(error)
+                if matches!(error.kind(), InsertTaskErrorKind::UnexpectedPayloadStatus(_)) &&
+                    self.cfg.is_holocene_active(
+                        self.attributes.attributes().payload_attributes.timestamp,
+                    ) =>
             {
-                warn!(target: "engine", error = ?e, "Re-attempting payload import with deposits only.");
+                warn!(target: "engine", ?error, "Re-attempting payload import with deposits only.");
 
                 // HOLOCENE: Re-attempt payload import with deposits only
                 // First build the deposits-only payload, then seal it

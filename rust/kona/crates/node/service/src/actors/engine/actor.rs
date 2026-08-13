@@ -6,7 +6,8 @@ use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, InsertTask, SealTask,
+    EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, InsertTask,
+    PayloadEnvelopeOrigin, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -116,6 +117,11 @@ where
             }
             Err(err) => {
                 match err.severity() {
+                    EngineTaskErrorSeverity::Drop => {
+                        // Unreachable: Engine::drain consumes drop errors.
+                        error!(target: "engine", ?err, "Drop error escaped engine task queue");
+                        return Err(err.into());
+                    }
                     EngineTaskErrorSeverity::Critical => {
                         error!(target: "engine", ?err, "Critical error draining engine tasks");
                         return Err(err.into());
@@ -262,8 +268,7 @@ where
                     self.client.clone(),
                     self.rollup.clone(),
                     *envelope,
-                    false, /* The payload is not derived in this case. This is an unsafe
-                            * block. */
+                    PayloadEnvelopeOrigin::RemoteSequencer,
                 )));
                 self.engine.enqueue(task);
             }

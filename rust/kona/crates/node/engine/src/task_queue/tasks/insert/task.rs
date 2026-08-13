@@ -1,8 +1,9 @@
 //! A task to insert an unsafe payload into the execution engine.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, InsertTaskError, SynchronizeTask,
-    state::EngineSyncStateUpdate,
+    EngineClient, EngineState, EngineTaskExt, InsertTaskError, InsertTaskErrorKind,
+    PayloadEnvelopeOrigin, SynchronizeTask, state::EngineSyncStateUpdate,
+    validate_execution_payload_envelope_version,
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -21,20 +22,24 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     rollup_config: Arc<RollupConfig>,
     /// The complete execution payload envelope.
     payload: OpExecutionPayloadEnvelope,
-    /// If the payload is safe this is true.
-    /// A payload is safe if it is derived from a safe block.
-    is_payload_safe: bool,
+    /// Whether the payload was derived from L1, locally sequenced, or remotely received.
+    origin: PayloadEnvelopeOrigin,
 }
 
 impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
-    /// Creates a new insert task.
+    /// Creates a task for a payload with an explicit origin.
     pub const fn new(
         client: Arc<EngineClient_>,
         rollup_config: Arc<RollupConfig>,
         payload: OpExecutionPayloadEnvelope,
-        is_attributes_derived: bool,
+        origin: PayloadEnvelopeOrigin,
     ) -> Self {
-        Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived }
+        Self { client, rollup_config, payload, origin }
+    }
+
+    /// Wraps an underlying failure with this payload's origin.
+    fn error(&self, kind: impl Into<InsertTaskErrorKind>) -> InsertTaskError {
+        InsertTaskError::new(self.origin, kind.into())
     }
 
     /// Checks the response of the `engine_newPayload` call.
@@ -50,6 +55,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
     type Error = InsertTaskError;
 
     async fn execute(&self, state: &mut EngineState) -> Result<L2BlockInfo, InsertTaskError> {
+        validate_execution_payload_envelope_version(&self.rollup_config, &self.payload)
+            .map_err(|error| self.error(error))?;
+
         let time_start = Instant::now();
 
         // Insert the new payload.
@@ -79,20 +87,19 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
             Ok(resp) => resp,
             Err(e) => {
                 warn!(target: "engine", "Failed to insert new payload: {e}");
-                return Err(InsertTaskError::InsertFailed(e));
+                return Err(self.error(InsertTaskErrorKind::InsertFailed(e)));
             }
         };
         if !self.check_new_payload_status(&response.status) {
-            return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
+            return Err(self.error(InsertTaskErrorKind::UnexpectedPayloadStatus(response.status)));
         }
 
-        let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
         let insert_duration = insert_time_start.elapsed();
 
-        let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
+        let block: OpBlock = payload.try_into_block().map_err(|error| self.error(error))?;
         let new_unsafe_ref =
             L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
-                .map_err(InsertTaskError::L2BlockInfoConstruction)?;
+                .map_err(|error| self.error(InsertTaskErrorKind::L2BlockInfoConstruction(error)))?;
 
         // Send a FCU to canonicalize the imported block.
         SynchronizeTask::new(
@@ -101,13 +108,14 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
             EngineSyncStateUpdate {
                 cross_unsafe_head: Some(new_unsafe_ref),
                 unsafe_head: Some(new_unsafe_ref),
-                local_safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
-                safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
+                local_safe_head: self.origin.is_safe().then_some(new_unsafe_ref),
+                safe_head: self.origin.is_safe().then_some(new_unsafe_ref),
                 ..Default::default()
             },
         )
         .execute(state)
-        .await?;
+        .await
+        .map_err(|error| self.error(error))?;
 
         let total_duration = time_start.elapsed();
 
@@ -127,9 +135,53 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{TestEngineStateBuilder, test_engine_client_builder};
+    use crate::{
+        ExecutionPayloadEnvelopeVersion,
+        test_utils::{TestEngineStateBuilder, test_engine_client_builder},
+    };
     use alloy_primitives::Bytes;
     use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
+    use kona_genesis::HardForkConfig;
+
+    #[test]
+    fn rejects_payload_version_mismatch_before_engine_call() {
+        let config = Arc::new(RollupConfig {
+            hardforks: HardForkConfig { canyon_time: Some(0), ..Default::default() },
+            ..Default::default()
+        });
+        let client = test_engine_client_builder().with_config(config.clone()).build();
+        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
+            parent_hash: Default::default(),
+            fee_recipient: Default::default(),
+            state_root: Default::default(),
+            receipts_root: Default::default(),
+            logs_bloom: Default::default(),
+            prev_randao: Default::default(),
+            block_number: 1,
+            gas_limit: 0,
+            gas_used: 0,
+            timestamp: 2,
+            extra_data: Default::default(),
+            base_fee_per_gas: Default::default(),
+            block_hash: Default::default(),
+            transactions: Vec::new(),
+        });
+        let task = InsertTask::new(
+            Arc::new(client),
+            config.clone(),
+            payload,
+            PayloadEnvelopeOrigin::RemoteSequencer,
+        );
+
+        assert!(matches!(
+            validate_execution_payload_envelope_version(&config, &task.payload),
+            Err(crate::ExecutionPayloadEnvelopeVersionError {
+                actual: ExecutionPayloadEnvelopeVersion::V1,
+                expected: ExecutionPayloadEnvelopeVersion::V2,
+                timestamp: 2,
+            })
+        ));
+    }
 
     #[tokio::test]
     async fn invalid_status_precedes_local_transaction_decoding() {
@@ -159,12 +211,23 @@ mod tests {
             block_hash: Default::default(),
             transactions: vec![Bytes::from_static(&[0xff])],
         });
-        let task = InsertTask::new(Arc::new(client), config, payload, false);
+        let task = InsertTask::new(
+            Arc::new(client),
+            config,
+            payload,
+            PayloadEnvelopeOrigin::RemoteSequencer,
+        );
         let mut state = TestEngineStateBuilder::new().build();
 
         assert!(matches!(
             task.execute(&mut state).await,
-            Err(InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }))
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    InsertTaskErrorKind::UnexpectedPayloadStatus(
+                        PayloadStatusEnum::Invalid { .. }
+                    )
+                )
         ));
     }
 }

@@ -4,4 +4,4 @@ mod task;
 pub use task::InsertTask;
 
 mod error;
-pub use error::InsertTaskError;
+pub use error::{InsertTaskError, InsertTaskErrorKind, PayloadEnvelopeOrigin};

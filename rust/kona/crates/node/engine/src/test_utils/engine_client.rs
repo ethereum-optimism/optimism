@@ -2,6 +2,7 @@
 
 use crate::{EngineClient, HyperAuthClient};
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
+use alloy_json_rpc::{ErrorPayload, RpcError};
 use alloy_network::{Ethereum, Network};
 use alloy_primitives::{Address, B256, BlockHash, StorageKey};
 use alloy_provider::{EthGetBlock, ProviderCall, RpcWithBlock};
@@ -23,7 +24,10 @@ use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 use tokio::sync::RwLock;
 
 use crate::EngineClientError;
@@ -31,6 +35,28 @@ use crate::EngineClientError;
 /// Builder for creating test `MockEngineClient` instances with sensible defaults
 pub fn test_engine_client_builder() -> MockEngineClientBuilder {
     MockEngineClientBuilder::new().with_config(Arc::new(RollupConfig::default()))
+}
+
+/// A scripted response to an `engine_newPayload` call.
+#[derive(Debug, Clone)]
+pub enum MockNewPayloadResponse {
+    /// Return the payload status.
+    Status(PayloadStatus),
+    /// Return a JSON-RPC error response.
+    RpcError(ErrorPayload),
+    /// Return a transport error.
+    TransportError(String),
+}
+
+/// Engine API mutation observed by [`MockEngineClient`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MockEngineCall {
+    /// An `engine_newPayload` call for the given payload hash.
+    NewPayload(B256),
+    /// An `engine_forkchoiceUpdated` call for the given head hash.
+    ForkchoiceUpdated(B256),
+    /// An `engine_getPayload` call for the given payload ID.
+    GetPayload(PayloadId),
 }
 
 /// Mock storage for engine client responses.
@@ -53,6 +79,10 @@ pub struct MockEngineStorage {
     pub new_payload_v3_response: Option<PayloadStatus>,
     /// Storage for `new_payload_v4` responses.
     pub new_payload_v4_response: Option<PayloadStatus>,
+    /// Scripted responses shared by all `newPayload` versions.
+    pub new_payload_responses: VecDeque<MockNewPayloadResponse>,
+    /// Recorded Engine API mutation calls.
+    pub calls: Vec<MockEngineCall>,
 
     // Version-specific fork_choice_updated responses
     /// Storage for `fork_choice_updated_v2` responses.
@@ -166,6 +196,15 @@ impl MockEngineClientBuilder {
     /// Sets the `new_payload_v4` response.
     pub fn with_new_payload_v4_response(mut self, status: PayloadStatus) -> Self {
         self.storage.new_payload_v4_response = Some(status);
+        self
+    }
+
+    /// Sets ordered responses shared by all `newPayload` versions.
+    pub fn with_new_payload_responses(
+        mut self,
+        responses: impl IntoIterator<Item = MockNewPayloadResponse>,
+    ) -> Self {
+        self.storage.new_payload_responses = responses.into_iter().collect();
         self
     }
 
@@ -302,6 +341,19 @@ impl MockEngineClient {
         Arc::clone(&self.storage)
     }
 
+    /// Returns the recorded Engine API mutation calls.
+    pub async fn calls(&self) -> Vec<MockEngineCall> {
+        self.storage.read().await.calls.clone()
+    }
+
+    /// Sets ordered responses shared by all `newPayload` versions.
+    pub async fn set_new_payload_responses(
+        &self,
+        responses: impl IntoIterator<Item = MockNewPayloadResponse>,
+    ) {
+        self.storage.write().await.new_payload_responses = responses.into_iter().collect();
+    }
+
     /// Sets a block response for a specific tag.
     pub async fn set_l2_block_by_label(&self, tag: BlockNumberOrTag, block: Block<OpTransaction>) {
         self.storage.write().await.l2_blocks_by_label.insert(tag, block);
@@ -399,6 +451,28 @@ impl MockEngineClient {
         let key = block_id_to_key(&block_id);
         self.storage.write().await.proofs_by_address.insert((address, key), proof);
     }
+
+    async fn new_payload_response(
+        &self,
+        block_hash: B256,
+        fallback: impl FnOnce(&MockEngineStorage) -> Option<PayloadStatus>,
+        method: &'static str,
+    ) -> TransportResult<PayloadStatus> {
+        let mut storage = self.storage.write().await;
+        storage.calls.push(MockEngineCall::NewPayload(block_hash));
+        match storage.new_payload_responses.pop_front() {
+            Some(MockNewPayloadResponse::Status(status)) => Ok(status),
+            Some(MockNewPayloadResponse::RpcError(error)) => Err(RpcError::ErrorResp(error)),
+            Some(MockNewPayloadResponse::TransportError(error)) => {
+                Err(TransportErrorKind::custom_str(&error))
+            }
+            None => fallback(&storage).ok_or_else(|| {
+                TransportError::from(TransportErrorKind::custom_str(&format!(
+                    "{method} was called but no response configured"
+                )))
+            }),
+        }
+    }
 }
 
 #[async_trait]
@@ -469,14 +543,13 @@ impl EngineClient for MockEngineClient {
         })
     }
 
-    async fn new_payload_v1(&self, _payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus> {
-        let storage = self.storage.read().await;
-        storage.new_payload_v1_response.clone().ok_or_else(|| {
-            TransportError::from(TransportErrorKind::custom_str(
-                "new_payload_v1 was called but no v1 response configured. \
-                 Use with_new_payload_v1_response() or set_new_payload_v1_response() to set a response."
-            ))
-        })
+    async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus> {
+        self.new_payload_response(
+            payload.block_hash,
+            |storage| storage.new_payload_v1_response.clone(),
+            "new_payload_v1",
+        )
+        .await
     }
 
     async fn l2_block_by_label(
@@ -500,51 +573,49 @@ impl EngineClient for MockEngineClient {
 impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
     async fn new_payload_v2(
         &self,
-        _payload: ExecutionPayloadInputV2,
+        payload: ExecutionPayloadInputV2,
     ) -> TransportResult<PayloadStatus> {
-        let storage = self.storage.read().await;
-        storage.new_payload_v2_response.clone().ok_or_else(|| {
-            TransportError::from(TransportErrorKind::custom_str(
-                "new_payload_v2 was called but no v2 response configured. \
-                 Use with_new_payload_v2_response() or set_new_payload_v2_response() to set a response."
-            ))
-        })
+        self.new_payload_response(
+            payload.execution_payload.block_hash,
+            |storage| storage.new_payload_v2_response.clone(),
+            "new_payload_v2",
+        )
+        .await
     }
 
     async fn new_payload_v3(
         &self,
-        _payload: ExecutionPayloadV3,
+        payload: ExecutionPayloadV3,
         _parent_beacon_block_root: B256,
     ) -> TransportResult<PayloadStatus> {
-        let storage = self.storage.read().await;
-        storage.new_payload_v3_response.clone().ok_or_else(|| {
-            TransportError::from(TransportErrorKind::custom_str(
-                "new_payload_v3 was called but no v3 response configured. \
-                 Use with_new_payload_v3_response() or set_new_payload_v3_response() to set a response."
-            ))
-        })
+        self.new_payload_response(
+            payload.payload_inner.payload_inner.block_hash,
+            |storage| storage.new_payload_v3_response.clone(),
+            "new_payload_v3",
+        )
+        .await
     }
 
     async fn new_payload_v4(
         &self,
-        _payload: OpExecutionPayloadV4,
+        payload: OpExecutionPayloadV4,
         _parent_beacon_block_root: B256,
     ) -> TransportResult<PayloadStatus> {
-        let storage = self.storage.read().await;
-        storage.new_payload_v4_response.clone().ok_or_else(|| {
-            TransportError::from(TransportErrorKind::custom_str(
-                "new_payload_v4 was called but no v4 response configured. \
-                 Use with_new_payload_v4_response() or set_new_payload_v4_response() to set a response."
-            ))
-        })
+        self.new_payload_response(
+            payload.payload_inner.payload_inner.payload_inner.block_hash,
+            |storage| storage.new_payload_v4_response.clone(),
+            "new_payload_v4",
+        )
+        .await
     }
 
     async fn fork_choice_updated_v2(
         &self,
-        _fork_choice_state: ForkchoiceState,
+        fork_choice_state: ForkchoiceState,
         _payload_attributes: Option<OpPayloadAttributes>,
     ) -> TransportResult<ForkchoiceUpdated> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.calls.push(MockEngineCall::ForkchoiceUpdated(fork_choice_state.head_block_hash));
         storage.fork_choice_updated_v2_response.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "fork_choice_updated_v2 was called but no v2 response configured. \
@@ -555,10 +626,11 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
 
     async fn fork_choice_updated_v3(
         &self,
-        _fork_choice_state: ForkchoiceState,
+        fork_choice_state: ForkchoiceState,
         _payload_attributes: Option<OpPayloadAttributes>,
     ) -> TransportResult<ForkchoiceUpdated> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.calls.push(MockEngineCall::ForkchoiceUpdated(fork_choice_state.head_block_hash));
         storage.fork_choice_updated_v3_response.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "fork_choice_updated_v3 was called but no v3 response configured. \
@@ -569,9 +641,10 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
 
     async fn get_payload_v2(
         &self,
-        _payload_id: PayloadId,
+        payload_id: PayloadId,
     ) -> TransportResult<ExecutionPayloadEnvelopeV2> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.calls.push(MockEngineCall::GetPayload(payload_id));
         storage.execution_payload_v2.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "No execution payload v2 set in mock",
@@ -581,9 +654,10 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
 
     async fn get_payload_v3(
         &self,
-        _payload_id: PayloadId,
+        payload_id: PayloadId,
     ) -> TransportResult<OpExecutionPayloadEnvelopeV3> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.calls.push(MockEngineCall::GetPayload(payload_id));
         storage.execution_payload_v3.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "No execution payload v3 set in mock",
@@ -593,9 +667,10 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
 
     async fn get_payload_v4(
         &self,
-        _payload_id: PayloadId,
+        payload_id: PayloadId,
     ) -> TransportResult<OpExecutionPayloadEnvelopeV4> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.calls.push(MockEngineCall::GetPayload(payload_id));
         storage.execution_payload_v4.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "No execution payload v4 set in mock",
@@ -605,10 +680,11 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
 
     async fn get_payload_v5(
         &self,
-        _payload_id: PayloadId,
+        payload_id: PayloadId,
     ) -> TransportResult<OpExecutionPayloadEnvelopeV4> {
         // Osaka reuses the V4-shaped envelope; serve the stored V4 payload.
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.calls.push(MockEngineCall::GetPayload(payload_id));
         storage.execution_payload_v4.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "No execution payload v4 set in mock",

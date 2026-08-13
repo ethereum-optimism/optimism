@@ -43,7 +43,8 @@ pub use task_queue::{
     BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask, ConsolidateTaskError, Engine,
     EngineBuildError, EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
     EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask,
-    InsertTaskError, SealTask, SealTaskError, SynchronizeTask, SynchronizeTaskError,
+    InsertTaskError, InsertTaskErrorKind, PayloadEnvelopeOrigin, SealTask, SealTaskError,
+    SynchronizeTask, SynchronizeTaskError,
 };
 
 mod attributes;
@@ -56,7 +57,11 @@ pub use client::{
 };
 
 mod versions;
-pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};
+pub use versions::{
+    EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion,
+    ExecutionPayloadEnvelopeVersion, ExecutionPayloadEnvelopeVersionError,
+    validate_execution_payload_envelope_version,
+};
 
 mod state;
 pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
