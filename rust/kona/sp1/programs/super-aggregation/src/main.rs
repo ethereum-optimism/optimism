@@ -58,7 +58,10 @@ fn interop_public_values_digest(output: &SuperInteropOutputs) -> [u8; 32] {
 
 #[cfg(test)]
 mod tests {
-    use kona_sp1_client_utils::{super_root::SuperRootError, test_utils::valid_aggregation_inputs};
+    use kona_sp1_client_utils::{
+        super_root::SuperRootError,
+        test_utils::{valid_aggregation_inputs, valid_single_chain_aggregation_inputs},
+    };
     use sha2::{Digest, Sha256};
 
     use super::{aggregate, consolidation_public_values_digest, range_public_values_digest};
@@ -105,6 +108,25 @@ mod tests {
                 (kona_sp1_range_vkeys::SUPER_RANGE_VKEY, CONSOLIDATION_DIGESTS[0]),
                 (kona_sp1_range_vkeys::SUPER_RANGE_VKEY, CONSOLIDATION_DIGESTS[1]),
             ]
+        );
+    }
+
+    #[test]
+    fn aggregation_accepts_single_chain_dependency_set() {
+        let inputs = valid_single_chain_aggregation_inputs();
+        let mut calls = Vec::new();
+
+        let public_values = aggregate(&inputs, |vkey, digest| calls.push((*vkey, *digest)))
+            .expect("valid single-chain aggregation succeeds");
+
+        assert_eq!(public_values, inputs.zk_dispute_game_public_values());
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].0, kona_sp1_range_vkeys::SUPER_RANGE_VKEY);
+        assert_eq!(calls[0].1, range_public_values_digest(&inputs.range_outputs[0]));
+        assert_eq!(calls[1].0, kona_sp1_range_vkeys::SUPER_RANGE_VKEY);
+        assert_eq!(
+            calls[1].1,
+            consolidation_public_values_digest(&inputs.consolidation_outputs[0])
         );
     }
 

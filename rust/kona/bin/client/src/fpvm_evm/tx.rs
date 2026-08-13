@@ -1,7 +1,7 @@
 //! [`FpvmOpTx`] newtype wrapper around [`OpTransaction<TxEnv>`].
 
 use alloy_consensus::{
-    Signed, Transaction, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy,
+    Signed, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy,
 };
 use alloy_eips::{Encodable2718, Typed2718, eip7594::Encodable7594};
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
@@ -234,7 +234,9 @@ impl FromTxWithEncoded<TxPostExec> for FpvmOpTx {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use op_alloy_consensus::build_post_exec_tx;
+    use alloc::vec;
+    use alloy_consensus::Transaction;
+    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
 
     /// The post-exec [`TxEnv`] must reflect the transaction rather than [`TxEnv::default`], whose
     /// mainnet `chain_id: Some(1)`, 2^24 gas limit, and empty calldata leak into any consumer that
@@ -250,5 +252,22 @@ mod tests {
         assert_eq!(op_tx.base.data, *tx.input());
         assert_eq!(op_tx.base.kind, tx.kind());
         assert_eq!(op_tx.base.tx_type, tx.ty());
+    }
+
+    #[test]
+    fn post_exec_tx_env_mirrors_transaction() {
+        let tx = build_post_exec_tx(7, vec![SDMGasEntry { index: 0, gas_refund: 42 }]);
+        let env = FpvmOpTx::from_encoded_tx(&tx, Address::ZERO, tx.encoded_2718().into());
+
+        let expected = TxEnv {
+            tx_type: tx.ty(),
+            caller: Address::ZERO,
+            kind: tx.kind(),
+            gas_limit: tx.gas_limit(),
+            chain_id: tx.chain_id(),
+            data: tx.input().clone(),
+            ..Default::default()
+        };
+        assert_eq!(env.0.base, expected);
     }
 }

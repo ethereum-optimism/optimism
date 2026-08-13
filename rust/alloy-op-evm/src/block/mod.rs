@@ -23,8 +23,9 @@ use op_alloy::consensus::{
 use op_revm::{
     L1BlockInfo, OpTransaction,
     constants::{BASE_FEE_RECIPIENT, L1_BLOCK_CONTRACT, OPERATOR_FEE_RECIPIENT},
-    estimate_tx_compressed_size,
+    encoded_tx_da_footprint,
     transaction::deposit::DEPOSIT_TRANSACTION_TYPE,
+    tx_da_footprint,
 };
 pub use receipt_builder::OpAlloyReceiptBuilder;
 use receipt_builder::OpReceiptBuilder;
@@ -508,15 +509,6 @@ where
         tx_env: &E::Tx,
         tx: impl RecoveredTx<R::Transaction>,
     ) -> Result<u64, BlockExecutionError> {
-        // Try to use the enveloped tx if it exists, otherwise use the encoded 2718 bytes
-        let encoded = tx_env
-            .encoded_bytes()
-            .map_or_else(
-                || estimate_tx_compressed_size(tx.tx().encoded_2718().as_ref()),
-                |encoded| estimate_tx_compressed_size(encoded),
-            )
-            .saturating_div(1_000_000);
-
         // Load the L1 block contract into the cache. If the L1 block contract is not pre-loaded the
         // database will panic when trying to fetch the DA footprint gas scalar.
         self.evm.db_mut().basic(L1_BLOCK_CONTRACT).map_err(BlockExecutionError::other)?;
@@ -525,7 +517,11 @@ where
             .map_err(BlockExecutionError::other)?
             .into();
 
-        Ok(encoded.saturating_mul(da_footprint_gas_scalar))
+        // Use the cached enveloped tx bytes if available, otherwise encode the transaction.
+        Ok(tx_env.encoded_bytes().map_or_else(
+            || tx_da_footprint(tx.tx(), da_footprint_gas_scalar),
+            |encoded| encoded_tx_da_footprint(encoded, da_footprint_gas_scalar),
+        ))
     }
 
     fn invalid_post_exec_payload(reason: impl Into<String>) -> BlockExecutionError {
@@ -567,6 +563,11 @@ where
         Ok(refund)
     }
 
+    /// Applies the post-exec refund to `total_gas_spent` so `tx_gas_used()` reports canonical gas.
+    ///
+    /// The EVM refund counter stays unchanged to avoid subtracting the refund twice. If the
+    /// EIP-7623 floor binds, `tx_gas_used()` remains clamped and may exceed canonical gas; whether
+    /// SDM rebates can reduce gas below that floor remains an open spec question.
     const fn canonicalize_result_gas(
         result: &mut ExecutionResult<E::HaltReason>,
         post_exec_refund: u64,
@@ -576,12 +577,9 @@ where
         }
 
         match result {
-            ExecutionResult::Success { gas, .. } => {
-                *gas = gas
-                    .with_total_gas_spent(gas.total_gas_spent().saturating_sub(post_exec_refund))
-                    .with_refunded(gas.inner_refunded().saturating_add(post_exec_refund));
-            }
-            ExecutionResult::Revert { gas, .. } | ExecutionResult::Halt { gas, .. } => {
+            ExecutionResult::Success { gas, .. } |
+            ExecutionResult::Revert { gas, .. } |
+            ExecutionResult::Halt { gas, .. } => {
                 *gas = gas
                     .with_total_gas_spent(gas.total_gas_spent().saturating_sub(post_exec_refund));
             }

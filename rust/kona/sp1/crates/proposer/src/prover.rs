@@ -256,9 +256,10 @@ impl NetworkProofProvider {
                     "proving timeout exceeded"
                 );
                 ProposerGauge::ProvingTimeoutError.increment(1.0);
+                let range_split_count = crate::env_var("RANGE_SPLIT_COUNT");
                 bail!(
                     "Proving timeout: proof_id={}, elapsed={}s, timeout={}s \
-                    (consider increasing RANGE_SPLIT_COUNT to shrink per-proof workloads)",
+                    (consider increasing {range_split_count} to shrink per-proof workloads)",
                     proof_id,
                     elapsed_secs,
                     self.config.timeout

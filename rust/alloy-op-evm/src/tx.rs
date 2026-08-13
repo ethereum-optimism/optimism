@@ -30,7 +30,8 @@ fn deposit_tx_env(tx: &TxDeposit, caller: Address) -> TxEnv {
 /// `chain_id` must be set explicitly: `TxEnv::default()` assumes mainnet (`Some(1)`), which fails
 /// revm's chain-id validation on any other chain. The remaining fields mirror the transaction so
 /// the env stays honest for anything that inspects it — post-exec transactions themselves are
-/// never transacted (the EVM short-circuits them with the consensus-defined no-op result).
+/// never transacted (the EVM short-circuits them with the consensus-defined no-op result), and
+/// preserving the zero gas limit ensures accidental execution fails intrinsic gas validation.
 pub fn post_exec_tx_env(tx: &TxPostExec, caller: Address) -> TxEnv {
     TxEnv {
         caller,
@@ -313,5 +314,22 @@ mod tests {
         assert_eq!(env.base.data, tx.input);
         assert_eq!(env.base.kind, TxKind::Call(Address::ZERO));
         assert_eq!(env.enveloped_tx, Some(Bytes::from(tx.encoded_2718())));
+    }
+
+    #[test]
+    fn post_exec_tx_env_mirrors_transaction() {
+        let tx = build_post_exec_tx(7, vec![SDMGasEntry { index: 0, gas_refund: 42 }]);
+        let env = OpTx::from_encoded_tx(&tx, Address::ZERO, tx.encoded_2718().into());
+
+        let expected = TxEnv {
+            tx_type: tx.ty(),
+            caller: Address::ZERO,
+            kind: tx.kind(),
+            gas_limit: tx.gas_limit(),
+            chain_id: tx.chain_id(),
+            data: tx.input().clone(),
+            ..Default::default()
+        };
+        assert_eq!(env.0.base, expected);
     }
 }

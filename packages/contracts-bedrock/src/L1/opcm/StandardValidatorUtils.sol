@@ -395,6 +395,14 @@ contract StandardValidatorUtils {
             IProxyAdminOwnedBase(address(_asr)).proxyAdmin() == _admin, string.concat(_errorPrefix, "-50"), _errors
         );
         _errors = internalRequire(_asr.retirementTimestamp() > 0, string.concat(_errorPrefix, "-60"), _errors);
+        // The registry a game anchors against must be the one the portal consults when finalizing
+        // withdrawals. Without this, a game could snapshot the respected game type of a second,
+        // locally valid registry that the portal never reads.
+        _errors = internalRequire(
+            IOptimismPortal2(payable(_sysCfg.optimismPortal())).anchorStateRegistry() == _asr,
+            string.concat(_errorPrefix, "-70"),
+            _errors
+        );
         return _errors;
     }
 
@@ -421,6 +429,8 @@ contract StandardValidatorUtils {
             string.concat(errorPrefix, "-20"),
             errors_
         );
+        errors_ =
+            internalRequire(game.gameAddress == _impls.expectedGameImpl, string.concat(errorPrefix, "-150"), errors_);
 
         errors_ = internalRequire(
             GameType.unwrap(game.gameType) == GameType.unwrap(_args.gameType),
@@ -494,6 +504,8 @@ contract StandardValidatorUtils {
             string.concat(errorPrefix, "-20"),
             errors_
         );
+        errors_ =
+            internalRequire(game.gameAddress == _impls.expectedGameImpl, string.concat(errorPrefix, "-150"), errors_);
         errors_ = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(errorPrefix, "-120"), errors_);
         errors_ = assertValidAnchorStateRegistry(
             errors_, _args.sysCfg, dgf, game.asr, _args.admin, _impls.anchorStateRegistryImpl, errorPrefix

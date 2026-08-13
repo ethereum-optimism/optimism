@@ -313,7 +313,7 @@ jobs:
               cargo nextest run --package kona-sp1-proposer \
               real_elf_agg_vkey_matches_vkeys_toml_prestate
       - run:
-          name: Run SP1 super-range ELF smoke
+          name: Run SP1 super-root ELF acceptance
           no_output_timeout: 30m
           command: |
             ROOT_DIR="$(pwd)"
@@ -325,15 +325,19 @@ jobs:
             export DEVSTACK_L2EL_KIND=op-reth
             export RUST_BINARY_PATH_OP_RETH="$ROOT_DIR/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_HOST="$ROOT_DIR/rust/target/release/kona-host"
-            export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/.circleci-cache/rust-binaries/kona-sp1-super-range-executor"
+            export RUST_BINARY_PATH_KONA_SP1_PROPOSER="$ROOT_DIR/rust/target/release/kona-sp1-proposer"
+            export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/rust/target/release/kona-sp1-super-range-executor"
             export KONA_SP1_ELF_DIR="$ROOT_DIR/rust/kona/sp1/elf"
 
             test -x "$RUST_BINARY_PATH_OP_RETH"
             test -x "$RUST_BINARY_PATH_KONA_HOST"
+            test -x "$RUST_BINARY_PATH_KONA_SP1_PROPOSER"
             test -x "$KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
             test -x "$ROOT_DIR/cannon/bin/cannon"
             test -s "$ROOT_DIR/rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz"
             test -s "$KONA_SP1_ELF_DIR/super-range-elf"
+            test -s "$KONA_SP1_ELF_DIR/super-aggregation-elf"
+            test -s "$KONA_SP1_ELF_DIR/vkeys.toml"
 
             gotestsum \
               --format=testname \
@@ -341,9 +345,17 @@ jobs:
               --jsonfile="$LOG_DIR/go-test.json" \
               -- \
               -count=1 \
-              -timeout=30m \
-              -run '^TestSP1SuperRangeELFExecutionValidCrossChainMessageSmoke$' \
+              -parallel=1 \
+              -timeout=60m \
               ./op-acceptance-tests/tests/interop/proofs/sp1
+
+            go test -list '^TestDeploymentUsesSuperAggregationVKey$' \
+              ./op-acceptance-tests/tests/proofs/zk | grep -Fxq TestDeploymentUsesSuperAggregationVKey
+            go test \
+              -count=1 \
+              -timeout=30m \
+              -run '^TestDeploymentUsesSuperAggregationVKey$' \
+              ./op-acceptance-tests/tests/proofs/zk
       - go-save-cache:
           namespace: sp1-super-range-elf-smoke
       - store_test_results:
@@ -467,17 +479,12 @@ workflows:
           requires:
             - prep-go-modules
       - rust-build-binary:
-          # The default Rust workspace members include both op-reth and kona-host,
-          # which the shared proofs preset starts or configures.
+          # The workspace release build includes op-reth, kona-host, the SP1
+          # proposer, and the super-range executor used by this job.
           name: sp1-elf-smoke-rust-binaries
           directory: rust
           profile: release
           persist_to_workspace: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - sccache-gcs-optimism
-      - rust-build-sp1-super-range-executor:
-          name: sp1-elf-smoke-executor
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -503,7 +510,6 @@ workflows:
             - prep-superchain
             - contracts-bedrock-build
             - sp1-elf-smoke-rust-binaries
-            - sp1-elf-smoke-executor
             - kona-build-sp1-elfs
             - cannon-prestate
             - go-binaries-for-sysgo

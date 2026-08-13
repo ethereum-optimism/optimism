@@ -5,6 +5,14 @@
 //! of challenged games in the owned set. Witness collection and native output computation
 //! live in [`proving`]; SP1 proof providers live in [`prover`].
 
+/// Prefix for all proposer-owned environment variables.
+pub const ENV_VAR_PREFIX: &str = "KONA_SP1_PROPOSER";
+
+/// Builds a proposer-owned environment-variable name.
+pub fn env_var(suffix: &str) -> String {
+    kona_sp1_host_utils::prefixed_env_var(ENV_VAR_PREFIX, suffix)
+}
+
 pub mod config;
 pub mod contract;
 pub mod metrics;

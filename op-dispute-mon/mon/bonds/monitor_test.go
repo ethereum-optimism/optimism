@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
@@ -104,6 +106,46 @@ func TestCheckRecipientCredit(t *testing.T) {
 	require.NotNil(t, findCreditLog(logs, log.LevelWarn, "Credit above expected amount", game4.Proxy, addr4, "withdrawable"))
 }
 
+func TestZKBondConsumersRecordAllCreditBuckets(t *testing.T) {
+	recipient := common.Address{0x01}
+	newGame := func(proxy byte, credit, requestAmount *big.Int, timestamp int64) *monTypes.ZKGameData {
+		return &monTypes.ZKGameData{
+			CommonGameData: monTypes.CommonGameData{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{proxy}}},
+			BondGameData: monTypes.BondGameData{
+				ExpectedCredits: map[common.Address]*big.Int{recipient: big.NewInt(10)},
+				Credits:         map[common.Address]*big.Int{recipient: credit},
+				WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+					recipient: {Amount: requestAmount, Timestamp: big.NewInt(timestamp)},
+				},
+				BondDistributionMode: faultTypes.NormalDistributionMode,
+				WETHContract:         common.Address{0xee},
+				WETHDelay:            10 * time.Second,
+				ETHCollateral:        big.NewInt(1000),
+			},
+		}
+	}
+	matureTimestamp := frozen.Unix() - 10
+	games := []monTypes.BondedGame{
+		newGame(1, big.NewInt(9), new(big.Int), 0),
+		newGame(2, big.NewInt(10), new(big.Int), 0),
+		newGame(3, big.NewInt(11), new(big.Int), 0),
+		newGame(4, new(big.Int), big.NewInt(9), matureTimestamp),
+		newGame(5, new(big.Int), big.NewInt(10), matureTimestamp),
+		newGame(6, new(big.Int), big.NewInt(11), matureTimestamp-1),
+	}
+
+	bonds, metricer, _ := setupBondMetricsTest(t)
+	bonds.CheckBonds(games)
+	require.Equal(t, map[metrics.CreditExpectation]int{
+		metrics.CreditBelowWithdrawable:    1,
+		metrics.CreditEqualWithdrawable:    1,
+		metrics.CreditAboveWithdrawable:    1,
+		metrics.CreditBelowNonWithdrawable: 1,
+		metrics.CreditEqualNonWithdrawable: 1,
+		metrics.CreditAboveNonWithdrawable: 1,
+	}, metricer.credits)
+}
+
 func TestCheckBondsRecordsHonestActorBonds(t *testing.T) {
 	actor1 := common.Address{0x01}
 	actor2 := common.Address{0x02}
@@ -135,7 +177,75 @@ func TestCheckBondsRecordsHonestActorBonds(t *testing.T) {
 	require.Equal(t, big.NewInt(0), metricer.honest[actor2].Pending)
 	require.Equal(t, big.NewInt(8), metricer.honest[actor2].Lost)
 	require.Equal(t, big.NewInt(14), metricer.honest[actor2].Won)
-	require.Equal(t, big.NewInt(2), metricer.honest[common.Address{}].Won)
+	// Intentional existing-output change: address zero is a contract sentinel, not an honest actor.
+	require.NotContains(t, metricer.honest, common.Address{})
+}
+
+func TestZKBondConsumersRecordHonestActors(t *testing.T) {
+	creator := common.Address{0x01}
+	challenger := common.Address{0x02}
+	prover := common.Address{0x03}
+	newGame := func(bonds []monTypes.BondRecord) *monTypes.ZKGameData {
+		return &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+			Bonds:              bonds,
+			Credits:            map[common.Address]*big.Int{},
+			ExpectedCredits:    map[common.Address]*big.Int{},
+			WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{},
+			WETHContract:       common.Address{0xee},
+			ETHCollateral:      big.NewInt(1000),
+		}}
+	}
+	games := []monTypes.BondedGame{
+		newGame([]monTypes.BondRecord{
+			{Depositor: creator, Amount: big.NewInt(70)},
+			{Depositor: challenger, Amount: big.NewInt(30), ChallengerBond: true},
+		}),
+		newGame([]monTypes.BondRecord{
+			{Depositor: creator, Recipient: challenger, Amount: big.NewInt(70), Resolved: true, Forfeited: true},
+			{Depositor: challenger, Recipient: challenger, Amount: big.NewInt(30), Resolved: true, ChallengerBond: true},
+		}),
+		newGame([]monTypes.BondRecord{
+			{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
+			{Depositor: challenger, Recipient: prover, Amount: big.NewInt(30), Resolved: true, Forfeited: true, ChallengerBond: true},
+		}),
+		newGame([]monTypes.BondRecord{
+			{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
+			{Depositor: creator, Recipient: prover, Amount: big.NewInt(30), Resolved: true, Forfeited: true, ChallengerBond: true},
+		}),
+		newGame([]monTypes.BondRecord{{
+			Depositor: creator, Recipient: common.Address{}, Amount: big.NewInt(100), Resolved: true, Forfeited: true,
+		}}),
+	}
+
+	bonds, metricer, _ := setupBondMetricsTestWithHonestActors(t, monTypes.NewHonestActors([]common.Address{{}, creator, challenger, prover}))
+	bonds.CheckBonds(games)
+	require.Equal(t, metrics.HonestActorBondData{Pending: big.NewInt(70), Lost: big.NewInt(200), Won: new(big.Int)}, metricer.honest[creator])
+	require.Equal(t, metrics.HonestActorBondData{Pending: big.NewInt(30), Lost: big.NewInt(30), Won: big.NewInt(70)}, metricer.honest[challenger])
+	require.Equal(t, metrics.HonestActorBondData{Pending: new(big.Int), Lost: new(big.Int), Won: big.NewInt(60)}, metricer.honest[prover])
+	require.NotContains(t, metricer.honest, common.Address{})
+}
+
+func TestZKBondConsumersDoNotForfeitReturnedOverlappingRoles(t *testing.T) {
+	creator := common.Address{0x01}
+	challenger := common.Address{0x02}
+	game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+		Bonds: []monTypes.BondRecord{
+			{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
+			{Depositor: creator, Recipient: creator, Amount: big.NewInt(30), Resolved: true, ChallengerBond: true},
+			{Depositor: challenger, Recipient: challenger, Amount: big.NewInt(30), Resolved: true, ChallengerBond: true},
+		},
+		Credits:            map[common.Address]*big.Int{},
+		ExpectedCredits:    map[common.Address]*big.Int{},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{},
+		WETHContract:       common.Address{0xee},
+		ETHCollateral:      big.NewInt(1000),
+	}}
+
+	bonds, metricer, _ := setupBondMetricsTestWithHonestActors(t, monTypes.NewHonestActors([]common.Address{creator, challenger}))
+	bonds.CheckBonds([]monTypes.BondedGame{game})
+	zero := metrics.HonestActorBondData{Pending: new(big.Int), Lost: new(big.Int), Won: new(big.Int)}
+	require.Equal(t, zero, metricer.honest[creator])
+	require.Equal(t, zero, metricer.honest[challenger])
 }
 
 func findCreditLog(logs *testlog.CapturingHandler, level slog.Level, message string, game, recipient common.Address, withdrawable string) *testlog.CapturedRecord {

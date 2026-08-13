@@ -129,6 +129,45 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 }
 
 #[test]
+fn canonicalized_result_gas_applies_refund_exactly_once() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut executor =
+        build_policy_executor::<FixedRefundPolicy>(&mut db, &receipt_builder, &hardforks);
+
+    let output = executor
+        .execute_transaction_without_commit(&observer_test_tx())
+        .expect("refunded workload executes");
+
+    let refund = output.post_exec.as_ref().expect("refund adjustment present").refund;
+    assert_eq!(refund, 1);
+    let gas = output.inner.result.result.gas();
+    // The EIP-7623 floor must stay below the refunded gas, or `tx_gas_used()` would pin at
+    // the floor and mask a double-subtracted refund.
+    assert!(
+        output.evm_gas_used.saturating_sub(2 * refund) > gas.floor_gas(),
+        "workload too cheap to distinguish a double-subtracted refund from the floor"
+    );
+    assert_eq!(output.canonical_gas_used, output.evm_gas_used - refund);
+
+    // The exposed ExecutionResult must agree with the canonical gas the block accounts:
+    // the refund applied exactly once, not twice.
+    assert_eq!(
+        gas.tx_gas_used(),
+        output.canonical_gas_used,
+        "canonicalized result gas must equal canonical_gas_used"
+    );
+    // The refund must lower `total_gas_spent`, not inflate the EVM's own refund counter —
+    // this workload earns no EVM refund, so any value here is SDM leakage.
+    assert_eq!(gas.inner_refunded(), 0, "post-exec refund folded into the EVM refund counter");
+
+    let canonical_gas_used = output.canonical_gas_used;
+    executor.commit_transaction(output);
+    assert_eq!(executor.gas_used, canonical_gas_used, "block must accumulate canonical gas");
+}
+
+#[test]
 fn fixed_policy_producer_verifier_roundtrip() {
     let tx = observer_test_tx();
     let mut producer_db = prepare_observer_db();
@@ -807,6 +846,46 @@ fn test_disabled_mode_rejects_post_exec_tx() {
         err,
         "unexpected post-exec tx at index 0: SDM not active for this block",
     );
+}
+
+/// Post-exec (`0x7D`) transactions do not consume DA footprint.
+///
+/// End-to-end pin on the observable behaviour, not on any single guard: the exclusion is
+/// over-determined (the `0x7D` returns early with `blob_gas_used: 0`, the accumulator skips
+/// `is_post_exec`, and `encoded_tx_da_footprint` returns zero for the type byte), so this test
+/// survives the removal of any one of them. It exists because op-geth used to recompute the
+/// footprint independently and act as a cross-check; it is no longer a supported verifier.
+#[test]
+fn test_post_exec_tx_does_not_accrue_da_footprint() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+    let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
+    producer.execute_transaction(&user_tx).expect("producer executes user tx");
+
+    let footprint_before = producer.da_footprint_used;
+    assert!(footprint_before > 0, "the user tx must accrue a footprint for this test to bite");
+
+    let post_exec = recovered_post_exec(0, vec![SDMGasEntry { index: 0, gas_refund: 7 }]);
+
+    // The minimum-size floor ensures a counted 0x7D would have a non-zero footprint, so the
+    // assertion below is about the exclusion and not about a 0x7D that is simply too small to
+    // register.
+    let counted_footprint =
+        op_revm::estimate_tx_compressed_size(post_exec.tx().encoded_2718().as_ref())
+            .saturating_div(1_000_000)
+            .saturating_mul(DEFAULT_DA_FOOTPRINT_GAS_SCALAR.into());
+    assert!(counted_footprint > 0, "a counted 0x7D would have added a non-zero footprint");
+
+    producer.execute_transaction(&post_exec).expect("producer executes the 0x7D");
+    assert_eq!(
+        producer.da_footprint_used, footprint_before,
+        "the 0x7D must not accrue DA footprint",
+    );
+
+    let (_, result) = producer.finish().expect("producer finishes block");
+    assert_eq!(result.blob_gas_used, footprint_before);
+    assert_eq!(result.receipts.len(), 2, "the 0x7D still gets a receipt");
 }
 
 /// Regression coverage for a warm-set leak in op-revm's `catch_error`.

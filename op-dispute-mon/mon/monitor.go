@@ -130,6 +130,8 @@ func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*typ
 			faultGames = append(faultGames, game)
 		case *types.SuperPermissionedGameData:
 			commonGames = append(commonGames, game.Common())
+		case *types.ZKGameData:
+			commonGames = append(commonGames, game.Common())
 		default:
 			panic(fmt.Sprintf("unsupported enriched game type %T", game))
 		}

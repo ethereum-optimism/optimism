@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 3.3.0
+    string public constant version = "3.3.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -280,7 +280,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertValidSystemConfig(
         string memory _errors,
         ISystemConfig _sysCfg,
-        IProxyAdmin _admin
+        IProxyAdmin _admin,
+        uint256 _l2ChainID
     )
         internal
         view
@@ -305,6 +306,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
         _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-130", _errors);
+        _errors = internalRequire(_sysCfg.l2ChainId() == _l2ChainID, "SYSCON-140", _errors);
         return _errors;
     }
 
@@ -896,7 +898,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         _errors = assertValidSuperchainConfig(_errors);
         _errors = assertValidProxyAdmin(_errors, _proxyAdmin, _overrides);
-        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _proxyAdmin, _input.l2ChainID);
         _errors = assertValidL1CrossDomainMessenger(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidL1StandardBridge(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _proxyAdmin);
@@ -1120,6 +1122,8 @@ contract OPContractsManagerStandardValidator is ISemver {
             string.concat(errorPrefix, "-20"),
             _errors
         );
+        _errors =
+            internalRequire(gameImpl.gameAddress == zkDisputeGameImpl, string.concat(errorPrefix, "-150"), _errors);
         return _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, errorPrefix);
     }
 

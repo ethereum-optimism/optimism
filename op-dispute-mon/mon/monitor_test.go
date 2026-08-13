@@ -83,7 +83,8 @@ func TestMonitorRoutesGamesToResolution(t *testing.T) {
 	terminal := newEnrichedGameData(common.Address{0xaa}, 1)
 	terminal.Status = types.GameStatusDefenderWon
 	super := &monTypes.SuperPermissionedGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusDefenderWon}}
-	extractor.games = []monTypes.EnrichedGame{terminal, super}
+	zk := &monTypes.ZKGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusInProgress}}
+	extractor.games = []monTypes.EnrichedGame{terminal, super, zk}
 	var commonReceived []*monTypes.CommonGameData
 	monitor.commonMonitors = []CommonMonitor{func(games []*monTypes.CommonGameData) {
 		commonReceived = games
@@ -98,9 +99,9 @@ func TestMonitorRoutesGamesToResolution(t *testing.T) {
 	}}
 
 	require.NoError(t, monitor.monitorGames())
-	require.Equal(t, []*monTypes.CommonGameData{terminal.Common(), super.Common()}, commonReceived)
+	require.Equal(t, []*monTypes.CommonGameData{terminal.Common(), super.Common(), zk.Common()}, commonReceived)
 	require.Equal(t, []*monTypes.FaultGameData{terminal}, faultReceived)
-	require.Equal(t, []monTypes.BondedGame{terminal}, bondReceived)
+	require.Equal(t, []monTypes.BondedGame{terminal, zk}, bondReceived)
 }
 
 func TestPartitionGamesRejectsUnknownGameType(t *testing.T) {

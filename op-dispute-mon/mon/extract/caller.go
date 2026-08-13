@@ -48,7 +48,23 @@ type FaultGameCaller interface {
 	ClaimCaller
 }
 
+// ZKGameCaller exposes the generic and challenger views of a ZK game.
+type ZKGameCaller interface {
+	GameCaller
+	GetMetadata(context.Context, rpcblock.Block) (contracts.GenericGameMetadata, error)
+	GetChallengerMetadata(context.Context, rpcblock.Block) (contracts.ChallengerMetadata, error)
+}
+
+// ZKBondGameCaller exposes the complete pinned ZK snapshot used by the monitor.
+type ZKBondGameCaller interface {
+	ZKGameCaller
+	BondGameCaller
+	GetBondMetadata(context.Context, rpcblock.Block) (contracts.ZKBondMetadata, error)
+}
+
 var _ FaultGameCaller = (contracts.FaultDisputeGameContract)(nil)
+var _ ZKGameCaller = (*contracts.ZKDisputeGameContractLatest)(nil)
+var _ ZKBondGameCaller = (*contracts.ZKDisputeGameContractLatest)(nil)
 var _ BondGameCaller = (contracts.FaultDisputeGameContract)(nil)
 var _ MetadataCaller = (*contracts.SuperPermissionedDisputeGameContract)(nil)
 

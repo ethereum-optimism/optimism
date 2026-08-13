@@ -51,6 +51,8 @@ type BondRecord struct {
 	Resolved  bool
 	// Forfeited reports whether normalized accounting counts Amount as lost by Depositor and won by Recipient.
 	Forfeited bool
+	// ChallengerBond reports whether this record represents a ZK game's challenger bond.
+	ChallengerBond bool
 }
 
 // BondGameData contains normalized bond and DelayedWETH state.
@@ -167,21 +169,44 @@ type FaultGameData struct {
 	Claims                []EnrichedClaim
 }
 
+// ZKGameData contains proposal and parent state for a ZK dispute game.
+type ZKGameData struct {
+	CommonGameData
+	BondGameData
+
+	ParentIndex    uint32
+	ParentStatus   *types.GameStatus
+	ProposalStatus contracts.ProposalStatus
+	Deadline       time.Time
+	GameCreator    common.Address
+	Challenger     common.Address
+	Prover         common.Address
+	TotalBonds     *big.Int
+	ChallengerBond *big.Int
+}
+
 // SuperPermissionedGameData is the common snapshot of a SuperPermissioned game.
 type SuperPermissionedGameData struct {
 	CommonGameData
 }
 
 func (g *FaultGameData) Common() *CommonGameData             { return &g.CommonGameData }
+func (g *ZKGameData) Common() *CommonGameData                { return &g.CommonGameData }
 func (g *SuperPermissionedGameData) Common() *CommonGameData { return &g.CommonGameData }
 
 func (*FaultGameData) enrichedGame()             {}
+func (*ZKGameData) enrichedGame()                {}
 func (*SuperPermissionedGameData) enrichedGame() {}
 
 func (g *FaultGameData) BondData() *BondGameData { return &g.BondGameData }
+func (g *ZKGameData) BondData() *BondGameData    { return &g.BondGameData }
 func (*FaultGameData) bondedGame()               {}
+func (*ZKGameData) bondedGame()                  {}
 
-var _ BondedGame = (*FaultGameData)(nil)
+var (
+	_ BondedGame = (*FaultGameData)(nil)
+	_ BondedGame = (*ZKGameData)(nil)
+)
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
 func (g CommonGameData) UsesOutputRoots() bool {
@@ -195,7 +220,7 @@ func (g CommonGameData) HasMixedAvailability() bool {
 		return false
 	}
 
-	successfulEndpoints := g.NodeEndpointTotalCount - g.NodeEndpointErrorCount - g.NodeEndpointNotFoundCount
+	successfulEndpoints := g.NodeEndpointTotalCount - g.NodeEndpointErrorCount - g.NodeEndpointNotFoundCount - g.NodeEndpointOutOfSyncCount
 	return g.NodeEndpointNotFoundCount > 0 && successfulEndpoints > 0
 }
 
