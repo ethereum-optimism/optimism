@@ -101,7 +101,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 		expectedLogs := []string{"overlapped block's tx count does not match"}
 		if isHolocene {
 			expectedLogs = append(expectedLogs,
-				"Dropping invalid span batch, flushing channel (span batch checks)")
+				"Dropping invalid span batch, flushing channel (span batch overlap checks)")
 		}
 		for _, filter := range expectedLogs {
 			recs := env.Logs.FindLogs(
