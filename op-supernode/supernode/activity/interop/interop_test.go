@@ -3217,6 +3217,20 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 
 		require.Equal(t, 1, h.Mock(10).resumeCalls, "a failed invalidation must not leave the chain frozen")
 		require.Equal(t, 1, h.Mock(8453).resumeCalls, "unaffected chain should be resumed")
+		require.Len(t, h.Mock(10).invalidateBlockCalls, 1)
+
+		// The engine recovers, so the preserved transition must replay to completion.
+		h.Mock(10).invalidateBlockErr = nil
+		_, err = h.interop.progressAndRecord()
+		require.NoError(t, err)
+
+		require.Len(t, h.Mock(10).invalidateBlockCalls, 2, "invalidation should be retried from the WAL")
+		require.Equal(t, 2, h.Mock(10).resumeCalls, "chain 10 should be resumed again after the retry")
+		require.Equal(t, 2, h.Mock(8453).resumeCalls, "chain 8453 should be resumed again after the retry")
+
+		cleared, err := h.interop.verifiedDB.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, cleared, "a successful retry clears the transition")
 	})
 
 	t.Run("single chain invalidated freezes and does not resume", func(t *testing.T) {
