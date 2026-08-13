@@ -254,7 +254,17 @@ impl FromRecoveredTx<TxPostExec> for OpTx {
 
 impl FromTxWithEncoded<TxPostExec> for OpTx {
     fn from_encoded_tx(tx: &TxPostExec, caller: Address, encoded: Bytes) -> Self {
-        let base = TxEnv { tx_type: tx.ty(), caller, kind: tx.kind(), ..Default::default() };
+        // Mirror the 0x7D fields instead of inheriting unrelated `TxEnv` defaults. Preserving its
+        // zero gas limit also ensures accidental execution fails intrinsic gas validation.
+        let base = TxEnv {
+            tx_type: tx.ty(),
+            caller,
+            kind: tx.kind(),
+            gas_limit: tx.gas_limit(),
+            chain_id: tx.chain_id(),
+            data: tx.input().clone(),
+            ..Default::default()
+        };
         Self(OpTransaction { base, enveloped_tx: Some(encoded), deposit: Default::default() })
     }
 }
@@ -270,5 +280,29 @@ impl TransactionEnvMut for OpTx {
 
     fn set_access_list(&mut self, access_list: alloy_eips::eip2930::AccessList) {
         self.0.base.access_list = access_list;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+    use op_alloy::consensus::{SDMGasEntry, build_post_exec_tx};
+
+    #[test]
+    fn post_exec_tx_env_mirrors_transaction() {
+        let tx = build_post_exec_tx(7, vec![SDMGasEntry { index: 0, gas_refund: 42 }]);
+        let env = OpTx::from_encoded_tx(&tx, Address::ZERO, tx.encoded_2718().into());
+
+        let expected = TxEnv {
+            tx_type: tx.ty(),
+            caller: Address::ZERO,
+            kind: tx.kind(),
+            gas_limit: tx.gas_limit(),
+            chain_id: tx.chain_id(),
+            data: tx.input().clone(),
+            ..Default::default()
+        };
+        assert_eq!(env.0.base, expected);
     }
 }

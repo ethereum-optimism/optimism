@@ -562,6 +562,11 @@ where
         Ok(refund)
     }
 
+    /// Applies the post-exec refund to `total_gas_spent` so `tx_gas_used()` reports canonical gas.
+    ///
+    /// The EVM refund counter stays unchanged to avoid subtracting the refund twice. If the
+    /// EIP-7623 floor binds, `tx_gas_used()` remains clamped and may exceed canonical gas; whether
+    /// SDM rebates can reduce gas below that floor remains an open spec question.
     const fn canonicalize_result_gas(
         result: &mut ExecutionResult<E::HaltReason>,
         post_exec_refund: u64,
@@ -571,12 +576,9 @@ where
         }
 
         match result {
-            ExecutionResult::Success { gas, .. } => {
-                *gas = gas
-                    .with_total_gas_spent(gas.total_gas_spent().saturating_sub(post_exec_refund))
-                    .with_refunded(gas.inner_refunded().saturating_add(post_exec_refund));
-            }
-            ExecutionResult::Revert { gas, .. } | ExecutionResult::Halt { gas, .. } => {
+            ExecutionResult::Success { gas, .. } |
+            ExecutionResult::Revert { gas, .. } |
+            ExecutionResult::Halt { gas, .. } => {
                 *gas = gas
                     .with_total_gas_spent(gas.total_gas_spent().saturating_sub(post_exec_refund));
             }
