@@ -349,8 +349,10 @@ jobs:
               -timeout=60m \
               ./op-acceptance-tests/tests/interop/proofs/sp1
 
+            # List to a file first: grep -q closing the pipe early would SIGPIPE go test under pipefail.
             go test -list '^TestDeploymentUsesSuperAggregationVKey$' \
-              ./op-acceptance-tests/tests/proofs/zk | grep -Fxq TestDeploymentUsesSuperAggregationVKey
+              ./op-acceptance-tests/tests/proofs/zk > "$LOG_DIR/vkey-test-list.txt"
+            grep -Fxq TestDeploymentUsesSuperAggregationVKey "$LOG_DIR/vkey-test-list.txt"
             go test \
               -count=1 \
               -timeout=30m \
