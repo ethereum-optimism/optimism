@@ -5,3 +5,6 @@ pub use task::SealTask;
 
 mod error;
 pub use error::SealTaskError;
+
+#[cfg(test)]
+mod task_test;

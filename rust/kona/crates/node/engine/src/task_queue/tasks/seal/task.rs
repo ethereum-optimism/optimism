@@ -266,9 +266,16 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
         let unsafe_block_info = state.sync_state.unsafe_head().block_info;
         let parent_block_info = self.attributes.parent.block_info;
 
-        let res = if unsafe_block_info.hash != parent_block_info.hash ||
-            unsafe_block_info.number != parent_block_info.number
-        {
+        // Sequencer attributes must still extend the unsafe head that was current when their build
+        // started. Derived attributes are different: a consolidation mismatch intentionally builds
+        // on the safe head to replace the incompatible unsafe chain. Since derived build-and-seal
+        // operations execute atomically within one engine task, no competing head update can occur
+        // between their build and seal phases.
+        let stale_sequencer_build = !self.is_attributes_derived &&
+            (unsafe_block_info.hash != parent_block_info.hash ||
+                unsafe_block_info.number != parent_block_info.number);
+
+        let res = if stale_sequencer_build {
             info!(
                 target: "engine",
                 unsafe_block_info = ?unsafe_block_info,
