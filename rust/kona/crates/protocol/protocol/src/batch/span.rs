@@ -385,7 +385,7 @@ impl SpanBatch {
         fetcher: &mut BV,
     ) -> BatchValidity {
         let (prefix_validity, parent_block) =
-            self.check_batch_holocene(cfg, l1_blocks, l2_safe_head, inclusion_block, fetcher).await;
+            self.check_batch_prefix(cfg, l1_blocks, l2_safe_head, inclusion_block, fetcher).await;
         if !prefix_validity.is_accept() {
             return prefix_validity;
         }
@@ -519,9 +519,12 @@ impl SpanBatch {
             }
         }
 
-        // Note: the overlapped blocks were already checked by check_batch_holocene above. This
-        // moves the overlap content check ahead of the per-transaction checks relative to the
-        // pre-Holocene order, which only matters for the validity of batches failing both.
+        // Check overlapped blocks
+        let overlap_validity =
+            self.check_batch_overlap(cfg, parent_block, l2_safe_head, fetcher).await;
+        if !overlap_validity.is_accept() {
+            return overlap_validity;
+        }
 
         BatchValidity::Accept
     }
@@ -603,11 +606,12 @@ impl SpanBatch {
         BatchValidity::Accept
     }
 
-    /// Performs the full set of span batch checks that run post-Holocene, as each batch is being
-    /// loaded in: the prefix rules, plus the overlap content comparison against the safe chain
-    /// (see [`Self::check_batch_overlap`]). Next to the validity, it also returns the parent L2
+    /// Checks the validity of the batch's prefix.
+    ///
+    /// This function is used for post-Holocene hardfork to perform batch validation
+    /// as each batch is being loaded in. Next to the validity, it also returns the parent L2
     /// block as determined during the checks for further consumption.
-    pub async fn check_batch_holocene<BF: BatchValidationProvider>(
+    pub async fn check_batch_prefix<BF: BatchValidationProvider>(
         &self,
         cfg: &RollupConfig,
         l1_origins: &[BlockInfo],
@@ -763,15 +767,6 @@ impl SpanBatch {
         if starting_epoch_num < parent_block.l1_origin.number {
             warn!(target: "batch_span", "dropped batch, epoch is too old, minimum: {:?}", parent_block.block_info.id());
             return (BatchValidity::Drop(BatchDropReason::EpochTooOld), None);
-        }
-
-        // The prefix rules only anchor the batch at its parent; any overlap content must also
-        // agree with the safe chain, see [`Self::check_batch_overlap`]. No-op without overlap
-        // (parent_block == l2_safe_head).
-        let overlap_validity =
-            self.check_batch_overlap(cfg, parent_block, l2_safe_head, fetcher).await;
-        if !overlap_validity.is_accept() {
-            return (overlap_validity, Some(parent_block));
         }
 
         (BatchValidity::Accept, Some(parent_block))

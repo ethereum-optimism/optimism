@@ -148,8 +148,8 @@ where
                 Batch::Span(b) => {
                     #[cfg(feature = "metrics")]
                     let start = std::time::Instant::now();
-                    let (validity, _) = b
-                        .check_batch_holocene(
+                    let (mut validity, parent_block) = b
+                        .check_batch_prefix(
                             self.config.as_ref(),
                             l1_origins,
                             parent,
@@ -157,13 +157,31 @@ where
                             &mut self.fetcher,
                         )
                         .await;
-                    // Note: since the overlap content checks joined check_batch_holocene, this
-                    // histogram includes their L2 payload fetches for overlapping span batches.
                     kona_macros::record!(
                         histogram,
                         crate::metrics::Metrics::PIPELINE_CHECK_BATCH_PREFIX,
                         start.elapsed().as_secs_f64()
                     );
+
+                    // The prefix checks do not validate overlap contents against the safe
+                    // chain. A span batch that disagrees with the safe chain — possible since
+                    // interop block replacement — must be dropped as a whole, so that the
+                    // remainder of an invalidated lineage cannot be spliced onto the canonical
+                    // chain. See [`SpanBatch::check_batch_overlap`] for details.
+                    if validity.is_accept() {
+                        let parent_block =
+                            parent_block.expect("accepted prefix checks return a parent block");
+                        if parent_block.block_info.number < parent.block_info.number {
+                            validity = b
+                                .check_batch_overlap(
+                                    self.config.as_ref(),
+                                    parent_block,
+                                    parent,
+                                    &mut self.fetcher,
+                                )
+                                .await;
+                        }
+                    }
 
                     kona_macros::inc!(
                         gauge,
