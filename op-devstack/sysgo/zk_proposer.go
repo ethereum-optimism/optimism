@@ -201,7 +201,7 @@ func startZKProposer(
 
 	env := []string{
 		zkProposerEnv("L1_RPC", l1EL.UserRPC()),
-		zkProposerEnv("SUPERROOT_RPC", superRootRPC),
+		zkProposerEnv("SUPERROOT_RPCS", superRootRPC),
 		zkProposerEnv("FACTORY_ADDRESS", factoryAddr.Hex()),
 		zkProposerEnv("PRESTATES_URL", "file://"+prestatesDir),
 		zkProposerEnv("PRIVATE_KEY", hexutil.Encode(crypto.FromECDSA(proposerSecret))),
