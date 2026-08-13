@@ -24,6 +24,15 @@ pub struct SuperrootClient {
     clients: Vec<HttpClient>,
 }
 
+/// How responses from multiple supernodes are prioritized.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResponseSelection {
+    /// Select the response with the highest L1 view.
+    HighestL1,
+    /// Prefer responses containing super-root data, then select by highest L1 view.
+    PreferData,
+}
+
 /// Canonical super-root material for one timestamp.
 #[derive(Debug, Clone)]
 pub struct SuperRootAt {
@@ -52,13 +61,14 @@ impl SuperrootClient {
     pub async fn superroot_at_timestamp(
         &self,
         timestamp: u64,
+        selection: ResponseSelection,
     ) -> Result<SuperRootAtTimestampResponse> {
         let results = join_all(
             self.clients.iter().map(|client| fetch_superroot_at_timestamp(client, timestamp)),
         )
         .await;
 
-        select_highest_response(results)
+        select_highest_response(results, selection)
     }
 
     /// The highest timestamp the proposer may propose at under the
@@ -107,15 +117,22 @@ impl SuperrootClient {
 
 fn select_highest_response(
     results: Vec<Result<SuperRootAtTimestampResponse>>,
+    selection: ResponseSelection,
 ) -> Result<SuperRootAtTimestampResponse> {
     let mut errors = Vec::new();
     let mut highest_response: Option<SuperRootAtTimestampResponse> = None;
     for (idx, result) in results.into_iter().enumerate() {
         match result {
             Ok(response) => {
-                let is_higher = highest_response
-                    .as_ref()
-                    .is_none_or(|highest| response.current_l1.number > highest.current_l1.number);
+                let is_higher = highest_response.as_ref().is_none_or(|highest| match selection {
+                    ResponseSelection::HighestL1 => {
+                        response.current_l1.number > highest.current_l1.number
+                    }
+                    ResponseSelection::PreferData => {
+                        (response.data.is_some(), response.current_l1.number) >
+                            (highest.data.is_some(), highest.current_l1.number)
+                    }
+                });
                 if is_higher {
                     highest_response = Some(response);
                 }
@@ -224,10 +241,10 @@ mod tests {
     #[test]
     fn response_selection_falls_over_to_a_healthy_source() {
         let expected = response_at(101);
-        let response = select_highest_response(vec![
-            Err(anyhow!("first source unavailable")),
-            Ok(expected.clone()),
-        ])
+        let response = select_highest_response(
+            vec![Err(anyhow!("first source unavailable")), Ok(expected.clone())],
+            ResponseSelection::HighestL1,
+        )
         .unwrap();
 
         assert_eq!(response, expected);
@@ -240,17 +257,58 @@ mod tests {
         let mut expected = response_at(101);
         expected.current_l1.number = 12;
 
-        let response = select_highest_response(vec![Ok(lagging), Ok(expected.clone())]).unwrap();
+        let response = select_highest_response(
+            vec![Ok(lagging), Ok(expected.clone())],
+            ResponseSelection::HighestL1,
+        )
+        .unwrap();
+
+        assert_eq!(response, expected);
+    }
+
+    #[test]
+    fn response_selection_prefers_available_data_for_exact_lookup() {
+        let mut expected = response_at(101);
+        expected.current_l1.number = 10;
+        let mut ahead_without_data = response_at(101);
+        ahead_without_data.current_l1.number = 12;
+        ahead_without_data.data = None;
+
+        let response = select_highest_response(
+            vec![Ok(expected.clone()), Ok(ahead_without_data)],
+            ResponseSelection::PreferData,
+        )
+        .unwrap();
+
+        assert_eq!(response, expected);
+    }
+
+    #[test]
+    fn response_selection_uses_highest_l1_for_sync_status_without_data() {
+        let mut behind_with_data = response_at(101);
+        behind_with_data.current_l1.number = 10;
+        let mut expected = response_at(101);
+        expected.current_l1.number = 12;
+        expected.data = None;
+
+        let response = select_highest_response(
+            vec![Ok(behind_with_data), Ok(expected.clone())],
+            ResponseSelection::HighestL1,
+        )
+        .unwrap();
 
         assert_eq!(response, expected);
     }
 
     #[test]
     fn response_selection_reports_all_source_failures() {
-        let err = select_highest_response(vec![
-            Err(anyhow!("first source unavailable")),
-            Err(anyhow!("second source unavailable")),
-        ])
+        let err = select_highest_response(
+            vec![
+                Err(anyhow!("first source unavailable")),
+                Err(anyhow!("second source unavailable")),
+            ],
+            ResponseSelection::HighestL1,
+        )
         .unwrap_err()
         .to_string();
 

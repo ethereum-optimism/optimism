@@ -47,7 +47,7 @@ use crate::{
         GameProofInputs, fetch_span_responses, is_unprovable, prove_game_inner, response_trusted,
     },
     signer::{FeeCaps, SignerLock},
-    superroot::{SuperrootClient, zk_extra_data},
+    superroot::{ResponseSelection, SuperrootClient, zk_extra_data},
 };
 
 /// Max allowed time (secs) between a game's deadline and the anchor game's deadline.
@@ -1724,7 +1724,11 @@ where
         // force. Hold the game as pending instead: it stays outside the DAG
         // (never parent-eligible) and is re-checked each sync, bounded to one
         // query per cycle.
-        let response = match self.superroot_client.superroot_at_timestamp(sequence_number).await {
+        let response = match self
+            .superroot_client
+            .superroot_at_timestamp(sequence_number, ResponseSelection::PreferData)
+            .await
+        {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!(
@@ -1869,7 +1873,10 @@ where
         let max_proposable = self.max_proposable_timestamp().await?;
 
         loop {
-            let response = self.superroot_client.superroot_at_timestamp(sequence_number).await?;
+            let response = self
+                .superroot_client
+                .superroot_at_timestamp(sequence_number, ResponseSelection::PreferData)
+                .await?;
             let Some(super_root) = SuperrootClient::super_root_at(&response, sequence_number)?
             else {
                 // Transient: the chosen timestamp is not yet safe from this
@@ -2540,7 +2547,8 @@ where
     /// configured safety level, from a fresh supernode response.
     async fn max_proposable_timestamp(&self) -> Result<u64> {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs();
-        let response = self.superroot_client.superroot_at_timestamp(now).await?;
+        let response =
+            self.superroot_client.superroot_at_timestamp(now, ResponseSelection::HighestL1).await?;
         Ok(SuperrootClient::max_proposable_timestamp(&response, self.config.proposal_safety))
     }
 

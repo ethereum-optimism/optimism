@@ -24,7 +24,7 @@ use crate::{
     config::RangeSplitCount,
     metrics::ProposerGauge,
     prover::{MOCK_PROOF_BYTES, ProofKeys, ProofProvider},
-    superroot::SuperrootClient,
+    superroot::{ResponseSelection, SuperrootClient},
 };
 
 /// The on-chain facts a defense proof is built from, read from the game
@@ -106,7 +106,8 @@ pub async fn fetch_span_responses(
     let mut responses = Vec::with_capacity((game.claim_ts - game.starting_ts + 1) as usize);
     let mut roots = Vec::with_capacity(responses.capacity());
     for timestamp in game.starting_ts..=game.claim_ts {
-        let response = client.superroot_at_timestamp(timestamp).await?;
+        let response =
+            client.superroot_at_timestamp(timestamp, ResponseSelection::PreferData).await?;
         let Some(at) = SuperrootClient::super_root_at(&response, timestamp)? else {
             ProposerGauge::SuperRootUnavailable.increment(1.0);
             return Err(anyhow::Error::new(SuperRootDataUnavailable(timestamp)));
