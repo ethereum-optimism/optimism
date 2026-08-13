@@ -7,8 +7,8 @@ use std::{
 };
 
 use kona_genesis::{
-    Chain, ChainConfig, ChainList, DependencySet, InteropConfig, Superchain, SuperchainConfig,
-    Superchains, aggregate_clusters,
+    Chain, ChainConfig, ChainList, DependencySet, Superchain, SuperchainConfig, Superchains,
+    aggregate_clusters, with_single_chain_defaults,
 };
 use serde::de::DeserializeOwned;
 
@@ -121,18 +121,18 @@ fn main() {
 
     fs::write(&configs_path, serde_json::to_string_pretty(&superchains).unwrap()).unwrap();
 
-    // Aggregate per-cluster `DependencySet`s from each chain's `[interop]` block and
-    // overwrite the embedded depsets with the resulting list.
-    let interop_chains: Vec<(u64, &InteropConfig)> = superchains
-        .superchains
-        .iter()
-        .flat_map(|sc| sc.chains.iter())
-        .filter_map(|c| c.interop.as_ref().map(|i| (c.chain_id, i)))
-        .collect();
-    let depsets = aggregate_clusters(interop_chains.iter().map(|(id, cfg)| (*id, *cfg)))
-        .unwrap_or_else(|e| {
-            panic!("failed to aggregate interop clusters from superchain configs: {e}")
-        });
+    // Aggregate per-cluster `DependencySet`s from each chain's `[interop]` block, then give
+    // every remaining chain a self-only depset, and overwrite the embedded depsets with the
+    // resulting list.
+    let all_chains: Vec<&ChainConfig> =
+        superchains.superchains.iter().flat_map(|sc| sc.chains.iter()).collect();
+    let depsets = aggregate_clusters(
+        all_chains.iter().filter_map(|c| c.interop.as_ref().map(|i| (c.chain_id, i))),
+    )
+    .unwrap_or_else(|e| {
+        panic!("failed to aggregate interop clusters from superchain configs: {e}")
+    });
+    let depsets = with_single_chain_defaults(depsets, all_chains.iter().map(|c| c.chain_id));
     write_depsets(&depsets_path, &depsets);
 
     let etc_dir = prepare_etc_dir(&committed_etc_dir, custom_configs_dir.is_some());
@@ -205,7 +205,7 @@ fn merge_custom_configs(custom_configs_dir: Option<&Path>, etc_dir: &Path) {
 
     merge_chain_list(&custom_chain_list_path, &target_chain_list);
     merge_superchain_configs(&custom_configs_path, &target_superchains);
-    merge_custom_depsets(custom_configs_dir, &target_depsets);
+    merge_custom_depsets(custom_configs_dir, &target_depsets, &target_superchains);
     validate_chain_configs(&target_chain_list, &target_superchains);
     validate_depsets(&target_depsets, &target_chain_list);
 }
@@ -399,7 +399,7 @@ fn write_depsets(target: &Path, depsets: &[DependencySet]) {
     fs::write(target, json).unwrap_or_else(|e| panic!("Failed to write {}: {e}", target.display()));
 }
 
-fn merge_custom_depsets(custom_dir: &Path, target: &Path) {
+fn merge_custom_depsets(custom_dir: &Path, target: &Path, superchains_path: &Path) {
     let path = custom_dir.join("depsets.json");
     println!("cargo:rerun-if-changed={}", path.display());
     if !path.exists() {
@@ -407,7 +407,25 @@ fn merge_custom_depsets(custom_dir: &Path, target: &Path) {
     }
     let custom: Vec<DependencySet> = read_json(&path);
     let mut existing: Vec<DependencySet> = read_json(target);
+
+    // A chain that declares no `[interop]` block carries an *inferred* self-only depset. A
+    // custom depset naming such a chain supersedes that default rather than colliding with
+    // it. A declared cluster — including a declared single-chain one — is never replaced.
+    let inferred: BTreeSet<u64> = read_json::<Superchains>(superchains_path)
+        .superchains
+        .iter()
+        .flat_map(|sc| sc.chains.iter())
+        .filter(|c| c.interop.is_none())
+        .map(|c| c.chain_id)
+        .collect();
+
     for new_ds in custom {
+        existing.retain(|ds| {
+            ds.dependencies.len() != 1 ||
+                !ds.dependencies
+                    .keys()
+                    .all(|id| inferred.contains(id) && new_ds.dependencies.contains_key(id))
+        });
         for existing_ds in &existing {
             let collisions: Vec<u64> = new_ds
                 .dependencies

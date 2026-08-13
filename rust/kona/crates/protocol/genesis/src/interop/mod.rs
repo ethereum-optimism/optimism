@@ -104,6 +104,43 @@ where
     Ok(clusters)
 }
 
+/// Adds a self-only [`DependencySet`] for every chain in `chain_ids` that no cluster in
+/// `clusters` covers.
+///
+/// A chain that declares no interop dependencies is its own single-member cluster. Without
+/// this, such a chain has no embedded depset at all and the fault proof program falls back
+/// to a host-supplied one, trusting unverified data. This mirrors Go's
+/// `op-core/superchain.GetDepset`, which synthesizes the same self-only set when a chain
+/// config has no `[interop]` section. Go defaults only on an absent section, so a chain
+/// declaring an empty `[interop.dependencies]` yields an empty set there and a self-only
+/// set here; no registry chain declares one.
+///
+/// The output stays deterministic: clusters are sorted by their minimum chain id.
+#[allow(clippy::zero_sized_map_values)]
+pub fn with_single_chain_defaults<I>(
+    mut clusters: Vec<DependencySet>,
+    chain_ids: I,
+) -> Vec<DependencySet>
+where
+    I: IntoIterator<Item = u64>,
+{
+    let covered: BTreeSet<u64> =
+        clusters.iter().flat_map(|ds| ds.dependencies.keys().copied()).collect();
+
+    let uncovered: BTreeSet<u64> =
+        chain_ids.into_iter().filter(|id| !covered.contains(id)).collect();
+
+    for chain_id in uncovered {
+        clusters.push(DependencySet {
+            dependencies: BTreeMap::from([(chain_id, ChainDependency {})]),
+            override_message_expiry_window: None,
+        });
+    }
+
+    clusters.sort_by_key(|ds| ds.dependencies.keys().next().copied().unwrap_or_default());
+    clusters
+}
+
 #[cfg(test)]
 #[allow(clippy::zero_sized_map_values)]
 mod tests {
@@ -161,6 +198,33 @@ mod tests {
         let b = config(&[2]);
         let err = aggregate_clusters(vec![(1u64, &a), (2u64, &b)]).unwrap_err();
         assert_eq!(err, ClusterError::Inconsistent { a: 1, b: 2 });
+    }
+
+    #[test]
+    fn single_chain_defaults_fill_uncovered_chains() {
+        let cfg_a = config(&[1, 2]);
+        let cfg_b = config(&[1, 2]);
+        let clusters = aggregate_clusters(vec![(1u64, &cfg_a), (2u64, &cfg_b)]).unwrap();
+
+        let out = with_single_chain_defaults(clusters, vec![1, 2, 5, 3]);
+
+        // Sorted by min chain id: the {1,2} cluster, then self-only 3 and 5.
+        let members: Vec<Vec<u64>> =
+            out.iter().map(|ds| ds.dependencies.keys().copied().collect()).collect();
+        assert_eq!(members, vec![vec![1, 2], vec![3], vec![5]]);
+        assert!(out.iter().all(|ds| ds.override_message_expiry_window.is_none()));
+    }
+
+    #[test]
+    fn single_chain_defaults_are_idempotent() {
+        let out = with_single_chain_defaults(vec![], vec![7]);
+        assert_eq!(with_single_chain_defaults(out.clone(), vec![7]), out);
+    }
+
+    #[test]
+    fn single_chain_defaults_dedupe_repeated_chain_ids() {
+        let out = with_single_chain_defaults(vec![], vec![7, 7]);
+        assert_eq!(out.len(), 1);
     }
 
     #[test]

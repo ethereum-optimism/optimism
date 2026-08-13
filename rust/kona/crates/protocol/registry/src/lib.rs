@@ -215,6 +215,59 @@ mod tests {
         assert!(depset.dependencies.contains_key(&test2_chain_id));
         // Both chain ids must map to the SAME depset value (cluster identity).
         assert_eq!(DEPENDENCY_SETS.get(&test1_chain_id), DEPENDENCY_SETS.get(&test2_chain_id));
+
+        // The fixture cluster also names OP Sepolia, which declares no `[interop]` block and
+        // therefore carries an inferred self-only depset. The declared cluster must supersede
+        // that default rather than collide with it.
+        let op_sepolia_chain_id = 11155420;
+        assert!(depset.dependencies.contains_key(&op_sepolia_chain_id));
+        assert_eq!(DEPENDENCY_SETS.get(&op_sepolia_chain_id), Some(depset));
+    }
+
+    /// Custom-config chains sit outside the superchain registry, so they keep the
+    /// preimage-oracle fallback and are exempt from the registry depset invariants below.
+    /// The custom-configs build merges them into [`CHAINS`], so skip when it is enabled.
+    fn custom_configs_baked_in() -> bool {
+        CUSTOM_CONFIGS == Some("true") || CUSTOM_CONFIGS_CFG
+    }
+
+    #[test]
+    fn test_every_registry_chain_has_a_depset() {
+        if custom_configs_baked_in() {
+            return;
+        }
+        for chain in &CHAINS.chains {
+            let depset = DEPENDENCY_SETS.get(&chain.chain_id).unwrap_or_else(|| {
+                panic!(
+                    "no embedded depset for `{}` (chain id {})",
+                    chain.identifier, chain.chain_id
+                )
+            });
+            assert!(
+                depset.dependencies.contains_key(&chain.chain_id),
+                "depset for `{}` does not contain the chain itself",
+                chain.identifier
+            );
+        }
+    }
+
+    #[test]
+    fn test_chains_without_interop_config_get_self_only_depsets() {
+        if custom_configs_baked_in() {
+            return;
+        }
+        for (chain_id, config) in OPCHAINS.iter().filter(|(_, c)| c.interop.is_none()) {
+            let depset = DEPENDENCY_SETS
+                .get(chain_id)
+                .unwrap_or_else(|| panic!("no embedded depset for chain id {chain_id}"));
+            assert_eq!(
+                depset.dependencies.keys().copied().collect::<Vec<_>>(),
+                alloc::vec![*chain_id],
+                "`{}` declares no interop dependencies but is not a single-chain cluster",
+                config.name
+            );
+            assert!(depset.override_message_expiry_window.is_none());
+        }
     }
 
     // TODO(#21760): Add the registry-derived interop cluster test back when
