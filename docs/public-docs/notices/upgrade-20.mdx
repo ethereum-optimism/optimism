@@ -64,7 +64,6 @@ The updated `SystemConfig` has contract version `4.0.0`.
 
 The deprecated `overhead()` getter remains available for compatibility with existing integrations, but the upgrade sets the stored value to zero.
 Because `setGasConfig(uint256,uint256)` was its only writer, the value stays zero after the upgrade.
-This does not affect fees or derivation because OP Stack clients ignore the value after Ecotone.
 To preserve the two-word `FEE_SCALARS` event payload without requiring a hardfork, calls to `setGasConfigEcotone(uint32,uint32)` encode zero in the first word.
 
 ## Breaking Changes
