@@ -20,7 +20,7 @@ use crate::{
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
-use kona_engine::{InsertTaskErrorKind, SealTaskError, SynchronizeTaskError};
+use kona_engine::{EngineTaskError, InsertTaskErrorKind, SealTaskError, SynchronizeTaskError};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -528,7 +528,9 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
             InsertTaskErrorKind::FromBlockError(_) |
             InsertTaskErrorKind::UnexpectedPayloadVersion(_) |
             InsertTaskErrorKind::L2BlockInfoConstruction(_) => true,
-            InsertTaskErrorKind::InsertFailed(_) |
+            InsertTaskErrorKind::InsertFailed(_) => {
+                insert_err.severity() == kona_engine::EngineTaskErrorSeverity::Critical
+            }
             InsertTaskErrorKind::UnexpectedPayloadStatus(_) => false,
         },
         SealTaskError::GetPayloadFailed(_) |

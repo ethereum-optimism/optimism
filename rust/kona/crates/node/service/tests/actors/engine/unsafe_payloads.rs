@@ -68,6 +68,34 @@ async fn remote_invalid_payload_does_not_block_later_valid_payload() {
 }
 
 #[tokio::test]
+async fn accepted_payload_retry_does_not_block_fresh_payload() {
+    let config = Arc::new(RollupConfig::default());
+    let head = genesis_head();
+    let accepted = malformed_payload(1);
+    let valid = valid_payload(head, 1);
+    let valid_info = payload_info(&valid);
+    let mut harness = EngineHarness::new(
+        config,
+        [
+            MockNewPayloadResponse::Status(PayloadStatus::from_status(PayloadStatusEnum::Accepted)),
+            MockNewPayloadResponse::Status(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+            MockNewPayloadResponse::Status(PayloadStatus::from_status(PayloadStatusEnum::Accepted)),
+        ],
+        head,
+    );
+
+    send_unsafe(&harness, accepted).await;
+    harness.actor.step().await.expect("failed to receive accepted payload");
+    drain_until_waiting(&mut harness).await;
+    assert_eq!(*harness.queue_length.borrow(), 1);
+
+    send_unsafe(&harness, valid).await;
+    harness.actor.step().await.expect("failed to receive fresh payload");
+    drain_until_waiting(&mut harness).await;
+    assert_eq!(*harness.unsafe_head.borrow(), valid_info);
+}
+
+#[tokio::test]
 async fn malformed_payload_rpc_error_does_not_block_later_valid_payload() {
     let config = Arc::new(RollupConfig::default());
     let head = genesis_head();
@@ -121,6 +149,33 @@ async fn engine_capability_error_terminates_actor() {
             .count(),
         1
     );
+}
+
+#[tokio::test]
+async fn transient_transport_error_does_not_block_fresh_payload() {
+    let config = Arc::new(RollupConfig::default());
+    let head = genesis_head();
+    let transient = malformed_payload(1);
+    let valid = valid_payload(head, 1);
+    let valid_info = payload_info(&valid);
+    let mut harness = EngineHarness::new(
+        config,
+        [
+            MockNewPayloadResponse::TransportError("execution client unavailable".to_string()),
+            MockNewPayloadResponse::Status(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+            MockNewPayloadResponse::TransportError("execution client unavailable".to_string()),
+        ],
+        head,
+    );
+
+    send_unsafe(&harness, transient).await;
+    harness.actor.step().await.expect("failed to receive transient payload");
+    drain_until_waiting(&mut harness).await;
+
+    send_unsafe(&harness, valid).await;
+    harness.actor.step().await.expect("failed to receive fresh payload");
+    drain_until_waiting(&mut harness).await;
+    assert_eq!(*harness.unsafe_head.borrow(), valid_info);
 }
 
 #[tokio::test]

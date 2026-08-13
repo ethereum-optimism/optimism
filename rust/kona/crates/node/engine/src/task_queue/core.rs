@@ -8,16 +8,17 @@ use crate::{
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use std::{collections::BinaryHeap, sync::Arc};
+use std::{collections::BinaryHeap, sync::Arc, time::Duration};
 use thiserror::Error;
-use tokio::sync::watch::Sender;
+use tokio::{sync::watch::Sender, time::Instant};
+
+/// Delay between attempts of temporarily failed engine tasks.
+const TEMPORARY_RETRY_DELAY: Duration = Duration::from_secs(1);
 
 /// The [`Engine`] task queue.
 ///
-/// Tasks of a shared [`EngineTask`] variant are processed in FIFO order, providing synchronization
-/// guarantees for the L2 execution layer and other actors. A priority queue, ordered by
-/// [`EngineTask`]'s [`Ord`] implementation, is used to prioritize tasks executed by the
-/// [`Engine::drain`] method.
+/// A priority queue, ordered by [`EngineTask`]'s [`Ord`] implementation, is used to prioritize
+/// tasks executed by the [`Engine::drain`] method.
 ///
 ///  Because tasks are executed one at a time, they are considered to be atomic operations over the
 /// [`EngineState`], and are given exclusive access to the engine state during execution.
@@ -31,8 +32,12 @@ pub struct Engine<EngineClient_: EngineClient> {
     state_sender: Sender<EngineState>,
     /// A sender that can be used to notify the engine actor of task queue length changes.
     task_queue_length: Sender<usize>,
-    /// The task queue.
+    /// Tasks ready to execute.
     tasks: BinaryHeap<EngineTask<EngineClient_>>,
+    /// Temporarily failed tasks waiting for the shared retry deadline.
+    retries: Vec<EngineTask<EngineClient_>>,
+    /// The time at which temporarily failed tasks become ready again.
+    retry_at: Option<Instant>,
 }
 
 impl<EngineClient_: EngineClient> Engine<EngineClient_> {
@@ -42,7 +47,14 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         state_sender: Sender<EngineState>,
         task_queue_length: Sender<usize>,
     ) -> Self {
-        Self { state: initial_state, state_sender, task_queue_length, tasks: BinaryHeap::default() }
+        Self {
+            state: initial_state,
+            state_sender,
+            task_queue_length,
+            tasks: BinaryHeap::default(),
+            retries: Vec::new(),
+            retry_at: None,
+        }
     }
 
     /// Returns a reference to the inner [`EngineState`].
@@ -64,7 +76,35 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// Updates the queue length and notifies listeners of the change.
     pub fn enqueue(&mut self, task: EngineTask<EngineClient_>) {
         self.tasks.push(task);
-        self.task_queue_length.send_replace(self.tasks.len());
+        self.update_queue_length();
+    }
+
+    /// Returns the time at which temporarily failed tasks become ready to retry.
+    pub const fn next_retry_deadline(&self) -> Option<Instant> {
+        self.retry_at
+    }
+
+    /// Updates the externally observable total queue length.
+    fn update_queue_length(&self) {
+        self.task_queue_length.send_replace(self.tasks.len() + self.retries.len());
+    }
+
+    /// Moves temporarily failed tasks back into the ready queue once their delay has elapsed.
+    fn promote_ready_retries(&mut self) {
+        if self.retry_at.is_none_or(|deadline| deadline > Instant::now()) {
+            return;
+        }
+
+        self.retry_at = None;
+        for task in self.retries.drain(..) {
+            self.tasks.push(task);
+        }
+    }
+
+    /// Defers a temporary task until the shared retry deadline.
+    fn schedule_retry(&mut self, task: EngineTask<EngineClient_>) {
+        self.retries.push(task);
+        self.retry_at.get_or_insert_with(|| Instant::now() + TEMPORARY_RETRY_DELAY);
     }
 
     /// Resets the engine by finding a plausible sync starting point via
@@ -116,22 +156,35 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// Clears the task queue.
     pub fn clear(&mut self) {
         self.tasks.clear();
+        self.retries.clear();
+        self.retry_at = None;
+        self.update_queue_length();
     }
 
-    /// Executes queued tasks in priority order, retaining failures unless marked `Drop`.
+    /// Executes all ready tasks in priority order.
+    ///
+    /// Temporary failures are moved to the delayed retry queue so they cannot block fresh work or
+    /// spin inside a single task execution.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
-        while let Some(task) = self.tasks.peek() {
+        self.promote_ready_retries();
+
+        while let Some(task) = self.tasks.pop() {
             match task.execute(&mut self.state).await {
                 Ok(()) => {
                     // Update the state and notify the engine actor.
                     self.state_sender.send_replace(self.state);
+                    self.update_queue_length();
                 }
-                Err(err) if err.severity() == EngineTaskErrorSeverity::Drop => {}
-                Err(err) => return Err(err),
+                Err(err) => match err.severity() {
+                    EngineTaskErrorSeverity::Temporary => self.schedule_retry(task),
+                    EngineTaskErrorSeverity::Drop => self.update_queue_length(),
+                    _ => {
+                        // Preserve non-terminal tasks for the actor's reset/flush handling.
+                        self.tasks.push(task);
+                        return Err(err);
+                    }
+                },
             }
-
-            self.tasks.pop();
-            self.task_queue_length.send_replace(self.tasks.len());
         }
 
         Ok(())
@@ -153,13 +206,33 @@ pub enum EngineResetError {
 mod tests {
     use super::*;
     use crate::{
-        InsertTask,
+        InsertTask, PayloadEnvelopeOrigin,
         test_utils::{TestEngineStateBuilder, test_engine_client_builder},
     };
+    use alloy_primitives::Bytes;
     use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus, PayloadStatusEnum};
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use std::time::Duration;
     use tokio::{sync::watch, time::timeout};
+
+    fn v1_payload(transactions: Vec<Bytes>) -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
+            parent_hash: Default::default(),
+            fee_recipient: Default::default(),
+            state_root: Default::default(),
+            receipts_root: Default::default(),
+            logs_bloom: Default::default(),
+            prev_randao: Default::default(),
+            block_number: 1,
+            gas_limit: 0,
+            gas_used: 0,
+            timestamp: 2,
+            extra_data: Default::default(),
+            base_fee_per_gas: Default::default(),
+            block_hash: Default::default(),
+            transactions,
+        })
+    }
 
     #[tokio::test]
     async fn drops_permanently_invalid_unsafe_payload() {
@@ -181,23 +254,8 @@ mod tests {
         engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
             Arc::new(client),
             config,
-            OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
-                parent_hash: Default::default(),
-                fee_recipient: Default::default(),
-                state_root: Default::default(),
-                receipts_root: Default::default(),
-                logs_bloom: Default::default(),
-                prev_randao: Default::default(),
-                block_number: 1,
-                gas_limit: 0,
-                gas_used: 0,
-                timestamp: 2,
-                extra_data: Default::default(),
-                base_fee_per_gas: Default::default(),
-                block_hash: Default::default(),
-                transactions: Vec::new(),
-            }),
-            false,
+            v1_payload(Vec::new()),
+            PayloadEnvelopeOrigin::RemoteSequencer,
         ))));
         assert_eq!(*queue_length.borrow(), 1);
 
@@ -207,5 +265,73 @@ mod tests {
             .expect("drain failed");
 
         assert_eq!(*queue_length.borrow(), 0);
+    }
+
+    #[tokio::test]
+    async fn schedules_temporary_task_retry_without_blocking() {
+        let config = Arc::new(RollupConfig::default());
+        let client = test_engine_client_builder()
+            .with_config(config.clone())
+            .with_new_payload_v1_response(PayloadStatus {
+                status: PayloadStatusEnum::Accepted,
+                latest_valid_hash: None,
+            })
+            .build();
+        let state = TestEngineStateBuilder::new().build();
+        let (state_sender, _) = watch::channel(state);
+        let (queue_length_sender, queue_length) = watch::channel(0);
+        let mut engine = Engine::new(state, state_sender, queue_length_sender);
+        engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+            Arc::new(client),
+            config.clone(),
+            v1_payload(Vec::new()),
+            PayloadEnvelopeOrigin::RemoteSequencer,
+        ))));
+
+        timeout(Duration::from_secs(1), engine.drain())
+            .await
+            .expect("drain timed out")
+            .expect("drain failed");
+
+        assert_eq!(*queue_length.borrow(), 1);
+        assert!(engine.tasks.is_empty());
+        assert_eq!(engine.retries.len(), 1);
+        assert!(engine.next_retry_deadline().is_some());
+
+        // Fresh work remains ready while the temporary task waits for its retry deadline.
+        let invalid_client = test_engine_client_builder()
+            .with_config(config.clone())
+            .with_new_payload_v1_response(PayloadStatus {
+                status: PayloadStatusEnum::Invalid {
+                    validation_error: "invalid state root".to_string(),
+                },
+                latest_valid_hash: None,
+            })
+            .build();
+        engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+            Arc::new(invalid_client),
+            config,
+            v1_payload(Vec::new()),
+            PayloadEnvelopeOrigin::RemoteSequencer,
+        ))));
+        engine.drain().await.expect("fresh task failed");
+
+        assert_eq!(*queue_length.borrow(), 1);
+        assert!(engine.tasks.is_empty());
+        assert_eq!(engine.retries.len(), 1);
+
+        // Once the shared deadline elapses, deferred tasks get one more attempt and are deferred
+        // again if the error remains temporary.
+        engine.retry_at = Some(Instant::now());
+        engine.drain().await.expect("retry failed");
+        assert!(engine.tasks.is_empty());
+        assert_eq!(engine.retries.len(), 1);
+        assert!(engine.next_retry_deadline().is_some_and(|deadline| deadline > Instant::now()));
+
+        engine.clear();
+        assert_eq!(*queue_length.borrow(), 0);
+        assert!(engine.tasks.is_empty());
+        assert!(engine.retries.is_empty());
+        assert!(engine.next_retry_deadline().is_none());
     }
 }
