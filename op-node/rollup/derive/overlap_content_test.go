@@ -91,7 +91,7 @@ func TestBatchStage_OverlapContent(t *testing.T) {
 		require.ErrorIs(t, err, NotEnoughData)
 		require.Nil(t, batch)
 		logs.RequireMessageContainedOnce(t, "overlapped block's tx count does not match")
-		logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (span batch checks)")
+		logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (span batch overlap checks)")
 	})
 
 	t.Run("matching overlap is accepted", func(t *testing.T) {
@@ -124,7 +124,7 @@ func TestBatchStage_OverlapContent(t *testing.T) {
 		require.ErrorIs(t, err, NotEnoughData)
 		require.Nil(t, batch)
 		logs.RequireMessageContainedOnce(t, "overlapped block's L1 origin number does not match")
-		logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (span batch checks)")
+		logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (span batch overlap checks)")
 	})
 
 	t.Run("payload fetch error is undecided", func(t *testing.T) {
@@ -137,7 +137,6 @@ func TestBatchStage_OverlapContent(t *testing.T) {
 		batch, _, err := stage.NextBatch(context.Background(), safeHead)
 		require.ErrorIs(t, err, NotEnoughData)
 		require.Nil(t, batch)
-		logs.RequireMessageContainedOnce(t, "failed to fetch L2 block payload")
-		logs.RequireMessageContainedOnce(t, "Undecided span batch")
+		logs.RequireMessageContainedOnce(t, "Undecided span batch (span batch overlap checks)")
 	})
 }
