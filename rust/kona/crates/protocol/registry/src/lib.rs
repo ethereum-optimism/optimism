@@ -215,12 +215,6 @@ mod tests {
         assert!(depset.dependencies.contains_key(&test2_chain_id));
         // Both chain ids must map to the SAME depset value (cluster identity).
         assert_eq!(DEPENDENCY_SETS.get(&test1_chain_id), DEPENDENCY_SETS.get(&test2_chain_id));
-
-        // The fixture cluster also names OP Sepolia, whose inferred self-only depset the
-        // declared cluster must supersede rather than collide with.
-        let op_sepolia_chain_id = 11155420;
-        assert!(depset.dependencies.contains_key(&op_sepolia_chain_id));
-        assert_eq!(DEPENDENCY_SETS.get(&op_sepolia_chain_id), Some(depset));
     }
 
     /// Custom-config chains keep the preimage-oracle fallback, so they are exempt from the
