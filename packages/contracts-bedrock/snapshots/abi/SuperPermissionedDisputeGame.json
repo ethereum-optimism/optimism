@@ -280,6 +280,11 @@
   },
   {
     "inputs": [],
+    "name": "IncorrectBondAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "UnknownChainId",
     "type": "error"
   }

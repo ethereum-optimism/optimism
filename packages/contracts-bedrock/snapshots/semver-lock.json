@@ -172,8 +172,8 @@
     "sourceCodeHash": "0xa63af3cce83c917c30ffd216ff371d6ffc829406c3d932ba038d0edf6e7ce921"
   },
   "src/dispute/SuperPermissionedDisputeGame.sol:SuperPermissionedDisputeGame": {
-    "initCodeHash": "0x16d11bae75f05b4f32f2243d7b9c57d5495e567f00e3559088fe0927c598682c",
-    "sourceCodeHash": "0xda89931d10a9bc731835de734b48571aefda52070733895d4f70b4c935ccf838"
+    "initCodeHash": "0x722d281f2c08158a95568d6842f266fd902a78a5fa3f4dd76125afc61c4382e4",
+    "sourceCodeHash": "0x89c8f9a57d8d671adb04ad87cd17324388abe65499b43a2a00bdd4692f54f6c8"
   },
   "src/dispute/zk/SP1PlonkAdapter.sol:SP1PlonkAdapter": {
     "initCodeHash": "0x86e0b79d15c85268155e304dd1d68d1a26782303bb86d44387ee938b0ca45c5c",
