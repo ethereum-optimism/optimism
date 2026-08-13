@@ -122,8 +122,7 @@ fn main() {
     fs::write(&configs_path, serde_json::to_string_pretty(&superchains).unwrap()).unwrap();
 
     // Aggregate per-cluster `DependencySet`s from each chain's `[interop]` block, then give
-    // every remaining chain a self-only depset, and overwrite the embedded depsets with the
-    // resulting list.
+    // every remaining chain a self-only depset.
     let all_chains: Vec<&ChainConfig> =
         superchains.superchains.iter().flat_map(|sc| sc.chains.iter()).collect();
     let depsets = aggregate_clusters(
@@ -408,9 +407,8 @@ fn merge_custom_depsets(custom_dir: &Path, target: &Path, superchains_path: &Pat
     let custom: Vec<DependencySet> = read_json(&path);
     let mut existing: Vec<DependencySet> = read_json(target);
 
-    // A chain that declares no `[interop]` block carries an *inferred* self-only depset. A
-    // custom depset naming such a chain supersedes that default rather than colliding with
-    // it. A declared cluster — including a declared single-chain one — is never replaced.
+    // A custom depset supersedes the inferred self-only default of a chain that declares no
+    // `[interop]` block. A declared cluster is never replaced, single-chain or not.
     let inferred: BTreeSet<u64> = read_json::<Superchains>(superchains_path)
         .superchains
         .iter()

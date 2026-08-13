@@ -105,17 +105,12 @@ where
 }
 
 /// Adds a self-only [`DependencySet`] for every chain in `chain_ids` that no cluster in
-/// `clusters` covers.
+/// `clusters` covers, keeping the output sorted by minimum chain id.
 ///
-/// A chain that declares no interop dependencies is its own single-member cluster. Without
-/// this, such a chain has no embedded depset at all and the fault proof program falls back
-/// to a host-supplied one, trusting unverified data. This mirrors Go's
-/// `op-core/superchain.GetDepset`, which synthesizes the same self-only set when a chain
-/// config has no `[interop]` section. Go defaults only on an absent section, so a chain
-/// declaring an empty `[interop.dependencies]` yields an empty set there and a self-only
-/// set here; no registry chain declares one.
-///
-/// The output stays deterministic: clusters are sorted by their minimum chain id.
+/// A chain that declares no interop dependencies is its own single-member cluster; without
+/// an embedded depset, the fault proof program falls back to host-supplied data. Mirrors
+/// Go's `op-core/superchain.GetDepset`, except that Go defaults only on an absent
+/// `[interop]` section, not an empty one.
 #[allow(clippy::zero_sized_map_values)]
 pub fn with_single_chain_defaults<I>(
     mut clusters: Vec<DependencySet>,

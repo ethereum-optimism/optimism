@@ -216,17 +216,15 @@ mod tests {
         // Both chain ids must map to the SAME depset value (cluster identity).
         assert_eq!(DEPENDENCY_SETS.get(&test1_chain_id), DEPENDENCY_SETS.get(&test2_chain_id));
 
-        // The fixture cluster also names OP Sepolia, which declares no `[interop]` block and
-        // therefore carries an inferred self-only depset. The declared cluster must supersede
-        // that default rather than collide with it.
+        // The fixture cluster also names OP Sepolia, whose inferred self-only depset the
+        // declared cluster must supersede rather than collide with.
         let op_sepolia_chain_id = 11155420;
         assert!(depset.dependencies.contains_key(&op_sepolia_chain_id));
         assert_eq!(DEPENDENCY_SETS.get(&op_sepolia_chain_id), Some(depset));
     }
 
-    /// Custom-config chains sit outside the superchain registry, so they keep the
-    /// preimage-oracle fallback and are exempt from the registry depset invariants below.
-    /// The custom-configs build merges them into [`CHAINS`], so skip when it is enabled.
+    /// Custom-config chains keep the preimage-oracle fallback, so they are exempt from the
+    /// registry depset invariants below.
     fn custom_configs_baked_in() -> bool {
         CUSTOM_CONFIGS == Some("true") || CUSTOM_CONFIGS_CFG
     }
