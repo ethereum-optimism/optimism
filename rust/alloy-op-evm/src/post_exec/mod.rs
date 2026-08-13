@@ -9,12 +9,21 @@ pub use refund::PostExecRefundInspector;
 
 use alloc::vec::Vec;
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory};
+use alloy_primitives::Bytes;
 use core::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 use op_alloy::consensus::post_exec::SDMGasEntry;
-use revm::{Inspector, context::DBErrorMarker, inspector::NoOpInspector};
+use revm::{
+    Inspector,
+    context::{
+        DBErrorMarker,
+        result::{ExecutionResult, Output, ResultAndState, ResultGas, SuccessReason},
+    },
+    inspector::NoOpInspector,
+    state::EvmState,
+};
 
 pub use inspector::{
     PostExecCompositeInspector, PostExecExecutedTx, PostExecRefundEvent, PostExecRefundKind,
@@ -22,6 +31,23 @@ pub use inspector::{
 };
 
 use crate::block::{OpBlockExecutor, receipt_builder::OpReceiptBuilder};
+
+/// The execution result consensus assigns to a post-exec transaction.
+///
+/// Post-exec transactions are structural no-ops: they consume no gas, emit no logs, and touch no
+/// state. They never run through the EVM — the block executor short-circuits them — so every path
+/// that would otherwise transact one must synthesize this result instead.
+pub fn noop_post_exec_result<HaltReason>() -> ResultAndState<HaltReason> {
+    ResultAndState::new(
+        ExecutionResult::Success {
+            reason: SuccessReason::Stop,
+            gas: ResultGas::default(),
+            logs: Vec::new(),
+            output: Output::Call(Bytes::default()),
+        },
+        EvmState::default(),
+    )
+}
 
 /// Extension trait for EVMs that can track post-exec per-transaction warming results.
 pub trait PostExecEvm: alloy_evm::Evm {

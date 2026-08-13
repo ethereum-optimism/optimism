@@ -1,7 +1,7 @@
 //! [`FpvmOpTx`] newtype wrapper around [`OpTransaction<TxEnv>`].
 
 use alloy_consensus::{
-    Signed, Transaction, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy,
+    Signed, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy,
 };
 use alloy_eips::{Encodable2718, Typed2718, eip7594::Encodable7594};
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
@@ -226,17 +226,7 @@ impl FromRecoveredTx<TxPostExec> for FpvmOpTx {
 
 impl FromTxWithEncoded<TxPostExec> for FpvmOpTx {
     fn from_encoded_tx(tx: &TxPostExec, caller: Address, encoded: Bytes) -> Self {
-        // Mirror the 0x7D fields instead of inheriting unrelated `TxEnv` defaults. Preserving its
-        // zero gas limit also ensures accidental execution fails intrinsic gas validation.
-        let base = TxEnv {
-            tx_type: tx.ty(),
-            caller,
-            kind: tx.kind(),
-            gas_limit: tx.gas_limit(),
-            chain_id: tx.chain_id(),
-            data: tx.input().clone(),
-            ..Default::default()
-        };
+        let base = alloy_op_evm::tx::post_exec_tx_env(tx, caller);
         Self(OpTransaction { base, enveloped_tx: Some(encoded), deposit: Default::default() })
     }
 }
@@ -245,7 +235,24 @@ impl FromTxWithEncoded<TxPostExec> for FpvmOpTx {
 mod tests {
     use super::*;
     use alloc::vec;
+    use alloy_consensus::Transaction;
     use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
+
+    /// The post-exec [`TxEnv`] must reflect the transaction rather than [`TxEnv::default`], whose
+    /// mainnet `chain_id: Some(1)`, 2^24 gas limit, and empty calldata leak into any consumer that
+    /// inspects the env (and fail revm's chain-id validation outright on non-mainnet chains).
+    #[test]
+    fn post_exec_tx_env_reflects_transaction_fields() {
+        let tx = build_post_exec_tx(7, vec![]);
+
+        let FpvmOpTx(op_tx) = FpvmOpTx::from_recovered_tx(&tx, Address::ZERO);
+
+        assert_eq!(op_tx.base.chain_id, None, "post-exec txs carry no chain id");
+        assert_eq!(op_tx.base.gas_limit, tx.gas_limit());
+        assert_eq!(op_tx.base.data, *tx.input());
+        assert_eq!(op_tx.base.kind, tx.kind());
+        assert_eq!(op_tx.base.tx_type, tx.ty());
+    }
 
     #[test]
     fn post_exec_tx_env_mirrors_transaction() {
