@@ -809,6 +809,46 @@ fn test_disabled_mode_rejects_post_exec_tx() {
     );
 }
 
+/// Post-exec (`0x7D`) transactions do not consume DA footprint.
+///
+/// End-to-end pin on the observable behaviour, not on any single guard: the exclusion is
+/// over-determined (the `0x7D` returns early with `blob_gas_used: 0`, the accumulator skips
+/// `is_post_exec`, and `encoded_tx_da_footprint` returns zero for the type byte), so this test
+/// survives the removal of any one of them. It exists because op-geth used to recompute the
+/// footprint independently and act as a cross-check; it is no longer a supported verifier.
+#[test]
+fn test_post_exec_tx_does_not_accrue_da_footprint() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+    let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
+    producer.execute_transaction(&user_tx).expect("producer executes user tx");
+
+    let footprint_before = producer.da_footprint_used;
+    assert!(footprint_before > 0, "the user tx must accrue a footprint for this test to bite");
+
+    let post_exec = recovered_post_exec(0, vec![SDMGasEntry { index: 0, gas_refund: 7 }]);
+
+    // The minimum-size floor ensures a counted 0x7D would have a non-zero footprint, so the
+    // assertion below is about the exclusion and not about a 0x7D that is simply too small to
+    // register.
+    let counted_footprint =
+        op_revm::estimate_tx_compressed_size(post_exec.tx().encoded_2718().as_ref())
+            .saturating_div(1_000_000)
+            .saturating_mul(DEFAULT_DA_FOOTPRINT_GAS_SCALAR.into());
+    assert!(counted_footprint > 0, "a counted 0x7D would have added a non-zero footprint");
+
+    producer.execute_transaction(&post_exec).expect("producer executes the 0x7D");
+    assert_eq!(
+        producer.da_footprint_used, footprint_before,
+        "the 0x7D must not accrue DA footprint",
+    );
+
+    let (_, result) = producer.finish().expect("producer finishes block");
+    assert_eq!(result.blob_gas_used, footprint_before);
+    assert_eq!(result.receipts.len(), 2, "the 0x7D still gets a receipt");
+}
+
 /// Regression coverage for a warm-set leak in op-revm's `catch_error`.
 ///
 /// `catch_error` must discard the journal on a non-deposit tx error, as upstream revm's

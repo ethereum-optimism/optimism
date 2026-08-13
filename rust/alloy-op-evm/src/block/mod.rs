@@ -23,8 +23,9 @@ use op_alloy::consensus::{
 use op_revm::{
     L1BlockInfo, OpTransaction,
     constants::{BASE_FEE_RECIPIENT, L1_BLOCK_CONTRACT, OPERATOR_FEE_RECIPIENT},
-    estimate_tx_compressed_size,
+    encoded_tx_da_footprint,
     transaction::deposit::DEPOSIT_TRANSACTION_TYPE,
+    tx_da_footprint,
 };
 pub use receipt_builder::OpAlloyReceiptBuilder;
 use receipt_builder::OpReceiptBuilder;
@@ -507,15 +508,6 @@ where
         tx_env: &E::Tx,
         tx: impl RecoveredTx<R::Transaction>,
     ) -> Result<u64, BlockExecutionError> {
-        // Try to use the enveloped tx if it exists, otherwise use the encoded 2718 bytes
-        let encoded = tx_env
-            .encoded_bytes()
-            .map_or_else(
-                || estimate_tx_compressed_size(tx.tx().encoded_2718().as_ref()),
-                |encoded| estimate_tx_compressed_size(encoded),
-            )
-            .saturating_div(1_000_000);
-
         // Load the L1 block contract into the cache. If the L1 block contract is not pre-loaded the
         // database will panic when trying to fetch the DA footprint gas scalar.
         self.evm.db_mut().basic(L1_BLOCK_CONTRACT).map_err(BlockExecutionError::other)?;
@@ -524,7 +516,11 @@ where
             .map_err(BlockExecutionError::other)?
             .into();
 
-        Ok(encoded.saturating_mul(da_footprint_gas_scalar))
+        // Use the cached enveloped tx bytes if available, otherwise encode the transaction.
+        Ok(tx_env.encoded_bytes().map_or_else(
+            || tx_da_footprint(tx.tx(), da_footprint_gas_scalar),
+            |encoded| encoded_tx_da_footprint(encoded, da_footprint_gas_scalar),
+        ))
     }
 
     fn invalid_post_exec_payload(reason: impl Into<String>) -> BlockExecutionError {
