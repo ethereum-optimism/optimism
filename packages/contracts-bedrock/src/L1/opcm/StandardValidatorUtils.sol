@@ -421,6 +421,8 @@ contract StandardValidatorUtils {
             string.concat(errorPrefix, "-20"),
             errors_
         );
+        errors_ =
+            internalRequire(game.gameAddress == _impls.expectedGameImpl, string.concat(errorPrefix, "-150"), errors_);
 
         errors_ = internalRequire(
             GameType.unwrap(game.gameType) == GameType.unwrap(_args.gameType),
@@ -494,6 +496,8 @@ contract StandardValidatorUtils {
             string.concat(errorPrefix, "-20"),
             errors_
         );
+        errors_ =
+            internalRequire(game.gameAddress == _impls.expectedGameImpl, string.concat(errorPrefix, "-150"), errors_);
         errors_ = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(errorPrefix, "-120"), errors_);
         errors_ = assertValidAnchorStateRegistry(
             errors_, _args.sysCfg, dgf, game.asr, _args.admin, _impls.anchorStateRegistryImpl, errorPrefix
