@@ -54,6 +54,18 @@ pub(super) struct SealedCandidate {
     distribution_started: Instant,
 }
 
+/// Outcome of one block-sequencing action.
+#[derive(Debug)]
+pub(super) enum BlockSequenceOutcome {
+    /// A block was published and made canonical locally.
+    Canonicalized(L2BlockInfo),
+    /// Planning or sealing failed temporarily; plan a fresh block after the next control boundary.
+    Replan,
+    /// Conductor authorization failed or timed out; retry this exact sealed payload after the next
+    /// control boundary.
+    Retry(Box<SealedCandidate>),
+}
+
 /// A sealed payload that has passed the configured publication gate.
 ///
 /// This wrapper is intentionally the only input accepted by publication and canonicalization
@@ -154,56 +166,33 @@ where
         }
     }
 
-    /// Plans, builds, waits for, and seals one unpublished block candidate.
+    /// Runs one block-sequencing action without polling control requests.
     ///
-    /// The entire future is cancellation-safe with respect to block publication: dropping it may
-    /// abandon execution-layer build work, but cannot commit, gossip, or canonicalize a payload.
-    pub(super) async fn prepare_candidate(
+    /// A retry candidate skips planning and sealing so conductor failures always retry the exact
+    /// payload. The caller regains control between conductor attempts.
+    pub(super) async fn sequence_one_block(
         &mut self,
         recovery_mode: bool,
-    ) -> Result<Box<SealedCandidate>, SequencerActorError> {
-        loop {
-            let Some(build) = self.build_payload(recovery_mode).await? else {
-                tokio::time::sleep(PLANNING_RETRY_DELAY).await;
-                continue;
-            };
-
-            self.wait_until_seal_time(&build).await;
-
-            let distribution_started = Instant::now();
-            let seal_start = Instant::now();
-            let payload = match self
-                .engine_client
-                .seal_block(build.payload_id, build.attributes.clone())
-                .await
-            {
-                Ok(payload) => payload,
-                Err(EngineClientError::SealError(err)) if !is_seal_task_err_fatal(&err) => {
-                    warn!(target: "sequencer", ?err, "Discarding uncommitted block attempt after seal failure");
+        retry_candidate: Option<Box<SealedCandidate>>,
+    ) -> Result<BlockSequenceOutcome, SequencerActorError> {
+        let sealed = match retry_candidate {
+            Some(sealed) => sealed,
+            None => {
+                let Some(sealed) = self.prepare_candidate(recovery_mode).await? else {
                     tokio::time::sleep(PLANNING_RETRY_DELAY).await;
-                    continue;
-                }
-                Err(err) => return Err(err.into()),
-            };
-            update_seal_duration_metrics(seal_start.elapsed());
+                    return Ok(BlockSequenceOutcome::Replan);
+                };
+                sealed
+            }
+        };
 
-            return Ok(Box::new(SealedCandidate {
-                payload,
-                attributes: build.attributes,
-                distribution_started,
-            }));
-        }
-    }
-
-    /// Authorizes, publishes, and locally canonicalizes one exact sealed candidate.
-    ///
-    /// Once this future is first polled it must be retained to completion. A conductor attempt may
-    /// have succeeded remotely even when its local future is cancelled or returns a timeout.
-    pub(super) async fn distribute_candidate(
-        &mut self,
-        sealed: Box<SealedCandidate>,
-    ) -> Result<L2BlockInfo, SequencerActorError> {
-        let committed = self.commit_until_authorized(sealed).await;
+        let committed = match self.commit_once(sealed).await {
+            Ok(committed) => committed,
+            Err(sealed) => {
+                tokio::time::sleep(DISTRIBUTION_RETRY_DELAY).await;
+                return Ok(BlockSequenceOutcome::Retry(sealed));
+            }
+        };
 
         self.publish(&committed).await?;
         let head = self.canonicalize_until_done(&committed).await?;
@@ -211,7 +200,41 @@ where
         update_total_transactions_sequenced(committed.sealed.attributes.count_transactions());
         self.last_distribution_duration = committed.sealed.distribution_started.elapsed();
 
-        Ok(head)
+        Ok(BlockSequenceOutcome::Canonicalized(head))
+    }
+
+    /// Plans, builds, waits for, and seals one unpublished block candidate.
+    async fn prepare_candidate(
+        &mut self,
+        recovery_mode: bool,
+    ) -> Result<Option<Box<SealedCandidate>>, SequencerActorError> {
+        let Some(build) = self.build_payload(recovery_mode).await? else {
+            return Ok(None);
+        };
+
+        self.wait_until_seal_time(&build).await;
+
+        let distribution_started = Instant::now();
+        let seal_start = Instant::now();
+        let payload = match self
+            .engine_client
+            .seal_block(build.payload_id, build.attributes.clone())
+            .await
+        {
+            Ok(payload) => payload,
+            Err(EngineClientError::SealError(err)) if !is_seal_task_err_fatal(&err) => {
+                warn!(target: "sequencer", ?err, "Discarding uncommitted block attempt after seal failure");
+                return Ok(None);
+            }
+            Err(err) => return Err(err.into()),
+        };
+        update_seal_duration_metrics(seal_start.elapsed());
+
+        Ok(Some(Box::new(SealedCandidate {
+            payload,
+            attributes: build.attributes,
+            distribution_started,
+        })))
     }
 
     /// Builds payload attributes and starts an execution-layer build job.
@@ -261,31 +284,31 @@ where
         tokio::time::sleep(delay).await;
     }
 
-    /// Commits the exact sealed payload until it receives positive publication authorization.
+    /// Attempts to commit one exact sealed payload once.
     ///
-    /// A timeout is ambiguous: the remote conductor may have committed while its response was
-    /// lost. Retrying the same payload is therefore the only safe recovery.
-    async fn commit_until_authorized(&self, sealed: Box<SealedCandidate>) -> CommittedCandidate {
-        loop {
-            let started = Instant::now();
-            let result = tokio::time::timeout(
-                CONDUCTOR_COMMIT_TIMEOUT,
-                self.publication_gate.authorize(&sealed.payload),
-            )
-            .await;
-            update_conductor_commitment_duration_metrics(started.elapsed());
+    /// A timeout is ambiguous, so failures return ownership of the candidate for an exact retry.
+    async fn commit_once(
+        &self,
+        sealed: Box<SealedCandidate>,
+    ) -> Result<CommittedCandidate, Box<SealedCandidate>> {
+        let started = Instant::now();
+        let result = tokio::time::timeout(
+            CONDUCTOR_COMMIT_TIMEOUT,
+            self.publication_gate.authorize(&sealed.payload),
+        )
+        .await;
+        update_conductor_commitment_duration_metrics(started.elapsed());
 
-            match result {
-                Ok(Ok(())) => return CommittedCandidate { sealed },
-                Ok(Err(err)) => {
-                    error!(target: "sequencer", ?err, "Conductor commit failed; retaining sealed payload");
-                }
-                Err(_) => {
-                    error!(target: "sequencer", "Conductor commit timed out; retaining sealed payload");
-                }
+        match result {
+            Ok(Ok(())) => Ok(CommittedCandidate { sealed }),
+            Ok(Err(err)) => {
+                error!(target: "sequencer", ?err, "Conductor commit failed; retaining sealed payload");
+                Err(sealed)
             }
-
-            tokio::time::sleep(DISTRIBUTION_RETRY_DELAY).await;
+            Err(_) => {
+                error!(target: "sequencer", "Conductor commit timed out; retaining sealed payload");
+                Err(sealed)
+            }
         }
     }
 
@@ -528,8 +551,14 @@ mod tests {
             gossip,
         );
 
-        let candidate = workflow.prepare_candidate(false).await.unwrap();
-        let head = workflow.distribute_candidate(candidate).await.unwrap();
-        assert_eq!(head, canonical_head);
+        let candidate = match workflow.sequence_one_block(false, None).await.unwrap() {
+            BlockSequenceOutcome::Retry(candidate) => candidate,
+            outcome => panic!("expected exact conductor retry, got {outcome:?}"),
+        };
+        let outcome = workflow.sequence_one_block(false, Some(candidate)).await.unwrap();
+        assert!(matches!(
+            outcome,
+            BlockSequenceOutcome::Canonicalized(head) if head == canonical_head
+        ));
     }
 }

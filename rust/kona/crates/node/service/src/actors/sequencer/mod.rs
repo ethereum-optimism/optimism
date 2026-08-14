@@ -14,8 +14,10 @@ pub use actor::SequencerActor;
 
 mod workflow;
 
+mod handle;
+pub use handle::SequencerHandle;
+
 mod admin_api_impl;
-pub use admin_api_impl::SequencerAdminQuery;
 
 mod metrics;
 

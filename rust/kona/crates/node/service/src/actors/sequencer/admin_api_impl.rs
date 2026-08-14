@@ -1,33 +1,8 @@
-use super::SequencerActor;
+use super::{SequencerActor, actor::BoundaryAction, handle::SequencerCommand};
 use crate::{Conductor, OriginSelector, SequencerEngineClient, UnsafePayloadGossipClient};
-use alloy_primitives::B256;
 use kona_derive::AttributesBuilder;
 use kona_rpc::SequencerAdminAPIError;
-use std::sync::Arc;
-use tokio::sync::oneshot;
 
-/// The query types to the sequencer actor for the admin api.
-#[derive(Debug)]
-pub enum SequencerAdminQuery {
-    /// A query to check if the sequencer is active.
-    SequencerActive(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
-    /// A query to start the sequencer.
-    StartSequencer(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
-    /// A query to stop the sequencer.
-    StopSequencer(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
-    /// A query to check if the conductor is enabled.
-    ConductorEnabled(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
-    /// A query to check if the sequencer is in recovery mode.
-    RecoveryMode(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
-    /// A query to set the recovery mode.
-    SetRecoveryMode(bool, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
-    /// A query to override the leader.
-    OverrideLeader(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
-    /// A query to reset the derivation pipeline.
-    ResetDerivationPipeline(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
-}
-
-/// Handler for the Sequencer Admin API.
 impl<
     AttributesBuilder_,
     Conductor_,
@@ -49,193 +24,95 @@ where
     SequencerEngineClient_: SequencerEngineClient,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
-    /// Handles the provided [`SequencerAdminQuery`], sending the response via its sender.
-    pub(super) async fn handle_admin_query(&mut self, query: SequencerAdminQuery) {
-        Self::handle_admin_query_parts(
-            &mut self.is_active,
-            &mut self.in_recovery_mode,
-            self.conductor.as_ref(),
-            &self.engine_client,
-            query,
-        )
-        .await;
-    }
-
-    /// Handles an admin request without borrowing the sequencing workflow.
-    ///
-    /// Keeping this operation on the control-plane fields lets the service continue polling a
-    /// pinned preparation or distribution future while it responds to compatible admin requests.
-    pub(super) async fn handle_admin_query_parts(
-        is_active: &mut bool,
-        in_recovery_mode: &mut bool,
-        conductor: Option<&Arc<Conductor_>>,
-        engine_client: &Arc<SequencerEngineClient_>,
-        query: SequencerAdminQuery,
-    ) {
-        match query {
-            SequencerAdminQuery::SequencerActive(tx) => {
-                if tx.send(Ok(*is_active)).is_err() {
-                    warn!(target: "sequencer", "Failed to send response for is_sequencer_active query");
+    /// Handles one encapsulated control command at a block boundary.
+    pub(super) async fn handle_command(
+        &mut self,
+        command: SequencerCommand,
+        active: bool,
+    ) -> BoundaryAction {
+        match command {
+            SequencerCommand::Active(response) => {
+                if response.send(Ok(active)).is_err() {
+                    warn!(target: "sequencer", "Failed to send active-state response");
                 }
             }
-            SequencerAdminQuery::StartSequencer(tx) => {
-                let result = start_sequencer(is_active, *in_recovery_mode);
-                if tx.send(result).is_err() {
-                    warn!(target: "sequencer", "Failed to send response for start_sequencer query");
+            SequencerCommand::Start(response) => {
+                if active {
+                    info!(target: "sequencer", "Received start request while already active");
+                } else {
+                    info!(target: "sequencer", "Starting sequencer");
+                    super::metrics::update_state_metrics(true, self.in_recovery_mode);
+                }
+                if response.send(Ok(())).is_err() {
+                    warn!(target: "sequencer", "Failed to send start response");
+                }
+                return if active { BoundaryAction::Continue } else { BoundaryAction::Build };
+            }
+            SequencerCommand::Stop(response) => {
+                let result = self.engine_client.get_unsafe_head().await.map(|head| head.hash()).map_err(
+                    |err| {
+                        error!(target: "sequencer", ?err, "Error fetching unsafe head while stopping sequencer");
+                        SequencerAdminAPIError::ErrorAfterSequencerWasStopped(
+                            "current unsafe hash is unavailable.".to_string(),
+                        )
+                    },
+                );
+                if active {
+                    info!(target: "sequencer", "Stopping sequencer at block boundary");
+                    super::metrics::update_state_metrics(false, self.in_recovery_mode);
+                }
+                if response.send(result).is_err() {
+                    warn!(target: "sequencer", "Failed to send stop response");
+                }
+                return if active { BoundaryAction::Stop } else { BoundaryAction::Continue };
+            }
+            SequencerCommand::ConductorEnabled(response) => {
+                if response.send(Ok(self.conductor.is_some())).is_err() {
+                    warn!(target: "sequencer", "Failed to send conductor-enabled response");
                 }
             }
-            SequencerAdminQuery::StopSequencer(tx) => {
-                let result =
-                    stop_sequencer(is_active, *in_recovery_mode, engine_client.as_ref()).await;
-                if tx.send(result).is_err() {
-                    warn!(target: "sequencer", "Failed to send response for stop_sequencer query");
+            SequencerCommand::RecoveryMode(response) => {
+                if response.send(Ok(self.in_recovery_mode)).is_err() {
+                    warn!(target: "sequencer", "Failed to send recovery-mode response");
                 }
             }
-            SequencerAdminQuery::ConductorEnabled(tx) => {
-                if tx.send(Ok(conductor.is_some())).is_err() {
-                    warn!(target: "sequencer", "Failed to send response for is_conductor_enabled query");
+            SequencerCommand::SetRecoveryMode(mode, response) => {
+                self.in_recovery_mode = mode;
+                info!(target: "sequencer", mode, "Updated recovery mode");
+                super::metrics::update_state_metrics(active, mode);
+                if response.send(Ok(())).is_err() {
+                    warn!(target: "sequencer", "Failed to send set-recovery-mode response");
                 }
             }
-            SequencerAdminQuery::RecoveryMode(tx) => {
-                if tx.send(Ok(*in_recovery_mode)).is_err() {
-                    warn!(target: "sequencer", "Failed to send response for in_recovery_mode query");
+            SequencerCommand::OverrideLeader(response) => {
+                let result = match self.conductor.as_deref() {
+                    Some(conductor) => conductor.override_leader().await.map_err(|err| {
+                        error!(target: "sequencer::rpc", "Failed to override leader: {err}");
+                        SequencerAdminAPIError::LeaderOverrideError(err.to_string())
+                    }),
+                    None => Err(SequencerAdminAPIError::LeaderOverrideError(
+                        "No conductor configured".to_string(),
+                    )),
+                };
+                if result.is_ok() {
+                    info!(target: "sequencer", "Overrode leader via conductor service");
+                }
+                if response.send(result).is_err() {
+                    warn!(target: "sequencer", "Failed to send override-leader response");
                 }
             }
-            SequencerAdminQuery::SetRecoveryMode(is_recovery_active, tx) => {
-                set_recovery_mode(in_recovery_mode, is_recovery_active, *is_active);
-                if tx.send(Ok(())).is_err() {
-                    warn!(target: "sequencer", is_active = is_recovery_active, "Failed to send response for set_recovery_mode query");
-                }
-            }
-            SequencerAdminQuery::OverrideLeader(tx) => {
-                let result = override_leader(conductor.map(Arc::as_ref)).await;
-                if tx.send(result).is_err() {
-                    warn!(target: "sequencer", "Failed to send response for override_leader query");
-                }
-            }
-            SequencerAdminQuery::ResetDerivationPipeline(tx) => {
-                let result = reset_derivation_pipeline(engine_client.as_ref()).await;
-                if tx.send(result).is_err() {
-                    warn!(target: "sequencer", "Failed to send response for reset_derivation_pipeline query");
+            SequencerCommand::ResetDerivationPipeline(response) => {
+                info!(target: "sequencer", "Resetting derivation pipeline");
+                let result = self.engine_client.reset_engine_forkchoice().await.map_err(|err| {
+                    error!(target: "sequencer", ?err, "Failed to reset engine forkchoice");
+                    SequencerAdminAPIError::RequestError(format!("Failed to reset engine: {err}"))
+                });
+                if response.send(result).is_err() {
+                    warn!(target: "sequencer", "Failed to send reset response");
                 }
             }
         }
+
+        BoundaryAction::Continue
     }
-
-    /// Returns whether the sequencer is active.
-    #[cfg(test)]
-    pub(super) async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError> {
-        Ok(self.is_active)
-    }
-
-    /// Returns whether the conductor is enabled.
-    #[cfg(test)]
-    pub(super) async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError> {
-        Ok(self.conductor.is_some())
-    }
-
-    /// Returns whether the node is in recovery mode.
-    #[cfg(test)]
-    pub(super) async fn in_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError> {
-        Ok(self.in_recovery_mode)
-    }
-
-    /// Starts the sequencer in an idempotent fashion.
-    #[cfg(test)]
-    pub(super) async fn start_sequencer(&mut self) -> Result<(), SequencerAdminAPIError> {
-        start_sequencer(&mut self.is_active, self.in_recovery_mode)
-    }
-
-    /// Stops the sequencer in an idempotent fashion.
-    #[cfg(test)]
-    pub(super) async fn stop_sequencer(&mut self) -> Result<B256, SequencerAdminAPIError> {
-        stop_sequencer(&mut self.is_active, self.in_recovery_mode, self.engine_client.as_ref())
-            .await
-    }
-
-    /// Sets the recovery mode of the sequencer in an idempotent fashion.
-    #[cfg(test)]
-    pub(super) async fn set_recovery_mode(
-        &mut self,
-        is_active: bool,
-    ) -> Result<(), SequencerAdminAPIError> {
-        set_recovery_mode(&mut self.in_recovery_mode, is_active, self.is_active);
-        Ok(())
-    }
-
-    /// Overrides the leader, if the conductor is enabled.
-    #[cfg(test)]
-    pub(super) async fn override_leader(&self) -> Result<(), SequencerAdminAPIError> {
-        override_leader(self.conductor.as_deref()).await
-    }
-
-    /// Resets the engine forkchoice to the derivation pipeline's view.
-    pub(super) async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
-        reset_derivation_pipeline(self.engine_client.as_ref()).await
-    }
-}
-
-fn start_sequencer(
-    is_active: &mut bool,
-    in_recovery_mode: bool,
-) -> Result<(), SequencerAdminAPIError> {
-    if *is_active {
-        info!(target: "sequencer", "received request to start sequencer, but it is already started");
-        return Ok(());
-    }
-
-    info!(target: "sequencer", "Starting sequencer");
-    *is_active = true;
-    super::metrics::update_state_metrics(*is_active, in_recovery_mode);
-    Ok(())
-}
-
-async fn stop_sequencer<SequencerEngineClient_: SequencerEngineClient>(
-    is_active: &mut bool,
-    in_recovery_mode: bool,
-    engine_client: &SequencerEngineClient_,
-) -> Result<B256, SequencerAdminAPIError> {
-    info!(target: "sequencer", "Stopping sequencer");
-    *is_active = false;
-    super::metrics::update_state_metrics(*is_active, in_recovery_mode);
-
-    engine_client.get_unsafe_head().await.map(|head| head.hash()).map_err(|err| {
-        error!(target: "sequencer", ?err, "Error fetching unsafe head after stopping sequencer");
-        SequencerAdminAPIError::ErrorAfterSequencerWasStopped(
-            "current unsafe hash is unavailable.".to_string(),
-        )
-    })
-}
-
-fn set_recovery_mode(in_recovery_mode: &mut bool, is_active: bool, sequencer_active: bool) {
-    *in_recovery_mode = is_active;
-    info!(target: "sequencer", is_active, "Updated recovery mode");
-    super::metrics::update_state_metrics(sequencer_active, *in_recovery_mode);
-}
-
-async fn override_leader<Conductor_: Conductor>(
-    conductor: Option<&Conductor_>,
-) -> Result<(), SequencerAdminAPIError> {
-    let Some(conductor) = conductor else {
-        return Err(SequencerAdminAPIError::LeaderOverrideError(
-            "No conductor configured".to_string(),
-        ));
-    };
-
-    if let Err(err) = conductor.override_leader().await {
-        error!(target: "sequencer::rpc", "Failed to override leader: {err}");
-        return Err(SequencerAdminAPIError::LeaderOverrideError(err.to_string()));
-    }
-    info!(target: "sequencer", "Overrode leader via the conductor service");
-    Ok(())
-}
-
-async fn reset_derivation_pipeline<SequencerEngineClient_: SequencerEngineClient>(
-    engine_client: &SequencerEngineClient_,
-) -> Result<(), SequencerAdminAPIError> {
-    info!(target: "sequencer", "Resetting derivation pipeline");
-    engine_client.reset_engine_forkchoice().await.map_err(|err| {
-        error!(target: "sequencer", ?err, "Failed to reset engine forkchoice");
-        SequencerAdminAPIError::RequestError(format!("Failed to reset engine: {err}"))
-    })
 }

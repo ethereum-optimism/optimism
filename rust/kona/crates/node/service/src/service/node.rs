@@ -6,8 +6,8 @@ use crate::{
     JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor, NetworkActor, NetworkBuilder,
     NetworkConfig, NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
+    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, RpcServerLauncher,
+    SequencerActor, SequencerConfig, SequencerHandle,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
 };
 use alloy_eips::BlockNumberOrTag;
@@ -333,8 +333,7 @@ impl RollupNode {
         gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
-        sequencer_admin_api_rx: mpsc::Receiver<crate::SequencerAdminQuery>,
-    ) -> Option<ConfiguredSequencerActor> {
+    ) -> Option<(ConfiguredSequencerActor, SequencerHandle)> {
         if !self.mode().is_sequencer() {
             return None;
         }
@@ -356,7 +355,6 @@ impl RollupNode {
         let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
 
         Some(SequencerActor::new(
-            sequencer_admin_api_rx,
             self.create_attributes_builder(),
             conductor,
             sequencer_engine_client,
@@ -373,7 +371,7 @@ impl RollupNode {
     async fn build_rpc_actor(
         &self,
         engine_rpc_request_tx: mpsc::Sender<EngineRpcRequest>,
-        sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
+        sequencer_admin_client: Option<SequencerHandle>,
         p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
         network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
@@ -459,7 +457,6 @@ impl RollupNode {
         let (engine_rpc_request_tx, engine_rpc_request_rx) =
             mpsc::channel::<EngineRpcRequest>(1024);
         let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
-        let (sequencer_admin_api_tx, sequencer_admin_api_rx) = mpsc::channel(1024);
         // Network actor inbound channels
         let (signer_tx, signer_rx) = mpsc::channel::<Address>(16);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
@@ -508,16 +505,16 @@ impl RollupNode {
             l1_head_updates_tx,
         )?;
 
-        let sequencer_actor = self.build_sequencer(
+        let sequencer = self.build_sequencer(
             engine_actor_request_tx,
             gossip_payload_tx,
             unsafe_head_rx,
             l1_head_updates_rx,
-            sequencer_admin_api_rx,
         );
-        let sequencer_admin_client = sequencer_actor
-            .is_some()
-            .then(|| QueuedSequencerAdminAPIClient::new(sequencer_admin_api_tx));
+        let (sequencer_actor, sequencer_admin_client) = match sequencer {
+            Some((actor, handle)) => (Some(actor), Some(handle)),
+            None => (None, None),
+        };
 
         let rpc = self
             .build_rpc_actor(
@@ -551,7 +548,7 @@ impl RollupNode {
 fn merge_admin_module(
     modules: &mut RpcModule<()>,
     enable_admin: bool,
-    sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
+    sequencer_admin_client: Option<SequencerHandle>,
     network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
 ) -> Result<(), String> {
     if enable_admin {

@@ -1,7 +1,6 @@
 use crate::{
     Conductor, ConductorError, EngineClientError, SequencerActor, SequencerActorError,
-    SequencerAdminQuery, SequencerEngineClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    SequencerEngineClient, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
     actors::{
         MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
     },
@@ -16,14 +15,13 @@ use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadAttributes};
 use rstest::rstest;
 use std::{
-    future::pending,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
-use tokio::sync::{Notify, mpsc, oneshot};
+use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 #[rstest]
@@ -49,9 +47,7 @@ async fn test_build_payload_prepare_payload_attributes_error(
     origin_selector.expect_next_l1_origin().times(1).return_once(move |_, _| Ok(l1_origin));
 
     let attributes_builder = TestAttributesBuilder { attributes: vec![Err(forced_error)] };
-    let (_admin_api_tx, admin_api_rx) = mpsc::channel(20);
-    let mut actor = SequencerActor::<_, MockConductor, _, _, _>::new(
-        admin_api_rx,
+    let (mut actor, _handle) = SequencerActor::<_, MockConductor, _, _, _>::new(
         attributes_builder,
         None,
         client,
@@ -75,6 +71,10 @@ async fn test_build_payload_prepare_payload_attributes_error(
 
 #[derive(Debug)]
 struct BlockingSealEngine {
+    canonicalized: Arc<AtomicBool>,
+    head: Arc<Mutex<L2BlockInfo>>,
+    payload: OpExecutionPayloadEnvelope,
+    release_seal: Arc<Notify>,
     seal_started: Arc<Notify>,
 }
 
@@ -97,7 +97,8 @@ impl SequencerEngineClient for BlockingSealEngine {
         _attributes: OpAttributesWithParent,
     ) -> Result<OpExecutionPayloadEnvelope, EngineClientError> {
         self.seal_started.notify_one();
-        pending().await
+        self.release_seal.notified().await;
+        Ok(self.payload.clone())
     }
 
     async fn canonicalize_block(
@@ -105,11 +106,14 @@ impl SequencerEngineClient for BlockingSealEngine {
         _payload: OpExecutionPayloadEnvelope,
         _attributes: OpAttributesWithParent,
     ) -> Result<L2BlockInfo, EngineClientError> {
-        panic!("an unpublished payload must not be canonicalized");
+        let canonical_head = canonical_head();
+        *self.head.lock().unwrap() = canonical_head;
+        self.canonicalized.store(true, Ordering::SeqCst);
+        Ok(canonical_head)
     }
 
     async fn get_unsafe_head(&self) -> Result<L2BlockInfo, EngineClientError> {
-        Ok(L2BlockInfo::default())
+        Ok(*self.head.lock().unwrap())
     }
 }
 
@@ -168,14 +172,7 @@ impl SequencerEngineClient for RecordingEngine {
         _payload: OpExecutionPayloadEnvelope,
         _attributes: OpAttributesWithParent,
     ) -> Result<L2BlockInfo, EngineClientError> {
-        let canonical_head = L2BlockInfo {
-            block_info: BlockInfo {
-                number: 1,
-                hash: alloy_primitives::B256::repeat_byte(1),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
+        let canonical_head = canonical_head();
         *self.head.lock().unwrap() = canonical_head;
         self.canonicalized.store(true, Ordering::SeqCst);
         Ok(canonical_head)
@@ -206,44 +203,118 @@ fn test_payload() -> OpExecutionPayloadEnvelope {
     ))
 }
 
+fn canonical_head() -> L2BlockInfo {
+    L2BlockInfo {
+        block_info: BlockInfo {
+            number: 1,
+            hash: alloy_primitives::B256::repeat_byte(1),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
 #[tokio::test]
-async fn admin_stop_cancels_unpublished_preparation() {
+async fn sequencer_handle_encapsulates_stopped_admin_operations() {
+    let unsafe_head = canonical_head();
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_reset_engine_forkchoice().times(2).returning(|| Ok(()));
+    engine.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
+
+    let mut conductor = MockConductor::new();
+    conductor.expect_override_leader().times(1).return_once(|| Ok(()));
+
+    let (actor, control) = SequencerActor::new(
+        TestAttributesBuilder { attributes: Vec::new() },
+        Some(conductor),
+        engine,
+        false,
+        false,
+        MockOriginSelector::new(),
+        Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
+        MockUnsafePayloadGossipClient::new(),
+    );
+    let shutdown = CancellationToken::new();
+    let actor_handle = tokio::spawn(actor.run(shutdown.clone()));
+
+    assert!(!control.is_active().await.unwrap());
+    assert!(control.conductor_enabled().await.unwrap());
+    assert!(!control.recovery_mode().await.unwrap());
+    control.set_recovery_mode(true).await.unwrap();
+    assert!(control.recovery_mode().await.unwrap());
+    control.override_leader().await.unwrap();
+    control.reset_derivation_pipeline().await.unwrap();
+    assert_eq!(control.stop().await.unwrap(), canonical_head().hash());
+
+    shutdown.cancel();
+    tokio::time::timeout(Duration::from_secs(1), actor_handle)
+        .await
+        .expect("sequencer should shut down")
+        .unwrap()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn admin_stop_waits_for_the_current_block() {
+    let canonicalized = Arc::new(AtomicBool::new(false));
+    let gossiped = Arc::new(AtomicBool::new(false));
+    let release_seal = Arc::new(Notify::new());
     let seal_started = Arc::new(Notify::new());
-    let engine = BlockingSealEngine { seal_started: seal_started.clone() };
+    let engine = BlockingSealEngine {
+        canonicalized: canonicalized.clone(),
+        head: Arc::new(Mutex::new(L2BlockInfo::default())),
+        payload: test_payload(),
+        release_seal: release_seal.clone(),
+        seal_started: seal_started.clone(),
+    };
     let mut origin_selector = MockOriginSelector::new();
     origin_selector.expect_next_l1_origin().times(1).return_once(|_, _| Ok(BlockInfo::default()));
-    let mut gossip = MockUnsafePayloadGossipClient::new();
-    gossip.expect_schedule_execution_payload_gossip().times(0);
-    let (admin_tx, admin_rx) = mpsc::channel(1);
-    let actor = SequencerActor::<_, MockConductor, _, _, _>::new(
-        admin_rx,
+    let (actor, control) = SequencerActor::<_, MockConductor, _, _, _>::new(
         TestAttributesBuilder { attributes: vec![Ok(OpPayloadAttributes::default())] },
         None,
         engine,
-        true,
+        false,
         false,
         origin_selector,
         Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
-        gossip,
+        RecordingGossip(gossiped.clone()),
     );
     let shutdown = CancellationToken::new();
-    let handle = tokio::spawn(actor.run(shutdown.clone()));
+    let actor_handle = tokio::spawn(actor.run(shutdown.clone()));
+
+    assert!(!control.is_active().await.unwrap());
+    assert!(!control.conductor_enabled().await.unwrap());
+    assert!(!control.recovery_mode().await.unwrap());
+    control.set_recovery_mode(true).await.unwrap();
+    assert!(control.recovery_mode().await.unwrap());
+    control.start().await.unwrap();
 
     tokio::time::timeout(Duration::from_secs(1), seal_started.notified())
         .await
         .expect("seal should start");
-    let (response_tx, response_rx) = oneshot::channel();
-    admin_tx.send(SequencerAdminQuery::StopSequencer(response_tx)).await.unwrap();
+    let stop_control = control.clone();
+    let mut stop_handle = tokio::spawn(async move { stop_control.stop().await });
+    assert!(
+        tokio::time::timeout(Duration::from_millis(20), &mut stop_handle).await.is_err(),
+        "stop should remain queued while the block is being sequenced"
+    );
+    assert!(!gossiped.load(Ordering::SeqCst));
+    assert!(!canonicalized.load(Ordering::SeqCst));
 
-    let stopped_head = tokio::time::timeout(Duration::from_secs(1), response_rx)
+    release_seal.notify_one();
+    let stopped_head = tokio::time::timeout(Duration::from_secs(1), stop_handle)
         .await
-        .expect("stop should cancel preparation without waiting for seal")
+        .expect("stop should complete at the next block boundary")
         .unwrap()
         .unwrap();
-    assert_eq!(stopped_head, L2BlockInfo::default().hash());
+    assert_eq!(stopped_head, canonical_head().hash());
+    assert!(gossiped.load(Ordering::SeqCst));
+    assert!(canonicalized.load(Ordering::SeqCst));
+    assert!(!control.is_active().await.unwrap());
+    assert_eq!(control.stop().await.unwrap(), canonical_head().hash());
 
     shutdown.cancel();
-    tokio::time::timeout(Duration::from_secs(1), handle)
+    tokio::time::timeout(Duration::from_secs(1), actor_handle)
         .await
         .expect("sequencer should shut down")
         .unwrap()
@@ -267,9 +338,7 @@ async fn admin_stop_does_not_cancel_protected_distribution() {
     };
     let mut origin_selector = MockOriginSelector::new();
     origin_selector.expect_next_l1_origin().times(1).return_once(|_, _| Ok(BlockInfo::default()));
-    let (admin_tx, admin_rx) = mpsc::channel(1);
-    let actor = SequencerActor::new(
-        admin_rx,
+    let (actor, control) = SequencerActor::new(
         TestAttributesBuilder { attributes: vec![Ok(OpPayloadAttributes::default())] },
         Some(conductor),
         engine,
@@ -280,22 +349,21 @@ async fn admin_stop_does_not_cancel_protected_distribution() {
         RecordingGossip(gossiped.clone()),
     );
     let shutdown = CancellationToken::new();
-    let handle = tokio::spawn(actor.run(shutdown.clone()));
+    let actor_handle = tokio::spawn(actor.run(shutdown.clone()));
 
     tokio::time::timeout(Duration::from_secs(1), commit_started.notified())
         .await
         .expect("conductor commit should start");
-    let (response_tx, mut response_rx) = oneshot::channel();
-    admin_tx.send(SequencerAdminQuery::StopSequencer(response_tx)).await.unwrap();
+    let mut stop_handle = tokio::spawn(async move { control.stop().await });
     assert!(
-        tokio::time::timeout(Duration::from_millis(20), &mut response_rx).await.is_err(),
-        "stop must wait for protected distribution"
+        tokio::time::timeout(Duration::from_millis(20), &mut stop_handle).await.is_err(),
+        "stop must wait for the current block"
     );
     assert!(!gossiped.load(Ordering::SeqCst));
     assert!(!canonicalized.load(Ordering::SeqCst));
 
     release_commit.notify_one();
-    let stopped_head = tokio::time::timeout(Duration::from_secs(1), response_rx)
+    let stopped_head = tokio::time::timeout(Duration::from_secs(1), stop_handle)
         .await
         .expect("stop should complete after distribution")
         .unwrap()
@@ -305,7 +373,7 @@ async fn admin_stop_does_not_cancel_protected_distribution() {
     assert!(canonicalized.load(Ordering::SeqCst));
 
     shutdown.cancel();
-    tokio::time::timeout(Duration::from_secs(1), handle)
+    tokio::time::timeout(Duration::from_secs(1), actor_handle)
         .await
         .expect("sequencer should shut down")
         .unwrap()
@@ -329,9 +397,7 @@ async fn node_shutdown_drains_protected_distribution() {
     };
     let mut origin_selector = MockOriginSelector::new();
     origin_selector.expect_next_l1_origin().times(1).return_once(|_, _| Ok(BlockInfo::default()));
-    let (_admin_tx, admin_rx) = mpsc::channel(1);
-    let actor = SequencerActor::new(
-        admin_rx,
+    let (actor, _control) = SequencerActor::new(
         TestAttributesBuilder { attributes: vec![Ok(OpPayloadAttributes::default())] },
         Some(conductor),
         engine,
