@@ -110,15 +110,14 @@ Before subblocks, pre-confirmations were produced by the Flashblocks stack: `rol
   Chains running `rollup-boost` and `op-rbuilder` should plan a migration.
 </Warning>
 
-The [chain operator guide](/chain-operators/guides/features/flashblocks-guide) documents that stack for the chains still running it.
+For availability information, see [Enabling Subblocks](/chain-operators/guides/features/subblocks-guide).
 
 ## Subblocks FAQ
 
 ### Block building and availability
 
 <Expandable title="How often are subblocks produced?">
-  Every 200 ms, as a target.
-  The interval is configured per chain through `FLASHBLOCKS_TIME`.
+  Every 200ms, but configurable to lower values.
   OP Sepolia and OP Mainnet both move to 200 ms; see the [Subblocks notice](/notices/subblocks) for the rollout dates.
 </Expandable>
 

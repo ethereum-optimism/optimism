@@ -269,7 +269,7 @@
     },
     {
       "source": "/operators/chain-operators/features/flashblocks",
-      "destination": "/chain-operators/guides/features/flashblocks-guide"
+      "destination": "/chain-operators/guides/features/subblocks-guide"
     },
     {
       "source": "/operators/chain-operators/features/flashblocks/apps",
@@ -1516,6 +1516,10 @@
       "destination": "/op-stack/features/subblocks"
     },
     {
+      "source": "/chain-operators/guides/features/flashblocks-guide",
+      "destination": "/chain-operators/guides/features/subblocks-guide"
+    },
+    {
       "source": "/app-developers/guides/transactions/integrating-flashblocks",
       "destination": "/app-developers/guides/transactions/integrating-subblocks"
     },
@@ -1669,7 +1673,7 @@
     },
     {
       "source": "/operators/chain-operators/features/flashblocks/chain-operators",
-      "destination": "/chain-operators/guides/features/flashblocks-guide"
+      "destination": "/chain-operators/guides/features/subblocks-guide"
     },
     {
       "source": "/stack/smart-contracts/op-deployer-upgrade",
@@ -1857,7 +1861,7 @@
     },
     {
       "source": "/chain-operators/reference/features/flashblocks/chain-operators",
-      "destination": "/chain-operators/guides/features/flashblocks-guide"
+      "destination": "/chain-operators/guides/features/subblocks-guide"
     },
     {
       "source": "/chain-operators/reference/features/bridged-usdc-standard",
@@ -2771,7 +2775,7 @@
                   "chain-operators/guides/features/setting-min-base-fee",
                   "chain-operators/guides/features/setting-operator-fee",
                   "chain-operators/guides/features/setting-da-footprint",
-                  "chain-operators/guides/features/flashblocks-guide",
+                  "chain-operators/guides/features/subblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
                   "chain-operators/guides/features/blobs",
                   "chain-operators/guides/features/enable-span-batches",
