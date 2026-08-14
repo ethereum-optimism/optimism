@@ -121,8 +121,8 @@ and the cost is concrete: `OPContractsManagerStandardValidator.sol` is pinned to
 exists for the same reason.
 
 Before reporting a gap, check whether the source already acknowledges it in a TODO
-comment; if it does, note it as already acknowledged, with that caveat, rather than
-reporting it as a missing check you found — a gap the code admits to is not a finding.
+comment. If it does, still report the gap, but present it as already acknowledged rather
+than as something you newly found — and report it even when the TODO is stale or vague.
 
 ## Known-intentional asymmetries
 
