@@ -41,9 +41,8 @@ The stream keeps its existing wire format, and the payload type is still named `
 | `withdrawals_root` | `0x0000...0000` |
 | `withdrawals` | `[]` |
 
-The failure mode is silent.
 An integration that reads any of these fields receives a zero value and continues, rather than failing loudly at the parse boundary.
-Audit for these reads directly instead of waiting for an error to surface.
+We recommend you audit your application or integration for these reads directly ahead of the migration.
 
 ## The rollout is gradual
 
