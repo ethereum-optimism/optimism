@@ -76,6 +76,17 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 		}
 		sharedDGF := migrateSuperRootsWithProposal(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, startingAnchor, proofChain.Network.ChainID())
 		if cfg.ZKDisputeGame != nil {
+			if cfg.SeedPreZKCutoverGame {
+				seedPreZKCutoverSuperGame(
+					t,
+					runtime.Keys,
+					proofChain.Network.ChainID(),
+					runtime.L1EL,
+					runtime.Supernode,
+					sharedDGF,
+					superrootTime,
+				)
+			}
 			elfDir := os.Getenv(konaSP1ELFDirEnv)
 			programVKey, err := loadZKProgramVKey(elfDir)
 			t.Require().NoError(err, "load Kona SP1 super-aggregation vkey")

@@ -156,6 +156,11 @@ func (g *FaultDisputeGame) Resolve(eoa *dsl.EOA) {
 	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 }
 
+func (g *FaultDisputeGame) ClaimCredit(eoa *dsl.EOA, recipient common.Address) {
+	receipt := contract.Write(eoa, g.game.ClaimCredit(recipient), txplan.WithGasRatio(2))
+	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+}
+
 func (g *FaultDisputeGame) PerformMoves(eoa *dsl.EOA, moves ...GameHelperMove) []*Claim {
 	return g.helperProvider(eoa).PerformMoves(eoa, g, moves)
 }

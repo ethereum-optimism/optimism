@@ -42,6 +42,88 @@ func TestZKDisputeMonitorSkipsLaggedGameUntilRootSourceCatchesUp(gt *testing.T) 
 	)
 }
 
+func TestZKDisputeMonitorSeparatesMetricsAcrossCutover(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(
+		t,
+		presets.WithZK(),
+		presets.WithPreZKCutoverSuperGame(),
+		presets.WithoutHonestProposer(),
+		presets.WithoutHonestChallenger(),
+	)
+	factory := sys.DisputeGameFactory()
+	factory.VerifyGameImplAbsent(gameTypes.SuperCannonKonaGameType)
+	t.Require().Equal(int64(1), factory.GameCount(), "expected one historical game from before the ZK cutover")
+	faultGame := factory.SuperGameAtIndex(0)
+	faultGame.VerifyGameType(gameTypes.SuperCannonKonaGameType)
+
+	proposer := sys.L1Proposer()
+	sys.FunderL1.FundAtLeast(proposer, eth.OneEther)
+	zkGame := factory.StartZKGame(proposer)
+	t.Require().Equal(uint32(1), zkGame.FactoryIndex())
+	zkGame.AwaitRootSourcePastL1Head(sys.SuperRoots)
+	t.Require().Equal(faultGame.WETHAddress(), zkGame.WETHAddress(), "cutover games must share collateral")
+
+	faultBond := new(big.Int).Set(faultGame.RootClaim().Bond())
+	totalBonds := new(big.Int).Add(faultBond, zkGame.TotalBonds().ToBig())
+	monitor := sys.StartDisputeMon(presets.WithDisputeMonHonestActors(proposer.Address()))
+	monitor.VerifyState(
+		disputemon.GameCount(gameTypes.SuperCannonKonaGameType, 1),
+		disputemon.GameCount(gameTypes.ZKDisputeGameType, 1),
+		disputemon.FailedGames(0),
+		disputemon.AgreedRoots(2),
+		disputemon.CorrectDefenderAhead(2),
+		disputemon.UnresolvedClaimsInFirstHalf(1),
+		disputemon.ExactNonWithdrawableCredits(1),
+		disputemon.NoWithdrawalRequests(faultGame),
+		disputemon.FullyCollateralized(faultGame, totalBonds),
+		disputemon.AvailableCollateral(faultGame, totalBonds),
+		disputemon.HonestActorPendingBonds(proposer.Address(), totalBonds),
+		disputemon.PendingZKResolutions(0),
+		disputemon.PendingZKBondDistributions(0),
+	)
+
+	sys.AdvanceTime(faultGame.MaxClockDuration() + time.Second)
+	monitor.VerifyState(
+		disputemon.ResolvableClaims(1),
+		disputemon.PendingZKResolutions(1),
+		disputemon.PendingZKBondDistributions(0),
+	)
+
+	resolver := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	faultGame.ResolveClaim(resolver, 0)
+	faultGame.Resolve(resolver)
+	faultGame.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
+	t.Require().Equal(gameTypes.GameStatusDefenderWon, zkGame.Resolve(resolver))
+	monitor.VerifyState(
+		disputemon.GameCount(gameTypes.SuperCannonKonaGameType, 1),
+		disputemon.GameCount(gameTypes.ZKDisputeGameType, 1),
+		disputemon.FailedGames(0),
+		disputemon.CorrectDefenderWins(2),
+		disputemon.CompletedBeforeMaxDuration(1),
+		disputemon.ResolvedClaims(1),
+		disputemon.ResolvableClaims(0),
+		disputemon.ExactNonWithdrawableCredits(2),
+		disputemon.FullyCollateralized(faultGame, totalBonds),
+		disputemon.AvailableCollateral(faultGame, totalBonds),
+		disputemon.HonestActorPendingBonds(proposer.Address(), new(big.Int)),
+		disputemon.PendingZKResolutions(0),
+		disputemon.PendingZKBondDistributions(1),
+	)
+
+	sys.AdvanceTime(presets.DefaultZKFinalityDelay + time.Second)
+	faultGame.ClaimCredit(resolver, proposer.Address())
+	zkGame.ClaimCredit(resolver, proposer.Address())
+	monitor.VerifyState(
+		disputemon.MatchingWithdrawalRequests(faultGame, 2),
+		disputemon.DivergentWithdrawalRequests(faultGame, 0),
+		disputemon.ExactNonWithdrawableCredits(2),
+		disputemon.FullyCollateralized(faultGame, totalBonds),
+		disputemon.AvailableCollateral(faultGame, totalBonds),
+		disputemon.PendingZKBondDistributions(0),
+	)
+}
+
 func TestZKDisputeMonitorValidInProgressProposal(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newDisputeMonitorSystem(t)
