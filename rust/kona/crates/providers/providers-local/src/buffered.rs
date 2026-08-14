@@ -164,18 +164,18 @@ impl Clone for BufferedL2Provider {
 impl L2ChainProvider for BufferedL2Provider {
     type Error = BufferedProviderError;
 
-    async fn system_config_by_number(
+    async fn system_config_by_l2_hash(
         &mut self,
-        number: u64,
+        hash: B256,
         rollup_config: Arc<RollupConfig>,
     ) -> Result<SystemConfig, <Self as L2ChainProvider>::Error> {
         // Check if this is the genesis block
-        if number == self.genesis.l2.number {
+        if hash == self.genesis.l2.hash {
             return self.genesis.system_config.ok_or(BufferedProviderError::SystemConfigMissing);
         }
 
         // Get the block from cache
-        let cached_block = self.buffer.get_block_by_number(number).await;
+        let cached_block = self.buffer.get_block_by_hash(hash).await;
 
         #[cfg(feature = "metrics")]
         {
@@ -187,11 +187,11 @@ impl L2ChainProvider for BufferedL2Provider {
             }
         }
 
-        let cached_block = cached_block.ok_or(BufferedProviderError::BlockNotFound(number))?;
+        let cached_block = cached_block.ok_or(BufferedProviderError::BlockHashNotFound(hash))?;
 
         // Extract system config from the block
         to_system_config(&cached_block.block, &rollup_config)
-            .map_err(|_| BufferedProviderError::SystemConfigConversion(number))
+            .map_err(|_| BufferedProviderError::SystemConfigConversion(hash))
     }
 }
 
@@ -259,9 +259,12 @@ pub enum BufferedProviderError {
     /// Failed to construct `L2BlockInfo`
     #[error("Failed to construct L2BlockInfo for block {0}")]
     L2BlockInfoConstruction(u64),
+    /// Block not found in cache, by hash
+    #[error("Block {0} not found in cache")]
+    BlockHashNotFound(B256),
     /// Failed to convert block to `SystemConfig`
     #[error("Failed to convert block {0} to SystemConfig")]
-    SystemConfigConversion(u64),
+    SystemConfigConversion(B256),
     /// System config missing from genesis
     #[error("System config missing from genesis")]
     SystemConfigMissing,
@@ -288,11 +291,12 @@ impl From<BufferedProviderError> for PipelineErrorKind {
                     "Failed to construct L2BlockInfo for block {number}"
                 )))
             }
-            BufferedProviderError::SystemConfigConversion(number) => {
-                Self::Temporary(PipelineError::Provider(format!(
-                    "Failed to convert block {number} to SystemConfig"
-                )))
+            BufferedProviderError::BlockHashNotFound(hash) => {
+                ResetError::BlockNotFound(hash.into()).reset()
             }
+            BufferedProviderError::SystemConfigConversion(hash) => Self::Temporary(
+                PipelineError::Provider(format!("Failed to convert block {hash} to SystemConfig")),
+            ),
             BufferedProviderError::SystemConfigMissing => Self::Critical(PipelineError::Provider(
                 "System config missing from genesis".to_string(),
             )),

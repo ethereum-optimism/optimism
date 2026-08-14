@@ -117,9 +117,23 @@ impl<T: CommsClient + Send + Sync> BatchValidationProvider for OracleL2ChainProv
 
     async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
         // Fetch the header for the given block number.
-        let header @ Header { transactions_root, timestamp, .. } =
-            self.header_by_number(number).await?;
+        let header = self.header_by_number(number).await?;
         let header_hash = header.hash_slow();
+        self.block_from_header(header, header_hash).await
+    }
+}
+
+impl<T: CommsClient + Send + Sync> OracleL2ChainProvider<T> {
+    /// Hydrates a [`Header`] into a full [`OpBlock`] by walking its transactions trie.
+    ///
+    /// `header_hash` must be the hash of `header`; it is taken as an argument because callers that
+    /// looked the header up by hash already have it.
+    async fn block_from_header(
+        &self,
+        header: Header,
+        header_hash: B256,
+    ) -> Result<OpBlock, OracleProviderError> {
+        let Header { transactions_root, timestamp, .. } = header;
 
         // Fetch the transactions in the block.
         HintType::L2Transactions
@@ -159,13 +173,14 @@ impl<T: CommsClient + Send + Sync> BatchValidationProvider for OracleL2ChainProv
 impl<T: CommsClient + Send + Sync> L2ChainProvider for OracleL2ChainProvider<T> {
     type Error = OracleProviderError;
 
-    async fn system_config_by_number(
+    async fn system_config_by_l2_hash(
         &mut self,
-        number: u64,
+        hash: B256,
         rollup_config: Arc<RollupConfig>,
     ) -> Result<SystemConfig, <Self as L2ChainProvider>::Error> {
-        // Get the block at the given number.
-        let block = self.block_by_number(number).await?;
+        // A hash addresses the header directly, sparing the walk back from the safe head that a
+        // lookup by number requires.
+        let block = self.block_from_header(self.header_by_hash(hash)?, hash).await?;
 
         // Construct the system config from the payload.
         to_system_config(&block, rollup_config.as_ref())

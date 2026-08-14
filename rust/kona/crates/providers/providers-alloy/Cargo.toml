@@ -61,5 +61,6 @@ metrics = [ "dep:metrics", "kona-derive/metrics" ]
 
 [dev-dependencies]
 tokio.workspace = true
+alloy-rpc-types-eth.workspace = true
 httpmock.workspace = true
 serde_json.workspace = true
