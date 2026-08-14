@@ -1,45 +1,15 @@
 use std::time::Duration;
 
-use crate::{
-    Conductor, OriginSelector, SequencerActor, SequencerEngineClient, UnsafePayloadGossipClient,
-};
-use kona_derive::AttributesBuilder;
+/// Updates the metrics for the provided sequencer control-plane state.
+pub(super) fn update_state_metrics(is_active: bool, in_recovery_mode: bool) {
+    // no-op if disabled.
+    #[cfg(feature = "metrics")]
+    {
+        let state_flags: [(&str, String); 2] =
+            [("active", is_active.to_string()), ("recovery", in_recovery_mode.to_string())];
 
-/// `SequencerActor` metrics-related method implementations.
-impl<
-    AttributesBuilder_,
-    Conductor_,
-    OriginSelector_,
-    SequencerEngineClient_,
-    UnsafePayloadGossipClient_,
->
-    SequencerActor<
-        AttributesBuilder_,
-        Conductor_,
-        OriginSelector_,
-        SequencerEngineClient_,
-        UnsafePayloadGossipClient_,
-    >
-where
-    AttributesBuilder_: AttributesBuilder,
-    Conductor_: Conductor,
-    OriginSelector_: OriginSelector,
-    SequencerEngineClient_: SequencerEngineClient,
-    UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
-{
-    /// Updates the metrics for the sequencer actor.
-    pub(super) fn update_metrics(&self) {
-        // no-op if disabled.
-        #[cfg(feature = "metrics")]
-        {
-            let state_flags: [(&str, String); 2] = [
-                ("active", self.is_active.to_string()),
-                ("recovery", self.in_recovery_mode.to_string()),
-            ];
-
-            let gauge = metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &state_flags);
-            gauge.set(1);
-        }
+        let gauge = metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &state_flags);
+        gauge.set(1);
     }
 }
 

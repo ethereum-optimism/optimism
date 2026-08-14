@@ -10,9 +10,6 @@ pub enum SequencerActorError {
     /// An error occurred while building payload attributes.
     #[error(transparent)]
     AttributesBuilder(#[from] PipelineErrorKind),
-    /// A channel was unexpectedly closed.
-    #[error("Channel closed unexpectedly")]
-    ChannelClosed,
     /// An error occurred while selecting the next L1 origin.
     #[error(transparent)]
     L1OriginSelector(#[from] L1OriginSelectorError),
@@ -25,10 +22,4 @@ pub enum SequencerActorError {
     /// An error occurred while attempting to schedule unsafe payload gossip.
     #[error("An error occurred while attempting to schedule unsafe payload gossip: {0}")]
     PayloadGossip(#[from] UnsafePayloadGossipClientError),
-    /// The supervised worker exited without an error.
-    #[error("Sequencer worker exited unexpectedly")]
-    WorkerExited,
-    /// The supervised worker task failed to join.
-    #[error("Sequencer worker task failed: {0}")]
-    WorkerJoin(String),
 }

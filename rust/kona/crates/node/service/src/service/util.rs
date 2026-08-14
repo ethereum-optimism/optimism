@@ -1,37 +1,43 @@
 //! Utilities for the rollup node service, internal to the crate.
 
-/// Spawns a set of parallel actors in a [`JoinSet`](tokio::task::JoinSet), and cancels all actors
-/// if any of them fail. The type of the error in the [`NodeActor`](crate::NodeActor)s is erased to
-/// avoid having to specify a common error type between actors.
+/// Spawns step-driven actors and long-running services, and supervises them as one node.
 ///
-/// Actors are passed in as `Option<actor>`. Each actor's [`step`](crate::NodeActor::step) method is
-/// called in a loop, with external cancellation via the provided
-/// [`CancellationToken`](tokio_util::sync::CancellationToken).
+/// Actors are passed as `Option<actor>` and have their [`NodeActor::step`](crate::NodeActor::step)
+/// method called in a loop. Services are passed as `Option<service>` and run one owned `run`
+/// future.
 ///
-/// This macro also handles OS shutdown signals (SIGTERM, SIGINT) and triggers graceful shutdown
-/// when received.
+/// Shutdown is ordered. Long-running services receive cancellation first and are allowed to reach a
+/// safe point while their actor dependencies remain available. Once every service exits, the actor
+/// cancellation token fires and the remaining actor tasks are drained.
 macro_rules! spawn_and_wait {
-    ($cancellation:expr, actors = [$($actor:expr),* $(,)?]) => {
-        let mut task_handles = tokio::task::JoinSet::new();
+    (
+        $actor_cancellation:expr,
+        services = [$($service:expr),* $(,)?],
+        actors = [$($actor:expr),* $(,)?]
+    ) => {
+        let service_cancellation = tokio_util::sync::CancellationToken::new();
+        let mut service_handles = tokio::task::JoinSet::new();
+        let mut actor_handles = tokio::task::JoinSet::new();
+
+        $(
+            if let Some(service) = $service {
+                let cancellation = service_cancellation.clone();
+                service_handles.spawn(async move {
+                    service.run(cancellation).await.map_err(|err| format!("{err:?}"))
+                });
+            }
+        )*
 
         $(
             if let Some(mut actor) = $actor {
-                let cancellation = $cancellation.clone();
-                task_handles.spawn(async move {
-                    // This guard ensures that the cancellation token is cancelled when the actor
-                    // task exits for any reason. This ensures peer actors observe shutdown on
-                    // their next macro-level `select!`.
-                    // Note the underscore prefix: this is to signal that we don't use the guard
-                    // anywhere, but *the compiler shouldn't optimize it away*. Note that using a
-                    // simple `_` would not work here because it gets optimized away in release
-                    // mode.
-                    let _guard = cancellation.clone().drop_guard();
+                let cancellation = $actor_cancellation.clone();
+                actor_handles.spawn(async move {
                     loop {
                         tokio::select! {
                             biased;
                             _ = cancellation.cancelled() => return Ok(()),
                             result = actor.step() => {
-                                result.map_err(|e| format!("{e:?}"))?;
+                                result.map_err(|err| format!("{err:?}"))?;
                             }
                         }
                     }
@@ -39,38 +45,87 @@ macro_rules! spawn_and_wait {
             }
         )*
 
-        // Create the shutdown signal future
         let shutdown = $crate::service::shutdown_signal();
         tokio::pin!(shutdown);
 
-        loop {
+        let mut first_error = None::<String>;
+        let mut stopping = false;
+
+        while !service_handles.is_empty() || !actor_handles.is_empty() {
             tokio::select! {
-                _ = &mut shutdown => {
-                    tracing::info!(target: "rollup_node", "Received shutdown signal, initiating graceful shutdown...");
-                    $cancellation.cancel();
-                    break;
+                _ = &mut shutdown, if !stopping => {
+                    tracing::info!(
+                        target: "rollup_node",
+                        "Received shutdown signal, stopping long-running services..."
+                    );
+                    stopping = true;
+                    service_cancellation.cancel();
+                    if service_handles.is_empty() {
+                        $actor_cancellation.cancel();
+                    }
                 }
-                result = task_handles.join_next() => {
+                result = service_handles.join_next(), if !service_handles.is_empty() => {
                     match result {
-                        Some(Ok(Ok(()))) => { /* Actor completed successfully */ }
-                        Some(Ok(Err(e))) => {
-                            tracing::error!(target: "rollup_node", "Critical error in sub-routine: {e}");
-                            // Cancel all tasks and gracefully shutdown.
-                            $cancellation.cancel();
-                            return Err(e);
+                        Some(Ok(Ok(()))) => {}
+                        Some(Ok(Err(err))) => {
+                            tracing::error!(target: "rollup_node", "Critical error in service: {err}");
+                            if first_error.is_none() {
+                                first_error = Some(err);
+                            }
                         }
-                        Some(Err(e)) => {
-                            let error_msg = format!("Task join error: {e}");
-                            // Log the error and cancel all tasks.
-                            tracing::error!(target: "rollup_node", "Task join error: {e}");
-                            // Cancel all tasks and gracefully shutdown.
-                            $cancellation.cancel();
-                            return Err(error_msg);
+                        Some(Err(err)) => {
+                            let error = format!("Service task join error: {err}");
+                            tracing::error!(target: "rollup_node", "{error}");
+                            if first_error.is_none() {
+                                first_error = Some(error);
+                            }
                         }
-                        None => break, // All tasks completed
+                        None => {}
+                    }
+
+                    if !stopping {
+                        stopping = true;
+                        service_cancellation.cancel();
+                    }
+                    if service_handles.is_empty() {
+                        $actor_cancellation.cancel();
+                    }
+                }
+                result = actor_handles.join_next(), if !actor_handles.is_empty() => {
+                    match result {
+                        Some(Ok(Ok(()))) => {}
+                        Some(Ok(Err(err))) => {
+                            tracing::error!(target: "rollup_node", "Critical error in actor: {err}");
+                            if first_error.is_none() {
+                                first_error = Some(err);
+                            }
+                        }
+                        Some(Err(err)) => {
+                            let error = format!("Actor task join error: {err}");
+                            tracing::error!(target: "rollup_node", "{error}");
+                            if first_error.is_none() {
+                                first_error = Some(error);
+                            }
+                        }
+                        None => {}
+                    }
+
+                    // Keep surviving actor dependencies alive until long-running services reach a
+                    // safe point. The service will observe closed request channels if the actor that
+                    // exited was one of its required dependencies.
+                    if !stopping {
+                        stopping = true;
+                        service_cancellation.cancel();
+                    }
+                    if service_handles.is_empty() {
+                        $actor_cancellation.cancel();
                     }
                 }
             }
+        }
+
+        if let Some(error) = first_error {
+            return Err(error);
         }
     };
 }
@@ -78,7 +133,7 @@ macro_rules! spawn_and_wait {
 // Export the `spawn_and_wait` macro for use in other modules.
 pub(crate) use spawn_and_wait;
 
-/// Listens for OS shutdown signals (SIGTERM, SIGINT)
+/// Listens for OS shutdown signals.
 pub(crate) async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
@@ -98,9 +153,9 @@ pub(crate) async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => {
             tracing::info!(target: "rollup_node", "Received SIGINT (Ctrl+C)");
-        },
+        }
         _ = terminate => {
             tracing::info!(target: "rollup_node", "Received SIGTERM");
-        },
+        }
     }
 }

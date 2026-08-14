@@ -443,12 +443,11 @@ impl RollupNode {
     ///
     /// ## Shutdown
     ///
-    /// Shutdown is unordered: when any actor exits (success, error, or panic) or an OS signal is
-    /// received, the umbrella cancellation token fires and all peer actors observe it on their
-    /// next `select!`. Actors may log channel-closed errors while peers are torn down
-    /// concurrently; this is expected and not a sign of an unclean exit.
+    /// Shutdown first asks long-running services such as the sequencer to reach a safe point while
+    /// their actor dependencies remain available. Once those services exit, the remaining
+    /// step-driven actors are cancelled and drained.
     pub async fn start(&self) -> Result<(), String> {
-        // Single umbrella cancellation token owned by the spawn_and_wait! macro.
+        // Step-driven actors are cancelled after long-running services reach a safe point.
         let cancellation = CancellationToken::new();
 
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
@@ -532,9 +531,9 @@ impl RollupNode {
 
         crate::service::spawn_and_wait!(
             cancellation,
+            services = [sequencer_actor],
             actors = [
                 rpc,
-                sequencer_actor,
                 Some(network),
                 Some(l1_watcher),
                 Some(derivation),

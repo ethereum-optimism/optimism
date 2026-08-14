@@ -22,7 +22,7 @@ use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadAttributes};
 use std::{sync::Arc, time::Duration};
-use tokio::{sync::watch, time::Instant};
+use tokio::time::Instant;
 
 /// How long to wait between retries that must retain the same payload.
 #[cfg(not(test))]
@@ -33,26 +33,6 @@ const DISTRIBUTION_RETRY_DELAY: Duration = Duration::from_millis(1);
 const CONDUCTOR_COMMIT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Delay for temporary planning failures, avoiding an immediate retry loop.
 const PLANNING_RETRY_DELAY: Duration = Duration::from_millis(200);
-
-/// Desired state supplied by the sequencer control plane.
-#[derive(Debug, Clone, Copy)]
-pub(super) struct SequencerControl {
-    /// Whether new blocks should be sequenced.
-    pub active: bool,
-    /// Whether blocks should be built without transaction-pool transactions.
-    pub recovery_mode: bool,
-}
-
-/// Observational worker state used by the control plane.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum SequencerWorkerStatus {
-    /// Initial engine reset is in progress.
-    Starting,
-    /// The worker is actively processing a block attempt.
-    Running,
-    /// No block attempt is in progress.
-    Stopped(L2BlockInfo),
-}
 
 /// Handle to an execution-layer payload build.
 #[derive(Debug)]
@@ -65,11 +45,13 @@ pub(super) struct BuildHandle {
 
 /// A payload retrieved from the execution layer but not yet authorized for publication.
 #[derive(Debug)]
-struct SealedCandidate {
+pub(super) struct SealedCandidate {
     /// Sealed execution payload.
     payload: OpExecutionPayloadEnvelope,
     /// Attributes and expected parent used to build the payload.
     attributes: OpAttributesWithParent,
+    /// Time at which block distribution began.
+    distribution_started: Instant,
 }
 
 /// A sealed payload that has passed the configured publication gate.
@@ -78,7 +60,7 @@ struct SealedCandidate {
 /// helpers in this module.
 #[derive(Debug)]
 struct CommittedCandidate {
-    sealed: SealedCandidate,
+    sealed: Box<SealedCandidate>,
 }
 
 /// Gate that grants permission to publish a sealed candidate.
@@ -102,25 +84,12 @@ impl<Conductor_: Conductor> PublicationGate<Conductor_> {
     }
 }
 
-/// Outcome of one block attempt.
+/// State and dependencies used by the sequencing workflow.
+///
+/// This type is owned and polled directly by the sequencer service. It is not a separately spawned
+/// worker and has no control or status channels.
 #[derive(Debug)]
-enum AttemptOutcome {
-    /// A block was distributed and made canonical locally.
-    Canonicalized {
-        /// New local unsafe head.
-        head: L2BlockInfo,
-        /// Time spent sealing, authorizing, publishing, and canonicalizing the block.
-        distribution_duration: Duration,
-    },
-    /// The desired state changed to stopped before the publication boundary.
-    Stopped,
-    /// The attempt was invalidated before publication and should be planned again.
-    Retry,
-}
-
-/// Owns the linear, single-candidate sequencing workflow.
-#[derive(Debug)]
-pub(super) struct SequencerWorker<
+pub(super) struct SequencingWorkflow<
     AttributesBuilder_,
     Conductor_,
     OriginSelector_,
@@ -134,13 +103,11 @@ pub(super) struct SequencerWorker<
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
     attributes_builder: AttributesBuilder_,
-    control_rx: watch::Receiver<SequencerControl>,
     publication_gate: PublicationGate<Conductor_>,
     engine_client: Arc<SequencerEngineClient_>,
     last_distribution_duration: Duration,
     origin_selector: OriginSelector_,
     rollup_config: Arc<RollupConfig>,
-    status_tx: watch::Sender<SequencerWorkerStatus>,
     unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
 }
 
@@ -151,7 +118,7 @@ impl<
     SequencerEngineClient_,
     UnsafePayloadGossipClient_,
 >
-    SequencerWorker<
+    SequencingWorkflow<
         AttributesBuilder_,
         Conductor_,
         OriginSelector_,
@@ -165,118 +132,94 @@ where
     SequencerEngineClient_: SequencerEngineClient,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
-    /// Creates a sequencing worker.
+    /// Creates the sequencing workflow.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         attributes_builder: AttributesBuilder_,
         conductor: Option<Arc<Conductor_>>,
-        control_rx: watch::Receiver<SequencerControl>,
         engine_client: Arc<SequencerEngineClient_>,
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
-        status_tx: watch::Sender<SequencerWorkerStatus>,
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
     ) -> Self {
         Self {
             attributes_builder,
-            control_rx,
             engine_client,
             publication_gate: conductor
                 .map_or_else(|| PublicationGate::Standalone, PublicationGate::Conductor),
             last_distribution_duration: Duration::ZERO,
             origin_selector,
             rollup_config,
-            status_tx,
             unsafe_payload_gossip_client,
         }
     }
 
-    /// Runs the sequencing workflow until a critical error or control-channel closure occurs.
-    pub(super) async fn run(mut self) -> Result<(), SequencerActorError> {
-        self.engine_client.reset_engine_forkchoice().await.map_err(|err| {
-            error!(target: "sequencer", ?err, "Failed to perform initial engine reset");
-            err
-        })?;
-
+    /// Plans, builds, waits for, and seals one unpublished block candidate.
+    ///
+    /// The entire future is cancellation-safe with respect to block publication: dropping it may
+    /// abandon execution-layer build work, but cannot commit, gossip, or canonicalize a payload.
+    pub(super) async fn prepare_candidate(
+        &mut self,
+        recovery_mode: bool,
+    ) -> Result<Box<SealedCandidate>, SequencerActorError> {
         loop {
-            self.wait_until_active().await?;
-            self.status_tx.send_replace(SequencerWorkerStatus::Running);
+            let Some(build) = self.build_payload(recovery_mode).await? else {
+                tokio::time::sleep(PLANNING_RETRY_DELAY).await;
+                continue;
+            };
 
-            match self.sequence_one_block().await? {
-                AttemptOutcome::Canonicalized { head, distribution_duration } => {
-                    self.last_distribution_duration = distribution_duration;
-                    debug!(target: "sequencer", head = ?head.block_info, "Sequencer advanced unsafe head");
+            self.wait_until_seal_time(&build).await;
+
+            let distribution_started = Instant::now();
+            let seal_start = Instant::now();
+            let payload = match self
+                .engine_client
+                .seal_block(build.payload_id, build.attributes.clone())
+                .await
+            {
+                Ok(payload) => payload,
+                Err(EngineClientError::SealError(err)) if !is_seal_task_err_fatal(&err) => {
+                    warn!(target: "sequencer", ?err, "Discarding uncommitted block attempt after seal failure");
+                    tokio::time::sleep(PLANNING_RETRY_DELAY).await;
+                    continue;
                 }
-                AttemptOutcome::Stopped => {}
-                AttemptOutcome::Retry => tokio::time::sleep(PLANNING_RETRY_DELAY).await,
-            }
+                Err(err) => return Err(err.into()),
+            };
+            update_seal_duration_metrics(seal_start.elapsed());
+
+            return Ok(Box::new(SealedCandidate {
+                payload,
+                attributes: build.attributes,
+                distribution_started,
+            }));
         }
     }
 
-    /// Waits until sequencing is enabled, publishing a quiescent unsafe head while stopped.
-    async fn wait_until_active(&mut self) -> Result<(), SequencerActorError> {
-        loop {
-            if self.control_rx.borrow().active {
-                return Ok(());
-            }
-
-            let head = self.engine_client.get_unsafe_head().await?;
-            self.status_tx.send_replace(SequencerWorkerStatus::Stopped(head));
-            self.control_rx.changed().await.map_err(|_| SequencerActorError::ChannelClosed)?;
-        }
-    }
-
-    /// Executes one block candidate as a linear async workflow.
-    async fn sequence_one_block(&mut self) -> Result<AttemptOutcome, SequencerActorError> {
-        let Some(build) = self.build_payload().await? else {
-            return Ok(AttemptOutcome::Retry);
-        };
-
-        if !self.wait_until_seal_time(&build).await? {
-            return Ok(AttemptOutcome::Stopped);
-        }
-
-        let distribution_start = Instant::now();
-        let seal_start = Instant::now();
-        let payload = match self
-            .engine_client
-            .seal_block(build.payload_id, build.attributes.clone())
-            .await
-        {
-            Ok(payload) => payload,
-            Err(EngineClientError::SealError(err)) if !is_seal_task_err_fatal(&err) => {
-                warn!(target: "sequencer", ?err, "Discarding uncommitted block attempt after seal failure");
-                return Ok(AttemptOutcome::Retry);
-            }
-            Err(err) => return Err(err.into()),
-        };
-        update_seal_duration_metrics(seal_start.elapsed());
-
-        // A stop requested before any commit attempt can safely discard this unpublished payload.
-        if !self.control_rx.borrow().active {
-            return Ok(AttemptOutcome::Stopped);
-        }
-
-        let sealed = SealedCandidate { payload, attributes: build.attributes };
+    /// Authorizes, publishes, and locally canonicalizes one exact sealed candidate.
+    ///
+    /// Once this future is first polled it must be retained to completion. A conductor attempt may
+    /// have succeeded remotely even when its local future is cancelled or returns a timeout.
+    pub(super) async fn distribute_candidate(
+        &mut self,
+        sealed: Box<SealedCandidate>,
+    ) -> Result<L2BlockInfo, SequencerActorError> {
         let committed = self.commit_until_authorized(sealed).await;
 
         self.publish(&committed).await?;
         let head = self.canonicalize_until_done(&committed).await?;
 
         update_total_transactions_sequenced(committed.sealed.attributes.count_transactions());
+        self.last_distribution_duration = committed.sealed.distribution_started.elapsed();
 
-        Ok(AttemptOutcome::Canonicalized {
-            head,
-            distribution_duration: distribution_start.elapsed(),
-        })
+        Ok(head)
     }
 
     /// Builds payload attributes and starts an execution-layer build job.
     pub(super) async fn build_payload(
         &mut self,
+        recovery_mode: bool,
     ) -> Result<Option<BuildHandle>, SequencerActorError> {
         let unsafe_head = self.engine_client.get_unsafe_head().await?;
-        let recovery_mode = self.control_rx.borrow().recovery_mode;
 
         let Some(l1_origin) = self.get_next_payload_l1_origin(unsafe_head, recovery_mode).await?
         else {
@@ -304,11 +247,8 @@ where
         Ok(Some(BuildHandle { payload_id, attributes }))
     }
 
-    /// Waits for the payload timestamp, while honoring a graceful stop before publication.
-    async fn wait_until_seal_time(
-        &mut self,
-        build: &BuildHandle,
-    ) -> Result<bool, SequencerActorError> {
+    /// Waits until the payload timestamp.
+    async fn wait_until_seal_time(&self, build: &BuildHandle) {
         let block_timestamp = build
             .attributes
             .parent()
@@ -318,27 +258,14 @@ where
         let target = std::time::UNIX_EPOCH + Duration::from_secs(block_timestamp) -
             self.last_distribution_duration;
         let delay = target.duration_since(std::time::SystemTime::now()).unwrap_or_default();
-        let sleep = tokio::time::sleep(delay);
-        tokio::pin!(sleep);
-
-        loop {
-            tokio::select! {
-                _ = &mut sleep => return Ok(true),
-                changed = self.control_rx.changed() => {
-                    changed.map_err(|_| SequencerActorError::ChannelClosed)?;
-                    if !self.control_rx.borrow().active {
-                        return Ok(false);
-                    }
-                }
-            }
-        }
+        tokio::time::sleep(delay).await;
     }
 
     /// Commits the exact sealed payload until it receives positive publication authorization.
     ///
     /// A timeout is ambiguous: the remote conductor may have committed while its response was
     /// lost. Retrying the same payload is therefore the only safe recovery.
-    async fn commit_until_authorized(&self, sealed: SealedCandidate) -> CommittedCandidate {
+    async fn commit_until_authorized(&self, sealed: Box<SealedCandidate>) -> CommittedCandidate {
         loop {
             let started = Instant::now();
             let result = tokio::time::timeout(
@@ -592,24 +519,17 @@ mod tests {
 
         let attributes_builder =
             TestAttributesBuilder { attributes: vec![Ok(OpPayloadAttributes::default())] };
-        let (control_tx, control_rx) =
-            watch::channel(SequencerControl { active: true, recovery_mode: false });
-        let (status_tx, _status_rx) = watch::channel(SequencerWorkerStatus::Starting);
-        let mut worker = SequencerWorker::new(
+        let mut workflow = SequencingWorkflow::new(
             attributes_builder,
             Some(Arc::new(conductor)),
-            control_rx,
             Arc::new(engine),
             origin_selector,
             Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
-            status_tx,
             gossip,
         );
 
-        let outcome = worker.sequence_one_block().await.unwrap();
-        assert!(
-            matches!(outcome, AttemptOutcome::Canonicalized { head, .. } if head == canonical_head)
-        );
-        drop(control_tx);
+        let candidate = workflow.prepare_candidate(false).await.unwrap();
+        let head = workflow.distribute_candidate(candidate).await.unwrap();
+        assert_eq!(head, canonical_head);
     }
 }
