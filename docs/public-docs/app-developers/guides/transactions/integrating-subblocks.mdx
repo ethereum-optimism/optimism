@@ -1,25 +1,30 @@
 ---
-title: Integrate Flashblocks in your app
-description: Query pre-confirmed Flashblocks state from your app using standard JSON-RPC methods with the pending tag, or through viem and ethers.
+title: Integrate Subblocks in your app
+description: Query pre-confirmed Subblocks state from your app using standard JSON-RPC methods with the pending tag, or through viem and ethers.
 diataxis: how-to
 ---
 
-Flashblocks-enabled chains stream pre-confirmations every few hundred milliseconds, so your app can show transaction results well before the next full block is sealed.
+A chain that streams [Subblocks](/op-stack/features/subblocks) publishes a partial block every 200 ms, so your app can show a transaction's result well before the block containing it is sealed.
 This guide shows how to read that pre-confirmed state over standard Ethereum JSON-RPC and from the viem and ethers libraries.
-For how Flashblocks work under the hood, see the [Flashblocks explainer](/op-stack/features/flashblocks).
 
-Integration is designed to be simple and low-friction. Most apps benefit with minimal code changes.
+Most apps need only a change of endpoint and the `pending` block tag.
 
-*   In production, point your app to a Flashblocks‑aware RPC endpoint from your provider of choice. If your provider doesn't support flashblocks yet, let us know on [Discord](https://discord.gg/jPQhHTdemH)
+*   In production, point your app to a subblocks-aware RPC endpoint from your provider of choice. If your provider doesn't support subblocks yet, let us know on [Discord](https://discord.gg/jPQhHTdemH)
     and we'll work with them to get it added.
-*   Alternatively, you can run your own flashblocks-aware node using Base's [reth](https://github.com/base/node-reth) image.
+*   To run your own subblocks-aware node, start `op-reth` with `--flashblocks-url=<websocket-url>` pointing at the chain's stream. The node then serves `pending` from the subblock state.
+    OP Mainnet and OP Sepolia stream URLs are listed on the [network information page](/op-mainnet/network-information/connecting-to-op).
+
+<Info>
+  This guide covers reading pre-confirmed state through an RPC endpoint, which is what most apps want.
+  If you consume the WebSocket stream directly instead, four payload fields are zeroed and need handling — see the [Subblocks notice](/notices/subblocks).
+</Info>
 
 ## Supported RPC methods
 
-Developers can access Flashblocks using the same familiar Ethereum JSON-RPC calls.
+You read subblock state with the same Ethereum JSON-RPC calls you already use.
 The difference is using the "pending" tag in some of them to explicitly query the pre-confirmed state instead of the last finalized block.
 
-*   **`eth_getBlockByNumber`**: Use the `pending` tag to retrieve the latest flashblock snapshot.
+*   **`eth_getBlockByNumber`**: Use the `pending` tag to retrieve the latest subblock snapshot.
     <Expandable title="Sample response">
 
       ```json
@@ -44,20 +49,6 @@ The difference is using the "pending" tag in some of them to explicitly query th
         "jsonrpc": "2.0",
         "method": "eth_call",
         "params": [{"to": "0x...", "data": "0x..."}, "pending"],
-        "id": 1
-      }
-      ```
-    </Expandable>
-
-*   **`eth_estimateGas`**: With `pending`, estimates gas usage against the latest Flashblock
-
-    <Expandable title="Sample request">
-
-      ```json
-      {
-        "jsonrpc": "2.0",
-        "method": "eth_estimateGas",
-        "params": [{"from":"0x...","to":"0x...","value":"0x..."}, "pending"],
         "id": 1
       }
       ```
@@ -92,7 +83,7 @@ The difference is using the "pending" tag in some of them to explicitly query th
 
 ## Libraries
 
-You will need a Flashblocks‑aware RPC endpoint to use the following libraries:
+You need a subblocks‑aware RPC endpoint to use the following libraries:
 
 ### Viem
 
@@ -132,7 +123,7 @@ console.log('pre-confirmed in ms:', confirmTime.getTime() - submissionTime.getTi
 ```ts
 import { ethers } from 'ethers';
 
-// Here, provider is a Flashblocks-enabled RPC provider
+// Here, provider is a subblocks-enabled RPC provider
 const provider = new ethers.JsonRpcProvider("https://sepolia.optimism.io");
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string, provider);
 
@@ -156,7 +147,7 @@ console.log('Transaction receipt:', receipt);
 
 ## Next steps
 
-*   Understand how Flashblocks affect [gas usage and large transactions](/app-developers/guides/transactions/flashblocks-and-gas-usage).
-*   Learn how Flashblocks work in the [Flashblocks explainer](/op-stack/features/flashblocks).
+*   Understand how subblocks affect [gas usage and large transactions](/app-developers/guides/transactions/subblocks-and-gas-usage).
+*   Learn how subblocks work in the [Subblocks explainer](/op-stack/features/subblocks).
 *   Review the [technical specs](https://specs.optimism.io/protocol/flashblocks.html) for architecture details.
 *   Join our [community](https://discord.gg/jPQhHTdemH) to share best practices and get support!
