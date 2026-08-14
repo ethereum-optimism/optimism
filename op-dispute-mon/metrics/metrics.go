@@ -366,7 +366,7 @@ func NewMetrics() *Metrics {
 		withdrawalRequests: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "withdrawal_requests",
-			Help:      "Number of withdrawal requests categorised by the source DelayedWETH contract and whether the withdrawal request amount matches or diverges from its fault dispute game credits",
+			Help:      "Number of withdrawal requests categorised by the source DelayedWETH contract and whether the withdrawal request amount matches or diverges from its dispute game credits",
 		}, []string{
 			"delayedWETH",
 			"credits",
