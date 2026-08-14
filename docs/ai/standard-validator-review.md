@@ -120,7 +120,7 @@ and the cost is concrete: `OPContractsManagerStandardValidator.sol` is pinned to
 `optimizer_runs = 200` in `foundry.toml` purely to fit EIP-170, and the three-file split
 exists for the same reason.
 
-Two gaps are already acknowledged in-source with `TODO(#21529)`
+Two gaps are already acknowledged in-source by TODO comments tracking issue #21529
 (`OPContractsManagerStandardValidator.sol:1107`, `StandardValidatorUtils.sol:194`) and
 must not be re-reported.
 
