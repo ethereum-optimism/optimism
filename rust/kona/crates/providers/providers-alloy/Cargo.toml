@@ -22,6 +22,7 @@ kona-genesis.workspace = true
 kona-protocol.workspace = true
 kona-derive.workspace = true
 kona-interop.workspace = true
+kona-providers-local.workspace = true
 
 # Alloy
 alloy-serde.workspace = true
@@ -57,7 +58,7 @@ metrics = { workspace = true, optional = true }
 
 [features]
 default = []
-metrics = [ "dep:metrics", "kona-derive/metrics" ]
+metrics = [ "dep:metrics", "kona-derive/metrics", "kona-providers-local/metrics" ]
 
 [dev-dependencies]
 tokio.workspace = true
