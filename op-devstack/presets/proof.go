@@ -150,14 +150,3 @@ func WithZKChallengeDuration(duration time.Duration) Option {
 		},
 	}
 }
-
-// WithPreZKCutoverSuperGame seeds a valid SuperCannonKona game before WithZK
-// retires that game type and installs the ZK dispute game.
-func WithPreZKCutoverSuperGame() Option {
-	return option{
-		kinds: optionKindZKDisputeGame,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.SeedPreZKCutoverGame = true
-		},
-	}
-}

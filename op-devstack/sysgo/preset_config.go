@@ -61,7 +61,6 @@ type PresetConfig struct {
 	InteropLogBackfillDepth time.Duration
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 	ZKDisputeGame           *ZKDisputeGameConfig
-	SeedPreZKCutoverGame    bool
 	ZKProposerOptions       []ZKProposerOption
 	// SkipHonestProposer skips starting the honest proposer (op-proposer, or kona-sp1-proposer for the ZK preset).
 	SkipHonestProposer bool

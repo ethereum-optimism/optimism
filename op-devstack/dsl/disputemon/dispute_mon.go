@@ -322,19 +322,6 @@ func FullyCollateralized(game BondedGame, expectedWei *big.Int) StateExpectation
 	)
 }
 
-func AvailableCollateral(game BondedGame, expectedWei *big.Int) StateExpectation {
-	return StateExpectation{
-		check: devtestmetrics.GaugeEquals(
-			"op_dispute_mon_bond_collateral_available",
-			map[string]string{
-				"delayedWETH": game.WETHAddress().Hex(),
-				"balance":     "sufficient",
-			},
-			weiToEther(expectedWei),
-		),
-	}
-}
-
 func HonestActorInvalidClaims(actor common.Address, expected int) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeEquals(

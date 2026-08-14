@@ -56,12 +56,6 @@ func (s *SingleChainInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
 	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, s.SuperRoots, s.l1Proposer, s.challengerConfig)
 }
 
-// L1Proposer returns the proposer-role EOA used by the super-root proof system.
-func (s *SingleChainInterop) L1Proposer() *dsl.EOA {
-	s.T.Require().NotNil(s.l1Proposer, "L1 proposer is not configured")
-	return s.l1Proposer
-}
-
 func (s *SingleChainInterop) AnchorStateRegistry(l2Chain *dsl.L2Network) *dsl.AnchorStateRegistry {
 	return dsl.NewAnchorStateRegistry(s.T, l2Chain, s.L1EL)
 }

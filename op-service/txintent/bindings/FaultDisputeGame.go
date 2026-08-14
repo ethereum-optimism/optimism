@@ -68,7 +68,6 @@ type FaultDisputeGame struct {
 	Defend       func(targetClaim common.Hash, targetClaimIndex *big.Int, supportingClaim common.Hash) TypedCall[any]         `sol:"defend"`
 	ResolveClaim func(claimIndex *big.Int, numToResolve *big.Int) TypedCall[any]                                              `sol:"resolveClaim"`
 	Resolve      func() TypedCall[any]                                                                                        `sol:"resolve"`
-	ClaimCredit  func(recipient common.Address) TypedCall[any]                                                                `sol:"claimCredit"`
 }
 
 func NewFaultDisputeGame(opts ...CallFactoryOption) *FaultDisputeGame {

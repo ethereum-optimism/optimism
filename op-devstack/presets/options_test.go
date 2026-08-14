@@ -76,22 +76,6 @@ func TestWithZKChallengeDuration(t *testing.T) {
 	require.Equal(t, 5*time.Minute, cfg.ZKDisputeGame.MaxChallengeDuration)
 }
 
-func TestWithPreZKCutoverSuperGame(t *testing.T) {
-	cfg, combined := collectPresetConfig([]Option{
-		WithZK(),
-		WithPreZKCutoverSuperGame(),
-	})
-	require.True(t, cfg.SeedPreZKCutoverGame)
-	require.NotNil(t, cfg.ZKDisputeGame)
-	require.Equal(t,
-		optionKindDeployer|optionKindTimeTravel|optionKindZKDisputeGame|optionKindZKProposer,
-		combined.optionKinds(),
-	)
-
-	cfg, _ = collectPresetConfig([]Option{WithPreZKCutoverSuperGame()})
-	require.EqualError(t, validatePresetConfig(cfg), "WithPreZKCutoverSuperGame requires WithZK")
-}
-
 func TestWithZKProposerOption(t *testing.T) {
 	opt := sysgo.WithZKProposalInterval(12 * time.Second)
 	cfg, combined := collectPresetConfig([]Option{WithZKProposerOption(opt)})
