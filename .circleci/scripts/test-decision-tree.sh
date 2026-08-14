@@ -144,14 +144,21 @@ run_scenario \
 run_scenario \
   "Merge queue, rust changed" \
   "webhook" "gh-readonly-queue/develop/pr-123" "" "" \
-  '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
+  '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
   main release contracts_feature_tests rust_ci rust_e2e_ci
 
 run_scenario \
   "Merge queue, no changes" \
   "webhook" "gh-readonly-queue/develop/pr-123" "" "" \
-  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
   main release contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip
+
+run_scenario \
+  "Merge queue, docs only" \
+  "webhook" "gh-readonly-queue/develop/pr-123" "" "" \
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
+  ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip \
+  --not main release contracts_feature_tests rust_ci rust_e2e_ci
 
 # Develop runs the full post-merge set unconditionally. The two scenarios below
 # seed opposite change-detection results and assert an identical routing, which
