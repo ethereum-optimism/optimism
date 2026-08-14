@@ -1,7 +1,7 @@
 ---
 title: "Subblocks: 200 ms interval and stream payload changes"
 description: Subblocks (formerly Flashblocks) move to a 200 ms interval on OP Sepolia and OP Mainnet, and zero four fields in the stream payload.
-date: 2026-08-14
+date: 2026-08-17
 diataxis: reference
 lang: en-US
 content_type: notice
@@ -25,7 +25,7 @@ The stream keeps its existing wire format, and the payload type is still named `
 <Warning>
   The subblock stream sets `state_root`, `block_hash`, `withdrawals_root`, and `withdrawals` to their zero value.
   The stream remains wire compatible, so reads return a zero value rather than raising an error.
-  Audit stream integrations before **August 14, 2026**.
+  Audit stream integrations before **August 17, 2026**.
 </Warning>
 
 ## What this means
@@ -46,10 +46,7 @@ We recommend you audit your application or integration for these reads directly 
 
 ## The rollout is gradual
 
-This is not a hardfork, and there is no single activation point.
-The change rolls out incrementally across the sequencer fleet, converging on all subblock sequencers.
-During a rollout window, the stream may reflect either the previous or the new behavior, depending on which sequencer produced a given subblock.
-Handle both until the rollout completes.
+This is a rolling change rather than a single switch, so you may see both the previous and the new behavior for a period.
 
 ## Action required
 
@@ -63,8 +60,8 @@ For teams consuming the subblock stream directly:
 
 | Network | Target rollout |
 | --- | --- |
-| OP Sepolia | August 14, 2026 |
-| OP Mainnet | August 19, 2026 |
+| OP Sepolia | August 17, 2026 |
+| OP Mainnet | August 31, 2026 |
 
 Both dates are targets and may move.
 
