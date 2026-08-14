@@ -27,6 +27,12 @@ svm-rs = "0.5.19"
 # developer Macs. Pinned here so CI's linker version is fixed and reproducible.
 mold = { version = "2.41.0", os = ["linux"] }
 
+# Required to build the Rust workspace: prost-build (via sp1-prover-types)
+# shells out to protoc and fails the build if it is absent. CI gets it from the
+# ci-base-clang image, so this is what makes a local `cargo build` work without
+# installing protobuf-compiler by hand.
+protoc = "35.1"
+
 # Rust tooling
 "github:crate-ci/cargo-release" = { version = "1.1.2" }
 
