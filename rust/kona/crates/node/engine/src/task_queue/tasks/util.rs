@@ -1,7 +1,7 @@
 //! Utility functions for task execution.
 
 use super::{BuildTask, BuildTaskError, EngineTaskExt, SealTask, SealTaskError};
-use crate::{EngineClient, EngineState};
+use crate::{EngineClient, EngineState, ImportedBlockSink};
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
 use std::sync::Arc;
@@ -33,12 +33,14 @@ pub(in crate::task_queue) enum BuildAndSealError {
 /// * `cfg` - The rollup configuration
 /// * `attributes` - The payload attributes to build
 /// * `is_attributes_derived` - Whether the attributes were derived or created by the sequencer
+/// * `block_sink` - Where to hand the built block once the engine has canonicalized it
 pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
     state: &mut EngineState,
     engine: Arc<EngineClient_>,
     cfg: Arc<RollupConfig>,
     attributes: OpAttributesWithParent,
     is_attributes_derived: bool,
+    block_sink: Arc<dyn ImportedBlockSink>,
 ) -> Result<(), BuildAndSealError> {
     // Execute the build task
     let payload_id = BuildTask::new(
@@ -51,7 +53,7 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
     .await?;
 
     // Execute the seal task with the payload ID from the build
-    SealTask::new(engine, cfg, payload_id, attributes, is_attributes_derived, None)
+    SealTask::new(engine, cfg, payload_id, attributes, is_attributes_derived, None, block_sink)
         .execute(state)
         .await?;
 
