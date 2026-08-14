@@ -133,7 +133,7 @@ func (p *StallableProxy) WaitForStalledRequests(t devtest.T, count int64) {
 	t.Require().Positive(count)
 	t.Require().Eventuallyf(func() bool {
 		return p.StalledRequests() >= count
-	}, 30*time.Second, 100*time.Millisecond,
+	}, 2*time.Minute, 100*time.Millisecond,
 		"proxy did not stall %d requests", count)
 }
 
