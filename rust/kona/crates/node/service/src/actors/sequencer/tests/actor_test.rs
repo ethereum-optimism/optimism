@@ -1,20 +1,23 @@
 #[cfg(test)]
 use crate::{
-    SequencerActorError,
+    SequencerActor, SequencerActorError,
     actors::{
-        MockOriginSelector, MockSequencerEngineClient, sequencer::tests::test_util::test_actor,
+        MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
     },
 };
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
+use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use rstest::rstest;
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 #[rstest]
 #[case::temp(PipelineErrorKind::Temporary(BuilderError::Custom(String::new()).into()), false)]
 #[case::reset(PipelineErrorKind::Reset(BuilderError::Custom(String::new()).into()), false)]
 #[case::critical(PipelineErrorKind::Critical(BuilderError::Custom(String::new()).into()), true)]
 #[tokio::test]
-async fn test_build_unsealed_payload_prepare_payload_attributes_error(
+async fn test_build_payload_prepare_payload_attributes_error(
     #[case] forced_error: PipelineErrorKind,
     #[case] expect_err: bool,
 ) {
@@ -22,7 +25,6 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
 
     let unsafe_head = L2BlockInfo::default();
     client.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
-    // Must not be called on critical error
     client.expect_start_build_block().times(0);
     if let PipelineErrorKind::Reset(_) = &forced_error {
         client.expect_reset_engine_forkchoice().times(1).return_once(move || Ok(()));
@@ -33,15 +35,21 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
     origin_selector.expect_next_l1_origin().times(1).return_once(move |_, _| Ok(l1_origin));
 
     let attributes_builder = TestAttributesBuilder { attributes: vec![Err(forced_error)] };
+    let (_admin_api_tx, admin_api_rx) = mpsc::channel(20);
+    let mut actor = SequencerActor::<_, MockConductor, _, _, _>::new(
+        admin_api_rx,
+        attributes_builder,
+        None,
+        client,
+        true,
+        false,
+        origin_selector,
+        Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
+        MockUnsafePayloadGossipClient::new(),
+    );
 
-    let mut actor = test_actor();
-    actor.origin_selector = origin_selector;
-    actor.engine_client = client;
-    actor.attributes_builder = attributes_builder;
-
-    let result = actor.build_unsealed_payload().await;
+    let result = actor.worker.as_mut().unwrap().build_payload().await;
     if expect_err {
-        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
             SequencerActorError::AttributesBuilder(PipelineErrorKind::Critical(_))

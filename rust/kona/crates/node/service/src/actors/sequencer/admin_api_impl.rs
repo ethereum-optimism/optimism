@@ -1,5 +1,8 @@
 use super::SequencerActor;
-use crate::{Conductor, OriginSelector, SequencerEngineClient, UnsafePayloadGossipClient};
+use crate::{
+    Conductor, OriginSelector, SequencerEngineClient, UnsafePayloadGossipClient,
+    actors::sequencer::worker::SequencerWorkerStatus,
+};
 use alloy_primitives::B256;
 use kona_derive::AttributesBuilder;
 use kona_rpc::SequencerAdminAPIError;
@@ -119,6 +122,7 @@ where
 
         info!(target: "sequencer", "Starting sequencer");
         self.is_active = true;
+        self.update_control();
 
         self.update_metrics();
 
@@ -129,15 +133,32 @@ where
     pub(super) async fn stop_sequencer(&mut self) -> Result<B256, SequencerAdminAPIError> {
         info!(target: "sequencer", "Stopping sequencer");
         self.is_active = false;
+        self.update_control();
 
         self.update_metrics();
 
-        self.engine_client.get_unsafe_head().await
-            .map(|h| h.hash())
-            .map_err(|e| {
-                error!(target: "sequencer", err=?e, "Error fetching unsafe head after stopping sequencer, which should never happen.");
-                SequencerAdminAPIError::ErrorAfterSequencerWasStopped("current unsafe hash is unavailable.".to_string())
-            })
+        // Direct unit-level calls may happen before NodeActor starts the worker. The running node
+        // takes the graceful path and waits for the worker to reach a pre-publication safe point,
+        // or to finish distributing a payload that has already been committed.
+        if !self.worker_started() {
+            return self.engine_client.get_unsafe_head().await
+                .map(|h| h.hash())
+                .map_err(|e| {
+                    error!(target: "sequencer", err=?e, "Error fetching unsafe head after stopping sequencer");
+                    SequencerAdminAPIError::ErrorAfterSequencerWasStopped("current unsafe hash is unavailable.".to_string())
+                });
+        }
+
+        loop {
+            if let SequencerWorkerStatus::Stopped(head) = *self.status_rx.borrow_and_update() {
+                return Ok(head.hash());
+            }
+            self.status_rx.changed().await.map_err(|_| {
+                SequencerAdminAPIError::ErrorAfterSequencerWasStopped(
+                    "sequencer worker stopped before reporting its unsafe head".to_string(),
+                )
+            })?;
+        }
     }
 
     /// Sets the recovery mode of the sequencer in an idempotent fashion.
@@ -146,6 +167,7 @@ where
         is_active: bool,
     ) -> Result<(), SequencerAdminAPIError> {
         self.in_recovery_mode = is_active;
+        self.update_control();
         info!(target: "sequencer", is_active, "Updated recovery mode");
 
         self.update_metrics();

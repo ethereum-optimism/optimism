@@ -14,8 +14,8 @@ pub use error::EngineError;
 
 mod request;
 pub use request::{
-    BuildRequest, EngineClientError, EngineClientResult, EngineRpcRequest, ResetRequest,
-    SealRequest,
+    BuildRequest, CanonicalizeRequest, EngineClientError, EngineClientResult, EngineRpcRequest,
+    ResetRequest, SealRequest,
 };
 
 mod rpc_actor;

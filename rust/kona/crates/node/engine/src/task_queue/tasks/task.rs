@@ -2,7 +2,9 @@
 //!
 //! [`Engine`]: crate::Engine
 
-use super::{BuildTask, ConsolidateTask, FinalizeTask, InsertTask};
+use super::{
+    BuildTask, CanonicalizePayloadTask, ConsolidateTask, FinalizeTask, InsertTask, SealPayloadTask,
+};
 use crate::{
     BuildTaskError, ConsolidateTaskError, EngineClient, EngineState, FinalizeTaskError,
     InsertTaskError,
@@ -100,6 +102,10 @@ pub enum EngineTask<EngineClient_: EngineClient> {
     /// Seals the block with the given payload ID and attributes, inserting it into the execution
     /// engine.
     Seal(Box<SealTask<EngineClient_>>),
+    /// Retrieves a sequenced payload without importing it.
+    SealPayload(Box<SealPayloadTask<EngineClient_>>),
+    /// Imports and canonicalizes a previously sealed sequencer payload.
+    CanonicalizePayload(Box<CanonicalizePayloadTask<EngineClient_>>),
     /// Performs consolidation on the engine state, reverting to payload attribute processing
     /// via the [`BuildTask`] if consolidation fails.
     Consolidate(Box<ConsolidateTask<EngineClient_>>),
@@ -123,6 +129,8 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
                 Ok(_) => {}
             },
             Self::Seal(task) => task.execute(state).await?,
+            Self::SealPayload(task) => task.execute(state).await?,
+            Self::CanonicalizePayload(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
             Self::Build(task) => {
@@ -138,7 +146,9 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
             Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,
             Self::Consolidate(_) => crate::Metrics::CONSOLIDATE_TASK_LABEL,
             Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
-            Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
+            Self::Seal(_) | Self::SealPayload(_) | Self::CanonicalizePayload(_) => {
+                crate::Metrics::SEAL_TASK_LABEL
+            }
             Self::Finalize(_) => crate::Metrics::FINALIZE_TASK_LABEL,
         }
     }
@@ -151,6 +161,8 @@ impl<EngineClient_: EngineClient> PartialEq for EngineTask<EngineClient_> {
             (Self::Insert(_), Self::Insert(_)) |
                 (Self::Build(_), Self::Build(_)) |
                 (Self::Seal(_), Self::Seal(_)) |
+                (Self::SealPayload(_), Self::SealPayload(_)) |
+                (Self::CanonicalizePayload(_), Self::CanonicalizePayload(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
                 (Self::Finalize(_), Self::Finalize(_))
         )
@@ -167,12 +179,15 @@ impl<EngineClient_: EngineClient> PartialOrd for EngineTask<EngineClient_> {
 
 impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Order (descending): BuildBlock -> InsertUnsafe -> Consolidate -> Finalize
+        // Order (descending): CanonicalizePayload -> SealPayload -> Seal -> BuildBlock ->
+        // InsertUnsafe -> Consolidate -> Finalize
         //
         // https://specs.optimism.io/protocol/derivation.html#forkchoice-synchronization
         //
-        // - Block building jobs are prioritized above all other tasks, to give priority to the
-        //   sequencer. BuildTask handles forkchoice updates automatically.
+        // - Sequencer seal/canonicalization phases are prioritized above all other tasks so a
+        //   payload crossing the external publication gate can complete promptly.
+        // - Block building jobs are prioritized above unsafe insertion and derivation tasks.
+        //   BuildTask handles forkchoice updates automatically.
         // - InsertUnsafe tasks are prioritized over Consolidate tasks, to ensure that unsafe block
         //   gossip is imported promptly.
         // - Consolidate tasks are prioritized over Finalize tasks, as they advance the safe chain
@@ -184,9 +199,17 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
             (Self::Consolidate(_), Self::Consolidate(_)) |
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
+            (Self::SealPayload(_), Self::SealPayload(_)) |
+            (Self::CanonicalizePayload(_), Self::CanonicalizePayload(_)) |
             (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
 
-            // SealBlock tasks are prioritized over all others
+            // Sequencer sealing phases are prioritized over all other engine work. A
+            // canonicalization is highest because its payload has already passed the publication
+            // gate, followed by payload retrieval and the combined derivation seal task.
+            (Self::CanonicalizePayload(_), _) => Ordering::Greater,
+            (_, Self::CanonicalizePayload(_)) => Ordering::Less,
+            (Self::SealPayload(_), _) => Ordering::Greater,
+            (_, Self::SealPayload(_)) => Ordering::Less,
             (Self::Seal(_), _) => Ordering::Greater,
             (_, Self::Seal(_)) => Ordering::Less,
 

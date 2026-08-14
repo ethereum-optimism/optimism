@@ -1,12 +1,13 @@
 use crate::{
-    BuildRequest, EngineClientError, EngineDerivationClient, EngineError, NodeActor, ResetRequest,
-    SealRequest,
+    BuildRequest, CanonicalizeRequest, EngineClientError, EngineDerivationClient, EngineError,
+    NodeActor, ResetRequest, SealRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, InsertTask, SealTask,
+    BuildTask, CanonicalizePayloadTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
+    InsertTask, SealPayloadTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -19,6 +20,8 @@ use tokio::sync::{mpsc, watch};
 pub enum EngineActorRequest {
     /// Request to start building a block.
     Build(Box<BuildRequest>),
+    /// Request to import and canonicalize a previously sealed sequencer payload.
+    Canonicalize(Box<CanonicalizeRequest>),
     /// Request to process a Safe signal, which can be derived attributes or delegated block info.
     ProcessSafeL2Signal(ConsolidateInput),
     /// Request to process the finalized L2 block identified by the provided [`FinalizeBlockId`].
@@ -240,6 +243,18 @@ where
                 )));
                 self.engine.enqueue(task);
             }
+            EngineActorRequest::Canonicalize(request) => {
+                let CanonicalizeRequest { payload, attributes, result_tx } = *request;
+                let task = EngineTask::CanonicalizePayload(Box::new(CanonicalizePayloadTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    payload,
+                    attributes,
+                    false,
+                    result_tx,
+                )));
+                self.engine.enqueue(task);
+            }
             EngineActorRequest::ProcessSafeL2Signal(safe_signal) => {
                 let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
                     self.client.clone(),
@@ -286,14 +301,12 @@ where
             }
             EngineActorRequest::Seal(seal_request) => {
                 let SealRequest { payload_id, attributes, result_tx } = *seal_request;
-                let task = EngineTask::Seal(Box::new(SealTask::new(
+                let task = EngineTask::SealPayload(Box::new(SealPayloadTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
                     payload_id,
                     attributes,
-                    // The payload is not derived in this case.
-                    false,
-                    Some(result_tx),
+                    result_tx,
                 )));
                 self.engine.enqueue(task);
             }

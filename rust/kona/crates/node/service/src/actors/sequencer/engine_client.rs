@@ -1,6 +1,8 @@
 use crate::{
     EngineClientError, EngineClientResult,
-    actors::engine::{BuildRequest, EngineActorRequest, ResetRequest, SealRequest},
+    actors::engine::{
+        BuildRequest, CanonicalizeRequest, EngineActorRequest, ResetRequest, SealRequest,
+    },
 };
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
@@ -27,15 +29,19 @@ pub trait SequencerEngineClient: Debug + Send + Sync {
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<PayloadId>;
 
-    /// Seals and canonicalizes a previously started block.
-    ///
-    /// Takes a `PayloadId` from a previous `start_build_block` call and returns
-    /// the finalized execution payload envelope.
-    async fn seal_and_canonicalize_block(
+    /// Retrieves a previously started block without importing or canonicalizing it.
+    async fn seal_block(
         &self,
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<OpExecutionPayloadEnvelope>;
+
+    /// Imports and canonicalizes a payload after it has passed the publication gate.
+    async fn canonicalize_block(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<L2BlockInfo>;
 
     /// Returns the current unsafe head [`L2BlockInfo`].
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo>;
@@ -104,7 +110,7 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
         })
     }
 
-    async fn seal_and_canonicalize_block(
+    async fn seal_block(
         &self,
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
@@ -134,6 +140,32 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
                 error!(target: "block_engine", "Failed to receive built payload");
                 Err(EngineClientError::ResponseError("response channel closed.".to_string()))
             }
+        }
+    }
+
+    async fn canonicalize_block(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<L2BlockInfo> {
+        let (result_tx, mut result_rx) = mpsc::channel(1);
+
+        trace!(target: "sequencer", hash = ?payload.payload_hash(), "Canonicalizing payload");
+        self.engine_actor_request_tx
+            .send(EngineActorRequest::Canonicalize(Box::new(CanonicalizeRequest {
+                payload,
+                attributes,
+                result_tx,
+            })))
+            .await
+            .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
+
+        match result_rx.recv().await {
+            Some(Ok(block_info)) => Ok(block_info),
+            Some(Err(err)) => Err(EngineClientError::SealError(err)),
+            None => Err(EngineClientError::ResponseError(
+                "canonicalize response channel closed.".to_string(),
+            )),
         }
     }
 }

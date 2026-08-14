@@ -2,9 +2,7 @@
 
 use crate::{EngineTaskError, InsertTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
 use alloy_transport::{RpcError, TransportErrorKind};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
-use tokio::sync::mpsc;
 
 /// An error that occurs when running the [`crate::SealTask`].
 #[derive(Debug, Error)]
@@ -25,9 +23,9 @@ pub enum SealTaskError {
     /// be flushed post-holocene.
     #[error("Invalid payload, must flush post-holocene")]
     HoloceneInvalidFlush,
-    /// Error sending the built payload envelope.
-    #[error(transparent)]
-    MpscSend(#[from] Box<mpsc::error::SendError<Result<OpExecutionPayloadEnvelope, Self>>>),
+    /// Error sending a task result to its caller.
+    #[error("Failed to send seal task result: {0}")]
+    MpscSend(String),
     /// The clock went backwards.
     #[error("The clock went backwards")]
     ClockWentBackwards,

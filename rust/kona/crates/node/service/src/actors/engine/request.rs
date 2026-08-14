@@ -56,7 +56,7 @@ pub struct ResetRequest {
     pub result_tx: mpsc::Sender<EngineClientResult<()>>,
 }
 
-/// A request to seal and canonicalize a payload.
+/// A request to retrieve a sealed payload without importing or canonicalizing it.
 /// Contains the `PayloadId`, attributes, and a channel to send back the result.
 #[derive(Debug)]
 pub struct SealRequest {
@@ -66,4 +66,15 @@ pub struct SealRequest {
     pub attributes: OpAttributesWithParent,
     /// The channel on which the result, successful or not, will be sent.
     pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+}
+
+/// A request to import and canonicalize a payload after it has passed the publication gate.
+#[derive(Debug)]
+pub struct CanonicalizeRequest {
+    /// The sealed execution payload.
+    pub payload: OpExecutionPayloadEnvelope,
+    /// The attributes and expected parent used to build the payload.
+    pub attributes: OpAttributesWithParent,
+    /// The channel on which the canonicalized block information or error will be sent.
+    pub result_tx: mpsc::Sender<Result<kona_protocol::L2BlockInfo, SealTaskError>>,
 }

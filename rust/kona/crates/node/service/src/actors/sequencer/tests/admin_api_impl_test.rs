@@ -42,7 +42,7 @@ async fn test_is_conductor_enabled(
 ) {
     let mut actor = test_actor();
     if conductor_exists {
-        actor.conductor = Some(MockConductor::new())
+        actor.conductor = Some(MockConductor::new().into())
     };
 
     let result = async {
@@ -136,7 +136,7 @@ async fn test_stop_sequencer_success(
     client.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
 
     let mut actor = test_actor();
-    actor.engine_client = client;
+    actor.engine_client = client.into();
     actor.is_active = !already_stopped;
 
     // verify starting state
@@ -175,7 +175,7 @@ async fn test_stop_sequencer_error_fetching_unsafe_head(#[values(true, false)] v
         .return_once(|| Err(EngineClientError::RequestError("whoops!".to_string())));
 
     let mut actor = test_actor();
-    actor.engine_client = client;
+    actor.engine_client = client.into();
 
     let result = async {
         match via_channel {
@@ -255,13 +255,13 @@ async fn test_override_leader(
                 Err(ConductorError::Rpc(RpcError::local_usage_str(conductor_error_string)))
             });
             let mut actor = test_actor();
-            actor.conductor = Some(conductor);
+            actor.conductor = Some(conductor.into());
             actor
         } else {
             let mut conductor = MockConductor::new();
             conductor.expect_override_leader().times(1).return_once(|| Ok(()));
             let mut actor = test_actor();
-            actor.conductor = Some(conductor);
+            actor.conductor = Some(conductor.into());
             actor
         }
     };
@@ -298,7 +298,7 @@ async fn test_reset_derivation_pipeline_success(#[values(true, false)] via_chann
     client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
 
     let mut actor = test_actor();
-    actor.engine_client = client;
+    actor.engine_client = client.into();
 
     let result = async {
         match via_channel {
@@ -325,7 +325,7 @@ async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel
         .return_once(|| Err(EngineClientError::RequestError("reset failed".to_string())));
 
     let mut actor = test_actor();
-    actor.engine_client = client;
+    actor.engine_client = client.into();
 
     let result = async {
         match via_channel {
@@ -358,8 +358,8 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
 
     let mut actor = test_actor();
-    actor.conductor = Some(conductor);
-    actor.engine_client = client;
+    actor.conductor = Some(conductor.into());
+    actor.engine_client = client.into();
 
     let mut queries: Vec<SequencerAdminQuery> = Vec::new();
     {
