@@ -84,6 +84,8 @@ type SingleChainRuntime struct {
 	L2Batcher    *L2Batcher
 	L2Proposer   *L2Proposer
 	L2Challenger *L2Challenger
+	// ZKChallengerSuperRootRPCProxy is set when the runtime starts a ZK challenger.
+	ZKChallengerSuperRootRPCProxy *StallableProxy
 
 	TimeTravel    *clock.AdvancingClock
 	TestSequencer *TestSequencerRuntime

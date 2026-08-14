@@ -126,6 +126,17 @@ func (p *StallableProxy) StalledRequests() int64 {
 	return p.stalledRequests.Load()
 }
 
+// WaitForStalledRequests waits until at least count requests have been held by
+// the proxy. Requiring multiple requests lets recovery tests prove that a
+// client retried after an earlier stalled request timed out.
+func (p *StallableProxy) WaitForStalledRequests(t devtest.T, count int64) {
+	t.Require().Positive(count)
+	t.Require().Eventuallyf(func() bool {
+		return p.StalledRequests() >= count
+	}, 30*time.Second, 100*time.Millisecond,
+		"proxy did not stall %d requests", count)
+}
+
 // MaxConcurrentStalledRequests returns the highest number of requests that were
 // held open by the stall at the same moment. Tests use it to pin down
 // single-flight client behavior: a client that fires a new request on every
