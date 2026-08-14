@@ -242,7 +242,7 @@ pub struct RollupArgs {
     ///
     /// If given, the flashblocks are received to build pending block. All request with "pending"
     /// block tag will use the pending state based on flashblocks.
-    #[arg(long, alias = "websocket-url")]
+    #[arg(long, aliases = ["websocket-url", "subblocks-url"])]
     pub flashblocks_url: Option<Url>,
 
     /// Enable flashblock consensus client to drive the chain forward
@@ -250,7 +250,12 @@ pub struct RollupArgs {
     /// When enabled, the flashblock consensus client will process flashblock sequences and submit
     /// them to the engine API to advance the chain.
     /// Requires `flashblocks_url` to be set.
-    #[arg(long, default_value_t = false, requires = "flashblocks_url")]
+    #[arg(
+        long,
+        alias = "subblocks-consensus",
+        default_value_t = false,
+        requires = "flashblocks_url"
+    )]
     pub flashblock_consensus: bool,
 
     /// If true, initialize external-proofs exex to save and serve trie nodes to provide proofs
@@ -427,6 +432,23 @@ mod tests {
             "reth",
             "--rollup.max-uncompressed-block-size",
             "7340032",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_subblocks_aliases() {
+        let expected_args = RollupArgs {
+            flashblocks_url: Some("wss://localhost:8546".parse().unwrap()),
+            flashblock_consensus: true,
+            ..Default::default()
+        };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--subblocks-url",
+            "wss://localhost:8546",
+            "--subblocks-consensus",
         ])
         .args;
         assert_eq!(args, expected_args);
