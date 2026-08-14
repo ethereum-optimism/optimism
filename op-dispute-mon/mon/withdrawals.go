@@ -124,6 +124,9 @@ func (w *WithdrawalMonitor) validateZKGameWithdrawals(game types.BondedGame, now
 		if expected == nil {
 			expected = new(big.Int)
 		}
+		if expected.Sign() == 0 && credit.Sign() == 0 && request.Amount.Sign() == 0 && request.Timestamp.Sign() == 0 {
+			continue
+		}
 		mature := request.Timestamp.Sign() > 0 && !now.Before(time.Unix(request.Timestamp.Int64(), 0).Add(data.WETHDelay))
 		switch data.BondDistributionMode {
 		case challengerTypes.UndecidedDistributionMode:
@@ -136,7 +139,7 @@ func (w *WithdrawalMonitor) validateZKGameWithdrawals(game types.BondedGame, now
 			if request.Amount.Cmp(observed) > 0 {
 				observed = request.Amount
 			}
-			uninitiated := request.Amount.Sign() == 0 && request.Timestamp.Sign() == 0
+			uninitiated := request.Amount.Sign() == 0 && request.Timestamp.Sign() == 0 && credit.Cmp(expected) == 0
 			completed := request.Amount.Sign() == 0 && credit.Sign() == 0 && mature
 			pending := request.Amount.Sign() > 0 && request.Timestamp.Sign() > 0 && credit.Sign() == 0 && observed.Cmp(expected) == 0
 			if uninitiated || completed || pending {

@@ -109,6 +109,7 @@ func (b *Bonds) checkCredits(games []types.BondedGame) {
 				actual = big.NewInt(0)
 			}
 			maxDurationReached := !data.CreditWithdrawableAt.After(now)
+			completedPayout := false
 			if isZK {
 				request := data.WithdrawalRequests[recipient]
 				if request != nil && request.Amount != nil && request.Amount.Cmp(actual) > 0 {
@@ -116,8 +117,15 @@ func (b *Bonds) checkCredits(games []types.BondedGame) {
 				}
 				maxDurationReached = request != nil && request.Timestamp != nil && request.Timestamp.Sign() > 0 &&
 					!now.Before(time.Unix(request.Timestamp.Int64(), 0).Add(data.WETHDelay))
+				completedPayout = request != nil && request.Amount != nil && request.Amount.Sign() == 0 && actual.Sign() == 0 && maxDurationReached
 			}
 			expected := data.ExpectedCredits[recipient]
+			if completedPayout && expected != nil && expected.Sign() > 0 {
+				actual = expected
+			}
+			if isZK && expected == nil && actual.Sign() == 0 {
+				continue
+			}
 			if expected == nil {
 				expected = big.NewInt(0)
 			}

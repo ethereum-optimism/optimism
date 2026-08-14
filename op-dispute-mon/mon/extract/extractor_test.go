@@ -321,6 +321,7 @@ func setupExtractorTest(t *testing.T, enrichers ...CommonEnricher) (*Extractor, 
 	extractor := NewExtractor(
 		logger,
 		cl,
+		new(stubGamesWaitingForRootSourceMetrics),
 		creator.CreateGameCaller,
 		games.FetchGames,
 		nil,
@@ -332,6 +333,14 @@ func setupExtractorTest(t *testing.T, enrichers ...CommonEnricher) (*Extractor, 
 		nil,
 	)
 	return extractor, creator, games, capturedLogs, cl
+}
+
+type stubGamesWaitingForRootSourceMetrics struct {
+	gameTypeCounts map[string]int
+}
+
+func (s *stubGamesWaitingForRootSourceMetrics) RecordGamesWaitingForRootSource(gameTypeCounts map[string]int) {
+	s.gameTypeCounts = gameTypeCounts
 }
 
 type mockGameFetcher struct {

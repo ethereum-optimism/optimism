@@ -52,13 +52,22 @@ func withDisputeMonClock(cl *clock.AdvancingClock) DisputeMonOption {
 	}
 }
 
-func (s *SingleChainInterop) StartDisputeMon() *disputemon.DisputeMon {
+func withDefaultDisputeMonSupernode(node dsl.SuperRootSource) DisputeMonOption {
+	return func(opts *disputeMonOptions) {
+		if len(opts.supernodeRPCs) == 0 && node != nil {
+			opts.supernodeRPCs = append(opts.supernodeRPCs, node.UserRPC())
+		}
+	}
+}
+
+func (s *SingleChainInterop) StartDisputeMon(options ...DisputeMonOption) *disputemon.DisputeMon {
+	options = append([]DisputeMonOption{withDisputeMonClock(s.timeTravel)}, options...)
+	options = append(options, withDefaultDisputeMonSupernode(s.SuperRoots))
 	return StartDisputeMon(
 		s.T,
 		s.L1EL,
 		s.L2ChainA.DisputeGameFactoryProxyAddr(),
-		WithDisputeMonSupernodes(s.SuperRoots),
-		withDisputeMonClock(s.timeTravel),
+		options...,
 	)
 }
 
