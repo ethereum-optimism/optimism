@@ -69,6 +69,16 @@ func FailedGames(expected int) StateExpectation {
 	}
 }
 
+func GamesWaitingForRootSource(gameType gameTypes.GameType, expected int) StateExpectation {
+	return StateExpectation{
+		check: devtestmetrics.GaugeEquals(
+			"op_dispute_mon_games_waiting_for_root_source",
+			map[string]string{"game_type": gameType.String()},
+			float64(expected),
+		),
+	}
+}
+
 func AgreedRoots(expected int) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeSumEquals(

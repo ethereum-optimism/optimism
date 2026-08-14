@@ -236,6 +236,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	extractor := extract.NewExtractor(
 		s.logger,
 		s.cl,
+		s.metrics,
 		s.game.CreateContract,
 		s.factoryContract.GetGamesAtOrAfter,
 		s.factoryContract.GetGameStatusAtBlock,

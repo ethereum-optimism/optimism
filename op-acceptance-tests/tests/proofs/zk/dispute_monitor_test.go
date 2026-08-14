@@ -25,6 +25,7 @@ func TestZKDisputeMonitorSkipsLaggedGameUntilRootSourceCatchesUp(gt *testing.T) 
 	monitor.VerifyCompletedCycleWithoutFailures()
 	monitor.VerifyState(
 		disputemon.FailedGames(0),
+		disputemon.GamesWaitingForRootSource(gameTypes.ZKDisputeGameType, 1),
 		disputemon.AgreedRoots(0),
 		disputemon.DisagreedRoots(0),
 		disputemon.PendingZKResolutions(0),
@@ -35,6 +36,7 @@ func TestZKDisputeMonitorSkipsLaggedGameUntilRootSourceCatchesUp(gt *testing.T) 
 	monitor.VerifyState(
 		disputemon.GameCount(gameTypes.ZKDisputeGameType, 1),
 		disputemon.FailedGames(0),
+		disputemon.GamesWaitingForRootSource(gameTypes.ZKDisputeGameType, 0),
 		disputemon.AgreedRoots(1),
 		disputemon.CorrectDefenderAhead(1),
 	)

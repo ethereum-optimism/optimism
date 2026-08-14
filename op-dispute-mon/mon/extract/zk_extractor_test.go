@@ -127,6 +127,7 @@ func TestExtractorRejectsZKCallerWithoutCapabilities(t *testing.T) {
 	extractor := NewExtractor(
 		testlog.Logger(t, log.LvlDebug),
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
+		new(stubGamesWaitingForRootSourceMetrics),
 		func(context.Context, gameTypes.GameMetadata) (GameCaller, error) { return caller, nil },
 		func(context.Context, common.Hash, uint64) ([]gameTypes.GameMetadata, error) { return nil, nil },
 		parentStatus(gameTypes.GameStatusDefenderWon),
@@ -157,16 +158,27 @@ func TestExtractorZKLagAndCache(t *testing.T) {
 	caller := validZKCaller()
 	agreement := &testZKAgreement{err: gameTypes.ErrNotInSync}
 	extractor, trace := newZKExtractor(t, caller, parentStatus(gameTypes.GameStatusDefenderWon), agreement)
+	waitingMetrics := extractor.metrics.(*stubGamesWaitingForRootSourceMetrics)
+	secondGame := zkMetadata()
+	secondGame.Index++
+	secondGame.Proxy = common.Address{0x98}
+	extractor.fetchGames = func(context.Context, common.Hash, uint64) ([]gameTypes.GameMetadata, error) {
+		return []gameTypes.GameMetadata{zkMetadata(), secondGame}, nil
+	}
 
 	games, ignored, failed, err := extractor.Extract(t.Context(), common.Hash{0xaa}, 0)
 	require.NoError(t, err)
 	require.Empty(t, games)
 	require.Zero(t, ignored)
 	require.Zero(t, failed)
-	require.Equal(t, []string{"metadata", "l1-head", "agreement"}, *trace)
+	require.Equal(t, map[string]int{gameTypes.ZKDisputeGameType.String(): 2}, waitingMetrics.gameTypeCounts)
+	require.Equal(t, []string{"metadata", "l1-head", "agreement", "metadata", "l1-head", "agreement"}, *trace)
 	require.Zero(t, caller.bondMetadataCalls)
 
 	*trace = nil
+	extractor.fetchGames = func(context.Context, common.Hash, uint64) ([]gameTypes.GameMetadata, error) {
+		return []gameTypes.GameMetadata{zkMetadata()}, nil
+	}
 	agreement.err = nil
 	agreement.action = func(game *monTypes.ZKGameData) {
 		game.AgreeWithClaim = true
@@ -175,6 +187,7 @@ func TestExtractorZKLagAndCache(t *testing.T) {
 	games, _, failed, err = extractor.Extract(t.Context(), common.Hash{0xbb}, 0)
 	require.NoError(t, err)
 	require.Zero(t, failed)
+	require.Equal(t, map[string]int{gameTypes.ZKDisputeGameType.String(): 0}, waitingMetrics.gameTypeCounts)
 	require.Len(t, games, 1)
 	snapshot := games[0]
 	original := snapshot.(*monTypes.ZKGameData)
@@ -215,6 +228,7 @@ func TestExtractorZKLagAndCache(t *testing.T) {
 	games, _, failed, err = extractor.Extract(t.Context(), common.Hash{0xcc}, 0)
 	require.NoError(t, err)
 	require.Zero(t, failed)
+	require.Equal(t, map[string]int{gameTypes.ZKDisputeGameType.String(): 1}, waitingMetrics.gameTypeCounts)
 	require.Len(t, games, 1)
 	lagSnapshot := games[0]
 	require.NotSame(t, snapshot, lagSnapshot)
@@ -507,6 +521,7 @@ func newZKExtractor(t *testing.T, caller *testZKCaller, parent ParentGameStatusF
 	return NewExtractor(
 		testlog.Logger(t, log.LvlDebug),
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
+		new(stubGamesWaitingForRootSourceMetrics),
 		func(context.Context, gameTypes.GameMetadata) (GameCaller, error) { return caller, nil },
 		func(context.Context, common.Hash, uint64) ([]gameTypes.GameMetadata, error) {
 			return []gameTypes.GameMetadata{zkMetadata()}, nil

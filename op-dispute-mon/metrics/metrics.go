@@ -202,6 +202,7 @@ type Metricer interface {
 	RecordOldestGameUpdateTime(t time.Time)
 
 	RecordGameTypes(gameTypeCounts map[string]int)
+	RecordGamesWaitingForRootSource(gameTypeCounts map[string]int)
 
 	RecordAnchorStateL2SequenceNumber(anchorStateRegistry common.Address, l2SequenceNumber uint64)
 
@@ -261,6 +262,7 @@ type Metrics struct {
 	mixedSafetyGames           prometheus.Gauge
 	differentRootGames         prometheus.Gauge
 	gameTypes                  prometheus.GaugeVec
+	gamesWaitingForRootSource  prometheus.GaugeVec
 	zkGamesPendingLifecycle    prometheus.GaugeVec
 }
 
@@ -471,6 +473,13 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "games",
 			Help:      "Number of games in the monitoring window broken down by game type",
+		}, []string{
+			"game_type",
+		}),
+		gamesWaitingForRootSource: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "games_waiting_for_root_source",
+			Help:      "Number of games whose extraction is deferred while root sources catch up, broken down by game type",
 		}, []string{
 			"game_type",
 		}),
@@ -726,6 +735,13 @@ func labelValuesFor(status GameAgreementStatus) []string {
 func (m *Metrics) RecordGameTypes(gameTypeCounts map[string]int) {
 	for gameType, count := range gameTypeCounts {
 		m.gameTypes.WithLabelValues(gameType).Set(float64(count))
+	}
+}
+
+func (m *Metrics) RecordGamesWaitingForRootSource(gameTypeCounts map[string]int) {
+	m.gamesWaitingForRootSource.Reset()
+	for gameType, count := range gameTypeCounts {
+		m.gamesWaitingForRootSource.WithLabelValues(gameType).Set(float64(count))
 	}
 }
 
