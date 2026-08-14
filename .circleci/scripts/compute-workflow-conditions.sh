@@ -100,6 +100,12 @@ case "${TRIGGER_SOURCE}" in
     # 3. After merge (develop push)
     #    Runs after the merge queue completes and pushes to develop.
     #    Adds expensive post-merge jobs: fault proofs, kontrol, prestate publishing.
+    #
+    #    Nothing here is path-gated. Change detection diffs against
+    #    origin/${BASE_REVISION}, and BASE_REVISION is develop, so on a develop
+    #    push HEAD is the base and the changed-file list is always empty. Every
+    #    is_true check would therefore be false, making the gated branch dead
+    #    code rather than a conditional.
     # ---------------------------------------------------------
     elif [[ "${BRANCH}" == "develop" ]]; then
       run main
@@ -108,14 +114,10 @@ case "${TRIGGER_SOURCE}" in
       run develop_fault_proofs
       run develop_kontrol_tests
       run contracts_feature_tests
-      if is_true rust_changes_detected; then
-        run rust_ci
-        run rust_e2e_ci
-        run kona_publish_prestates
-      else
-        run rust_ci_gate_short
-        run rust_e2e_gate_skip
-      fi
+      run rust_ci
+      run rust_e2e_ci
+      run kona_publish_prestates
+      run circleci_schedule_trigger_check
     fi
     ;;
 
