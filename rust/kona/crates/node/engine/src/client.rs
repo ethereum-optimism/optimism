@@ -23,7 +23,7 @@ use alloy_transport_http::{
 use async_trait::async_trait;
 use http_body_util::Full;
 use kona_genesis::RollupConfig;
-use kona_protocol::{FromBlockError, L2BlockInfo};
+use kona_protocol::FromBlockError;
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types::Transaction;
@@ -80,12 +80,6 @@ pub trait EngineClient: OpEngineApi<Optimism, Http<HyperAuthClient>> + Send + Sy
         &self,
         numtag: BlockNumberOrTag,
     ) -> Result<Option<Block<Transaction>>, EngineClientError>;
-
-    /// Fetches the [`L2BlockInfo`] by [`BlockNumberOrTag`].
-    async fn l2_block_info_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<L2BlockInfo>, EngineClientError>;
 }
 
 /// Read-only subset of [`EngineClient`] used by the engine RPC actor.
@@ -232,17 +226,6 @@ where
         numtag: BlockNumberOrTag,
     ) -> Result<Option<Block<Transaction>>, EngineClientError> {
         Ok(self.engine.get_block_by_number(numtag).full().await?)
-    }
-
-    async fn l2_block_info_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<L2BlockInfo>, EngineClientError> {
-        let block = self.engine.get_block_by_number(numtag).full().await?;
-        let Some(block) = block else {
-            return Ok(None);
-        };
-        Ok(Some(L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &self.cfg.genesis)?))
     }
 }
 
