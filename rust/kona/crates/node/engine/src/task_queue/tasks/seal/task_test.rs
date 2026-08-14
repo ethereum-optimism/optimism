@@ -55,6 +55,7 @@ async fn unsafe_head_check_variants(
         false,
         coupling,
         with_channel.then_some(tx),
+        Arc::new(crate::NoopBlockSink),
     );
 
     let result = task.execute(&mut state).await;

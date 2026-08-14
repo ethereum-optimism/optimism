@@ -50,6 +50,9 @@ pub use task_queue::{
 mod attributes;
 pub use attributes::{AttributesMatch, AttributesMismatch};
 
+mod block_sink;
+pub use block_sink::{ImportedBlockSink, NoopBlockSink};
+
 mod client;
 pub use client::{
     EngineClient, EngineClientBuilder, EngineClientError, EngineRpcClient, HyperAuthClient,
