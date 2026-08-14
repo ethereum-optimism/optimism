@@ -44,19 +44,16 @@ types because each helper numbers from its own base. `ZKDG-70` asserts
 (`OPContractsManagerStandardValidator.sol:1060-1065`), while the cannon games' `-70` and
 `-80` assert `l2SequenceNumber == 0` and the clock extension
 (`StandardValidatorUtils.sol:448-451`). A string-level diff of error codes therefore
-reports the ZK path as symmetric when it is not — a confident false negative on exactly
-the path most likely to be under-checked. Resolve each call through the shared helpers
-to what it actually asserts, and compare that.
+reports the ZK path as symmetric when it is not. Resolve each call through the shared
+helpers to what it actually asserts, and compare that.
 
-**Compare across kinds, not only across siblings.** Every other proxied contract in the
-graph pairs a `version()` check with an implementation-address check; noticing that the
-game implementations carried only the version check is what surfaced the
-lossy-comparison bug.
+**Compare across kinds, not only across siblings.** The game implementations are checked
+by `version()` alone, while every other proxied contract in the graph pairs a `version()`
+check with an implementation-address check.
 
 ## Technique 2: diff-driven review
 
-This is the technique that keeps the validator in step with the contracts, and the one
-to reach for on a PR rather than on a standing audit.
+Reach for this on a PR rather than on a standing audit.
 
 When a change lands in any contract the validator walks, ask what the change implies the
 validator should now assert:
@@ -74,14 +71,12 @@ Enumerate the values the validator *reads* and the values it *asserts*, and look
 difference. A value read to navigate the graph but never itself constrained is a
 candidate.
 
-This does **not** require extracting error codes. The codes are assembled by string
-concatenation, and no auditor cites them — extracting them is cost with no payoff.
+This does **not** require extracting error codes; they are assembled by string
+concatenation and no auditor cites them.
 
 ## Mandatory pre-checks before reporting a gap
 
-A noisy reviewer gets switched off. Run all three of these against every candidate
-before reporting "X is unchecked". In a hand-run of the symmetry technique they cleared
-5 of 7 candidates, so skipping them makes this reviewer mostly noise.
+Run all three of these against every candidate before reporting "X is unchecked".
 
 **1. Is the getter a pass-through?** Many getters delegate. `OptimismPortal2`'s
 `superchainConfig()`, `guardian()` and `paused()` are each `return systemConfig.X()`
@@ -123,8 +118,7 @@ that isn't asserted — is therefore the category *most likely to be declined*.
 So absence is not an argument. Every finding must say why the check is worth its cost,
 and the cost is concrete: `OPContractsManagerStandardValidator.sol` is pinned to
 `optimizer_runs = 200` in `foundry.toml` purely to fit EIP-170, and the three-file split
-exists for the same reason. A proposal of many new checks is a proposal of a size
-problem.
+exists for the same reason.
 
 Two gaps are already acknowledged in-source with `TODO(#21529)`
 (`OPContractsManagerStandardValidator.sol:1107`, `StandardValidatorUtils.sol:194`) and
