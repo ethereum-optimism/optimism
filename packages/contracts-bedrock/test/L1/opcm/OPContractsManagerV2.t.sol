@@ -35,7 +35,6 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerV2_TestInit
@@ -245,10 +244,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         skipIfNotForkTest("OPContractsManagerV2_Upgrade_TestInit: only runs in forked tests");
         skipIfOpsRepoTest("OPContractsManagerV2_Upgrade_TestInit: skipped in superchain-ops");
 
-        // Etch code to the dummy ZK verifier address
-        // so that the code length check passes in the StandardValidator.
-        vm.etch(address(0xBEEF), hex"01");
-
         // Set the chain PAO.
         chainPAO = proxyAdmin.owner();
         vm.label(chainPAO, "ProxyAdmin Owner");
@@ -322,21 +317,12 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
-                        verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
                         maxProveDuration: Duration.wrap(0),
                         challengerBond: 0
                     })
                 )
             })
-        );
-
-        _pushPermittedProxyDeploymentInstruction();
-    }
-
-    function _pushPermittedProxyDeploymentInstruction() internal {
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
         );
     }
 
@@ -929,8 +915,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that duplicate PermittedProxyDeployment instruction keys are allowed.
-    function test_upgrade_duplicatePermittedProxyDeploymentKeys_succeeds() public {
+    /// @notice Tests that duplicate PermittedProxyDeployment instruction keys are exempt from the
+    ///         duplicate instruction check, so validation carries on to the permission check.
+    function test_upgrade_duplicatePermittedProxyDeploymentKeys_reverts() public {
         delete v2UpgradeInput.extraInstructions;
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
@@ -944,7 +931,18 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 data: bytes("DelayedWETH")
             })
         );
-        runCurrentUpgradeV2(chainPAO);
+
+        // This upgrade permits no proxy deployments, so the instructions are rejected by the
+        // permission check. Without the duplicate exemption the revert would instead be
+        // OPContractsManagerV2_DuplicateUpgradeInstruction.
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInstruction.selector,
+                Constants.PERMITTED_PROXY_DEPLOYMENT_KEY
+            )
+        );
     }
 
     /// @notice INVARIANT: Upgrades must always work when the system is paused.
@@ -1054,7 +1052,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1082,7 +1079,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1096,6 +1092,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // + challengerBond(32) + anchorStateRegistry(20) + delayedWETH(20) = 140 bytes
         bytes memory args = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
         assertEq(args.length, 140, "ZK game args length must be 140 bytes (32+20+8+8+32+20+20)");
+        assertEq(
+            LibGameArgs.decodeZK(args).verifier,
+            opcmV2.implementations().sp1PlonkAdapterImpl,
+            "ZK verifier must be the release adapter"
+        );
     }
 
     /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
@@ -1117,8 +1118,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that the ZK prestate and verifier can be rotated via a config update.
-    function test_upgrade_updateZKPrestateAndVerifier_succeeds() public {
+    /// @notice Tests that the ZK prestate can be rotated while the release adapter remains fixed.
+    function test_upgrade_updateZKPrestate_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
         // Enable ZK with initial config.
@@ -1127,7 +1128,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v1"))),
-                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1136,15 +1136,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
         bytes memory argsV1 = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
 
-        // Etch code to the dummy ZK verifier address
-        // so that the code length check passes in the StandardValidator.
-        vm.etch(address(0xDEAD), hex"01");
+        address verifierV1 = LibGameArgs.decodeZK(argsV1).verifier;
 
-        // Rotate to new prestate and verifier.
+        // Rotate to a new prestate.
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v2"))),
-                verifier: IZKVerifier(address(0xDEAD)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1154,6 +1151,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         bytes memory argsV2 = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
 
         assertTrue(keccak256(argsV1) != keccak256(argsV2), "ZK game args should have changed after rotation");
+        assertEq(LibGameArgs.decodeZK(argsV2).verifier, verifierV1, "release verifier must not rotate per chain");
     }
 
     /// @notice Tests that disabling the ZK game sets the init bond to zero in the factory.
@@ -1166,7 +1164,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1315,7 +1312,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
-                        verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
                         maxProveDuration: Duration.wrap(0),
                         challengerBond: 0
@@ -1852,7 +1848,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
-                        verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
                         maxProveDuration: Duration.wrap(0),
                         challengerBond: 0
@@ -2450,7 +2445,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
-                    verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),
                     maxProveDuration: Duration.wrap(0),
                     challengerBond: 0
@@ -2637,7 +2631,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                    verifier: IZKVerifier(address(0xBEEF)),
                     maxChallengeDuration: Duration.wrap(uint64(7 days)),
                     maxProveDuration: Duration.wrap(uint64(3 days)),
                     challengerBond: 1 ether
@@ -2665,6 +2658,11 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         // ZK is now registered on the shared DGF, with the 140-byte CWIA layout and the init bond.
         assertTrue(address(sharedDgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0), "ZK not registered");
         assertEq(sharedDgf.gameArgs(GameTypes.ZK_DISPUTE_GAME).length, 140, "ZK args not 140 bytes");
+        assertEq(
+            LibGameArgs.decodeZK(sharedDgf.gameArgs(GameTypes.ZK_DISPUTE_GAME)).verifier,
+            opcmV2.implementations().sp1PlonkAdapterImpl,
+            "ZK verifier must be the release adapter"
+        );
         assertEq(sharedDgf.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
 
         // The source super game is cleared, and the shared ASR's respected type is now ZK.
@@ -2699,7 +2697,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                    verifier: IZKVerifier(address(0xBEEF)),
                     maxChallengeDuration: Duration.wrap(uint64(7 days)),
                     maxProveDuration: Duration.wrap(uint64(3 days)),
                     challengerBond: 1 ether
@@ -3214,6 +3211,168 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         // Execute the migration, expect revert.
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector);
     }
+
+    /// @notice Builds the dispute game configs for upgrading a migrated super-permissioned
+    ///         interop chain. Order must match validGameTypes in
+    ///         OPContractsManagerV2._assertValidFullConfig(): only SUPER_PERMISSIONED is enabled,
+    ///         matching the respected game type the migration installs on the shared registry.
+    /// @return configs_ The dispute game configs.
+    function _interopUpgradeGameConfigs()
+        internal
+        returns (IOPContractsManagerUtils.DisputeGameConfig[] memory configs_)
+    {
+        address proposer = makeAddr("superProposer");
+        configs_ = new IOPContractsManagerUtils.DisputeGameConfig[](6);
+        configs_[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: bytes("")
+        });
+        configs_[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: bytes("")
+        });
+        configs_[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        configs_[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED,
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
+        });
+        configs_[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        configs_[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: bytes("")
+        });
+    }
+
+    /// @notice Runs the current OPCM upgrade for a migrated super-permissioned interop chain.
+    /// @param _systemConfig The chain's SystemConfig.
+    /// @param _pao The ProxyAdmin owner that must delegatecall the upgrade.
+    function _upgradeInteropChain(ISystemConfig _systemConfig, address _pao) internal {
+        IOPContractsManagerV2.UpgradeInput memory input;
+        input.systemConfig = _systemConfig;
+        input.disputeGameConfigs = _interopUpgradeGameConfigs();
+
+        prankDelegateCall(_pao);
+        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+        assertTrue(success, "interop member chain upgrade failed");
+    }
+
+    /// @notice Regression test for ethereum-optimism/optimism#21731. After an interop migration
+    ///         the member chains share ETHLockbox / DisputeGameFactory / AnchorStateRegistry /
+    ///         DelayedWETH, all administered by the first chain's ProxyAdmin. upgrade() must resolve
+    ///         each proxy's own ProxyAdmin so upgrading a non-first member chain does not revert on
+    ///         the shared contracts' proxy admin-slot check. On develop this reverts for chain 2.
+    function test_upgrade_interopMemberChains_succeeds() public {
+        // Migrate the two-chain interop set.
+        _enableEthLockboxes();
+        _doMigration(_getDefaultMigrateInput());
+
+        // Resolve the shared infra established by the migration.
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IAnchorStateRegistry sharedAsr = portal1.anchorStateRegistry();
+        IDisputeGameFactory sharedDgf = sharedAsr.disputeGameFactory();
+        IETHLockbox sharedLockbox = portal1.ethLockbox();
+        IDelayedWETH sharedWeth = IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH()));
+
+        // Sanity: the members have distinct ProxyAdmins, but the shared contracts are administered
+        // by the first chain's ProxyAdmin — the exact condition that breaks the naive upgrade path.
+        assertTrue(
+            address(chainContracts1.proxyAdmin) != address(chainContracts2.proxyAdmin),
+            "member chains should have distinct ProxyAdmins"
+        );
+        assertEq(
+            address(sharedDgf.proxyAdmin()),
+            address(chainContracts1.proxyAdmin),
+            "shared DisputeGameFactory should be administered by the first chain's ProxyAdmin"
+        );
+
+        // Sanity: the shared contracts are bound to the FIRST chain's SystemConfig, which is not
+        // the SystemConfig a chain-2 upgrade is driven by.
+        assertTrue(
+            address(chainContracts1.systemConfig) != address(chainContracts2.systemConfig),
+            "member chains should have distinct SystemConfigs"
+        );
+        assertEq(
+            address(sharedAsr.systemConfig()),
+            address(chainContracts1.systemConfig),
+            "shared AnchorStateRegistry should be bound to the first chain's SystemConfig"
+        );
+
+        // The common ProxyAdmin owner owns both chains' ProxyAdmins.
+        address pao = chainContracts1.proxyAdmin.owner();
+        assertEq(chainContracts2.proxyAdmin.owner(), pao, "both ProxyAdmins should share an owner");
+
+        // Upgrade BOTH member chains, including the non-first chain (chain 2). Neither may revert.
+        _upgradeInteropChain(chainContracts1.systemConfig, pao);
+        _upgradeInteropChain(chainContracts2.systemConfig, pao);
+
+        // Each chain's upgrade idempotently re-applies the shared-contract upgrades, so the shared
+        // contracts must end at the current target implementations.
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        assertEq(
+            EIP1967Helper.getImplementation(address(sharedDgf)),
+            impls.disputeGameFactoryImpl,
+            "shared DisputeGameFactory not at target impl"
+        );
+        assertEq(
+            EIP1967Helper.getImplementation(address(sharedAsr)),
+            impls.anchorStateRegistryImpl,
+            "shared AnchorStateRegistry not at target impl"
+        );
+        assertEq(
+            EIP1967Helper.getImplementation(address(sharedLockbox)),
+            impls.ethLockboxImpl,
+            "shared ETHLockbox not at target impl"
+        );
+        assertEq(
+            EIP1967Helper.getImplementation(address(sharedWeth)),
+            impls.delayedWETHImpl,
+            "shared DelayedWETH not at target impl"
+        );
+
+        // Upgrading a non-first member must not re-point the shared contracts at that member's
+        // SystemConfig — they stay bound to the first chain's SystemConfig set up by migrate().
+        assertEq(
+            address(sharedAsr.systemConfig()),
+            address(chainContracts1.systemConfig),
+            "shared AnchorStateRegistry re-pointed to another chain's SystemConfig"
+        );
+        assertEq(
+            address(sharedLockbox.systemConfig()),
+            address(chainContracts1.systemConfig),
+            "shared ETHLockbox re-pointed to another chain's SystemConfig"
+        );
+        assertEq(
+            address(sharedWeth.systemConfig()),
+            address(chainContracts1.systemConfig),
+            "shared DelayedWETH re-pointed to another chain's SystemConfig"
+        );
+
+        // Per-chain contracts remain bound to their own chain's SystemConfig.
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+        assertEq(
+            address(portal2.systemConfig()),
+            address(chainContracts2.systemConfig),
+            "chain 2 OptimismPortal should stay bound to chain 2's SystemConfig"
+        );
+    }
 }
 
 /// @title OPContractsManagerV2_FeatBatchUpgrade_Test
@@ -3302,7 +3461,6 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
-                    verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),
                     maxProveDuration: Duration.wrap(0),
                     challengerBond: 0

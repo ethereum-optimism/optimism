@@ -33,11 +33,17 @@ The bitmap has **two operator-facing input surfaces**, both in op-deployer:
    - `--dev-feature-bitmap` (env: `OP_DEPLOYER_DEV_FEATURE_BITMAP`), defined in `op-deployer/pkg/deployer/bootstrap/flags.go`
    - Raw 32-byte hex; default empty
    - Flows into `ImplementationsConfig.DevFeatureBitmap` and on into `DeployImplementationsInput` for L1 implementation deployment.
+   - When the ZK bit is enabled, Ethereum mainnet and Sepolia default to Succinct's v6.1.0 PLONK verifier, resolved by `standard.SP1VerifierFor`. `--sp1-verifier-address` (env: `DEPLOYER_SP1_VERIFIER_ADDRESS`) overrides that release input and is required on other L1 networks.
 
 2. **Intent file (`globalDeployOverrides.devFeatureBitmap`)**
    - Schema field on `Intent`, `op-deployer/pkg/deployer/state/intent.go`
    - Lives in the operator's intent TOML/JSON
    - Read by the L2 genesis pipeline.
+   - All of the following applies only when `apply` deploys new implementations. With a predeployed OPCM (`opcmAddress` set), the implementations already exist and `ValidateInputs` rejects `sp1Verifier` outright, so those operators must not set the override.
+   - A live ZK-enabled `apply` selects the same release-approved verifier as bootstrap on Ethereum mainnet and Sepolia; other L1 networks must set `globalDeployOverrides.sp1Verifier`, which always wins where it is set. Enabling ZK stays an explicit operator choice — the default only picks the verifier, never the feature.
+   - Both surfaces read the mapping from `standard.SP1VerifierFor`, so bootstrap and apply can never drift.
+   - The selected raw verifier is recorded in deployment state (`State.SP1Verifier`) and never written back into intent. A resumed deployment reuses the recorded address rather than re-resolving the default, so upgrading op-deployer mid-deployment cannot swap the verifier under a chain.
+   - Genesis deployments never select the release verifier: it does not exist in a generated genesis. They must set `sp1Verifier` explicitly, or the op-devstack builder can opt into deploying a test raw verifier during genesis.
 
 There is no other production operator-facing surface. `op-node`, `op-program`, `kona`, and rollup config do not take a bitmap at runtime.
 
@@ -129,6 +135,7 @@ Interop and ZK use the bitmap as their per-chain provisioning switch and have no
 | Solidity constants & predicate | `packages/contracts-bedrock/src/libraries/DevFeatures.sol` |
 | CLI input | `op-deployer/pkg/deployer/bootstrap/flags.go` |
 | Intent input + composition | `op-deployer/pkg/deployer/pipeline/l2genesis.go` |
+| Release-approved SP1 verifier | `op-deployer/pkg/deployer/standard/standard.go` |
 | Genesis writer | `packages/contracts-bedrock/scripts/L2Genesis.s.sol` |
 | L2 storage | `packages/contracts-bedrock/src/L2/L2DevFeatureFlags.sol` |
 | L2 runtime reader | `packages/contracts-bedrock/src/L2/L2ContractsManager.sol` |

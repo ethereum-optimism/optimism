@@ -64,6 +64,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			SuperchainProxyAdmin:            proxyAdminAddress,
 			L1ProxyAdminOwner:               common.BigToAddress(big.NewInt(13)),
 			Challenger:                      common.BigToAddress(big.NewInt(14)),
+			SP1Verifier:                     common.Address{},
 		})
 
 		// And do some simple asserts

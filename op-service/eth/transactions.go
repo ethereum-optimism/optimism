@@ -42,15 +42,6 @@ func DecodeTransactions(data []hexutil.Bytes) ([]*types.Transaction, error) {
 	return dest, nil
 }
 
-// TransactionsToHashes computes the transaction-hash for every transaction in the input.
-func TransactionsToHashes(elems []*types.Transaction) []common.Hash {
-	out := make([]common.Hash, len(elems))
-	for i, el := range elems {
-		out[i] = el.Hash()
-	}
-	return out
-}
-
 // CheckRecentTxs checks the depth recent blocks for txs from the account with address addr
 // and returns either:
 //   - blockNum containing the last tx and true if any was found

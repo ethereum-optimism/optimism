@@ -4,7 +4,7 @@ use super::OpZkvmPrecompiles;
 use alloy_evm::{Database, EvmEnv, EvmFactory};
 use alloy_op_evm::{
     OpEvm, OpEvmContext, OpTx, OpTxError,
-    post_exec::{PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext, WarmingState},
+    post_exec::{PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext},
 };
 use op_revm::{L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction};
 use revm::{
@@ -18,7 +18,7 @@ use revm::{
 pub struct ZkvmOpEvmFactory;
 
 impl PostExecEvmFactoryHooks for ZkvmOpEvmFactory {
-    type Snapshot = WarmingState;
+    type Snapshot = ();
 
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
     where

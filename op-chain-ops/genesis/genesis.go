@@ -168,6 +168,10 @@ type DevL1DeployConfigMinimal struct {
 	L1BPO3TimeOffset *uint64
 	// When BPO4 activates. Relative to L1 genesis.
 	L1BPO4TimeOffset *uint64
+	// When BPO5 activates. Relative to L1 genesis.
+	L1BPO5TimeOffset *uint64
+	// When Amsterdam activates. Relative to L1 genesis.
+	L1AmsterdamTimeOffset *uint64
 	// Blob schedule config.
 	BlobScheduleConfig *params.BlobScheduleConfig
 }
@@ -244,6 +248,14 @@ func NewL1GenesisMinimal(config *DevL1DeployConfigMinimal) (*core.Genesis, error
 	if config.L1BPO4TimeOffset != nil {
 		bpo4Time := uint64(timestamp) + uint64(*config.L1BPO4TimeOffset)
 		chainConfig.BPO4Time = &bpo4Time
+	}
+	if config.L1BPO5TimeOffset != nil {
+		bpo5Time := uint64(timestamp) + uint64(*config.L1BPO5TimeOffset)
+		chainConfig.BPO5Time = &bpo5Time
+	}
+	if config.L1AmsterdamTimeOffset != nil {
+		amsterdamTime := uint64(timestamp) + uint64(*config.L1AmsterdamTimeOffset)
+		chainConfig.AmsterdamTime = &amsterdamTime
 	}
 	if config.BlobScheduleConfig != nil {
 		chainConfig.BlobScheduleConfig = config.BlobScheduleConfig

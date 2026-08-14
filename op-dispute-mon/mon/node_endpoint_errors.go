@@ -21,7 +21,7 @@ func NewNodeEndpointErrorsMonitor(logger log.Logger, metrics NodeEndpointErrorsM
 	}
 }
 
-func (m *NodeEndpointErrorsMonitor) CheckNodeEndpointErrors(games []*types.EnrichedGameData) {
+func (m *NodeEndpointErrorsMonitor) CheckNodeEndpointErrors(games []*types.CommonGameData) {
 	// Use a set to track unique endpoint errors across all games
 	uniqueEndpointErrors := make(map[string]bool)
 

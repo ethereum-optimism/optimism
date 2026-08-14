@@ -17,23 +17,26 @@ type RClock interface {
 type BondMetrics interface {
 	RecordCredit(expectation metrics.CreditExpectation, count int)
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
+	RecordHonestActorBonds(address common.Address, data *metrics.HonestActorBondData)
 }
 
 type Bonds struct {
-	logger  log.Logger
-	clock   RClock
-	metrics BondMetrics
+	logger       log.Logger
+	clock        RClock
+	metrics      BondMetrics
+	honestActors types.HonestActors
 }
 
-func NewBonds(logger log.Logger, metrics BondMetrics, clock RClock) *Bonds {
+func NewBonds(logger log.Logger, metrics BondMetrics, clock RClock, honestActors types.HonestActors) *Bonds {
 	return &Bonds{
-		logger:  logger,
-		clock:   clock,
-		metrics: metrics,
+		logger:       logger,
+		clock:        clock,
+		metrics:      metrics,
+		honestActors: honestActors,
 	}
 }
 
-func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
+func (b *Bonds) CheckBonds(games []types.BondedGame) {
 	data := CalculateRequiredCollateral(games)
 	for addr, collateral := range data {
 		if collateral.Required.Cmp(collateral.Actual) > 0 {
@@ -43,52 +46,78 @@ func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
 	}
 
 	b.checkCredits(games)
+	b.checkHonestActorBonds(games)
 }
 
-func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
+func (b *Bonds) checkHonestActorBonds(games []types.BondedGame) {
+	honest := make(map[common.Address]*metrics.HonestActorBondData, len(b.honestActors))
+	for actor := range b.honestActors {
+		honest[actor] = &metrics.HonestActorBondData{
+			Pending: new(big.Int),
+			Lost:    new(big.Int),
+			Won:     new(big.Int),
+		}
+	}
+	for _, game := range games {
+		for _, bond := range game.BondData().Bonds {
+			if !bond.Resolved {
+				if b.honestActors.Contains(bond.Depositor) {
+					honest[bond.Depositor].Pending.Add(honest[bond.Depositor].Pending, bond.Amount)
+				}
+				continue
+			}
+			if !bond.Forfeited {
+				continue
+			}
+			if b.honestActors.Contains(bond.Depositor) {
+				honest[bond.Depositor].Lost.Add(honest[bond.Depositor].Lost, bond.Amount)
+			}
+			if b.honestActors.Contains(bond.Recipient) {
+				honest[bond.Recipient].Won.Add(honest[bond.Recipient].Won, bond.Amount)
+			}
+		}
+	}
+	for actor, data := range honest {
+		b.metrics.RecordHonestActorBonds(actor, data)
+	}
+}
+
+func (b *Bonds) checkCredits(games []types.BondedGame) {
 	creditMetrics := make(map[metrics.CreditExpectation]int)
 
 	for _, game := range games {
-		// Check if the max duration has been reached for this game
-		duration := uint64(b.clock.Now().Unix()) - game.Timestamp
-		maxDurationReached := duration >= game.MaxClockDuration+uint64(game.WETHDelay.Seconds())
-
-		// Iterate over claims, filter out resolved ones and sum up expected credits per recipient
-		expectedCredits := make(map[common.Address]*big.Int)
-		for _, claim := range game.Claims {
-			// Skip unresolved claims since these bonds will not appear in the credits.
-			if !claim.Resolved {
-				continue
-			}
-			// The recipient of a resolved claim is the claimant unless it's been countered.
-			recipient := claim.Claimant
-			if claim.IsRoot() && game.BlockNumberChallenged {
-				// The bond for the root claim is paid to the block number challenger if present
-				recipient = game.BlockNumberChallenger
-			} else if claim.CounteredBy != (common.Address{}) {
-				recipient = claim.CounteredBy
-			}
-			current := expectedCredits[recipient]
-			if current == nil {
-				current = big.NewInt(0)
-			}
-			expectedCredits[recipient] = new(big.Int).Add(current, claim.Bond)
-		}
+		data := game.BondData()
+		now := b.clock.Now()
+		_, isZK := game.(*types.ZKGameData)
 
 		allRecipients := make(map[common.Address]bool)
-		for address := range expectedCredits {
+		for address := range data.ExpectedCredits {
 			allRecipients[address] = true
 		}
-		for address := range game.Credits {
+		for address := range data.Credits {
 			allRecipients[address] = true
+		}
+		if isZK {
+			for address := range data.WithdrawalRequests {
+				allRecipients[address] = true
+			}
 		}
 
 		for recipient := range allRecipients {
-			actual := game.Credits[recipient]
+			actual := data.Credits[recipient]
 			if actual == nil {
 				actual = big.NewInt(0)
 			}
-			expected := expectedCredits[recipient]
+			maxDurationReached := !data.CreditWithdrawableAt.After(now)
+			if isZK {
+				request := data.WithdrawalRequests[recipient]
+				if request != nil && request.Amount != nil && request.Amount.Cmp(actual) > 0 {
+					actual = request.Amount
+				}
+				maxDurationReached = request != nil && request.Timestamp != nil && request.Timestamp.Sign() > 0 &&
+					!now.Before(time.Unix(request.Timestamp.Int64(), 0).Add(data.WETHDelay))
+			}
+			expected := data.ExpectedCredits[recipient]
 			if expected == nil {
 				expected = big.NewInt(0)
 			}
@@ -96,7 +125,7 @@ func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 			if maxDurationReached {
 				if comparison > 0 {
 					creditMetrics[metrics.CreditAboveWithdrawable] += 1
-					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "withdrawable", "withdrawable")
+					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Common().Proxy, "withdrawable", "withdrawable")
 				} else if comparison == 0 {
 					creditMetrics[metrics.CreditEqualWithdrawable] += 1
 				} else {
@@ -105,12 +134,12 @@ func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 			} else {
 				if comparison > 0 {
 					creditMetrics[metrics.CreditAboveNonWithdrawable] += 1
-					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "withdrawable", "non_withdrawable")
+					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Common().Proxy, "withdrawable", "non_withdrawable")
 				} else if comparison == 0 {
 					creditMetrics[metrics.CreditEqualNonWithdrawable] += 1
 				} else {
 					creditMetrics[metrics.CreditBelowNonWithdrawable] += 1
-					b.logger.Error("Credit withdrawn early", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "withdrawable", "non_withdrawable")
+					b.logger.Error("Credit withdrawn early", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Common().Proxy, "withdrawable", "non_withdrawable")
 				}
 			}
 		}

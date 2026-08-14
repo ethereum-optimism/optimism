@@ -15,7 +15,24 @@ diataxis: reference
 
 **op-node** implements the [rollup-node spec](https://specs.optimism.io/protocol/rollup-node.html), functioning as the consensus layer (CL) client of an OP Stack chain. It builds, relays, and verifies the canonical L2 chain, working alongside an execution layer client such as op-reth.
 
-<Update label="July 20, 2026" description="v1.19.3" tags={["Latest", "Stable"]}>
+<Update label="August 3, 2026" description="v1.19.4" tags={["Latest", "Stable"]}>
+
+> [!NOTE]
+> **Optional upgrade.** Sequencer and interop correctness fixes, plus an operator-facing compatibility improvement.
+
+> [!IMPORTANT]
+> **APKO Docker images:** Starting with this release, the Docker URL contains an additional `/nexus` in its path, see full Docker image path below. Our Docker builds are now APKO based and during a transition period, the APKO-based images for any component will be available at `https://us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/<component>:<version>`. When we migrate to APKO-only images, we may remove the `/nexus` again from our image paths and will give another notice in this case.
+
+> [!IMPORTANT]
+> The SuperAuthority deny-list check is now applied on the consolidation path ([#21970](https://github.com/ethereum-optimism/optimism/pull/21970)),
+> and stale sequencer build starts are rejected ([#21913](https://github.com/ethereum-optimism/optimism/pull/21913)).
+> op-node no longer requires the beacon node `version` endpoint ([#21915](https://github.com/ethereum-optimism/optimism/pull/21915)), which unblocks operators running restricted beacon endpoints.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.19.4)
+
+</Update>
+
+<Update label="July 20, 2026" description="v1.19.3" tags={["Stable"]}>
 
 > [!CAUTION]
 > **Mandatory upgrade for operators of Mode, Metal, and Zora using the built-in `--network` configs.** The previously embedded registry data set `keep_karst_upgrade_gas=true` for these chains, but their sequencers activated Karst with `false` — an op-node on v1.19.2 or earlier can derive a different post-Karst gas limit and halt safe-head progression. This release syncs the embedded configs to the canonical behavior ([#21674](https://github.com/ethereum-optimism/optimism/pull/21674)), so explicit overrides are no longer needed. OP Mainnet is unaffected (`true` remains correct). Recommended for all other operators.

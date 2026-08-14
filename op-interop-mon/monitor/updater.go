@@ -7,6 +7,7 @@ import (
 	"time"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -23,7 +24,7 @@ var ErrLogNotFound = errors.New("log not found")
 var updateInterval = 1 * time.Second
 
 type UpdaterClient interface {
-	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error)
+	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, optypes.Receipts, error)
 }
 
 var _ UpdaterClient = &sources.EthClient{}
@@ -201,7 +202,7 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 	// Add the block hash to the job's initiating hashes
 	job.AddInitiatingHash(blockInfo.Hash())
 
-	log, err := t.findLogEvent(receipts, job)
+	log, err := t.findLogEvent(receipts.Geth(), job)
 	if err == ErrLogNotFound {
 		t.log.Warn("initiating log not found", "job", job.String())
 		job.UpdateStatus(jobStatusInvalid)

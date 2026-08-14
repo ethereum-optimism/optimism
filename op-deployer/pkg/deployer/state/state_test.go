@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,6 +33,24 @@ func TestState_PrestateJSONRoundTrip(t *testing.T) {
 	chain, err := roundTripped.Chain(chainID)
 	require.NoError(t, err)
 	require.Equal(t, selectedPrestate, chain.Prestate)
+}
+
+func TestState_ContinuationJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	st := &State{Chains: []*ChainState{{
+		ID:           chainID,
+		Continuation: new(ContinuationState),
+	}}}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"continuation":{}`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, st.Chains[0].Continuation, chain.Continuation)
 }
 
 func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {
@@ -201,20 +220,16 @@ func TestState_CheckL1PredictInputs(t *testing.T) {
 	})
 
 	t.Run("matching deployer and opcm succeeds", func(t *testing.T) {
-		pinnedSender := deployer
-		pinnedOPCM := opcm
-		require.NoError(t, (&State{L1PredictSenderAddress: &pinnedSender, L1PredictOPCMAddress: &pinnedOPCM}).CheckL1PredictInputs(deployer, opcm))
+		require.NoError(t, (&State{PreparedDeployment: &PreparedDeployment{Deployer: deployer, OPCM: opcm}}).CheckL1PredictInputs(deployer, opcm))
 	})
 
 	t.Run("mismatched deployer fails", func(t *testing.T) {
-		pinned := other
-		err := (&State{L1PredictSenderAddress: &pinned}).CheckL1PredictInputs(deployer, opcm)
+		err := (&State{PreparedDeployment: &PreparedDeployment{Deployer: other, OPCM: opcm}}).CheckL1PredictInputs(deployer, opcm)
 		require.ErrorContains(t, err, "deployer address mismatch")
 	})
 
 	t.Run("mismatched opcm fails", func(t *testing.T) {
-		pinned := otherOPCM
-		err := (&State{L1PredictOPCMAddress: &pinned}).CheckL1PredictInputs(deployer, opcm)
+		err := (&State{PreparedDeployment: &PreparedDeployment{Deployer: deployer, OPCM: otherOPCM}}).CheckL1PredictInputs(deployer, opcm)
 		require.ErrorContains(t, err, "opcm address mismatch")
 	})
 }
@@ -225,8 +240,19 @@ func TestState_CheckNotPrepared(t *testing.T) {
 	})
 
 	t.Run("prepared state cannot be applied", func(t *testing.T) {
-		err := (&State{Prepared: true}).CheckNotPrepared()
+		err := (&State{PreparedDeployment: new(PreparedDeployment)}).CheckNotPrepared()
 		require.ErrorContains(t, err, "cannot be applied")
+	})
+}
+
+func TestState_CheckNotApplied(t *testing.T) {
+	t.Run("non-applied state can be prepared", func(t *testing.T) {
+		require.NoError(t, (&State{}).CheckNotApplied())
+	})
+
+	t.Run("applied state cannot be prepared", func(t *testing.T) {
+		err := (&State{AppliedIntent: &Intent{}}).CheckNotApplied()
+		require.ErrorContains(t, err, "cannot be prepared")
 	})
 }
 
@@ -269,26 +295,27 @@ func TestPreparedDeploymentClone(t *testing.T) {
 }
 
 func TestState_PreparedSerialization(t *testing.T) {
-	t.Run("omitted when false for backward compatibility", func(t *testing.T) {
+	t.Run("omitted when absent", func(t *testing.T) {
 		b, err := json.Marshal(&State{})
 		require.NoError(t, err)
-		require.NotContains(t, string(b), "prepared")
+		require.NotContains(t, string(b), "preparedDeployment")
 	})
 
 	t.Run("round-trips when set", func(t *testing.T) {
-		b, err := json.Marshal(&State{Prepared: true})
+		prepared := &PreparedDeployment{Deployer: common.Address{0x01}, OPCM: common.Address{0x02}}
+		b, err := json.Marshal(&State{PreparedDeployment: prepared})
 		require.NoError(t, err)
-		require.Contains(t, string(b), `"prepared":true`)
+		require.Contains(t, string(b), `"preparedDeployment"`)
 
 		var got State
 		require.NoError(t, json.Unmarshal(b, &got))
-		require.True(t, got.Prepared)
+		require.Equal(t, prepared, got.PreparedDeployment)
 	})
 
-	t.Run("absent field defaults to not prepared", func(t *testing.T) {
+	t.Run("absent field defaults to nil", func(t *testing.T) {
 		var got State
 		require.NoError(t, json.Unmarshal([]byte(`{"version":1}`), &got))
-		require.False(t, got.Prepared)
+		require.Nil(t, got.PreparedDeployment)
 	})
 }
 
@@ -338,6 +365,43 @@ func TestState_IsChainDeployed(t *testing.T) {
 			require.Equal(t, tt.want, (&State{Chains: tt.chains}).IsChainDeployed(id))
 		})
 	}
+}
+
+func TestChainState_ClearDerivedArtifacts(t *testing.T) {
+	var contracts addresses.OpChainContracts
+	contracts.SystemConfigProxy = common.HexToAddress("0xbeef")
+	anchor := &L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+	genesisBlockHash := common.HexToHash("0x9999")
+
+	c := &ChainState{
+		ID:                 common.HexToHash("0x0a"),
+		OpChainContracts:   contracts,
+		Deployed:           ptr.New(false),
+		Prestate:           common.HexToHash("0x1234"),
+		StartingAnchorRoot: &StartingAnchorProposal{Root: common.HexToHash("0x5678"), L2SequenceNumber: 9},
+		InitialGameType:    ptr.New(uint32(8)),
+		Allocs:             &GzipData[foundry.ForgeAllocs]{Data: &foundry.ForgeAllocs{}},
+		StartBlock:         anchor,
+		GenesisTime:        ptr.New(hexutil.Uint64(5600)),
+		GenesisBlockHash:   &genesisBlockHash,
+	}
+
+	c.ClearDerivedArtifacts()
+
+	require.Zero(t, c.Prestate)
+	require.Nil(t, c.StartingAnchorRoot)
+	require.Nil(t, c.Allocs, "stale allocs must not survive a re-prediction")
+	require.Nil(t, c.GenesisBlockHash)
+
+	// The anchor commitment and other chain fields must remain the same
+	require.Equal(t, common.HexToHash("0x0a"), c.ID)
+	require.Equal(t, anchor, c.StartBlock)
+	require.NotNil(t, c.GenesisTime)
+	require.EqualValues(t, 5600, *c.GenesisTime)
+	require.Equal(t, common.HexToAddress("0xbeef"), c.SystemConfigProxy)
+	require.Equal(t, ptr.New(uint32(8)), c.InitialGameType)
+	require.NotNil(t, c.Deployed)
+	require.False(t, *c.Deployed)
 }
 
 func TestState_SetChainContracts(t *testing.T) {

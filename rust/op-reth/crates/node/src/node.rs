@@ -288,21 +288,26 @@ impl OpNode {
             .with_interop_failsafe(self.interop_failsafe.clone())
     }
 
+    /// Returns the payload builder stock components install.
+    ///
+    /// Exposed so a wrapper node that replaces only the payload *service* still builds payloads
+    /// from the same configured builder.
+    pub fn payload_builder(&self) -> OpPayloadBuilder {
+        OpPayloadBuilder::new(self.args.compute_pending_block)
+            .with_builder_config(self.builder_config())
+    }
+
     /// Returns the components for the given [`RollupArgs`].
     pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
     where
         Node: FullNodeTypes<Types: OpNodeTypes>,
     {
-        let RollupArgs { disable_txpool_gossip, compute_pending_block, discovery_v4, .. } =
-            self.args;
+        let RollupArgs { disable_txpool_gossip, discovery_v4, .. } = self.args;
         ComponentsBuilder::default()
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
             .pool(self.standard_pool_builder())
-            .payload(BasicPayloadServiceBuilder::new(
-                OpPayloadBuilder::new(compute_pending_block)
-                    .with_builder_config(self.builder_config()),
-            ))
+            .payload(BasicPayloadServiceBuilder::new(self.payload_builder()))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
     }
@@ -1817,6 +1822,42 @@ mod tests {
             cfg.da_config.max_da_block_size(),
             Some(2),
             "builder_config must carry the node's live DA handle, not a detached copy"
+        );
+    }
+
+    /// The failsafe is written by the interop filter client after the payload builder has already
+    /// been constructed, so a config that copied the flag's value instead of sharing the handle
+    /// would leave the builder permanently ungated while every value-propagation assertion above
+    /// still passed.
+    #[test]
+    fn builder_config_interop_failsafe_is_live_shared_handle() {
+        let node = OpNode::new(RollupArgs::default());
+        let cfg = node.builder_config();
+
+        node.interop_failsafe.set(true);
+        assert!(
+            cfg.interop_failsafe.enabled(),
+            "builder_config must carry the node's live interop failsafe handle, not a detached copy"
+        );
+
+        node.interop_failsafe.set(false);
+        assert!(
+            !cfg.interop_failsafe.enabled(),
+            "builder_config must observe the failsafe being cleared, proving one shared handle"
+        );
+    }
+
+    /// Same detached-copy risk as the interop failsafe: the admin RPC flips this after startup.
+    #[test]
+    fn builder_config_operator_sdm_opt_in_is_live_shared_handle() {
+        let node = OpNode::new(RollupArgs::default());
+        let cfg = node.builder_config();
+
+        node.operator_sdm_opt_in.set(true);
+
+        assert!(
+            cfg.operator_sdm_opt_in.enabled(),
+            "builder_config must carry the node's live SDM opt-in handle, not a detached copy"
         );
     }
 }

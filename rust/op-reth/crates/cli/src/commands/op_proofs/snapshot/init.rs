@@ -1,12 +1,11 @@
 //! Command that builds the OP proofs trie-state snapshot at a target block.
 
 use clap::Parser;
+use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
-use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsStorageVersion};
-use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
     OpProofsProviderRO, OpProofsStore, SnapshotInitJob, db::MdbxProofsStorageV2,
 };
@@ -31,9 +30,9 @@ pub struct SnapshotInitCommand<C: ChainSpecParser> {
     pub target_block: Option<u64>,
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> SnapshotInitCommand<C> {
+impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotInitCommand<C> {
     /// Execute [`SnapshotInitCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {

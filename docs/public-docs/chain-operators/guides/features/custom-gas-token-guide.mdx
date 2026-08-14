@@ -4,14 +4,14 @@ description: Learn how to deploy a Custom Gas Token chain using OP Deployer.
 diataxis: how-to
 ---
 
-This guide provides instructions for chain operators who want to deploy a Custom Gas Token (CGT) chain. 
+This guide provides instructions for chain operators who want to deploy a Custom Gas Token (CGT) chain.
 See the [Custom Gas Token overview](/op-stack/features/custom-gas-token) for a general understanding of this OP Stack feature.
 
-A Custom Gas Token chain enables you to use any asset as the native fee currency instead of ETH. 
+A Custom Gas Token chain enables you to use any asset as the native fee currency instead of ETH.
 This asset may be an existing L1 token, a representation of a token from another chain, or a newly defined asset (or new L2 token) created at genesis.
 
 <Warning>
-Custom Gas Token v2 is a new implementation that is not compatible with legacy CGT chains. 
+Custom Gas Token v2 is a new implementation that is not compatible with legacy CGT chains.
 There is currently no migration path from legacy CGT to CGT v2, though one is planned to be put together.
 </Warning>
 
@@ -19,7 +19,7 @@ There is currently no migration path from legacy CGT to CGT v2, though one is pl
 
 Before deploying a CGT chain, ensure you have:
 
-*   **OP Deployer installed**: See [OP Deployer installation](/chain-operators/tools/op-deployer/installation) for setup instructions
+*   **OP Deployer installed**: See [Install op-deployer](/chain-operators/tools/op-deployer/installation) for setup instructions
 *   **L1 RPC endpoint**: Access to an Ethereum L1 node for deployment
 *   **Funded deployer account**: ETH for L1 gas costs during deployment
 *   **Token design**: Clear plan for your native asset (supply, distribution, bridging mechanism)
@@ -82,7 +82,7 @@ Deploying a CGT chain follows the standard OP Stack deployment process with addi
         batcher = "0xYourBatcherAddress"
         proposer = "0xYourProposerAddress"
         challenger = "0xYourChallengerAddress"
-        
+
       [chains.customGasToken]
         name = "My Custom Token"
         symbol = "MCT"
@@ -143,10 +143,10 @@ Deploying a CGT chain follows the standard OP Stack deployment process with addi
     Start your OP Stack services to start sequencing your CGT chain:
 
     * Sequencer Execution Client
-    * Sequencer Consensus Client 
-    * Batcher 
-    * Proposer 
-    * Challenger 
+    * Sequencer Consensus Client
+    * Batcher
+    * Proposer
+    * Challenger
 
   </Step>
 
@@ -157,26 +157,26 @@ Deploying a CGT chain follows the standard OP Stack deployment process with addi
     * Check L1 SystemConfig.isCustomGasToken() returns true
     * Check L2 L1Block.isCustomGasToken() returns true
     * Verify both flags match
-    
+
     **Test native asset operations**
     * Test minting native assets via authorized minter
     * Test burning native assets
     * Test fee payments in native token
     * Verify fee vault accumulation
-    
+
 
     **Test ETH rejection**
     * Attempt ETH deposit via OptimismPortal (should fail)
     * Attempt ETH withdrawal via L2ToL1MessagePasser (should fail)
     * Verify ETH operations are properly blocked
-    
+
 
     **Test bridge functionality**
 
     * Test deposits (L1 → L2 native asset minting)
     * Test withdrawals (L2 native → L1 token)
     * Verify proper locking/unlocking in liquidity contract
-    
+
   </Step>
 </Steps>
 
@@ -195,9 +195,8 @@ After deployment, you can:
 
 Monitor your chain's operational costs and adjust fee parameters as needed:
 
-*   **minBaseFee**: Adjust based on L1 gas costs and your token's value
-*   **operatorFee**: Adjust based on data availability costs
-*   Use `SystemConfig.setGasConfig()` to update parameters
+*   **minBaseFee**: Adjust based on L1 gas costs and your token's value, using `SystemConfig.setMinBaseFee()`
+*   **operatorFee**: Adjust based on data availability costs, using `SystemConfig.setOperatorFeeScalars()`
 
 ### Developer documentation
 

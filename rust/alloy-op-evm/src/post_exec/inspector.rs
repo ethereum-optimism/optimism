@@ -1,43 +1,33 @@
-use alloc::{collections::BTreeMap, vec::Vec};
-use alloy_primitives::{Address, B256, map::HashSet};
+use alloc::vec::Vec;
+use alloy_primitives::{Address, B256};
 use revm::{
     Inspector,
-    bytecode::opcode,
-    context::Block,
-    context_interface::{
-        ContextTr, CreateScheme, JournalTr, Transaction,
-        transaction::{AccessListItemTr, AuthorizationTr},
-    },
+    context_interface::ContextTr,
     inspector::JournalExt,
-    interpreter::{
-        CallInputs, CreateInputs, Interpreter,
-        interpreter_types::{InputsTr, Jumps},
-    },
-    primitives::TxKind,
+    interpreter::{CallInputs, CreateInputs, Interpreter},
 };
 
-const ACCOUNT_REWARM_REFUND: u64 = 2500;
-const SLOAD_REWARM_REFUND: u64 = 2000;
-const SSTORE_REWARM_REFUND: u64 = 2100;
-
-/// Exact refund categories for post-exec block-level warming.
+/// Refund categories a policy can attribute a rebate to.
+///
+/// The categories are shared vocabulary for diagnostics; the rebate amount each one carries is a
+/// property of the policy that emitted the event, not of this enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WarmingRefundKind {
-    /// Warm account rebate (+2500).
+pub enum PostExecRefundKind {
+    /// Rebate for re-touching an account already touched in the block.
     WarmAccount,
-    /// Warm storage read rebate (+2000).
+    /// Rebate for re-reading a storage slot already read in the block.
     WarmSload,
-    /// Warm storage write rebate (+2100).
+    /// Rebate for re-writing a storage slot already touched in the block.
     WarmSstore,
 }
 
-/// Exact refund attribution event emitted when a warming rebate is granted.
+/// Refund attribution event emitted when a policy grants a rebate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WarmingRefundEvent {
+pub struct PostExecRefundEvent {
     /// Replay-local transaction index that claimed the rebate.
     pub claiming_tx_index: u64,
     /// Refund kind.
-    pub kind: WarmingRefundKind,
+    pub kind: PostExecRefundKind,
     /// Rebate amount in gas.
     pub amount: u64,
     /// Account touched by the rebate.
@@ -84,397 +74,18 @@ pub struct PostExecExecutedTx {
     /// Consensus-facing total refund for the tx.
     pub refund_total: u64,
     /// Optional diagnostic attribution events for the tx.
-    pub refund_events: Vec<WarmingRefundEvent>,
-}
-
-#[derive(Debug, Clone, Default)]
-struct CurrentTxState {
-    tx_index: u64,
-    kind: Option<PostExecTxKind>,
-    initialized_top_level: bool,
-    refund_total: u64,
-    refund_events: Vec<WarmingRefundEvent>,
-    touched_accounts: HashSet<Address>,
-    touched_slots: HashSet<(Address, B256)>,
-    intrinsic_warm_accounts: HashSet<Address>,
-    intrinsic_warm_slots: HashSet<(Address, B256)>,
-}
-
-impl CurrentTxState {
-    fn begin(&mut self, ctx: PostExecTxContext) {
-        self.tx_index = ctx.tx_index;
-        self.kind = Some(ctx.kind);
-        self.initialized_top_level = false;
-        self.refund_total = 0;
-        self.refund_events.clear();
-        self.touched_accounts.clear();
-        self.touched_slots.clear();
-        self.intrinsic_warm_accounts.clear();
-        self.intrinsic_warm_slots.clear();
-    }
-
-    const fn kind(&self) -> Option<PostExecTxKind> {
-        self.kind
-    }
-
-    fn finish(&mut self) -> PostExecExecutedTx {
-        self.kind = None;
-        self.initialized_top_level = false;
-        PostExecExecutedTx {
-            refund_total: core::mem::take(&mut self.refund_total),
-            refund_events: core::mem::take(&mut self.refund_events),
-        }
-    }
-
-    fn emit_refund(
-        &mut self,
-        first_warmed_by_tx_index: u64,
-        kind: WarmingRefundKind,
-        amount: u64,
-        address: Address,
-        slot: Option<B256>,
-    ) {
-        if self.kind.is_some_and(PostExecTxKind::claims_refunds) {
-            self.refund_total = self.refund_total.saturating_add(amount);
-            self.refund_events.push(WarmingRefundEvent {
-                claiming_tx_index: self.tx_index,
-                kind,
-                amount,
-                address,
-                slot,
-                first_warmed_by_tx_index,
-            });
-        }
-    }
-}
-
-/// Block-scoped warming provenance snapshotted from an [`SDMWarmingInspector`].
-///
-/// Warming refunds are block-scoped. Carrying this state between subblock inspectors makes their
-/// refunds match one canonical execution. Provenance only feeds diagnostics; subblock-local
-/// transaction indices do not affect the consensus `SDMGasEntry` set.
-#[derive(Debug, Clone, Default)]
-pub struct WarmingState {
-    /// Account -> index of the tx that first warmed it.
-    warmed_accounts: BTreeMap<Address, u64>,
-    /// (account, slot) -> index of the tx that first warmed it.
-    warmed_slots: BTreeMap<(Address, B256), u64>,
-}
-
-/// Lightweight inspector that computes post-exec block-warming refunds.
-///
-/// # Known imprecision
-///
-/// The per-transaction sets (`touched_accounts` / `touched_slots`) are not journal-revert-aware: an
-/// access made inside a frame that later reverts still counts as touched for the rest of the
-/// transaction, so a subsequent genuine cold access in that same transaction is denied its rebate.
-/// That is an under-refund — it over-charges the sender and never over-debits a fee vault — so it
-/// is safe to leave as-is. See also the pre-frame-init note on the `create` hook below.
-#[derive(Debug, Clone, Default)]
-pub struct SDMWarmingInspector {
-    warmed_accounts: BTreeMap<Address, u64>,
-    warmed_slots: BTreeMap<(Address, B256), u64>,
-    current_tx: CurrentTxState,
-    last_tx: PostExecExecutedTx,
-}
-
-impl SDMWarmingInspector {
-    /// Begins tracking for the next transaction.
-    pub fn begin_tx(&mut self, ctx: PostExecTxContext) {
-        self.current_tx.begin(ctx);
-    }
-
-    /// Snapshots the block-scoped warming maps for carry-forward into another inspector.
-    pub fn warming_state(&self) -> WarmingState {
-        WarmingState {
-            warmed_accounts: self.warmed_accounts.clone(),
-            warmed_slots: self.warmed_slots.clone(),
-        }
-    }
-
-    /// Seeds the block-scoped warming maps from a prior [`warming_state`](Self::warming_state).
-    ///
-    /// Intended for a freshly constructed inspector (empty maps); the carried provenance is
-    /// installed wholesale so subsequent touches see the accounts/slots warmed earlier in the
-    /// block. The per-tx working state ([`begin_tx`](Self::begin_tx)) is unaffected.
-    pub fn seed_warming_state(&mut self, state: WarmingState) {
-        self.warmed_accounts = state.warmed_accounts;
-        self.warmed_slots = state.warmed_slots;
-    }
-
-    /// Notes an account touch that happened outside opcode stepping — i.e. a protocol-level state
-    /// access such as the per-transaction fee-vault settlement write in `OpEvm::transact_raw`.
-    ///
-    /// Such a touch is **not** a user EIP-2929 opcode access: the transaction is never charged a
-    /// cold account-access cost for it, so no cold->warm surcharge is ever paid and no warming
-    /// rebate is owed. It therefore records the account as warmed (so a *later* tx that genuinely
-    /// accesses it via an opcode — a real cold access — still earns its rebate) but never itself
-    /// claims one. Passing `allow_refund = false` gives exactly that: `observe_account_touch` still
-    /// records the warm in `warmed_accounts`, but suppresses the refund.
-    pub fn note_account_touch(&mut self, address: Address) {
-        self.observe_account_touch(address, false);
-    }
-
-    /// Finishes the current transaction and stores the extracted result.
-    pub fn finish_tx(&mut self) -> PostExecExecutedTx {
-        let result = self.current_tx.finish();
-        self.last_tx = result.clone();
-        result
-    }
-
-    /// Takes the extracted result for the most recently finished transaction.
-    pub fn take_last_tx_result(&mut self) -> PostExecExecutedTx {
-        core::mem::take(&mut self.last_tx)
-    }
-
-    fn ensure_top_level_initialized<CTX>(&mut self, context: &CTX)
-    where
-        CTX: ContextTr<Journal: JournalExt>,
-    {
-        if self.current_tx.kind().is_none() || self.current_tx.initialized_top_level {
-            return;
-        }
-
-        self.current_tx.initialized_top_level = true;
-        self.collect_intrinsic_warmth(context);
-
-        let caller = context.tx().caller();
-        self.observe_account_touch(caller, true);
-
-        if let TxKind::Call(target) = context.tx().kind() {
-            self.observe_account_touch(target, true);
-        }
-    }
-
-    fn collect_intrinsic_warmth<CTX>(&mut self, context: &CTX)
-    where
-        CTX: ContextTr<Journal: JournalExt>,
-    {
-        self.current_tx.intrinsic_warm_accounts.insert(context.block().beneficiary());
-        self.current_tx
-            .intrinsic_warm_accounts
-            .extend(context.journal_ref().precompile_addresses().iter().copied());
-
-        // EIP-2929 pre-warms the transaction's own sender and call target: they are added to the
-        // accessed-address set at the start of the tx, so the tx is billed the warm access cost
-        // (100) for them and never the cold cost (2600). No cold->warm surcharge is ever paid for a
-        // tx's own sender/to, so a later tx must not claim a warming rebate for them — even when an
-        // earlier tx in the block already warmed the address. They are still recorded in
-        // `warmed_accounts` (via `observe_account_touch`), so a *different* later tx that accesses
-        // them through a normal opcode (genuinely cold for that tx) still earns its rebate.
-        // The `TxKind::Create` created-contract address is handled in the `create` hook.
-        self.current_tx.intrinsic_warm_accounts.insert(context.tx().caller());
-        if let TxKind::Call(target) = context.tx().kind() {
-            self.current_tx.intrinsic_warm_accounts.insert(target);
-        }
-
-        if let Some(access_list) = context.tx().access_list() {
-            for item in access_list {
-                let address = *item.address();
-                self.current_tx.intrinsic_warm_accounts.insert(address);
-                for slot in item.storage_slots() {
-                    self.current_tx.intrinsic_warm_slots.insert((address, *slot));
-                }
-            }
-        }
-
-        for authority in context.tx().authorization_list() {
-            if let Some(authority) = authority.authority() {
-                self.current_tx.intrinsic_warm_accounts.insert(authority);
-            }
-        }
-    }
-
-    fn observe_account_touch(&mut self, address: Address, allow_refund: bool) {
-        if self.current_tx.kind().is_none() {
-            return;
-        }
-
-        if self.current_tx.touched_accounts.insert(address) &&
-            allow_refund &&
-            !self.current_tx.intrinsic_warm_accounts.contains(&address)
-        {
-            if let Some(first_warmed_by_tx_index) = self.warmed_accounts.get(&address).copied() {
-                self.current_tx.emit_refund(
-                    first_warmed_by_tx_index,
-                    WarmingRefundKind::WarmAccount,
-                    ACCOUNT_REWARM_REFUND,
-                    address,
-                    None,
-                );
-            }
-        }
-
-        self.warmed_accounts.entry(address).or_insert(self.current_tx.tx_index);
-    }
-
-    fn observe_slot_touch(&mut self, address: Address, slot: B256, is_sstore: bool) {
-        if self.current_tx.kind().is_none() {
-            return;
-        }
-
-        // Storage accesses should never also claim the account refund.
-        self.observe_account_touch(address, false);
-
-        let slot_key = (address, slot);
-        if self.current_tx.touched_slots.insert(slot_key) &&
-            !self.current_tx.intrinsic_warm_slots.contains(&slot_key)
-        {
-            if let Some(first_warmed_by_tx_index) = self.warmed_slots.get(&slot_key).copied() {
-                let (kind, amount) = if is_sstore {
-                    (WarmingRefundKind::WarmSstore, SSTORE_REWARM_REFUND)
-                } else {
-                    (WarmingRefundKind::WarmSload, SLOAD_REWARM_REFUND)
-                };
-                self.current_tx.emit_refund(
-                    first_warmed_by_tx_index,
-                    kind,
-                    amount,
-                    address,
-                    Some(slot),
-                );
-            }
-        }
-
-        self.warmed_slots.entry(slot_key).or_insert(self.current_tx.tx_index);
-    }
-}
-
-impl super::PostExecRefundInspector for SDMWarmingInspector {
-    type Snapshot = WarmingState;
-
-    fn begin_tx(&mut self, ctx: PostExecTxContext) {
-        self.current_tx.begin(ctx);
-    }
-
-    fn note_account_touch(&mut self, address: Address) {
-        self.observe_account_touch(address, false);
-    }
-
-    #[allow(clippy::use_self)] // Explicitly delegate to the inherent method, not this trait method.
-    fn finish_tx(&mut self) -> PostExecExecutedTx {
-        SDMWarmingInspector::finish_tx(self)
-    }
-
-    fn snapshot(&self) -> WarmingState {
-        self.warming_state()
-    }
-
-    fn restore(&mut self, snapshot: WarmingState) {
-        self.seed_warming_state(snapshot);
-    }
-}
-
-impl<CTX> Inspector<CTX> for SDMWarmingInspector
-where
-    CTX: ContextTr<Journal: JournalExt>,
-{
-    fn step(&mut self, interp: &mut Interpreter, context: &mut CTX) {
-        self.ensure_top_level_initialized(context);
-
-        match interp.bytecode.opcode() {
-            opcode::SLOAD | opcode::SSTORE => {
-                if let Ok(slot) = interp.stack.peek(0) {
-                    let slot = B256::from(slot.to_be_bytes());
-                    self.observe_slot_touch(
-                        interp.input.target_address(),
-                        slot,
-                        interp.bytecode.opcode() == opcode::SSTORE,
-                    );
-                }
-            }
-            opcode::EXTCODECOPY |
-            opcode::EXTCODEHASH |
-            opcode::EXTCODESIZE |
-            opcode::BALANCE |
-            opcode::SELFDESTRUCT => {
-                if let Ok(word) = interp.stack.peek(0) {
-                    self.observe_account_touch(
-                        Address::from_word(B256::from(word.to_be_bytes())),
-                        true,
-                    );
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn call(
-        &mut self,
-        context: &mut CTX,
-        inputs: &mut CallInputs,
-    ) -> Option<revm::interpreter::CallOutcome> {
-        if context.journal().depth() == 0 {
-            self.ensure_top_level_initialized(context);
-        }
-        self.observe_account_touch(inputs.bytecode_address, true);
-        None
-    }
-
-    fn create(
-        &mut self,
-        context: &mut CTX,
-        inputs: &mut CreateInputs,
-    ) -> Option<revm::interpreter::CreateOutcome> {
-        let top_level = context.journal().depth() == 0;
-        if top_level {
-            self.ensure_top_level_initialized(context);
-        }
-
-        let caller = inputs.caller();
-        self.observe_account_touch(caller, true);
-
-        // This hook seeds the created-address cache before frame initialization. CREATE must use
-        // the caller's pre-bump nonce; a wrong value changes the deployed address.
-        let created_address = match inputs.scheme() {
-            CreateScheme::Create => {
-                let nonce = context
-                    .journal_ref()
-                    .evm_state()
-                    .get(&caller)
-                    .map(|account| account.info.nonce)
-                    .expect("create caller must be loaded before inspection");
-                inputs.created_address(nonce)
-            }
-            // These schemes are nonce-independent. List them so new schemes require review.
-            CreateScheme::Create2 { .. } | CreateScheme::Custom { .. } => inputs.created_address(0),
-        };
-
-        // CREATE and CREATE2 warm the created address without a cold-account surcharge, so the
-        // creating tx has no cold-to-warm delta to rebate. Keep recording it for later txs.
-        self.current_tx.intrinsic_warm_accounts.insert(created_address);
-        // This runs before `make_create_frame` does its own checks. On an early failure there
-        // (depth limit, insufficient balance, nonce overflow) revm returns before
-        // `journal.load_account(created_address)`, so it never warms the address — yet the
-        // block-warm set now says it is warm, and a later tx that genuinely cold-accesses
-        // it claims a rebate it did not earn. Left as-is deliberately: producer and
-        // verifier agree, the failing path sinks the 32,000-gas CREATE charge (only the
-        // EIP-8037 state-gas component is returned), and the address must derive from an
-        // account the attacker already controls — so it costs at least 32,000 gas to shift
-        // at most 2,500. A real fix gates on `create_end` and has to decide what
-        // to do about `CreateCollision`, which warms the address but reports none.
-        self.observe_account_touch(created_address, true);
-        None
-    }
-
-    fn selfdestruct(
-        &mut self,
-        _contract: Address,
-        target: Address,
-        _value: alloy_primitives::U256,
-    ) {
-        self.observe_account_touch(target, true);
-    }
+    pub refund_events: Vec<PostExecRefundEvent>,
 }
 
 /// Composite inspector that always includes a refund inspector `R` alongside a caller-provided
 /// inner inspector `I`, fanning every hook to both.
 ///
-/// `R` is fixed by the EVM factory (it defaults to [`SDMWarmingInspector`]); the always-present
-/// refund inspector is what lets `OpEvm<DB, I, R>` expose post-exec hooks for *any* user inspector
-/// `I` — as `alloy_evm`'s `BlockExecutorFactory` requires.
+/// `R` is fixed by the EVM factory (it defaults to
+/// [`NullRefundPolicy`](super::NullRefundPolicy)); the always-present refund inspector is what lets
+/// `OpEvm<DB, I, R>` expose post-exec hooks for *any* user inspector `I` — as `alloy_evm`'s
+/// `BlockExecutorFactory` requires.
 #[derive(Debug, Clone)]
-pub struct PostExecCompositeInspector<I, R = SDMWarmingInspector> {
+pub struct PostExecCompositeInspector<I, R = super::NullRefundPolicy> {
     inner: I,
     post_exec: R,
 }
@@ -530,40 +141,36 @@ impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
     }
 }
 
-impl<CTX, INTR, I, R> Inspector<CTX, INTR> for PostExecCompositeInspector<I, R>
+impl<CTX, I, R> Inspector<CTX> for PostExecCompositeInspector<I, R>
 where
-    INTR: revm::interpreter::InterpreterTypes,
-    I: Inspector<CTX, INTR>,
-    R: Inspector<CTX, INTR>,
+    CTX: ContextTr<Journal: JournalExt>,
+    I: Inspector<CTX>,
+    R: super::PostExecRefundInspector,
 {
-    fn initialize_interp(&mut self, interp: &mut Interpreter<INTR>, context: &mut CTX) {
+    fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut CTX) {
         self.inner.initialize_interp(interp, context);
-        self.post_exec.initialize_interp(interp, context);
     }
 
-    fn step(&mut self, interp: &mut Interpreter<INTR>, context: &mut CTX) {
+    fn step(&mut self, interp: &mut Interpreter, context: &mut CTX) {
         self.inner.step(interp, context);
-        self.post_exec.step(interp, context);
+        self.post_exec.inspect_step(interp, context);
     }
 
-    fn step_end(&mut self, interp: &mut Interpreter<INTR>, context: &mut CTX) {
+    fn step_end(&mut self, interp: &mut Interpreter, context: &mut CTX) {
         self.inner.step_end(interp, context);
-        self.post_exec.step_end(interp, context);
     }
 
     fn log(&mut self, context: &mut CTX, log: alloy_primitives::Log) {
-        self.inner.log(context, log.clone());
-        self.post_exec.log(context, log);
+        self.inner.log(context, log);
     }
 
     fn log_full(
         &mut self,
-        interp: &mut Interpreter<INTR>,
+        interp: &mut Interpreter,
         context: &mut CTX,
         log: alloy_primitives::Log,
     ) {
-        self.inner.log_full(interp, context, log.clone());
-        self.post_exec.log_full(interp, context, log);
+        self.inner.log_full(interp, context, log);
     }
 
     fn call(
@@ -571,13 +178,11 @@ where
         context: &mut CTX,
         inputs: &mut CallInputs,
     ) -> Option<revm::interpreter::CallOutcome> {
-        // Always run both inspectors: the warming inspector's first-touch observations drive
-        // block-scoped refund attribution and must not be gated on whether the user inspector
-        // short-circuits the frame. The warming inspector is expected to never synthesize an
-        // outcome, so inner's return value is authoritative.
+        // Always run the refund observer: its first-touch observations must not be gated on
+        // whether the user inspector short-circuits the frame. The user inspector's return value
+        // remains authoritative because the refund seam is observer-only.
         let inner = self.inner.call(context, inputs);
-        let post_exec = self.post_exec.call(context, inputs);
-        debug_assert!(post_exec.is_none(), "refund inspector must not synthesize a call outcome",);
+        self.post_exec.inspect_call(context, inputs);
         inner
     }
 
@@ -588,7 +193,9 @@ where
         outcome: &mut revm::interpreter::CallOutcome,
     ) {
         self.inner.call_end(context, inputs, outcome);
-        self.post_exec.call_end(context, inputs, outcome);
+        // The refund observer sees the outcome the user inspector settled on, and only by
+        // shared reference: the seam is observer-only, so it cannot rewrite the frame result.
+        self.post_exec.inspect_call_end(context, inputs, outcome);
     }
 
     fn create(
@@ -596,10 +203,8 @@ where
         context: &mut CTX,
         inputs: &mut CreateInputs,
     ) -> Option<revm::interpreter::CreateOutcome> {
-        // See `call` above: always observe; inner's outcome wins.
         let inner = self.inner.create(context, inputs);
-        let post_exec = self.post_exec.create(context, inputs);
-        debug_assert!(post_exec.is_none(), "refund inspector must not synthesize a create outcome",);
+        self.post_exec.inspect_create(context, inputs);
         inner
     }
 
@@ -610,14 +215,11 @@ where
         outcome: &mut revm::interpreter::CreateOutcome,
     ) {
         self.inner.create_end(context, inputs, outcome);
-        self.post_exec.create_end(context, inputs, outcome);
+        self.post_exec.inspect_create_end(context, inputs, outcome);
     }
 
     fn selfdestruct(&mut self, contract: Address, target: Address, value: alloy_primitives::U256) {
         self.inner.selfdestruct(contract, target, value);
-        self.post_exec.selfdestruct(contract, target, value);
+        self.post_exec.inspect_selfdestruct(contract, target, value);
     }
 }
-
-#[cfg(test)]
-mod tests;

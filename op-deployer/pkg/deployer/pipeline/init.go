@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 func IsSupportedStateVersion(version int) bool {
@@ -20,6 +21,11 @@ func IsSupportedStateVersion(version int) bool {
 func ValidateInputs(intent *state.Intent, st *state.State) error {
 	if err := intent.Check(); err != nil {
 		return err
+	}
+	if intent.OPCMAddress != nil {
+		if _, ok := intent.GlobalDeployOverrides["sp1Verifier"]; ok {
+			return fmt.Errorf("sp1Verifier must not be specified when using a predeployed OPCM")
+		}
 	}
 	if !IsSupportedStateVersion(st.Version) {
 		return fmt.Errorf("unsupported state version: %d", st.Version)
@@ -55,8 +61,7 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 
 		// If only an OPCM address is provided, resolve SuperchainConfigProxy from it on-chain.
 		if superchainConfigAddr == (common.Address{}) && opcmAddr != (common.Address{}) {
-			opcmContract := opcm.NewContract(opcmAddr, env.L1Client)
-			resolved, err := opcmContract.SuperchainConfig(ctx)
+			resolved, err := resolveSuperchainConfig(ctx, env.L1Client, opcmAddr)
 			if err != nil {
 				return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
 			}
@@ -146,6 +151,15 @@ func InitGenesisStrategy(env *Env, intent *state.Intent, st *state.State) error 
 
 func immutableErr(field string, was, is any) error {
 	return fmt.Errorf("%s is immutable: was %v, is %v", field, was, is)
+}
+
+func resolveSuperchainConfig(ctx context.Context, client *ethclient.Client, opcmAddr common.Address) (common.Address, error) {
+	opcmContract := opcm.NewContract(opcmAddr, client)
+	validatorAddr, err := opcmContract.OPCMStandardValidator(ctx)
+	if err == nil {
+		return opcm.NewContract(validatorAddr, client).SuperchainConfig(ctx)
+	}
+	return opcmContract.SuperchainConfig(ctx)
 }
 
 func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {

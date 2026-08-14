@@ -12,7 +12,7 @@ import (
 )
 
 func TestCheckDifferentRoots(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointDifferentRoots: true,
@@ -65,7 +65,7 @@ func TestCheckDifferentRoots(t *testing.T) {
 }
 
 func TestCheckDifferentRoots_NoDisagreements(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointDifferentRoots: false,
@@ -89,7 +89,7 @@ func TestCheckDifferentRoots_NoDisagreements(t *testing.T) {
 }
 
 func TestCheckDifferentRoots_EmptyGamesList(t *testing.T) {
-	games := []*types.EnrichedGameData{}
+	games := []*types.CommonGameData{}
 	metrics := &stubDifferentOutputRootMetrics{}
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	monitor := NewDifferentRootMonitor(logger, metrics)
@@ -104,7 +104,7 @@ func TestCheckDifferentRoots_EmptyGamesList(t *testing.T) {
 }
 
 func TestCheckDifferentRoots_AllGamesHaveDisagreements(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointDifferentRoots: true,

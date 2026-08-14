@@ -95,9 +95,9 @@ contract DeployConfig is Script {
     uint256 public faultGameV2MaxClockDuration;
 
     // ZK Dispute Game Configuration
+    address public sp1Verifier;
     uint256 public zkDisputeGameInitBond;
     bytes32 public zkDisputeGameAbsolutePrestate;
-    address public zkDisputeGameVerifier;
     uint256 public zkDisputeGameMaxChallengeDuration;
     uint256 public zkDisputeGameMaxProveDuration;
     uint256 public zkDisputeGameChallengerBond;
@@ -200,9 +200,9 @@ contract DeployConfig is Script {
         faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", uint256(10800));
         faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", uint256(302400));
 
+        sp1Verifier = _readOr(_json, "$.sp1Verifier", address(0));
         zkDisputeGameInitBond = _readOr(_json, "$.zkDisputeGameInitBond", uint256(1 ether));
         zkDisputeGameAbsolutePrestate = bytes32(_readOr(_json, "$.zkDisputeGameAbsolutePrestate", uint256(0)));
-        zkDisputeGameVerifier = _readOr(_json, "$.zkDisputeGameVerifier", address(0));
         zkDisputeGameMaxChallengeDuration = _readOr(_json, "$.zkDisputeGameMaxChallengeDuration", uint256(604800));
         zkDisputeGameMaxProveDuration = _readOr(_json, "$.zkDisputeGameMaxProveDuration", uint256(259200));
         zkDisputeGameChallengerBond = _readOr(_json, "$.zkDisputeGameChallengerBond", uint256(1 ether));
@@ -265,6 +265,11 @@ contract DeployConfig is Script {
     /// @notice Allow the `devFeatureBitmap` config to be overridden in testing environments
     function setDevFeatureBitmap(bytes32 _devFeatureBitmap) public {
         devFeatureBitmap = _devFeatureBitmap;
+    }
+
+    /// @notice Sets the raw SP1 verifier for testing.
+    function setSP1Verifier(address _sp1Verifier) public {
+        sp1Verifier = _sp1Verifier;
     }
 
     /// @notice Allow the `useUpgradedFork` config to be overridden in testing environments

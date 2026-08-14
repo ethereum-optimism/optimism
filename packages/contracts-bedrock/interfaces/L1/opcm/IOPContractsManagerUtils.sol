@@ -7,7 +7,7 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
 
 interface IOPContractsManagerUtils {
@@ -43,7 +43,6 @@ interface IOPContractsManagerUtils {
     /// @notice Configuration struct for the ZKDisputeGame.
     struct ZKDisputeGameConfig {
         Claim absolutePrestate;
-        IZKVerifier verifier;
         Duration maxChallengeDuration;
         Duration maxProveDuration;
         uint256 challengerBond;
@@ -65,6 +64,7 @@ interface IOPContractsManagerUtils {
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
     error OPContractsManagerUtils_UnsupportedGameType();
+    error OPContractsManagerUtils_InvalidZKGameArgsLength(uint256 length);
     error ReservedBitsSet();
     error UnsupportedERCVersion(uint8 version);
     error SemverComp_InvalidSemverParts();
@@ -163,6 +163,8 @@ interface IOPContractsManagerUtils {
         external
         view
         returns (bytes memory);
+
+    function systemConfigFor(ISystemConfig _default, address _target) external view returns (ISystemConfig);
 
     function __constructor__(IOPContractsManagerContainer _contractsContainer) external;
 }

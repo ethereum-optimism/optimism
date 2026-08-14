@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -18,7 +19,7 @@ type Includer interface {
 
 type IncludedTx struct {
 	Transaction *types.Transaction
-	Receipt     *types.Receipt
+	Receipt     *optypes.Receipt
 }
 
 // EL represents an EVM execution layer.
@@ -41,7 +42,7 @@ func NewReliableEL(el EL, blockTime time.Duration) EL {
 }
 
 type ReceiptGetter interface {
-	TransactionReceipt(context.Context, common.Hash) (*types.Receipt, error)
+	TransactionReceipt(context.Context, common.Hash) (*optypes.Receipt, error)
 }
 
 type Sender interface {

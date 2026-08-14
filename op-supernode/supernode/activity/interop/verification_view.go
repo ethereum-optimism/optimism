@@ -38,7 +38,7 @@ func (i *Interop) resolveFrontierVerificationView(blocksAtTS map[eth.ChainID]eth
 		if err != nil {
 			return nil, fmt.Errorf("chain %s: failed to fetch receipts for frontier block %s: %w", chainID, blockID, err)
 		}
-		view.blocks[chainID] = buildFrontierBlockView(chainID, blockInfo, receipts)
+		view.blocks[chainID] = buildFrontierBlockView(chainID, blockInfo, receipts.Geth())
 	}
 	return view, nil
 }

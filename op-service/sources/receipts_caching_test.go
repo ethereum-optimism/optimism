@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -17,10 +17,10 @@ type mockReceiptsProvider struct {
 	mock.Mock
 }
 
-func (m *mockReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
+func (m *mockReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (optypes.Receipts, error) {
 	block := eth.ToBlockID(blockInfo)
 	args := m.Called(ctx, block, txHashes)
-	return args.Get(0).(types.Receipts), args.Error(1)
+	return args.Get(0).(optypes.Receipts), args.Error(1)
 }
 
 func TestCachingReceiptsProvider_Caching(t *testing.T) {
@@ -33,7 +33,7 @@ func TestCachingReceiptsProvider_Caching(t *testing.T) {
 	defer done()
 
 	mrp.On("FetchReceipts", ctx, blockid, txHashes).
-		Return(types.Receipts(receipts), error(nil)).
+		Return(optypes.FromGethReceipts(receipts), error(nil)).
 		Once() // receipts should be cached after first fetch
 
 	bInfo, _, _ := block.Info(true, true)
@@ -41,7 +41,7 @@ func TestCachingReceiptsProvider_Caching(t *testing.T) {
 		gotRecs, err := rp.FetchReceipts(ctx, bInfo, txHashes)
 		require.NoError(t, err)
 		for i, gotRec := range gotRecs {
-			requireEqualReceipt(t, receipts[i], gotRec)
+			requireEqualReceipt(t, receipts[i], &gotRec.Receipt)
 		}
 	}
 	mrp.AssertExpectations(t)
@@ -55,7 +55,7 @@ func TestCachingReceiptsProvider_Concurrency(t *testing.T) {
 	rp := NewCachingReceiptsProvider(mrp, nil, 1)
 
 	mrp.On("FetchReceipts", mock.Anything, blockid, txHashes).
-		Return(types.Receipts(receipts), error(nil)).
+		Return(optypes.FromGethReceipts(receipts), error(nil)).
 		Once() // receipts should be cached after first fetch
 
 	runConcurrentFetchingTest(t, rp, 32, receipts, block)

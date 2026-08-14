@@ -25,6 +25,16 @@ use tokio::time::sleep;
 use tracing::info;
 
 /// Launch the node in one of three proof-history modes:
+///
+/// # Keep in sync
+///
+/// The test-only `op-reth-sdm-fixture` binary duplicates this function because it launches a node
+/// type that wraps [`OpNode`] with a different payload service. The wiring below cannot be shared
+/// generically: reth parameterizes add-ons and the RPC stack by the node's component set, so a
+/// launcher generic over the node type has to restate reth's entire `EthApi`/`RpcNodeCore` bound
+/// chain — a worse artifact than the duplication. Any change here (a new storage version, another
+/// RPC override, different ExEx configuration) must be mirrored in
+/// `op-reth/crates/sdm-fixture-node/src/lib.rs`.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     args: RollupArgs,
@@ -116,7 +126,7 @@ where
 }
 
 /// Spawns a task that periodically reports metrics for the proofs DB.
-fn spawn_proofs_db_metrics<S>(
+pub fn spawn_proofs_db_metrics<S>(
     executor: TaskExecutor,
     storage: Arc<S>,
     metrics_report_interval: Duration,

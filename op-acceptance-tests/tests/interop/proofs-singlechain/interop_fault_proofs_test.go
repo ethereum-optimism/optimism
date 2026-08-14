@@ -1,26 +1,31 @@
 package proofs_singlechain
 
 import (
+	"os"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sfp "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/superfaultproofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
 func TestInteropSingleChainFaultProofs(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainInterop(t)
-	sfp.RunSingleChainSuperFaultProofSmokeTest(t, sys)
+	sfp.RunSingleChainSuperFaultProofSmokeTest(t, sys, proofRunners()...)
 }
 
 func TestInteropSingleChainFaultProofsWithSDM(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sysgo.SkipOnOpGeth(t, "SDM PostExec is op-reth only")
-
-	sys := presets.NewSingleChainInterop(t)
-	err := sys.L2ELA.Escape().L2EthClient().RPC().CallContext(t.Ctx(), nil, "admin_setOperatorSdmOptIn", true)
-	t.Require().NoError(err, "admin_setOperatorSdmOptIn(true) RPC failed")
+	sys := sdmtest.NewFixtureSingleChainFaultProofSystem(t)
 	sfp.RunSingleChainSuperFaultProofSDMSmokeTest(t, sys)
+}
+
+func proofRunners() []sfp.ProofRunner {
+	runners := []sfp.ProofRunner{sfp.NewKonaProofRunner()}
+	if os.Getenv("RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR") != "" || os.Getenv("RUST_JIT_BUILD") != "" {
+		runners = append(runners, sfp.NewSP1NativeProofRunner())
+	}
+	return runners
 }

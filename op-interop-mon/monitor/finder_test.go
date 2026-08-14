@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
@@ -19,7 +20,7 @@ import (
 type mockClient struct {
 	infoByLabel           func(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	infoByNumber          func(ctx context.Context, number uint64) (eth.BlockInfo, error)
-	fetchReceiptsByNumber func(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error)
+	fetchReceiptsByNumber func(ctx context.Context, number uint64) (eth.BlockInfo, optypes.Receipts, error)
 	err                   error
 }
 
@@ -45,7 +46,7 @@ func (m *mockClient) InfoByNumber(ctx context.Context, number uint64) (eth.Block
 	}
 }
 
-func (m *mockClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error) {
+func (m *mockClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, optypes.Receipts, error) {
 	if m.fetchReceiptsByNumber != nil {
 		return m.fetchReceiptsByNumber(ctx, number)
 	} else {
@@ -101,11 +102,11 @@ func TestRPCFinder_processBlock(t *testing.T) {
 
 	finder := NewFinder(eth.ChainIDFromUInt64(1), client, fakeReceiptsToCases, callback, mockFinalizedCallback, 1000, logger)
 
-	receipts := []*types.Receipt{
-		{
+	receipts := optypes.Receipts{
+		{Receipt: types.Receipt{
 			Status: 1,
 			TxHash: common.Hash{0x1},
-		},
+		}},
 	}
 
 	// Add a first block
@@ -153,7 +154,7 @@ func TestProcessBlockSetsExecutingTimestamp(t *testing.T) {
 	)
 
 	blockInfo := eth.HeaderBlockInfo(&types.Header{Number: big.NewInt(5), Time: 1234})
-	require.NoError(t, finder.processBlock(blockInfo, types.Receipts{}))
+	require.NoError(t, finder.processBlock(blockInfo, optypes.Receipts{}))
 	require.NotNil(t, got)
 	require.Equal(t, uint64(1234), got.executingTimestamp)
 }

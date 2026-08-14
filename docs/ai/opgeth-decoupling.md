@@ -519,7 +519,7 @@ import op-geth-only symbols by design).
 | Test migration: wait.go split, L2 call sites, `L2Client` type, sysgo audit, delete op-e2e/opgeth (§13) | `apis.EthClient` + header-only variants | open (#20265 + subs) |
 | op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | open (#20415 Rust, #21196 Go) |
 | Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
-| op-simulate / op-run-block (§14) | delete | open (#21282) |
+| op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
 | Log context extensions (§15) | owned `op-service/log` layer (alias sweep → owned interface) | open |
 | RPC recorder hooks + `JsonError` (§15) | client wrappers + server-side interception | open |
@@ -527,6 +527,6 @@ import op-geth-only symbols by design).
 | `op-chain-ops/script` + op-deployer (§16) | **Rust script engine** (foundry crates) | open |
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | open |
-| `op-wheel/cheat` (§18) | delete (`engine` stays) | open |
+| `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | CI ratchet (§19) | scheduled upstream-build job + tightening baseline | open |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |

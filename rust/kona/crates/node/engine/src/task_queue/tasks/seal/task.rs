@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
-use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadEnvelope};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Instant};
 use tokio::sync::mpsc;
 
@@ -80,9 +80,9 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                     SealTaskError::GetPayloadFailed(e)
                 })?;
 
-                OpExecutionPayloadEnvelope {
-                    parent_beacon_block_root: Some(payload.parent_beacon_block_root),
-                    execution_payload: OpExecutionPayload::V4(payload.execution_payload),
+                OpExecutionPayloadEnvelope::V4 {
+                    parent_beacon_block_root: payload.parent_beacon_block_root,
+                    payload: payload.execution_payload,
                 }
             }
             EngineGetPayloadVersion::V4 => {
@@ -91,9 +91,9 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                     SealTaskError::GetPayloadFailed(e)
                 })?;
 
-                OpExecutionPayloadEnvelope {
-                    parent_beacon_block_root: Some(payload.parent_beacon_block_root),
-                    execution_payload: OpExecutionPayload::V4(payload.execution_payload),
+                OpExecutionPayloadEnvelope::V4 {
+                    parent_beacon_block_root: payload.parent_beacon_block_root,
+                    payload: payload.execution_payload,
                 }
             }
             EngineGetPayloadVersion::V3 => {
@@ -102,9 +102,9 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                     SealTaskError::GetPayloadFailed(e)
                 })?;
 
-                OpExecutionPayloadEnvelope {
-                    parent_beacon_block_root: Some(payload.parent_beacon_block_root),
-                    execution_payload: OpExecutionPayload::V3(payload.execution_payload),
+                OpExecutionPayloadEnvelope::V3 {
+                    parent_beacon_block_root: payload.parent_beacon_block_root,
+                    payload: payload.execution_payload,
                 }
             }
             EngineGetPayloadVersion::V2 => {
@@ -113,13 +113,10 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                     SealTaskError::GetPayloadFailed(e)
                 })?;
 
-                OpExecutionPayloadEnvelope {
-                    parent_beacon_block_root: None,
-                    execution_payload: match payload.execution_payload.into_payload() {
-                        ExecutionPayload::V1(payload) => OpExecutionPayload::V1(payload),
-                        ExecutionPayload::V2(payload) => OpExecutionPayload::V2(payload),
-                        _ => unreachable!("the response should be a V1 or V2 payload"),
-                    },
+                match payload.execution_payload.into_payload() {
+                    ExecutionPayload::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
+                    ExecutionPayload::V2(payload) => OpExecutionPayloadEnvelope::V2(payload),
+                    _ => unreachable!("the response should be a V1 or V2 payload"),
                 }
             }
         };
@@ -134,17 +131,17 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
     /// 2. Handling deposits-only payload failures
     /// 3. Holocene fallback via `build_and_seal` if needed
     ///
-    /// Returns Ok(()) if the payload is successfully inserted, or an error if insertion fails.
+    /// Returns the inserted block information, or an error if insertion fails.
     async fn insert_payload(
         &self,
         state: &mut EngineState,
-        new_payload: OpExecutionPayloadEnvelope,
-    ) -> Result<(), SealTaskError> {
+        payload: OpExecutionPayloadEnvelope,
+    ) -> Result<L2BlockInfo, SealTaskError> {
         // Insert the new block into the engine.
-        match InsertTask::new(
+        let new_block_ref = match InsertTask::new(
             Arc::clone(&self.engine),
             self.cfg.clone(),
-            new_payload.clone(),
+            payload,
             self.is_attributes_derived,
         )
         .execute(state)
@@ -187,12 +184,13 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                 error!(target: "engine", "Payload import failed: {e}");
                 return Err(Box::new(e).into());
             }
-            Ok(_) => {
-                info!(target: "engine", "Successfully imported payload")
+            Ok(new_block_ref) => {
+                info!(target: "engine", "Successfully imported payload");
+                new_block_ref
             }
-        }
+        };
 
-        Ok(())
+        Ok(new_block_ref)
     }
 
     /// Seals and canonicalizes the block by fetching the payload and importing it.
@@ -211,15 +209,8 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
             .seal_payload(&self.cfg, &self.engine, self.payload_id, self.attributes.clone())
             .await?;
 
-        let new_block_ref = L2BlockInfo::from_payload_and_genesis(
-            new_payload.execution_payload.clone(),
-            self.attributes.attributes().payload_attributes.parent_beacon_block_root,
-            &self.cfg.genesis,
-        )
-        .map_err(SealTaskError::FromBlock)?;
-
-        // Insert the payload into the engine.
-        self.insert_payload(state, new_payload.clone()).await?;
+        // Insert the payload into the engine and reuse its decoded block information.
+        let new_block_ref = self.insert_payload(state, new_payload.clone()).await?;
 
         let block_import_duration = block_import_start_time.elapsed();
 

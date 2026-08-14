@@ -10,8 +10,8 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -55,7 +55,7 @@ type Compressor interface {
 type ChannelOut interface {
 	ID() ChannelID
 	Reset() error
-	AddBlock(*rollup.Config, *types.Block) (*L1BlockInfo, error)
+	AddBlock(*rollup.Config, *eth.ExecutionPayload) (*L1BlockInfo, error)
 	InputBytes() int
 	ReadyBytes() int
 	Flush() error
@@ -117,12 +117,12 @@ func (co *SingularChannelOut) Reset() error {
 // and an error if there is a problem adding the block. The only sentinel error
 // that it returns is ErrTooManyRLPBytes. If this error is returned, the channel
 // should be closed and a new one should be made.
-func (co *SingularChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block) (*L1BlockInfo, error) {
+func (co *SingularChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (*L1BlockInfo, error) {
 	if co.closed {
 		return nil, ErrChannelOutAlreadyClosed
 	}
 
-	batch, l1Info, err := BlockToSingularBatch(rollupCfg, block)
+	batch, l1Info, err := PayloadToSingularBatch(rollupCfg, payload)
 	if err != nil {
 		return nil, fmt.Errorf("converting block to batch: %w", err)
 	}
@@ -223,38 +223,45 @@ func (co *SingularChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint
 	}
 }
 
-// BlockToSingularBatch transforms a block into a batch object that can easily be RLP encoded.
-func BlockToSingularBatch(rollupCfg *rollup.Config, block *types.Block) (*SingularBatch, *L1BlockInfo, error) {
-	if len(block.Transactions()) == 0 {
-		return nil, nil, fmt.Errorf("block %v has no transactions", block.Hash())
+// PayloadToSingularBatch transforms an execution payload into a batch object
+// that can easily be RLP encoded. The payload's opaque transactions pass
+// through verbatim, excluding deposits (0x7E) — they are derived from L1, not
+// batch-submitted. The first transaction must be the L1-info deposit; it
+// determines the batch's epoch.
+func PayloadToSingularBatch(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (*SingularBatch, *L1BlockInfo, error) {
+	if len(payload.Transactions) == 0 {
+		return nil, nil, fmt.Errorf("block %v has no transactions", payload.BlockHash)
 	}
 
-	opaqueTxs := make([]hexutil.Bytes, 0, len(block.Transactions()))
-	for i, tx := range block.Transactions() {
-		if tx.Type() == optypes.DepositTxType {
-			continue
+	opaqueTxs := make([]hexutil.Bytes, 0, len(payload.Transactions))
+	for i, otx := range payload.Transactions {
+		if len(otx) == 0 {
+			return nil, nil, fmt.Errorf("tx %d in block %v is empty", i, payload.BlockHash)
 		}
-		otx, err := tx.MarshalBinary()
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not encode tx %v in block %v: %w", i, tx.Hash(), err)
+		if otx[0] == optypes.DepositTxType {
+			continue
 		}
 		opaqueTxs = append(opaqueTxs, otx)
 	}
 
-	l1InfoTx := block.Transactions()[0]
-	if l1InfoTx.Type() != optypes.DepositTxType {
+	l1InfoTx := payload.Transactions[0]
+	if l1InfoTx[0] != optypes.DepositTxType {
 		return nil, nil, ErrNotDepositTx
 	}
-	l1Info, err := L1BlockInfoFromBytes(rollupCfg, block.Time(), l1InfoTx.Data())
+	deposit, err := optypes.UnmarshalDepositTx(l1InfoTx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not decode L1 info deposit: %w", err)
+	}
+	l1Info, err := L1BlockInfoFromBytes(rollupCfg, uint64(payload.Timestamp), deposit.Data)
 	if err != nil {
 		return nil, l1Info, fmt.Errorf("could not parse the L1 Info deposit: %w", err)
 	}
 
 	return &SingularBatch{
-		ParentHash:   block.ParentHash(),
+		ParentHash:   payload.ParentHash,
 		EpochNum:     rollup.Epoch(l1Info.Number),
 		EpochHash:    l1Info.BlockHash,
-		Timestamp:    block.Time(),
+		Timestamp:    uint64(payload.Timestamp),
 		Transactions: opaqueTxs,
 	}, l1Info, nil
 }

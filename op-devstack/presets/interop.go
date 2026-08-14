@@ -41,6 +41,8 @@ type SingleChainInterop struct {
 
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config
+	startZKProposer  func()
+	zkMetricsAddr    func() string
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -61,6 +63,22 @@ func (s *SingleChainInterop) AnchorStateRegistry(l2Chain *dsl.L2Network) *dsl.An
 func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
 	s.L1EL.AdvanceTime(s.timeTravel, amount)
+}
+
+// StartZKProposer starts the kona-sp1-proposer after a system configured with
+// WithZK and WithoutHonestProposer has seeded its initial dispute games.
+func (s *SingleChainInterop) StartZKProposer() {
+	s.T.Require().NotNil(s.startZKProposer, "ZK proposer is not configured")
+	s.startZKProposer()
+}
+
+// ZKProposerMetricsURL returns the proposer's Prometheus scrape URL. It
+// requires WithZKProposerOption(sysgo.WithZKMetrics()).
+func (s *SingleChainInterop) ZKProposerMetricsURL() string {
+	s.T.Require().NotNil(s.zkMetricsAddr, "ZK proposer is not configured")
+	addr := s.zkMetricsAddr()
+	s.T.Require().NotEmpty(addr, "no ZK proposer metrics endpoint; pass sysgo.WithZKMetrics()")
+	return "http://" + addr + "/metrics"
 }
 
 func (s *SingleChainInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {
@@ -134,7 +152,7 @@ func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChain
 // op-supernode). The op-challenger plays super-cannon-kona games against this op-node
 // source. This exercises the "op-node as super root RPC" path end-to-end.
 func NewSingleChainInteropNoSupernode(t devtest.T, opts ...Option) *SingleChainInterop {
-	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, 0)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, singleChainInteropNoSupernodePresetSupportedOptionKinds)
 	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t, presetCfg))
 }
 
@@ -157,9 +175,9 @@ func NewSingleChainInteropSuperRootAtGenesis(t devtest.T, opts ...Option) *Singl
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, presetCfg))
 }
 
-// WithSuggestedInteropActivationOffset suggests a hardfork time offset to use.
+// WithSuggestedLagoonActivationOffset suggests a Lagoon hardfork time offset to use.
 // This is applied e.g. to the deployment if running against sysgo.
-func WithSuggestedInteropActivationOffset(offset uint64) Option {
+func WithSuggestedLagoonActivationOffset(offset uint64) Option {
 	return WithDeployerOptions(
 		func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {

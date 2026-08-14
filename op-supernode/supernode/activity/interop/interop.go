@@ -826,6 +826,8 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			}
 		}
 		var failedAny bool
+		// Chains RewindEngine resumed for us; every other chain is resumed below.
+		rewound := make(map[eth.ChainID]bool, len(invalidations))
 		for _, p := range invalidations {
 			parentPayload, ok := pending.InvalidationParentPayloads[p.ChainID]
 			if !ok || parentPayload == nil {
@@ -837,18 +839,24 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				failedAny = true
 				continue
 			}
-			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot, parentPayload); err != nil {
+			didRewind, err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot, parentPayload)
+			if err != nil {
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
 				failedAny = true
-			} else {
-				i.metrics.InteropInvalidations.WithLabelValues(p.ChainID.String()).Inc()
+				continue
 			}
+			if didRewind {
+				rewound[p.ChainID] = true
+			}
+			i.metrics.InteropInvalidations.WithLabelValues(p.ChainID.String()).Inc()
 		}
-		// Resume non-invalidated chains. Invalidated chains are resumed by
-		// RewindEngine internally (which also waits for readiness).
+		needsResume := func(chainID eth.ChainID) bool { return !rewound[chainID] }
+		// RewindEngine is the only other path that resumes a chain, so anything it did
+		// not run for stays stopped unless resumed here — including invalidations that
+		// needed no rewind, and failed ones, which are retried rather than left wedged.
 		for chainID, chain := range i.chains {
-			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
+			if needsResume(chainID) {
 				if err := chain.Resume(i.ctx); err != nil {
 					i.log.Error("failed to resume chain after rewind", "chainID", chainID, "err", err)
 				}
@@ -866,7 +874,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		// verifier backoff loop, so we log and continue rather than return.
 		waitCtx, cancel := context.WithTimeout(i.ctx, cc.DefaultWaitReadyTimeout)
 		for chainID, chain := range i.chains {
-			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
+			if needsResume(chainID) {
 				if err := chain.WaitReady(waitCtx); err != nil {
 					i.log.Error("chain not ready after resume", "chainID", chainID, "err", err)
 				}
@@ -1400,11 +1408,11 @@ func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock 
 // invalidateBlock notifies the chain container to add the block to the denylist
 // and potentially rewind if the chain is currently using that block. parentPayload
 // is the canonical payload at the rewind destination (height-1), captured from the WAL.
-func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) error {
+// Reports whether a rewind was triggered.
+func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	chain, ok := i.chains[chainID]
 	if !ok {
-		return fmt.Errorf("chain %s not found", chainID)
+		return false, fmt.Errorf("chain %s not found", chainID)
 	}
-	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot, parentPayload)
-	return err
+	return chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot, parentPayload)
 }

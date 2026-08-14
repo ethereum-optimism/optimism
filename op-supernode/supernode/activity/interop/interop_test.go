@@ -10,13 +10,13 @@ import (
 	"time"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -1195,7 +1195,7 @@ func TestInvalidateBlock(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
+				_, err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
 				require.NoError(t, err)
 
 				require.Len(t, mock.invalidateBlockCalls, 1)
@@ -1212,7 +1212,7 @@ func TestInvalidateBlock(t *testing.T) {
 				mock := h.Mock(10)
 				unknownChain := eth.ChainIDFromUInt64(999)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(unknownChain, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
+				_, err := h.interop.invalidateBlock(unknownChain, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "not found")
@@ -1229,7 +1229,7 @@ func TestInvalidateBlock(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
+				_, err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "engine failure")
@@ -1947,7 +1947,7 @@ func (m *mockChainContainer) OutputRootAtL2BlockHash(ctx context.Context, blockH
 func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	return nil, nil
 }
-func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
+func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, optypes.Receipts, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	ts := blockID.Number
@@ -1971,7 +1971,7 @@ func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.Bloc
 		number:     blockID.Number,
 		timestamp:  ts,
 	}
-	return blockInfo, types.Receipts{}, nil
+	return blockInfo, optypes.Receipts{}, nil
 }
 func (m *mockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	m.mu.Lock()
@@ -3053,10 +3053,12 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 			WithChain(10, func(m *mockChainContainer) {
 				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 				m.callLog = cl
+				m.invalidateBlockRet = true
 			}).
 			WithChain(8453, func(m *mockChainContainer) {
 				m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
 				m.callLog = cl
+				m.invalidateBlockRet = true
 			}).
 			WithChain(42, func(m *mockChainContainer) {
 				m.blockAtTimestamp = eth.L2BlockRef{Number: 300, Hash: common.HexToHash("0x3")}
@@ -3157,12 +3159,114 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 		}
 	})
 
+	t.Run("invalidated chain is resumed when no rewind was needed", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				// The chain moved off the invalidated block between the decision and
+				// the freeze, so InvalidateBlock reports no rewind and RewindEngine —
+				// the only other path that resumes — never runs.
+				m.invalidateBlockRet = false
+			}).
+			WithChain(8453, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
+			}).
+			Build()
+
+		chain10 := h.Mock(10).id
+		chain8453 := h.Mock(8453).id
+
+		invalidResult := Result{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				chain10:   {Number: 500, Hash: common.HexToHash("0xL2-10")},
+				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
+			},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
+			},
+		}
+
+		pending, err := h.interop.buildPendingTransition(
+			StepOutput{Decision: DecisionInvalidate, Result: invalidResult},
+			RoundObservation{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+		_, err = h.interop.applyPendingTransition(pending)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, h.Mock(10).pauseAndStopVNCalls, "chain 10 should be frozen")
+		require.Equal(t, 1, h.Mock(10).resumeCalls,
+			"a frozen chain whose invalidation triggered no rewind must be resumed, or its VN stays stopped for the life of the process")
+		require.Equal(t, 1, h.Mock(8453).resumeCalls, "non-invalidated chain should be resumed")
+
+		cleared, err := h.interop.verifiedDB.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, cleared, "the transition is cleared, so nothing retries the resume")
+	})
+
+	t.Run("failed invalidation resumes rather than wedging the chain", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				m.invalidateBlockErr = errors.New("engine failure")
+			}).
+			WithChain(8453, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
+			}).
+			Build()
+
+		chain10 := h.Mock(10).id
+		chain8453 := h.Mock(8453).id
+
+		invalidResult := Result{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				chain10:   {Number: 500, Hash: common.HexToHash("0xL2-10")},
+				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
+			},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
+			},
+		}
+
+		pending, err := h.interop.buildPendingTransition(
+			StepOutput{Decision: DecisionInvalidate, Result: invalidResult},
+			RoundObservation{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+		_, err = h.interop.applyPendingTransition(pending)
+		require.Error(t, err, "the transition must be preserved for retry")
+
+		require.Equal(t, 1, h.Mock(10).resumeCalls, "a failed invalidation must not leave the chain frozen")
+		require.Equal(t, 1, h.Mock(8453).resumeCalls, "unaffected chain should be resumed")
+		require.Len(t, h.Mock(10).invalidateBlockCalls, 1)
+
+		// The engine recovers, so the preserved transition must replay to completion.
+		h.Mock(10).invalidateBlockErr = nil
+		_, err = h.interop.progressAndRecord()
+		require.NoError(t, err)
+
+		require.Len(t, h.Mock(10).invalidateBlockCalls, 2, "invalidation should be retried from the WAL")
+		require.Equal(t, 2, h.Mock(10).resumeCalls, "chain 10 should be resumed again after the retry")
+		require.Equal(t, 2, h.Mock(8453).resumeCalls, "chain 8453 should be resumed again after the retry")
+
+		cleared, err := h.interop.verifiedDB.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, cleared, "a successful retry clears the transition")
+	})
+
 	t.Run("single chain invalidated freezes and does not resume", func(t *testing.T) {
 		cl := &callLog{}
 		h := newInteropTestHarness(t).
 			WithChain(10, func(m *mockChainContainer) {
 				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 				m.callLog = cl
+				m.invalidateBlockRet = true
 			}).
 			Build()
 

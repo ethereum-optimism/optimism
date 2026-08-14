@@ -25,7 +25,7 @@ build-deps:
     cd {{REPO_ROOT}}
     just cannon-prestates
 
-    echo "Building Rust binaries (kona-node, kona-host, op-reth, op-rbuilder, rollup-boost)..."
+    echo "Building Rust binaries (kona-node, kona-host, op-reth, op-reth-sdm-fixture, op-rbuilder, rollup-boost)..."
     cd {{REPO_ROOT}}
     just build-rust-release
 
@@ -129,16 +129,8 @@ acceptance-test:
         NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
         NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
 
-        go test -list '^Test' "${TEST_PACKAGES[@]}" 2>/dev/null | grep -E '^Test' > /tmp/tests.txt
-
-        TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
-        if [ "$TOTAL_TESTS" -eq 0 ]; then
-            echo "ERROR: no tests found in packages: ${TEST_PACKAGES[*]}"
-            exit 1
-        fi
-        echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
-
-        circleci tests split --split-by=timings --timings-type=testname /tmp/tests.txt > /tmp/tests_shard.txt
+        go test -list '^Test' "${TEST_PACKAGES[@]}" \
+            | {{REPO_ROOT}}/ops/scripts/shard-tests.sh > /tmp/tests_shard.txt
 
         SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
         echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"

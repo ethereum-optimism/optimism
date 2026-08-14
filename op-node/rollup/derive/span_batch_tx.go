@@ -252,7 +252,10 @@ func (tx *spanBatchTx) convertToFullTx(nonce, gas uint64, to *common.Address, ch
 	return types.NewTx(inner).MarshalBinary()
 }
 
-// newSpanBatchTx converts types.Transaction to spanBatchTx
+// newSpanBatchTx converts a signed types.Transaction to spanBatchTx. The OP Stack
+// synthetic transaction classes are not signed transactions and do not pass through
+// here: post-exec transactions are converted from their canonical encoding by
+// spanBatchTxs.addPostExecTx, and deposits are never batched.
 func newSpanBatchTx(tx *types.Transaction) (*spanBatchTx, error) {
 	var inner spanBatchTxData
 	switch tx.Type() {
@@ -286,8 +289,6 @@ func newSpanBatchTx(tx *types.Transaction) (*spanBatchTx, error) {
 			AccessList:        tx.AccessList(),
 			AuthorizationList: tx.SetCodeAuthorizations(),
 		}
-	case optypes.PostExecTxType:
-		inner = &spanBatchPostExecTxData{Data: common.CopyBytes(tx.Data())}
 	default:
 		return nil, fmt.Errorf("invalid tx type: %d", tx.Type())
 	}

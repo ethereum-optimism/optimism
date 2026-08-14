@@ -5,15 +5,12 @@ diataxis: reference
 ---
 
 import OpBatcherFlags from '/snippets/generated/op-batcher-flags.mdx';
+import { ConfigReferencePreamble } from '/snippets/config-reference-preamble.mdx';
 
 This page catalogues every configuration option for the op-batcher, the service
 that posts L2 sequencer data to L1 to make it available for verifiers.
 
-The flag tables below are generated directly from the op-batcher's flag
-definitions in the monorepo (`op-batcher/flags`) at the release tag named in
-the provenance line, and are regenerated when a new finalized release is
-published, so they cannot silently fall behind. Every flag can also be set
-through the environment variable listed next to it.
+<ConfigReferencePreamble component="op-batcher" />
 
 For guidance on choosing values — the batcher policy, cost tuning, multi-blob
 transactions, and sequencer throttling — see the

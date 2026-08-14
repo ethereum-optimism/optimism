@@ -251,6 +251,7 @@ func (e *EngineController) resolveVerifiedAsSafe(block eth.BlockID) eth.L2BlockR
 	}
 	br, err := e.engine.L2BlockRefByHash(e.ctx, block.Hash)
 	if err != nil {
+		e.metrics.RecordSuperAuthorityReorgSignal("unknown_to_engine")
 		e.log.Warn("super authority safe head unknown to engine (reorg signal)",
 			"super_authority_safe", block, "err", err)
 		return e.crossSafeFallback("el-unknown")
@@ -260,6 +261,7 @@ func (e *EngineController) resolveVerifiedAsSafe(block eth.BlockID) eth.L2BlockR
 			"super_authority_safe", br, "err", err)
 		return e.crossSafeFallback("canonicality-lookup-failed")
 	} else if !canonical {
+		e.metrics.RecordSuperAuthorityReorgSignal("non_canonical")
 		e.log.Warn("super authority safe head non-canonical (reorg signal)",
 			"super_authority_safe", br, "canonical", canonicalRef)
 		return e.crossSafeFallback("non-canonical")
@@ -1626,6 +1628,12 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 
 	// External local safe is found locally but differs: the follower diverged from upstream
 	// and must reorg onto it.
+	e.log.Warn("Follow Source: local safe diverged from upstream",
+		"external_local_safe", eLocalSafeRef,
+		"local_safe", e.localSafeHead,
+		"local_unsafe", e.unsafeHead,
+		"external_safe", eSafeBlockRef,
+		"finalized", eFinalizedRef)
 	if e.originSelectorResetter != nil {
 		// This follower is also a sequencer (the origin-selector resetter is wired only when
 		// sequencing is enabled). A soft unsafe-head update would be clobbered by the next
@@ -1634,12 +1642,24 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 		// cancels the in-flight build and FCUs onto the upstream chain in one shot (head==safe);
 		// the sequencer then rebuilds from there.
 		logger.Warn("Follow Source: Reorg onto upstream chain")
+		e.metrics.RecordFollowSourceReorg("force_reset")
 		e.forceReset(e.ctx, eLocalSafeRef, eLocalSafeRef, eLocalSafeRef, eSafeBlockRef, eFinalizedRef, false)
+		e.log.Info("Follow Source: reorg onto upstream chain applied",
+			"action", "force_reset",
+			"local_safe", e.localSafeHead,
+			"local_unsafe", e.unsafeHead,
+			"cross_safe", e.SafeL2Head())
 		return
 	}
 
 	// Pure verifier (no local block production): a soft update suffices and may trigger or
 	// retarget EL sync.
+	e.metrics.RecordFollowSourceReorg("soft_update")
 	logger.Warn("Follow Source: Reorg. May Trigger EL sync")
 	followExternalRefs(true)
+	e.log.Info("Follow Source: upstream refs applied",
+		"action", "soft_update",
+		"local_safe", e.localSafeHead,
+		"local_unsafe", e.unsafeHead,
+		"cross_safe", e.SafeL2Head())
 }

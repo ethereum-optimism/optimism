@@ -405,6 +405,11 @@
             "internalType": "address",
             "name": "storageSetterImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "sp1PlonkAdapterImpl",
+            "type": "address"
           }
         ],
         "internalType": "struct IOPContractsManagerContainer.Implementations",

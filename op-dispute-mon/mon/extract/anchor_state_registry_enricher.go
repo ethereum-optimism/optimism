@@ -5,12 +5,13 @@ import (
 	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var _ Enricher = (*AnchorStateRegistryEnricher)(nil)
+var _ CommonEnricher = (*AnchorStateRegistryEnricher)(nil)
 
 // AnchorStateRegistryEnricher records the address of the AnchorStateRegistry each game builds on.
 // This is best-effort: a game whose contract version does not expose anchorStateRegistry() is skipped
@@ -24,7 +25,10 @@ func NewAnchorStateRegistryEnricher(logger log.Logger) *AnchorStateRegistryEnric
 	return &AnchorStateRegistryEnricher{logger: logger}
 }
 
-func (e *AnchorStateRegistryEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
+func (e *AnchorStateRegistryEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.CommonGameData) error {
+	if gameTypes.GameType(game.GameType) == gameTypes.ZKDisputeGameType {
+		return nil
+	}
 	addr, err := caller.GetAnchorStateRegistry(ctx, block)
 	if errors.Is(err, contracts.ErrAnchorStateRegistryNotSupported) {
 		return nil

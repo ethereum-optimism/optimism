@@ -683,9 +683,6 @@ name = "bitflags"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4512299f36f043ab09a583e57bceb5a5aab7a73db1805848e8fef3c9e8c78b3"
-dependencies = [
- "serde_core",
-]
 
 [[package]]
 name = "bitvec"
@@ -695,7 +692,6 @@ checksum = "1bc2832c24239b0141d5674bb9174f9d68a8b5b3f2753311927c172ca46f7e9c"
 dependencies = [
  "funty",
  "radium",
- "serde",
  "tap",
  "wyz",
 ]
@@ -1190,12 +1186,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
-name = "fastrand"
-version = "2.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
-
-[[package]]
 name = "ff"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1663,7 +1653,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "derive_more",
- "op-revm",
  "serde",
  "thiserror",
 ]
@@ -2098,9 +2087,6 @@ name = "nonmax"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "610a5acd306ec67f907abe5567859a3c693fb9886eb1f012ab8f2a47bef3db51"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "num"
@@ -2301,10 +2287,10 @@ dependencies = [
 name = "op-revm"
 version = "20.0.0"
 dependencies = [
+ "alloy-eips",
  "auto_impl",
  "op-alloy-consensus",
  "revm",
- "serde",
 ]
 
 [[package]]
@@ -2477,49 +2463,6 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
-
-[[package]]
-name = "phf"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
-dependencies = [
- "phf_macros",
- "phf_shared",
- "serde",
-]
-
-[[package]]
-name = "phf_generator"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "135ace3a761e564ec88c03a77317a7c6b80bb7f7135ef2544dbe054243b89737"
-dependencies = [
- "fastrand",
- "phf_shared",
-]
-
-[[package]]
-name = "phf_macros"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "812f032b54b1e759ccd5f8b6677695d5268c588701effba24601f6932f8269ef"
-dependencies = [
- "phf_generator",
- "phf_shared",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "phf_shared"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e57fef6bc5981e38c2ce2d63bfa546861309f875b8a75f092d1d54ae2d64f266"
-dependencies = [
- "siphasher",
-]
 
 [[package]]
 name = "pin-project-lite"
@@ -2804,9 +2747,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e33493cf6d996e9242db4f2002caef48ec9aa8c4f3fff3b18aed10ef3942eec7"
 dependencies = [
  "bitvec",
- "phf",
  "revm-primitives",
- "serde",
 ]
 
 [[package]]
@@ -2823,7 +2764,6 @@ dependencies = [
  "revm-database-interface",
  "revm-primitives",
  "revm-state",
- "serde",
 ]
 
 [[package]]
@@ -2839,7 +2779,6 @@ dependencies = [
  "revm-database-interface",
  "revm-primitives",
  "revm-state",
- "serde",
 ]
 
 [[package]]
@@ -2848,14 +2787,12 @@ version = "41.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d761681a43e48408ea23f7f66ff56ff7b6128cadb8f9135d1b94787d0c0fc6b4"
 dependencies = [
- "alloy-eips",
  "derive_more",
  "either",
  "revm-bytecode",
  "revm-database-interface",
  "revm-primitives",
  "revm-state",
- "serde",
 ]
 
 [[package]]
@@ -2868,7 +2805,6 @@ dependencies = [
  "either",
  "revm-primitives",
  "revm-state",
- "serde",
  "thiserror",
 ]
 
@@ -2888,7 +2824,6 @@ dependencies = [
  "revm-precompile",
  "revm-primitives",
  "revm-state",
- "serde",
 ]
 
 [[package]]
@@ -2905,7 +2840,6 @@ dependencies = [
  "revm-interpreter",
  "revm-primitives",
  "revm-state",
- "serde",
 ]
 
 [[package]]
@@ -2918,7 +2852,6 @@ dependencies = [
  "revm-context-interface",
  "revm-primitives",
  "revm-state",
- "serde",
 ]
 
 [[package]]
@@ -2952,7 +2885,6 @@ checksum = "66f39151a31afe93d97f7ac894dd9dcc989368d5ccba19ce079bfc1d73b77452"
 dependencies = [
  "alloy-primitives",
  "once_cell",
- "serde",
 ]
 
 [[package]]
@@ -2966,7 +2898,6 @@ dependencies = [
  "nonmax",
  "revm-bytecode",
  "revm-primitives",
- "serde",
 ]
 
 [[package]]
@@ -2999,9 +2930,9 @@ dependencies = [
 
 [[package]]
 name = "rkyv"
-version = "0.8.16"
+version = "0.8.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73389e0c99e664f919275ab5b5b0471391fe9a8de61e1dff9b1eaf56a90f16e3"
+checksum = "815cc8a37159a463064825246cadb07961e25cd9885908606f6d08a98d8f8874"
 dependencies = [
  "bytecheck",
  "bytes",
@@ -3019,9 +2950,9 @@ dependencies = [
 
 [[package]]
 name = "rkyv_derive"
-version = "0.8.16"
+version = "0.8.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d2ed0b54125315fb36bd021e82d314d1c126548f871634b483f46b31d13cac6"
+checksum = "c0ed1a78a1b19d184b0daa629dd9a024573173ec7d485b287cb369fb3607cc1c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3290,12 +3221,6 @@ name = "simdutf8"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
-
-[[package]]
-name = "siphasher"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2aa850e253778c88a04c3d7323b043aeda9d3e30d5971937c1855769763678e"
 
 [[package]]
 name = "slab"

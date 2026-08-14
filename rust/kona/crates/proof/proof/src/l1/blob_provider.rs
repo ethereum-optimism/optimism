@@ -158,14 +158,17 @@ fn generate_roots_of_unity() -> [Fr; FIELD_ELEMENTS_PER_BLOB as usize] {
 #[cfg(test)]
 mod test {
     use super::ROOTS_OF_UNITY;
+    use alloc::vec::Vec;
     use alloy_eips::eip4844::{FIELD_ELEMENTS_PER_BLOB, env_settings::EnvKzgSettings};
     use ark_ff::{BigInteger, PrimeField};
-    use c_kzg::{BYTES_PER_BLOB, Blob, Bytes32, Bytes48};
+    use c_kzg::{BYTES_PER_BLOB, BYTES_PER_FIELD_ELEMENT, Blob, Bytes32, Bytes48};
     use rand::Rng;
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     #[test]
     fn test_roots_of_unity() {
+        const FIELD_ELEMENTS: usize = FIELD_ELEMENTS_PER_BLOB as usize;
+
         // Initiate the default Ethereum KZG settings.
         let kzg = EnvKzgSettings::default();
 
@@ -173,10 +176,10 @@ mod test {
         let mut bytes = [0u8; BYTES_PER_BLOB];
         rand::rng().fill(bytes.as_mut_slice());
 
-        // Ensure the blob is valid by keeping each field element within range.
-        (0..FIELD_ELEMENTS_PER_BLOB).for_each(|i| {
-            bytes[(i as usize) << 5] = 0;
-        });
+        // Zero each field element's most significant byte to keep it below the BLS modulus.
+        bytes
+            .chunks_exact_mut(BYTES_PER_FIELD_ELEMENT)
+            .for_each(|field_element| field_element[0] = 0);
 
         let blob = Blob::new(bytes);
         let blob_commitment = {
@@ -184,22 +187,48 @@ mod test {
             Bytes48::new(raw.as_slice().try_into().unwrap())
         };
 
-        // Validate each field element in the blob
-        (0..FIELD_ELEMENTS_PER_BLOB).into_par_iter().for_each(|i| {
+        // A KZG proof per element makes the full FIELD_ELEMENTS_PER_BLOB sweep
+        // too slow for CI, so check a random sample instead: a structural bug in
+        // the table build breaks thousands of entries and fails on the first
+        // sampled index. Indices 0 and 4095 — the entries a fill-loop
+        // off-by-one would leave at Fr::ZERO, and both mapping to themselves
+        // under the bit-reversal permutation — are always checked, as are 1 and
+        // 4094, which the permutation moves (1 ↔ 2048, 4094 ↔ 2047) and so
+        // deterministically expose a dropped or wrong bit-reversal pass; the
+        // remaining draws come from the interior so all checked indices are
+        // distinct.
+        //
+        // 256 (kept a power of two) fills the ~5s CI budget agreed in review:
+        // checking n elements costs ~1.4s fixed + ~5.1ms each locally
+        // (n=34: 1.54s, n=258: 2.69s, n=514: 4.01s), and CI ran n=34 at
+        // 1.85x local (2.85s), so n=256 projects to ~5.0s in CI.
+        const CHECKED_FIELD_ELEMENTS: usize = 256;
+        let mut indices: Vec<usize> = rand::seq::index::sample(
+            &mut rand::rng(),
+            FIELD_ELEMENTS - 4,
+            CHECKED_FIELD_ELEMENTS - 4,
+        )
+        .into_iter()
+        .map(|interior_index| interior_index + 2)
+        .collect();
+        indices.extend([0, 1, FIELD_ELEMENTS - 2, FIELD_ELEMENTS - 1]);
+
+        indices.into_par_iter().for_each(|i| {
             let field_element = {
                 let mut fe = [0u8; 32];
-                fe.copy_from_slice(&blob[(i as usize) << 5..(i as usize + 1) << 5]);
+                fe.copy_from_slice(&blob[i << 5..(i + 1) << 5]);
                 Bytes32::new(fe)
             };
 
-            let z_bytes = Bytes32::new(ROOTS_OF_UNITY[i as usize].into_bigint().to_bytes_be().try_into().unwrap());
-            let (proof, fe) = kzg.get().compute_kzg_proof(&blob, &z_bytes).unwrap();
+            let z_bytes = Bytes32::new(ROOTS_OF_UNITY[i].into_bigint().to_bytes_be().try_into().unwrap());
+            let (proof, evaluated_field_element) =
+                kzg.get().compute_kzg_proof(&blob, &z_bytes).unwrap();
 
             // Ensure the field element matches the expected value
             assert_eq!(
-                fe.as_slice(),
+                evaluated_field_element.as_slice(),
                 field_element.as_slice(),
-                "Field element {i} does not match the expected value. Expected: {field_element:?}, Got: {fe:?}"
+                "Field element {i} does not match the expected value. Expected: {field_element:?}, Got: {evaluated_field_element:?}"
             );
 
             // Ensure the proof can be verified

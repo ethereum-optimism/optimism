@@ -177,7 +177,7 @@ func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) Deposit {
 	b.require.NoError(err, "Could not reconstruct L2 Deposit")
 	l2DepositTxHash := l2DepositTx.Hash()
 	// Give time for L2CL to include the L2 deposit tx
-	var l2DepositReceipt *types.Receipt
+	var l2DepositReceipt *optypes.Receipt
 	b.require.Eventually(func() bool {
 		l2DepositReceipt, err = b.l2Client.TransactionReceipt(b.ctx, l2DepositTxHash)
 		return err == nil
@@ -223,7 +223,7 @@ func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr co
 
 	// Give time for L2CL to include the L2 deposit tx
 	sequencingWindowDuration := time.Duration(b.rollupCfg.SeqWindowSize) * b.l1Client.EstimateBlockTime()
-	var l2DepositReceipt *types.Receipt
+	var l2DepositReceipt *optypes.Receipt
 	b.require.Eventually(func() bool {
 		l2DepositReceipt, err = b.l2Client.TransactionReceipt(b.ctx, l2DepositTxHash)
 		return err == nil
@@ -387,6 +387,11 @@ func bridgeGameSequenceAndOutputRoot(game bindings.GameSearchResult, gameType ga
 		return new(big.Int).SetBytes(game.ExtraData[:32]), game.RootClaim, true, nil
 	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 		return bridgeSuperRootChainOutput(game.ExtraData, l2ChainID)
+	case gameTypes.ZKDisputeGameType:
+		if len(game.ExtraData) < 4 {
+			return nil, common.Hash{}, false, fmt.Errorf("ZK game extra data is %d bytes, need at least 4-byte parent index", len(game.ExtraData))
+		}
+		return bridgeSuperRootChainOutput(game.ExtraData[4:], l2ChainID)
 	default:
 		return nil, common.Hash{}, false, fmt.Errorf("unsupported game type: %v", gameType)
 	}
@@ -431,6 +436,12 @@ func (w *Withdrawal) InitiateGasCost() eth.ETH {
 func (w *Withdrawal) ProveGasCost() eth.ETH {
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal before calculating gas cost")
 	return w.bridge.gasCost(w.proveReceipt, w.bridge.l1Client.EthClient())
+}
+
+func (w *Withdrawal) ProvenDisputeGameIndex() *big.Int {
+	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal before reading dispute game index")
+	w.require.NotNil(w.proveParams.DisputeGameIndex, "Proven withdrawal is missing dispute game index")
+	return new(big.Int).Set(w.proveParams.DisputeGameIndex)
 }
 
 func (w *Withdrawal) FinalizeGasCost() eth.ETH {

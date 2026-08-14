@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.2.3
+    /// @custom:semver 8.0.1
     function version() public pure returns (string memory) {
-        return "7.2.3";
+        return "8.0.1";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -359,13 +359,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        if (SemverComp.lt(_version(), "8.0.0")) {
-            // Unified DelayedWETH is being deployed for the first time.
-            // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
-            if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
-                return true;
-            }
-
+        if (SemverComp.lt(_version(), "9.0.0")) {
             // Super root games migration requires overriding anchor root.
             if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
                 if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
@@ -887,7 +881,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cts.proxyAdmin,
                 address(_cts.ethLockbox),
                 impls.ethLockboxImpl,
-                abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
+                abi.encodeCall(
+                    IETHLockbox.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.ethLockbox)), portals)
+                )
             );
         }
 
@@ -939,7 +935,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_cts.systemConfig))
+            abi.encodeCall(IDelayedWETH.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.delayedWETH))))
         );
 
         // Update the AnchorStateRegistry.
@@ -949,7 +945,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (_cts.systemConfig, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
+                (
+                    _systemConfigFor(_cts.systemConfig, address(_cts.anchorStateRegistry)),
+                    _cts.disputeGameFactory,
+                    _cfg.startingAnchorRoot,
+                    _cfg.startingRespectedGameType
+                )
             )
         );
 
@@ -1058,7 +1059,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cfg.gasLimit,
                 _cfg.unsafeBlockSigner,
                 _cfg.resourceConfig,
-                _chainIdToBatchInboxAddress(_cfg.l2ChainId),
                 addrs,
                 _cfg.l2ChainId,
                 _cfg.superchainConfig

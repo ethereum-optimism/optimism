@@ -1,32 +1,39 @@
 //! Core proposer: state sync, canonical-head selection, and the
-//! creation/resolution/bond-claim task scheduler.
+//! creation/resolution/bond-claim/proving task scheduler.
 //!
 //! Ported from op-succinct's `fault-proof/src/proposer.rs` (@ 13716c2c),
 //! adapted for the super-root `ZKDisputeGame`: supernode-sourced claims,
-//! `parentIndex || superRootProof` extraData, vkey-based identity, and
-//! two-phase `DelayedWETH` bond claiming. Defense/proving scheduling is
-//! intentionally absent (defend path, #21463).
+//! `parentIndex || superRootProof` extraData, prestate-based ownership, and
+//! two-phase `DelayedWETH` bond claiming. The proving scheduler defends
+//! challenged games and, in fast finality mode, proves owned games while
+//! they are still unchallenged, via [`crate::proving`].
 
 use std::{
     collections::{HashMap, HashSet},
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{Address, B256, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_sol_types::SolEvent;
-use anyhow::{Context, Result, bail};
+use alloy_transport_http::reqwest::Url;
+use anyhow::{Context, Result, anyhow, bail};
 use kona_sp1_host_utils::metrics::MetricsGauge;
-use tokio::{sync::RwLock, time};
+use kona_sp1_super_range_executor::HostInputs;
+use sp1_sdk::HashableKey;
+use tokio::{
+    sync::{Mutex, OnceCell, RwLock},
+    time,
+};
 
 use crate::{
     FactoryTrait, L1Provider, TX_REVERTED_PREFIX, TxErrorExt, ZK_GAME_TYPE,
-    config::{PrestatePrograms, ProposerConfig, load_prestate},
+    config::{PrestatePrograms, ProofProviderKind, ProposerConfig, load_prestate},
     contract::{
         AnchorStateRegistry::{self, AnchorStateRegistryInstance},
         DelayedWETH,
@@ -35,8 +42,12 @@ use crate::{
     },
     is_parent_resolved,
     metrics::ProposerGauge,
-    signer::SignerLock,
-    superroot::{SuperrootClient, zk_extra_data},
+    prover::{ProofKeys, ProofProvider, setup_proof_keys},
+    proving::{
+        GameProofInputs, fetch_span_responses, is_unprovable, prove_game_inner, response_trusted,
+    },
+    signer::{FeeCaps, SignerLock},
+    superroot::{ResponseSelection, SuperrootClient, zk_extra_data},
 };
 
 /// Max allowed time (secs) between a game's deadline and the anchor game's deadline.
@@ -57,13 +68,28 @@ pub type TaskHandle = tokio::task::JoinHandle<Result<()>>;
 /// Type alias for a map of task IDs to their join handles and associated task info
 pub type TaskMap = HashMap<TaskId, (TaskHandle, TaskInfo)>;
 
-/// Information about a running task
+/// Information about a running task.
+///
+/// `GameCreation`, `GameResolution`, and `BondClaim` are singletons: at
+/// most one task per variant runs at a time (see
+/// `has_active_task_of_type`). `GameProving` is exempt from that rule and
+/// deduplicated PER GAME instead: several games can be proven
+/// concurrently (defense bounded by `KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS`, fast
+/// finality by `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT`).
 #[derive(Clone, Debug)]
 pub enum TaskInfo {
     /// Task creating a new game at the given super-root timestamp.
     GameCreation {
         /// Super-root timestamp (`l2SequenceNumber`) of the game being created.
         sequence_number: u64,
+    },
+    /// Task proving a game: defending a challenge (`is_defense: true`) or
+    /// fast-finality proving of an unchallenged game (`is_defense: false`).
+    GameProving {
+        /// Address of the game being proven.
+        game_address: Address,
+        /// Whether the proof was triggered by a challenge.
+        is_defense: bool,
     },
     /// Task resolving finished games.
     GameResolution,
@@ -85,10 +111,10 @@ impl ProposerIdentity {
     }
 
     /// Logs the proposer identity and prestate artifact source at startup.
-    pub fn log_startup_info(&self, prestates_url: &alloy_transport_http::reqwest::Url) {
+    pub fn log_startup_info(&self, prestates_url: &Url) {
         tracing::info!(
             version = %self.version,
-            prestates_url = %prestates_url,
+            prestates_url = %crate::config::redacted_url(prestates_url),
             "proposer identity",
         );
     }
@@ -105,7 +131,7 @@ impl Default for ProposerIdentity {
 /// Games form a directed acyclic graph where each game builds upon a parent game, extending the
 /// chain with a new proposed output root. The proposer tracks these games to determine when to
 /// propose new games, defend existing ones, resolve completed games and claim bonds.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Game {
     /// Index of the game in the `DisputeGameFactory`.
     pub index: U256,
@@ -129,7 +155,8 @@ pub struct Game {
     /// Informational for the create path; the defend path selects the
     /// proving program by it.
     pub absolute_prestate: B256,
-    /// The game's creator address (`gameCreator()`).
+    /// The game's creator address (`gameCreator()`), used to limit fast-finality
+    /// spend to games created by this proposer's signer.
     pub creator: Address,
     /// The game's own `DelayedWETH` address, from its immutable args. Bond
     /// reads and claims bind this address, not the currently registered one:
@@ -142,18 +169,18 @@ pub struct Game {
 }
 
 impl Game {
-    /// Returns true if the proposer created this game (owned = should
-    /// resolve and claim its bond). Ownership is creator-based, not
-    /// prestate-based: games created before a prestate rotation are still
-    /// ours to resolve and claim.
+    /// Returns true when the proposer owns this game's defense, resolution, and
+    /// claim lifecycle: its `absolutePrestate()` is in the known-prestates set
+    /// (artifacts loadable from `KONA_SP1_PROPOSER_PRESTATES_URL`, proving keys not poisoned).
     ///
-    /// The defend path widens this: any game the proposer would prove when
-    /// challenged (its own games and their ancestors, since `prove()` is
-    /// permissionless and proving earns the challenger bond) is also a game
-    /// it must resolve and claim. That set is settled with the proving
-    /// logic (#21463).
-    pub fn is_owned(&self, proposer_address: Address) -> bool {
-        self.creator == proposer_address
+    /// Lifecycle ownership is prestate-based, not creator-based. Claims stay
+    /// credit-driven, so iterating foreign games costs nothing where the proposer
+    /// holds no credit. The fast-finality scan applies a separate creator filter
+    /// before spending on an unchallenged game. Games created before a prestate
+    /// rotation stay owned because sync loads the prestate of every cached game,
+    /// not just the registered one.
+    pub fn is_owned(&self, known_prestates: &HashSet<B256>) -> bool {
+        known_prestates.contains(&self.absolute_prestate)
     }
 }
 
@@ -166,6 +193,7 @@ impl Game {
 /// - `cursor`: Highest factory index processed in the prior sync. Each incremental sync walks
 ///   backward from the latest index to this value, then sets it to the new latest index.
 /// - `games`: cached metadata for every tracked game keyed by index
+/// - `invalid_games`: factory indices whose claims or ancestry are known to be invalid
 #[derive(Default)]
 struct ProposerState {
     anchor_game: Option<Game>,
@@ -173,6 +201,7 @@ struct ProposerState {
     canonical_head_sequence_number: Option<u64>,
     cursor: Cursor,
     games: HashMap<U256, Game>,
+    invalid_games: HashSet<U256>,
 }
 
 impl ProposerState {
@@ -198,23 +227,78 @@ impl ProposerState {
         reachable
     }
 
-    /// Remove a game subtree from the cache.
-    ///
-    /// Used when a game is invalidated (i.e., `ChallengerWins`) and its entire subtree must be
-    /// dropped.
-    fn remove_subtree(&mut self, root_index: U256) {
-        tracing::info!(?root_index, "Removing subtree from cache");
-        for index in self.descendants_of(root_index) {
-            tracing::info!(?index, "Removing game from cache");
+    /// Mark a game and every cached descendant as terminally invalid, then
+    /// remove the subtree from the parent-eligible game cache.
+    fn invalidate_subtree(&mut self, root_index: U256) {
+        let invalid_subtree = self.descendants_of(root_index);
+        self.invalid_games.extend(invalid_subtree.iter().copied());
+        for index in invalid_subtree {
+            tracing::info!(?index, "Removing invalid game from cache");
             self.games.remove(&index);
         }
     }
 
-    /// Selects the canonical head: the highest-L2-block game on the best valid chain.
+    /// Challenged, in-progress games as defense candidates, sorted by prove
+    /// deadline ascending (closest to expiring first). Ownership and
+    /// per-game dedup are applied by the defense scan.
+    fn challenged_candidates(&self) -> Vec<(U256, Address, u64, B256, Address)> {
+        let mut candidates = self
+            .games
+            .values()
+            .filter(|game| game.status == GameStatus::InProgress)
+            .filter(|game| matches!(game.proposal_status, ProposalStatus::Challenged))
+            .map(|game| {
+                (
+                    game.index,
+                    game.address,
+                    game.deadline,
+                    game.absolute_prestate,
+                    game.anchor_state_registry,
+                )
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_unstable_by_key(|(_, _, deadline, _, _)| *deadline);
+        candidates
+    }
+
+    /// Unchallenged, in-progress games as fast-finality candidates, sorted
+    /// by challenge deadline ascending (closest to expiring first). Creator,
+    /// ownership, standing, and per-game dedup checks are applied by the scan.
+    fn fast_finality_candidates(&self) -> Vec<(U256, Address, u64, B256, Address, Address)> {
+        let mut candidates = self
+            .games
+            .values()
+            .filter(|game| game.status == GameStatus::InProgress)
+            .filter(|game| matches!(game.proposal_status, ProposalStatus::Unchallenged))
+            .map(|game| {
+                (
+                    game.index,
+                    game.address,
+                    game.deadline,
+                    game.absolute_prestate,
+                    game.creator,
+                    game.anchor_state_registry,
+                )
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_unstable_by_key(|(_, _, deadline, _, _, _)| *deadline);
+        candidates
+    }
+
+    /// Drop all cached state tied to the prior factory history
+    fn reset_factory_cache(&mut self) {
+        self.anchor_game = None;
+        self.canonical_head_index = None;
+        self.cursor = Cursor::none();
+        self.games.clear();
+        self.invalid_games.clear();
+    }
+
+    /// Selects the canonical head: the highest-L2-timestamp game on the best valid chain.
     ///
     /// With no anchor, the head is simply the highest game in the cache. With an anchor, the head
     /// is the highest descendant of the anchor, unless a higher chain branches off earlier
-    /// (genesis-rooted, or a lower parent index than the anchor head) — that alternative chain is
+    /// (genesis-rooted, or a lower parent index than the anchor head); that alternative chain is
     /// then followed to its own tip.
     fn select_canonical_head(&self) -> Option<Game> {
         let Some(anchor_game) = self.anchor_game.as_ref() else {
@@ -234,7 +318,7 @@ impl ProposerState {
         // Override with a higher non-descendant chain that branches off earlier than the anchor
         // head (genesis-rooted, or a lower parent index). Such a chain's root sits outside the
         // anchor's subtree, so we follow each qualifying root to its own highest-block tip rather
-        // than stopping at the root — otherwise the head would pin to the root of a genesis-rooted
+        // than stopping at the root; otherwise the head would pin to the root of a genesis-rooted
         // catch-up chain and stall instead of tracking its tip.
         let override_head = anchor_head.as_ref().and_then(|anchor| {
             let roots: Vec<U256> = self
@@ -270,19 +354,27 @@ impl ProposerState {
     }
 }
 
-/// Snapshot of the proposer's cached state for testing and monitoring.
+/// An unresolved game creation: the exact bytes of a `create` whose
+/// confirmation timed out, so the transaction may still land. While a
+/// record is set, new proposals are held; each tick the factory is
+/// checked for the uuid (adopting our landed game) and the record clears
+/// once the signer's pool holds no transactions, i.e. nothing of ours can
+/// land anymore. The hold plus the factory's dedup on (gameType,
+/// rootClaim, extraData) keep a stuck-then-included original from being
+/// joined by a sibling at a fresh timestamp. In-memory only: a restart
+/// with a create in flight keeps the pre-existing documented
+/// double-submit-once risk.
 #[derive(Clone, Debug)]
-pub struct ProposerStateSnapshot {
-    /// Factory index of the anchor game, if one is set.
-    pub anchor_index: Option<U256>,
-    /// Factory index of the current canonical head game, if any.
-    pub canonical_head_index: Option<U256>,
-    /// Super-root timestamp of the canonical head (0 when no head exists).
-    pub canonical_head_sequence_number: u64,
-    /// Cached games as `(factory index, game address)` pairs.
-    pub games: Vec<(U256, Address)>,
+struct InFlightCreation {
+    /// Root claim of the unresolved create.
+    root_claim: B256,
+    /// Exact extraData bytes sent (pins parent, timestamp, and proof).
+    extra_data: Vec<u8>,
+    /// Super-root timestamp of the unresolved create (guard arming).
+    sequence_number: u64,
+    /// Parent game index, for logging.
+    parent_game_index: u32,
 }
-
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
 /// resolves finished ones, and claims bonds.
 #[derive(Clone)]
@@ -300,9 +392,9 @@ where
     pub superroot_client: SuperrootClient,
     /// `DisputeGameFactory` contract instance used to create and enumerate games.
     pub factory: Arc<DisputeGameFactoryInstance<P>>,
-    /// Loaded prestate programs keyed by `absolutePrestate()` hash, fetched
-    /// from `PRESTATES_URL` on demand (see [`ensure_prestate_loaded`]).
-    pub prestates: Arc<RwLock<HashMap<B256, Arc<PrestatePrograms>>>>,
+    /// Prestate program cache: loaded ELFs keyed by `absolutePrestate()`
+    /// hash, fetched from `KONA_SP1_PROPOSER_PRESTATES_URL` on demand (see [`PrestateCache`]).
+    pub prestates: Arc<PrestateCache>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
     state: Arc<RwLock<ProposerState>>,
@@ -317,13 +409,36 @@ where
     /// Address of the most recently created game. Used to precisely identify
     /// the guarded game for `ChallengerWins` subtree removal.
     last_created_game_address: Arc<tokio::sync::Mutex<Address>>,
+    /// Exact bytes of a create whose confirmation timed out and whose fate
+    /// is unknown (see [`InFlightCreation`]).
+    in_flight_creation: Arc<tokio::sync::Mutex<Option<InFlightCreation>>>,
     /// Games seen on-chain whose super-root data is not yet obtainable from
     /// this node - the timestamp is not yet safe, or the query failed
     /// (including permanently, e.g. timestamps predating the node's recorded
-    /// safe history). Excluded from the DAG (and parent eligibility) but
+    /// safe history) - and our own games whose claim contradicts the current
+    /// supernode answer. Excluded from the DAG (and parent eligibility) but
     /// re-validated each sync - unlike terminal invalidity, pending games
     /// must not be dropped by the cursor (see `fetch_game`).
     pending_games: Arc<RwLock<HashSet<U256>>>,
+    /// The proof provider defending challenged games.
+    pub proof_provider: ProofProvider,
+    /// Deployment-scoped witness endpoints and config paths for the
+    /// `InteropHost` (built once from the config).
+    host_inputs: Arc<HostInputs>,
+    /// The registered game args' `maxProveDuration`, read once during
+    /// `try_init`. Used for the deadline-approaching warning tier only;
+    /// per-game deadlines come from `claimData` each sync.
+    max_prove_duration: Arc<OnceCell<u64>>,
+    /// The registered game args' `maxChallengeDuration`, read once during
+    /// `try_init`. Used for the deadline-approaching warning tier of
+    /// fast-finality proving only; per-game deadlines come from `claimData`
+    /// each sync.
+    max_challenge_duration: Arc<OnceCell<u64>>,
+    /// Games found permanently unprovable (claim diverged from the
+    /// supernode view, or required L1 beyond the game's L1 head). Skipped
+    /// by the proving scans without re-fetching their spans. In-memory
+    /// only: a restart re-evaluates (upstream-parity statelessness).
+    undefendable: Arc<Mutex<HashSet<Address>>>,
 }
 
 impl<P> std::fmt::Debug for Proposer<P>
@@ -342,26 +457,35 @@ impl<P> Proposer<P>
 where
     P: Provider + Clone + Send + Sync + 'static,
 {
-    /// Creates a new proposer instance with the provided signer and factory
-    /// contract instance.
+    /// Creates a proposer from resolved configuration and dependencies.
     pub async fn new(
         config: ProposerConfig,
         signer: SignerLock,
         factory: DisputeGameFactoryInstance<P>,
+        proof_provider: ProofProvider,
     ) -> Result<Self> {
         let identity = ProposerIdentity::new();
         identity.log_startup_info(&config.prestates_url);
 
         let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
-        let superroot_client = SuperrootClient::new(config.supernode_rpc.as_str())?;
+        let superroot_client = SuperrootClient::new(&config.superroot_rpcs)?;
 
+        let prestates = Arc::new(PrestateCache::new(config.prestates_url.clone()));
+        let host_inputs = Arc::new(HostInputs {
+            l1_node_address: config.l1_rpc.to_string(),
+            l1_beacon_address: config.l1_beacon_rpc.to_string(),
+            l2_node_addresses: config.l2_rpcs.iter().map(Url::to_string).collect(),
+            rollup_config_paths: config.rollup_config_paths.clone(),
+            l1_config_path: config.l1_config_path.clone(),
+            dependency_set_path: config.dependency_set_path.clone(),
+        });
         Ok(Self {
             config,
             signer,
             l1_provider,
             superroot_client,
             factory: Arc::new(factory),
-            prestates: Arc::new(RwLock::new(HashMap::new())),
+            prestates,
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
             state: Arc::new(RwLock::new(ProposerState::default())),
@@ -369,27 +493,14 @@ where
             last_synced_l1_block: Arc::new(AtomicU64::new(0)),
             last_created_game_l2_sequence_number: Arc::new(AtomicU64::new(0)),
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
+            in_flight_creation: Arc::new(tokio::sync::Mutex::new(None)),
             pending_games: Arc::new(RwLock::new(HashSet::new())),
+            proof_provider,
+            host_inputs,
+            max_prove_duration: Arc::new(OnceCell::new()),
+            max_challenge_duration: Arc::new(OnceCell::new()),
+            undefendable: Arc::new(Mutex::new(HashSet::new())),
         })
-    }
-
-    /// Returns a lightweight snapshot of the proposer's cached state.
-    pub async fn state_snapshot(&self) -> ProposerStateSnapshot {
-        let state = self.state.read().await;
-        ProposerStateSnapshot {
-            anchor_index: state.anchor_game.as_ref().map(|game| game.index),
-            canonical_head_index: state.canonical_head_index,
-            canonical_head_sequence_number: state
-                .canonical_head_sequence_number
-                .unwrap_or_default(),
-            games: state.games.values().map(|game| (game.index, game.address)).collect(),
-        }
-    }
-
-    /// Returns a copy of a game's full internal state for testing.
-    pub async fn get_game(&self, index: U256) -> Option<Game> {
-        let state = self.state.read().await;
-        state.games.get(&index).cloned()
     }
 
     /// Runs the proposer indefinitely.
@@ -439,6 +550,7 @@ where
                     } else {
                         tracing::warn!(
                             attempt = retry_count,
+                            error = %e,
                             "Startup validations still pending, retrying..."
                         );
                     }
@@ -463,30 +575,32 @@ where
         // Validate the registered game args decode and load the registered
         // prestate's programs.
         let game_args = self.registered_game_args(BlockId::latest()).await?;
-        if !ensure_prestate_loaded(
-            &self.prestates,
-            &self.config.prestates_url,
-            game_args.absolute_prestate,
-        )
-        .await
-        {
+        if !self.prestates.ensure_loaded(game_args.absolute_prestate).await {
             // Not fatal: creation stays paused until the artifacts appear
-            // under PRESTATES_URL (ensure_prestate_loaded logged why).
+            // under KONA_SP1_PROPOSER_PRESTATES_URL (PrestateCache::ensure_loaded logged why).
             tracing::warn!(
                 registered = %game_args.absolute_prestate,
                 "registered prestate programs unavailable; creation will pause"
             );
         }
 
+        // Record the registered durations for the proving scans'
+        // deadline-approaching warning tiers (per-game deadlines themselves
+        // come from claimData each sync): maxProveDuration keys defense,
+        // maxChallengeDuration keys fast finality.
+        let _ = self.max_prove_duration.set(game_args.max_prove_duration);
+        let _ = self.max_challenge_duration.set(game_args.max_challenge_duration);
+
         // Fetch and validate the anchor root from the currently registered registry.
         let registry =
             AnchorStateRegistry::new(game_args.anchor_state_registry, self.l1_provider.clone());
         let anchor = registry.getAnchorRoot().call().await?;
+        let (anchor_root, anchor_sequence_number) = (anchor._0, anchor._1);
         anyhow::ensure!(
-            anchor._0 != B256::ZERO,
+            anchor_root != B256::ZERO,
             "anchor state registry has no anchor root (game creation would revert)"
         );
-        anchor._1.try_into().context("anchor sequence number exceeds u64")
+        anchor_sequence_number.try_into().context("anchor sequence number exceeds u64")
     }
 
     /// Fetches and decodes the currently registered game args at `block`.
@@ -591,30 +705,37 @@ where
 
     /// Synchronizes the game cache.
     ///
-    /// 1. Load new games.
-    ///    - Incrementally fetch games from the factory, starting from the latest and working
-    ///      backwards to the oldest unprocessed game, stopping at games exceeding the maximum
-    ///      deadline lag from the anchor game (`MAX_GAME_DEADLINE_LAG`).
-    ///    - Games are validated (correct type, valid output root) before being added.
-    /// 2. Synchronize the status of all cached games.
-    ///    - Games are removed (along with their subtree) if their parent is not in the cache.
-    ///    - Games are marked for resolution if the parent is resolved, the game is over, and it's
-    ///      own game.
-    ///    - Games are marked for bond claim if they are finalized and there is credit to claim.
-    /// 3. Evict games from the cache.
-    ///    - Games that are finalized but there is no credit left to claim.
-    ///    - The entire subtree of a `ChallengerWins` game.
+    /// 1. Discover new games: walk the factory backwards from the latest game to the cursor,
+    ///    classifying each as valid / unsupported / invalid / pending, and stopping early once past
+    ///    the anchor's deadline-lag cutoff. A fetch failure aborts the sync cycle (the cursor is
+    ///    not advanced, so the range is re-walked next cycle).
+    /// 2. Remove invalid games and their subtrees.
+    /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
+    ///    super-root data, or an own-game claim mismatch); entries still pending past the anchor's
+    ///    deadline-lag cutoff are evicted.
+    /// 4. Synchronize the status of all cached games and apply actions: mark own games for
+    ///    resolution (parent resolved in the defender's favor, game over), mark `DefenderWins`
+    ///    games for bond claiming (finalized with credit, or a matured withdrawal), remove finished
+    ///    games (keeping the anchor and the canonical head), and remove the entire subtree of a
+    ///    `ChallengerWins` game (resetting the duplicate-creation guard when the tracked game is
+    ///    inside it). Per-game read failures skip only that game for the cycle.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
         let pinned_latest_index = self.factory.fetch_latest_game_index(pinned_block).await?;
+        ProposerGauge::FactoryLatestGameIndex
+            .set(pinned_latest_index.map_or(-1.0, |i| i.to::<u64>() as f64));
 
         // 1. Load new games.
         let latest_index = if let Some(index) = pinned_latest_index {
             Cursor::from(index)
         } else {
-            // No games at pinned block. Reset cursor so future sync cycles can discover
-            // games once they become confirmed.
-            let mut state = self.state.write().await;
-            state.cursor = Cursor::none();
+            // No games at the pinned block. Drop index-keyed caches so future
+            // cycles cannot reuse entries from a prior factory history.
+            {
+                let mut state = self.state.write().await;
+                state.reset_factory_cache();
+            }
+            self.pending_games.write().await.clear();
+            ProposerGauge::SyncCursor.set(-1.0);
             return Ok(());
         };
 
@@ -626,8 +747,8 @@ where
             .call()
             .await?;
 
-        let cursor = {
-            let state = self.state.read().await;
+        let (cursor, factory_reset) = {
+            let mut state = self.state.write().await;
             let current_cursor = state.cursor.clone();
 
             // This should never/rarely happen but in a case where the factory is redeployed/reset
@@ -639,24 +760,45 @@ where
                     current_cursor = %current_cursor,
                     "Factory reset suspected; resetting cursor to 0"
                 );
-                Cursor::none()
+                state.reset_factory_cache();
+                (Cursor::none(), true)
             } else {
-                current_cursor
+                (current_cursor, false)
             }
         };
+
+        if factory_reset {
+            self.pending_games.write().await.clear();
+        }
 
         let mut index = latest_index.clone();
         let mut anchor_deadline: Option<u64> = None;
         let mut invalid_game_ids = Vec::new();
         let mut newly_pending: Vec<U256> = Vec::new();
-
         loop {
             if index == cursor {
                 break;
             }
 
             let i = index.index().expect("must have an index here");
-            let fetch_result = self.fetch_game(i, pinned_block).await?;
+            let fetch_result = match self.fetch_game(i, pinned_block).await {
+                Ok(result) => result,
+                Err(e) => {
+                    // A failed fetch aborts the whole cycle: acting on a
+                    // partially discovered topology could select a parent
+                    // whose unfetched ancestry is invalid. The cursor stays
+                    // put so the range is re-walked next cycle; persistent
+                    // failure is visible via the warn, the game_sync_error
+                    // counter, and a flat sync cursor.
+                    tracing::warn!(
+                        game_index = %index,
+                        error = %e,
+                        "Game fetch failed; aborting the sync cycle"
+                    );
+                    ProposerGauge::GameSyncError.increment(1.0);
+                    return Err(e);
+                }
+            };
 
             match fetch_result {
                 GameFetchResult::ValidGame { game_address, deadline } => {
@@ -667,7 +809,7 @@ where
 
                     // Once we know the anchor deadline, enforce the lag constraint.
                     if let Some(anchor_d) = anchor_deadline &&
-                        anchor_d.abs_diff(deadline) > MAX_GAME_DEADLINE_LAG
+                        beyond_deadline_lag(anchor_d, deadline)
                     {
                         tracing::debug!(
                             game_index = %index,
@@ -689,7 +831,7 @@ where
                 GameFetchResult::InvalidGame { index } => {
                     invalid_game_ids.push(index);
                 }
-                GameFetchResult::Pending { index } => {
+                GameFetchResult::Pending { index, .. } => {
                     newly_pending.push(index);
                 }
             }
@@ -697,6 +839,10 @@ where
             index.step_back();
         }
 
+        // The loop only completes on a full walk (a fetch failure returns
+        // above), so the cursor advance is unconditional; re-walked
+        // processed games hit `AlreadyExists`, which is idempotent.
+        ProposerGauge::SyncCursor.set(latest_index.index().map_or(-1.0, |i| i.to::<u64>() as f64));
         {
             let mut state = self.state.write().await;
             state.cursor = latest_index;
@@ -709,7 +855,7 @@ where
                     game_index = %idx,
                     "Removing invalid game and its subtree from cache"
                 );
-                state.remove_subtree(idx);
+                state.invalidate_subtree(idx);
             }
         }
 
@@ -723,14 +869,58 @@ where
                 pending.iter().copied().filter(|idx| !newly_pending.contains(idx)).collect()
             };
             self.pending_games.write().await.extend(newly_pending.iter().copied());
+            // Anchor deadline for the eviction cutoff: prefer the walk's
+            // observation this cycle, fall back to the cached anchor game.
+            // Neither known -> skip eviction this cycle (it is an
+            // optimization; nothing is lost by waiting).
+            let anchor_deadline_for_eviction = match anchor_deadline {
+                Some(deadline) => Some(deadline),
+                None => self.state.read().await.anchor_game.as_ref().map(|g| g.deadline),
+            };
             for idx in previously_pending {
-                match self.fetch_game(idx, pinned_block).await? {
-                    GameFetchResult::Pending { .. } => {}
-                    GameFetchResult::InvalidGame { index } => {
-                        self.pending_games.write().await.remove(&index);
+                match self.fetch_game(idx, pinned_block).await {
+                    Ok(GameFetchResult::Pending { deadline, prestate, .. }) => {
+                        // Owned games (prestate in the usable set) are
+                        // exempt from eviction: an evicted own game loses
+                        // defense, resolution, and bond tracking until a
+                        // restart after the supernode heals. The
+                        // ensure_loaded attempt is bounded by the
+                        // negative-cache window for unknown prestates.
+                        let owned = {
+                            let _ = self.prestates.ensure_loaded(prestate).await;
+                            self.prestates.known_prestates().await.contains(&prestate)
+                        };
+                        if owned {
+                            tracing::debug!(
+                                game_index = %idx,
+                                "Keeping pending owned game re-checkable (eviction exempt)"
+                            );
+                        } else if let Some(anchor_d) = anchor_deadline_for_eviction &&
+                            pending_evictable(anchor_d, deadline)
+                        {
+                            tracing::warn!(
+                                game_index = %idx,
+                                game_deadline = deadline,
+                                anchor_deadline = anchor_d,
+                                "Evicting pending game whose deadline fell behind the anchor beyond the lag cutoff"
+                            );
+                            self.pending_games.write().await.remove(&idx);
+                        }
                     }
-                    _ => {
+                    Ok(GameFetchResult::InvalidGame { index }) => {
+                        self.pending_games.write().await.remove(&index);
+                        self.state.write().await.invalidate_subtree(index);
+                    }
+                    Ok(_) => {
                         self.pending_games.write().await.remove(&idx);
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            game_index = %idx,
+                            error = %e,
+                            "Pending game re-validation failed; retrying next cycle"
+                        );
+                        ProposerGauge::GameSyncError.increment(1.0);
                     }
                 }
             }
@@ -742,11 +932,33 @@ where
             state
                 .games
                 .values()
-                .map(|game| (game.index, game.address, game.weth, game.anchor_state_registry))
+                .map(|game| {
+                    (
+                        game.index,
+                        game.address,
+                        game.weth,
+                        game.anchor_state_registry,
+                        game.absolute_prestate,
+                    )
+                })
                 .collect::<Vec<_>>()
         };
 
         if !games.is_empty() {
+            // Load the prestate programs of every cached game, not just the
+            // registered one, so games created before a prestate rotation
+            // keep their ownership (prove = resolve = claim set). The
+            // negative cache bounds re-fetch attempts for unknown
+            // prestates.
+            let mut prestates: Vec<B256> =
+                games.iter().map(|(_, _, _, _, prestate)| *prestate).collect();
+            prestates.sort_unstable();
+            prestates.dedup();
+            for prestate in prestates {
+                let _ = self.prestates.ensure_loaded(prestate).await;
+            }
+            let known_prestates = self.prestates.known_prestates().await;
+
             let now_ts = pinned_timestamp;
             let signer_address = self.signer.address();
 
@@ -765,7 +977,8 @@ where
 
             let mut actions = Vec::with_capacity(games.len());
 
-            for (index, game_address, game_weth, game_asr) in games {
+            for (index, game_address, game_weth, game_asr, absolute_prestate) in games {
+                let synced: Result<()> = async {
                 let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
                 let claim_data = contract.claimData().block(pinned_block).call().await?;
                 // Enums are uint8 in the ABI; convert once at the read boundary.
@@ -789,28 +1002,22 @@ where
                         let parent_resolved =
                             is_parent_resolved(parent_index, self.factory.as_ref(), pinned_block)
                                 .await?;
-                        // The only proof-provided statuses reachable in the create-path
-                        // proposer are those set by third parties; they still make the
-                        // game "over" for resolution purposes.
+                        // Proof-provided statuses (whether set by us or by a
+                        // third party, since prove() is permissionless) make
+                        // the game "over" for resolution purposes.
                         let is_game_over = match proposal_status {
                             ProposalStatus::Unchallenged => now_ts > deadline,
                             ProposalStatus::UnchallengedAndValidProofProvided |
                             ProposalStatus::ChallengedAndValidProofProvided => true,
                             _ => false,
                         };
-                        let creator = contract.gameCreator().block(pinned_block).call().await?;
-                        let is_own_game = match proposal_status {
-                            ProposalStatus::Unchallenged => creator == signer_address,
-                            ProposalStatus::UnchallengedAndValidProofProvided |
-                            ProposalStatus::ChallengedAndValidProofProvided => {
-                                creator == signer_address || claim_data.prover == signer_address
-                            }
-                            _ => false,
-                        };
 
-                        // Cached games already passed game-type validation in fetch_game.
-                        let should_attempt_to_resolve =
-                            parent_resolved && is_game_over && is_own_game;
+                        // Cached games already passed game-type validation
+                        // in fetch_game. Ownership is prestate-based: the
+                        // resolve set equals the willing-to-prove set.
+                        let should_attempt_to_resolve = parent_resolved &&
+                            is_game_over &&
+                            known_prestates.contains(&absolute_prestate);
 
                         actions.push(GameSyncAction::Update {
                             index,
@@ -906,6 +1113,17 @@ where
                         actions.push(GameSyncAction::RemoveSubtree(index));
                     }
                 }
+                Ok(())
+                }
+                .await;
+                if let Err(e) = synced {
+                    tracing::warn!(
+                        game_index = %index,
+                        error = %e,
+                        "Game status sync failed; skipping this game for this cycle"
+                    );
+                    ProposerGauge::GameSyncError.increment(1.0);
+                }
             }
 
             let mut state = self.state.write().await;
@@ -953,7 +1171,7 @@ where
                                 );
                             }
                         }
-                        state.remove_subtree(index);
+                        state.invalidate_subtree(index);
                     }
                 }
             }
@@ -982,7 +1200,7 @@ where
             state.anchor_game = Some(anchor_game.clone());
             tracing::debug!(?anchor_address, "Anchor game updated in cache");
         } else {
-            // Anchor not in cache (pruned or not yet fetched) — clear to prevent
+            // Anchor not in cache (pruned or not yet fetched); clear to prevent
             // compute_canonical_head from following a stale subtree.
             state.anchor_game = None;
             tracing::debug!(?anchor_address, "Anchor game not in cache, clearing");
@@ -1013,12 +1231,10 @@ where
                 );
             }
         } else {
-            // Clear stale canonical head index when no valid games exist.
-            // canonical_head_sequence_number is intentionally preserved — it serves as the anchor
-            // baseline for should_create_game() to propose the first game. Clearing it
-            // would permanently block proposals on fresh deployments or when the pinned
-            // snapshot has no games. The new canonical_head_index gauge (-1) provides
-            // observability for the "no head" state.
+            // Preserve canonical_head_sequence_number as the anchor baseline for
+            // the first proposal. Clearing it would block creation on fresh
+            // deployments or pinned snapshots without games.
+            // canonical_head_index = -1 reports the no-head state.
             state.canonical_head_index = None;
 
             if previous_canonical_index.is_some() {
@@ -1032,21 +1248,66 @@ where
     }
 
     /// Returns true if game creation may proceed for the currently registered
-    /// game implementation's prestate (see [`ensure_prestate_loaded`]).
+    /// game implementation's prestate (see [`Self::prestate_usable_for_creation`]).
     async fn registered_prestate_known(&self) -> Result<bool> {
         let args = self.registered_game_args(BlockId::latest()).await?;
-        Ok(ensure_prestate_loaded(
-            &self.prestates,
-            &self.config.prestates_url,
-            args.absolute_prestate,
-        )
-        .await)
+        Ok(self.prestate_usable_for_creation(args.absolute_prestate).await)
+    }
+
+    /// Returns whether game creation may proceed for `prestate`. Artifacts
+    /// must load, and network mode also requires key setup and vkey
+    /// verification before a game is bonded on the prestate.
+    ///
+    /// Key setup takes tens of seconds per ELF, so this scheduler path starts
+    /// it in a background task and keeps creation paused until completion. A
+    /// failed setup poisons the entry until corrected artifacts are published.
+    async fn prestate_usable_for_creation(&self, prestate: B256) -> bool {
+        if !self.prestates.ensure_loaded(prestate).await {
+            return false;
+        }
+        if self.config.proof_provider != ProofProviderKind::Network {
+            return true;
+        }
+        match self.prestates.key_verification_state(prestate).await {
+            Some(true) => true,
+            // Poisoned: ensure_loaded owns healing and log pacing; it only
+            // reports usable again once changed artifacts replace the entry.
+            Some(false) => false,
+            None => {
+                if self.prestates.try_kick_key_setup(prestate).await {
+                    let prestates = self.prestates.clone();
+                    let kind = self.config.proof_provider;
+                    tokio::spawn(async move {
+                        if let Err(err) = prestates.proof_keys(prestate, kind).await {
+                            tracing::warn!(
+                                prestate = %prestate,
+                                error = %err,
+                                "registered prestate proving keys unusable; creation stays paused"
+                            );
+                        }
+                    });
+                    tracing::info!(
+                        prestate = %prestate,
+                        "Started SP1 proving-key setup; creation waits for the verdict"
+                    );
+                }
+                false
+            }
+        }
     }
 
     /// Returns the loaded program ELFs for `prestate`, if present in the
     /// cache. The defend path proves with these.
     pub async fn prestate_programs(&self, prestate: B256) -> Option<Arc<PrestatePrograms>> {
-        self.prestates.read().await.get(&prestate).cloned()
+        self.prestates.programs(prestate).await
+    }
+
+    /// Operator fee caps applied to every submitted transaction.
+    const fn fee_caps(&self) -> FeeCaps {
+        FeeCaps {
+            max_fee_per_gas: self.config.max_fee_per_gas,
+            max_priority_fee_per_gas: self.config.max_priority_fee_per_gas,
+        }
     }
 
     /// Creates a new game with the given parameters.
@@ -1069,6 +1330,7 @@ where
                 self.config.l1_rpc.clone(),
                 transaction_request,
                 self.config.tx_confirmation_timeout,
+                self.fee_caps(),
             )
             .await?;
 
@@ -1095,13 +1357,15 @@ where
     }
 
     async fn resolve_games(&self) -> Result<()> {
+        // Ownership is prestate-based: the resolve set equals the
+        // willing-to-prove set.
+        let known_prestates = self.prestates.known_prestates().await;
         let candidates = {
             let state = self.state.read().await;
             state
                 .games
                 .values()
-                // Only resolve owned games (created by this proposer).
-                .filter(|game| game.is_owned(self.signer.address()))
+                .filter(|game| game.is_owned(&known_prestates))
                 .filter(|game| game.should_attempt_to_resolve)
                 .cloned()
                 .collect::<Vec<_>>()
@@ -1172,13 +1436,16 @@ where
 
     /// Attempt to claim proposer bonds for any games flagged for claiming
     async fn claim_bonds(&self) -> Result<()> {
+        // Same ownership set as proving and resolution. Claims are
+        // credit-driven: iterating a foreign game where the proposer holds
+        // no credit is a no-op (the pre-flight reads classify it as done).
+        let known_prestates = self.prestates.known_prestates().await;
         let candidates = {
             let state = self.state.read().await;
             state
                 .games
                 .values()
-                // Only claim bonds for owned games (created by this proposer).
-                .filter(|game| game.is_owned(self.signer.address()))
+                .filter(|game| game.is_owned(&known_prestates))
                 .filter(|game| game.should_attempt_to_claim_bond)
                 .cloned()
                 .collect::<Vec<_>>()
@@ -1197,8 +1464,13 @@ where
             // registered one across upgrades.
             let weth = DelayedWETH::new(game.weth, self.l1_provider.clone());
             let withdrawal = weth.withdrawals(game.address, signer_address).call().await;
-            if let (Ok(credit), Ok(withdrawal)) = (credit, withdrawal) {
-                if credit == U256::ZERO && withdrawal.amount == U256::ZERO {
+            let mut is_payout = false;
+            if let (Ok(credit), Ok(withdrawal)) = (&credit, &withdrawal) {
+                // Phase 2 = credit already unlocked (zero) with a recorded
+                // withdrawal; only a successful payout claims the bond - the
+                // phase-1 unlock is bookkeeping and must not count.
+                is_payout = *credit == U256::ZERO && withdrawal.amount > U256::ZERO;
+                if *credit == U256::ZERO && withdrawal.amount == U256::ZERO {
                     tracing::info!(
                         game_index = %game.index,
                         game_address = ?game.address,
@@ -1206,7 +1478,7 @@ where
                     );
                     continue;
                 }
-                if credit == U256::ZERO && withdrawal.amount > U256::ZERO {
+                if *credit == U256::ZERO && withdrawal.amount > U256::ZERO {
                     // Phase 2: only submit once the WETH delay has elapsed in
                     // CHAIN time. DelayedWETH enforces
                     // `timestamp + DELAY_SECONDS <= block.timestamp`; wall
@@ -1263,7 +1535,11 @@ where
                 continue;
             }
 
-            ProposerGauge::GamesBondsClaimed.increment(1.0);
+            // If the pre-flight reads failed we cannot know the phase; skip
+            // the count (under-count in a degraded state, never a double-count).
+            if is_payout {
+                ProposerGauge::GamesBondsClaimed.increment(1.0);
+            }
         }
 
         Ok(())
@@ -1279,6 +1555,7 @@ where
                 self.config.l1_rpc.clone(),
                 transaction_request,
                 self.config.tx_confirmation_timeout,
+                self.fee_caps(),
             )
             .await?;
 
@@ -1311,6 +1588,7 @@ where
                 self.config.l1_rpc.clone(),
                 transaction_request,
                 self.config.tx_confirmation_timeout,
+                self.fee_caps(),
             )
             .await?;
 
@@ -1332,10 +1610,13 @@ where
     /// Fetch game from the factory.
     ///
     /// Terminal drops: unsupported game type, mismatched anchor state
-    /// registry, disrespected game type at creation, or a claim contradicting
-    /// the canonical super root. A timestamp not yet safe from this node's
-    /// view yields `Pending` instead: excluded from the DAG but re-validated
-    /// on later syncs.
+    /// registry, disrespected game type at creation, an `l2SequenceNumber`
+    /// exceeding `u64`, or another proposer's
+    /// claim contradicting the canonical super root (our OWN game's claim
+    /// mismatch is held pending instead of terminally dropped, since bad
+    /// supernode data is the likelier cause). A timestamp not yet safe from
+    /// this node's view yields `Pending` instead: excluded from the DAG but
+    /// re-validated on later syncs.
     pub async fn fetch_game(&self, index: U256, pinned_block: BlockId) -> Result<GameFetchResult> {
         {
             let state = self.state.read().await;
@@ -1362,6 +1643,20 @@ where
         }
 
         let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
+        let claim_data = contract.claimData().block(pinned_block).call().await?;
+        let parent_index = claim_data.parentIndex;
+
+        if parent_index != u32::MAX &&
+            self.state.read().await.invalid_games.contains(&U256::from(parent_index))
+        {
+            tracing::warn!(
+                game_index = %index,
+                ?game_address,
+                parent_index,
+                "Invalid game: parent belongs to a rejected game subtree"
+            );
+            return Ok(GameFetchResult::InvalidGame { index });
+        }
 
         // Capture the game's own immutable args: bond claims bind its WETH
         // and finality checks bind its registry, which can differ from the
@@ -1372,26 +1667,41 @@ where
         let game_weth = contract.weth().block(pinned_block).call().await?;
         let creator = contract.gameCreator().block(pinned_block).call().await?;
 
-        let sequence_number: u64 = contract
-            .l2SequenceNumber()
-            .block(pinned_block)
-            .call()
-            .await?
-            .try_into()
-            .context("game sequence number exceeds u64")?;
+        let sequence_number = contract.l2SequenceNumber().block(pinned_block).call().await?;
+        // Unreachable for games created through the current contract (the
+        // field is sourced from an 8-byte extraData slot), kept as a
+        // classification rather than an error so a malformed game can never
+        // wedge the walk: only transient errors may bubble from discovery.
+        let Ok(sequence_number) = u64::try_from(sequence_number) else {
+            tracing::warn!(
+                game_index = %index,
+                ?game_address,
+                "Invalid game: l2SequenceNumber exceeds u64"
+            );
+            return Ok(GameFetchResult::InvalidGame { index });
+        };
         let claim = contract.rootClaim().block(pinned_block).call().await?;
         let was_respected =
             contract.wasRespectedGameTypeWhenCreated().block(pinned_block).call().await?;
         let status = GameStatus::try_from(contract.status().block(pinned_block).call().await?)?;
-        let claim_data = contract.claimData().block(pinned_block).call().await?;
         let absolute_prestate = contract.absolutePrestate().block(pinned_block).call().await?;
 
         // Enums are uint8 in the ABI; convert once at the read boundary.
-        let (parent_index, proposal_status, deadline) = (
-            claim_data.parentIndex,
-            ProposalStatus::try_from(claim_data.status)?,
-            claim_data.deadline,
-        );
+        let (proposal_status, deadline) =
+            (ProposalStatus::try_from(claim_data.status)?, claim_data.deadline);
+
+        // A CHALLENGER_WINS game is terminal: children can never
+        // initialize on it (InvalidParentGame), it can never anchor, and
+        // the proposer holds no claimable credit in it. It never enters
+        // the DAG or the pending set.
+        if status == GameStatus::ChallengerWins {
+            tracing::info!(
+                game_index = %index,
+                ?game_address,
+                "Invalid game: resolved CHALLENGER_WINS (terminal)"
+            );
+            return Ok(GameFetchResult::InvalidGame { index });
+        }
 
         // Drop games whose type does not respect the expected type.
         if !was_respected {
@@ -1414,7 +1724,11 @@ where
         // force. Hold the game as pending instead: it stays outside the DAG
         // (never parent-eligible) and is re-checked each sync, bounded to one
         // query per cycle.
-        let response = match self.superroot_client.superroot_at_timestamp(sequence_number).await {
+        let response = match self
+            .superroot_client
+            .superroot_at_timestamp(sequence_number, ResponseSelection::PreferData)
+            .await
+        {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!(
@@ -1425,10 +1739,14 @@ where
                     "Super-root data unavailable for game; deferring validation"
                 );
                 ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending { index });
+                return Ok(GameFetchResult::Pending {
+                    index,
+                    deadline,
+                    prestate: absolute_prestate,
+                });
             }
         };
-        let super_root = match SuperrootClient::super_root_at(&response) {
+        let super_root = match SuperrootClient::super_root_at(&response, sequence_number) {
             Ok(super_root) => super_root,
             Err(e) => {
                 tracing::warn!(
@@ -1439,7 +1757,11 @@ where
                     "Super-root response failed validation for game; deferring"
                 );
                 ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending { index });
+                return Ok(GameFetchResult::Pending {
+                    index,
+                    deadline,
+                    prestate: absolute_prestate,
+                });
             }
         };
         match super_root {
@@ -1466,9 +1788,27 @@ where
                     sequence_number,
                     "Game timestamp not yet safe from this node's view; deferring validation"
                 );
-                return Ok(GameFetchResult::Pending { index });
+                return Ok(GameFetchResult::Pending {
+                    index,
+                    deadline,
+                    prestate: absolute_prestate,
+                });
             }
             Some(super_root) if super_root.super_root != claim => {
+                if !response_trusted(&response) {
+                    tracing::warn!(
+                        game_index = %index,
+                        ?game_address,
+                        ?claim,
+                        canonical_super_root = ?super_root.super_root,
+                        "Root mismatch from untrusted supernode response; deferring validation"
+                    );
+                    return Ok(GameFetchResult::Pending {
+                        index,
+                        deadline,
+                        prestate: absolute_prestate,
+                    });
+                }
                 tracing::warn!(
                     game_index = %index,
                     ?game_address,
@@ -1509,8 +1849,12 @@ where
             anchor_state_registry: game_asr,
         };
 
-        if !game.is_owned(self.signer.address()) {
-            tracing::info!(game_index = %index, "Discovered game created by another proposer - tracking for DAG but not resolving/claiming");
+        if game.creator != self.signer.address() {
+            tracing::info!(
+                game_index = %index,
+                creator = %game.creator,
+                "Discovered game created by another proposer; defense, resolution, and claims follow the prestate-based ownership set"
+            );
         }
 
         let mut state = self.state.write().await;
@@ -1529,8 +1873,12 @@ where
         let max_proposable = self.max_proposable_timestamp().await?;
 
         loop {
-            let response = self.superroot_client.superroot_at_timestamp(sequence_number).await?;
-            let Some(super_root) = SuperrootClient::super_root_at(&response)? else {
+            let response = self
+                .superroot_client
+                .superroot_at_timestamp(sequence_number, ResponseSelection::PreferData)
+                .await?;
+            let Some(super_root) = SuperrootClient::super_root_at(&response, sequence_number)?
+            else {
                 // Transient: the chosen timestamp is not yet safe from this
                 // node's view. Bail and retry on a later tick.
                 bail!("no canonical super root at timestamp {sequence_number} yet");
@@ -1550,19 +1898,65 @@ where
                     root_claim = %super_root.super_root,
                     "Creating game"
                 );
-                let game_address = self.create_game(super_root.super_root, extra_data).await?;
+                // Record the exact bytes before sending: if confirmation
+                // times out the tx may still land, and the record holds
+                // proposals until it is adopted or provably dead instead
+                // of proposing a sibling at a fresh timestamp.
+                *self.in_flight_creation.lock().await = Some(InFlightCreation {
+                    root_claim: super_root.super_root,
+                    extra_data: extra_data.clone(),
+                    sequence_number,
+                    parent_game_index,
+                });
+                match self.create_game(super_root.super_root, extra_data).await {
+                    Ok(game_address) => {
+                        *self.in_flight_creation.lock().await = None;
 
-                // Record the sequence number and address so should_create_game() skips
-                // duplicate creation while the pinned cache hasn't caught up to this game.
-                self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
-                *self.last_created_game_address.lock().await = game_address;
-                return Ok(());
+                        // Record the sequence number and address so should_create_game() skips
+                        // duplicate creation while the pinned cache hasn't caught up to this
+                        // game.
+                        self.last_created_game_l2_sequence_number
+                            .store(sequence_number, Ordering::Relaxed);
+                        *self.last_created_game_address.lock().await = game_address;
+                        ProposerGauge::GamesCreated.increment(1.0);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        if e.is_revert() {
+                            // A landed revert consumed the transaction: nothing is in
+                            // flight, so there is no uuid to pin.
+                            *self.in_flight_creation.lock().await = None;
+                        }
+                        return Err(e);
+                    }
+                }
             }
 
-            // An identical VALID game already exists (UUID collision). Advance the
-            // timestamp - bounded by the safety limit - and refetch a fresh super
-            // root (the proof embeds the timestamp). On reaching the bound, defer:
-            // the next sync adopts the existing game as canonical head.
+            // A game with identical parameters already exists (UUID
+            // collision). If WE created it - a previous create tx landed
+            // after its confirmation timed out, leaving the guard unarmed -
+            // adopt it instead of advancing the timestamp, which would bond
+            // a second game on the same parent. Only a third-party
+            // collision advances.
+            let existing_creator = ZKDisputeGame::new(existing_game, self.l1_provider.clone())
+                .gameCreator()
+                .call()
+                .await?;
+            if existing_creator == self.signer.address() {
+                tracing::info!(
+                    sequence_number,
+                    parent_game_index,
+                    game_address = ?existing_game,
+                    "Adopting own existing game after create-tx uncertainty"
+                );
+                self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
+                *self.last_created_game_address.lock().await = existing_game;
+                return Ok(());
+            }
+            // Third-party collision: advance the timestamp - bounded by the
+            // safety limit - and refetch a fresh super root (the proof
+            // embeds the timestamp). On reaching the bound, defer: the next
+            // sync adopts the existing game as canonical head.
             match advance_collision_timestamp(sequence_number, max_proposable) {
                 Some(next) => {
                     tracing::debug!(
@@ -1582,6 +1976,101 @@ where
                 }
             }
         }
+    }
+
+    /// Resolves an in-flight creation left by a confirmation timeout.
+    ///
+    /// Looks the recorded uuid up on the factory first: if the game exists
+    /// and is ours, adopt it (arm the duplicate-creation guard); if it is
+    /// another proposer's, the uuid is spent and no duplicate is possible.
+    /// Otherwise consult the signer's pool: while the pending transaction
+    /// count exceeds the latest, something of ours is still floating and
+    /// may land, so the record is kept and proposals stay held. Once the
+    /// pool drains, nothing of ours can land anymore - the original was
+    /// mined (the lookup above adopts it) or dropped - so the record
+    /// clears and normal proposals resume next tick through
+    /// `should_create_game`'s checks.
+    ///
+    /// The pool view is this node's: a transaction evicted here but alive
+    /// in another pool can land after the clear. That residual re-creates
+    /// the sibling scenario this record exists to narrow, which is benign
+    /// and self-healing - the sibling is a valid own game whose bond is
+    /// recovered by the normal resolution and claiming flow.
+    async fn resolve_in_flight_creation(&self) -> Result<()> {
+        let Some(record) = self.in_flight_creation.lock().await.clone() else {
+            return Ok(());
+        };
+
+        if self.try_adopt_recorded_uuid(&record).await? {
+            return Ok(());
+        }
+
+        let signer_address = self.signer.address();
+        let pending_nonce =
+            self.l1_provider.get_transaction_count(signer_address).pending().await?;
+        let latest_nonce = self.l1_provider.get_transaction_count(signer_address).latest().await?;
+        if pending_nonce > latest_nonce {
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                parent_game_index = record.parent_game_index,
+                pending_nonce,
+                latest_nonce,
+                "In-flight transaction still in the pool; holding proposals"
+            );
+            return Ok(());
+        }
+
+        tracing::info!(
+            sequence_number = record.sequence_number,
+            parent_game_index = record.parent_game_index,
+            "In-flight creation left the pool without landing; clearing the record"
+        );
+        *self.in_flight_creation.lock().await = None;
+        Ok(())
+    }
+
+    /// Resolves the record when its uuid already exists on the factory:
+    /// our own game is adopted (duplicate-creation guard armed), a foreign
+    /// copy spends the uuid either way. Returns whether the record was
+    /// resolved. Read errors keep the record and bubble (retried next
+    /// tick).
+    async fn try_adopt_recorded_uuid(&self, record: &InFlightCreation) -> Result<bool> {
+        let existing_game = self
+            .factory
+            .games(ZK_GAME_TYPE, record.root_claim, record.extra_data.clone().into())
+            .call()
+            .await?
+            .proxy_;
+        if existing_game == Address::ZERO {
+            return Ok(false);
+        }
+
+        let existing_creator = ZKDisputeGame::new(existing_game, self.l1_provider.clone())
+            .gameCreator()
+            .call()
+            .await?;
+        if existing_creator == self.signer.address() {
+            // Our stuck create landed after all: adopt it. Not counted
+            // in GamesCreated, consistent with the collision-adoption
+            // path (accepted under-count).
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                parent_game_index = record.parent_game_index,
+                game_address = ?existing_game,
+                "Adopting in-flight game that landed after its confirmation timeout"
+            );
+            self.last_created_game_l2_sequence_number
+                .store(record.sequence_number, Ordering::Relaxed);
+            *self.last_created_game_address.lock().await = existing_game;
+        } else {
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                game_address = ?existing_game,
+                "In-flight uuid was created by another proposer; no duplicate possible"
+            );
+        }
+        *self.in_flight_creation.lock().await = None;
+        Ok(true)
     }
 
     /// Fetch the proposer metrics.
@@ -1673,6 +2162,9 @@ where
             TaskInfo::GameResolution => {
                 ProposerGauge::GameResolutionError.increment(1.0);
             }
+            TaskInfo::GameProving { .. } => {
+                ProposerGauge::GameProvingError.increment(1.0);
+            }
             TaskInfo::BondClaim => {
                 ProposerGauge::BondClaimingError.increment(1.0);
             }
@@ -1693,6 +2185,12 @@ where
                 }
                 Err(e) => tracing::warn!("Failed to spawn game creation task: {:?}", e),
             }
+        }
+
+        match self.spawn_game_defense_tasks().await {
+            Ok(true) => tracing::info!("Successfully spawned game defense tasks"),
+            Ok(false) => tracing::debug!("No games need defense or defense is at capacity"),
+            Err(e) => tracing::warn!("Failed to spawn game defense tasks: {:?}", e),
         }
 
         // Spawn game resolution task (only operates on owned games via is_owned() filter)
@@ -1737,6 +2235,7 @@ where
                 let task_type = match info {
                     TaskInfo::GameCreation { .. } => "GameCreation",
                     TaskInfo::GameResolution => "GameResolution",
+                    TaskInfo::GameProving { .. } => "GameProving",
                     TaskInfo::BondClaim => "BondClaim",
                 };
                 *task_counts.entry(task_type).or_insert(0) += 1;
@@ -1758,11 +2257,107 @@ where
     /// - Ok(false): No work needed (proposal interval not elapsed or no finalized blocks)
     /// - Err: Actual error occurred during task spawning
     async fn spawn_game_creation_task(&self) -> Result<bool> {
+        // An unresolved create takes precedence over new proposals: hold
+        // them until its uuid is adopted or provably dead, so a
+        // stuck-then-included original can never be joined by a sibling at
+        // a fresh timestamp.
+        let in_flight_sequence_number =
+            self.in_flight_creation.lock().await.as_ref().map(|record| record.sequence_number);
+        if let Some(sequence_number) = in_flight_sequence_number {
+            let proposer = self.clone();
+            let task_id = self.next_task_id.fetch_add(1, Ordering::Relaxed);
+
+            let handle = tokio::spawn(async move {
+                if let Err(e) = proposer.resolve_in_flight_creation().await {
+                    tracing::warn!("Failed to resolve in-flight game creation: {:?}", e);
+                    return Err(e);
+                }
+
+                Ok(())
+            });
+
+            let task_info = TaskInfo::GameCreation { sequence_number };
+
+            self.tasks.lock().await.insert(task_id, (handle, task_info));
+            tracing::info!(
+                "Spawned in-flight creation resolution task {} for sequence number {}",
+                task_id,
+                sequence_number
+            );
+            return Ok(true);
+        }
+
         // First check if we should create a game
         let (should_create, next_sequence_number, parent_game_index) =
             self.should_create_game().await?;
         if !should_create {
             return Ok(false);
+        }
+
+        // A retired or blacklisted parent reverts child creation forever
+        // (ZKDisputeGame.initialize consults the registered registry's
+        // isGameBlacklisted/isGameRetired at create time; nothing at resolve
+        // time ever prunes such a parent). Check the chosen parent against
+        // the registry a new child would bind - the currently registered
+        // one, not the parent's own (they differ across ASR swaps) - and
+        // drop its subtree so head selection falls back next sync. Bare
+        // isGameProper would be wrong here: its paused() clause is true for
+        // every game during a superchain pause and would mass-evict the
+        // cache.
+        if parent_game_index != u32::MAX {
+            let parent_address = {
+                let state = self.state.read().await;
+                state.games.get(&U256::from(parent_game_index)).map(|game| game.address)
+            };
+            let Some(parent_address) = parent_address else {
+                // A non-MAX parent index that is absent from the cache is a
+                // dangling head reference (e.g. right after this block removed
+                // its subtree, before the next full sync re-picks the head).
+                // Creating against it would be exactly the doomed creation
+                // this check exists to prevent, so defer instead.
+                tracing::debug!(
+                    parent_index = parent_game_index,
+                    "Chosen parent not in cache (dangling head after subtree removal); deferring creation until the next sync"
+                );
+                return Ok(false);
+            };
+            let registry = self.registered_anchor_state_registry(BlockId::latest()).await?;
+            // Standing must be current, not pinned: retirement/blacklisting
+            // is retroactive and the child binds the registry at create time.
+            let blacklisted = registry.isGameBlacklisted(parent_address).call().await?;
+            let retired = registry.isGameRetired(parent_address).call().await?;
+            if blacklisted || retired {
+                tracing::warn!(
+                    parent_index = parent_game_index,
+                    ?parent_address,
+                    blacklisted,
+                    retired,
+                    "Chosen parent can no longer be built on; dropping its subtree"
+                );
+                let root_index = U256::from(parent_game_index);
+                let mut state = self.state.write().await;
+                // Mirror sync_games' RemoveSubtree handling: reset the
+                // duplicate-creation guard if the removed subtree contains
+                // the game it tracks (descendants_of includes the root).
+                let guarded_addr = *self.last_created_game_address.lock().await;
+                if guarded_addr != Address::ZERO {
+                    let guard_in_subtree = state
+                        .descendants_of(root_index)
+                        .iter()
+                        .any(|idx| state.games.get(idx).is_some_and(|g| g.address == guarded_addr));
+                    if guard_in_subtree {
+                        self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
+                        *self.last_created_game_address.lock().await = Address::ZERO;
+                        tracing::info!(
+                            ?guarded_addr,
+                            root_index = parent_game_index,
+                            "Reset creation guard: tracked game removed with a retired/blacklisted ancestor"
+                        );
+                    }
+                }
+                state.invalidate_subtree(root_index);
+                return Ok(false);
+            }
         }
 
         let proposer = self.clone();
@@ -1775,8 +2370,6 @@ where
                 tracing::warn!("Failed to handle game creation: {:?}", e);
                 return Err(e);
             }
-
-            ProposerGauge::GamesCreated.increment(1.0);
 
             Ok(())
         });
@@ -1794,12 +2387,89 @@ where
 
     /// Check if we should create a game.
     ///
+    /// In fast finality mode this FIRST spawns proving for owned
+    /// unchallenged games without one (up to `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT`,
+    /// counting ALL in-flight proving tasks), then skips creation while at
+    /// that capacity: never create games faster than they can be proven.
+    ///
     /// Compares the next proposal sequence number against the highest
     /// timestamp proposable under the configured safety level.
     ///
     /// Returns whether a game should be created, the sequence number to
     /// propose at, and the parent game index (dummy values when false).
     pub async fn should_create_game(&self) -> Result<(bool, u64, u32)> {
+        if self.config.fast_finality_mode {
+            let mut active_proving = self.count_active_proving_tasks().await;
+            if active_proving < self.config.fast_finality_proving_limit.get() {
+                let known_prestates = self.prestates.known_prestates().await;
+                let candidates = self.state.read().await.fast_finality_candidates();
+                for (index, game_address, deadline, prestate, creator, registry_address) in
+                    candidates
+                {
+                    if active_proving >= self.config.fast_finality_proving_limit.get() {
+                        tracing::debug!(
+                            active = active_proving,
+                            "Reached fast finality proving capacity while scanning"
+                        );
+                        break;
+                    }
+                    if creator != self.signer.address() {
+                        tracing::debug!(
+                            game_address = ?game_address,
+                            creator = ?creator,
+                            "Skipping fast finality: game created by another proposer"
+                        );
+                        continue;
+                    }
+                    if self.has_active_proving_for_game(game_address).await {
+                        continue;
+                    }
+                    if !known_prestates.contains(&prestate) {
+                        // Not ours to prove (prestate-based ownership, #22111);
+                        // an unchallenged foreign game is unremarkable.
+                        tracing::debug!(
+                            game_address = ?game_address,
+                            "Skipping fast finality: unknown prestate"
+                        );
+                        continue;
+                    }
+                    if self.should_skip_proving(game_address, deadline, false).await? {
+                        continue;
+                    }
+                    if game_is_blacklisted_or_retired(
+                        &self.l1_provider,
+                        game_address,
+                        registry_address,
+                    )
+                    .await?
+                    {
+                        tracing::warn!(
+                            game_index = %index,
+                            ?game_address,
+                            "Skipping fast finality: game is blacklisted or retired"
+                        );
+                        continue;
+                    }
+                    self.spawn_game_proving_task(index, game_address, false).await?;
+                    tracing::info!(
+                        game_address = ?game_address,
+                        game_index = %index,
+                        "Spawned fast finality proving"
+                    );
+                    ProposerGauge::GamesFastFinalitySpawned.increment(1.0);
+                    active_proving += 1;
+                }
+            }
+            if active_proving >= self.config.fast_finality_proving_limit.get() {
+                tracing::info!(
+                    active = active_proving,
+                    limit = %self.config.fast_finality_proving_limit,
+                    "Skipping game creation: at fast finality proving capacity"
+                );
+                return Ok((false, 0, u32::MAX));
+            }
+        }
+
         // Check if our game type matches the current respected game type.
         // The proposer should only create games when its type is the respected type.
         let respected_game_type = self
@@ -1877,7 +2547,8 @@ where
     /// configured safety level, from a fresh supernode response.
     async fn max_proposable_timestamp(&self) -> Result<u64> {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs();
-        let response = self.superroot_client.superroot_at_timestamp(now).await?;
+        let response =
+            self.superroot_client.superroot_at_timestamp(now, ResponseSelection::HighestL1).await?;
         Ok(SuperrootClient::max_proposable_timestamp(&response, self.config.proposal_safety))
     }
 
@@ -1907,6 +2578,477 @@ where
         tracing::info!("Spawned bond claim task {}", task_id);
         Ok(())
     }
+
+    /// Count active defense proving tasks (`is_defense: true` only; the
+    /// defense cap ignores fast-finality tasks).
+    async fn count_active_defense_tasks(&self) -> u64 {
+        let tasks = self.tasks.lock().await;
+        tasks
+            .values()
+            .filter(|(_, info)| matches!(info, TaskInfo::GameProving { is_defense: true, .. }))
+            .count() as u64
+    }
+
+    /// Count ALL active proving tasks, defense and fast finality alike.
+    ///
+    /// This is the fast-finality capacity number: defense load counts
+    /// against `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT` (upstream parity), so heavy
+    /// defense pauses fast-finality proving AND game creation.
+    async fn count_active_proving_tasks(&self) -> u64 {
+        let tasks = self.tasks.lock().await;
+        tasks.values().filter(|(_, info)| matches!(info, TaskInfo::GameProving { .. })).count()
+            as u64
+    }
+
+    /// Check if there's an active proving task for a specific game.
+    async fn has_active_proving_for_game(&self, game_address: Address) -> bool {
+        let tasks = self.tasks.lock().await;
+        tasks.values().any(|(_, info)| {
+            matches!(info, TaskInfo::GameProving { game_address: addr, .. } if *addr == game_address)
+        })
+    }
+
+    /// Schedules owned challenged games by ascending deadline, up to the
+    /// configured limit. Each game has at most one live task. Failed tasks
+    /// become eligible again after `handle_completed_tasks` removes them.
+    #[tracing::instrument(name = "[[Defending]]", skip(self))]
+    async fn spawn_game_defense_tasks(&self) -> Result<bool> {
+        let known_prestates = self.prestates.known_prestates().await;
+        let candidates = self.state.read().await.challenged_candidates();
+
+        let mut active_defense_tasks = self.count_active_defense_tasks().await;
+        let max_concurrent = self.config.max_concurrent_defense_tasks.get();
+        let mut tasks_spawned = false;
+
+        for (index, game_address, deadline, prestate, registry_address) in candidates {
+            if active_defense_tasks >= max_concurrent {
+                tracing::debug!(
+                    "The max concurrent defense tasks count ({}) has been reached",
+                    max_concurrent
+                );
+                break;
+            }
+
+            if self.has_active_proving_for_game(game_address).await {
+                continue;
+            }
+
+            if !known_prestates.contains(&prestate) {
+                // A challenged game this proposer cannot prove is a state
+                // operators must notice: the bond is lost when the prove
+                // deadline expires. Re-fetch attempts for the prestate are
+                // bounded by the cache's negative-cache window.
+                tracing::warn!(
+                    game_index = %index,
+                    game_address = ?game_address,
+                    prestate = %prestate,
+                    "Challenged game has an unknown or unusable prestate; cannot defend"
+                );
+                ProposerGauge::UnknownPrestateChallenged.increment(1.0);
+                continue;
+            }
+
+            if self.should_skip_proving(game_address, deadline, true).await? {
+                continue;
+            }
+
+            if game_is_blacklisted_or_retired(&self.l1_provider, game_address, registry_address)
+                .await?
+            {
+                tracing::warn!(
+                    game_index = %index,
+                    ?game_address,
+                    "Skipping defense: game is blacklisted or retired"
+                );
+                continue;
+            }
+
+            self.spawn_game_proving_task(index, game_address, true).await?;
+            tracing::info!(
+                game_address = ?game_address,
+                game_index = %index,
+                "Spawned defense for challenged game"
+            );
+            ProposerGauge::GamesDefenseSpawned.increment(1.0);
+            active_defense_tasks += 1;
+            tasks_spawned = true;
+        }
+
+        Ok(tasks_spawned)
+    }
+
+    /// Check if proving should be skipped for any reason:
+    /// - The game was found permanently unprovable earlier.
+    /// - It is already proven or resolved on chain (pre-flight at `latest`; the cached status is
+    ///   read at the pinned, lagged block, so a recently confirmed `prove()` or `resolve()` may not
+    ///   be reflected yet - this avoids an expensive proof regeneration that could only revert on
+    ///   submission).
+    /// - Its deadline has passed (with a warning tier when it is approaching). For defense the
+    ///   deadline is the prove window and the warning tier is keyed to `maxProveDuration`; for fast
+    ///   finality it is the challenge window, keyed to `maxChallengeDuration`.
+    async fn should_skip_proving(
+        &self,
+        game_address: Address,
+        deadline: u64,
+        is_defense: bool,
+    ) -> Result<bool> {
+        if self.undefendable.lock().await.contains(&game_address) {
+            tracing::debug!(?game_address, "Skipping proving: game is permanently unprovable");
+            return Ok(true);
+        }
+
+        let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
+        match contract.claimData().call().await {
+            Ok(claim_data) => match ProposalStatus::try_from(claim_data.status) {
+                Ok(
+                    ProposalStatus::UnchallengedAndValidProofProvided |
+                    ProposalStatus::ChallengedAndValidProofProvided |
+                    ProposalStatus::Resolved,
+                ) => {
+                    tracing::info!(
+                        ?game_address,
+                        "Skipping proving: game already proven or resolved on chain"
+                    );
+                    return Ok(true);
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::warn!(
+                        ?game_address,
+                        error = %e,
+                        "Pre-flight proposal status decode failed, proceeding with proving"
+                    );
+                }
+            },
+            Err(e) => {
+                tracing::warn!(
+                    ?game_address,
+                    error = ?e,
+                    "Pre-flight proposal status check failed, proceeding with proving"
+                );
+            }
+        }
+
+        let now = latest_l1_timestamp(&self.l1_provider).await?;
+        let max_duration = if is_defense {
+            *self.max_prove_duration.get().context("max_prove_duration must be set via try_init")?
+        } else {
+            *self
+                .max_challenge_duration
+                .get()
+                .context("max_challenge_duration must be set via try_init")?
+        };
+        match check_deadline_status(now, deadline, max_duration) {
+            DeadlineStatus::Passed => {
+                tracing::error!(
+                    game_address = ?game_address,
+                    deadline,
+                    now,
+                    "Game proving deadline passed, cannot prove"
+                );
+                return Ok(true);
+            }
+            DeadlineStatus::Approaching { hours_remaining } => {
+                tracing::warn!(
+                    game_address = ?game_address,
+                    "Game proving deadline approaching, {:.1} hours remaining",
+                    hours_remaining
+                );
+                ProposerGauge::DeadlineApproaching.increment(1.0);
+            }
+            DeadlineStatus::Ok => {}
+        }
+        Ok(false)
+    }
+
+    /// Runs span fetch, witness collection, proving, and `prove()` submission.
+    /// A [`crate::proving::GameUnprovable`] outcome moves the game to the
+    /// `undefendable` set without retry churn. Other failures retry after
+    /// `handle_task_failure`.
+    async fn spawn_game_proving_task(
+        &self,
+        game_index: U256,
+        game_address: Address,
+        is_defense: bool,
+    ) -> Result<()> {
+        let proposer = self.clone();
+        let task_id = self.next_task_id.fetch_add(1, Ordering::Relaxed);
+
+        let handle = tokio::spawn(async move {
+            let result = proposer.prove_game(game_address).await;
+            proposer.handle_game_proving_result(game_index, game_address, result).await
+        });
+
+        let task_info = TaskInfo::GameProving { game_address, is_defense };
+        self.tasks.lock().await.insert(task_id, (handle, task_info));
+        tracing::info!(%game_index, ?game_address, task_id, "Spawned game proving task");
+        Ok(())
+    }
+
+    async fn handle_game_proving_result(
+        &self,
+        game_index: U256,
+        game_address: Address,
+        result: Result<()>,
+    ) -> Result<()> {
+        match result {
+            Ok(()) => Ok(()),
+            Err(err) if is_unprovable(&err) => {
+                tracing::error!(
+                    ?game_address,
+                    error = %err,
+                    "Game is permanently unprovable; giving up on proving it"
+                );
+                ProposerGauge::GameUnprovable.increment(1.0);
+                let mut state = self.state.write().await;
+                if state.games.get(&game_index).is_some_and(|game| game.address == game_address) {
+                    let guarded_addr = *self.last_created_game_address.lock().await;
+                    if guarded_addr != Address::ZERO &&
+                        state.descendants_of(game_index).iter().any(|index| {
+                            state.games.get(index).is_some_and(|game| game.address == guarded_addr)
+                        })
+                    {
+                        self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
+                        *self.last_created_game_address.lock().await = Address::ZERO;
+                        tracing::info!(
+                            ?guarded_addr,
+                            root_index = %game_index,
+                            "Reset creation guard: tracked game removed with unprovable subtree"
+                        );
+                    }
+                    state.invalidate_subtree(game_index);
+                }
+                drop(state);
+                self.undefendable.lock().await.insert(game_address);
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    #[tracing::instrument(name = "[[Proving]]", skip(self), fields(game_address = ?game_address))]
+    async fn prove_game(&self, game_address: Address) -> Result<()> {
+        let start_time = Instant::now();
+
+        // The game's prestate selects the proving programs; a game that
+        // left the cache mid-flight (e.g. subtree removal) is not proven.
+        let prestate = {
+            let state = self.state.read().await;
+            state
+                .games
+                .values()
+                .find(|game| game.address == game_address)
+                .map(|game| game.absolute_prestate)
+        };
+        let Some(prestate) = prestate else {
+            tracing::info!(?game_address, "Game no longer tracked; abandoning its proving");
+            return Ok(());
+        };
+
+        let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
+        let l1_head = contract.l1Head().call().await?;
+        let starting = contract.startingProposal().call().await?;
+        let root_claim = contract.rootClaim().call().await?;
+        let claim_ts: u64 = contract
+            .l2SequenceNumber()
+            .call()
+            .await?
+            .try_into()
+            .context("l2SequenceNumber exceeds u64")?;
+        let starting_ts: u64 = starting
+            .l2SequenceNumber
+            .try_into()
+            .context("starting l2SequenceNumber exceeds u64")?;
+        let l1_head_number = kona_sp1_super_range_executor::fetch_l1_head_number(
+            self.config.l1_rpc.as_str(),
+            l1_head,
+        )
+        .await?;
+
+        let keys = match self.config.proof_provider {
+            ProofProviderKind::Network => {
+                Some(self.prestates.proof_keys(prestate, self.config.proof_provider).await?)
+            }
+            ProofProviderKind::Mock => None,
+        };
+
+        let inputs = GameProofInputs {
+            l1_head,
+            l1_head_number,
+            starting_root: starting.root,
+            starting_ts,
+            root_claim,
+            claim_ts,
+            prestate,
+            prover: self.signer.address(),
+        };
+        let responses = fetch_span_responses(&self.superroot_client, &inputs).await?;
+        let proof_bytes = prove_game_inner(
+            &self.proof_provider,
+            keys.as_deref(),
+            &self.host_inputs,
+            &inputs,
+            &responses,
+            self.config.range_split_count,
+            self.config.max_concurrent_range_proofs,
+        )
+        .await?;
+
+        // Pre-submit re-check: proving can take long; avoid a guaranteed
+        // revert when the game was proven by someone else, resolved, hit
+        // its deadline, or was evicted (parent lost) meanwhile.
+        if !self.pre_submit_checks(game_address).await? {
+            return Ok(());
+        }
+
+        let transaction_request = contract.prove(proof_bytes.into()).into_transaction_request();
+        let receipt = self
+            .signer
+            .send_transaction_request_with_timeout(
+                self.config.l1_rpc.clone(),
+                transaction_request,
+                self.config.tx_confirmation_timeout,
+                self.fee_caps(),
+            )
+            .await?;
+
+        if !receipt.status() {
+            bail!("{TX_REVERTED_PREFIX} {receipt:?}");
+        }
+
+        ProposerGauge::GamesProven.increment(1.0);
+        ProposerGauge::ProvingDurationSeconds.set(start_time.elapsed().as_secs_f64());
+        tracing::info!(
+            game_address = ?game_address,
+            tx_hash = ?receipt.transaction_hash,
+            duration_s = start_time.elapsed().as_secs_f64(),
+            "Game proven successfully"
+        );
+        Ok(())
+    }
+
+    /// Final checks before submitting a `prove()` transaction. Returns false
+    /// when submission should be skipped (all three legs log why):
+    /// 1. the game is still tracked (subtree removal on a lost parent evicts descendants, and
+    ///    `prove()` reverts `InvalidParentGame`; a residual on-chain-but-unsynced parent loss still
+    ///    reverts harmlessly and is caught by the tx status check);
+    /// 2. `claimData` at `latest` still awaits a proof (`Unchallenged` or `Challenged`; a challenge
+    ///    landing mid-proof does not invalidate the proof - the public values bind the signer, not
+    ///    the status - and the reverse reorg is equally fine);
+    /// 3. the game's deadline has not passed (the challenge deadline while `Unchallenged`, the
+    ///    prove deadline once challenged; `claimData` at `latest` reflects the rewrite).
+    async fn pre_submit_checks(&self, game_address: Address) -> Result<bool> {
+        let tracked = {
+            let state = self.state.read().await;
+            state.games.values().any(|game| game.address == game_address)
+        };
+        if !tracked {
+            tracing::info!(?game_address, "Skipping prove(): game evicted mid-proving");
+            return Ok(false);
+        }
+
+        let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
+        let claim_data = contract.claimData().call().await?;
+        let status = ProposalStatus::try_from(claim_data.status)?;
+        if !awaiting_proof(status) {
+            tracing::info!(
+                ?game_address,
+                ?status,
+                "Skipping prove(): game no longer awaiting a proof"
+            );
+            return Ok(false);
+        }
+
+        let registry_address = contract.anchorStateRegistry().call().await?;
+        if game_is_blacklisted_or_retired(&self.l1_provider, game_address, registry_address).await?
+        {
+            tracing::warn!(
+                ?game_address,
+                "Skipping prove(): game became blacklisted or retired while proving"
+            );
+            return Ok(false);
+        }
+
+        let now = latest_l1_timestamp(&self.l1_provider).await?;
+        if now > claim_data.deadline {
+            tracing::warn!(
+                ?game_address,
+                deadline = claim_data.deadline,
+                now,
+                "Skipping prove(): game deadline passed mid-proving"
+            );
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+}
+
+async fn game_is_blacklisted_or_retired<P>(
+    provider: &P,
+    game_address: Address,
+    registry_address: Address,
+) -> Result<bool>
+where
+    P: Provider + Clone + Send + Sync + 'static,
+{
+    let registry = AnchorStateRegistry::new(registry_address, provider.clone());
+    let blacklisted_call = registry.isGameBlacklisted(game_address);
+    let retired_call = registry.isGameRetired(game_address);
+    let (blacklisted, retired) = tokio::try_join!(blacklisted_call.call(), retired_call.call())?;
+    Ok(blacklisted || retired)
+}
+
+async fn latest_l1_timestamp<P>(provider: &P) -> Result<u64>
+where
+    P: Provider + Send + Sync,
+{
+    let block = provider
+        .get_block_by_number(BlockNumberOrTag::Latest)
+        .await?
+        .context("failed to fetch latest L1 block for game deadline")?;
+    Ok(block.header.timestamp)
+}
+
+/// Warn when less than `max_duration / DEADLINE_WARNING_DIVISOR` remains
+/// before a game's proving deadline (the prove window for defense, the
+/// challenge window for fast finality).
+pub const DEADLINE_WARNING_DIVISOR: u64 = 2;
+
+/// Status of a game's proving deadline.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DeadlineStatus {
+    /// Deadline has passed.
+    Passed,
+    /// Deadline is approaching (within the warning window).
+    Approaching {
+        /// Hours remaining until the deadline.
+        hours_remaining: f64,
+    },
+    /// Plenty of time remains.
+    Ok,
+}
+
+/// Classifies a prove deadline; equality has not passed.
+pub fn check_deadline_status(now: u64, deadline: u64, max_duration: u64) -> DeadlineStatus {
+    if now > deadline {
+        return DeadlineStatus::Passed;
+    }
+
+    let time_remaining = deadline.saturating_sub(now);
+    if time_remaining < max_duration / DEADLINE_WARNING_DIVISOR {
+        let hours_remaining = time_remaining as f64 / 3600.0;
+        DeadlineStatus::Approaching { hours_remaining }
+    } else {
+        DeadlineStatus::Ok
+    }
+}
+
+/// A game still awaiting a proof: unchallenged (fast finality) or
+/// challenged (defense). Proof-provided and `Resolved` games are past
+/// proving.
+pub(crate) const fn awaiting_proof(status: ProposalStatus) -> bool {
+    matches!(status, ProposalStatus::Unchallenged | ProposalStatus::Challenged)
 }
 
 /// Result of fetching a game from the factory.
@@ -1931,15 +3073,18 @@ pub enum GameFetchResult {
         /// Factory index of the invalid game.
         index: U256,
     },
-    /// The game's timestamp is not yet safe from this node's view: it cannot
-    /// be validated yet. Kept OUT of the DAG (never parent-eligible) but
-    /// re-validated each sync until data appears or the horizon expires -
-    /// unlike terminal invalidity, this verdict is not permanent (the
-    /// upstream design could drop terminally because its data source errored
-    /// on unavailable blocks; ours reports absence as `data: None`).
+    /// The game's timestamp is not yet safe from this node's view, so it
+    /// cannot be validated. It remains outside the DAG and is re-validated
+    /// each sync until data appears or the horizon expires.
     Pending {
         /// Factory index of the pending game.
         index: U256,
+        /// Claim deadline of the game (L1 timestamp, seconds), used by the
+        /// pending eviction cutoff.
+        deadline: u64,
+        /// The game's `absolutePrestate()`: owned (usable-prestate) games
+        /// are exempt from pending eviction.
+        prestate: B256,
     },
     /// Game was already present in the cache
     AlreadyExists,
@@ -2070,6 +3215,20 @@ pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> b
         withdrawal_ts.checked_add(weth_delay).is_some_and(|deadline| l1_now >= deadline)
 }
 
+/// Returns whether a game deadline is beyond the maximum allowed lag from
+/// the anchor deadline (the walk stop condition and the pending-eviction
+/// cutoff share this rule).
+pub const fn beyond_deadline_lag(anchor_deadline: u64, game_deadline: u64) -> bool {
+    anchor_deadline.abs_diff(game_deadline) > MAX_GAME_DEADLINE_LAG
+}
+
+/// Returns whether a pending game's deadline is more than the maximum lag
+/// behind the anchor deadline. This is one-sided: a game ahead of a stalled
+/// anchor may still have an open challenge window and remains re-checkable.
+pub const fn pending_evictable(anchor_deadline: u64, game_deadline: u64) -> bool {
+    game_deadline.saturating_add(MAX_GAME_DEADLINE_LAG) < anchor_deadline
+}
+
 /// Policy for game creation when the registered prestate's programs cannot
 /// be loaded.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2084,54 +3243,300 @@ pub enum UnknownPrestatePolicy {
 /// The active policy.
 pub const UNKNOWN_PRESTATE_POLICY: UnknownPrestatePolicy = UnknownPrestatePolicy::Pause;
 
-/// Ensures the program ELFs for `registered` are loaded into `cache`,
-/// fetching them from `url` on a miss (see [`load_prestate`]). Returns
-/// whether game creation may proceed for that prestate.
-///
-/// The artifact directory is consulted live on every cache miss, so a
-/// hardfork that rotates the registered prestate only requires publishing
-/// the new program artifacts, not restarting the proposer. When loading
-/// fails, the result follows [`UNKNOWN_PRESTATE_POLICY`].
-pub async fn ensure_prestate_loaded(
-    cache: &RwLock<HashMap<B256, Arc<PrestatePrograms>>>,
-    url: &alloy_transport_http::reqwest::Url,
-    registered: B256,
-) -> bool {
-    if cache.read().await.contains_key(&registered) {
-        return true;
-    }
-    match load_prestate(url, registered).await {
-        Ok(programs) => {
-            tracing::info!(
-                prestate = %registered,
-                aggregation_elf_bytes = programs.aggregation_elf.len(),
-                range_elf_bytes = programs.range_elf.len(),
-                "Loaded prestate programs"
-            );
-            cache.write().await.insert(registered, Arc::new(programs));
-            true
+/// How long a failed prestate artifact load is cached before the next fetch
+/// attempt. Bounds `KONA_SP1_PROPOSER_PRESTATES_URL` traffic and log noise for genuinely
+/// unknown prestates while keeping them retryable: an operator can publish
+/// artifacts later and the proposer self-heals without a restart.
+pub const UNKNOWN_PRESTATE_RETRY: Duration = Duration::from_secs(60);
+
+/// A cached prestate: its program ELFs plus lazily initialized proving keys.
+#[derive(Debug)]
+pub struct PrestateEntry {
+    programs: Arc<PrestatePrograms>,
+    /// Lazily initialized proving keys and the vkey-verification verdict
+    /// (network mode only; mock mode never initializes this). A stored
+    /// `Err` poisons the entry: setup already ran and the aggregation ELF
+    /// does not hash to the prestate (or setup itself failed), so the
+    /// outcome is deterministic and never retried.
+    keys: OnceCell<Result<Arc<ProofKeys>, PrestateKeyError>>,
+    /// One-shot latch claiming the right to start background key setup for
+    /// this entry (see `try_kick_key_setup`).
+    setup_kicked: AtomicBool,
+}
+
+/// Why a prestate's proving keys are unusable. Cloneable so the poisoned
+/// verdict can be stored once and returned to every later caller.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrestateKeyError {
+    /// The aggregation ELF's verifying key does not hash to the on-chain
+    /// prestate: the published artifacts cannot prove games with this
+    /// prestate.
+    VkeyMismatch {
+        /// The on-chain prestate the artifacts are keyed by.
+        expected: B256,
+        /// The verifying-key hash the aggregation ELF actually has.
+        actual: B256,
+    },
+    /// SP1 proving-key setup failed.
+    Setup(String),
+}
+
+impl std::fmt::Display for PrestateKeyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::VkeyMismatch { expected, actual } => write!(
+                f,
+                "aggregation ELF verifying key {actual} does not hash to prestate {expected}"
+            ),
+            Self::Setup(err) => write!(f, "SP1 proving-key setup failed: {err}"),
         }
-        Err(e) => {
-            tracing::warn!(
-                registered = %registered,
-                error = %e,
-                "Failed to load the registered prestate's programs \
-                 (publish the artifacts under PRESTATES_URL if this is a hardfork)"
-            );
-            ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
-            match UNKNOWN_PRESTATE_POLICY {
-                UnknownPrestatePolicy::Pause => false,
-                UnknownPrestatePolicy::Continue => true,
+    }
+}
+
+impl std::error::Error for PrestateKeyError {}
+
+/// Prestate program cache: loaded ELFs keyed by `absolutePrestate()` hash,
+/// fetched from the base `KONA_SP1_PROPOSER_PRESTATES_URL` on demand, plus per-prestate SP1
+/// proving keys for the defend path.
+///
+/// The artifact directory is consulted live on every cache miss (subject to
+/// the negative-cache retry window), so a hardfork that rotates the
+/// registered prestate only requires publishing the new program artifacts,
+/// not restarting the proposer.
+#[derive(Debug)]
+pub struct PrestateCache {
+    programs: RwLock<HashMap<B256, Arc<PrestateEntry>>>,
+    /// Negative cache: prestates whose last artifact load failed, with the
+    /// time of that attempt. No re-fetch (or re-log) happens until
+    /// `unknown_retry` elapses.
+    misses: RwLock<HashMap<B256, Instant>>,
+    url: Url,
+    unknown_retry: Duration,
+}
+
+impl PrestateCache {
+    /// Creates an empty cache backed by `url` with the default
+    /// [`UNKNOWN_PRESTATE_RETRY`] window.
+    pub fn new(url: Url) -> Self {
+        Self::with_retry_window(url, UNKNOWN_PRESTATE_RETRY)
+    }
+
+    /// Creates an empty cache with the given negative-cache retry window.
+    pub fn with_retry_window(url: Url, unknown_retry: Duration) -> Self {
+        Self {
+            programs: RwLock::new(HashMap::new()),
+            misses: RwLock::new(HashMap::new()),
+            url,
+            unknown_retry,
+        }
+    }
+
+    /// Loads program ELFs unless a recent miss is cached. An unpoisoned
+    /// loaded entry returns true even when network proving keys are not
+    /// initialized; `prestate_usable_for_creation` applies that separate
+    /// creation gate.
+    ///
+    /// Poisoned entries are re-fetched on the negative-cache cadence and
+    /// replaced only when published bytes change. Load failures and unchanged
+    /// poisoned artifacts follow [`UNKNOWN_PRESTATE_POLICY`].
+    pub async fn ensure_loaded(&self, prestate: B256) -> bool {
+        let poisoned_programs = match self.programs.read().await.get(&prestate) {
+            Some(entry) if !matches!(entry.keys.get(), Some(Err(_))) => return true,
+            Some(entry) => Some(entry.programs.clone()),
+            None => None,
+        };
+        let unknown = match UNKNOWN_PRESTATE_POLICY {
+            UnknownPrestatePolicy::Pause => false,
+            UnknownPrestatePolicy::Continue => true,
+        };
+        if let Some(last_attempt) = self.misses.read().await.get(&prestate) &&
+            last_attempt.elapsed() < self.unknown_retry
+        {
+            return unknown;
+        }
+        match load_prestate(&self.url, prestate).await {
+            Ok(programs) => {
+                if let Some(poisoned) = poisoned_programs {
+                    if *poisoned == programs {
+                        // Identical artifacts would poison again; keep the
+                        // stored verdict and re-check on the next window.
+                        let prestates_url = crate::env_var("PRESTATES_URL");
+                        tracing::warn!(
+                            prestate = %prestate,
+                            "Prestate stays poisoned: published artifacts are unchanged \
+                             (publish corrected artifacts under {prestates_url} to heal)"
+                        );
+                        self.misses.write().await.insert(prestate, Instant::now());
+                        return unknown;
+                    }
+                    tracing::info!(
+                        prestate = %prestate,
+                        "Published artifacts changed; replacing poisoned prestate entry"
+                    );
+                }
+                tracing::info!(
+                    prestate = %prestate,
+                    aggregation_elf_bytes = programs.aggregation_elf.len(),
+                    range_elf_bytes = programs.range_elf.len(),
+                    "Loaded prestate programs"
+                );
+                self.misses.write().await.remove(&prestate);
+                self.programs.write().await.insert(
+                    prestate,
+                    Arc::new(PrestateEntry {
+                        programs: Arc::new(programs),
+                        keys: OnceCell::new(),
+                        setup_kicked: AtomicBool::new(false),
+                    }),
+                );
+                true
+            }
+            Err(e) => {
+                let prestates_url = crate::env_var("PRESTATES_URL");
+                tracing::warn!(
+                    prestate = %prestate,
+                    error = %e,
+                    retry_seconds = self.unknown_retry.as_secs(),
+                    "Failed to load prestate programs \
+                     (publish the artifacts under {prestates_url} if this is a hardfork)"
+                );
+                ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
+                self.misses.write().await.insert(prestate, Instant::now());
+                unknown
             }
         }
+    }
+
+    /// The loaded programs for `prestate`, if present. The defend path
+    /// proves with these.
+    pub async fn programs(&self, prestate: B256) -> Option<Arc<PrestatePrograms>> {
+        self.programs.read().await.get(&prestate).map(|entry| entry.programs.clone())
+    }
+
+    /// Test-only: inserts programs for `prestate` without fetching.
+    #[cfg(test)]
+    pub(crate) async fn insert_for_tests(&self, prestate: B256, programs: PrestatePrograms) {
+        self.programs.write().await.insert(
+            prestate,
+            Arc::new(PrestateEntry {
+                programs: Arc::new(programs),
+                keys: OnceCell::new(),
+                setup_kicked: AtomicBool::new(false),
+            }),
+        );
+    }
+
+    /// Snapshot of the prestates the proposer can currently prove: loaded
+    /// artifacts whose proving keys are not poisoned. This set defines
+    /// game ownership (prove = resolve = claim set).
+    pub async fn known_prestates(&self) -> HashSet<B256> {
+        self.programs
+            .read()
+            .await
+            .iter()
+            .filter(|(_, entry)| !matches!(entry.keys.get(), Some(Err(_))))
+            .map(|(prestate, _)| *prestate)
+            .collect()
+    }
+
+    /// Non-blocking view of the proving-key verdict for `prestate`:
+    /// `Some(true)` = set up and vkey-verified, `Some(false)` = poisoned,
+    /// `None` = no verdict yet (setup pending or never started) or the
+    /// prestate is not loaded.
+    pub async fn key_verification_state(&self, prestate: B256) -> Option<bool> {
+        self.programs
+            .read()
+            .await
+            .get(&prestate)
+            .and_then(|entry| entry.keys.get())
+            .map(|outcome| outcome.is_ok())
+    }
+
+    /// Claims the one-shot right to start key setup for `prestate`'s entry.
+    /// Returns true exactly once per entry; healing replaces the entry and
+    /// re-arms the claim for the corrected artifacts.
+    pub async fn try_kick_key_setup(&self, prestate: B256) -> bool {
+        self.programs
+            .read()
+            .await
+            .get(&prestate)
+            .is_some_and(|entry| !entry.setup_kicked.swap(true, Ordering::Relaxed))
+    }
+
+    /// Returns the proving keys for `prestate`, running SP1 key setup on first
+    /// use in network mode.
+    ///
+    /// Setup takes tens of seconds per ELF. The entry is cloned before setup
+    /// so no map guard blocks cache readers or writers. The aggregation
+    /// verifying key must hash to `prestate`; otherwise the entry is poisoned
+    /// and excluded from [`Self::known_prestates`].
+    pub async fn proof_keys(
+        &self,
+        prestate: B256,
+        kind: ProofProviderKind,
+    ) -> Result<Arc<ProofKeys>> {
+        anyhow::ensure!(
+            kind == ProofProviderKind::Network,
+            "proving keys are unavailable in mock mode"
+        );
+        let entry = self
+            .programs
+            .read()
+            .await
+            .get(&prestate)
+            .cloned()
+            .ok_or_else(|| anyhow!("prestate {prestate} is not loaded"))?;
+        let programs = entry.programs.clone();
+        let outcome = entry
+            .keys
+            .get_or_init(|| async move {
+                match setup_proof_keys(&programs).await {
+                    Ok(keys) => {
+                        let actual = B256::from(keys.agg_vk.bytes32_raw());
+                        if actual == prestate {
+                            Ok(Arc::new(keys))
+                        } else {
+                            tracing::error!(
+                                prestate = %prestate,
+                                vkey = %actual,
+                                "Aggregation ELF does not hash to the on-chain prestate; \
+                                 games with this prestate cannot be defended with the \
+                                 published artifacts"
+                            );
+                            ProposerGauge::PrestateVkeyMismatch.increment(1.0);
+                            Err(PrestateKeyError::VkeyMismatch { expected: prestate, actual })
+                        }
+                    }
+                    Err(err) => Err(PrestateKeyError::Setup(err.to_string())),
+                }
+            })
+            .await;
+        outcome.clone().map_err(Into::into)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Game, ProposerState, next_proposal_timestamp};
-    use crate::contract::{GameStatus, ProposalStatus};
     use alloy_primitives::{Address, B256, U256};
+    use alloy_provider::{ProviderBuilder, mock::Asserter};
+    use alloy_rpc_types_eth::Block;
+    use alloy_signer_local::PrivateKeySigner;
+    use kona_sp1_host_utils::metrics::MetricsListen;
+
+    use super::{
+        Cursor, DEADLINE_WARNING_DIVISOR, DeadlineStatus, Game, Proposer, ProposerState, TaskInfo,
+        awaiting_proof, check_deadline_status, next_proposal_timestamp,
+    };
+    use crate::{
+        config::{
+            PrestatePrograms, ProofProviderConfig, ProofProviderKind, ProposalSafety,
+            ProposerConfig, RangeSplitCount,
+        },
+        contract::{DisputeGameFactory, GameStatus, ProposalStatus},
+        prover::{MockProofProvider, ProofProvider},
+        signer::{Signer, SignerLock},
+    };
+    use std::collections::HashSet;
 
     fn game_with(index: u64, parent_index: u32, l2_sequence_number: u64) -> Game {
         Game {
@@ -2151,38 +3556,850 @@ mod tests {
         }
     }
 
+    fn test_config() -> ProposerConfig {
+        ProposerConfig {
+            l1_rpc: "http://127.0.0.1:1".parse().unwrap(),
+            superroot_rpcs: vec!["http://127.0.0.1:1".parse().unwrap()],
+            factory_address: Address::ZERO,
+            prestates_url: "file:///nonexistent".parse().unwrap(),
+            proposal_interval_seconds: 3600,
+            proposal_safety: ProposalSafety::Finalized,
+            fetch_interval: 30,
+            metrics_listen: MetricsListen::Disabled,
+            sync_l1_confirmations: 0,
+            tx_confirmation_timeout: 60,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            proof_provider: ProofProviderKind::Mock,
+            l1_beacon_rpc: "http://127.0.0.1:1".parse().unwrap(),
+            l2_rpcs: vec!["http://127.0.0.1:1".parse().unwrap()],
+            rollup_config_paths: None,
+            l1_config_path: None,
+            dependency_set_path: None,
+            range_split_count: RangeSplitCount::one(),
+            max_concurrent_range_proofs: std::num::NonZeroUsize::MIN,
+            max_concurrent_defense_tasks: std::num::NonZeroU64::new(8).unwrap(),
+            fast_finality_mode: false,
+            fast_finality_proving_limit: std::num::NonZeroU64::MIN,
+            proof_provider_config: ProofProviderConfig {
+                timeout: 14_400,
+                network_calls_timeout: 15,
+                auction_timeout: 60,
+                range_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
+                agg_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
+                range_cycle_limit: 1,
+                range_gas_limit: 1,
+                agg_cycle_limit: 1,
+                agg_gas_limit: 1,
+                max_price_per_pgu: 1,
+                min_auction_period: 1,
+            },
+        }
+    }
+
+    /// A proposer whose RPC endpoints are unreachable: everything that
+    /// needs no chain read is exercisable (task accounting, undefendable
+    /// set, deadline arms after a failed pre-flight read).
+    async fn test_proposer() -> Proposer<crate::L1Provider> {
+        test_proposer_with(test_config()).await
+    }
+
+    /// The same stub proposer with a caller-supplied config.
+    async fn test_proposer_with(config: ProposerConfig) -> Proposer<crate::L1Provider> {
+        let provider =
+            ProviderBuilder::default().connect_http("http://127.0.0.1:1".parse().unwrap());
+        test_proposer_with_config_and_provider(config, provider).await
+    }
+
+    async fn test_proposer_with_provider(
+        provider: crate::L1Provider,
+    ) -> Proposer<crate::L1Provider> {
+        test_proposer_with_config_and_provider(test_config(), provider).await
+    }
+
+    async fn test_proposer_with_config_and_provider(
+        config: ProposerConfig,
+        provider: crate::L1Provider,
+    ) -> Proposer<crate::L1Provider> {
+        let signer = SignerLock::new(Signer::LocalSigner(PrivateKeySigner::random()));
+        let factory = DisputeGameFactory::new(Address::ZERO, provider.clone());
+        let mut proposer =
+            Proposer::new(config, signer, factory, ProofProvider::Mock(MockProofProvider))
+                .await
+                .unwrap();
+        proposer.l1_provider = provider;
+        proposer
+    }
+
+    fn push_claim_error_and_head(asserter: &Asserter, timestamp: u64) {
+        asserter.push_failure_msg("claimData unavailable");
+        let mut block = Block::<alloy_rpc_types_eth::Transaction>::default();
+        block.header.timestamp = timestamp;
+        asserter.push_success(&block);
+    }
+
+    async fn insert_task(proposer: &Proposer<crate::L1Provider>, info: TaskInfo) {
+        let task_id = proposer.next_task_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let handle = tokio::spawn(async { Ok(()) });
+        proposer.tasks.lock().await.insert(task_id, (handle, info));
+    }
+
     mod ownership {
+        use std::collections::HashSet;
+
         use super::*;
 
         #[test]
-        fn owned_by_creator_regardless_of_prestate() {
-            // Rotation scenario: a game created before a prestate upgrade
-            // (its prestate differs from anything current) is still ours to
-            // resolve and claim.
+        fn rotation_keeps_old_prestate_games_owned() {
+            // Defense, resolution, and claim ownership persists while the
+            // old prestate artifacts remain published, regardless of creator.
+            let old_prestate = B256::left_padding_from(&[0xde, 0xad]);
+            let mut game = game_with(1, u32::MAX, 100);
+            game.creator = Address::left_padding_from(&[0xbb]);
+            game.absolute_prestate = old_prestate;
+            let known = HashSet::from([old_prestate, B256::left_padding_from(&[0x01])]);
+            assert!(game.is_owned(&known));
+        }
+
+        #[test]
+        fn unknown_prestate_is_not_owned_even_for_own_creations() {
+            // A signer-created game without loadable prestate artifacts is not
+            // owned for defense, resolution, or claims.
             let us = Address::left_padding_from(&[0xaa]);
             let mut game = game_with(1, u32::MAX, 100);
             game.creator = us;
             game.absolute_prestate = B256::left_padding_from(&[0xde, 0xad]);
-            assert!(game.is_owned(us));
+            assert!(!game.is_owned(&HashSet::new()));
+        }
+    }
+
+    mod defense {
+
+        use std::sync::atomic::Ordering;
+
+        use alloy_primitives::Bytes;
+        use alloy_sol_types::SolValue;
+
+        use super::*;
+        use crate::{
+            proposer::{game_is_blacklisted_or_retired, latest_l1_timestamp},
+            proving::GameUnprovable,
+        };
+
+        #[test]
+        fn challenged_candidates_sorted_and_filtered() {
+            let mut challenged_late = game_with(1, u32::MAX, 100);
+            challenged_late.proposal_status = ProposalStatus::Challenged;
+            challenged_late.deadline = 500;
+            let mut challenged_early = game_with(2, 1, 200);
+            challenged_early.proposal_status = ProposalStatus::Challenged;
+            challenged_early.deadline = 100;
+            // Excluded: unchallenged, proven, and resolved games.
+            let unchallenged = game_with(3, 2, 300);
+            let mut proven = game_with(4, 3, 400);
+            proven.proposal_status = ProposalStatus::ChallengedAndValidProofProvided;
+            let mut resolved = game_with(5, 4, 500);
+            resolved.proposal_status = ProposalStatus::Challenged;
+            resolved.status = GameStatus::DefenderWins;
+
+            let state = ProposerState {
+                games: [challenged_late, challenged_early, unchallenged, proven, resolved]
+                    .into_iter()
+                    .map(|game| (game.index, game))
+                    .collect(),
+                ..Default::default()
+            };
+
+            let candidates = state.challenged_candidates();
+            // Deadline-ascending: the game closest to expiry first.
+            assert_eq!(
+                candidates.iter().map(|(index, ..)| *index).collect::<Vec<_>>(),
+                vec![U256::from(2), U256::from(1)]
+            );
+        }
+
+        #[tokio::test]
+        async fn defense_task_accounting_dedups_per_game() {
+            let proposer = test_proposer().await;
+            let game_a = Address::left_padding_from(&[0xa1]);
+            let game_b = Address::left_padding_from(&[0xb1]);
+
+            insert_task(
+                &proposer,
+                TaskInfo::GameProving { game_address: game_a, is_defense: true },
+            )
+            .await;
+            insert_task(
+                &proposer,
+                TaskInfo::GameProving { game_address: game_b, is_defense: false },
+            )
+            .await;
+            insert_task(&proposer, TaskInfo::GameResolution).await;
+
+            assert!(proposer.has_active_proving_for_game(game_a).await);
+            assert!(proposer.has_active_proving_for_game(game_b).await);
+            assert!(!proposer.has_active_proving_for_game(Address::ZERO).await);
+            // Only defense-triggered proving counts against the defense cap.
+            assert_eq!(proposer.count_active_defense_tasks().await, 1);
+        }
+
+        #[tokio::test]
+        async fn should_skip_proving_honors_undefendable_set() {
+            let proposer = test_proposer().await;
+            let game = Address::left_padding_from(&[0xcc]);
+            proposer.undefendable.lock().await.insert(game);
+            // Arm (e) fires before any chain read: no RPC needed.
+            assert!(proposer.should_skip_proving(game, u64::MAX, true).await.unwrap());
+        }
+
+        #[tokio::test]
+        async fn game_standing_rejects_blacklisted_or_retired() {
+            let asserter = Asserter::new();
+            let yes: Bytes = true.abi_encode().into();
+            let no: Bytes = false.abi_encode().into();
+            asserter.push_success(&yes);
+            asserter.push_success(&no);
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
+            let game_address = Address::left_padding_from(&[0x11]);
+            let registry_address = Address::left_padding_from(&[0x22]);
+
+            assert!(
+                game_is_blacklisted_or_retired(&provider, game_address, registry_address)
+                    .await
+                    .unwrap()
+            );
+
+            asserter.push_success(&no);
+            asserter.push_success(&yes);
+            assert!(
+                game_is_blacklisted_or_retired(&provider, game_address, registry_address)
+                    .await
+                    .unwrap()
+            );
+
+            asserter.push_success(&no);
+            asserter.push_success(&no);
+            assert!(
+                !game_is_blacklisted_or_retired(&provider, game_address, registry_address)
+                    .await
+                    .unwrap()
+            );
+        }
+
+        #[tokio::test]
+        async fn latest_l1_timestamp_comes_from_head() {
+            let asserter = Asserter::new();
+            let mut block = Block::<alloy_rpc_types_eth::Transaction>::default();
+            block.header.timestamp = 1_234;
+            asserter.push_success(&block);
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter);
+
+            assert_eq!(latest_l1_timestamp(&provider).await.unwrap(), 1_234);
+        }
+
+        #[tokio::test]
+        async fn unprovable_result_invalidates_cached_subtree() {
+            let proposer = test_proposer().await;
+            let root = game_with(1, u32::MAX, 100);
+            let child = game_with(2, 1, 200);
+            let sibling = game_with(3, u32::MAX, 150);
+            {
+                let mut state = proposer.state.write().await;
+                state.games = [root.clone(), child.clone(), sibling.clone()]
+                    .into_iter()
+                    .map(|game| (game.index, game))
+                    .collect();
+            }
+            proposer
+                .last_created_game_l2_sequence_number
+                .store(child.l2_sequence_number, Ordering::Relaxed);
+            *proposer.last_created_game_address.lock().await = child.address;
+
+            let result = Err(anyhow::Error::new(GameUnprovable("trusted mismatch".into())));
+            proposer.handle_game_proving_result(root.index, root.address, result).await.unwrap();
+
+            assert!(proposer.undefendable.lock().await.contains(&root.address));
+            let state = proposer.state.read().await;
+            assert_eq!(state.invalid_games, HashSet::from([root.index, child.index]));
+            assert!(!state.games.contains_key(&root.index));
+            assert!(!state.games.contains_key(&child.index));
+            assert!(state.games.contains_key(&sibling.index));
+            drop(state);
+            assert_eq!(proposer.last_created_game_l2_sequence_number.load(Ordering::Relaxed), 0);
+            assert_eq!(*proposer.last_created_game_address.lock().await, Address::ZERO);
+        }
+
+        #[tokio::test]
+        async fn stale_unprovable_result_does_not_invalidate_replacement() {
+            let proposer = test_proposer().await;
+            let old_game = game_with(1, u32::MAX, 100);
+            let mut replacement = game_with(1, u32::MAX, 101);
+            replacement.address = Address::left_padding_from(&[0xaa]);
+            let child = game_with(2, 1, 200);
+            {
+                let mut state = proposer.state.write().await;
+                state.games = [replacement.clone(), child.clone()]
+                    .into_iter()
+                    .map(|game| (game.index, game))
+                    .collect();
+            }
+
+            let result = Err(anyhow::Error::new(GameUnprovable("trusted mismatch".into())));
+            proposer
+                .handle_game_proving_result(old_game.index, old_game.address, result)
+                .await
+                .unwrap();
+
+            let state = proposer.state.read().await;
+            assert!(state.games.contains_key(&replacement.index));
+            assert!(state.games.contains_key(&child.index));
+            assert!(state.invalid_games.is_empty());
+        }
+
+        #[tokio::test]
+        async fn should_skip_proving_uses_l1_time_and_strict_expiry() {
+            let asserter = Asserter::new();
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
+            let proposer = test_proposer_with_provider(provider).await;
+            proposer.max_prove_duration.set(7200).unwrap();
+            let game = Address::left_padding_from(&[0xdd]);
+
+            push_claim_error_and_head(&asserter, 1_000);
+            assert!(
+                !proposer.should_skip_proving(game, 1_000, true).await.unwrap(),
+                "deadline equality is not expired"
+            );
+
+            push_claim_error_and_head(&asserter, 1_001);
+            assert!(
+                proposer.should_skip_proving(game, 1_000, true).await.unwrap(),
+                "L1 timestamp past the deadline must skip"
+            );
+
+            push_claim_error_and_head(&asserter, 1_000);
+            assert!(
+                !proposer.should_skip_proving(game, 100_000, true).await.unwrap(),
+                "distant deadline must proceed"
+            );
+        }
+
+        #[tokio::test]
+        async fn pre_submit_checks_skip_evicted_games() {
+            let proposer = test_proposer().await;
+            // A game evicted after a parent loss is never submitted.
+            let evicted = Address::left_padding_from(&[0xee]);
+            assert!(!proposer.pre_submit_checks(evicted).await.unwrap());
         }
 
         #[test]
-        fn foreign_creator_is_not_owned_even_with_matching_prestate() {
-            let us = Address::left_padding_from(&[0xaa]);
+        fn deadline_status_tiers() {
+            const MAX_DURATION: u64 = 4 * 3600;
+            const HOUR: u64 = 3600;
+
+            // (now, deadline, expected)
+            let cases = [
+                (1000, 900, DeadlineStatus::Passed),
+                (1000, 1000, DeadlineStatus::Approaching { hours_remaining: 0.0 }),
+                (1000, 1000 + 5 * HOUR, DeadlineStatus::Ok),
+                // Exactly at the threshold is still Ok (strict less-than).
+                (1000, 1000 + MAX_DURATION / DEADLINE_WARNING_DIVISOR, DeadlineStatus::Ok),
+            ];
+            for (now, deadline, expected) in cases {
+                assert_eq!(
+                    check_deadline_status(now, deadline, MAX_DURATION),
+                    expected,
+                    "now={now} deadline={deadline}"
+                );
+            }
+
+            // Inside the warning window: Approaching with the right hours.
+            match check_deadline_status(1000, 1000 + HOUR, MAX_DURATION) {
+                DeadlineStatus::Approaching { hours_remaining } => {
+                    assert!((hours_remaining - 1.0).abs() < 0.01);
+                }
+                other => panic!("Expected Approaching, got {other:?}"),
+            }
+        }
+
+        #[tokio::test]
+        async fn defense_scan_skips_unknown_prestate_games() {
+            let proposer = test_proposer().await;
+            let mut challenged = game_with(1, u32::MAX, 100);
+            challenged.proposal_status = ProposalStatus::Challenged;
+            challenged.deadline = u64::MAX;
+            proposer.state.write().await.games.insert(challenged.index, challenged);
+
+            // The game's prestate is not loadable (empty cache): the scan
+            // must not spawn a defense for it.
+            assert!(!proposer.spawn_game_defense_tasks().await.unwrap());
+            assert_eq!(proposer.tasks.lock().await.len(), 0);
+        }
+
+        #[tokio::test]
+        async fn defense_scan_skips_blacklisted_games() {
+            let asserter = Asserter::new();
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
+            let proposer = test_proposer_with_provider(provider).await;
+            proposer.max_prove_duration.set(7200).unwrap();
+            let prestate = B256::left_padding_from(&[0x77]);
+            proposer
+                .prestates
+                .insert_for_tests(
+                    prestate,
+                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+                )
+                .await;
             let mut game = game_with(1, u32::MAX, 100);
-            game.creator = Address::left_padding_from(&[0xbb]);
-            game.absolute_prestate = B256::ZERO;
-            assert!(!game.is_owned(us));
+            game.proposal_status = ProposalStatus::Challenged;
+            game.deadline = u64::MAX;
+            game.absolute_prestate = prestate;
+            proposer.state.write().await.games.insert(game.index, game);
+
+            push_claim_error_and_head(&asserter, 1_000);
+            let yes: Bytes = true.abi_encode().into();
+            let no: Bytes = false.abi_encode().into();
+            asserter.push_success(&yes);
+            asserter.push_success(&no);
+
+            assert!(!proposer.spawn_game_defense_tasks().await.unwrap());
+            assert!(proposer.tasks.lock().await.is_empty());
+        }
+
+        #[tokio::test]
+        async fn defense_scan_enforces_concurrency_cap() {
+            let mut config = test_config();
+            config.max_concurrent_defense_tasks = std::num::NonZeroU64::MIN;
+            let signer = SignerLock::new(Signer::LocalSigner(PrivateKeySigner::random()));
+            let asserter = Asserter::new();
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
+            let factory = DisputeGameFactory::new(Address::ZERO, provider.clone());
+            let mut proposer =
+                Proposer::new(config, signer, factory, ProofProvider::Mock(MockProofProvider))
+                    .await
+                    .unwrap();
+            proposer.l1_provider = provider;
+            proposer.max_prove_duration.set(7200).unwrap();
+
+            // Two challenged games with a known prestate.
+            let prestate = B256::left_padding_from(&[0x77]);
+            proposer
+                .prestates
+                .insert_for_tests(
+                    prestate,
+                    crate::config::PrestatePrograms {
+                        aggregation_elf: vec![1],
+                        range_elf: vec![1],
+                    },
+                )
+                .await;
+            for index in [1u64, 2] {
+                let mut game = game_with(index, u32::MAX, 100 * index);
+                game.proposal_status = ProposalStatus::Challenged;
+                game.deadline = u64::MAX;
+                game.absolute_prestate = prestate;
+                proposer.state.write().await.games.insert(game.index, game);
+            }
+
+            push_claim_error_and_head(&asserter, 1_000);
+            let no: Bytes = false.abi_encode().into();
+            asserter.push_success(&no);
+            asserter.push_success(&no);
+
+            // The scan spawns exactly one task (cap), not two. The spawned
+            // task itself fails when it exhausts the mock responses; only
+            // the scheduling arithmetic is under test here.
+            assert!(proposer.spawn_game_defense_tasks().await.unwrap());
+            let tasks = proposer.tasks.lock().await;
+            let proving_tasks = tasks
+                .values()
+                .filter(|(_, info)| matches!(info, TaskInfo::GameProving { .. }))
+                .count();
+            assert_eq!(proving_tasks, 1);
+        }
+
+        /// Network mode keeps creation closed until key setup verifies the
+        /// prestate. Failed setup poisons the entry and leaves the gate closed.
+        #[tokio::test]
+        async fn network_creation_gate_requires_verified_keys() {
+            let mut config = test_config();
+            config.proof_provider = ProofProviderKind::Network;
+            let signer = SignerLock::new(Signer::LocalSigner(PrivateKeySigner::random()));
+            let provider =
+                ProviderBuilder::default().connect_http("http://127.0.0.1:1".parse().unwrap());
+            let factory = DisputeGameFactory::new(Address::ZERO, provider);
+            let proposer =
+                Proposer::new(config, signer, factory, ProofProvider::Mock(MockProofProvider))
+                    .await
+                    .unwrap();
+
+            let prestate = B256::left_padding_from(&[0x77]);
+            proposer
+                .prestates
+                .insert_for_tests(
+                    prestate,
+                    PrestatePrograms {
+                        aggregation_elf: b"not an elf".to_vec(),
+                        range_elf: b"not an elf".to_vec(),
+                    },
+                )
+                .await;
+
+            // Artifacts load, but the keys are unverified: creation must
+            // pause immediately, and the gate kicks setup off the scheduler
+            // path onto a background task.
+            assert!(!proposer.prestate_usable_for_creation(prestate).await);
+
+            // Setup on garbage ELFs fails and poisons the entry; wait for
+            // the background verdict to land.
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+            while proposer.prestates.key_verification_state(prestate).await.is_none() {
+                assert!(std::time::Instant::now() < deadline, "key setup verdict did not land");
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+
+            // Poisoned: the gate stays closed on the cheap paths too.
+            assert!(!proposer.prestate_usable_for_creation(prestate).await);
+            assert!(!proposer.prestates.ensure_loaded(prestate).await);
+        }
+
+        /// Prestate rotation pauses creation until the new artifacts exist
+        /// while games on the old prestate remain owned.
+        #[tokio::test]
+        async fn prestate_rotation_pauses_creation_and_keeps_old_games_owned() {
+            let proposer = test_proposer().await;
+            let old = B256::left_padding_from(&[0x0a]);
+            let new = B256::left_padding_from(&[0x0b]);
+            proposer
+                .prestates
+                .insert_for_tests(
+                    old,
+                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+                )
+                .await;
+
+            // Old prestate: usable (mock mode never initializes keys).
+            assert!(proposer.prestate_usable_for_creation(old).await);
+            // Rotated-in prestate with unpublished artifacts: creation
+            // pauses...
+            assert!(!proposer.prestate_usable_for_creation(new).await);
+            // ...while the old prestate stays in the owned set, so existing
+            // games keep being defended, resolved, and claimed.
+            assert!(proposer.prestates.known_prestates().await.contains(&old));
+
+            // Operator publishes the new artifacts: creation resumes.
+            proposer
+                .prestates
+                .insert_for_tests(
+                    new,
+                    PrestatePrograms { aggregation_elf: vec![2], range_elf: vec![2] },
+                )
+                .await;
+            assert!(proposer.prestate_usable_for_creation(new).await);
+        }
+    }
+
+    mod fast_finality {
+        use super::*;
+        use alloy_primitives::Bytes;
+        use alloy_sol_types::SolValue;
+
+        fn ff_config(limit: u64) -> ProposerConfig {
+            let mut config = test_config();
+            config.fast_finality_mode = true;
+            config.fast_finality_proving_limit = std::num::NonZeroU64::new(limit).unwrap();
+            config
+        }
+
+        async fn insert_prestate(proposer: &Proposer<crate::L1Provider>, prestate: B256) {
+            proposer
+                .prestates
+                .insert_for_tests(
+                    prestate,
+                    crate::config::PrestatePrograms {
+                        aggregation_elf: vec![1],
+                        range_elf: vec![1],
+                    },
+                )
+                .await;
+        }
+
+        #[test]
+        fn fast_finality_candidates_filters_and_sorts() {
+            let mut unchallenged_late = game_with(1, u32::MAX, 100);
+            unchallenged_late.deadline = 500;
+            let mut unchallenged_early = game_with(2, 1, 200);
+            unchallenged_early.deadline = 100;
+            // Excluded: challenged, proven, and resolved games.
+            let mut challenged = game_with(3, 2, 300);
+            challenged.proposal_status = ProposalStatus::Challenged;
+            let mut proven = game_with(4, 3, 400);
+            proven.proposal_status = ProposalStatus::UnchallengedAndValidProofProvided;
+            let mut resolved = game_with(5, 4, 500);
+            resolved.status = GameStatus::DefenderWins;
+
+            let state = ProposerState {
+                games: [unchallenged_late, unchallenged_early, challenged, proven, resolved]
+                    .into_iter()
+                    .map(|game| (game.index, game))
+                    .collect(),
+                ..Default::default()
+            };
+
+            let candidates = state.fast_finality_candidates();
+            // Deadline-ascending: the game closest to its challenge deadline first.
+            assert_eq!(
+                candidates.iter().map(|(index, ..)| *index).collect::<Vec<_>>(),
+                vec![U256::from(2), U256::from(1)]
+            );
+        }
+
+        #[tokio::test]
+        async fn fast_finality_capacity_gate_skips_creation() {
+            let proposer = test_proposer_with(ff_config(1)).await;
+            // A DEFENSE task counts against fast-finality capacity (upstream
+            // parity): the gate must fire before any chain read, so the stub
+            // RPC is never touched and the call returns Ok.
+            insert_task(
+                &proposer,
+                TaskInfo::GameProving {
+                    game_address: Address::left_padding_from(&[0xaa]),
+                    is_defense: true,
+                },
+            )
+            .await;
+            let (should_create, _, _) = proposer.should_create_game().await.unwrap();
+            assert!(!should_create);
+        }
+
+        #[tokio::test]
+        async fn fast_finality_scan_spawns_nearest_deadlines_up_to_limit() {
+            let asserter = Asserter::new();
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
+            let proposer = test_proposer_with_config_and_provider(ff_config(3), provider).await;
+            proposer.max_challenge_duration.set(7200).unwrap();
+            let prestate = B256::left_padding_from(&[0x88]);
+            insert_prestate(&proposer, prestate).await;
+
+            for (index, deadline) in [(1u64, 30_000), (2, 10_000), (3, 40_000), (4, 20_000)] {
+                let mut game = game_with(index, u32::MAX, 100 * index);
+                game.deadline = deadline;
+                game.absolute_prestate = prestate;
+                game.creator = proposer.signer.address();
+                proposer.state.write().await.games.insert(game.index, game);
+            }
+
+            let no: Bytes = false.abi_encode().into();
+            for _ in 0..3 {
+                push_claim_error_and_head(&asserter, 1_000);
+                asserter.push_success(&no);
+                asserter.push_success(&no);
+            }
+
+            let (should_create, _, _) = proposer.should_create_game().await.unwrap();
+            assert!(!should_create);
+            let spawned = proposer
+                .tasks
+                .lock()
+                .await
+                .values()
+                .filter_map(|(_, info)| match info {
+                    TaskInfo::GameProving { game_address, is_defense: false } => {
+                        Some(*game_address)
+                    }
+                    _ => None,
+                })
+                .collect::<HashSet<_>>();
+            let expected = [2u8, 4, 1]
+                .map(|index| Address::left_padding_from(&[index]))
+                .into_iter()
+                .collect::<HashSet<_>>();
+            assert_eq!(spawned, expected);
+        }
+
+        #[tokio::test]
+        async fn fast_finality_scan_skips_foreign_creator() {
+            let asserter = Asserter::new();
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
+            let proposer = test_proposer_with_config_and_provider(ff_config(1), provider).await;
+            proposer.max_challenge_duration.set(7200).unwrap();
+            let prestate = B256::left_padding_from(&[0x88]);
+            insert_prestate(&proposer, prestate).await;
+
+            let mut game = game_with(1, u32::MAX, 100);
+            game.deadline = 100_000;
+            game.absolute_prestate = prestate;
+            game.creator = Address::left_padding_from(&[0xff]);
+            proposer.state.write().await.games.insert(game.index, game);
+
+            push_claim_error_and_head(&asserter, 1_000);
+            drop(proposer.should_create_game().await);
+            assert!(proposer.tasks.lock().await.is_empty());
+        }
+
+        #[tokio::test]
+        async fn fast_finality_scan_skips_blacklisted_game() {
+            let asserter = Asserter::new();
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
+            let proposer = test_proposer_with_config_and_provider(ff_config(1), provider).await;
+            proposer.max_challenge_duration.set(7200).unwrap();
+            let prestate = B256::left_padding_from(&[0x88]);
+            insert_prestate(&proposer, prestate).await;
+
+            let mut game = game_with(1, u32::MAX, 100);
+            game.deadline = 100_000;
+            game.absolute_prestate = prestate;
+            game.creator = proposer.signer.address();
+            proposer.state.write().await.games.insert(game.index, game);
+
+            push_claim_error_and_head(&asserter, 1_000);
+            let yes: Bytes = true.abi_encode().into();
+            let no: Bytes = false.abi_encode().into();
+            asserter.push_success(&yes);
+            asserter.push_success(&no);
+            drop(proposer.should_create_game().await);
+            assert!(proposer.tasks.lock().await.is_empty());
+        }
+
+        #[tokio::test]
+        async fn fast_finality_scan_filters_candidates_before_spawning() {
+            let asserter = Asserter::new();
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
+            let proposer = test_proposer_with_config_and_provider(ff_config(8), provider).await;
+            proposer.max_challenge_duration.set(7200).unwrap();
+            let prestate = B256::left_padding_from(&[0x88]);
+            insert_prestate(&proposer, prestate).await;
+
+            // Unknown prestate: not ours to prove.
+            let mut foreign_prestate = game_with(1, u32::MAX, 100);
+            foreign_prestate.deadline = u64::MAX;
+            foreign_prestate.absolute_prestate = B256::left_padding_from(&[0x99]);
+            foreign_prestate.creator = proposer.signer.address();
+            // An in-flight proving task exercises per-game dedup.
+            let mut in_flight = game_with(2, 1, 200);
+            in_flight.deadline = u64::MAX;
+            in_flight.absolute_prestate = prestate;
+            in_flight.creator = proposer.signer.address();
+            // Challenged games belong to the defense scan.
+            let mut challenged = game_with(3, 2, 300);
+            challenged.proposal_status = ProposalStatus::Challenged;
+            challenged.deadline = u64::MAX;
+            challenged.absolute_prestate = prestate;
+            challenged.creator = proposer.signer.address();
+            let mut eligible = game_with(4, 3, 400);
+            eligible.deadline = u64::MAX;
+            eligible.absolute_prestate = prestate;
+            eligible.creator = proposer.signer.address();
+
+            let in_flight_address = in_flight.address;
+            let eligible_address = eligible.address;
+            for game in [foreign_prestate, in_flight, challenged, eligible] {
+                proposer.state.write().await.games.insert(game.index, game);
+            }
+            insert_task(
+                &proposer,
+                TaskInfo::GameProving { game_address: in_flight_address, is_defense: false },
+            )
+            .await;
+
+            push_claim_error_and_head(&asserter, 1_000);
+            let no: Bytes = false.abi_encode().into();
+            asserter.push_success(&no);
+            asserter.push_success(&no);
+            drop(proposer.should_create_game().await);
+
+            let proving = proposer
+                .tasks
+                .lock()
+                .await
+                .values()
+                .filter_map(|(_, info)| match info {
+                    TaskInfo::GameProving { game_address, .. } => Some(*game_address),
+                    _ => None,
+                })
+                .collect::<HashSet<_>>();
+            assert_eq!(proving, HashSet::from([in_flight_address, eligible_address]));
+        }
+
+        #[tokio::test]
+        async fn count_active_proving_tasks_counts_both_kinds() {
+            let proposer = test_proposer().await;
+            insert_task(
+                &proposer,
+                TaskInfo::GameProving {
+                    game_address: Address::left_padding_from(&[0x01]),
+                    is_defense: true,
+                },
+            )
+            .await;
+            insert_task(
+                &proposer,
+                TaskInfo::GameProving {
+                    game_address: Address::left_padding_from(&[0x02]),
+                    is_defense: false,
+                },
+            )
+            .await;
+            insert_task(&proposer, TaskInfo::GameResolution).await;
+            assert_eq!(proposer.count_active_proving_tasks().await, 2);
+        }
+
+        #[test]
+        fn awaiting_proof_status_table() {
+            assert!(awaiting_proof(ProposalStatus::Unchallenged));
+            assert!(awaiting_proof(ProposalStatus::Challenged));
+            assert!(!awaiting_proof(ProposalStatus::UnchallengedAndValidProofProvided));
+            assert!(!awaiting_proof(ProposalStatus::ChallengedAndValidProofProvided));
+            assert!(!awaiting_proof(ProposalStatus::Resolved));
+        }
+
+        #[tokio::test]
+        async fn should_skip_proving_selects_duration_by_task_kind() {
+            let asserter = Asserter::new();
+            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
+            let proposer = test_proposer_with_provider(provider).await;
+            // Only the fast-finality duration is set: the defense arm must
+            // error on its missing cell, proving the selection wiring.
+            proposer.max_challenge_duration.set(7200).unwrap();
+            let game = Address::left_padding_from(&[0xab]);
+            let now = 1_000;
+            push_claim_error_and_head(&asserter, now);
+            assert!(!proposer.should_skip_proving(game, 100_000, false).await.unwrap());
+            push_claim_error_and_head(&asserter, now);
+            assert!(proposer.should_skip_proving(game, 100_000, true).await.is_err());
+        }
+
+        #[tokio::test]
+        async fn defense_scan_skips_game_with_inflight_fast_finality_task() {
+            let proposer = test_proposer().await;
+            proposer.max_prove_duration.set(7200).unwrap();
+            let prestate = B256::left_padding_from(&[0x88]);
+            insert_prestate(&proposer, prestate).await;
+            // A challenged game with a far deadline and a known prestate:
+            // the per-game dedup is the ONLY guard between it and a defense
+            // spawn (a deadline of 0 would deadline-skip and make this pin
+            // vacuous).
+            let mut challenged = game_with(1, u32::MAX, 100);
+            challenged.proposal_status = ProposalStatus::Challenged;
+            challenged.deadline = u64::MAX;
+            challenged.absolute_prestate = prestate;
+            let game_address = challenged.address;
+            proposer.state.write().await.games.insert(challenged.index, challenged);
+            insert_task(&proposer, TaskInfo::GameProving { game_address, is_defense: false }).await;
+
+            assert!(!proposer.spawn_game_defense_tasks().await.unwrap());
+            assert_eq!(proposer.tasks.lock().await.len(), 1, "no second task for the game");
+            assert_eq!(proposer.count_active_defense_tasks().await, 0);
         }
     }
 
     mod prestate_gate {
-        use super::super::ensure_prestate_loaded;
-        use crate::config::PrestatePrograms;
+        use std::collections::HashSet;
+
         use alloy_primitives::B256;
         use alloy_transport_http::reqwest::Url;
-        use std::{collections::HashMap, sync::Arc};
-        use tokio::sync::RwLock;
+
+        use super::super::{PrestateCache, PrestateKeyError};
+        use crate::config::{PrestatePrograms, ProofProviderKind};
 
         const HASH_A: &str = "0x0101010101010101010101010101010101010101010101010101010101010101";
 
@@ -2194,16 +4411,16 @@ mod tests {
         }
 
         fn write_artifacts(dir: &std::path::Path) {
+            write_artifacts_with(dir, b"elf");
+        }
+
+        fn write_artifacts_with(dir: &std::path::Path, contents: &[u8]) {
             for s in [".agg.bin.gz", ".range.bin.gz"] {
                 let mut gz =
                     flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-                std::io::Write::write_all(&mut gz, b"elf").unwrap();
+                std::io::Write::write_all(&mut gz, contents).unwrap();
                 std::fs::write(dir.join(format!("{HASH_A}{s}")), gz.finish().unwrap()).unwrap();
             }
-        }
-
-        fn empty_cache() -> RwLock<HashMap<B256, Arc<PrestatePrograms>>> {
-            RwLock::new(HashMap::new())
         }
 
         #[tokio::test]
@@ -2212,15 +4429,15 @@ mod tests {
             let hash: B256 = HASH_A.parse().unwrap();
             write_artifacts(&dir);
             let base = Url::from_directory_path(&dir).unwrap();
-            let cache = empty_cache();
-            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
-            let programs = cache.read().await.get(&hash).cloned().expect("cached");
+            let cache = PrestateCache::new(base);
+            assert!(cache.ensure_loaded(hash).await);
+            let programs = cache.programs(hash).await.expect("cached");
             assert_eq!(programs.aggregation_elf, b"elf");
             assert_eq!(programs.range_elf, b"elf");
 
             // Cache hit: succeeds even if the directory disappears.
             std::fs::remove_dir_all(&dir).unwrap();
-            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
+            assert!(cache.ensure_loaded(hash).await);
         }
 
         #[tokio::test]
@@ -2228,21 +4445,161 @@ mod tests {
             let dir = artifact_dir("pause");
             let hash: B256 = HASH_A.parse().unwrap();
             let base = Url::from_directory_path(&dir).unwrap();
-            let cache = empty_cache();
-            assert!(!ensure_prestate_loaded(&cache, &base, hash).await);
-            assert!(cache.read().await.is_empty(), "failed load must not populate the cache");
+            // A zero retry window isolates immediate self-healing from
+            // negative-cache pacing.
+            let cache = PrestateCache::with_retry_window(base, std::time::Duration::from_secs(0));
+            assert!(!cache.ensure_loaded(hash).await);
+            assert!(
+                cache.programs(hash).await.is_none(),
+                "failed load must not populate the cache"
+            );
 
             // Hardfork flow: publishing the artifacts self-heals the gate
             // without a restart.
             write_artifacts(&dir);
-            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
+            assert!(cache.ensure_loaded(hash).await);
+        }
+
+        #[tokio::test]
+        async fn unknown_prestate_negative_cache_gates_refetch() {
+            let dir = artifact_dir("negative-cache");
+            let hash: B256 = HASH_A.parse().unwrap();
+            let base = Url::from_directory_path(&dir).unwrap();
+            let cache =
+                PrestateCache::with_retry_window(base, std::time::Duration::from_secs(3600));
+            assert!(!cache.ensure_loaded(hash).await);
+
+            // The retry window prevents a refetch after artifacts are published.
+            write_artifacts(&dir);
+            assert!(!cache.ensure_loaded(hash).await);
+            assert!(cache.programs(hash).await.is_none());
+            assert!(!cache.known_prestates().await.contains(&hash));
+        }
+
+        #[tokio::test]
+        async fn known_prestates_tracks_loaded_entries() {
+            let dir = artifact_dir("known-set");
+            let hash: B256 = HASH_A.parse().unwrap();
+            write_artifacts(&dir);
+            let base = Url::from_directory_path(&dir).unwrap();
+            let cache = PrestateCache::new(base);
+            assert!(cache.known_prestates().await.is_empty());
+            assert!(cache.ensure_loaded(hash).await);
+            assert_eq!(cache.known_prestates().await, HashSet::from([hash]));
         }
 
         #[tokio::test]
         async fn failed_check_hard_pauses() {
             let hash: B256 = HASH_A.parse().unwrap();
             let base = Url::parse("ftp://example.com/prestates").unwrap();
-            assert!(!ensure_prestate_loaded(&empty_cache(), &base, hash).await);
+            assert!(!PrestateCache::new(base).ensure_loaded(hash).await);
+        }
+
+        #[tokio::test]
+        async fn proof_keys_unavailable_in_mock_mode() {
+            let cache = PrestateCache::new(Url::parse("file:///nonexistent").unwrap());
+            let hash: B256 = HASH_A.parse().unwrap();
+            cache
+                .insert_for_tests(
+                    hash,
+                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+                )
+                .await;
+            let err = cache.proof_keys(hash, ProofProviderKind::Mock).await.unwrap_err();
+            assert!(err.to_string().contains("mock mode"), "unexpected error: {err}");
+        }
+
+        /// Network-mode key setup on artifacts that are not valid ELFs (the
+        /// stub-artifact scenario) must poison the entry: the prestate
+        /// leaves the known set, and later calls return the stored verdict
+        /// without re-running setup.
+        #[tokio::test]
+        async fn invalid_elf_setup_poisons_and_excludes() {
+            let cache = PrestateCache::new(Url::parse("file:///nonexistent").unwrap());
+            let hash: B256 = HASH_A.parse().unwrap();
+            cache
+                .insert_for_tests(
+                    hash,
+                    PrestatePrograms {
+                        aggregation_elf: b"not an elf".to_vec(),
+                        range_elf: b"not an elf".to_vec(),
+                    },
+                )
+                .await;
+            assert!(cache.known_prestates().await.contains(&hash));
+
+            let err = cache.proof_keys(hash, ProofProviderKind::Network).await.unwrap_err();
+            let verdict = err.to_string();
+            assert!(
+                matches!(err.downcast_ref::<PrestateKeyError>(), Some(PrestateKeyError::Setup(_))),
+                "expected a Setup poisoning, got: {verdict}"
+            );
+            assert!(!cache.known_prestates().await.contains(&hash));
+
+            // The poisoned verdict is stored: same error, no re-setup.
+            let again = cache.proof_keys(hash, ProofProviderKind::Network).await.unwrap_err();
+            assert_eq!(again.to_string(), verdict);
+        }
+
+        /// With `KONA_SP1_ELF_DIR` set, verifies the built aggregation vkey
+        /// against the canonical prestate in `vkeys.toml`. Skipped when the
+        /// environment variable is absent.
+        #[tokio::test]
+        async fn real_elf_agg_vkey_matches_vkeys_toml_prestate() {
+            let Ok(elf_dir) = std::env::var("KONA_SP1_ELF_DIR") else {
+                return;
+            };
+            let dir = std::path::PathBuf::from(&elf_dir);
+            let manifest = std::fs::read_to_string(dir.join("vkeys.toml")).unwrap();
+            let prestate: B256 = manifest
+                .lines()
+                .find_map(|line| line.strip_prefix("super-aggregation = \""))
+                .and_then(|rest| rest.strip_suffix('"'))
+                .expect("vkeys.toml lacks a super-aggregation entry")
+                .parse()
+                .unwrap();
+
+            let cache = PrestateCache::new(Url::parse("file:///nonexistent").unwrap());
+            cache
+                .insert_for_tests(
+                    prestate,
+                    PrestatePrograms {
+                        aggregation_elf: std::fs::read(dir.join("super-aggregation-elf")).unwrap(),
+                        range_elf: std::fs::read(dir.join("super-range-elf")).unwrap(),
+                    },
+                )
+                .await;
+            cache.proof_keys(prestate, ProofProviderKind::Network).await.expect(
+                "real aggregation vkey must match the vkeys.toml prestate (bytes32 encoding)",
+            );
+            assert!(cache.known_prestates().await.contains(&prestate));
+        }
+
+        /// A poisoned prestate must close the creation gate (never bond a
+        /// game the proposer has proven it cannot defend) and must heal
+        /// only when the published artifacts actually change.
+        #[tokio::test]
+        async fn poisoned_prestate_closes_creation_gate_until_artifacts_change() {
+            let dir = artifact_dir("poison-gate");
+            let hash: B256 = HASH_A.parse().unwrap();
+            write_artifacts_with(&dir, b"not an elf");
+            let base = Url::from_directory_path(&dir).unwrap();
+            let cache = PrestateCache::with_retry_window(base, std::time::Duration::from_secs(0));
+
+            // Loads fine (existence only), then key setup poisons it.
+            assert!(cache.ensure_loaded(hash).await);
+            cache.proof_keys(hash, ProofProviderKind::Network).await.unwrap_err();
+            assert!(!cache.known_prestates().await.contains(&hash));
+
+            // Identical published bytes do not clear the poisoned verdict.
+            assert!(!cache.ensure_loaded(hash).await);
+            assert!(!cache.known_prestates().await.contains(&hash));
+
+            // Changed artifacts replace the entry and re-arm key setup.
+            write_artifacts_with(&dir, b"corrected elf");
+            assert!(cache.ensure_loaded(hash).await);
+            assert!(cache.known_prestates().await.contains(&hash));
+            assert_eq!(cache.programs(hash).await.unwrap().aggregation_elf, b"corrected elf");
         }
     }
 
@@ -2252,6 +4609,46 @@ mod tests {
             anchor_game: anchor,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn invalidating_game_remembers_entire_cached_subtree() {
+        let mut s = state(
+            vec![
+                game_with(0, u32::MAX, 100),
+                game_with(1, 0, 200),
+                game_with(2, 1, 300),
+                game_with(3, 0, 250),
+            ],
+            None,
+        );
+
+        s.invalidate_subtree(U256::from(1));
+
+        assert_eq!(s.invalid_games, HashSet::from([U256::from(1), U256::from(2)]));
+        assert!(s.games.contains_key(&U256::from(0)));
+        assert!(s.games.contains_key(&U256::from(3)));
+        assert!(!s.games.contains_key(&U256::from(1)));
+        assert!(!s.games.contains_key(&U256::from(2)));
+    }
+
+    #[test]
+    fn factory_cache_reset_forgets_prior_history() {
+        let anchor = game_with(0, u32::MAX, 100);
+        let mut s = state(vec![anchor.clone(), game_with(1, 0, 200)], Some(anchor));
+        s.cursor = Cursor::from(U256::from(1));
+        s.canonical_head_index = Some(U256::from(1));
+        s.canonical_head_sequence_number = Some(200);
+        s.invalid_games.insert(U256::from(1));
+
+        s.reset_factory_cache();
+
+        assert_eq!(s.cursor, Cursor::none());
+        assert!(s.games.is_empty());
+        assert!(s.invalid_games.is_empty());
+        assert!(s.anchor_game.is_none());
+        assert!(s.canonical_head_index.is_none());
+        assert_eq!(s.canonical_head_sequence_number, Some(200));
     }
 
     mod canonical_head {
@@ -2429,19 +4826,83 @@ mod tests {
             assert!(withdrawal_matured(100, DELAY, 100 + DELAY));
             assert!(!withdrawal_matured(u64::MAX, DELAY, u64::MAX));
         }
+
+        /// Unlock strictly precedes payout. The both-apply state is
+        /// on-chain-unreachable for a consistent read (claimCredit zeroes
+        /// credit atomically with the withdrawal-recording unlock); the test
+        /// pins the branch order that keeps it safe anyway.
+        #[test]
+        fn unlock_precedes_payout_when_both_apply() {
+            assert_eq!(
+                bond_claim_action(
+                    true,
+                    U256::from(1_000),
+                    U256::from(1_000),
+                    100,
+                    DELAY,
+                    100 + DELAY
+                ),
+                BondClaimAction::Unlock
+            );
+        }
+
+        /// Documents the branch order for an on-chain-unreachable state: a
+        /// recorded withdrawal implies a prior claimCredit, which required
+        /// finality - the function still pays out rather than waiting.
+        #[test]
+        fn unfinalized_matured_withdrawal_pays_out() {
+            assert_eq!(
+                bond_claim_action(false, U256::ZERO, U256::from(1_000), 100, DELAY, 100 + DELAY),
+                BondClaimAction::Payout
+            );
+        }
+    }
+
+    mod deadline_lag {
+        use super::super::{MAX_GAME_DEADLINE_LAG, beyond_deadline_lag, pending_evictable};
+
+        /// The walk cutoff is exclusive at the boundary and symmetric: a game
+        /// exactly `MAX_GAME_DEADLINE_LAG` away is still in; one second
+        /// beyond, in either direction, is out.
+        #[test]
+        fn cutoff_is_exclusive_at_the_boundary() {
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000));
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG));
+            assert!(beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
+            assert!(beyond_deadline_lag(1_000_000 + MAX_GAME_DEADLINE_LAG + 1, 1_000_000));
+        }
+
+        /// Pending eviction is one-sided: a game behind the anchor beyond
+        /// the lag is evicted, one exactly at the lag is kept, and a game
+        /// ahead of a stalled anchor is never evicted no matter how far.
+        #[test]
+        fn eviction_only_fires_behind_the_anchor() {
+            let anchor = 1_000_000 + MAX_GAME_DEADLINE_LAG + 1;
+            assert!(pending_evictable(anchor, 1_000_000));
+            assert!(!pending_evictable(anchor - 1, 1_000_000));
+            assert!(!pending_evictable(1_000_000, 1_000_000));
+            assert!(!pending_evictable(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
+            assert!(!pending_evictable(1_000_000, u64::MAX));
+        }
     }
 
     mod pending_games {
         use super::*;
 
-        /// `FlowGaps` #1 regression (state level): a pending game is not in the
-        /// DAG, so it can never be selected as canonical head / parent.
+        /// `FlowGaps` #1 regression (state level): pending games are kept out
+        /// of `state.games`, and that exclusion is what makes them
+        /// parent-ineligible - inserted, the far-future game would win head
+        /// selection.
         #[test]
         fn pending_games_are_not_parent_eligible() {
-            // Only the validated game is in the DAG; the far-future game at
-            // sequence 10_000 was classified pending and never inserted.
-            let s = state(vec![game_with(0, u32::MAX, 100)], None);
-            assert_eq!(s.select_canonical_head().unwrap().l2_sequence_number, 100);
+            let validated = game_with(0, u32::MAX, 100);
+            let far_future = game_with(1, u32::MAX, 10_000);
+
+            let without_pending = state(vec![validated.clone()], None);
+            assert_eq!(without_pending.select_canonical_head().unwrap().l2_sequence_number, 100);
+
+            let with_pending = state(vec![validated, far_future], None);
+            assert_eq!(with_pending.select_canonical_head().unwrap().l2_sequence_number, 10_000);
         }
     }
 }

@@ -21,7 +21,7 @@ func NewDifferentRootMonitor(logger log.Logger, metrics DifferentRootMetrics) *D
 	}
 }
 
-func (m *DifferentRootMonitor) CheckDifferentRoots(games []*types.EnrichedGameData) {
+func (m *DifferentRootMonitor) CheckDifferentRoots(games []*types.CommonGameData) {
 	count := 0
 	for _, game := range games {
 		if game.NodeEndpointDifferentRoots {

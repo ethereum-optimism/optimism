@@ -21,7 +21,7 @@ func TestAnchorStateRegistryEnricher(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		enricher := NewAnchorStateRegistryEnricher(logger)
 		caller := &mockGameCaller{anchorStateRegistry: expected}
-		game := &types.EnrichedGameData{}
+		game := &types.CommonGameData{}
 		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.NoError(t, err)
 		require.Equal(t, expected, game.AnchorStateRegistry)
@@ -30,7 +30,7 @@ func TestAnchorStateRegistryEnricher(t *testing.T) {
 	t.Run("NotSupportedSkipsSilently", func(t *testing.T) {
 		enricher := NewAnchorStateRegistryEnricher(logger)
 		caller := &mockGameCaller{anchorStateRegErr: contracts.ErrAnchorStateRegistryNotSupported}
-		game := &types.EnrichedGameData{}
+		game := &types.CommonGameData{}
 		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, game.AnchorStateRegistry)
@@ -39,7 +39,7 @@ func TestAnchorStateRegistryEnricher(t *testing.T) {
 	t.Run("OtherErrorDoesNotFailGame", func(t *testing.T) {
 		enricher := NewAnchorStateRegistryEnricher(logger)
 		caller := &mockGameCaller{anchorStateRegErr: errors.New("boom")}
-		game := &types.EnrichedGameData{}
+		game := &types.CommonGameData{}
 		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, game.AnchorStateRegistry)

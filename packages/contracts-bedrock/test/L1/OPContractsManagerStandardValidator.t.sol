@@ -44,7 +44,6 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
@@ -1079,7 +1078,22 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
         bytes32 slot =
             bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "permissionedDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("PDDG-20", _validate(true));
+        // PDDG-150 fires because overwriting the expected implementation address also makes the
+        // registered implementation address mismatch.
+        assertEq("PDDG-20,PDDG-150", _validate(true));
+    }
+
+    /// @notice Tests PDDG-150 when the registered PERMISSIONED_CANNON implementation is a different
+    ///         contract with identical code and game args.
+    function test_validate_permissionedDisputeGameLookalikeImplementation_succeeds() public {
+        address lookalike = makeAddr("lookalikePermissionedDisputeGame");
+        vm.etch(lookalike, address(pdgImpl).code);
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
+            abi.encode(lookalike)
+        );
+        assertEq("PDDG-150", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1331,6 +1345,17 @@ contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is
         );
         assertEq("PDDG-ANCHORP-60,CKDG-ANCHORP-60", _validate(true));
     }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry in the game args is not the one the OptimismPortal uses.
+    function test_validate_anchorStateRegistryNotUsedByPortal_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2),
+            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
+            abi.encode(address(0xbad))
+        );
+        assertEq("PDDG-ANCHORP-70,CKDG-ANCHORP-70", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_DelayedWETH_Test
@@ -1433,7 +1458,9 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         bytes32 slot =
             bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "faultDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("CKDG-20", _validate(true));
+        // CKDG-150 fires because overwriting the expected implementation address also makes the
+        // registered implementation address mismatch.
+        assertEq("CKDG-20,CKDG-150", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1720,11 +1747,12 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         standardValidator = opcmV2.opcmStandardValidator();
 
-        l2ChainId = deploy.cfg().l2ChainID();
         cannonPrestate = Claim.wrap(bytes32(deploy.cfg().faultGameAbsolutePrestate()));
         if (isL1ForkTest()) {
+            l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
             proposer = DisputeGames.permissionedGameProposer(dgf);
         } else {
+            l2ChainId = deploy.cfg().l2ChainID();
             proposer = deploy.cfg().l2OutputOracleProposer();
         }
 
@@ -1842,6 +1870,30 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
         string memory errors = _validate(false);
         assertEq(errors, "");
     }
+
+    /// @notice Tests that the validate function returns SYSCON-140 when the SystemConfig l2ChainId
+    ///         does not match the expected chain ID.
+    function test_validate_systemConfigInvalidL2ChainId_succeeds() public {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(l2ChainId + 1));
+        assertEq("SYSCON-140", _validate(true));
+    }
+
+    /// @notice Tests that the validate function returns SPDG-ANCHORP-70 and SCKDG-ANCHORP-70 when
+    ///         the portal uses a different AnchorStateRegistry than the super games do.
+    function test_validate_anchorStateRegistryNotUsedByPortal_succeeds() public {
+        address otherAsr = makeAddr("otherAnchorStateRegistry");
+        vm.mockCall(
+            address(systemConfig.optimismPortal()),
+            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
+            abi.encode(otherAsr)
+        );
+        vm.mockCall(
+            otherAsr,
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.SUPER_CANNON_KONA)
+        );
+        assertEq("SPDG-ANCHORP-70,SCKDG-ANCHORP-70", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_SuperRootDisputeGames_Test
@@ -1935,7 +1987,23 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
             ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "superPermissionedDisputeGameImpl").slot
         );
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("SPDG-20", _validate(true));
+        // SPDG-150 fires because overwriting the expected implementation address also makes the
+        // registered implementation address mismatch.
+        assertEq("SPDG-20,SPDG-150", _validate(true));
+    }
+
+    /// @notice Tests SPDG-150 when the registered SUPER_PERMISSIONED implementation is a different
+    ///         contract that reports the expected version and canonical game args.
+    function test_validate_superPermissionedDisputeGameLookalikeImplementation_succeeds() public {
+        address spdgImpl = address(disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED));
+        address lookalike = makeAddr("lookalikeSuperPermissionedDisputeGame");
+        vm.etch(lookalike, spdgImpl.code);
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
+            abi.encode(lookalike)
+        );
+        assertEq("SPDG-150", _validate(true));
     }
 
     /// @notice Tests SPDG-GARGS-10 when SUPER_PERMISSIONED game args are invalid.
@@ -1966,7 +2034,7 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
 
-        assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20", _validate(true));
+        assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20,SPDG-ANCHORP-70", _validate(true));
     }
 
     /// @notice Tests SPDG-120 when SUPER_PERMISSIONED's anchor root is zero.
@@ -2007,7 +2075,23 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
         bytes32 slot =
             bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "superFaultDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("SCKDG-20", _validate(true));
+        // SCKDG-150 fires because overwriting the expected implementation address also makes the
+        // registered implementation address mismatch.
+        assertEq("SCKDG-20,SCKDG-150", _validate(true));
+    }
+
+    /// @notice Tests SCKDG-150 when the registered SUPER_CANNON_KONA implementation is a different
+    ///         contract with identical code and game args.
+    function test_validate_superPermissionlessDisputeGameLookalikeImplementation_succeeds() public {
+        address sckdgImpl = address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA));
+        address lookalike = makeAddr("lookalikeSuperCannonKonaDisputeGame");
+        vm.etch(lookalike, sckdgImpl.code);
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(lookalike)
+        );
+        assertEq("SCKDG-150", _validate(true));
     }
 
     /// @notice Tests SCKDG-40 when SUPER_CANNON_KONA absolute prestate is invalid.
@@ -2109,10 +2193,6 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
         dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         standardValidator = opcmV2.opcmStandardValidator();
 
-        // ZKDG-80 requires verifier.code.length > 0. Etch a dummy byte so the dummy
-        // verifier address used in both fork and non-fork paths satisfies this check.
-        vm.etch(address(0xBEEF), hex"01");
-
         if (isL1ForkTest()) {
             // Fork setup migrates the chain to super games before this fixture runs.
             GameType permissionlessGameType = DisputeGames.permissionlessGameType(dgf);
@@ -2120,7 +2200,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 LibGameArgs.decode(dgf.gameArgs(permissionlessGameType));
             cannonKonaPrestate = Claim.wrap(permissionlessGameArgs.absolutePrestate);
             cannonPrestate = cannonKonaPrestate;
-            l2ChainId = permissionlessGameArgs.l2ChainId;
+            l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
             proposer = DisputeGames.permissionedGameProposer(dgf);
 
             // ZK game is not deployed on mainnet. Mock it using the same ASR and WETH as the active
@@ -2129,7 +2209,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             // preimage, so the 140-byte layout has no l2ChainId field.
             bytes memory zkArgs = abi.encodePacked(
                 bytes32(keccak256("zkPrestate")),
-                address(0xBEEF),
+                standardValidator.sp1PlonkAdapterImpl(),
                 uint64(7 days),
                 uint64(3 days),
                 uint256(0.08 ether),
@@ -2206,7 +2286,6 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
-                        verifier: IZKVerifier(address(0xBEEF)),
                         maxChallengeDuration: Duration.wrap(uint64(7 days)),
                         maxProveDuration: Duration.wrap(uint64(3 days)),
                         challengerBond: 0.08 ether
@@ -2275,7 +2354,23 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(zkImpl), "0.0.0");
         bytes32 slot = bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "zkDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("ZKDG-20", _validate(true));
+        // ZKDG-150 fires because overwriting the expected implementation address also makes the
+        // registered implementation address mismatch.
+        assertEq("ZKDG-20,ZKDG-150", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-150 when the registered ZK_DISPUTE_GAME implementation is a different
+    ///         contract with identical code and game args.
+    function test_validate_zkDisputeGameLookalikeImplementation_succeeds() public {
+        address zkImpl = address(dgf.gameImpls(GameTypes.ZK_DISPUTE_GAME));
+        address lookalike = makeAddr("lookalikeZKDisputeGame");
+        vm.etch(lookalike, zkImpl.code);
+        vm.mockCall(
+            address(dgf),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)),
+            abi.encode(lookalike)
+        );
+        assertEq("ZKDG-150", _validate(true));
     }
 
     /// @notice Tests ZKDG-70 when the absolutePrestate encoded in the ZK game args is zero.
@@ -2289,6 +2384,14 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
     function test_validate_zkDisputeGameZeroVerifier_succeeds() public {
         // verifier occupies bytes [32-51] (20-byte address).
         DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 32, abi.encodePacked(address(0)));
+        assertEq("ZKDG-80", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-80 when the verifier is a contract other than the release-approved verifier.
+    function test_validate_zkDisputeGameUnapprovedVerifier_succeeds() public {
+        address unapprovedVerifier = address(0xCAFE);
+        vm.etch(unapprovedVerifier, hex"01");
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 32, abi.encodePacked(unapprovedVerifier));
         assertEq("ZKDG-80", _validate(true));
     }
 
@@ -2311,6 +2414,23 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         // challengerBond occupies bytes [68-99] (uint256).
         DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 68, abi.encodePacked(uint256(0)));
         assertEq("ZKDG-110", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-ANCHORP-70 when the portal uses a different AnchorStateRegistry than the
+    ///         one encoded in the ZK game args.
+    function test_validate_zkDisputeGameAnchorStateRegistryNotUsedByPortal_succeeds() public {
+        address otherAsr = makeAddr("otherAnchorStateRegistry");
+        vm.mockCall(
+            address(systemConfig.optimismPortal()),
+            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
+            abi.encode(otherAsr)
+        );
+        vm.mockCall(
+            otherAsr,
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.SUPER_CANNON_KONA)
+        );
+        assertEq("SPDG-ANCHORP-70,SCKDG-ANCHORP-70,ZKDG-ANCHORP-70", _validate(true));
     }
 }
 

@@ -150,6 +150,8 @@ func (u *EOA) Plan() txplan.Option {
 		txplan.WithRetrySubmission(elClient, 5, retry.Exponential()),
 		txplan.WithRetryInclusion(elClient, 5, retry.Exponential()),
 		txplan.WithBlockInclusionInfo(elClient),
+		// AwaitTime rather than WaitForTime: a stuck chain fails this tx, not the whole test.
+		txintent.WithInteropDependencyWait(u.el.AwaitTime),
 	)
 }
 
@@ -565,8 +567,11 @@ func (p *SameTimestampPair) SubmitInit() *txplan.PlannedTx {
 // SubmitExecTo returns a planned exec transaction to the given EOA's chain,
 // referencing this init. The test harness assigns deterministic nonces and
 // includes the signed tx directly.
+//
+// The init is not on chain yet: waiting for it would block the tx that produces it.
 func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
+		executor.Plan(), txintent.WithoutInteropDependencyWait())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      p.Message,
@@ -581,7 +586,9 @@ func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
 func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx {
 	invalidMsg := MakeInvalidLogIndex(p.Message)
 
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	// See SubmitExecTo for why there is nothing to wait for.
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
+		executor.Plan(), txintent.WithoutInteropDependencyWait())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      invalidMsg,
@@ -634,8 +641,11 @@ func PrecomputeExecEventMessage(
 // SubmitExecForMessage returns a planned exec transaction referencing the given message.
 // Unlike SameTimestampPair.SubmitExecTo, this can reference any message including
 // precomputed exec event messages for exec-referencing-exec chains.
+//
+// See SubmitExecTo for why there is nothing to wait for.
 func SubmitExecForMessage(msg messages.Message, executor *EOA) *txplan.PlannedTx {
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
+		executor.Plan(), txintent.WithoutInteropDependencyWait())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      msg,

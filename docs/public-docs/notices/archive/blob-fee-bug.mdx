@@ -1,6 +1,9 @@
 ---
 title: Superchain testnets' blob fee bug
 description: Learn about the blob fee bug that affects OP Stack testnets on the Superchain and how to fix it.
+diataxis: reference
+content_type: notice
+date: 2025-03-20
 ---
 
 At the time of writing, all OP Stack testnets are currently sequencing a "wrong" chain. The L1 Block's blob base fee is calculated with pre-Prague blob schedule parameters. This is not a critical security issue on any OP Sepolia (or Holesky) chain. However, when L1 blob base fees rise to 100 Mwei or higher on the L1 testnet, there is a temporary liveness risk, because we'd overcharge L1 fees.

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -15,9 +14,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
@@ -25,12 +21,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-wheel/cheat"
 	"github.com/ethereum-optimism/optimism/op-wheel/engine"
 )
 
@@ -46,13 +40,6 @@ var (
 		Usage:   "Set the global geth logging level",
 		EnvVars: prefixEnvVars("GETH_LOG_LEVEL"),
 		Value:   oplog.NewLevelFlagValue(log.LevelError),
-	}
-	DataDirFlag = &cli.StringFlag{
-		Name:      "data-dir",
-		Usage:     "Geth data dir location.",
-		Required:  true,
-		TakesFile: true,
-		EnvVars:   prefixEnvVars("DATA_DIR"),
 	}
 	EngineEndpoint = &cli.StringFlag{
 		Name:     "engine",
@@ -133,28 +120,6 @@ func ParseBuildingArgs(ctx *cli.Context) *engine.BlockBuildingSettings {
 		Random:       hashFlagValue(RandaoFlag.Name, ctx),
 		FeeRecipient: addrFlagValue(FeeRecipientFlag.Name, ctx),
 		BuildTime:    ctx.Duration(BuildingTime.Name),
-	}
-}
-
-func CheatAction(readOnly bool, fn func(ctx *cli.Context, ch *cheat.Cheater) error) cli.ActionFunc {
-	return func(ctx *cli.Context) error {
-		dataDir := ctx.String(DataDirFlag.Name)
-		ch, err := cheat.OpenGethDB(dataDir, readOnly)
-		if err != nil {
-			return fmt.Errorf("failed to open geth db: %w", err)
-		}
-		return fn(ctx, ch)
-	}
-}
-
-func CheatRawDBAction(readOnly bool, fn func(ctx *cli.Context, db ethdb.Database) error) cli.ActionFunc {
-	return func(ctx *cli.Context) error {
-		dataDir := ctx.String(DataDirFlag.Name)
-		db, err := cheat.OpenGethRawDB(dataDir, readOnly)
-		if err != nil {
-			return fmt.Errorf("failed to open raw geth db: %w", err)
-		}
-		return fn(ctx, db)
 	}
 }
 
@@ -305,173 +270,15 @@ func (a *TextFlag[T]) Clone() any {
 
 var _ cli.Generic = (*TextFlag[*common.Address])(nil)
 
-func textFlag[T Text](name string, usage string, value T) *cli.GenericFlag {
-	return &cli.GenericFlag{
-		Name:     name,
-		Usage:    usage,
-		EnvVars:  prefixEnvVars(strings.ToUpper(name)),
-		Required: true,
-		Value:    &TextFlag[T]{Value: value},
-	}
-}
-
-func addrFlag(name string, usage string) *cli.GenericFlag {
-	return textFlag[*common.Address](name, usage, new(common.Address))
-}
-
-func bytesFlag(name string, usage string) *cli.GenericFlag {
-	return textFlag[*hexutil.Bytes](name, usage, new(hexutil.Bytes))
-}
-
-func hashFlag(name string, usage string) *cli.GenericFlag {
-	return textFlag[*common.Hash](name, usage, new(common.Hash))
-}
-
-func bigFlag(name string, usage string) *cli.GenericFlag {
-	return textFlag[*big.Int](name, usage, new(big.Int))
-}
-
 func addrFlagValue(name string, ctx *cli.Context) common.Address {
 	return *ctx.Generic(name).(*TextFlag[*common.Address]).Value
-}
-
-func bytesFlagValue(name string, ctx *cli.Context) hexutil.Bytes {
-	return *ctx.Generic(name).(*TextFlag[*hexutil.Bytes]).Value
 }
 
 func hashFlagValue(name string, ctx *cli.Context) common.Hash {
 	return *ctx.Generic(name).(*TextFlag[*common.Hash]).Value
 }
 
-func bigFlagValue(name string, ctx *cli.Context) *big.Int {
-	return ctx.Generic(name).(*TextFlag[*big.Int]).Value
-}
-
 var (
-	CheatStorageGetCmd = &cli.Command{
-		Name:    "get",
-		Aliases: []string{"read"},
-		Flags: []cli.Flag{
-			DataDirFlag,
-			addrFlag("address", "Address to read storage of"),
-			hashFlag("key", "key in storage of address to read value"),
-		},
-		Action: CheatAction(true, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.StorageGet(addrFlagValue("address", ctx), hashFlagValue("key", ctx), ctx.App.Writer))
-		}),
-	}
-	CheatStorageSetCmd = &cli.Command{
-		Name:    "set",
-		Aliases: []string{"write"},
-		Flags: []cli.Flag{
-			DataDirFlag,
-			addrFlag("address", "Address to write storage of"),
-			hashFlag("key", "key in storage of address to set value of"),
-			hashFlag("value", "the value to write"),
-		},
-		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.StorageSet(addrFlagValue("address", ctx), hashFlagValue("key", ctx), hashFlagValue("value", ctx)))
-		}),
-	}
-	CheatStorageReadAll = &cli.Command{
-		Name:    "read-all",
-		Aliases: []string{"get-all"},
-		Usage:   "Read all storage of the given account",
-		Flags:   []cli.Flag{DataDirFlag, addrFlag("address", "Address to read all storage of")},
-		Action: CheatAction(true, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.StorageReadAll(addrFlagValue("address", ctx), ctx.App.Writer))
-		}),
-	}
-	CheatStorageDiffCmd = &cli.Command{
-		Name:  "diff",
-		Usage: "Diff the storage of accounts A and B",
-		Flags: []cli.Flag{DataDirFlag, hashFlag("a", "address of account A"), hashFlag("b", "address of account B")},
-		Action: CheatAction(true, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.StorageDiff(ctx.App.Writer, addrFlagValue("a", ctx), addrFlagValue("b", ctx)))
-		}),
-	}
-	CheatStoragePatchCmd = &cli.Command{
-		Name:  "patch",
-		Usage: "Apply storage patch from STDIN to the given account address",
-		Flags: []cli.Flag{DataDirFlag, addrFlag("address", "Address to patch storage of")},
-		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.StoragePatch(os.Stdin, addrFlagValue("address", ctx)))
-		}),
-	}
-	CheatStorageCmd = &cli.Command{
-		Name: "storage",
-		Subcommands: []*cli.Command{
-			CheatStorageGetCmd,
-			CheatStorageSetCmd,
-			CheatStorageReadAll,
-			CheatStorageDiffCmd,
-			CheatStoragePatchCmd,
-		},
-	}
-	CheatSetBalanceCmd = &cli.Command{
-		Name: "balance",
-		Flags: []cli.Flag{
-			DataDirFlag,
-			addrFlag("address", "Address to change balance of"),
-			bigFlag("balance", "New balance of the account"),
-		},
-		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.SetBalance(addrFlagValue("address", ctx), bigFlagValue("balance", ctx)))
-		}),
-	}
-	CheatSetCodeCmd = &cli.Command{
-		Name: "code",
-		Flags: []cli.Flag{
-			DataDirFlag,
-			addrFlag("address", "Address to change code of"),
-			bytesFlag("code", "New code of the account"),
-		},
-		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.SetCode(addrFlagValue("address", ctx), bytesFlagValue("code", ctx)))
-		}),
-	}
-	CheatSetNonceCmd = &cli.Command{
-		Name: "nonce",
-		Flags: []cli.Flag{
-			DataDirFlag,
-			addrFlag("address", "Address to change nonce of"),
-			bigFlag("nonce", "New nonce of the account"),
-		},
-		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.SetNonce(addrFlagValue("address", ctx), bigs.Uint64Strict(bigFlagValue("balance", ctx))))
-		}),
-	}
-	CheatPrintHeadBlock = &cli.Command{
-		Name:  "head-block",
-		Usage: "dump head block as JSON",
-		Flags: []cli.Flag{
-			DataDirFlag,
-		},
-		Action: CheatRawDBAction(true, func(c *cli.Context, db ethdb.Database) error {
-			enc := json.NewEncoder(c.App.Writer)
-			enc.SetIndent("  ", "  ")
-			block := rawdb.ReadHeadBlock(db)
-			if block == nil {
-				return enc.Encode(nil)
-			}
-			return enc.Encode(engine.RPCBlock{
-				Header:       *block.Header(),
-				Transactions: block.Transactions(),
-			})
-		}),
-	}
-	CheatPrintHeadHeader = &cli.Command{
-		Name:  "head-header",
-		Usage: "dump head header as JSON",
-		Flags: []cli.Flag{
-			DataDirFlag,
-		},
-		Action: CheatRawDBAction(true, func(c *cli.Context, db ethdb.Database) error {
-			enc := json.NewEncoder(c.App.Writer)
-			enc.SetIndent("  ", "  ")
-			return enc.Encode(rawdb.ReadHeadHeader(db))
-		}),
-	}
 	EngineBlockCmd = &cli.Command{
 		Name:  "block",
 		Usage: "build the next block using the Engine API",
@@ -699,21 +506,6 @@ var (
 		}),
 	}
 )
-
-var CheatCmd = &cli.Command{
-	Name:  "cheat",
-	Usage: "Cheating commands to modify a Geth database.",
-	Description: "Each sub-command opens a Geth database, applies the cheat, and then saves and closes the database." +
-		"The Geth node will live in its own false reality, other nodes cannot sync the cheated state if they process the blocks.",
-	Subcommands: []*cli.Command{
-		CheatStorageCmd,
-		CheatSetBalanceCmd,
-		CheatSetCodeCmd,
-		CheatSetNonceCmd,
-		CheatPrintHeadBlock,
-		CheatPrintHeadHeader,
-	},
-}
 
 var EngineCmd = &cli.Command{
 	Name:        "engine",

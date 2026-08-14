@@ -21,7 +21,7 @@ Datadir:
           Possible values are either a built-in chain or the path to a chain specification file.
 
           Built-in chains:
-              optimism, optimism_sepolia, optimism-sepolia, base, base_sepolia, base-sepolia, arena-z, arena-z-sepolia, automata, base-devnet-0-sepolia-dev-0, bob, boba-sepolia, boba, camp-sepolia, celo, creator-chain-testnet-sepolia, cyber, cyber-sepolia, ethernity, ethernity-sepolia, fraxtal, funki, funki-sepolia, hashkeychain, ink, ink-sepolia, lisk, lisk-sepolia, lyra, metal, metal-sepolia, mint, mode, mode-sepolia, oplabs-devnet-0-sepolia-dev-0, orderly, ozean-sepolia, pivotal-sepolia, polynomial, race, race-sepolia, radius_testnet-sepolia, redstone, rehearsal-0-bn-0-rehearsal-0-bn, rehearsal-0-bn-1-rehearsal-0-bn, settlus-mainnet, settlus-sepolia-sepolia, shape, shape-sepolia, silent-data-mainnet, snax, soneium, soneium-minato-sepolia, sseed, swan, swell, tbn, tbn-sepolia, unichain, unichain-sepolia, worldchain, worldchain-sepolia, xterio-eth, zora, zora-sepolia, dev
+              optimism, op-mainnet, optimism_sepolia, optimism-sepolia, automata, bob, boba, celo, cyber, ethernity, fraxtal, funki, hashkeychain, ink, lisk, lyra, metal, mint, mode, op, orderly, polynomial, race, redstone, settlus-mainnet, shape, silent-data-mainnet, soneium, sseed, swan, tbn, unichain, worldchain, xterio-eth, zora, boba-sepolia, camp-sepolia, celo-sep-sepolia, cyber-sepolia, funki-sepolia, ink-sepolia, lisk-sepolia, metal-sepolia, mode-sepolia, op-sepolia, ozean-sepolia, pivotal-sepolia, race-sepolia, radius_testnet-sepolia, settlus-sepolia-sepolia, shape-sepolia, soneium-minato-sepolia, tbn-sepolia, unichain-sepolia, worldchain-sepolia, zora-sepolia, oplabs-devnet-0-sepolia-dev-0, sepolia-devnet-2-sepolia-devnet-2, dev
 
           [default: optimism]
 
@@ -39,7 +39,7 @@ Logging:
       --log.stdout.filter <FILTER>
           The filter to use for logs written to stdout
 
-          [default: ]
+          [default: ""]
 
       --log.file.format <FORMAT>
           The format to use for logs written to the log file
@@ -72,9 +72,9 @@ Logging:
           [default: 200]
 
       --log.file.max-files <COUNT>
-          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
 
-          [default: 5]
+          Default: 5 for `node` command, 0 for non-node utility subcommands.
 
       --log.journald
           Write logs to journald

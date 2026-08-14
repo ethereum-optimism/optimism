@@ -20,13 +20,9 @@ With **Flashblocks**, block construction is incremental and *effective transacti
 
 ## What Are Flashblocks?
 
-Flashblocks are an incremental block-building mechanism used by the sequencer and block builder.
-
-Instead of constructing the full block at once, the block is built in **N flashblocks** (currently 8):
-
-- Each flashblock increases the *cumulative gas budget* available for inclusion
-- Earlier flashblocks can only include smaller transactions
-- Larger transactions can only be included later, *if enough gas remains*
+Flashblocks are an incremental block-building mechanism: instead of constructing the full block at once, the sequencer's block builder assembles it as a series of flashblocks, each of which adds to the *cumulative gas budget* available for inclusion.
+For what Flashblocks are, the components involved, and how many flashblocks a block contains, see the [Flashblocks explainer](/op-stack/features/flashblocks).
+The consequence for gas usage is that earlier flashblocks can only include smaller transactions, and larger transactions fit only later in the block, *if enough gas remains*.
 
 ### Example
 
@@ -84,7 +80,7 @@ The **EL** checks if the transaction exceeds **40M**. Since **38M < 40M**, the t
 There are two distinct outcomes depending on the transaction size:
 
 - **Rejected immediately (txpool admission failure):**  
-  The EL (e.g. **op-geth**, **op-reth**) rejects transactions only when the transaction gas limit exceeds the **full block gas limit**:
+  The EL (e.g. **op-reth**) rejects transactions only when the transaction gas limit exceeds the **full block gas limit**:
   - Condition: `tx.gasLimit > blockGasLimit`
   - Error returned to the user: `exceeds block gas limit`
 

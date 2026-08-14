@@ -28,7 +28,6 @@ import { GameTypes } from "src/dispute/lib/Types.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 
 /// @title ImplV1_Harness
 /// @notice Implementation contract with version 1.0.0 for testing upgrades.
@@ -148,7 +147,8 @@ contract OPContractsManagerUtils_TestInit is Test, FeatureFlags {
             superFaultDisputeGameImpl: makeAddr("superFaultDisputeGameImpl"),
             superPermissionedDisputeGameImpl: makeAddr("superPermissionedDisputeGameImpl"),
             zkDisputeGameImpl: makeAddr("zkDisputeGameImpl"),
-            storageSetterImpl: address(storageSetter)
+            storageSetterImpl: address(storageSetter),
+            sp1PlonkAdapterImpl: makeAddr("sp1PlonkAdapterImpl")
         });
 
         // Deploy the container and utils.
@@ -937,7 +937,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
     function test_makeGameArgs_zkDisputeGame_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         Claim absolutePrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
-        IZKVerifier verifier = IZKVerifier(address(0xBEEF));
+        address verifier = implementations.sp1PlonkAdapterImpl;
         Duration maxChallengeDuration = Duration.wrap(uint64(7 days));
         Duration maxProveDuration = Duration.wrap(uint64(3 days));
         uint256 challengerBond = 1 ether;
@@ -952,7 +952,6 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: absolutePrestate,
-                    verifier: verifier,
                     maxChallengeDuration: maxChallengeDuration,
                     maxProveDuration: maxProveDuration,
                     challengerBond: challengerBond
@@ -980,12 +979,43 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
         // Decode the encoded args back through LibGameArgs and assert every field round-trips.
         LibGameArgs.ZKGameArgs memory decoded = LibGameArgs.decodeZK(result);
         assertEq(decoded.absolutePrestate, absolutePrestate.raw(), "absolutePrestate mismatch");
-        assertEq(decoded.verifier, address(verifier), "verifier mismatch");
+        assertEq(decoded.verifier, verifier, "verifier mismatch");
         assertEq(decoded.maxChallengeDuration, maxChallengeDuration.raw(), "maxChallengeDuration mismatch");
         assertEq(decoded.maxProveDuration, maxProveDuration.raw(), "maxProveDuration mismatch");
         assertEq(decoded.challengerBond, challengerBond, "challengerBond mismatch");
         assertEq(decoded.anchorStateRegistry, address(anchorStateRegistry), "anchorStateRegistry mismatch");
         assertEq(decoded.weth, address(delayedWETH), "weth mismatch");
+    }
+
+    /// @notice Tests that trailing ZK configuration words are rejected.
+    function test_makeGameArgs_zkDisputeGameInvalidLength_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+        IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
+                    maxChallengeDuration: Duration.wrap(uint64(7 days)),
+                    maxProveDuration: Duration.wrap(uint64(3 days)),
+                    challengerBond: 1 ether
+                }),
+                address(0xBEEF)
+            )
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOPContractsManagerUtils.OPContractsManagerUtils_InvalidZKGameArgsLength.selector, uint256(160)
+            )
+        );
+        utils.makeGameArgs(
+            0,
+            IAnchorStateRegistry(makeAddr("anchorStateRegistry")),
+            IDelayedWETH(payable(makeAddr("delayedWETH"))),
+            cfg
+        );
     }
 
     /// @notice Tests that makeGameArgs reverts for an unsupported game type.

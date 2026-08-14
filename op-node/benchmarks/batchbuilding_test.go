@@ -105,10 +105,14 @@ func channelOutByType(b *testing.B, batchType uint, cd compressorDetails) (deriv
 	return nil, fmt.Errorf("unsupported batch type: %d", batchType)
 }
 
-func randomBlock(cfg *rollup.Config, rng *rand.Rand, txCount int, timestamp uint64) (*types.Block, error) {
+func randomBlock(cfg *rollup.Config, rng *rand.Rand, txCount int, timestamp uint64) (*eth.ExecutionPayload, error) {
 	batch := derive.RandomSingularBatch(rng, txCount, cfg.L2ChainID)
 	batch.Timestamp = timestamp
-	return singularBatchToBlock(cfg, batch)
+	block, err := singularBatchToBlock(cfg, batch)
+	if err != nil {
+		return nil, err
+	}
+	return eth.BlockAsPayload(block, cfg)
 }
 
 // singularBatchToBlock converts a singular batch to a block for use in the benchmarks. This function
@@ -196,7 +200,7 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 		cfg := &rollup.Config{L2ChainID: big.NewInt(333)}
 		rng := rand.New(rand.NewSource(0x543331))
 		// pre-generate batches to keep the benchmark from including the random generation
-		blocks := make([]*types.Block, tc.BatchCount)
+		blocks := make([]*eth.ExecutionPayload, tc.BatchCount)
 		t := time.Now()
 		for i := 0; i < tc.BatchCount; i++ {
 			// set the timestamp to increase with each batch
@@ -265,7 +269,7 @@ func BenchmarkIncremental(b *testing.B) {
 				b.StopTimer()
 				// prepare the batches
 				t := time.Now()
-				blocks := make([]*types.Block, tc.BatchCount)
+				blocks := make([]*eth.ExecutionPayload, tc.BatchCount)
 				for i := 0; i < tc.BatchCount; i++ {
 					// set the timestamp to increase with each batch
 					// to leverage optimizations in the Batch Linked List
@@ -325,7 +329,7 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 		cfg := &rollup.Config{L2ChainID: big.NewInt(333)}
 		rng := rand.New(rand.NewSource(0x543331))
 		// pre-generate batches to keep the benchmark from including the random generation
-		blocks := make([]*types.Block, tc.BatchCount)
+		blocks := make([]*eth.ExecutionPayload, tc.BatchCount)
 		t := time.Now()
 		for i := 0; i < tc.BatchCount; i++ {
 			// set the timestamp to increase with each batch

@@ -89,8 +89,8 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to read state: %w", err)
 	}
-	if !st.Prepared {
-		return fmt.Errorf("state was not produced by op-deployer prepare; run op-deployer prepare before op-deployer prestate")
+	if err := pipeline.ValidatePreparedDeployment(intent, st); err != nil {
+		return fmt.Errorf("failed to validate prepared deployment: %w", err)
 	}
 	if err := pipeline.ValidateInteropDepSetMatchesIntent(intent.Chains, st.InteropDepSet); err != nil {
 		return fmt.Errorf("failed to validate prepared chain set: %w", err)
@@ -115,13 +115,13 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			continue
 		}
 
+		proofParams, err := pipeline.PreparedChainProofParams(st, chain.ID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve prepared proof parameters for chain %s: %w", chain.ID.Hex(), err)
+		}
 		chainState, err := st.Chain(chain.ID)
 		if err != nil {
-			return fmt.Errorf("run op-deployer prepare before op-deployer prestate for chain %s: %w", chain.ID.Hex(), err)
-		}
-		proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
-		if err != nil {
-			return fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
+			return fmt.Errorf("prepared chain %s disappeared: %w", chain.ID.Hex(), err)
 		}
 		preparedGameType, err := pipeline.ResolvePreparedGameType(chain, chainState, proofParams.DisputeGameType)
 		if err != nil {

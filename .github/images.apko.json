@@ -34,7 +34,7 @@
     "aarch64": "ubuntu-24.04-arm"
   },
   "smoke_runners": {
-    "amd64": "ubuntu-slim",
+    "amd64": "ubuntu-24.04",
     "arm64": "ubuntu-24.04-arm"
   },
   "melange": {
@@ -74,6 +74,7 @@
   "images": {
     "op-node": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -83,10 +84,11 @@
       "nexus_paths": [
         "apko/op-node.yaml"
       ],
-      "smoke_test": "op-node --help"
+      "smoke_test": "op-node --version"
     },
     "op-batcher": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -96,10 +98,11 @@
       "nexus_paths": [
         "apko/op-batcher.yaml"
       ],
-      "smoke_test": "op-batcher --help"
+      "smoke_test": "op-batcher --version"
     },
     "op-proposer": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -109,10 +112,11 @@
       "nexus_paths": [
         "apko/op-proposer.yaml"
       ],
-      "smoke_test": "op-proposer --help"
+      "smoke_test": "op-proposer --version"
     },
     "op-conductor": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -123,10 +127,11 @@
       "nexus_paths": [
         "apko/op-conductor.yaml"
       ],
-      "smoke_test": "op-conductor --help"
+      "smoke_test": "op-conductor --version"
     },
     "op-dispute-mon": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -136,10 +141,11 @@
       "nexus_paths": [
         "apko/op-dispute-mon.yaml"
       ],
-      "smoke_test": "op-dispute-mon --help"
+      "smoke_test": "op-dispute-mon --version"
     },
     "op-dripper": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -149,10 +155,11 @@
       "nexus_paths": [
         "apko/op-dripper.yaml"
       ],
-      "smoke_test": "op-dripper --help"
+      "smoke_test": "op-dripper --version"
     },
     "op-faucet": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -162,10 +169,11 @@
       "nexus_paths": [
         "apko/op-faucet.yaml"
       ],
-      "smoke_test": "op-faucet --help"
+      "smoke_test": "op-faucet --version"
     },
     "op-interop-filter": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -175,10 +183,11 @@
       "nexus_paths": [
         "apko/op-interop-filter.yaml"
       ],
-      "smoke_test": "op-interop-filter --help"
+      "smoke_test": "op-interop-filter --version"
     },
     "op-interop-mon": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -188,10 +197,11 @@
       "nexus_paths": [
         "apko/op-interop-mon.yaml"
       ],
-      "smoke_test": "op-interop-mon --help"
+      "smoke_test": "op-interop-mon --version"
     },
     "op-supernode": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -202,10 +212,11 @@
       "nexus_paths": [
         "apko/op-supernode.yaml"
       ],
-      "smoke_test": "op-supernode --help"
+      "smoke_test": "op-supernode --version"
     },
     "op-test-sequencer": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -215,10 +226,11 @@
       "nexus_paths": [
         "apko/op-test-sequencer.yaml"
       ],
-      "smoke_test": "op-test-sequencer --help"
+      "smoke_test": "op-test-sequencer --version"
     },
     "da-server": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go"
       ],
@@ -228,10 +240,11 @@
       "nexus_paths": [
         "apko/da-server.yaml"
       ],
-      "smoke_test": "da-server --help"
+      "smoke_test": "da-server --version"
     },
     "op-challenger": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-go",
         "multicannon",
@@ -246,10 +259,11 @@
       "nexus_paths": [
         "apko/op-challenger.yaml"
       ],
-      "smoke_test": "op-challenger --help,cannon --help,cannon load-elf --type multithreaded64-5 --help,kona-host --help"
+      "smoke_test": "op-challenger --version,cannon --help,cannon load-elf --type multithreaded64-5 --help,kona-host --help"
     },
     "kona-node": {
       "type": "rust",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-rust"
       ],
@@ -259,7 +273,7 @@
       "nexus_paths": [
         "apko/kona-node.yaml"
       ],
-      "smoke_test": "kona-node --help"
+      "smoke_test": "kona-node --version"
     },
     "kona-host": {
       "type": "rust",
@@ -287,8 +301,22 @@
       ],
       "smoke_test": "kona-client --help"
     },
+    "kona-sp1-proposer": {
+      "type": "rust",
+      "needs_melange": [
+        "op-stack-rust"
+      ],
+      "paths": [
+        "rust/**"
+      ],
+      "nexus_paths": [
+        "apko/kona-sp1-proposer.yaml"
+      ],
+      "smoke_test": "kona-sp1-proposer --version"
+    },
     "op-reth": {
       "type": "rust",
+      "verify_version": true,
       "needs_melange": [
         "op-stack-rust"
       ],
@@ -298,7 +326,7 @@
       "nexus_paths": [
         "apko/op-reth.yaml"
       ],
-      "smoke_test": "op-reth --help"
+      "smoke_test": "op-reth --version"
     },
     "op-rbuilder": {
       "type": "rust",
@@ -328,6 +356,7 @@
     },
     "op-deployer": {
       "type": "go",
+      "verify_version": true,
       "needs_melange": [
         "op-deployer"
       ],
@@ -341,7 +370,7 @@
         "melange/pipelines/op-deployer/embed-artifacts.yaml",
         "melange/pipelines/op-deployer/install-forge.yaml"
       ],
-      "smoke_test": "op-deployer --help,forge --version"
+      "smoke_test": "op-deployer --version,forge --version"
     }
   }
 }

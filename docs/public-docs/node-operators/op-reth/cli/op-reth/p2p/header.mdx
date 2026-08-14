@@ -30,14 +30,16 @@ Networking:
       --disable-discv4-discovery
           Disable Discv4 discovery
 
-      --enable-discv5-discovery
-          Enable Discv5 discovery
+      --disable-discv5-discovery
+          Disable Discv5 discovery
 
       --disable-nat
           Disable Nat discovery
 
       --discovery.addr <DISCOVERY_ADDR>
-          The UDP address to use for devp2p peer discovery version 4
+          The UDP address to use for devp2p peer discovery version 4.
+
+          If unset and `--net-if.experimental` is used, discv4 binds to the resolved interface address.
 
           [default: 0.0.0.0]
 
@@ -58,7 +60,9 @@ Networking:
           [default: 9200]
 
       --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6>
-          The UDP IPv6 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv6, or `--discovery.addr.ipv6` is set
+          The UDP IPv6 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv6, or `--discovery.addr.ipv6` is set.
+
+          If not provided, discovery V5 defaults to same port as discovery V4 (--discovery.port).
 
           [default: 9200]
 
@@ -102,7 +106,7 @@ Networking:
       --identity <IDENTITY>
           Custom node identity
 
-          [default: reth/<VERSION>-<SHA>/<ARCH>]
+          [default: op-reth/<VERSION>-<SHA>/<ARCH>]
 
       --p2p-secret-key <PATH>
           Secret key to use for this node.
@@ -192,10 +196,20 @@ Networking:
 
           [default: 25600]
 
+      --tx-channel-memory-limit <BYTES>
+          Memory limit (in bytes) for the channel that buffers transaction events flowing
+          from the network manager to the transactions manager.
+
+          When the budget is exhausted, new events are dropped (see metric
+          `total_dropped_tx_events_at_full_capacity`). Acts as a backstop against unbounded
+          memory growth under sustained P2P transaction flooding.
+
+          [default: 1073741824]
+
       --net-if.experimental <IF_NAME>
           Name of network interface used to communicate with peers.
 
-          If flag is set, but no value is passed, the default interface for docker `eth0` is tried.
+          If flag is set, but no value is passed, the default interface for docker `eth0` is tried. If `--discovery.addr` is left at its default, discv4 will also bind to the resolved interface address.
 
       --tx-propagation-policy <TX_PROPAGATION_POLICY>
           Transaction Propagation Policy
@@ -229,12 +243,20 @@ Networking:
       --network-id <NETWORK_ID>
           Optional network ID to override the chain specification's network ID for P2P connections
 
+      --eth-max-message-size <BYTES>
+          Maximum allowed ETH message size in bytes. Default is 10 MiB
+
       --netrestrict <NETRESTRICT>
           Restrict network communication to the given IP networks (CIDR masks).
 
           Comma separated list of CIDR network specifications. Only peers with IP addresses within these ranges will be allowed to connect.
 
           Example: --netrestrict "192.168.0.0/16,10.0.0.0/8"
+
+      --enforce-enr-fork-id
+          Enforce EIP-868 ENR fork ID validation for discovered peers.
+
+          When enabled, peers discovered without a confirmed fork ID are not added to the peer set until their fork ID is verified via EIP-868 ENR request. This filters out peers from other networks that pollute the discovery table.
 
 Datadir:
       --datadir <DATA_DIR>
@@ -265,7 +287,7 @@ Datadir:
           Possible values are either a built-in chain or the path to a chain specification file.
 
           Built-in chains:
-              optimism, optimism_sepolia, optimism-sepolia, base, base_sepolia, base-sepolia, arena-z, arena-z-sepolia, automata, base-devnet-0-sepolia-dev-0, bob, boba-sepolia, boba, camp-sepolia, celo, creator-chain-testnet-sepolia, cyber, cyber-sepolia, ethernity, ethernity-sepolia, fraxtal, funki, funki-sepolia, hashkeychain, ink, ink-sepolia, lisk, lisk-sepolia, lyra, metal, metal-sepolia, mint, mode, mode-sepolia, oplabs-devnet-0-sepolia-dev-0, orderly, ozean-sepolia, pivotal-sepolia, polynomial, race, race-sepolia, radius_testnet-sepolia, redstone, rehearsal-0-bn-0-rehearsal-0-bn, rehearsal-0-bn-1-rehearsal-0-bn, settlus-mainnet, settlus-sepolia-sepolia, shape, shape-sepolia, silent-data-mainnet, snax, soneium, soneium-minato-sepolia, sseed, swan, swell, tbn, tbn-sepolia, unichain, unichain-sepolia, worldchain, worldchain-sepolia, xterio-eth, zora, zora-sepolia, dev
+              optimism, op-mainnet, optimism_sepolia, optimism-sepolia, automata, bob, boba, celo, cyber, ethernity, fraxtal, funki, hashkeychain, ink, lisk, lyra, metal, mint, mode, op, orderly, polynomial, race, redstone, settlus-mainnet, shape, silent-data-mainnet, soneium, sseed, swan, tbn, unichain, worldchain, xterio-eth, zora, boba-sepolia, camp-sepolia, celo-sep-sepolia, cyber-sepolia, funki-sepolia, ink-sepolia, lisk-sepolia, metal-sepolia, mode-sepolia, op-sepolia, ozean-sepolia, pivotal-sepolia, race-sepolia, radius_testnet-sepolia, settlus-sepolia-sepolia, shape-sepolia, soneium-minato-sepolia, tbn-sepolia, unichain-sepolia, worldchain-sepolia, zora-sepolia, oplabs-devnet-0-sepolia-dev-0, sepolia-devnet-2-sepolia-devnet-2, dev
 
           [default: optimism]
 
@@ -286,7 +308,7 @@ Logging:
       --log.stdout.filter <FILTER>
           The filter to use for logs written to stdout
 
-          [default: ]
+          [default: ""]
 
       --log.file.format <FORMAT>
           The format to use for logs written to the log file
@@ -319,9 +341,9 @@ Logging:
           [default: 200]
 
       --log.file.max-files <COUNT>
-          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
 
-          [default: 5]
+          Default: 5 for `node` command, 0 for non-node utility subcommands.
 
       --log.journald
           Write logs to journald

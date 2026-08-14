@@ -4,8 +4,8 @@ description: Learn how to enable snap sync on your OP Stack chain.
 diataxis: how-to
 ---
 
-Snap sync significantly improves the experience of syncing an OP Stack node. Snap sync is a native feature of go-ethereum that is now optionally enabled on `op-node` & `op-geth`.
-Snap sync works by downloading a snapshot of the state from other nodes on the network and is then able to start executing blocks from the completed state rather than having to re-execute every single block.
+Snap sync significantly improves the experience of syncing an OP Stack node. On the consensus layer, `op-node` enables it with the `--syncmode=execution-layer` flag.
+Rather than re-executing every block from genesis, the execution client downloads chain and state data from other nodes on the network over P2P and begins executing from the completed state.
 This means that performing a snap sync is significantly faster than performing a full sync.
 
 *   Snap sync enables node operators on your network to sync faster.
@@ -17,7 +17,7 @@ To enable snap sync, chain operators need to spin up a node which is exposed to 
 This node will serve snap sync requests on the execution layer from other nodes on the network.
 
 <Info>
-For snap sync, all `op-geth` nodes should expose port `30303` TCP and `30303` UDP to easily find other `op-geth` nodes to sync from. 
+For snap sync, all nodes should expose port `30303` TCP and `30303` UDP to easily find other nodes to sync from. These are op-reth's defaults for `--port` (TCP) and `--discovery.port` (UDP).
   *   If you set the port with [`--discovery.port`](/node-operators/op-reth/cli/op-reth/node), then you must open the port specified for UDP.
   *   If you set [`--port`](/node-operators/op-reth/cli/op-reth/node), then you must open the port specified for TCP.
   *   The only exception is for sequencers and transaction ingress nodes.
@@ -25,7 +25,7 @@ For snap sync, all `op-geth` nodes should expose port `30303` TCP and `30303` UD
 
 <Steps>
   <Step title="Setup a snap sync node">
-  *   Expose port `30303` (`op-geth`'s default discovery port) to the internet on TCP and UDP.
+  *   Expose port `30303` (op-reth's default listening and discovery port) to the internet on TCP and UDP.
     *   Disable transaction gossip with the [`--rollup.disable-tx-pool-gossip`](/node-operators/op-reth/cli/op-reth/node) flag
   </Step>
 
