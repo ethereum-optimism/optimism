@@ -1,0 +1,27 @@
+[package]
+name = "kona-node-service-v2"
+description = "An experimental, workflow-oriented OP Stack consensus node service"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+kona-engine.workspace = true
+kona-protocol.workspace = true
+
+# OP Alloy
+op-alloy-rpc-types-engine.workspace = true
+
+# General
+async-trait.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tokio-util.workspace = true

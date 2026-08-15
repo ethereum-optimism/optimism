@@ -7377,6 +7377,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-node-service-v2"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "kona-engine",
+ "kona-protocol",
+ "op-alloy-rpc-types-engine",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "kona-peers"
 version = "0.1.2"
 dependencies = [
