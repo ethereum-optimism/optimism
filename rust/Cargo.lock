@@ -7383,6 +7383,7 @@ dependencies = [
  "alloy-rpc-types-engine",
  "async-trait",
  "kona-engine",
+ "kona-genesis",
  "kona-protocol",
  "op-alloy-rpc-types-engine",
  "thiserror 2.0.18",

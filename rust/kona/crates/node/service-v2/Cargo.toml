@@ -15,6 +15,7 @@ workspace = true
 [dependencies]
 # Workspace
 kona-engine.workspace = true
+kona-genesis.workspace = true
 kona-protocol.workspace = true
 
 # OP Alloy
@@ -28,6 +29,7 @@ tokio-util.workspace = true
 
 [dev-dependencies]
 alloy-rpc-types-engine.workspace = true
+kona-engine = { workspace = true, features = ["test-utils"] }
 op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
 tokio = { workspace = true, features = ["macros", "rt"] }
 

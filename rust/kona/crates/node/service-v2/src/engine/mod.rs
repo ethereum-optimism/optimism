@@ -12,6 +12,9 @@ pub use driver::EngineDriver;
 mod error;
 pub use error::{EngineError, EngineResult, EngineServiceError};
 
+mod follower;
+pub use follower::FollowerEngineDriver;
+
 mod service;
 pub use service::{DEFAULT_ENGINE_REQUEST_CAPACITY, EngineService};
 
