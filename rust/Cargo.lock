@@ -7435,6 +7435,62 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-node-v2"
+version = "0.1.0"
+dependencies = [
+ "alloy-chains",
+ "alloy-genesis",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-engine",
+ "alloy-signer 2.1.1",
+ "alloy-signer-local 2.1.1",
+ "alloy-transport",
+ "alloy-transport-http",
+ "anyhow",
+ "backon",
+ "clap",
+ "derive_more 2.1.1",
+ "dirs 6.0.0",
+ "discv5 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures",
+ "jsonrpsee",
+ "kona-cli",
+ "kona-derive",
+ "kona-disc",
+ "kona-engine",
+ "kona-genesis",
+ "kona-gossip",
+ "kona-interop",
+ "kona-node-service-v2",
+ "kona-peers",
+ "kona-protocol",
+ "kona-providers-alloy",
+ "kona-registry",
+ "kona-rpc",
+ "kona-sources",
+ "libp2p",
+ "metrics",
+ "op-alloy-network",
+ "op-alloy-provider",
+ "op-alloy-rpc-types-engine",
+ "op-version",
+ "reqwest 0.13.2",
+ "rstest",
+ "serde_json",
+ "strum",
+ "tabled",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber 0.3.23",
+ "url",
+]
+
+[[package]]
 name = "kona-peers"
 version = "0.1.2"
 dependencies = [
