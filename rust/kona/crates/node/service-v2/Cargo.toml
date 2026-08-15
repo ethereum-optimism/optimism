@@ -25,3 +25,12 @@ async-trait.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 tokio-util.workspace = true
+
+[dev-dependencies]
+alloy-rpc-types-engine.workspace = true
+op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[features]
+default = []
+metrics = ["kona-engine/metrics"]

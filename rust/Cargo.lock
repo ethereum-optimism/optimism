@@ -7380,6 +7380,7 @@ dependencies = [
 name = "kona-node-service-v2"
 version = "0.1.0"
 dependencies = [
+ "alloy-rpc-types-engine",
  "async-trait",
  "kona-engine",
  "kona-protocol",
