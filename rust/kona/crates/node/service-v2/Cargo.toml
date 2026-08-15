@@ -18,6 +18,9 @@ kona-engine.workspace = true
 kona-genesis.workspace = true
 kona-protocol.workspace = true
 
+# Alloy
+alloy-rpc-types-engine.workspace = true
+
 # OP Alloy
 op-alloy-rpc-types-engine.workspace = true
 
@@ -25,10 +28,10 @@ op-alloy-rpc-types-engine.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
 tokio-util.workspace = true
 
 [dev-dependencies]
-alloy-rpc-types-engine.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
 op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
 tokio = { workspace = true, features = ["macros", "rt"] }

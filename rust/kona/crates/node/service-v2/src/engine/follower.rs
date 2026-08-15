@@ -1,10 +1,11 @@
 //! Adapter from semantic follower operations to the existing Engine API task primitives.
 
 use crate::engine::{EngineDriver, EngineError, EngineResult, SafeChainUpdate};
+use alloy_rpc_types_engine::PayloadStatusEnum;
 use async_trait::async_trait;
 use kona_engine::{
     ConsolidateInput, ConsolidateTask, EngineClient as RawEngineClient, EngineState,
-    EngineSyncState, EngineTaskExt, FinalizeBlockId, FinalizeTask, InsertTask,
+    EngineSyncState, EngineTaskExt, FinalizeBlockId, FinalizeTask, InsertTask, InsertTaskError,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
@@ -47,10 +48,16 @@ where
         &mut self,
         payload: OpExecutionPayloadEnvelope,
     ) -> EngineResult<L2BlockInfo> {
-        InsertTask::new(self.client.clone(), self.config.clone(), payload, false)
+        match InsertTask::new(self.client.clone(), self.config.clone(), payload, false)
             .execute(&mut self.state)
             .await
-            .map_err(EngineError::driver)
+        {
+            Err(InsertTaskError::UnexpectedPayloadStatus(
+                status @ PayloadStatusEnum::Invalid { .. },
+            )) => Err(EngineError::InvalidUnsafePayload(status.to_string())),
+            Err(error) => Err(EngineError::driver(error)),
+            Ok(block) => Ok(block),
+        }
     }
 
     async fn update_safe(&mut self, update: SafeChainUpdate) -> EngineResult<L2BlockInfo> {

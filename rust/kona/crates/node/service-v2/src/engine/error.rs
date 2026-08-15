@@ -11,6 +11,9 @@ pub enum EngineError {
     /// The underlying engine driver failed to apply an operation.
     #[error("engine driver failed: {0}")]
     Driver(String),
+    /// A complete unsafe payload was rejected as invalid by the execution engine.
+    #[error("invalid unsafe payload: {0}")]
+    InvalidUnsafePayload(String),
     /// Local payload construction was requested from a follower-only engine driver.
     #[error("local sequencing is disabled")]
     SequencingDisabled,
