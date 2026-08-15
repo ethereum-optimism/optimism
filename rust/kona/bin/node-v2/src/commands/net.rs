@@ -2,155 +2,101 @@
 
 use crate::flags::{GlobalArgs, P2PArgs, RpcArgs};
 use clap::Parser;
-use futures::future::OptionFuture;
-use jsonrpsee::{RpcModule, core::async_trait, server::Server};
+use jsonrpsee::{RpcModule, server::Server};
 use kona_cli::LogConfig;
 use kona_gossip::P2pRpcRequest;
-use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
-};
+use kona_node_service_v2::{NetworkBuilder, network::NetworkService};
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::sync::mpsc;
-use tracing::{error, info, warn};
+use tokio_util::sync::CancellationToken;
+use tracing::{info, warn};
 use url::Url;
 
-/// The `net` Subcommand
-///
-/// The `net` subcommand is used to run the networking stack for the `kona-node`.
-///
-/// # Usage
-///
-/// ```sh
-/// kona-node net [FLAGS] [OPTIONS]
-/// ```
+/// Runs the standalone Kona networking stack.
 #[derive(Parser, Default, PartialEq, Eq, Debug, Clone)]
 #[command(about = "Runs the networking stack for the kona-node.")]
 pub struct NetCommand {
-    /// URL of the L1 execution client RPC API.
-    /// This is used to load the unsafe block signer at startup.
-    /// Without this, the rollup config unsafe block signer will be used which may be outdated.
+    /// URL of the L1 execution client RPC API used to load the unsafe block signer.
     #[arg(long, visible_alias = "l1", env = "L1_ETH_RPC")]
     pub l1_eth_rpc: Option<Url>,
-    /// P2P CLI Flags
+    /// P2P CLI flags.
     #[command(flatten)]
     pub p2p: P2PArgs,
-    /// RPC CLI Flags
+    /// RPC CLI flags.
     #[command(flatten)]
     pub rpc: RpcArgs,
 }
 
 impl NetCommand {
-    /// Initializes the logging system based on global arguments.
+    /// Initializes logging.
     pub fn init_logs(&self, args: &GlobalArgs) -> anyhow::Result<()> {
-        // Filter out discovery warnings since they're very very noisy.
         let filter = tracing_subscriber::EnvFilter::from_default_env()
             .add_directive("discv5=error".parse()?)
             .add_directive("bootstore=debug".parse()?);
-
-        // Initialize the telemetry stack.
         LogConfig::new(args.log_args.clone()).init_tracing_subscriber(Some(filter))?;
         Ok(())
     }
 
-    /// Run the Net subcommand.
+    /// Runs the standalone network service.
     pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
-        let signer = args.genesis_signer()?;
-        info!(target: "net", "Genesis block signer: {:?}", signer);
-
+        info!(target: "net", signer = ?args.genesis_signer()?, "Genesis block signer");
         let rpc_config = Option::<RpcBuilder>::from(self.rpc);
-
-        // Get the rollup config from the args
         let rollup_config =
             scr_rollup_config_by_alloy_ident(&args.l2_chain_id).ok_or_else(|| {
                 anyhow::anyhow!("Rollup config not found for chain id: {}", args.l2_chain_id)
             })?;
 
-        // Start the Network Stack
         self.p2p.check_ports()?;
         let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
-
-        let (block_tx, mut block_rx) = mpsc::channel(1024);
-        let (signer_tx, signer_rx) = mpsc::channel(16);
-        let (rpc, p2p_rpc_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
-        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
-        // signer_tx, admin_rpc_tx, gossip_payload_tx are not used by this single-purpose binary —
-        // they exist solely to satisfy NetworkActor::new and are held to keep the channels open.
-        let _unused_senders = (signer_tx, admin_rpc_tx, gossip_payload_tx);
-
         let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
 
-        let mut network = NetworkActor::new(
-            ForwardingNetworkEngineClient { block_tx },
-            handler,
-            signer_rx,
-            p2p_rpc_rx,
-            admin_rpc_rx,
-            gossip_payload_rx,
-        );
+        let (payload_tx, mut payload_rx) = mpsc::channel(1024);
+        let (signer_tx, signer_rx) = mpsc::channel(16);
+        let (network, client) = NetworkService::new(handler, signer_rx, payload_tx);
+        // The standalone command has no L1 service, so retain the update sender for service
+        // lifetime while continuing to use the configured genesis signer.
+        let _signer_keepalive = signer_tx;
+        let rpc = client.p2p_sender();
+        let shutdown = CancellationToken::new();
+        let mut network_task = tokio::spawn(network.run(shutdown.clone()));
 
-        // Spawn the actor; the loop below polls the p2p RPC interface on an interval.
-        tokio::spawn(async move {
-            loop {
-                if let Err(e) = network.step().await {
-                    error!(target: "net", "Network actor error: {e:?}");
-                    return;
-                }
-            }
-        });
-
-        info!(target: "net", "Network started, receiving blocks.");
-
-        // On an interval, use the rpc tx to request stats about the p2p network.
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
-
-        let handle = if let Some(config) = rpc_config {
-            info!(target: "net", socket = ?config.socket, "Starting RPC server");
-
-            // Setup the RPC server with the P2P RPC Module
-            let mut launcher = RpcModule::new(());
-            launcher.merge(P2pRpc::new(rpc.clone()).into_rpc())?;
-
+        let rpc_handle = if let Some(config) = rpc_config {
+            let mut module = RpcModule::new(());
+            module.merge(P2pRpc::new(rpc.clone()).into_rpc())?;
             let server = Server::builder().build(config.socket).await?;
-            Some(server.start(launcher))
+            Some(server.start(module))
         } else {
-            info!(target: "net", "RPC server disabled");
             None
         };
 
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
         loop {
             tokio::select! {
-                Some(payload) = block_rx.recv() => {
-                    info!(target: "net", "Received unsafe payload: {:?}", payload.block_hash());
+                payload = payload_rx.recv() => {
+                    let Some(payload) = payload else {
+                        anyhow::bail!("network payload stream closed");
+                    };
+                    info!(target: "net", hash = %payload.block_hash(), "Received unsafe payload");
                 }
-                _ = interval.tick(), if !rpc.is_closed() => {
-                    let (otx, mut orx) = tokio::sync::oneshot::channel();
-                    if let Err(e) = rpc.send(P2pRpcRequest::PeerCount(otx)).await {
-                        warn!(target: "net", "Failed to send network rpc request: {:?}", e);
-                        continue;
-                    }
-                    tokio::time::timeout(tokio::time::Duration::from_secs(5), async move {
-                        loop {
-                            match orx.try_recv() {
-                                Ok((d, g)) => {
-                                    let d = d.unwrap_or_default();
-                                    info!(target: "net", "Peer counts: Discovery={} | Swarm={}", d, g);
-                                    break;
-                                }
-                                Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
-                                    /* Keep trying to receive */
-                                }
-                                Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
-                                    break;
-                                }
-                            }
+                _ = interval.tick() => {
+                    let (response, result) = tokio::sync::oneshot::channel();
+                    rpc.send(P2pRpcRequest::PeerCount(response)).await?;
+                    match tokio::time::timeout(tokio::time::Duration::from_secs(5), result).await {
+                        Ok(Ok((discovery, gossip))) => {
+                            info!(target: "net", discovery = discovery.unwrap_or_default(), gossip, "Peer counts");
                         }
-                    }).await.unwrap();
+                        Ok(Err(_)) => warn!(target: "net", "Peer-count response dropped"),
+                        Err(_) => warn!(target: "net", "Peer-count request timed out"),
+                    }
                 }
-                _ = OptionFuture::from(handle.clone().map(|h| h.stopped())) => {
-                    warn!(target: "net", "RPC server stopped");
+                result = &mut network_task => {
+                    result.map_err(|error| anyhow::anyhow!("network service panicked: {error}"))??;
+                    anyhow::bail!("network service stopped unexpectedly");
+                }
+                _ = wait_for_rpc_stop(rpc_handle.clone()), if rpc_handle.is_some() => {
+                    shutdown.cancel();
+                    network_task.await??;
                     return Ok(());
                 }
             }
@@ -158,20 +104,10 @@ impl NetCommand {
     }
 }
 
-#[derive(Debug)]
-struct ForwardingNetworkEngineClient {
-    block_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
-}
-
-#[async_trait]
-impl NetworkEngineClient for ForwardingNetworkEngineClient {
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
-        let _ = self
-            .block_tx
-            .send(block)
-            .await
-            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
-
-        Ok(())
+async fn wait_for_rpc_stop(handle: Option<jsonrpsee::server::ServerHandle>) {
+    if let Some(handle) = handle {
+        handle.stopped().await;
+    } else {
+        std::future::pending::<()>().await;
     }
 }

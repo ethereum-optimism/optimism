@@ -5,7 +5,7 @@
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/flags.go#L233-L265
 
 use clap::Parser;
-use kona_node_service::SequencerConfig;
+use kona_node_service_v2::SequencerConfig;
 use std::{num::ParseIntError, time::Duration};
 use url::Url;
 

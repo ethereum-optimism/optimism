@@ -1,10 +1,25 @@
-//! Unsafe chain acquisition through local sequencing or network following.
+//! Unsafe-chain acquisition through network following and local production.
 
-mod error;
-pub use error::{UnsafeChainError, UnsafePayloadIngressError};
+mod conductor;
+pub use conductor::{Conductor, ConductorClient, ConductorError};
 
-mod follower;
-pub use follower::{DEFAULT_UNSAFE_PAYLOAD_CAPACITY, FollowerService, UnsafePayloadIngress};
+mod config;
+pub use config::SequencerConfig;
+
+mod control;
+pub use control::{SequencerHandle, SequencerStatus};
+
+mod origin;
+pub use origin::{
+    DelayedL1OriginSelectorProvider, L1OriginSelector, L1OriginSelectorError,
+    L1OriginSelectorProvider, OriginSelector,
+};
+
+mod sequencer;
+pub use sequencer::{SequencingError, SequencingWorkflow, SequencingWorkflowFactory};
+
+mod service;
+pub use service::{UnsafeChainService, UnsafeChainServiceError};
 
 #[cfg(test)]
 mod tests;

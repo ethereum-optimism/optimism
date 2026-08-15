@@ -1,90 +1,65 @@
-use super::*;
-use crate::engine::{EngineDriver, EngineError, EngineResult, SafeChainUpdate};
-use alloy_rpc_types_engine::ExecutionPayloadV1;
-use async_trait::async_trait;
-use kona_engine::EngineSyncState;
-use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use tokio_util::sync::CancellationToken;
+use std::{fs, path::Path};
 
-#[derive(Debug)]
-struct TestFollowerDriver {
-    reject_import: bool,
+#[test]
+fn v2_binary_cannot_alias_the_v1_service_runtime() {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../bin/node-v2/Cargo.toml");
+    let manifest = fs::read_to_string(manifest).expect("read kona-node-v2 manifest");
+    assert!(manifest.contains("kona-node-service-v2 ="));
+    assert!(!manifest.contains("kona-node-service ="));
+    assert!(!manifest.contains("package = \"kona-node-service-v2\""));
 }
 
-#[async_trait]
-impl EngineDriver for TestFollowerDriver {
-    async fn build_unsafe(
-        &mut self,
-        _attributes: OpAttributesWithParent,
-    ) -> EngineResult<OpExecutionPayloadEnvelope> {
-        Err(EngineError::SequencingDisabled)
-    }
+#[test]
+fn v2_source_cannot_reintroduce_the_actor_runtime() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let forbidden = [
+        concat!("Node", "Actor"),
+        concat!("Engine", "Actor"),
+        concat!("Derivation", "Actor"),
+        concat!("Sequencer", "Actor"),
+        concat!("Engine", "Driver"),
+        concat!("mod ", "actors"),
+    ];
+    let raw_engine_operations = [
+        concat!("fork_choice_", "updated"),
+        concat!("new_payload_", "v"),
+        concat!("get_payload_", "v"),
+        concat!("Build", "Task"),
+        concat!("Insert", "Task"),
+        concat!("Consolidate", "Task"),
+        concat!("Finalize", "Task"),
+        concat!("Synchronize", "Task"),
+        concat!("Raw", "EngineClient"),
+    ];
 
-    async fn import_unsafe(
-        &mut self,
-        _payload: OpExecutionPayloadEnvelope,
-    ) -> EngineResult<L2BlockInfo> {
-        if self.reject_import {
-            Err(EngineError::Driver("test engine failure".into()))
-        } else {
-            Ok(L2BlockInfo::default())
+    fn inspect(directory: &Path, forbidden: &[&str], raw_engine_operations: &[&str]) {
+        for entry in fs::read_dir(directory).expect("read V2 source directory") {
+            let path = entry.expect("read V2 source entry").path();
+            if path.is_dir() {
+                assert_ne!(path.file_name().and_then(|name| name.to_str()), Some("actors"));
+                inspect(&path, forbidden, raw_engine_operations);
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                let source = fs::read_to_string(&path).expect("read V2 Rust source");
+                for symbol in forbidden {
+                    assert!(
+                        !source.contains(symbol),
+                        "{} reintroduced forbidden V1 symbol {symbol}",
+                        path.display()
+                    );
+                }
+                let belongs_to_engine = path.components().any(|part| part.as_os_str() == "engine");
+                if !belongs_to_engine {
+                    for operation in raw_engine_operations {
+                        assert!(
+                            !source.contains(operation),
+                            "{} issues raw Engine API operation {operation} outside engine service",
+                            path.display()
+                        );
+                    }
+                }
+            }
         }
     }
 
-    async fn update_safe(&mut self, _update: SafeChainUpdate) -> EngineResult<L2BlockInfo> {
-        Ok(L2BlockInfo::default())
-    }
-
-    async fn update_finalized(&mut self, _block: L2BlockInfo) -> EngineResult<()> {
-        Ok(())
-    }
-
-    fn state(&self) -> EngineSyncState {
-        EngineSyncState::default()
-    }
-}
-
-#[tokio::test]
-async fn follower_node_shuts_down_in_dependency_order() {
-    let (node, _engine, _ingress) = FollowerNode::new(TestFollowerDriver { reject_import: false });
-    let shutdown = CancellationToken::new();
-    let node_task = tokio::spawn(node.run(shutdown.clone()));
-
-    shutdown.cancel();
-    assert!(node_task.await.unwrap().is_ok());
-}
-
-#[tokio::test]
-async fn follower_failure_stops_the_node() {
-    let (node, _engine, ingress) = FollowerNode::new(TestFollowerDriver { reject_import: true });
-    let node_task = tokio::spawn(node.run(CancellationToken::new()));
-
-    ingress.send(test_payload()).await.unwrap();
-    let error = node_task.await.unwrap().unwrap_err();
-    assert!(matches!(
-        error,
-        NodeError::UnsafeChain(crate::unsafe_chain::UnsafeChainError::Engine(EngineError::Driver(
-            _
-        )))
-    ));
-}
-
-fn test_payload() -> OpExecutionPayloadEnvelope {
-    OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
-        parent_hash: Default::default(),
-        fee_recipient: Default::default(),
-        state_root: Default::default(),
-        receipts_root: Default::default(),
-        logs_bloom: Default::default(),
-        prev_randao: Default::default(),
-        block_number: 0,
-        gas_limit: 0,
-        gas_used: 0,
-        timestamp: 0,
-        extra_data: Default::default(),
-        base_fee_per_gas: Default::default(),
-        block_hash: Default::default(),
-        transactions: Vec::new(),
-    })
+    inspect(&source, &forbidden, &raw_engine_operations);
 }

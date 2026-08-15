@@ -1,5 +1,5 @@
 use alloy_rpc_types_engine::JwtSecret;
-use kona_node_service::DerivationDelegateConfig;
+use kona_node_service_v2::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
 

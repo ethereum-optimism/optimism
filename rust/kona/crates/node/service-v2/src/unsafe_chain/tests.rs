@@ -1,102 +1,170 @@
-use super::*;
-use crate::engine::{EngineDriver, EngineError, EngineResult, EngineService, SafeChainUpdate};
-use alloy_rpc_types_engine::ExecutionPayloadV1;
-use async_trait::async_trait;
-use kona_engine::EngineSyncState;
-use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+use super::{
+    Conductor, ConductorError, OriginSelector, SequencingWorkflow, SequencingWorkflowFactory,
 };
-use tokio::sync::Notify;
-use tokio_util::sync::CancellationToken;
+use crate::{
+    engine::{BuiltUnsafePayload, EngineClient, EngineRequest},
+    network::NetworkClient,
+};
+use alloy_consensus::Block;
+use alloy_rpc_types_engine::ExecutionPayloadV1;
+use alloy_transport::RpcError;
+use async_trait::async_trait;
+use kona_derive::test_utils::TestAttributesBuilder;
+use kona_genesis::RollupConfig;
+use kona_protocol::{BlockInfo, L2BlockInfo};
+use op_alloy_consensus::OpTxEnvelope;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadAttributes};
+use std::{
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 #[derive(Debug)]
-struct InvalidThenValidDriver {
-    imports: Arc<AtomicUsize>,
-    imported: Arc<Notify>,
+struct FixedOrigin;
+
+#[async_trait]
+impl OriginSelector for FixedOrigin {
+    async fn next_l1_origin(
+        &mut self,
+        _unsafe_head: L2BlockInfo,
+        _is_recovery_mode: bool,
+    ) -> Result<BlockInfo, super::L1OriginSelectorError> {
+        Ok(BlockInfo::default())
+    }
+}
+
+#[derive(Debug)]
+struct RecordingConductor {
+    events: Arc<Mutex<Vec<&'static str>>>,
+    failures_remaining: AtomicUsize,
 }
 
 #[async_trait]
-impl EngineDriver for InvalidThenValidDriver {
-    async fn build_unsafe(
-        &mut self,
-        _attributes: OpAttributesWithParent,
-    ) -> EngineResult<OpExecutionPayloadEnvelope> {
-        unreachable!("follower test does not build payloads")
-    }
-
-    async fn import_unsafe(
-        &mut self,
-        _payload: OpExecutionPayloadEnvelope,
-    ) -> EngineResult<L2BlockInfo> {
-        let import = self.imports.fetch_add(1, Ordering::SeqCst);
-        self.imported.notify_one();
-        if import == 0 {
-            Err(EngineError::InvalidUnsafePayload("test rejection".into()))
-        } else {
-            Ok(L2BlockInfo::default())
+impl Conductor for RecordingConductor {
+    async fn commit_unsafe_payload(
+        &self,
+        _payload: &OpExecutionPayloadEnvelope,
+    ) -> Result<(), ConductorError> {
+        self.events.lock().unwrap().push("conductor");
+        if self
+            .failures_remaining
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| remaining.checked_sub(1))
+            .is_ok()
+        {
+            return Err(ConductorError::Rpc(RpcError::local_usage_str("conductor unavailable")));
         }
+        Ok(())
     }
 
-    async fn update_safe(&mut self, _update: SafeChainUpdate) -> EngineResult<L2BlockInfo> {
-        unreachable!("follower test does not update the safe chain")
+    async fn override_leader(&self) -> Result<(), ConductorError> {
+        Ok(())
     }
+}
 
-    async fn update_finalized(&mut self, _block: L2BlockInfo) -> EngineResult<()> {
-        unreachable!("follower test does not update finality")
-    }
+fn payload() -> OpExecutionPayloadEnvelope {
+    OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(
+        &Block::<OpTxEnvelope>::default(),
+    ))
+}
 
-    fn state(&self) -> EngineSyncState {
-        EngineSyncState::default()
-    }
+#[test]
+fn each_local_production_start_constructs_fresh_workflow_state() {
+    let creations = Arc::new(AtomicUsize::new(0));
+    let observed_creations = creations.clone();
+    let factory = SequencingWorkflowFactory::new(
+        move || {
+            observed_creations.fetch_add(1, Ordering::SeqCst);
+            let (engine, _engine_rx) = EngineClient::test_pair(1);
+            let (network, _network_rx) = NetworkClient::test_pair(1);
+            SequencingWorkflow::new(
+                Box::new(TestAttributesBuilder::default()),
+                None,
+                engine,
+                network,
+                Box::new(FixedOrigin),
+                Arc::new(RollupConfig::default()),
+            )
+        },
+        None,
+    );
+
+    let first = factory.create();
+    drop(first);
+    let second = factory.create();
+    drop(second);
+
+    assert_eq!(creations.load(Ordering::SeqCst), 2);
 }
 
 #[tokio::test]
-async fn follower_drops_invalid_payload_and_continues() {
-    let imports = Arc::new(AtomicUsize::new(0));
-    let imported = Arc::new(Notify::new());
-    let (engine_service, engine) = EngineService::new(InvalidThenValidDriver {
-        imports: Arc::clone(&imports),
-        imported: Arc::clone(&imported),
+async fn conductor_authorization_precedes_gossip_and_canonicalization() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let expected_payload = payload();
+    let canonical_head = L2BlockInfo {
+        block_info: BlockInfo { number: 1, ..Default::default() },
+        ..Default::default()
+    };
+
+    let (engine, mut engine_rx) = EngineClient::test_pair(8);
+    let engine_events = events.clone();
+    let engine_payload = expected_payload.clone();
+    let engine_task = tokio::spawn(async move {
+        while let Some(request) = engine_rx.recv().await {
+            match request {
+                EngineRequest::State { response } => {
+                    let _ = response.send(Ok(Default::default()));
+                }
+                EngineRequest::BuildUnsafe { response, .. } => {
+                    engine_events.lock().unwrap().push("build");
+                    let _ = response.send(Ok(BuiltUnsafePayload::test_new(
+                        engine_payload.clone(),
+                        L2BlockInfo::default(),
+                    )));
+                }
+                EngineRequest::CanonicalizeUnsafe { candidate, response } => {
+                    assert_eq!(candidate.payload().payload_hash(), engine_payload.payload_hash());
+                    engine_events.lock().unwrap().push("import");
+                    let _ = response.send(Ok(canonical_head));
+                    break;
+                }
+                request => panic!("unexpected engine request: {request:?}"),
+            }
+        }
     });
-    let engine_shutdown = CancellationToken::new();
-    let engine_task = tokio::spawn(engine_service.run(engine_shutdown.clone()));
-    let _engine_guard = engine.clone();
 
-    let (follower, ingress) = FollowerService::new(engine);
-    let follower_shutdown = CancellationToken::new();
-    let follower_task = tokio::spawn(follower.run(follower_shutdown.clone()));
+    let (network, mut publish_rx) = NetworkClient::test_pair(1);
+    let network_events = events.clone();
+    let network_payload = expected_payload.clone();
+    let network_task = tokio::spawn(async move {
+        let request = publish_rx.recv().await.expect("publication request");
+        assert_eq!(request.payload.payload_hash(), network_payload.payload_hash());
+        network_events.lock().unwrap().push("gossip");
+        let _ = request.response.send(Ok(()));
+    });
 
-    ingress.send(test_payload()).await.unwrap();
-    ingress.send(test_payload()).await.unwrap();
-    while imports.load(Ordering::SeqCst) < 2 {
-        imported.notified().await;
-    }
+    let conductor =
+        RecordingConductor { events: events.clone(), failures_remaining: AtomicUsize::new(1) };
+    let attributes = TestAttributesBuilder { attributes: vec![Ok(OpPayloadAttributes::default())] };
+    let mut workflow = SequencingWorkflow::new(
+        Box::new(attributes),
+        Some(Arc::new(conductor)),
+        engine,
+        network,
+        Box::new(FixedOrigin),
+        Arc::new(RollupConfig { block_time: 0, ..Default::default() }),
+    );
 
-    follower_shutdown.cancel();
-    assert_eq!(follower_task.await.unwrap(), Ok(()));
-    engine_shutdown.cancel();
-    assert_eq!(engine_task.await.unwrap(), Ok(()));
-    assert_eq!(imports.load(Ordering::SeqCst), 2);
-}
+    let block = tokio::time::timeout(Duration::from_secs(1), workflow.sequence_one(false))
+        .await
+        .expect("workflow timed out")
+        .expect("workflow failed")
+        .expect("workflow replanned");
+    assert_eq!(block, canonical_head);
 
-fn test_payload() -> OpExecutionPayloadEnvelope {
-    OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
-        parent_hash: Default::default(),
-        fee_recipient: Default::default(),
-        state_root: Default::default(),
-        receipts_root: Default::default(),
-        logs_bloom: Default::default(),
-        prev_randao: Default::default(),
-        block_number: 0,
-        gas_limit: 0,
-        gas_used: 0,
-        timestamp: 0,
-        extra_data: Default::default(),
-        base_fee_per_gas: Default::default(),
-        block_hash: Default::default(),
-        transactions: Vec::new(),
-    })
+    engine_task.await.unwrap();
+    network_task.await.unwrap();
+    assert_eq!(*events.lock().unwrap(), ["build", "conductor", "conductor", "gossip", "import"]);
 }

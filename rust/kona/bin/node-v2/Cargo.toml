@@ -32,7 +32,7 @@ kona-derive = { workspace = true, features = ["metrics"] }
 kona-engine = { workspace = true, features = ["metrics"] }
 kona-registry = { workspace = true, features = ["tabled"] }
 kona-sources = { workspace = true }
-kona-node-service = { package = "kona-node-service-v2", path = "../../crates/node/service-v2", features = ["metrics"] }
+kona-node-service-v2 = { path = "../../crates/node/service-v2", features = ["metrics"] }
 kona-providers-alloy = { workspace = true, features = ["metrics"] }
 
 # alloy

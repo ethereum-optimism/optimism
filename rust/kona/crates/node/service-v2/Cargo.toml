@@ -28,6 +28,7 @@ kona-peers.workspace = true
 kona-macros.workspace = true
 
 # Alloy
+alloy-consensus.workspace = true
 alloy-chains.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true

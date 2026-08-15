@@ -48,7 +48,7 @@ impl Metrics {
         Self::zero();
     }
 
-    /// Describes metrics used in [`kona-node-service`][crate].
+    /// Describes metrics used in [`kona-node-service-v2`][crate].
     #[cfg(feature = "metrics")]
     pub fn describe() {
         // L1 reorg count
@@ -64,7 +64,7 @@ impl Metrics {
         );
 
         // Sequencer state
-        metrics::describe_counter!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
+        metrics::describe_gauge!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
 
         // Sequencer attributes builder duration
         metrics::describe_gauge!(

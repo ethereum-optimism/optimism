@@ -15,7 +15,7 @@ pub fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
         kona_gossip::Metrics::init();
         kona_disc::Metrics::init();
         kona_engine::Metrics::init();
-        kona_node_service::Metrics::init();
+        kona_node_service_v2::Metrics::init();
         kona_derive::Metrics::init();
         kona_providers_alloy::Metrics::init();
         gauge!(

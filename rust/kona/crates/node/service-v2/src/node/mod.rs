@@ -1,10 +1,16 @@
-//! Node composition and structured task supervision.
+//! Node composition and structured service supervision.
 
-mod error;
-pub use error::NodeError;
+mod builder;
+pub use builder::{DerivationDelegateConfig, L1ConfigBuilder, RollupNodeBuilder};
 
-mod follower;
-pub use follower::FollowerNode;
+mod config;
+pub use config::L1Config;
+
+mod mode;
+pub use mode::{InteropMode, NodeMode};
+
+mod run;
+pub use run::RollupNode;
 
 #[cfg(test)]
 mod tests;
