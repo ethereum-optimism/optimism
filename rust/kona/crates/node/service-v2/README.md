@@ -25,4 +25,6 @@ Each service is expressed as a normal long-running `run` future. Private bounded
 
 ## Migration
 
-V2 will be implemented in vertical slices while V1 remains intact. Removal and production cutover are explicitly deferred until behavioral parity has been demonstrated.
+V2 is implemented in vertical slices while V1 remains intact. Removal and production cutover are explicitly deferred until behavioral parity has been demonstrated.
+
+The crate temporarily contains a copied V1 runtime so a `kona-node-v2` binary can be exercised by the same acceptance suite from the start. New subsystem modules replace that copied implementation one at a time; they do not wrap or modify the original `kona-node-service` crate.
