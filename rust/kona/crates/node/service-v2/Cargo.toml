@@ -27,7 +27,7 @@ op-alloy-rpc-types-engine.workspace = true
 # General
 async-trait.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["rt", "sync"] }
 tracing.workspace = true
 tokio-util.workspace = true
 
