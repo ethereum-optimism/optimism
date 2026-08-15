@@ -1,4 +1,4 @@
-//! Node operating modes.
+//! Node operating mode.
 
 /// Rollup node mode.
 #[derive(
@@ -27,16 +27,4 @@ impl NodeMode {
     pub const fn is_sequencer(self) -> bool {
         matches!(self, Self::Sequencer)
     }
-}
-
-/// Derivation pipeline mode.
-#[derive(Debug, derive_more::Display, Default, Clone, Copy, PartialEq, Eq)]
-pub enum InteropMode {
-    /// Polls L1 data directly.
-    #[display("Polled")]
-    #[default]
-    Polled,
-    /// Uses indexed L1 data access.
-    #[display("Indexed")]
-    Indexed,
 }

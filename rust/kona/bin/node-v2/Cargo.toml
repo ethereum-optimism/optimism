@@ -65,8 +65,6 @@ metrics.workspace = true
 reqwest.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
-tokio-stream.workspace = true
-tokio-util.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 jsonrpsee = { workspace = true, features = ["server"] }
 clap = { workspace = true, features = ["derive", "env"] }

@@ -9,28 +9,24 @@
 #[macro_use]
 extern crate tracing;
 
-/// Semantic execution-engine ownership and reconciliation.
+/// Safe-chain derivation, finality, and L1 reorg recovery.
+pub mod derivation;
+/// Execution, unsafe-chain acquisition, and authoritative forkchoice ownership.
 pub mod engine;
-/// Shared canonical L1 access.
+/// Node-owned canonical L1 access infrastructure.
 pub mod l1;
 /// Service metrics.
 pub mod metrics;
-/// P2P discovery and gossip transport.
+/// P2P transport construction primitives. The running network is owned privately by Engine.
 pub mod network;
-/// Node composition and supervision.
+/// Node composition and explicit lifecycle ownership.
 pub mod node;
 /// JSON-RPC transport and administration routing.
 pub mod rpc;
-/// Safe-chain derivation and finality.
-pub mod safe_chain;
-/// Unsafe-chain following and local production.
-pub mod unsafe_chain;
 
-pub use engine::EngineConfig;
+pub use engine::{EngineConfig, SequencerConfig};
 pub use metrics::Metrics;
 pub use network::{NetworkBuilder, NetworkConfig};
 pub use node::{
-    DerivationDelegateConfig, InteropMode, L1Config, L1ConfigBuilder, NodeMode, RollupNode,
-    RollupNodeBuilder,
+    DerivationDelegateConfig, L1Config, L1ConfigBuilder, NodeMode, RollupNode, RollupNodeBuilder,
 };
-pub use unsafe_chain::SequencerConfig;

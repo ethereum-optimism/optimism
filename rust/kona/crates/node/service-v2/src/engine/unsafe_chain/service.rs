@@ -1,17 +1,17 @@
-//! Long-running unsafe-chain acquisition service.
+//! Engine-private unsafe-chain acquisition workflow.
 
-use crate::{
-    engine::{ENGINE_RETRY_DELAY, EngineClient, EngineError},
+use crate::engine::{
+    ENGINE_RETRY_DELAY, EngineError,
+    api::EngineInternalHandle,
     unsafe_chain::{
         SequencerHandle, SequencerStatus, SequencingWorkflow, SequencingWorkflowFactory,
-        control::SequencerCommand,
+        control::{SequencerCommand, UnsafeLifecycleCommand},
     },
 };
 use kona_rpc::SequencerAdminAPIError;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
-use tokio_util::sync::CancellationToken;
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
@@ -31,32 +31,40 @@ enum LocalProducer {
     },
 }
 
-/// Owns network following and optional local production of the unsafe chain.
+/// Owns network following and optional local production inside Engine.
 #[derive(Debug)]
-pub struct UnsafeChainService {
-    engine: EngineClient,
+pub(crate) struct UnsafeChainService {
+    engine: EngineInternalHandle,
     payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     producer: LocalProducer,
+    lifecycle_rx: mpsc::Receiver<UnsafeLifecycleCommand>,
 }
 
 impl UnsafeChainService {
-    /// Creates a follower-only unsafe-chain service.
-    pub const fn follower(
-        engine: EngineClient,
+    /// Creates a follower-only workflow.
+    pub(crate) fn follower(
+        engine: EngineInternalHandle,
         payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
-    ) -> Self {
-        Self { engine, payload_rx, producer: LocalProducer::Disabled }
+    ) -> (Self, SequencerHandle, mpsc::Sender<UnsafeLifecycleCommand>) {
+        let (lifecycle_tx, lifecycle_rx) = mpsc::channel(CONTROL_CAPACITY);
+        let (_status_tx, status) = watch::channel(SequencerStatus::default());
+        (
+            Self { engine, payload_rx, producer: LocalProducer::Disabled, lifecycle_rx },
+            SequencerHandle::new(None, status),
+            lifecycle_tx,
+        )
     }
 
-    /// Creates an unsafe-chain service with restartable local-production capability.
-    pub fn sequencer(
-        engine: EngineClient,
+    /// Creates a workflow with restartable local-production capability.
+    pub(crate) fn sequencer(
+        engine: EngineInternalHandle,
         payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
         factory: SequencingWorkflowFactory,
         initially_active: bool,
         recovery_mode: bool,
-    ) -> (Self, SequencerHandle) {
+    ) -> (Self, SequencerHandle, mpsc::Sender<UnsafeLifecycleCommand>) {
         let (command_tx, command_rx) = mpsc::channel(CONTROL_CAPACITY);
+        let (lifecycle_tx, lifecycle_rx) = mpsc::channel(CONTROL_CAPACITY);
         let status = SequencerStatus {
             active: initially_active,
             recovery_mode,
@@ -77,17 +85,18 @@ impl UnsafeChainService {
                     active: initially_active,
                     recovery_mode,
                 },
+                lifecycle_rx,
             },
-            SequencerHandle::new(command_tx, status_rx),
+            SequencerHandle::new(Some(command_tx), status_rx),
+            lifecycle_tx,
         )
     }
 
-    /// Runs until shutdown or a terminal unsafe-chain failure.
-    pub async fn run(self, shutdown: CancellationToken) -> Result<(), UnsafeChainServiceError> {
-        self.engine.wait_ready().await?;
-        let Self { engine, payload_rx, producer } = self;
+    /// Runs until its owner explicitly shuts it down or a terminal unsafe failure occurs.
+    pub(crate) async fn run(self) -> Result<(), UnsafeChainServiceError> {
+        let Self { engine, payload_rx, producer, lifecycle_rx } = self;
         match producer {
-            LocalProducer::Disabled => Self::run_follower(engine, payload_rx, shutdown).await,
+            LocalProducer::Disabled => Self::run_follower(engine, payload_rx, lifecycle_rx).await,
             LocalProducer::Configured {
                 factory,
                 workflow,
@@ -105,7 +114,7 @@ impl UnsafeChainService {
                     status_tx,
                     active,
                     recovery_mode,
-                    shutdown,
+                    lifecycle_rx,
                 )
                 .await
             }
@@ -113,15 +122,28 @@ impl UnsafeChainService {
     }
 
     async fn run_follower(
-        engine: EngineClient,
+        engine: EngineInternalHandle,
         mut payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
-        shutdown: CancellationToken,
+        mut lifecycle_rx: mpsc::Receiver<UnsafeLifecycleCommand>,
     ) -> Result<(), UnsafeChainServiceError> {
+        let mut quiesced = false;
         loop {
             tokio::select! {
                 biased;
-                _ = shutdown.cancelled() => return Ok(()),
-                payload = payload_rx.recv() => {
+                command = lifecycle_rx.recv() => {
+                    match command {
+                        Some(UnsafeLifecycleCommand::Quiesce(done)) => {
+                            quiesced = true;
+                            let _ = done.send(());
+                        }
+                        Some(UnsafeLifecycleCommand::Shutdown(done)) => {
+                            let _ = done.send(());
+                            return Ok(());
+                        }
+                        None => return Ok(()),
+                    }
+                }
+                payload = payload_rx.recv(), if !quiesced => {
                     let payload = payload.ok_or(UnsafeChainServiceError::PayloadChannelClosed)?;
                     Self::import_network_payload(&engine, payload).await?;
                 }
@@ -131,7 +153,7 @@ impl UnsafeChainService {
 
     #[allow(clippy::too_many_arguments)]
     async fn run_with_producer(
-        engine: EngineClient,
+        engine: EngineInternalHandle,
         mut payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
         factory: SequencingWorkflowFactory,
         mut workflow: Option<SequencingWorkflow>,
@@ -139,16 +161,29 @@ impl UnsafeChainService {
         status_tx: watch::Sender<SequencerStatus>,
         mut active: bool,
         mut recovery_mode: bool,
-        shutdown: CancellationToken,
+        mut lifecycle_rx: mpsc::Receiver<UnsafeLifecycleCommand>,
     ) -> Result<(), UnsafeChainServiceError> {
         let conductor = factory.conductor().cloned();
+        let mut quiesced = false;
         engine.set_local_sequencing_active(active).await?;
+
         loop {
             if active {
-                if shutdown.is_cancelled() {
-                    let _ = engine.set_local_sequencing_active(false).await;
-                    Self::publish_status(&status_tx, conductor.is_some(), false, recovery_mode);
-                    return Ok(());
+                while let Ok(command) = lifecycle_rx.try_recv() {
+                    if Self::handle_lifecycle(
+                        command,
+                        &engine,
+                        &status_tx,
+                        conductor.is_some(),
+                        &mut workflow,
+                        &mut active,
+                        recovery_mode,
+                        &mut quiesced,
+                    )
+                    .await?
+                    {
+                        return Ok(());
+                    }
                 }
 
                 while let Ok(command) = command_rx.try_recv() {
@@ -161,6 +196,7 @@ impl UnsafeChainService {
                         &status_tx,
                         &mut active,
                         &mut recovery_mode,
+                        quiesced,
                     )
                     .await;
                     if !active {
@@ -171,10 +207,10 @@ impl UnsafeChainService {
                     continue;
                 }
 
-                // A local producer is authoritative while active. Payloads already queued from
-                // gossip are discarded at the boundary rather than racing the local build parent.
+                // Local production is authoritative while active. Drop gossip payloads only at a
+                // block boundary, never by racing an accepted publication action.
                 while let Ok(payload) = payload_rx.try_recv() {
-                    debug!(target: "unsafe_chain", hash = %payload.block_hash(), "Dropping network unsafe payload while local sequencing is active");
+                    debug!(target: "engine::unsafe", hash = %payload.block_hash(), "Dropping network unsafe payload while local sequencing is active");
                 }
 
                 workflow
@@ -187,24 +223,37 @@ impl UnsafeChainService {
 
             tokio::select! {
                 biased;
-                _ = shutdown.cancelled() => {
-                    let _ = engine.set_local_sequencing_active(false).await;
-                    return Ok(());
-                }
-                command = command_rx.recv() => {
-                    let command = command.ok_or(UnsafeChainServiceError::ControlChannelClosed)?;
-                    Self::handle_command(
+                command = lifecycle_rx.recv() => {
+                    let Some(command) = command else { return Ok(()) };
+                    if Self::handle_lifecycle(
                         command,
                         &engine,
-                        &factory,
-                        &mut workflow,
-                        conductor.as_ref(),
                         &status_tx,
+                        conductor.is_some(),
+                        &mut workflow,
                         &mut active,
-                        &mut recovery_mode,
-                    ).await;
+                        recovery_mode,
+                        &mut quiesced,
+                    ).await? {
+                        return Ok(());
+                    }
                 }
-                payload = payload_rx.recv() => {
+                command = command_rx.recv() => {
+                    if let Some(command) = command {
+                        Self::handle_command(
+                            command,
+                            &engine,
+                            &factory,
+                            &mut workflow,
+                            conductor.as_ref(),
+                            &status_tx,
+                            &mut active,
+                            &mut recovery_mode,
+                            quiesced,
+                        ).await;
+                    }
+                }
+                payload = payload_rx.recv(), if !quiesced => {
                     let payload = payload.ok_or(UnsafeChainServiceError::PayloadChannelClosed)?;
                     Self::import_network_payload(&engine, payload).await?;
                 }
@@ -213,19 +262,50 @@ impl UnsafeChainService {
     }
 
     #[allow(clippy::too_many_arguments)]
+    async fn handle_lifecycle(
+        command: UnsafeLifecycleCommand,
+        engine: &EngineInternalHandle,
+        status_tx: &watch::Sender<SequencerStatus>,
+        conductor_enabled: bool,
+        workflow: &mut Option<SequencingWorkflow>,
+        active: &mut bool,
+        recovery_mode: bool,
+        quiesced: &mut bool,
+    ) -> Result<bool, UnsafeChainServiceError> {
+        let (shutdown, done) = match command {
+            UnsafeLifecycleCommand::Quiesce(done) => (false, done),
+            UnsafeLifecycleCommand::Shutdown(done) => (true, done),
+        };
+        if *active {
+            engine.set_local_sequencing_active(false).await?;
+        }
+        *active = false;
+        *workflow = None;
+        *quiesced = true;
+        Self::publish_status(status_tx, conductor_enabled, false, recovery_mode);
+        let _ = done.send(());
+        Ok(shutdown)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     async fn handle_command(
         command: SequencerCommand,
-        engine: &EngineClient,
+        engine: &EngineInternalHandle,
         factory: &SequencingWorkflowFactory,
         workflow: &mut Option<SequencingWorkflow>,
         conductor: Option<&std::sync::Arc<dyn super::Conductor>>,
         status_tx: &watch::Sender<SequencerStatus>,
         active: &mut bool,
         recovery_mode: &mut bool,
+        quiesced: bool,
     ) {
         match command {
             SequencerCommand::Start(response) => {
-                let result = if *active {
+                let result = if quiesced {
+                    Err(SequencerAdminAPIError::RequestError(
+                        "Engine unsafe processing is shutting down".to_string(),
+                    ))
+                } else if *active {
                     Ok(())
                 } else {
                     engine
@@ -296,14 +376,14 @@ impl UnsafeChainService {
     }
 
     async fn import_network_payload(
-        engine: &EngineClient,
+        engine: &EngineInternalHandle,
         payload: OpExecutionPayloadEnvelope,
     ) -> Result<(), UnsafeChainServiceError> {
         loop {
             match engine.import_unsafe(payload.clone()).await {
                 Ok(_) => return Ok(()),
                 Err(EngineError::InvalidUnsafePayload(error)) => {
-                    warn!(target: "unsafe_chain", %error, "Dropping invalid network unsafe payload");
+                    warn!(target: "engine::unsafe", %error, "Dropping invalid network unsafe payload");
                     return Ok(());
                 }
                 Err(EngineError::Temporary(_) | EngineError::ResponseDropped) => {
@@ -315,19 +395,16 @@ impl UnsafeChainService {
     }
 }
 
-/// Terminal unsafe-chain service failure.
+/// Terminal Engine-private unsafe-chain failure.
 #[derive(Debug, Error)]
-pub enum UnsafeChainServiceError {
+pub(crate) enum UnsafeChainServiceError {
     /// Semantic engine operation failed.
     #[error(transparent)]
     Engine(#[from] EngineError),
     /// Local producer failed.
     #[error(transparent)]
-    Sequencing(#[from] super::SequencingError),
+    Sequencing(#[from] super::sequencer::SequencingError),
     /// Network payload producer stopped unexpectedly.
     #[error("unsafe payload channel closed")]
     PayloadChannelClosed,
-    /// Every local-producer control handle was dropped.
-    #[error("sequencer control channel closed")]
-    ControlChannelClosed,
 }

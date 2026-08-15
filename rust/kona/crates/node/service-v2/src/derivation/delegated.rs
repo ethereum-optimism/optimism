@@ -1,11 +1,12 @@
-//! Safe-chain service backed by a trusted derivation delegate.
+//! Derivation service backed by a trusted consensus-layer delegate.
 
 use crate::{
-    engine::{ENGINE_RETRY_DELAY, EngineClient, EngineError},
-    safe_chain::{
-        SafeChainControlError, SafeChainHandle, SafeChainServiceError, control::ResetRequest,
+    derivation::{
+        DerivationAdminAdapter, DerivationControlError, DerivationServiceError,
+        control::ResetRequest,
     },
-    unsafe_chain::SequencerHandle,
+    engine::{ENGINE_RETRY_DELAY, EngineError, EngineHandle},
+    l1::L1Reader,
 };
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
@@ -17,8 +18,10 @@ use kona_derive::ChainProvider;
 use kona_protocol::SyncStatus;
 use kona_rpc::RollupNodeApiClient;
 use std::time::Duration;
-use tokio::{sync::mpsc, time};
-use tokio_util::sync::CancellationToken;
+use tokio::{
+    sync::{mpsc, oneshot},
+    time,
+};
 use url::Url;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(4);
@@ -55,64 +58,62 @@ impl DerivationDelegateProvider for DerivationDelegateClient {
     }
 }
 
-/// Long-running delegated safe-chain service.
+/// Long-running delegated Derivation implementation.
 #[derive(Debug)]
-pub struct DelegatedSafeChainService<Delegate, L1> {
+pub struct DelegatedDerivationService<Delegate> {
     delegate: Delegate,
-    l1: L1,
-    engine: EngineClient,
-    sequencer: Option<SequencerHandle>,
+    l1: L1Reader,
+    engine: EngineHandle,
     reset_rx: mpsc::Receiver<ResetRequest>,
 }
 
-impl<Delegate, L1> DelegatedSafeChainService<Delegate, L1>
+impl<Delegate> DelegatedDerivationService<Delegate>
 where
     Delegate: DerivationDelegateProvider + 'static,
-    L1: ChainProvider + Send + 'static,
 {
-    /// Creates a delegated service and its reset/refresh handle.
+    /// Creates delegated Derivation and its reset/refresh adapter.
     pub fn new(
         delegate: Delegate,
-        l1: L1,
-        engine: EngineClient,
-        sequencer: Option<SequencerHandle>,
-    ) -> (Self, SafeChainHandle) {
-        let (handle, reset_rx) = SafeChainHandle::channel();
-        (Self { delegate, l1, engine, sequencer, reset_rx }, handle)
+        l1: L1Reader,
+        engine: EngineHandle,
+    ) -> (Self, DerivationAdminAdapter) {
+        let (admin, reset_rx) = DerivationAdminAdapter::channel();
+        (Self { delegate, l1, engine, reset_rx }, admin)
     }
 
     /// Polls, validates, and applies delegated safe/finalized progress.
-    pub async fn run(mut self, shutdown: CancellationToken) -> Result<(), SafeChainServiceError> {
-        self.engine.wait_ready().await?;
+    pub async fn run(
+        mut self,
+        mut shutdown: oneshot::Receiver<()>,
+    ) -> Result<(), DerivationServiceError> {
         let mut poll = time::interval(POLL_INTERVAL);
         poll.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
 
         loop {
             tokio::select! {
                 biased;
-                _ = shutdown.cancelled() => return Ok(()),
+                _ = &mut shutdown => return Ok(()),
                 request = self.reset_rx.recv() => {
-                    let request = request.ok_or(SafeChainServiceError::ControlChannelClosed)?;
-                    let result = self.poll_once().await.map_err(|error| {
-                        SafeChainControlError::Reset(error.to_string())
-                    });
-                    let _ = request.response.send(result);
-                }
-                _ = poll.tick() => {
-                    if let Err(error) = self.poll_once().await {
-                        warn!(target: "safe_chain", ?error, "Delegated derivation poll yielded");
+                    if let Some(request) = request {
+                        let result = self.poll_once().await.map_err(|error| {
+                            DerivationControlError::Reset(error.to_string())
+                        });
+                        let _ = request.response.send(result);
                     }
                 }
+                _ = poll.tick() => self.poll_once().await?,
             }
         }
     }
 
-    async fn poll_once(&mut self) -> Result<(), SafeChainServiceError> {
-        let status = self
-            .delegate
-            .fetch_sync_status()
-            .await
-            .map_err(|error| SafeChainServiceError::Critical(error.to_string()))?;
+    async fn poll_once(&mut self) -> Result<(), DerivationServiceError> {
+        let status = match self.delegate.fetch_sync_status().await {
+            Ok(status) => status,
+            Err(error) => {
+                warn!(target: "derivation", ?error, "Delegated derivation source yielded; retrying");
+                return Ok(());
+            }
+        };
         if !self.validate(&status).await {
             return Ok(());
         }
@@ -123,12 +124,7 @@ where
                 Err(EngineError::Temporary(_) | EngineError::ResponseDropped) => {
                     tokio::time::sleep(ENGINE_RETRY_DELAY).await;
                 }
-                Err(EngineError::ResetRequired(_)) => {
-                    if self.sequencer.as_ref().is_some_and(SequencerHandle::is_active) {
-                        return Err(EngineError::RecoveryWhileSequencing.into());
-                    }
-                    self.engine.recover().await?;
-                }
+                Err(EngineError::ResetRequired { .. }) => return Ok(()),
                 Err(error) => return Err(error.into()),
             }
         }
@@ -158,11 +154,11 @@ where
             match self.l1.block_info_by_number(number).await {
                 Ok(block) if block.hash == expected => {}
                 Ok(block) => {
-                    warn!(target: "safe_chain", context, number, %expected, actual = %block.hash, "Rejected non-canonical delegated status");
+                    warn!(target: "derivation", context, number, %expected, actual = %block.hash, "Rejected non-canonical delegated status");
                     return false;
                 }
                 Err(error) => {
-                    warn!(target: "safe_chain", context, number, error = %error, "Could not validate delegated status");
+                    warn!(target: "derivation", context, number, error = %error, "Could not validate delegated status");
                     return false;
                 }
             }

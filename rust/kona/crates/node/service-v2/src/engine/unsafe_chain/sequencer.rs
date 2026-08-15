@@ -1,7 +1,8 @@
 //! Linear local block-production workflow.
 
-use crate::{
-    engine::{BuiltUnsafePayload, ENGINE_RETRY_DELAY, EngineClient, EngineError},
+use crate::engine::{
+    ENGINE_RETRY_DELAY, EngineError,
+    api::{BuiltUnsafePayload, EngineInternalHandle},
     network::{NetworkClient, NetworkClientError},
     unsafe_chain::{Conductor, OriginSelector, origin::L1OriginSelectorError},
 };
@@ -93,7 +94,7 @@ impl SequencingWorkflowFactory {
 pub struct SequencingWorkflow {
     attributes_builder: Box<dyn AttributesBuilder + Sync>,
     conductor: Option<Arc<dyn Conductor>>,
-    engine: EngineClient,
+    engine: EngineInternalHandle,
     network: NetworkClient,
     origin_selector: Box<dyn OriginSelector>,
     config: Arc<RollupConfig>,
@@ -105,7 +106,7 @@ impl SequencingWorkflow {
     pub fn new(
         attributes_builder: Box<dyn AttributesBuilder + Sync>,
         conductor: Option<Arc<dyn Conductor>>,
-        engine: EngineClient,
+        engine: EngineInternalHandle,
         network: NetworkClient,
         origin_selector: Box<dyn OriginSelector>,
         config: Arc<RollupConfig>,
@@ -119,11 +120,6 @@ impl SequencingWorkflow {
             config,
             last_distribution_duration: Duration::ZERO,
         }
-    }
-
-    /// Returns the configured conductor capability.
-    pub fn conductor(&self) -> Option<&Arc<dyn Conductor>> {
-        self.conductor.as_ref()
     }
 
     /// Produces one complete block action.
@@ -186,13 +182,13 @@ impl SequencingWorkflow {
             return Ok(None);
         }
 
-        let attributes_started = Instant::now();
+        let _attributes_started = Instant::now();
         let attributes =
             self.attributes_builder.prepare_payload_attributes(unsafe_head, l1_origin.id()).await;
         kona_macros::set!(
             gauge,
             Metrics::SEQUENCER_ATTRIBUTES_BUILDER_DURATION,
-            attributes_started.elapsed()
+            _attributes_started.elapsed()
         );
         let mut attributes = match attributes {
             Ok(attributes) => attributes,
@@ -228,7 +224,7 @@ impl SequencingWorkflow {
         };
 
         loop {
-            let commitment_started = Instant::now();
+            let _commitment_started = Instant::now();
             let commitment = tokio::time::timeout(
                 CONDUCTOR_TIMEOUT,
                 conductor.commit_unsafe_payload(sealed.built.payload()),
@@ -237,7 +233,7 @@ impl SequencingWorkflow {
             kona_macros::set!(
                 gauge,
                 Metrics::SEQUENCER_CONDUCTOR_COMMITMENT_DURATION,
-                commitment_started.elapsed()
+                _commitment_started.elapsed()
             );
             match commitment {
                 Ok(Ok(())) => return AuthorizedCandidate { sealed },

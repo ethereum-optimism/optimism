@@ -1,16 +1,23 @@
-//! Narrow local-sequencer lifecycle control.
+//! Engine-private local-sequencer and unsafe-workflow control.
 
 use alloy_primitives::B256;
 use kona_rpc::SequencerAdminAPIError;
 use tokio::sync::{mpsc, oneshot, watch};
 
-/// Private control protocol consumed only at unsafe-chain block boundaries.
+/// Administration consumed only at unsafe-chain block boundaries.
 #[derive(Debug)]
 pub(super) enum SequencerCommand {
     Start(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
     Stop(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
     SetRecoveryMode(bool, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
     OverrideLeader(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+}
+
+/// Node lifecycle commands, separate from externally reachable administration.
+#[derive(Debug)]
+pub(crate) enum UnsafeLifecycleCommand {
+    Quiesce(oneshot::Sender<()>),
+    Shutdown(oneshot::Sender<()>),
 }
 
 /// Observable local-production status used for administration and recovery gating.
@@ -24,48 +31,45 @@ pub struct SequencerStatus {
     pub conductor_enabled: bool,
 }
 
-/// Cloneable control capability for the local producer.
+/// Cloneable Engine-private control capability for the local producer.
 #[derive(Debug, Clone)]
-pub struct SequencerHandle {
-    command_tx: mpsc::Sender<SequencerCommand>,
+pub(crate) struct SequencerHandle {
+    command_tx: Option<mpsc::Sender<SequencerCommand>>,
     status: watch::Receiver<SequencerStatus>,
 }
 
 impl SequencerHandle {
     pub(super) const fn new(
-        command_tx: mpsc::Sender<SequencerCommand>,
+        command_tx: Option<mpsc::Sender<SequencerCommand>>,
         status: watch::Receiver<SequencerStatus>,
     ) -> Self {
         Self { command_tx, status }
     }
 
-    /// Returns the latest status snapshot.
-    pub fn status(&self) -> SequencerStatus {
-        *self.status.borrow()
+    pub(crate) fn configured_status(&self) -> Result<SequencerStatus, SequencerAdminAPIError> {
+        self.sender()?;
+        Ok(*self.status.borrow())
     }
 
-    /// Returns whether local production is active.
-    pub fn is_active(&self) -> bool {
-        self.status().active
+    fn sender(&self) -> Result<&mpsc::Sender<SequencerCommand>, SequencerAdminAPIError> {
+        self.command_tx.as_ref().ok_or_else(|| {
+            SequencerAdminAPIError::RequestError("local sequencing is not configured".to_string())
+        })
     }
 
-    /// Starts local production at the next unsafe-chain boundary.
-    pub async fn start(&self) -> Result<(), SequencerAdminAPIError> {
+    pub(crate) async fn start(&self) -> Result<(), SequencerAdminAPIError> {
         self.request(SequencerCommand::Start).await
     }
 
-    /// Stops local production after the accepted block action completes.
-    pub async fn stop(&self) -> Result<B256, SequencerAdminAPIError> {
+    pub(crate) async fn stop(&self) -> Result<B256, SequencerAdminAPIError> {
         self.request(SequencerCommand::Stop).await
     }
 
-    /// Enables or disables transaction-pool exclusion recovery mode.
-    pub async fn set_recovery_mode(&self, mode: bool) -> Result<(), SequencerAdminAPIError> {
+    pub(crate) async fn set_recovery_mode(&self, mode: bool) -> Result<(), SequencerAdminAPIError> {
         self.request(|response| SequencerCommand::SetRecoveryMode(mode, response)).await
     }
 
-    /// Overrides conductor leadership.
-    pub async fn override_leader(&self) -> Result<(), SequencerAdminAPIError> {
+    pub(crate) async fn override_leader(&self) -> Result<(), SequencerAdminAPIError> {
         self.request(SequencerCommand::OverrideLeader).await
     }
 
@@ -74,9 +78,9 @@ impl SequencerHandle {
         command: impl FnOnce(oneshot::Sender<Result<T, SequencerAdminAPIError>>) -> SequencerCommand,
     ) -> Result<T, SequencerAdminAPIError> {
         let (response, result) = oneshot::channel();
-        self.command_tx.send(command(response)).await.map_err(|_| {
+        self.sender()?.send(command(response)).await.map_err(|_| {
             SequencerAdminAPIError::RequestError(
-                "unsafe-chain control service is unavailable".to_string(),
+                "Engine unsafe-chain workflow is unavailable".to_string(),
             )
         })?;
         result.await.map_err(|_| SequencerAdminAPIError::ResponseError)?

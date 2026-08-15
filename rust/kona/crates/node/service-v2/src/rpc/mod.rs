@@ -1,8 +1,8 @@
-//! JSON-RPC transport service and subsystem-owned administration routing.
+//! Top-level JSON-RPC transport and narrow domain-capability routing.
 
 use crate::{
-    engine::EngineClient, l1::L1Client, network::NetworkClient, safe_chain::SafeChainHandle,
-    unsafe_chain::SequencerHandle,
+    derivation::DerivationAdminAdapter,
+    engine::{EngineAdminAdapter, EngineRpcAdapter},
 };
 use alloy_primitives::B256;
 use async_trait::async_trait;
@@ -12,65 +12,59 @@ use jsonrpsee::{
 };
 use kona_rpc::{
     AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
-    OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminAPIClient,
-    SequencerAdminAPIError, WsRPC, WsServer,
+    L1WatcherQuerySender, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder,
+    SequencerAdminAPIClient, SequencerAdminAPIError, WsRPC, WsServer,
 };
 use std::time::Duration;
 use thiserror::Error;
-use tokio_util::sync::CancellationToken;
+use tokio::sync::oneshot;
 
-/// Routes the legacy admin RPC interface to the subsystem that owns each operation.
+/// Composes legacy admin RPC methods from the domain that owns each operation.
 #[derive(Debug, Clone)]
 pub struct AdminControl {
-    sequencer: Option<SequencerHandle>,
-    safe_chain: SafeChainHandle,
+    engine: EngineAdminAdapter,
+    derivation: DerivationAdminAdapter,
 }
 
 impl AdminControl {
-    /// Creates subsystem-owned admin routing.
-    pub const fn new(sequencer: Option<SequencerHandle>, safe_chain: SafeChainHandle) -> Self {
-        Self { sequencer, safe_chain }
-    }
-
-    fn sequencer(&self) -> Result<&SequencerHandle, SequencerAdminAPIError> {
-        self.sequencer.as_ref().ok_or_else(|| {
-            SequencerAdminAPIError::RequestError("local sequencing is not configured".to_string())
-        })
+    /// Creates the RPC-only compatibility router.
+    pub const fn new(engine: EngineAdminAdapter, derivation: DerivationAdminAdapter) -> Self {
+        Self { engine, derivation }
     }
 }
 
 #[async_trait]
 impl SequencerAdminAPIClient for AdminControl {
     async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError> {
-        Ok(self.sequencer()?.status().active)
+        self.engine.is_sequencer_active()
     }
 
     async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError> {
-        Ok(self.sequencer()?.status().conductor_enabled)
+        self.engine.is_conductor_enabled()
     }
 
     async fn is_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError> {
-        Ok(self.sequencer()?.status().recovery_mode)
+        self.engine.is_recovery_mode()
     }
 
     async fn start_sequencer(&self) -> Result<(), SequencerAdminAPIError> {
-        self.sequencer()?.start().await
+        self.engine.start_sequencer().await
     }
 
     async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError> {
-        self.sequencer()?.stop().await
+        self.engine.stop_sequencer().await
     }
 
     async fn set_recovery_mode(&self, mode: bool) -> Result<(), SequencerAdminAPIError> {
-        self.sequencer()?.set_recovery_mode(mode).await
+        self.engine.set_recovery_mode(mode).await
     }
 
     async fn override_leader(&self) -> Result<(), SequencerAdminAPIError> {
-        self.sequencer()?.override_leader().await
+        self.engine.override_leader().await
     }
 
     async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
-        self.safe_chain
+        self.derivation
             .reset()
             .await
             .map_err(|error| SequencerAdminAPIError::RequestError(error.to_string()))
@@ -85,32 +79,31 @@ pub struct RpcService {
 }
 
 impl RpcService {
-    /// Builds all configured RPC namespaces from narrow subsystem clients.
+    /// Builds configured RPC namespaces from narrow domain adapters.
     pub fn new(
         config: RpcBuilder,
-        engine: EngineClient,
-        l1: L1Client,
-        network: NetworkClient,
-        sequencer: Option<SequencerHandle>,
-        safe_chain: SafeChainHandle,
+        engine_rpc: EngineRpcAdapter,
+        engine_admin: EngineAdminAdapter,
+        derivation_admin: DerivationAdminAdapter,
+        l1_queries: L1WatcherQuerySender,
     ) -> Result<Self, RpcServiceError> {
         let mut modules = RpcModule::new(());
         modules
             .merge(HealthzApiServer::into_rpc(HealthzRpc {}))
             .map_err(Self::registration_error)?;
         modules
-            .merge(P2pRpc::new(network.p2p_sender()).into_rpc())
+            .merge(P2pRpc::new(engine_admin.p2p_sender()).into_rpc())
             .map_err(Self::registration_error)?;
         modules
-            .merge(RollupRpc::new(engine.clone(), l1.query_sender()).into_rpc())
+            .merge(RollupRpc::new(engine_rpc.clone(), l1_queries).into_rpc())
             .map_err(Self::registration_error)?;
 
         if config.enable_admin() {
             modules
                 .merge(
                     AdminRpc::new(
-                        Some(AdminControl::new(sequencer, safe_chain)),
-                        network.admin_sender(),
+                        Some(AdminControl::new(engine_admin.clone(), derivation_admin)),
+                        engine_admin.network_admin_sender(),
                     )
                     .into_rpc(),
                 )
@@ -118,24 +111,24 @@ impl RpcService {
         }
         if config.dev_enabled() {
             modules
-                .merge(DevEngineRpc::new(engine.clone()).into_rpc())
+                .merge(DevEngineRpc::new(engine_rpc.clone()).into_rpc())
                 .map_err(Self::registration_error)?;
         }
         if config.ws_enabled() {
-            modules.merge(WsRPC::new(engine).into_rpc()).map_err(Self::registration_error)?;
+            modules.merge(WsRPC::new(engine_rpc).into_rpc()).map_err(Self::registration_error)?;
         }
 
         Ok(Self { config, modules })
     }
 
-    /// Runs the server and applies its configured restart budget.
-    pub async fn run(self, shutdown: CancellationToken) -> Result<(), RpcServiceError> {
+    /// Runs until Node requests shutdown or the restart budget is exhausted.
+    pub async fn run(self, mut shutdown: oneshot::Receiver<()>) -> Result<(), RpcServiceError> {
         let mut restarts = self.config.restart_count();
         loop {
             let handle = self.launch().await?;
             tokio::select! {
                 biased;
-                _ = shutdown.cancelled() => {
+                _ = &mut shutdown => {
                     let _ = handle.stop();
                     handle.stopped().await;
                     return Ok(());

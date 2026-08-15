@@ -1,6 +1,6 @@
 //! The [`L1OriginSelector`].
 
-use crate::l1::L1Client;
+use crate::l1::{L1Reader, L1Snapshot};
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
@@ -110,16 +110,6 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
         Self { cfg, l1, current: None, next: None }
     }
 
-    /// Returns the current L1 origin.
-    pub const fn current(&self) -> Option<&BlockInfo> {
-        self.current.as_ref()
-    }
-
-    /// Returns the next L1 origin.
-    pub const fn next(&self) -> Option<&BlockInfo> {
-        self.next.as_ref()
-    }
-
     /// Selects the current and next L1 origin blocks based on the unsafe head.
     async fn select_origins(
         &mut self,
@@ -208,10 +198,10 @@ pub trait L1OriginSelectorProvider: Debug + Sync {
 /// amount of blocks.
 #[derive(Debug)]
 pub struct DelayedL1OriginSelectorProvider {
-    /// Shared L1 service client.
-    inner: L1Client,
-    /// The L1 head watch channel.
-    l1_head: watch::Receiver<Option<BlockInfo>>,
+    /// Direct L1 reader owned by the Engine domain.
+    inner: L1Reader,
+    /// Coherent canonical L1 target snapshots.
+    l1: watch::Receiver<L1Snapshot>,
     /// The confirmation depth to delay the view of the L1 chain.
     confirmation_depth: u64,
 }
@@ -219,11 +209,11 @@ pub struct DelayedL1OriginSelectorProvider {
 impl DelayedL1OriginSelectorProvider {
     /// Creates a new [`DelayedL1OriginSelectorProvider`].
     pub const fn new(
-        inner: L1Client,
-        l1_head: watch::Receiver<Option<BlockInfo>>,
+        inner: L1Reader,
+        l1: watch::Receiver<L1Snapshot>,
         confirmation_depth: u64,
     ) -> Self {
-        Self { inner, l1_head, confirmation_depth }
+        Self { inner, l1, confirmation_depth }
     }
 }
 
@@ -233,18 +223,27 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
         &self,
         hash: B256,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
-        // By-hash lookups are not delayed, as they're direct indexes.
-        self.inner
+        // By-hash indexes may retain orphaned blocks. Validate the consumer-owned Engine cursor
+        // against the canonical block at the same height before planning another L2 block.
+        let block = self
+            .inner
             .block_by_hash(hash)
             .await
-            .map_err(|error| L1OriginSelectorError::Provider(error.to_string()))
+            .map_err(|error| L1OriginSelectorError::Provider(error.to_string()))?;
+        let Some(block) = block else { return Ok(None) };
+        let canonical = self
+            .inner
+            .block_by_number(block.number)
+            .await
+            .map_err(|error| L1OriginSelectorError::Provider(error.to_string()))?;
+        Ok(canonical.filter(|canonical| canonical.hash == block.hash))
     }
 
     async fn get_block_by_number(
         &self,
         number: u64,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
-        let Some(l1_head) = *self.l1_head.borrow() else {
+        let Some(l1_head) = self.l1.borrow().head else {
             // If the L1 head is not available, do not enforce a confirmation delay.
             return self
                 .inner

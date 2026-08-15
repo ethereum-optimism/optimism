@@ -54,12 +54,8 @@ discv5.workspace = true
 futures.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
-tokio-util.workspace = true
 async-trait.workspace = true
-async-stream.workspace = true
-tokio-stream.workspace = true
 strum = { workspace = true, features = ["derive"] }
-backon.workspace = true
 derive_more = { workspace = true, features = ["debug", "eq"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
@@ -74,7 +70,6 @@ rstest.workspace = true
 arbitrary.workspace = true
 rand.workspace = true
 anyhow.workspace = true
-backon.workspace = true
 mockall.workspace = true
 alloy-primitives = { workspace = true, features = ["k256"] }
 alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }

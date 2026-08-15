@@ -25,7 +25,7 @@ pub struct NetworkHandler {
 }
 
 impl NetworkHandler {
-    pub(super) async fn handle_peer_monitoring(&mut self) {
+    pub(crate) async fn handle_peer_monitoring(&mut self) {
         // Inspect peer scores and ban peers that are below the threshold.
         let Some(ban_peers) = self.gossip.peer_monitoring.as_ref() else {
             return;

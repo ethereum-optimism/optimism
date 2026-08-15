@@ -74,29 +74,24 @@ impl Cli {
 
         // Run the subcommand.
         match self.subcommand {
-            Commands::Node(node) => Self::run_until_ctrl_c(node.run(&self.global)),
-            Commands::Net(net) => Self::run_until_ctrl_c(net.run(&self.global)),
+            // Long-running services own signal handling so their futures are never dropped before
+            // explicit drain-and-join shutdown completes.
+            Commands::Node(node) => Self::run_to_completion(node.run(&self.global)),
+            Commands::Net(net) => Self::run_to_completion(net.run(&self.global)),
             Commands::Registry(registry) => registry.run(&self.global),
             Commands::Bootstore(bootstore) => bootstore.run(&self.global),
             Commands::Info(info) => info.run(&self.global),
         }
     }
 
-    /// Run until ctrl-c is pressed.
-    pub fn run_until_ctrl_c<F>(fut: F) -> Result<()>
+    /// Runs a command to completion. Long-running commands handle process signals internally so
+    /// they can acknowledge shutdown before the runtime is dropped.
+    pub fn run_to_completion<F>(fut: F) -> Result<()>
     where
         F: std::future::Future<Output = Result<()>>,
     {
         let rt = Self::tokio_runtime().map_err(|e| anyhow::anyhow!(e))?;
-        rt.block_on(async move {
-            tokio::select! {
-                res = fut => res,
-                _ = tokio::signal::ctrl_c() => {
-                    tracing::info!(target: "cli", "Received Ctrl-C, shutting down...");
-                    Ok(())
-                }
-            }
-        })
+        rt.block_on(fut)
     }
 
     /// Creates a new default tokio multi-thread [Runtime](tokio::runtime::Runtime) with all

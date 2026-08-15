@@ -5,11 +5,10 @@ use clap::Parser;
 use jsonrpsee::{RpcModule, server::Server};
 use kona_cli::LogConfig;
 use kona_gossip::P2pRpcRequest;
-use kona_node_service_v2::{NetworkBuilder, network::NetworkService};
+use kona_node_service_v2::{NetworkBuilder, network::StandaloneNetwork};
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
-use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 use url::Url;
 
@@ -52,14 +51,10 @@ impl NetCommand {
         let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
 
         let (payload_tx, mut payload_rx) = mpsc::channel(1024);
-        let (signer_tx, signer_rx) = mpsc::channel(16);
-        let (network, client) = NetworkService::new(handler, signer_rx, payload_tx);
-        // The standalone command has no L1 service, so retain the update sender for service
-        // lifetime while continuing to use the configured genesis signer.
-        let _signer_keepalive = signer_tx;
-        let rpc = client.p2p_sender();
-        let shutdown = CancellationToken::new();
-        let mut network_task = tokio::spawn(network.run(shutdown.clone()));
+        let (network, rpc) = StandaloneNetwork::new(handler, payload_tx);
+        let (shutdown, shutdown_rx) = oneshot::channel();
+        let mut shutdown = Some(shutdown);
+        let mut network_task = tokio::spawn(network.run(shutdown_rx));
 
         let rpc_handle = if let Some(config) = rpc_config {
             let mut module = RpcModule::new(());
@@ -94,13 +89,47 @@ impl NetCommand {
                     result.map_err(|error| anyhow::anyhow!("network service panicked: {error}"))??;
                     anyhow::bail!("network service stopped unexpectedly");
                 }
+                signal = shutdown_signal() => {
+                    signal?;
+                    if let Some(handle) = rpc_handle.clone() {
+                        let _ = handle.stop();
+                        handle.stopped().await;
+                    }
+                    if let Some(shutdown) = shutdown.take() {
+                        let _ = shutdown.send(());
+                    }
+                    network_task.await??;
+                    return Ok(());
+                }
                 _ = wait_for_rpc_stop(rpc_handle.clone()), if rpc_handle.is_some() => {
-                    shutdown.cancel();
+                    if let Some(shutdown) = shutdown.take() {
+                        let _ = shutdown.send(());
+                    }
                     network_task.await??;
                     return Ok(());
                 }
             }
         }
+    }
+}
+
+async fn shutdown_signal() -> anyhow::Result<()> {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c().await?;
+        Ok::<(), anyhow::Error>(())
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        let mut signal = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+        signal.recv().await;
+        Ok::<(), anyhow::Error>(())
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<anyhow::Result<()>>();
+
+    tokio::select! {
+        result = ctrl_c => result,
+        result = terminate => result,
     }
 }
 

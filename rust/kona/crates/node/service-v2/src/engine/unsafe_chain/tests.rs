@@ -1,8 +1,9 @@
 use super::{
     Conductor, ConductorError, OriginSelector, SequencingWorkflow, SequencingWorkflowFactory,
 };
-use crate::{
-    engine::{BuiltUnsafePayload, EngineClient, EngineRequest},
+use crate::engine::{
+    EngineRequest,
+    api::{BuiltUnsafePayload, EngineInternalHandle},
     network::NetworkClient,
 };
 use alloy_consensus::Block;
@@ -77,7 +78,7 @@ fn each_local_production_start_constructs_fresh_workflow_state() {
     let factory = SequencingWorkflowFactory::new(
         move || {
             observed_creations.fetch_add(1, Ordering::SeqCst);
-            let (engine, _engine_rx) = EngineClient::test_pair(1);
+            let (engine, _engine_rx) = EngineInternalHandle::test_pair(1);
             let (network, _network_rx) = NetworkClient::test_pair(1);
             SequencingWorkflow::new(
                 Box::new(TestAttributesBuilder::default()),
@@ -108,7 +109,7 @@ async fn conductor_authorization_precedes_gossip_and_canonicalization() {
         ..Default::default()
     };
 
-    let (engine, mut engine_rx) = EngineClient::test_pair(8);
+    let (engine, mut engine_rx) = EngineInternalHandle::test_pair(8);
     let engine_events = events.clone();
     let engine_payload = expected_payload.clone();
     let engine_task = tokio::spawn(async move {
@@ -167,4 +168,21 @@ async fn conductor_authorization_precedes_gossip_and_canonicalization() {
     engine_task.await.unwrap();
     network_task.await.unwrap();
     assert_eq!(*events.lock().unwrap(), ["build", "conductor", "conductor", "gossip", "import"]);
+}
+
+#[tokio::test]
+async fn follower_quiesces_and_joins_through_engine_owned_lifecycle() {
+    let (engine, _engine_rx) = EngineInternalHandle::test_pair(1);
+    let (_payload_tx, payload_rx) = tokio::sync::mpsc::channel(1);
+    let (service, _sequencer, lifecycle) = super::UnsafeChainService::follower(engine, payload_rx);
+    let task = tokio::spawn(service.run());
+
+    let (done, completed) = tokio::sync::oneshot::channel();
+    lifecycle.send(super::control::UnsafeLifecycleCommand::Quiesce(done)).await.unwrap();
+    completed.await.unwrap();
+
+    let (done, completed) = tokio::sync::oneshot::channel();
+    lifecycle.send(super::control::UnsafeLifecycleCommand::Shutdown(done)).await.unwrap();
+    completed.await.unwrap();
+    task.await.unwrap().unwrap();
 }

@@ -1,10 +1,9 @@
 //! Rollup node service builder.
 
 use crate::{
-    engine::EngineConfig,
+    engine::{EngineConfig, SequencerConfig},
     network::NetworkConfig,
-    node::{InteropMode, RollupNode, config::L1Config},
-    unsafe_chain::SequencerConfig,
+    node::{RollupNode, config::L1Config},
 };
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
@@ -61,14 +60,13 @@ pub struct RollupNodeBuilder {
     network: NetworkConfig,
     rpc: Option<RpcBuilder>,
     sequencer: Option<SequencerConfig>,
-    interop_mode: InteropMode,
     delegate: Option<DerivationDelegateConfig>,
     dependency_set: Option<Arc<DependencySet>>,
 }
 
 impl RollupNodeBuilder {
     /// Creates a node builder.
-    pub fn new(
+    pub const fn new(
         config: RollupConfig,
         l1: L1ConfigBuilder,
         l2_trust_rpc: bool,
@@ -84,7 +82,6 @@ impl RollupNodeBuilder {
             network,
             rpc,
             sequencer: None,
-            interop_mode: InteropMode::default(),
             delegate: None,
             dependency_set: None,
         }
@@ -148,7 +145,6 @@ impl RollupNodeBuilder {
             network_config: self.network,
             rpc_config: self.rpc,
             sequencer_config: self.sequencer.unwrap_or_default(),
-            interop_mode: self.interop_mode,
             delegate_config: self.delegate,
             dependency_set: self.dependency_set,
         }

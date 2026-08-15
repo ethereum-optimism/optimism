@@ -1,11 +1,11 @@
-//! Errors returned by the execution-engine service.
+//! Errors returned by the execution-engine domain.
 
 use thiserror::Error;
 
 /// Result returned by semantic engine operations.
 pub type EngineResult<T> = Result<T, EngineError>;
 
-/// An error returned by the semantic engine service.
+/// An error returned by the semantic Engine service.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum EngineError {
     /// A transient Engine API failure. Retrying the same semantic operation is safe.
@@ -17,12 +17,22 @@ pub enum EngineError {
     /// A complete unsafe payload was rejected as invalid by the execution engine.
     #[error("invalid unsafe payload: {0}")]
     InvalidUnsafePayload(String),
-    /// Safe-chain processing must reset its derivation pipeline before retrying.
-    #[error("engine requested derivation reset: {0}")]
-    ResetRequired(String),
-    /// Safe-chain processing must flush its active derivation channel before retrying.
-    #[error("engine requested derivation channel flush: {0}")]
-    FlushRequired(String),
+    /// Derivation must reset its local pipeline before retrying.
+    #[error("engine requested derivation reset: {reason}")]
+    ResetRequired {
+        /// Reason reported by the Engine task.
+        reason: String,
+        /// Authoritative safe head after Engine-owned recovery, when recovery occurred.
+        safe_head: Option<kona_protocol::L2BlockInfo>,
+    },
+    /// Derivation must flush its active channel before retrying.
+    #[error("engine requested derivation channel flush: {reason}")]
+    FlushRequired {
+        /// Reason reported by the Engine task.
+        reason: String,
+        /// Current authoritative safe head after fallback processing.
+        safe_head: Option<kona_protocol::L2BlockInfo>,
+    },
     /// A build became stale because the unsafe head changed before it was sealed.
     #[error("unsafe payload build became stale")]
     StaleBuild,
@@ -37,13 +47,35 @@ pub enum EngineError {
     ResponseDropped,
 }
 
-/// A terminal error returned by the engine service task.
+/// A terminal error returned by the top-level Engine task.
 #[derive(Debug, Error)]
 pub enum EngineServiceError {
     /// Startup forkchoice discovery failed.
     #[error("failed to discover startup forkchoice: {0}")]
     Startup(String),
-    /// Every semantic engine client was dropped before node shutdown.
-    #[error("all engine request senders were dropped")]
-    RequestChannelClosed,
+    /// Node stopped waiting for the startup capability handshake.
+    #[error("Engine startup receiver was dropped")]
+    StartupReceiverDropped,
+    /// Every sender for a required Engine request lane was dropped unexpectedly.
+    #[error("Engine request channel closed: {0}")]
+    RequestChannelClosed(&'static str),
+    /// An Engine-private critical child stopped.
+    #[error("Engine child {name} failed: {error}")]
+    Child {
+        /// Private child name.
+        name: &'static str,
+        /// Child failure description.
+        error: String,
+    },
+    /// An Engine-private task panicked.
+    #[error("Engine child {name} panicked: {error}")]
+    ChildPanic {
+        /// Private child name.
+        name: &'static str,
+        /// Join failure description.
+        error: String,
+    },
+    /// A lifecycle transition could not be acknowledged.
+    #[error("Engine lifecycle transition failed: {0}")]
+    Lifecycle(String),
 }

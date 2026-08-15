@@ -1,14 +1,19 @@
-use super::SafeChainService;
-use crate::engine::{EngineClient, EngineRequest};
+use super::DerivationService;
+use crate::{
+    engine::{EngineHandle, EngineRequest},
+    l1::{L1Reader, L1Snapshot},
+};
+use alloy_provider::RootProvider;
 use async_trait::async_trait;
 use kona_derive::{
     OriginProvider, Pipeline, PipelineErrorKind, PipelineResult, Signal, SignalReceiver, StepResult,
 };
 use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+use kona_providers_alloy::{AlloyChainProvider, OnlineBeaconClient, OnlineBlobProvider};
 use std::sync::{Arc, Mutex};
-use tokio::sync::watch;
-use tokio_util::sync::CancellationToken;
+use tokio::sync::{oneshot, watch};
+use url::Url;
 
 #[derive(Debug)]
 struct RecordingPipeline {
@@ -66,32 +71,44 @@ impl Pipeline for RecordingPipeline {
     }
 }
 
+fn l1_reader() -> L1Reader {
+    let url = Url::parse("http://127.0.0.1:1").unwrap();
+    let provider = RootProvider::new_http(url.clone());
+    let chain = AlloyChainProvider::new(provider.clone(), 1);
+    let blobs = OnlineBlobProvider {
+        beacon_client: OnlineBeaconClient::new_http(url.to_string()),
+        genesis_time: 0,
+        slot_interval: 12,
+    };
+    L1Reader::new(provider, chain, blobs)
+}
+
 #[tokio::test]
 async fn administrative_reset_resets_only_derivation_state() {
     let signals = Arc::new(Mutex::new(Vec::new()));
     let pipeline = RecordingPipeline { config: RollupConfig::default(), signals: signals.clone() };
-    let (engine, mut engine_rx) = EngineClient::test_pair(4);
+    let (engine, mut engine_rx) = EngineHandle::test_pair(4);
     let engine_task = tokio::spawn(async move {
-        while let Some(request) = engine_rx.recv().await {
+        if let Some(request) = engine_rx.recv().await {
             match request {
-                EngineRequest::State { response } => {
-                    let _ = response.send(Ok(Default::default()));
+                EngineRequest::UpdateSafe { .. } | EngineRequest::UpdateFinalized { .. } => {
+                    panic!("routine derivation reset must not update Engine")
                 }
-                EngineRequest::Recover { .. } => {
-                    panic!("routine derivation reset must not recover or rewind the engine")
-                }
-                request => panic!("unexpected engine request: {request:?}"),
+                request => panic!("EngineHandle exposed an unexpected request: {request:?}"),
             }
         }
     });
 
-    let (_head_tx, head_rx) = watch::channel(None);
-    let (_finalized_tx, finalized_rx) = watch::channel(None);
-    let (service, handle) =
-        SafeChainService::new(Box::new(pipeline), engine, head_rx, finalized_rx, None);
-    let shutdown = CancellationToken::new();
-    let service_shutdown = shutdown.clone();
-    let service_task = tokio::spawn(service.run(service_shutdown));
+    let (_snapshots_tx, snapshots) = watch::channel(L1Snapshot::default());
+    let (service, admin) = DerivationService::new(
+        Box::new(pipeline),
+        engine,
+        L2BlockInfo::default(),
+        l1_reader(),
+        snapshots,
+    );
+    let (shutdown, shutdown_rx) = oneshot::channel();
+    let service_task = tokio::spawn(service.run(shutdown_rx));
 
     tokio::time::timeout(std::time::Duration::from_secs(1), async {
         loop {
@@ -104,11 +121,11 @@ async fn administrative_reset_resets_only_derivation_state() {
     .await
     .expect("startup derivation reset");
 
-    handle.reset().await.expect("administrative reset");
+    admin.reset().await.expect("administrative reset");
     assert_eq!(*signals.lock().unwrap(), ["reset", "reset"]);
 
-    shutdown.cancel();
+    let _ = shutdown.send(());
     service_task.await.unwrap().unwrap();
-    drop(handle);
+    drop(admin);
     engine_task.await.unwrap();
 }

@@ -7,7 +7,7 @@ mod config;
 pub use config::L1Config;
 
 mod mode;
-pub use mode::{InteropMode, NodeMode};
+pub use mode::NodeMode;
 
 mod run;
 pub use run::RollupNode;

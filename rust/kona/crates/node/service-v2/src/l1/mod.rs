@@ -1,104 +1,186 @@
-//! Shared L1 access service.
+//! Node-owned canonical L1 observations and direct reader access.
 //!
-//! The service is the single owner of L1 execution and beacon queries used by node workflows. It
-//! publishes canonical labels while each consumer retains an independent processing cursor.
-
-mod stream;
+//! The watcher publishes coherent canonical-label snapshots. Engine and Derivation each own a
+//! direct [`crate::l1::L1Reader`] and an independent processing cursor; ordinary provider requests
+//! are never serialized through the watcher task.
 
 use alloy_consensus::{Header, Receipt, TxEnvelope};
-use alloy_eips::{BlockId, BlockNumberOrTag, eip4844::Blob};
-use alloy_primitives::{Address, B256};
+use alloy_eips::{BlockId, eip4844::Blob};
+use alloy_primitives::{Address, B256, b256};
 use alloy_provider::{Provider, RootProvider};
 use async_trait::async_trait;
-use futures::StreamExt;
 use kona_derive::{BlobProvider, ChainProvider, PipelineError, PipelineErrorKind};
-use kona_genesis::{RollupConfig, SystemConfigLog, SystemConfigUpdate, UnsafeBlockSignerUpdate};
+use kona_genesis::RollupConfig;
 use kona_protocol::BlockInfo;
 use kona_providers_alloy::{AlloyChainProvider, OnlineBeaconClient, OnlineBlobProvider};
 use kona_rpc::{L1State, L1WatcherQueries, L1WatcherQuerySender};
 use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
-use tokio_util::sync::CancellationToken;
 
-const HEAD_POLL_INTERVAL: Duration = Duration::from_secs(4);
-const FINALIZED_POLL_INTERVAL: Duration = Duration::from_secs(60);
-const REQUEST_CAPACITY: usize = 64;
+const LABEL_POLL_INTERVAL: Duration = Duration::from_secs(4);
+const QUERY_CAPACITY: usize = 64;
 
-/// Cloneable access to L1 labels and query operations.
-#[derive(Debug, Clone)]
-pub struct L1Client {
-    head: watch::Receiver<Option<BlockInfo>>,
-    finalized: watch::Receiver<Option<BlockInfo>>,
-    request_tx: mpsc::Sender<L1Request>,
-    query_tx: L1WatcherQuerySender,
+/// A canonical L1 head replacement observed by the watcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct L1Reorg {
+    /// Previously observed canonical head.
+    pub previous: BlockInfo,
+    /// New canonical head target.
+    pub current: BlockInfo,
 }
 
-impl L1Client {
-    /// Returns an independent receiver for canonical L1 head updates.
-    pub fn subscribe_head(&self) -> watch::Receiver<Option<BlockInfo>> {
-        self.head.clone()
-    }
+/// One coherent observation of canonical L1 labels.
+///
+/// Snapshots are targets, not event logs. A watch receiver may skip intermediate revisions, so a
+/// consumer must validate its own cursor hash and query any missing blocks directly.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct L1Snapshot {
+    /// Latest canonical L1 block.
+    pub head: Option<BlockInfo>,
+    /// Safe L1 block reported by the execution provider.
+    pub safe: Option<BlockInfo>,
+    /// Finalized L1 block reported by the execution provider.
+    pub finalized: Option<BlockInfo>,
+    /// Most recently detected head replacement, for diagnostics only.
+    pub reorg: Option<L1Reorg>,
+    /// Monotonically increasing observation revision.
+    pub revision: u64,
+}
 
-    /// Returns an independent receiver for finalized L1 updates.
-    pub fn subscribe_finalized(&self) -> watch::Receiver<Option<BlockInfo>> {
-        self.finalized.clone()
-    }
+/// The result of validating a consumer-owned cursor against the canonical L1 chain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum L1CursorStatus {
+    /// The cursor remains canonical.
+    Canonical(BlockInfo),
+    /// The cursor was replaced; this is its nearest canonical ancestor known by hash.
+    Reorg {
+        /// Replaced consumer cursor.
+        previous: BlockInfo,
+        /// Nearest ancestor that remains canonical, if available by hash.
+        common_ancestor: Option<BlockInfo>,
+    },
+}
 
-    /// Returns the query sender consumed by the rollup RPC implementation.
-    pub fn query_sender(&self) -> L1WatcherQuerySender {
-        self.query_tx.clone()
+/// Direct, cloneable execution and beacon access with a reader-local cache.
+#[derive(Debug, Clone)]
+pub struct L1Reader {
+    provider: RootProvider,
+    chain_provider: AlloyChainProvider,
+    blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
+}
+
+impl L1Reader {
+    /// Constructs a direct reader. Cloning it gives a consumer an independent cache and cursor.
+    pub const fn new(
+        provider: RootProvider,
+        chain_provider: AlloyChainProvider,
+        blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
+    ) -> Self {
+        Self { provider, chain_provider, blob_provider }
     }
 
     /// Looks up an L1 block by hash without treating absence as an error.
     pub async fn block_by_hash(&self, hash: B256) -> Result<Option<BlockInfo>, PipelineErrorKind> {
-        self.request(|response| L1Request::OptionalBlockByHash { hash, response }).await
+        self.provider
+            .get_block_by_hash(hash)
+            .await
+            .map(|block| block.map(|block| block.into_consensus().into()))
+            .map_err(provider_error)
     }
 
-    /// Looks up an L1 block by number without treating absence as an error.
+    /// Looks up a canonical L1 block by number without treating absence as an error.
     pub async fn block_by_number(
         &self,
         number: u64,
     ) -> Result<Option<BlockInfo>, PipelineErrorKind> {
-        self.request(|response| L1Request::OptionalBlockByNumber { number, response }).await
+        self.provider
+            .get_block_by_number(number.into())
+            .await
+            .map(|block| block.map(|block| block.into_consensus().into()))
+            .map_err(provider_error)
     }
 
-    async fn request<T>(
+    /// Reads the authoritative unsafe-block signer from `SystemConfig` at a canonical block hash.
+    pub async fn unsafe_block_signer_at(
         &self,
-        request: impl FnOnce(oneshot::Sender<Result<T, PipelineErrorKind>>) -> L1Request,
-    ) -> Result<T, PipelineErrorKind> {
-        let (response, result) = oneshot::channel();
-        self.request_tx.send(request(response)).await.map_err(|_| unavailable())?;
-        result.await.map_err(|_| unavailable())?
+        system_config: Address,
+        block_hash: B256,
+    ) -> Result<Address, PipelineErrorKind> {
+        /// `bytes32(uint256(keccak256("systemconfig.unsafeblocksigner")) - 1)`.
+        const UNSAFE_BLOCK_SIGNER_SLOT: B256 =
+            b256!("65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
+        let value = self
+            .provider
+            .get_storage_at(system_config, UNSAFE_BLOCK_SIGNER_SLOT.into())
+            .hash(block_hash)
+            .await
+            .map_err(provider_error)?;
+        Ok(Address::from_slice(&value.to_be_bytes_vec()[12..]))
+    }
+
+    /// Validates a consumer cursor and, after a reorg, follows its old branch to the nearest
+    /// ancestor that is still canonical.
+    pub async fn validate_cursor(
+        &self,
+        cursor: BlockInfo,
+    ) -> Result<L1CursorStatus, PipelineErrorKind> {
+        if self
+            .block_by_number(cursor.number)
+            .await?
+            .is_some_and(|canonical| canonical.hash == cursor.hash)
+        {
+            return Ok(L1CursorStatus::Canonical(cursor));
+        }
+
+        let mut candidate = Some(cursor);
+        while let Some(block) = candidate {
+            if self
+                .block_by_number(block.number)
+                .await?
+                .is_some_and(|canonical| canonical.hash == block.hash)
+            {
+                return Ok(L1CursorStatus::Reorg {
+                    previous: cursor,
+                    common_ancestor: Some(block),
+                });
+            }
+            if block.number == 0 {
+                break;
+            }
+            candidate = self.block_by_hash(block.parent_hash).await?;
+        }
+
+        Ok(L1CursorStatus::Reorg { previous: cursor, common_ancestor: None })
     }
 }
 
 #[async_trait]
-impl ChainProvider for L1Client {
+impl ChainProvider for L1Reader {
     type Error = PipelineErrorKind;
 
     async fn header_by_hash(&mut self, hash: B256) -> Result<Header, Self::Error> {
-        self.request(|response| L1Request::Header { hash, response }).await
+        self.chain_provider.header_by_hash(hash).await.map_err(Into::into)
     }
 
     async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error> {
-        self.request(|response| L1Request::BlockInfo { number, response }).await
+        self.chain_provider.block_info_by_number(number).await.map_err(Into::into)
     }
 
     async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<Receipt>, Self::Error> {
-        self.request(|response| L1Request::Receipts { hash, response }).await
+        self.chain_provider.receipts_by_hash(hash).await.map_err(Into::into)
     }
 
     async fn block_info_and_transactions_by_hash(
         &mut self,
         hash: B256,
     ) -> Result<(BlockInfo, Vec<TxEnvelope>), Self::Error> {
-        self.request(|response| L1Request::BlockAndTransactions { hash, response }).await
+        self.chain_provider.block_info_and_transactions_by_hash(hash).await.map_err(Into::into)
     }
 }
 
 #[async_trait]
-impl BlobProvider for L1Client {
+impl BlobProvider for L1Reader {
     type Error = PipelineErrorKind;
 
     async fn get_and_validate_blobs(
@@ -106,206 +188,175 @@ impl BlobProvider for L1Client {
         block_ref: &BlockInfo,
         blob_hashes: &[B256],
     ) -> Result<Vec<Box<Blob>>, Self::Error> {
-        self.request(|response| L1Request::Blobs {
-            block_ref: *block_ref,
-            blob_hashes: blob_hashes.to_vec(),
-            response,
-        })
-        .await
+        self.blob_provider.get_and_validate_blobs(block_ref, blob_hashes).await.map_err(Into::into)
     }
 }
 
-#[derive(Debug)]
-enum L1Request {
-    OptionalBlockByHash {
-        hash: B256,
-        response: oneshot::Sender<Result<Option<BlockInfo>, PipelineErrorKind>>,
-    },
-    OptionalBlockByNumber {
-        number: u64,
-        response: oneshot::Sender<Result<Option<BlockInfo>, PipelineErrorKind>>,
-    },
-    Header {
-        hash: B256,
-        response: oneshot::Sender<Result<Header, PipelineErrorKind>>,
-    },
-    BlockInfo {
-        number: u64,
-        response: oneshot::Sender<Result<BlockInfo, PipelineErrorKind>>,
-    },
-    Receipts {
-        hash: B256,
-        response: oneshot::Sender<Result<Vec<Receipt>, PipelineErrorKind>>,
-    },
-    BlockAndTransactions {
-        hash: B256,
-        response: oneshot::Sender<Result<(BlockInfo, Vec<TxEnvelope>), PipelineErrorKind>>,
-    },
-    Blobs {
-        block_ref: BlockInfo,
-        blob_hashes: Vec<B256>,
-        response: oneshot::Sender<Result<Vec<Box<Blob>>, PipelineErrorKind>>,
-    },
+/// Shared L1 infrastructure handed to independently progressing node domains.
+#[derive(Debug, Clone)]
+pub struct L1Access {
+    reader: L1Reader,
+    snapshots: watch::Receiver<L1Snapshot>,
+    query_tx: L1WatcherQuerySender,
 }
 
-/// Long-running owner of L1 polling, queries, and system-config signer updates.
+impl L1Access {
+    /// Returns a direct reader with reader-local provider caches.
+    pub fn reader(&self) -> L1Reader {
+        self.reader.clone()
+    }
+
+    /// Subscribes to coherent canonical-label targets.
+    pub fn subscribe(&self) -> watch::Receiver<L1Snapshot> {
+        self.snapshots.clone()
+    }
+
+    /// Returns the compatibility query sender consumed by rollup RPC.
+    pub fn query_sender(&self) -> L1WatcherQuerySender {
+        self.query_tx.clone()
+    }
+}
+
+/// Polls canonical L1 labels and publishes coherent snapshots.
 #[derive(Debug)]
-pub struct L1Service {
+pub struct L1Watcher {
     config: Arc<RollupConfig>,
     provider: RootProvider,
-    chain_provider: AlloyChainProvider,
-    blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
-    signer_tx: mpsc::Sender<Address>,
-    head_tx: watch::Sender<Option<BlockInfo>>,
-    finalized_tx: watch::Sender<Option<BlockInfo>>,
-    request_rx: mpsc::Receiver<L1Request>,
+    snapshots_tx: watch::Sender<L1Snapshot>,
     query_rx: mpsc::Receiver<L1WatcherQueries>,
 }
 
-impl L1Service {
-    /// Creates the service and its cloneable client.
+impl L1Watcher {
+    /// Creates the watcher and shared access facade.
     pub fn new(
         config: Arc<RollupConfig>,
         provider: RootProvider,
-        chain_provider: AlloyChainProvider,
-        blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
-        signer_tx: mpsc::Sender<Address>,
-    ) -> (Self, L1Client) {
-        let (head_tx, head) = watch::channel(None);
-        let (finalized_tx, finalized) = watch::channel(None);
-        let (request_tx, request_rx) = mpsc::channel(REQUEST_CAPACITY);
-        let (query_tx, query_rx) = mpsc::channel(REQUEST_CAPACITY);
+        reader: L1Reader,
+    ) -> (Self, L1Access) {
+        let (snapshots_tx, snapshots) = watch::channel(L1Snapshot::default());
+        let (query_tx, query_rx) = mpsc::channel(QUERY_CAPACITY);
         (
-            Self {
-                config,
-                provider,
-                chain_provider,
-                blob_provider,
-                signer_tx,
-                head_tx,
-                finalized_tx,
-                request_rx,
-                query_rx,
-            },
-            L1Client { head, finalized, request_tx, query_tx },
+            Self { config, provider, snapshots_tx, query_rx },
+            L1Access { reader, snapshots, query_tx },
         )
     }
 
-    /// Polls L1 labels and serializes shared L1 queries until shutdown.
-    pub async fn run(mut self, shutdown: CancellationToken) -> Result<(), L1ServiceError> {
-        let mut heads = stream::block_stream(
-            self.provider.clone(),
-            BlockNumberOrTag::Latest,
-            HEAD_POLL_INTERVAL,
-        );
-        let mut finalized = stream::block_stream(
-            self.provider.clone(),
-            BlockNumberOrTag::Finalized,
-            FINALIZED_POLL_INTERVAL,
-        );
+    /// Runs until the Node-owned lifecycle sender requests shutdown.
+    pub async fn run(mut self, mut shutdown: oneshot::Receiver<()>) -> Result<(), L1WatcherError> {
+        let mut poll = tokio::time::interval(LABEL_POLL_INTERVAL);
+        poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut query_open = true;
 
         loop {
             tokio::select! {
                 biased;
-                _ = shutdown.cancelled() => return Ok(()),
-                request = self.request_rx.recv() => {
-                    let request = request.ok_or(L1ServiceError::RequestChannelClosed)?;
-                    self.handle_request(request).await;
+                _ = &mut shutdown => return Ok(()),
+                query = self.query_rx.recv(), if query_open => {
+                    if let Some(query) = query {
+                        self.handle_rpc_query(query).await;
+                    } else {
+                        query_open = false;
+                    }
                 }
-                head = heads.next() => {
-                    let head = head.ok_or(L1ServiceError::HeadStreamEnded)?;
-                    self.process_head(head).await?;
-                }
-                finalized = finalized.next() => {
-                    let finalized = finalized.ok_or(L1ServiceError::FinalizedStreamEnded)?;
-                    self.finalized_tx.send_replace(Some(finalized));
-                }
-                query = self.query_rx.recv() => {
-                    let query = query.ok_or(L1ServiceError::QueryChannelClosed)?;
-                    self.handle_rpc_query(query).await;
+                _ = poll.tick() => {
+                    match self.observe().await {
+                        Ok(snapshot) => {
+                            self.snapshots_tx.send_replace(snapshot);
+                        }
+                        Err(L1WatcherError::Transport(error)) => {
+                            warn!(target: "l1", ?error, "Failed to observe coherent L1 labels; retrying");
+                        }
+                        Err(error) => return Err(error),
+                    };
                 }
             }
         }
     }
 
-    async fn handle_request(&mut self, request: L1Request) {
-        match request {
-            L1Request::OptionalBlockByHash { hash, response } => {
-                let result = self
-                    .provider
-                    .get_block_by_hash(hash)
-                    .await
-                    .map(|block| block.map(|block| block.into_consensus().into()))
-                    .map_err(provider_error);
-                let _ = response.send(result);
-            }
-            L1Request::OptionalBlockByNumber { number, response } => {
-                let result = self
-                    .provider
-                    .get_block_by_number(number.into())
-                    .await
-                    .map(|block| block.map(|block| block.into_consensus().into()))
-                    .map_err(provider_error);
-                let _ = response.send(result);
-            }
-            L1Request::Header { hash, response } => {
-                let result = self.chain_provider.header_by_hash(hash).await.map_err(Into::into);
-                let _ = response.send(result);
-            }
-            L1Request::BlockInfo { number, response } => {
-                let result =
-                    self.chain_provider.block_info_by_number(number).await.map_err(Into::into);
-                let _ = response.send(result);
-            }
-            L1Request::Receipts { hash, response } => {
-                let result = self.chain_provider.receipts_by_hash(hash).await.map_err(Into::into);
-                let _ = response.send(result);
-            }
-            L1Request::BlockAndTransactions { hash, response } => {
-                let result = self
-                    .chain_provider
-                    .block_info_and_transactions_by_hash(hash)
-                    .await
-                    .map_err(Into::into);
-                let _ = response.send(result);
-            }
-            L1Request::Blobs { block_ref, blob_hashes, response } => {
-                let result = self
-                    .blob_provider
-                    .get_and_validate_blobs(&block_ref, &blob_hashes)
-                    .await
-                    .map_err(Into::into);
-                let _ = response.send(result);
-            }
-        }
+    async fn observe(&self) -> Result<L1Snapshot, L1WatcherError> {
+        let (head, safe, finalized) = tokio::join!(
+            self.block_info(BlockId::latest()),
+            self.block_info(BlockId::safe()),
+            self.block_info(BlockId::finalized()),
+        );
+        let head = head?;
+        let safe = safe?;
+        let finalized = finalized?;
+        let previous = *self.snapshots_tx.borrow();
+
+        self.validate_finalized(previous.finalized, finalized).await?;
+        let reorg = self.detect_reorg(previous.head, head).await?;
+        let labels_changed = previous.head != head ||
+            previous.safe != safe ||
+            previous.finalized != finalized ||
+            reorg.is_some();
+
+        Ok(L1Snapshot {
+            head,
+            safe,
+            finalized,
+            reorg,
+            revision: previous.revision.saturating_add(u64::from(labels_changed)),
+        })
     }
 
-    async fn process_head(&self, head: BlockInfo) -> Result<(), L1ServiceError> {
-        self.head_tx.send_replace(Some(head));
+    async fn detect_reorg(
+        &self,
+        previous: Option<BlockInfo>,
+        current: Option<BlockInfo>,
+    ) -> Result<Option<L1Reorg>, L1WatcherError> {
+        let (Some(previous), Some(current)) = (previous, current) else {
+            return Ok(None);
+        };
+        if previous.hash == current.hash {
+            return Ok(None);
+        }
 
-        let logs = self
-            .provider
-            .get_logs(
-                &alloy_rpc_types_eth::Filter::new()
-                    .address(self.config.l1_system_config_address)
-                    .select(head.hash),
-            )
-            .await?;
-        let ecotone_active = self.config.is_ecotone_active(head.timestamp);
-        for log in logs {
-            let update = SystemConfigLog::new(log.into(), ecotone_active).build();
-            if let Ok(SystemConfigUpdate::UnsafeBlockSigner(UnsafeBlockSignerUpdate {
-                unsafe_block_signer,
-            })) = update
-            {
-                info!(target: "l1", %unsafe_block_signer, "Unsafe block signer updated");
-                self.signer_tx
-                    .send(unsafe_block_signer)
-                    .await
-                    .map_err(|_| L1ServiceError::SignerChannelClosed)?;
-            }
+        let replaced = if current.number == previous.number.saturating_add(1) {
+            current.parent_hash != previous.hash
+        } else if current.number <= previous.number {
+            true
+        } else {
+            self.canonical_block(previous.number)
+                .await?
+                .is_none_or(|block| block.hash != previous.hash)
+        };
+        Ok(replaced.then_some(L1Reorg { previous, current }))
+    }
+
+    async fn validate_finalized(
+        &self,
+        previous: Option<BlockInfo>,
+        current: Option<BlockInfo>,
+    ) -> Result<(), L1WatcherError> {
+        let (Some(previous), Some(current)) = (previous, current) else {
+            return Ok(());
+        };
+        validate_finalized_transition(previous, current)?;
+        if current.number > previous.number &&
+            self.canonical_block(previous.number)
+                .await?
+                .is_none_or(|block| block.hash != previous.hash)
+        {
+            return Err(L1WatcherError::FinalizedReplacement { previous, current });
         }
         Ok(())
+    }
+
+    async fn canonical_block(&self, number: u64) -> Result<Option<BlockInfo>, L1WatcherError> {
+        self.provider
+            .get_block_by_number(number.into())
+            .await
+            .map(|block| block.map(|block| block.into_consensus().into()))
+            .map_err(L1WatcherError::Transport)
+    }
+
+    async fn block_info(&self, id: BlockId) -> Result<Option<BlockInfo>, L1WatcherError> {
+        self.provider
+            .get_block(id)
+            .await
+            .map(|block| block.map(|block| block.into_consensus().into()))
+            .map_err(L1WatcherError::Transport)
     }
 
     async fn handle_rpc_query(&self, query: L1WatcherQueries) {
@@ -314,58 +365,88 @@ impl L1Service {
                 let _ = response.send((*self.config).clone());
             }
             L1WatcherQueries::L1State(response) => {
-                let head_l1 = self.block_info(BlockId::latest()).await;
-                let finalized_l1 = self.block_info(BlockId::finalized()).await;
-                let safe_l1 = self.block_info(BlockId::safe()).await;
+                let snapshot = *self.snapshots_tx.borrow();
                 let _ = response.send(L1State {
-                    current_l1: *self.head_tx.borrow(),
-                    current_l1_finalized: finalized_l1,
-                    head_l1,
-                    safe_l1,
-                    finalized_l1,
+                    current_l1: snapshot.head,
+                    current_l1_finalized: snapshot.finalized,
+                    head_l1: snapshot.head,
+                    safe_l1: snapshot.safe,
+                    finalized_l1: snapshot.finalized,
                 });
-            }
-        }
-    }
-
-    async fn block_info(&self, id: BlockId) -> Option<BlockInfo> {
-        match self.provider.get_block(id).await {
-            Ok(block) => block.map(|block| block.into_consensus().into()),
-            Err(error) => {
-                warn!(target: "l1", ?id, ?error, "Failed to query L1 label");
-                None
             }
         }
     }
 }
 
-fn unavailable() -> PipelineErrorKind {
-    PipelineError::Provider("shared L1 service is unavailable".to_string()).temp()
+fn validate_finalized_transition(
+    previous: BlockInfo,
+    current: BlockInfo,
+) -> Result<(), L1WatcherError> {
+    if current.number < previous.number {
+        return Err(L1WatcherError::FinalizedRegression { previous, current });
+    }
+    if current.number == previous.number && current.hash != previous.hash {
+        return Err(L1WatcherError::FinalizedReplacement { previous, current });
+    }
+    Ok(())
 }
 
 fn provider_error(error: alloy_transport::TransportError) -> PipelineErrorKind {
     PipelineError::Provider(error.to_string()).temp()
 }
 
-/// Terminal L1 service failure.
+/// Terminal canonical L1 watcher failure.
 #[derive(Debug, Error)]
-pub enum L1ServiceError {
-    /// L1 transport failed.
+pub enum L1WatcherError {
+    /// A transient provider failure. The run loop normally logs and retries this variant.
     #[error("L1 transport failed: {0}")]
     Transport(#[from] alloy_transport::TransportError),
-    /// Canonical head polling ended unexpectedly.
-    #[error("canonical L1 head stream ended")]
-    HeadStreamEnded,
-    /// Finalized head polling ended unexpectedly.
-    #[error("finalized L1 head stream ended")]
-    FinalizedStreamEnded,
-    /// Every shared-query client was dropped.
-    #[error("L1 request channel closed")]
-    RequestChannelClosed,
-    /// The RPC query channel closed while the service was running.
-    #[error("L1 RPC query channel closed")]
-    QueryChannelClosed,
-    /// The network service stopped accepting signer updates.
-    #[error("unsafe block signer channel closed")]
-    SignerChannelClosed,
+    /// Finalized L1 moved backwards, which would require unfinalizing L2.
+    #[error("finalized L1 regressed from {previous:?} to {current:?}")]
+    FinalizedRegression {
+        /// Previously observed finalized block.
+        previous: BlockInfo,
+        /// Regressed finalized target.
+        current: BlockInfo,
+    },
+    /// An already-finalized L1 hash was replaced.
+    #[error("finalized L1 was replaced: previous {previous:?}, current {current:?}")]
+    FinalizedReplacement {
+        /// Previously observed finalized block.
+        previous: BlockInfo,
+        /// New label that conflicts with prior finality.
+        current: BlockInfo,
+    },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::B256;
+
+    fn block(number: u64, hash: u8) -> BlockInfo {
+        BlockInfo { number, hash: B256::repeat_byte(hash), ..Default::default() }
+    }
+
+    #[test]
+    fn finalized_l1_regression_is_fatal() {
+        assert!(matches!(
+            validate_finalized_transition(block(10, 1), block(9, 1)),
+            Err(L1WatcherError::FinalizedRegression { .. })
+        ));
+    }
+
+    #[test]
+    fn finalized_l1_hash_replacement_is_fatal() {
+        assert!(matches!(
+            validate_finalized_transition(block(10, 1), block(10, 2)),
+            Err(L1WatcherError::FinalizedReplacement { .. })
+        ));
+    }
+
+    #[test]
+    fn finalized_l1_may_advance_or_repeat_identically() {
+        assert!(validate_finalized_transition(block(10, 1), block(10, 1)).is_ok());
+        assert!(validate_finalized_transition(block(10, 1), block(11, 2)).is_ok());
+    }
 }

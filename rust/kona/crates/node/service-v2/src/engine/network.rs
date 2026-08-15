@@ -1,19 +1,18 @@
 //! Long-running P2P network service.
 
-use crate::network::handler::NetworkHandler;
+use crate::network::NetworkHandler;
 use alloy_primitives::Address;
 use kona_gossip::P2pRpcRequest;
 use kona_rpc::NetworkAdminQuery;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
-use tokio_util::sync::CancellationToken;
 
 const REQUEST_CAPACITY: usize = 256;
 
 /// Cloneable network capabilities exposed to other node services.
 #[derive(Debug, Clone)]
-pub struct NetworkClient {
+pub(super) struct NetworkClient {
     publish_tx: mpsc::Sender<PublishRequest>,
     p2p_tx: mpsc::Sender<P2pRpcRequest>,
     admin_tx: mpsc::Sender<NetworkAdminQuery>,
@@ -21,7 +20,7 @@ pub struct NetworkClient {
 
 impl NetworkClient {
     /// Publishes an authorized locally built payload and waits for the gossip attempt to finish.
-    pub async fn publish_unsafe(
+    pub(super) async fn publish_unsafe(
         &self,
         payload: OpExecutionPayloadEnvelope,
     ) -> Result<(), NetworkClientError> {
@@ -34,12 +33,12 @@ impl NetworkClient {
     }
 
     /// Returns the request sender used by the P2P RPC namespace.
-    pub fn p2p_sender(&self) -> mpsc::Sender<P2pRpcRequest> {
+    pub(super) fn p2p_sender(&self) -> mpsc::Sender<P2pRpcRequest> {
         self.p2p_tx.clone()
     }
 
     /// Returns the request sender used by the admin payload-injection method.
-    pub fn admin_sender(&self) -> mpsc::Sender<NetworkAdminQuery> {
+    pub(super) fn admin_sender(&self) -> mpsc::Sender<NetworkAdminQuery> {
         self.admin_tx.clone()
     }
 
@@ -60,7 +59,7 @@ pub(crate) struct PublishRequest {
 
 /// Owns discovery, gossip, peer monitoring, signing, and network RPC requests.
 #[derive(Debug)]
-pub struct NetworkService {
+pub(super) struct NetworkService {
     handler: NetworkHandler,
     signer_rx: mpsc::Receiver<Address>,
     inbound_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
@@ -71,7 +70,7 @@ pub struct NetworkService {
 
 impl NetworkService {
     /// Creates a network service around an already-started network stack.
-    pub fn new(
+    pub(super) fn new(
         handler: NetworkHandler,
         signer_rx: mpsc::Receiver<Address>,
         inbound_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
@@ -86,11 +85,14 @@ impl NetworkService {
     }
 
     /// Runs the network until shutdown or a terminal transport failure.
-    pub async fn run(mut self, shutdown: CancellationToken) -> Result<(), NetworkServiceError> {
+    pub(super) async fn run(
+        mut self,
+        mut shutdown: oneshot::Receiver<()>,
+    ) -> Result<(), NetworkServiceError> {
         loop {
             tokio::select! {
                 biased;
-                _ = shutdown.cancelled() => return Ok(()),
+                _ = &mut shutdown => return Ok(()),
                 signer = self.signer_rx.recv() => {
                     let signer = signer.ok_or(NetworkServiceError::SignerChannelClosed)?;
                     if self.handler.unsafe_block_signer_sender.send(signer).is_err() {
@@ -163,7 +165,7 @@ impl NetworkService {
 
 /// A publication error visible to unsafe-chain workflows.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
-pub enum NetworkClientError {
+pub(super) enum NetworkClientError {
     /// Network service is unavailable.
     #[error("network service is unavailable")]
     Unavailable,
@@ -183,7 +185,7 @@ pub enum NetworkClientError {
 
 /// Terminal network service failure.
 #[derive(Debug, Error)]
-pub enum NetworkServiceError {
+pub(super) enum NetworkServiceError {
     /// Gossip stream ended unexpectedly.
     #[error("gossip stream ended")]
     GossipEnded,
