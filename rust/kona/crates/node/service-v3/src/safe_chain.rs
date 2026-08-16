@@ -1,8 +1,9 @@
 //! Safe-chain derivation task scaffold.
 
-use crate::{ControlError, SharedEngine};
+use crate::{ControlError, Engine};
+use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{Mutex, mpsc, oneshot};
 
 const CONTROL_CAPACITY: usize = 8;
 
@@ -47,16 +48,16 @@ impl SafeChainBuilderHandle {
 pub struct SafeChainBuilder<L1Client, L2Client, EngineClient> {
     l1: L1Client,
     l2_el: L2Client,
-    engine: SharedEngine<EngineClient>,
+    engine: Arc<Mutex<Engine<EngineClient>>>,
     control_rx: mpsc::Receiver<SafeChainCommand>,
 }
 
 impl<L1Client, L2Client, EngineClient> SafeChainBuilder<L1Client, L2Client, EngineClient> {
     /// Creates the safe-chain task and its control handle without spawning it.
-    pub fn new(
+    pub(crate) fn new(
         l1: L1Client,
         l2_el: L2Client,
-        engine: SharedEngine<EngineClient>,
+        engine: Arc<Mutex<Engine<EngineClient>>>,
     ) -> (Self, SafeChainBuilderHandle) {
         let (control_tx, control_rx) = mpsc::channel(CONTROL_CAPACITY);
         (Self { l1, l2_el, engine, control_rx }, SafeChainBuilderHandle { control_tx })

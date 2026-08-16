@@ -1,12 +1,15 @@
 //! Node composition root and structured task supervision.
 
 use crate::{
-    Rpc, RpcHandle, SafeChainBuilder, SafeChainBuilderHandle, SharedEngine, UnsafeChainBuilder,
+    Engine, Rpc, RpcHandle, SafeChainBuilder, SafeChainBuilderHandle, UnsafeChainBuilder,
     UnsafeChainBuilderHandle,
 };
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 use thiserror::Error;
-use tokio::task::{JoinError, JoinHandle};
+use tokio::{
+    sync::Mutex,
+    task::{JoinError, JoinHandle},
+};
 
 /// The result produced by each erased top-level service task.
 type ServiceResult = Result<(), String>;
@@ -32,10 +35,11 @@ impl<SafeL1, L2, UnsafeL1, EngineClient, Network, Conductor>
         safe_l1: SafeL1,
         l2_el: L2,
         unsafe_l1: UnsafeL1,
-        engine: SharedEngine<EngineClient>,
+        engine: Engine<EngineClient>,
         network: Network,
         conductor: Option<Conductor>,
     ) -> Self {
+        let engine = Arc::new(Mutex::new(engine));
         let (safe_chain, safe_chain_handle) = SafeChainBuilder::new(safe_l1, l2_el, engine.clone());
         let (unsafe_chain, unsafe_chain_handle) =
             UnsafeChainBuilder::new(unsafe_l1, engine, network, conductor);
@@ -296,7 +300,7 @@ mod tests {
 
     #[tokio::test]
     async fn node_starts_and_joins_all_three_tasks() {
-        let engine = Engine::new(Arc::new(()), Arc::new(RollupConfig::default())).shared();
+        let engine = Engine::new(Arc::new(()), Arc::new(RollupConfig::default()));
         let node = RollupNode::new((), (), (), engine, (), None::<()>);
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
 

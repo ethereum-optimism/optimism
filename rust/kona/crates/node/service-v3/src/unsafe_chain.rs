@@ -1,8 +1,9 @@
 //! Unsafe-chain following and local sequencing task scaffold.
 
-use crate::{ControlError, SharedEngine};
+use crate::{ControlError, Engine};
+use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{Mutex, mpsc, oneshot, watch};
 
 const CONTROL_CAPACITY: usize = 8;
 
@@ -65,7 +66,7 @@ impl UnsafeChainBuilderHandle {
 #[derive(Debug)]
 pub struct UnsafeChainBuilder<L1Client, EngineClient, Network, Conductor> {
     l1: L1Client,
-    engine: SharedEngine<EngineClient>,
+    engine: Arc<Mutex<Engine<EngineClient>>>,
     network: Network,
     conductor: Option<Conductor>,
     control_rx: mpsc::Receiver<UnsafeChainCommand>,
@@ -76,9 +77,9 @@ impl<L1Client, EngineClient, Network, Conductor>
     UnsafeChainBuilder<L1Client, EngineClient, Network, Conductor>
 {
     /// Creates the unsafe-chain task and its control handle without spawning it.
-    pub fn new(
+    pub(crate) fn new(
         l1: L1Client,
-        engine: SharedEngine<EngineClient>,
+        engine: Arc<Mutex<Engine<EngineClient>>>,
         network: Network,
         conductor: Option<Conductor>,
     ) -> (Self, UnsafeChainBuilderHandle) {
@@ -139,7 +140,8 @@ mod tests {
 
     #[tokio::test]
     async fn unsafe_chain_starts_in_following_mode() {
-        let engine = Engine::new(Arc::new(()), Arc::new(RollupConfig::default())).shared();
+        let engine =
+            Arc::new(Mutex::new(Engine::new(Arc::new(()), Arc::new(RollupConfig::default()))));
         let (service, handle) = UnsafeChainBuilder::new((), engine, (), None::<()>);
         let task = tokio::spawn(service.run());
 

@@ -94,7 +94,7 @@ RPC does not implement chain-domain behavior.
 
 ## Shared Engine
 
-The shared object is not merely a raw HTTP Engine API client. It is a stateful semantic engine:
+The engine is not merely a raw HTTP Engine API client. It is a stateful semantic engine:
 
 ```rust,ignore
 pub struct Engine<Client> {
@@ -103,15 +103,12 @@ pub struct Engine<Client> {
     state: EngineState,
     active_unsafe_build: Option<ActiveUnsafeBuild>,
 }
-
-pub type SharedEngine<Client> = Arc<tokio::sync::Mutex<Engine<Client>>>;
 ```
 
-> **Open API-boundary question:** the initial scaffold publicly exposes `SharedEngine` and
-> `Engine::shared()` to wire the three tasks. This is provisional. Tokio synchronization should
-> not become part of the stable public API. An attempted alternative that made `Engine` itself a
-> cloneable facade containing the mutex was rejected and reverted; the final composition boundary
-> still needs to be designed.
+`Engine` has no internal synchronization and does not know that it is shared. The composition root
+accepts an unshared `Engine`, creates an `Arc<tokio::sync::Mutex<_>>`, and passes clones down to the
+safe and unsafe tasks. This keeps Tokio synchronization out of the engine implementation and the
+public node-construction boundary.
 
 The mutex is the linearization point for complete semantic operations. All reads and mutations of
 `EngineState`, and every mutating Engine API sequence derived from it, occur while holding this
@@ -298,7 +295,7 @@ Do not collapse these into a single string error: caller behavior differs materi
 The composition root should:
 
 1. construct the shared Engine and perform startup forkchoice recovery once;
-2. construct safe and unsafe builders with clones of the same `SharedEngine`;
+2. wrap the Engine in a mutex and construct safe and unsafe builders with clones of it;
 3. construct narrow safe/unsafe handles and RPC routing;
 4. spawn and retain all three top-level task handles;
 5. treat unexpected success, error, or panic from any critical task as node failure;
@@ -311,7 +308,10 @@ The composition root should:
 
 The first scaffold is implemented in this crate:
 
-- `Engine<Client>` currently owns the raw client, rollup config, and default `EngineState`;
+- `Engine<Client>` currently owns the raw client, rollup config, and default `EngineState` without
+  internal synchronization;
+- `RollupNode` creates the shared mutex at the composition root and passes it to the safe and unsafe
+  tasks;
 - `SafeChainBuilder`, `UnsafeChainBuilder`, and `Rpc` are separate long-running Tokio tasks;
 - each task has a bounded control channel and cloneable handle;
 - the unsafe task always starts in `Following` and changes mode only through start/stop control;
@@ -331,7 +331,7 @@ RPC-server, startup-reconciliation, or semantic Engine operation is implemented 
 The crate root, task types, handles, shared Engine scaffold, and basic supervisor exist. Remaining
 core-type work is to:
 
-- finalize the shared Engine's non-Tokio public API boundary;
+- keep composition-owned synchronization out of the Engine implementation as operations are added;
 - add authoritative state watches and typed semantic errors;
 - wrap existing `kona-engine` tasks where they already implement the required protocol mechanics;
 - avoid duplicating raw Engine API version-selection logic unnecessarily.

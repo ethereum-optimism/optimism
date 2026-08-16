@@ -10,7 +10,7 @@ mod control;
 pub use control::ControlError;
 
 pub mod engine;
-pub use engine::{Engine, SharedEngine};
+pub use engine::Engine;
 
 pub mod safe_chain;
 pub use safe_chain::{SafeChainBuilder, SafeChainBuilderError, SafeChainBuilderHandle};
