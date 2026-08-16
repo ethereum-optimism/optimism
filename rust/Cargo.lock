@@ -7431,6 +7431,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-node-service-v3"
+version = "0.1.0"
+dependencies = [
+ "kona-engine",
+ "kona-genesis",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "kona-node-v2"
 version = "0.1.0"
 dependencies = [
