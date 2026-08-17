@@ -43,9 +43,7 @@ type EnrichedClaim struct {
 // BondRecord describes the monitor's normalized accounting view of one deposited game bond.
 type BondRecord struct {
 	Depositor common.Address
-	// Recipient is the monitor's normalized recipient once the bond is resolved.
-	// Fault snapshots preserve the historical normal-resolution recipient, so this is
-	// not necessarily the contract's current payout recipient.
+	// Recipient is the payout recipient under the snapshot's bond distribution mode.
 	Recipient common.Address
 	Amount    *big.Int
 	Resolved  bool
@@ -60,9 +58,7 @@ type BondGameData struct {
 	Bonds      []BondRecord
 	Recipients map[common.Address]bool
 	Credits    map[common.Address]*big.Int
-	// ExpectedCredits maps recipients to the credit amounts expected by the monitor.
-	// Fault snapshots preserve the historical normal-resolution view, which may differ
-	// from the current payout when BondDistributionMode uses different semantics.
+	// ExpectedCredits maps recipients to the credit amounts expected under the snapshot's bond distribution mode.
 	ExpectedCredits map[common.Address]*big.Int
 
 	BondDistributionMode faultTypes.BondDistributionMode
