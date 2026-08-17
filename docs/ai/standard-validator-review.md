@@ -57,8 +57,9 @@ proxied contract with no `proxyAdmin() == _admin` assertion.
 
 Reach for this on a PR rather than on a standing audit.
 
-When a change lands in any contract the validator walks, ask what the change implies the
-validator should now assert:
+When a change lands in any contract the validator walks — or adds a contract to the L1
+system that it does not — ask what the change implies the validator should now assert,
+including whether it should be walking the contract at all:
 
 - a new `immutable` → is the implementation address pinned exactly (see below), or does
   the value need its own assertion?
@@ -66,6 +67,10 @@ validator should now assert:
 - a new address in the graph → is it reached, and is it bound to the thing that should
   own it?
 - a new game type → does its path assert the siblings' full set, resolved by meaning?
+
+The last two are the ones to press on: "not validated at all" is the largest single
+category of checks the validator has gained, and those additions came from feature work
+rather than from audits.
 
 ## Technique 3: read-versus-assert coverage
 
