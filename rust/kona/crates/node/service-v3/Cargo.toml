@@ -18,6 +18,11 @@ workspace = true
 kona-engine.workspace = true
 kona-genesis.workspace = true
 
+# Alloy
+alloy-rpc-types-engine.workspace = true
+alloy-transport.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+
 # General
 thiserror.workspace = true
 tracing.workspace = true

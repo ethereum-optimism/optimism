@@ -4,7 +4,7 @@ use crate::{
     EngineClient, EngineState, EngineTaskExt, InsertTaskError, SynchronizeTask,
     state::EngineSyncStateUpdate,
 };
-use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
+use alloy_rpc_types_engine::PayloadStatusEnum;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -56,22 +56,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         // Form the new unsafe block ref from the execution payload.
         let payload = self.payload.clone();
         let insert_time_start = Instant::now();
-        let response = match payload.clone() {
-            OpExecutionPayloadEnvelope::V1(payload) => self.client.new_payload_v1(payload).await,
-            OpExecutionPayloadEnvelope::V2(payload) => {
-                let payload_input = ExecutionPayloadInputV2 {
-                    execution_payload: payload.payload_inner,
-                    withdrawals: Some(payload.withdrawals),
-                };
-                self.client.new_payload_v2(payload_input).await
-            }
-            OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
-                self.client.new_payload_v3(payload, parent_beacon_block_root).await
-            }
-            OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
-                self.client.new_payload_v4(payload, parent_beacon_block_root).await
-            }
-        };
+        let response = self.client.new_payload(payload.clone()).await;
 
         // Check the `engine_newPayload` response.
         let response = match response {

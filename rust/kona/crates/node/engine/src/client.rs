@@ -28,8 +28,8 @@ use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types::Transaction;
 use op_alloy_rpc_types_engine::{
-    OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
-    OpPayloadAttributes,
+    OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
+    OpExecutionPayloadV4, OpPayloadAttributes,
 };
 use std::{future::Future, sync::Arc, time::Instant};
 use thiserror::Error;
@@ -71,6 +71,29 @@ pub trait EngineClient: OpEngineApi<Optimism, Http<HyperAuthClient>> + Send + Sy
         address: Address,
         keys: Vec<StorageKey>,
     ) -> RpcWithBlock<(Address, Vec<StorageKey>), EIP1186AccountProofResponse>;
+
+    /// Sends the payload using the Engine API version represented by its envelope.
+    async fn new_payload(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+    ) -> TransportResult<PayloadStatus> {
+        match payload {
+            OpExecutionPayloadEnvelope::V1(payload) => self.new_payload_v1(payload).await,
+            OpExecutionPayloadEnvelope::V2(payload) => {
+                self.new_payload_v2(ExecutionPayloadInputV2 {
+                    execution_payload: payload.payload_inner,
+                    withdrawals: Some(payload.withdrawals),
+                })
+                .await
+            }
+            OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
+                self.new_payload_v3(payload, parent_beacon_block_root).await
+            }
+            OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
+                self.new_payload_v4(payload, parent_beacon_block_root).await
+            }
+        }
+    }
 
     /// Sends the given payload to the execution layer client, as specified for the Paris fork.
     async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus>;

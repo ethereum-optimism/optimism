@@ -318,11 +318,12 @@ The first scaffold is implemented in this crate:
 - `RollupNode::run` starts all three tasks, handles Ctrl-C/SIGTERM, detects unexpected exits, and
   shuts down RPC, unsafe-chain, then safe-chain in order;
 - `RollupNode::run_until` provides deterministic embedded/test shutdown;
+- `Engine` provides thin `new_payload` and `forkchoice_updated` RPC methods;
 - lifecycle and unsafe-mode transition tests are present;
 - metrics and concrete chain workflows are not implemented.
 
 The task loops currently process lifecycle/control messages only. No derivation, P2P, conductor,
-RPC-server, startup-reconciliation, or semantic Engine operation is implemented yet.
+RPC-server, startup-reconciliation, or conceptual Engine operation is implemented yet.
 
 ## Implementation Plan
 
@@ -341,7 +342,7 @@ core-type work is to:
 Implement and unit test:
 
 - startup forkchoice recovery;
-- `AcceptUnsafeFromNetwork`;
+- `AcceptUnsafeFromNetwork` in `UnsafeChainBuilder`;
 - `AdvanceSafeAndFinal`;
 - `BuildSafe`;
 - `L1Reorg`;
@@ -404,3 +405,15 @@ In addition to ordinary unit tests, add deterministic concurrency tests covering
 A recording mock Engine client should assert exact Engine API call order and payload identity across
 retries. Integration tests should then verify validator following, sequencer production, start/stop,
 derivation consolidation, reorg recovery, and restart behavior against an EL.
+
+# Human Written (notes and instructions based on converstaions with you the agent)
+
+You recommended the following order.
+
+1. `AcceptUnsafeFromNetwork`
+2. `AcceptUnsafeFromNetwork`
+3. `AdvanceSafeAndFinal`
+4. `StartBuildUnsafe`
+5. `FinishBuildUnsafe`
+6. `BuildSafe`
+7. `L1Reorg`

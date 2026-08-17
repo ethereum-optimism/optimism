@@ -1,7 +1,10 @@
 //! Stateful execution-engine facade.
 
-use kona_engine::EngineState;
+use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated, PayloadStatus};
+use alloy_transport::TransportResult;
+use kona_engine::{EngineClient, EngineState};
 use kona_genesis::RollupConfig;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 
 /// A stateful execution engine that is not thread-safe.
@@ -31,5 +34,26 @@ impl<Client> Engine<Client> {
     /// Returns the authoritative engine state.
     pub const fn state(&self) -> &EngineState {
         &self.state
+    }
+}
+
+impl<Client> Engine<Client>
+where
+    Client: EngineClient,
+{
+    /// Sends a payload to the execution layer using the version represented by its envelope.
+    pub async fn new_payload(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+    ) -> TransportResult<PayloadStatus> {
+        self.client.new_payload(payload).await
+    }
+
+    /// Sends a forkchoice update without payload attributes.
+    pub async fn forkchoice_updated(
+        &self,
+        forkchoice: ForkchoiceState,
+    ) -> TransportResult<ForkchoiceUpdated> {
+        self.client.fork_choice_updated_v3(forkchoice, None).await
     }
 }
