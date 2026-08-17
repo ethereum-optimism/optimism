@@ -99,7 +99,9 @@ func startDefaultSingleChainPrimary(
 		cfg.SafeDBPath = safeDBPath
 	})}
 	l2CLOptions = append(l2CLOptions, cfg.GlobalL2CLOptions...)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
+	// Env-resolved options come first so an explicit binary from the test overrides the env one.
+	sequencerELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
 	if world.Interop != nil {
 		l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:           "sequencer",
@@ -151,26 +153,28 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	}
 
 	var l2Challenger *L2Challenger
+	var zkChallengerSuperRootRPCProxy *StallableProxy
 	if spec.StartChallenger {
-		l2Challenger = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, cfg.AddedGameTypes)
+		l2Challenger, zkChallengerSuperRootRPCProxy = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, cfg.AddedGameTypes)
 	}
 
 	testSequencer := startTestSequencerForRPCs(t, keys, "test-sequencer", jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, world.L2Network.ChainID(), primary.EL.UserRPC(), primary.CL.UserRPC())
 	testSequencerRuntime := newTestSequencerRuntime(testSequencer, spec.TestSequencer)
 
 	return &SingleChainRuntime{
-		Keys:          keys,
-		L1Network:     world.L1Network,
-		L2Network:     world.L2Network,
-		L1EL:          l1EL,
-		L1CL:          l1CL,
-		L2EL:          primary.EL,
-		L2CL:          primary.CL,
-		L2Batcher:     l2Batcher,
-		L2Proposer:    l2Proposer,
-		L2Challenger:  l2Challenger,
-		TimeTravel:    timeTravelClock,
-		TestSequencer: testSequencerRuntime,
+		Keys:                          keys,
+		L1Network:                     world.L1Network,
+		L2Network:                     world.L2Network,
+		L1EL:                          l1EL,
+		L1CL:                          l1CL,
+		L2EL:                          primary.EL,
+		L2CL:                          primary.CL,
+		L2Batcher:                     l2Batcher,
+		L2Proposer:                    l2Proposer,
+		L2Challenger:                  l2Challenger,
+		ZKChallengerSuperRootRPCProxy: zkChallengerSuperRootRPCProxy,
+		TimeTravel:                    timeTravelClock,
+		TestSequencer:                 testSequencerRuntime,
 		Nodes: map[string]*SingleChainNodeRuntime{
 			primaryNode.Name: primaryNode,
 		},
@@ -379,7 +383,7 @@ func startMinimalChallenger(
 	l2EL L2ELNode,
 	l2CL L2CLNode,
 	addedGameTypes []gameTypes.GameType,
-) *L2Challenger {
+) (*L2Challenger, *StallableProxy) {
 	require := t.Require()
 	challengerSecret, err := keys.Secret(devkeys.ChallengerRole.Key(l2Net.ChainID().ToBig()))
 	require.NoError(err)
@@ -409,13 +413,15 @@ func startMinimalChallenger(
 	}
 	require.False(cannonKonaEnabled && superCannonKonaEnabled, "minimal challenger cannot use legacy and interop Cannon Kona prestates simultaneously")
 	require.False(zkEnabled && (cannonKonaEnabled || superCannonKonaEnabled), "minimal challenger cannot use the ZK game alongside cannon-kona game types")
+	var zkChallengerSuperRootRPCProxy *StallableProxy
 	switch {
 	case zkEnabled:
 		// The ZK game validates super roots from the op-node's superroot_atTimestamp endpoint;
 		// it needs no VM config or dependency set.
+		zkChallengerSuperRootRPCProxy = StartStallableProxy(t, "zk-challenger-super-root", l2CL.UserRPC())
 		options = append(options,
 			sharedchallenger.WithZKDisputeGameType(),
-			sharedchallenger.WithSuperRootRPC(l2CL.UserRPC()),
+			sharedchallenger.WithSuperRootRPC(zkChallengerSuperRootRPCProxy.URL()),
 		)
 	case superCannonKonaEnabled:
 		options = append(options,
@@ -466,7 +472,7 @@ func startMinimalChallenger(
 		chainIDs: []eth.ChainID{l2Net.ChainID()},
 		service:  svc,
 		config:   cfg,
-	}
+	}, zkChallengerSuperRootRPCProxy
 }
 
 func applyMinimalGameTypeOptions(

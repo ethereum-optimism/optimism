@@ -55,7 +55,8 @@ const (
 	ContractsV410Tag        = "op-contracts/v4.1.0"
 	ContractsV500Tag        = "op-contracts/v5.0.0"
 	ContractsV600Tag        = "op-contracts/v6.0.0-rc.2"
-	CurrentTag              = ContractsV600Tag
+	ContractsV700Tag        = "op-contracts/v7.0.0-rc.4"
+	CurrentTag              = ContractsV700Tag
 )
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
@@ -96,6 +97,31 @@ func ChallengerAddressFor(chainID uint64) (common.Address, error) {
 		return common.Address(validation.StandardConfigRolesMainnet.Challenger), nil
 	case 11155111:
 		return common.Address(validation.StandardConfigRolesSepolia.Challenger), nil
+	default:
+		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
+	}
+}
+
+const (
+	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+	// contracts/deployments/1.json, V6_1_0_SP1_VERIFIER_PLONK.
+	mainnetSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+	// Succinct deploys the same verifier bytecode and address deterministically on both networks.
+	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+	// contracts/deployments/11155111.json, V6_1_0_SP1_VERIFIER_PLONK.
+	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+)
+
+// SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
+// chain ID. Both `bootstrap implementations` and `apply` default to it when ZK dispute games are
+// enabled and the operator did not pin a verifier explicitly.
+// DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
+func SP1VerifierFor(chainID uint64) (common.Address, error) {
+	switch chainID {
+	case 1:
+		return common.HexToAddress(mainnetSP1VerifierV610), nil
+	case 11155111:
+		return common.HexToAddress(sepoliaSP1VerifierV610), nil
 	default:
 		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}

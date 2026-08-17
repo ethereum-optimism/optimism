@@ -34,6 +34,14 @@ ignore = [
   "RUSTSEC-2024-0384",
   # rustls-pemfile is unmaintained; transitive via tonic in the SP1 dependency tree.
   "RUSTSEC-2025-0134",
+  # bitmaps is unmaintained (repository archived, no patched release exists).
+  # Transitive via imbl -> reth-transaction-pool. Pending upstream dropping imbl.
+  "RUSTSEC-2026-0247",
+  # lru <0.18.2 LruCache::pop() is not panic-safe. Both resolved copies are
+  # transitive and neither can move until upstream does: 0.16.4 via
+  # alloy-provider, 0.12.5 via sp1-sdk. Bumping our own pin would only add a
+  # third version, so it stays until both bump.
+  "RUSTSEC-2026-0253",
 ]
 
 # This section is considered when running `cargo deny check bans`.
@@ -112,6 +120,8 @@ registries = []
 [sources]
 allow-git = [
   "https://github.com/paradigmxyz/reth",
+  # Our fork of paradigmxyz/reth, used to carry changes before they land upstream.
+  "https://github.com/op-rs/reth",
   "https://github.com/alloy-rs/alloy",
   "https://github.com/alloy-rs/hardforks",
   "https://github.com/alloy-rs/evm",

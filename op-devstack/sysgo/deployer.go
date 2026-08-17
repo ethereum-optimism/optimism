@@ -69,10 +69,8 @@ func WithForkAtL1Offset(fork forks.Fork, offset uint64) DeployerOption {
 	}
 }
 
-func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
-	// Once we get the latest changes from op-geth we can change this to
-	// params.DefaultBlobSchedule.
-	builder.L1().WithL1BlobSchedule(&params.BlobScheduleConfig{
+func defaultL1BlobSchedule() *params.BlobScheduleConfig {
+	return &params.BlobScheduleConfig{
 		Cancun: params.DefaultCancunBlobConfig,
 		Osaka:  params.DefaultOsakaBlobConfig,
 		Prague: params.DefaultPragueBlobConfig,
@@ -80,16 +78,26 @@ func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuild
 		BPO2:   params.DefaultBPO2BlobConfig,
 		BPO3:   params.DefaultBPO3BlobConfig,
 		BPO4:   params.DefaultBPO4BlobConfig,
-	})
+		// Upstream defaults are not available yet, so keep the latest parameters.
+		BPO5:      params.DefaultBPO4BlobConfig,
+		Amsterdam: params.DefaultBPO4BlobConfig,
+	}
 }
 
-// parseL1Fork accepts Ethereum upgrade names and their geth execution-layer names.
+func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	builder.L1().WithL1BlobSchedule(defaultL1BlobSchedule())
+}
+
+// parseL1Fork accepts both Ethereum upgrade names and their geth execution-layer names.
+// BPO selectors are intentionally excluded while the bundled op-geth rejects newPayloadV4 for them.
 func parseL1Fork(value string) (forks.Fork, error) {
 	fork, ok := map[string]forks.Fork{
-		"pectra": forks.Prague,
-		"prague": forks.Prague,
-		"fusaka": forks.Osaka,
-		"osaka":  forks.Osaka,
+		"pectra":      forks.Prague,
+		"prague":      forks.Prague,
+		"fusaka":      forks.Osaka,
+		"osaka":       forks.Osaka,
+		"glamsterdam": forks.Amsterdam,
+		"amsterdam":   forks.Amsterdam,
 	}[value]
 	if ok {
 		return fork, nil
@@ -283,6 +291,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 			l1Fork, err = parseL1Fork(value)
 			p.Require().NoError(err, "invalid %s", DevstackL1ForkEnvVar)
 		}
+		l1Config.WithL1BlobSchedule(defaultL1BlobSchedule())
 		l1Config.WithL1ForkAtGenesis(l1Fork)
 
 		funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
@@ -577,6 +586,8 @@ func (wb *worldBuilder) Build() {
 		State:              st,
 		Logger:             wb.logger,
 		StateWriter:        wb, // direct output back here
+		// Devstack deliberately uses an accept-all raw verifier when ZK dispute games are enabled.
+		DeployMockSP1Verifier: true,
 	}
 	for _, opt := range wb.deployerPipelineOptions {
 		opt(wb, intent, &pipelineOpts)

@@ -153,17 +153,24 @@ run_scenario \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
   main release contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip
 
+# Develop runs the full post-merge set unconditionally. The two scenarios below
+# seed opposite change-detection results and assert an identical routing, which
+# is what pins that behaviour: on a develop push the changed-file list is always
+# empty (BASE_REVISION is develop, so HEAD is the base), so any path gating here
+# would be dead code that never fires in production.
 run_scenario \
-  "After merge (develop), rust changed" \
+  "After merge (develop), empty change set (production reality)" \
   "webhook" "develop" "" "" \
-  '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": true}' \
-  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-circleci_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
+  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
+  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
 
 run_scenario \
-  "After merge (develop), no rust changes" \
+  "After merge (develop), change detection must not alter routing" \
   "webhook" "develop" "" "" \
-  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
-  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip
+  '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
+  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
+  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
 
 run_scenario \
   "Scheduled: build_four_hours" \

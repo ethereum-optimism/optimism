@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
@@ -25,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -92,7 +92,7 @@ type ChainContainer interface {
 	VerifierCurrentL1() (eth.BlockID, bool)
 	// FetchReceipts fetches the receipts for a given block by hash.
 	// Returns block info and receipts, or an error if the block or receipts cannot be fetched.
-	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
+	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, optypes.Receipts, error)
 	// BlockTime returns the block time in seconds for this chain.
 	BlockTime() uint64
 	// PruneDeniedAtOrAfterTimestamp removes deny-list entries with DecisionTimestamp >= timestamp.
@@ -699,7 +699,7 @@ func (c *simpleChainContainer) PayloadByNumber(ctx context.Context, number uint6
 	return c.engine.PayloadByNumber(ctx, number)
 }
 
-func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
+func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, optypes.Receipts, error) {
 	if c.engine == nil {
 		return nil, nil, engine_controller.ErrNoEngineClient
 	}

@@ -159,5 +159,12 @@
     "offset": 0,
     "slot": "22",
     "type": "contract IOPContractsManagerMigrationValidator"
+  },
+  {
+    "bytes": "20",
+    "label": "sp1PlonkAdapterImpl",
+    "offset": 0,
+    "slot": "23",
+    "type": "address"
   }
 ]

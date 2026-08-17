@@ -1,25 +1,53 @@
 //! Post-exec execution extensions.
 
 mod inspector;
+mod null;
 mod refund;
 
+pub use null::NullRefundPolicy;
 pub use refund::PostExecRefundInspector;
 
 use alloc::vec::Vec;
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory};
+use alloy_primitives::Bytes;
 use core::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 use op_alloy::consensus::post_exec::SDMGasEntry;
-use revm::{Inspector, context::DBErrorMarker, inspector::NoOpInspector};
+use revm::{
+    Inspector,
+    context::{
+        DBErrorMarker,
+        result::{ExecutionResult, Output, ResultAndState, ResultGas, SuccessReason},
+    },
+    inspector::NoOpInspector,
+    state::EvmState,
+};
 
 pub use inspector::{
-    PostExecCompositeInspector, PostExecExecutedTx, PostExecTxContext, PostExecTxKind,
-    SDMWarmingInspector, WarmingRefundEvent, WarmingRefundKind, WarmingState,
+    PostExecCompositeInspector, PostExecExecutedTx, PostExecRefundEvent, PostExecRefundKind,
+    PostExecTxContext, PostExecTxKind,
 };
 
 use crate::block::{OpBlockExecutor, receipt_builder::OpReceiptBuilder};
+
+/// The execution result consensus assigns to a post-exec transaction.
+///
+/// Post-exec transactions are structural no-ops: they consume no gas, emit no logs, and touch no
+/// state. They never run through the EVM — the block executor short-circuits them — so every path
+/// that would otherwise transact one must synthesize this result instead.
+pub fn noop_post_exec_result<HaltReason>() -> ResultAndState<HaltReason> {
+    ResultAndState::new(
+        ExecutionResult::Success {
+            reason: SuccessReason::Stop,
+            gas: ResultGas::default(),
+            logs: Vec::new(),
+            output: Output::Call(Bytes::default()),
+        },
+        EvmState::default(),
+    )
+}
 
 /// Extension trait for EVMs that can track post-exec per-transaction warming results.
 pub trait PostExecEvm: alloy_evm::Evm {
@@ -262,8 +290,8 @@ pub trait PostExecExecutorExt {
     /// Take the accumulated post-exec entries for the current block.
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry>;
 
-    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
-    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>>;
+    /// Take the exact per-transaction policy-provided refund events aligned with receipts.
+    fn take_refund_events_by_tx(&mut self) -> Vec<Vec<PostExecRefundEvent>>;
 
     /// Snapshot refund state to carry across subblock executors.
     fn refund_snapshot(&self) -> Self::Snapshot;
@@ -288,8 +316,8 @@ where
         Self::take_post_exec_entries(self)
     }
 
-    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
-        Self::take_warming_events_by_tx(self)
+    fn take_refund_events_by_tx(&mut self) -> Vec<Vec<PostExecRefundEvent>> {
+        Self::take_refund_events_by_tx(self)
     }
 
     fn refund_snapshot(&self) -> Self::Snapshot {

@@ -1,218 +1,89 @@
 ---
 title: "SDM: Sequencer Defined Metering"
-description: "Technical guide for chain operators on enabling and operating Sequencer Defined Metering (SDM)."
+description: "Technical guide for chain operators integrating or verifying Sequencer Defined Metering (SDM)."
 diataxis: how-to
 hidden: true
 ---
 
 <Warning>
-This article describes the upcoming SDM feature that is not yet live.  It is
-scheduled to go live with, likely, the update 20 / **Lagoon** hardfork.
+SDM is not yet live. Stock public `op-reth` supports the SDM consensus and verification
+mechanism, but it does **not** implement a refund-producing policy. Enabling its operator gate does
+not cause it to issue refunds or append PostExec transactions.
 </Warning>
 
+**Sequencer Defined Metering (SDM)** lets a block producer define per-transaction gas rebates and
+commit them in a synthetic **PostExec transaction**. The public OP Stack implementation keeps the
+consensus format, validation, derivation, receipt settlement, and fault-proof support open while
+leaving policy selection to producers.
 
-This guide shows chain operators how to enable and operate **Sequencer Defined
-Metering (SDM)**.  SDM lets a block builder issue rebates for the gas that
-transactions normally pay.  These rebates can be based on different policies,
-but on release, OP Mainnet will support the Block-Level Warming policy.
-This means that whenever a later transaction in the same block touches state
-that an earlier transaction already touched, it will be issued a refund.
+## How rebates are recorded
 
-## Overview of Block-Level Warming
+When a producer issues rebates, it appends one PostExec transaction (type `0x7D`) as the last
+transaction in the block. The transaction is non-executable and carries an RLP-encoded payload of
+transaction indexes and gas refunds.
 
-Under canonical EVM rules
-([EIP-2929](https://eips.ethereum.org/EIPS/eip-2929)), i.e. without SDM, every
-transaction starts with a "cold" view of state. The first access to an account
-or storage slot pays a high cold-access cost. Subsequent accesses *within the
-same transaction* are
-"warm" and pay much less. That warming is discarded at the end of each transaction, so the
-next transaction in the block pays the cold cost all over again — even when it touches
-exactly the same accounts and slots.
+A rebated transaction receipt includes `opGasRefund`. Its `gasUsed` is the canonical amount charged;
+the pre-rebate amount is `gasUsed + opGasRefund`. Deposits and the PostExec transaction cannot
+receive refunds, and a refund cannot exceed the transaction's pre-refund EVM gas usage.
 
-The Block-Level Warming SDM policy extends warming to **block scope**. Once any
-transaction in a block has accessed an account or storage slot, every later
-transaction in that same block is rebated the difference between the cold and
-warm cost when it accesses the same account or slot. This makes blocks that
-repeatedly touch shared state — popular contracts, shared routers, oracles,
-token contracts — cheaper to execute, and lets the sequencer pass those savings
-on to users.
+Verifier nodes do not execute the producer's private policy. They validate the committed payload,
+apply its settlement effects, and reproduce the same receipts and state root. Consensus-layer
+clients derive the trailing PostExec transaction from L1 data like any other transaction.
 
-The rebates are decided solely by the sequencer by means of an SDM policy, and are recorded in a special
-**PostExec transaction** appended to every SDM-active block where the sequencer
-issues rebates. Verifiers re-derive the transactions and verify the rebates
-against the PostExec transaction. SDM is therefore a consensus-level feature,
-not a local pricing policy.
+## Protocol activation
 
-In the future, the **PostExec** transaction can be used to encode different rebate policies.
+SDM is gated by the **Lagoon** hardfork. Before Lagoon, a PostExec transaction is invalid. At or
+after activation, an SDM-aware verifier accepts a structurally valid producer-supplied PostExec
+transaction and verifies its consensus effects.
 
-### Rebate amounts
+Run SDM-capable versions of:
 
-The rebate equals the cold/warm cost delta for each kind of re-access:
+* `op-reth` on execution nodes; and
+* `op-node` or `kona-node` on consensus nodes.
 
-| Re-access within the same block            | Rebate (gas) |
-| :------------------------------------------ | :----------: |
-| Account already touched by an earlier tx    | 2500         |
-| `SLOAD` of a slot already read in the block | 2000         |
-| `SSTORE` to a slot already touched          | 2100         |
+Verifier operators need no policy opt-in.
 
-A slot or account only needs to be warmed **once** per block. Every later transaction that
-touches it is rebated. Intrinsic warming — access-list entries, precompiles, and a
-transaction's own caller and recipient — does not earn rebates. Unlike the standard
-[EIP-3529](https://eips.ethereum.org/EIPS/eip-3529) refund, SDM rebates are **not** capped at
-a fraction of gas used.
+## Stock `op-reth` production behavior
 
-### How rebates are recorded
+Released public `op-reth` and the vendored public `op-rbuilder` use a null refund policy. They never
+create a non-empty refund payload or append a PostExec transaction, even when Lagoon is active and
+`admin_setOperatorSdmOptIn(true)` has been called. The admin surface remains available for protocol
+compatibility and downstream producer integrations; it is not a policy-selection interface in the
+stock public binaries.
 
-For each SDM-active block that issues rebates, the builder appends a single **PostExec transaction** (transaction
-type `0x7D`) as the **last** transaction in the block. It is non-executable — zero gas, zero
-value, zero nonce, no signature, sent from the zero address — and carries an RLP-encoded
-payload listing the per-transaction rebate for every transaction in the block.
+The `op-reth-sdm-fixture` binary in the source tree is only a deterministic acceptance-test fixture.
+It is excluded from release packaging, images, and deployment manifests.
+Do not deploy it as a sequencer.
 
-Each transaction receipt gains an `opGasRefund` field with that transaction's rebate. The
-receipt's `gasUsed` remains canonical, the amount actually charged. The raw, pre-rebate gas
-is `gasUsed + opGasRefund`.
+If you use a third-party or proprietary SDM producer, follow that producer's policy and opt-in
+documentation. The producer must emit blocks that stock verifier nodes accept; no producer-specific
+policy code is required on verifiers.
 
-### The two gates
+## Confirming producer output
 
-A builder produces PostExec transactions only when **both** of the following are true:
-
-1. **Protocol gate** — SDM is active at the block's timestamp. SDM is gated by the **Lagoon**
-   hardfork: it is active for any block whose timestamp is at or after the chain's **Lagoon**
-   activation. This is a consensus rule shared by every node, enforced independently by
-   consensus-layer derivation (i.e. **op-node**, **kona-node**), and by execution-engine block validation.
-2. **Operator gate** — the operator has explicitly opted in on the builder via the
-   `admin_setSdmPolicy` RPC. This lets you, as a chain operator, control whether *your chain's sequencer* produces
-   PostExec transactions, even on a chain where the protocol gate is already open.
-
-Verifier nodes supporting SDM do **not** need to do anything to opt in. They accept and re-derive PostExec transactions purely by the protocol consensus rule.
-
-<Info>
-  The operator gate on **op-reth** and **op-rbuilder** is **disabled** by default.
-To persist it, the chain operator can either export the environment variable
-`OP_SDM_POLICY=BlockLevelWarming` or pass the CLI switch
-`--sdm-policy=BlockLevelWarming`.
-Alternatively, you can re-issue `admin_setSdmPolicy` through the RPC interface after each restart of those processes.
-</Info>
-
-## Before you begin
-
-SDM requires:
-
-* A chain with the **Lagoon** hardfork scheduled or already active. Without it the protocol
-  gate never opens and no PostExec transactions are produced regardless of the operator gate.
-* Builds of **op-reth** (execution client) and **op-node** or **kona-node** (consensus client) that support SDM.
-* **op-rbuilder**, if you run Flashblocks.
-
-To check your client version, use the `--version` switch, for example:
-
-```bash
-op-reth --version
-```
-
-The most reliable check is capability detection: if the `admin_sdmStatus` RPC method below
-is missing, your build predates SDM and you need to upgrade.
-
-## Enabling SDM for Chain Operators
-
-### Operators running verifier nodes
-Operators running verifier nodes need to take no action besides making sure that they are running an up-to-date version that supports SDM.
-
-### Operators running sequencer nodes
-Opt in on **every** block-building component you run. The components are
-
-* **op-node** (the sequencer's consensus client)
-* **op-reth** (the sequencer's execution client and payload builder)
-* **op-rbuilder** and **rollup-boost** (only if you run [Flashblocks](/chain-operators/guides/features/flashblocks-guide))
-
-Each component tracks its own gate that must be enabled individually.
-
-In the following sections we show three methods for how this can be achieved.
-
-##### Method 1:  Setting the Environment Variable
-
-Set the environment variable `OP_SDM_POLICY` to the desired SDM policy in your shell.  All three components read this environment variable.
-```bash
-export OP_SDM_POLICY=BlockLevelWarming
-./op-reth # op-reth will read the value from OP_SDM_POLICY
-```
-
-Note that this variable is active until you override it or until you run `unset OP_SDM_POLICY` to unset it.
-
-##### Method 2:  Passing the CLI option
-
-Each of the three components also reads the switch `--sdm-policy` on launch, for example:
-```bash
-./op-node --sdm-policy=BlockLevelWarming
-```
-Note you must add this option to all the components individually.
-
-The CLI option takes precedence over the environment variable when both are set.
-
-##### Method 3:  Opt in via the admin RPC interface
-
-If the component is already running, you can call the RPC method `admin_setSdmPolicy` with the argument `BlockLevelWarming` on each component's RPC endpoint, for example:
-
-```bash title="Enable SDM on a component"
-curl -X POST <ADMIN_RPC_URL> \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"admin_setSdmPolicy","params":["BlockLevelWarming"],"id":1}'
-```
-Note that you must enable, and you must have access to, the `admin` namespace.  If you are not sure whether this is enabled, you can check this with the `rpc_modules` method.
-
-The change takes effect on the next block the component builds. Pass `"params": []` to opt back out.
-
-#### Verify the configuration
-
-You can verify the current configuration of each component by calling `admin_sdmStatus` with no parameters, for example:
-
-```bash title="Check SDM status"
-curl -X POST <ADMIN_RPC_URL> \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"admin_sdmStatus","params":[],"id":1}'
-```
-
-The response reports the `effective` value, which indicates whether SDM is currently active.  It is the logical `AND` of the two gates: the protocol gate, `protocolActive`, set by the **Lagoon** hardfork, and the operator gate, `postExecOptIn`, set by you.  For example:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "postExecOptIn": true,
-    "protocolActive": true,
-    "effective": true,
-    "activationTime": 1735689600
-  }
-}
-```
-
-| Field            | Meaning                                                                                       |
-| :--------------- | :-------------------------------------------------------------------------------------------- |
-| `postExecOptIn`  | Whether the operator gate is open, see previous sections.                                     |
-| `protocolActive` | Whether SDM is active at the current timestamp w.r.t. the chain's **Lagoon** activation time. |
-| `effective`      | `postExecOptIn && protocolActive` — whether SDM-enabled transactions will be produced.        |
-| `activationTime` | **Lagoon** activation timestamp, if scheduled. Omitted when already active or unset.          |
-
-SDM is live once `effective` is `true` on all your components.
-
-#### Confirm SDM-based rebates in produced blocks
-
-After you have confirmed that SDM is live on all your block-building components, you can verify that your sequencer is issuing gas refunds.  To do this, you can fetch a transaction receipt and check for the `opGasRefund` field, which is present only when the block contains a PostExec transaction:
+To inspect a receipt produced by an SDM-enabled producer:
 
 ```bash title="Inspect a receipt"
 cast receipt <TX_HASH> --rpc-url <RPC_URL> --json | jq '.opGasRefund'
 ```
 
-You can also confirm that the last transaction in a recent block is the PostExec transaction (type `0x7D`).  Keep in mind that this transaction is present if, and only if, rebates were issued in the block.  That is, its absence does not tell you whether SDM is active or not.
+You can also fetch the containing block and check whether its last transaction has type `0x7D`.
+A block without rebates has no PostExec transaction, so absence alone does not indicate whether the
+protocol is active.
 
-## Flashblocks
+## Debug replay
 
-If you produce and publish [Flashblocks](/chain-operators/guides/features/flashblocks-guide) using **op-rbuilder**, you should be aware that it
-publishes the PostExec transaction in a dedicated **Flashblock** field rather than alongside the
-regular transactions. Your **rollup-boost** instance then materializes it into the final sealed block. You still need to opt **op-rbuilder** in via one of the three methods above. Any SDM-aware version of **rollup-boost** detects and assembles the final PostExec automatically.
+`debug_replaySDMBlock` is an operator/research diagnostic. It re-executes a historical block's
+non-PostExec transactions under standard gas accounting to recover each transaction's raw
+(pre-rebate) gas, then reports that alongside the block's claimed refunds and flags structurally
+invalid claims — a refund targeting a deposit or the PostExec transaction itself, a duplicate or
+out-of-range index, or a refund larger than the transaction's raw gas.
+
+It does not recompute what the refunds should have been: that requires the producer's policy, which
+stock `op-reth` does not implement. The endpoint requires historical state and should not be exposed
+on public RPC interfaces.
 
 ## References
 
 * [EIP-2929: Gas cost increases for state access opcodes](https://eips.ethereum.org/EIPS/eip-2929)
 * [EIP-3529: Reduction in refunds](https://eips.ethereum.org/EIPS/eip-3529)
-* [Flashblocks: A Guide for Chain Operators](/chain-operators/guides/features/flashblocks-guide)

@@ -71,20 +71,17 @@ test-e2e-sysgo BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" FILT
 # Run the e2e tests for the sysgo orchestrator. Don't build the binaries.
 test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" FILTER="" :
     #!/bin/bash
+    set -euo pipefail
     echo "Running e2e tests for the sysgo orchestrator for binary {{BINARY}} with package name {{GO_PKG_NAME}} on devnet {{DEVNET}}..."
 
     export DISABLE_OP_E2E_LEGACY=true
     export DEVSTACK_ORCHESTRATOR=sysgo
     export GO_PKG_NAME="{{GO_PKG_NAME}}"
 
-    if [ "{{BINARY}}" = "node" ]; then
-        if [ $KONA_NODE_EXEC_PATH == "" ]; then
-          export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
-        fi
-        if [ $OP_RETH_EXEC_PATH == "" ]; then
-          export OP_RETH_EXEC_PATH="{{SOURCE}}/../../target/debug/op-reth"
-        fi
-    else
+    # Binary selection is env-driven: the devstack harness reads
+    # RUST_BINARY_PATH_KONA_NODE / RUST_BINARY_PATH_OP_RETH, and otherwise
+    # falls back to the newest target/{debug,release} build (or a JIT build).
+    if [ "{{BINARY}}" != "node" ]; then
         echo "Invalid BINARY specified. Must be 'node'."
         exit 1
     fi
@@ -113,24 +110,49 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
     # Run the test with count=1 to avoid caching the test results.
     cd {{SOURCE}}
     mkdir -p ./tmp/test-results ./tmp/testlogs
+
+    # CircleCI parallelism: split this package's tests across nodes by
+    # historical timing (JUnit uploaded via store_test_results). No-op unless
+    # the caller runs with parallelism > 1 and no FILTER — a filtered run
+    # already targets specific tests, so sharding would fight the filter.
+    if [ -z "{{FILTER}}" ] && [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "${CIRCLE_NODE_TOTAL:-0}" -gt 1 ]; then
+      NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
+      # -list executes TestMain, which for these packages can boot a devstack —
+      # hence the explicit timeout. shard-tests.sh fails loud on an empty list.
+      go test -list '^Test' -timeout 5m ./$GO_PKG_NAME \
+          | {{SOURCE}}/../../../ops/scripts/shard-tests.sh > /tmp/e2e_shard.txt
+      SHARD_COUNT=$(wc -l < /tmp/e2e_shard.txt | tr -d ' ')
+      echo "Node $NODE_INDEX/$CIRCLE_NODE_TOTAL running $SHARD_COUNT tests: $(cat /tmp/e2e_shard.txt)"
+      if [ "$SHARD_COUNT" -eq 0 ]; then
+        echo "No tests assigned to this node, skipping."
+        exit 0
+      fi
+      RUN_PATTERN="^($(paste -sd '|' /tmp/e2e_shard.txt))$"
+      {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
+          --junitfile=./tmp/test-results/results-${GO_PKG_NAME//\//-}-$NODE_INDEX.xml \
+          --jsonfile=./tmp/testlogs/log-${GO_PKG_NAME//\//-}-$NODE_INDEX.json \
+          -- -count=1 -timeout 40m ./$GO_PKG_NAME -run "$RUN_PATTERN"
+      exit
+    fi
+
     {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
-        --junitfile=./tmp/test-results/results.xml \
-        --jsonfile=./tmp/testlogs/log.json \
-        -- -count=1 -timeout 40m ./$GO_PKG_NAME $FILTER
+        --junitfile=./tmp/test-results/results-${GO_PKG_NAME//\//-}.xml \
+        --jsonfile=./tmp/testlogs/log-${GO_PKG_NAME//\//-}.json \
+        -- -count=1 -timeout 40m ./$GO_PKG_NAME ${FILTER:-}
 
 # Run action tests for the single-chain client program on the native target.
 #
 # Runs every Test* in rust/kona/tests/proofs/. These tests run only here (under
 # kona-host); the runner sets KONA_HOST_PATH and the package is excluded from the
 # monorepo go-tests suite.
-action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name args)
+action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name "0" args)
 
 # Build action tests for host program
 action-tests-build:
   #!/bin/bash
 
   echo "Building host program for the native target"
-  just build-native --release --bin kona-host
+  just --justfile "{{SOURCE}}/../justfile" build-native --release --bin kona-host
 
 # Run action tests for the single-chain client program on the native target
 action-tests-single-run test_name='.*' parallel="0" *args='':
@@ -138,7 +160,7 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
   set -euo pipefail
 
   if [ -z "${KONA_HOST_PATH:-}" ]; then
-    export KONA_HOST_PATH="{{SOURCE}}/../target/release/kona-host"
+    export KONA_HOST_PATH="{{SOURCE}}/../../target/release/kona-host"
   fi
 
   echo "KONA_HOST_PATH: $KONA_HOST_PATH"
@@ -171,19 +193,10 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
     export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
 
-    # List matching test names, filtering out the "ok" summary line from go test -list.
     # Op-program-only tests opt themselves out at runtime via helpers.SkipIfKona(t),
     # so no name-based exclusion is needed here.
-    go test -list '{{test_name}}' . | grep -E '^Test' > /tmp/tests.txt
-
-    TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
-    if [ "$TOTAL_TESTS" -eq 0 ]; then
-      echo "Error: no tests matched '{{test_name}}'" >&2
-      exit 1
-    fi
-    echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
-
-    circleci tests split --split-by=name /tmp/tests.txt > /tmp/tests_shard.txt
+    go test -list '{{test_name}}' . \
+        | {{SOURCE}}/../../../ops/scripts/shard-tests.sh > /tmp/tests_shard.txt
 
     SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
     echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests: $(cat /tmp/tests_shard.txt)"
@@ -193,15 +206,18 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
       exit 0
     fi
 
+    # One junit/json file per test: gotestsum truncates (not appends) its
+    # output files on every invocation, so a shared filename would keep only
+    # the last test's results.
     xargs -I {} gotestsum --format=testname \
-      --junitfile=./tmp/test-results/results-$NODE_INDEX.xml \
-      --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
+      --junitfile=./tmp/test-results/results-$NODE_INDEX-{}.xml \
+      --jsonfile=./tmp/testlogs/log-$NODE_INDEX-{}.json \
       -- -count=1 -parallel=$PARALLEL -timeout=60m -run '^{}$' \
       < /tmp/tests_shard.txt
 
-    # xargs calls gotestsum multiple times appending to the same jsonfile,
-    # so split once at the end rather than wrapping each call.
-    {{SOURCE}}/../../../ops/scripts/split-test-logs.sh ./tmp/testlogs/log-$NODE_INDEX.json
+    for JSON_LOG in ./tmp/testlogs/log-$NODE_INDEX-*.json; do
+      {{SOURCE}}/../../../ops/scripts/split-test-logs.sh "$JSON_LOG"
+    done
 
     exit
   fi

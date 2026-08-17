@@ -82,6 +82,22 @@ Two guards fail loudly on a field left unwired:
   timeout values must not be modified without protocol review.
 - **Reorg unwinding**: reorg handling must correctly unwind all derived state.
 
+### Validate transactions after span decomposition
+
+For post-Holocene derivation, transaction-list validation belongs to the batch stage, after a span
+batch has been decomposed and its singular batches are streamed one at a time. In particular,
+activation-gated transaction rules must use the streamed singular batch's timestamp. Do not inspect
+transactions while decoding or constructing a `SpanBatch`, and keep post-Holocene whole-span
+processing limited to prefix and extraction checks. A span may cross a fork boundary; only singular
+batches emitted after the safe head are candidates for validation.
+
+Add new per-block transaction rules to `checkSingularBatch` (op-node) and
+`SingleBatch::check_batch` (kona), where singular batches from both wire formats converge. Rejecting
+during `DeriveSpanBatch` can discard valid later elements before the batch stage has selected the
+singular batches that actually apply. The legacy pre-Holocene batch queue has no singular-streaming
+batch stage, so it still performs its historical full-span transaction checks. Keep those legacy
+checks aligned between op-node and Kona.
+
 ## Cross-client wire-format parity
 
 Both clients decode the same batcher-controlled bytes, so their decoders must accept **exactly**

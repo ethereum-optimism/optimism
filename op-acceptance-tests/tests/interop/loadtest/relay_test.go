@@ -41,7 +41,7 @@ func (r *RelaySpammer) Spam(t devtest.T) error {
 	}
 
 	startExec := time.Now()
-	if _, err = r.dest.Include(t, planExecMsg(t, initMsg, r.dest.BlockTime, r.dest.EL.Escape().EthClient())); err != nil {
+	if _, err = r.dest.Include(t, planExecMsg(t, initMsg)); err != nil {
 		return err
 	}
 	endExec := time.Now()

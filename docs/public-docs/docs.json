@@ -269,15 +269,15 @@
     },
     {
       "source": "/operators/chain-operators/features/flashblocks",
-      "destination": "/chain-operators/guides/features/flashblocks-guide"
+      "destination": "/chain-operators/guides/features/subblocks-guide"
     },
     {
       "source": "/operators/chain-operators/features/flashblocks/apps",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/chain-operators/reference/features/flashblocks/apps",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/builders/chain-operators/tools/chain-monitoring",
@@ -820,6 +820,10 @@
       "destination": "/op-stack/introduction/op-stack"
     },
     {
+      "source": "/op-stack",
+      "destination": "/op-stack/introduction/op-stack"
+    },
+    {
       "source": "/get-started/superchain",
       "destination": "/op-stack/introduction/op-stack"
     },
@@ -1129,7 +1133,7 @@
     },
     {
       "source": "/operators/chain-operators/management/snap-sync",
-      "destination": "/chain-operators/archive/snap-sync"
+      "destination": "/chain-operators/guides/features/snap-sync"
     },
     {
       "source": "/operators/chain-operators/management/troubleshooting",
@@ -1325,7 +1329,7 @@
     },
     {
       "source": "/stack/beta-features",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/stack/beta-features/alt-da-mode",
@@ -1377,7 +1381,7 @@
     },
     {
       "source": "/stack/features",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/stack/features/send-raw-transaction-conditional",
@@ -1497,15 +1501,31 @@
     },
     {
       "source": "/concepts/transactions/flashblocks",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/stack/transactions/flashblocks",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/op-stack/transactions/flashblocks",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
+    },
+    {
+      "source": "/op-stack/features/flashblocks",
+      "destination": "/op-stack/features/subblocks"
+    },
+    {
+      "source": "/chain-operators/guides/features/flashblocks-guide",
+      "destination": "/chain-operators/guides/features/subblocks-guide"
+    },
+    {
+      "source": "/app-developers/guides/transactions/integrating-flashblocks",
+      "destination": "/app-developers/guides/transactions/integrating-subblocks"
+    },
+    {
+      "source": "/app-developers/guides/transactions/flashblocks-and-gas-usage",
+      "destination": "/app-developers/guides/transactions/subblocks-and-gas-usage"
     },
     {
       "source": "/concepts/transactions/forced-transaction",
@@ -1653,7 +1673,7 @@
     },
     {
       "source": "/operators/chain-operators/features/flashblocks/chain-operators",
-      "destination": "/chain-operators/guides/features/flashblocks-guide"
+      "destination": "/chain-operators/guides/features/subblocks-guide"
     },
     {
       "source": "/stack/smart-contracts/op-deployer-upgrade",
@@ -1841,7 +1861,7 @@
     },
     {
       "source": "/chain-operators/reference/features/flashblocks/chain-operators",
-      "destination": "/chain-operators/guides/features/flashblocks-guide"
+      "destination": "/chain-operators/guides/features/subblocks-guide"
     },
     {
       "source": "/chain-operators/reference/features/bridged-usdc-standard",
@@ -1873,7 +1893,7 @@
     },
     {
       "source": "/chain-operators/guides/management/snap-sync",
-      "destination": "/chain-operators/archive/snap-sync"
+      "destination": "/chain-operators/guides/features/snap-sync"
     },
     {
       "source": "/chain-operators/tools/fee-calculator",
@@ -1977,11 +1997,11 @@
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts_in_static_files",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders_in_static_files",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/app-developers/guides/superchain",
@@ -2089,7 +2109,11 @@
     },
     {
       "source": "/rust/op-reth/run/opstack",
-      "destination": "/node-operators/op-reth/run/opstack"
+      "destination": "/node-operators/guides/configuration/execution-clients"
+    },
+    {
+      "source": "/node-operators/op-reth/run/opstack",
+      "destination": "/node-operators/guides/configuration/execution-clients"
     },
     {
       "source": "/rust/op-reth/run/faq/sync-op-mainnet",
@@ -2221,31 +2245,31 @@
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_changesets",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/storages_history",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storages_history"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_history",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_history"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/storage_changesets",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/account-storage",
@@ -2624,8 +2648,8 @@
       "destination": "/app-developers/tools-sdks/data/oracles"
     },
     {
-      "source": "/chain-operators/guides/features/snap-sync",
-      "destination": "/chain-operators/archive/snap-sync"
+      "source": "/chain-operators/archive/snap-sync",
+      "destination": "/chain-operators/guides/features/snap-sync"
     },
     {
       "source": "/node-operators/kona-node/faq/profiling",
@@ -2638,6 +2662,34 @@
     {
       "source": "/app-developers/tools",
       "destination": "/app-developers/guides/building-apps"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/storages_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     }
   ],
   "interaction": {
@@ -2654,6 +2706,7 @@
               "index",
               "ai-docs",
               "chain-operators/quickstart",
+              "chain-operators/launch-paths",
               "op-stack/reference/glossary"
             ]
           },
@@ -2722,10 +2775,11 @@
                   "chain-operators/guides/features/setting-min-base-fee",
                   "chain-operators/guides/features/setting-operator-fee",
                   "chain-operators/guides/features/setting-da-footprint",
-                  "chain-operators/guides/features/flashblocks-guide",
+                  "chain-operators/guides/features/subblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
                   "chain-operators/guides/features/blobs",
-                  "chain-operators/guides/features/enable-span-batches"
+                  "chain-operators/guides/features/enable-span-batches",
+                  "chain-operators/guides/features/snap-sync"
                 ]
               },
               {
@@ -2861,8 +2915,7 @@
           {
             "group": "Archive",
             "pages": [
-              "chain-operators/tutorials/archive/op-program-prestate",
-              "chain-operators/archive/snap-sync"
+              "chain-operators/tutorials/archive/op-program-prestate"
             ]
           }
         ]
@@ -2973,18 +3026,7 @@
                 "group": "op-reth",
                 "pages": [
                   "node-operators/op-reth/index",
-                  {
-                    "group": "Run a Node",
-                    "pages": [
-                      "node-operators/op-reth/run/opstack",
-                      {
-                        "group": "FAQ",
-                        "pages": [
-                          "node-operators/op-reth/run/faq/sync-op-mainnet"
-                        ]
-                      }
-                    ]
-                  }
+                  "node-operators/op-reth/run/faq/sync-op-mainnet"
                 ]
               }
             ]
@@ -3030,16 +3072,19 @@
                             "pages": [
                               "node-operators/op-reth/cli/op-reth/db/checksum",
                               "node-operators/op-reth/cli/op-reth/db/checksum/mdbx",
-                              "node-operators/op-reth/cli/op-reth/db/checksum/static-file"
+                              "node-operators/op-reth/cli/op-reth/db/checksum/static-file",
+                              "node-operators/op-reth/cli/op-reth/db/checksum/rocksdb"
                             ]
                           },
+                          "node-operators/op-reth/cli/op-reth/db/copy",
                           "node-operators/op-reth/cli/op-reth/db/diff",
                           {
                             "group": "op-reth db get",
                             "pages": [
                               "node-operators/op-reth/cli/op-reth/db/get",
                               "node-operators/op-reth/cli/op-reth/db/get/mdbx",
-                              "node-operators/op-reth/cli/op-reth/db/get/static-file"
+                              "node-operators/op-reth/cli/op-reth/db/get/static-file",
+                              "node-operators/op-reth/cli/op-reth/db/get/rocksdb"
                             ]
                           },
                           "node-operators/op-reth/cli/op-reth/db/drop",
@@ -3071,18 +3116,30 @@
                                 "group": "op-reth db settings set",
                                 "pages": [
                                   "node-operators/op-reth/cli/op-reth/db/settings/set",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/receipts",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storages_history",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_history",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/v2"
                                 ]
                               }
                             ]
                           },
-                          "node-operators/op-reth/cli/op-reth/db/account-storage"
+                          {
+                            "group": "op-reth db prune-checkpoints",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/prune-checkpoints",
+                              "node-operators/op-reth/cli/op-reth/db/prune-checkpoints/get",
+                              "node-operators/op-reth/cli/op-reth/db/prune-checkpoints/set"
+                            ]
+                          },
+                          {
+                            "group": "op-reth db stage-checkpoints",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/stage-checkpoints",
+                              "node-operators/op-reth/cli/op-reth/db/stage-checkpoints/get",
+                              "node-operators/op-reth/cli/op-reth/db/stage-checkpoints/set"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/account-storage",
+                          "node-operators/op-reth/cli/op-reth/db/state",
+                          "node-operators/op-reth/cli/op-reth/db/migrate-v2"
                         ]
                       },
                       {
@@ -3124,12 +3181,31 @@
                               "node-operators/op-reth/cli/op-reth/p2p/rlpx/ping"
                             ]
                           },
-                          "node-operators/op-reth/cli/op-reth/p2p/bootnode"
+                          "node-operators/op-reth/cli/op-reth/p2p/bootnode",
+                          "node-operators/op-reth/cli/op-reth/p2p/enode"
                         ]
                       },
                       "node-operators/op-reth/cli/op-reth/config",
                       "node-operators/op-reth/cli/op-reth/prune",
-                      "node-operators/op-reth/cli/op-reth/re-execute"
+                      "node-operators/op-reth/cli/op-reth/re-execute",
+                      {
+                        "group": "op-reth proofs",
+                        "pages": [
+                          "node-operators/op-reth/cli/op-reth/proofs",
+                          "node-operators/op-reth/cli/op-reth/proofs/init",
+                          "node-operators/op-reth/cli/op-reth/proofs/backfill",
+                          "node-operators/op-reth/cli/op-reth/proofs/prune",
+                          {
+                            "group": "op-reth proofs snapshot",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/proofs/snapshot",
+                              "node-operators/op-reth/cli/op-reth/proofs/snapshot/init",
+                              "node-operators/op-reth/cli/op-reth/proofs/snapshot/drop"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/proofs/unwind"
+                        ]
+                      }
                     ]
                   }
                 ]
@@ -3179,10 +3255,10 @@
                 "group": "Transactions",
                 "pages": [
                   "app-developers/guides/transactions/estimates",
-                  "app-developers/guides/transactions/flashblocks-and-gas-usage",
-                  "app-developers/guides/transactions/integrating-flashblocks",
+                  "app-developers/guides/transactions/integrating-subblocks",
                   "app-developers/guides/transactions/parameters",
                   "app-developers/guides/transactions/statuses",
+                  "app-developers/guides/transactions/subblocks-and-gas-usage",
                   "app-developers/guides/transactions/troubleshooting"
                 ]
               }
@@ -3320,7 +3396,7 @@
           {
             "group": "Features",
             "pages": [
-              "op-stack/features/flashblocks",
+              "op-stack/features/subblocks",
               "op-stack/features/custom-gas-token",
               "op-stack/features/bridged-usdc-standard",
               "op-stack/features/span-batches",
@@ -3437,6 +3513,7 @@
               "op-stack/fault-proofs/cannon",
               "op-stack/fault-proofs/mips",
               "op-stack/fault-proofs/challenger",
+              "op-stack/fault-proofs/reference",
               {
                 "group": "Kona",
                 "pages": [
@@ -3550,32 +3627,11 @@
               {
                 "group": "Operations",
                 "pages": [
-                  "notices/specialized-node-topology"
+                  "notices/specialized-node-topology",
+                  "notices/subblocks"
                 ]
               },
-              {
-                "group": "Archive",
-                "pages": [
-                  "notices/archive/upgrade-19",
-                  "notices/archive/op-geth-deprecation",
-                  "notices/archive/op-deployer-upgrade-deprecation",
-                  "notices/archive/req-resp-cl-sync-deprecation",
-                  "notices/archive/stake-based-priority-ordering",
-                  "notices/archive/upgrade-18",
-                  "notices/archive/upgrade-17",
-                  "notices/archive/fusaka-notice",
-                  "notices/archive/upgrade-16a",
-                  "notices/archive/upgrade-16",
-                  "notices/archive/blob-fee-bug",
-                  "notices/archive/pectra-changes",
-                  "notices/archive/pectra-fees",
-                  "notices/archive/upgrade-15",
-                  "notices/archive/upgrade-14",
-                  "notices/archive/upgrade-13",
-                  "notices/archive/holocene-changes",
-                  "notices/archive/superchain-withdrawal-pause-test"
-                ]
-              }
+              "notices/archive/index"
             ]
           },
           {

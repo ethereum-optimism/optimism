@@ -5,7 +5,7 @@ version: 2.1
 # It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.27
+  utils: ethereum-optimism/circleci-utils@1.0.30
 
 parameters:
   c-default_docker_image:
@@ -62,7 +62,7 @@ jobs:
           command: |
             WD=$(pwd)
             echo "Running tests..."
-            export OP_RETH_EXEC_PATH="$WD/rust/target/release/op-reth"
+            export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
             cd rust/kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
       - when:
@@ -75,7 +75,7 @@ jobs:
                 command: |
                   WD=$(pwd)
                   echo "Running tests..."
-                  export OP_RETH_EXEC_PATH="$WD/rust/target/release/op-reth"
+                  export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
                   export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
                   cd rust/kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
       - go-save-cache:
@@ -91,6 +91,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
+    # One test per node via the timing split in test-e2e-sysgo-run.
+    parallelism: 3
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -105,11 +107,15 @@ jobs:
       - run:
           name: Run restart tests for node with sysgo orchestrator
           no_output_timeout: 60m
+          # test-e2e-sysgo-run skips build-kona/build-reth; the binaries come
+          # prebuilt from the attached workspace via the RUST_BINARY_PATH_*
+          # exports.
           command: |
             echo "Running tests..."
             WD=$(pwd)
+            export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
-            cd rust/kona && just test-e2e-sysgo node node/restart
+            cd rust/kona && just test-e2e-sysgo-run node node/restart
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
@@ -139,7 +145,7 @@ jobs:
           working_directory: rust/op-reth/tests
           no_output_timeout: 60m
           command: |
-            export OP_RETH_EXEC_PATH="$(pwd)/../../target/release/op-reth"
+            export RUST_BINARY_PATH_OP_RETH="$(pwd)/../../target/release/op-reth"
             just test-e2e-sysgo
       - go-save-cache:
           namespace: op-reth-e2e
@@ -158,7 +164,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
-    parallelism: 4
+    # ~35 action tests, timing-split across nodes (see action-tests-single-run).
+    # 8 nodes roughly halves per-node test time vs 4.
+    parallelism: 8
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -283,7 +291,7 @@ jobs:
 
   sp1-super-range-elf-smoke:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     # Full SP1 ELF execution peaked near 13 GiB locally. Keep it isolated on a
     # 32 GB runner instead of competing with parallel acceptance tests.
     resource_class: 2xlarge.gen2
@@ -291,12 +299,21 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - rust-prepare-and-restore-cache:
+          directory: rust
       - attach_workspace:
           at: .
       - go-restore-cache:
           namespace: sp1-super-range-elf-smoke
       - run:
-          name: Run SP1 super-range ELF smoke
+          name: Test proposer aggregation vkey against built ELF
+          working_directory: rust
+          command: |
+            KONA_SP1_ELF_DIR="$PWD/kona/sp1/elf" \
+              cargo nextest run --package kona-sp1-proposer \
+              real_elf_agg_vkey_matches_vkeys_toml_prestate
+      - run:
+          name: Run SP1 super-root ELF acceptance
           no_output_timeout: 30m
           command: |
             ROOT_DIR="$(pwd)"
@@ -308,15 +325,19 @@ jobs:
             export DEVSTACK_L2EL_KIND=op-reth
             export RUST_BINARY_PATH_OP_RETH="$ROOT_DIR/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_HOST="$ROOT_DIR/rust/target/release/kona-host"
-            export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/.circleci-cache/rust-binaries/kona-sp1-super-range-executor"
+            export RUST_BINARY_PATH_KONA_SP1_PROPOSER="$ROOT_DIR/rust/target/release/kona-sp1-proposer"
+            export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/rust/target/release/kona-sp1-super-range-executor"
             export KONA_SP1_ELF_DIR="$ROOT_DIR/rust/kona/sp1/elf"
 
             test -x "$RUST_BINARY_PATH_OP_RETH"
             test -x "$RUST_BINARY_PATH_KONA_HOST"
+            test -x "$RUST_BINARY_PATH_KONA_SP1_PROPOSER"
             test -x "$KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
             test -x "$ROOT_DIR/cannon/bin/cannon"
             test -s "$ROOT_DIR/rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz"
             test -s "$KONA_SP1_ELF_DIR/super-range-elf"
+            test -s "$KONA_SP1_ELF_DIR/super-aggregation-elf"
+            test -s "$KONA_SP1_ELF_DIR/vkeys.toml"
 
             gotestsum \
               --format=testname \
@@ -324,9 +345,19 @@ jobs:
               --jsonfile="$LOG_DIR/go-test.json" \
               -- \
               -count=1 \
-              -timeout=30m \
-              -run '^TestSP1SuperRangeELFExecutionValidCrossChainMessageSmoke$' \
+              -parallel=1 \
+              -timeout=60m \
               ./op-acceptance-tests/tests/interop/proofs/sp1
+
+            # List to a file first: grep -q closing the pipe early would SIGPIPE go test under pipefail.
+            go test -list '^TestDeploymentUsesSuperAggregationVKey$' \
+              ./op-acceptance-tests/tests/proofs/zk > "$LOG_DIR/vkey-test-list.txt"
+            grep -Fxq TestDeploymentUsesSuperAggregationVKey "$LOG_DIR/vkey-test-list.txt"
+            go test \
+              -count=1 \
+              -timeout=30m \
+              -run '^TestDeploymentUsesSuperAggregationVKey$' \
+              ./op-acceptance-tests/tests/proofs/zk
       - go-save-cache:
           namespace: sp1-super-range-elf-smoke
       - store_test_results:
@@ -450,17 +481,12 @@ workflows:
           requires:
             - prep-go-modules
       - rust-build-binary:
-          # The default Rust workspace members include both op-reth and kona-host,
-          # which the shared proofs preset starts or configures.
+          # The workspace release build includes op-reth, kona-host, the SP1
+          # proposer, and the super-range executor used by this job.
           name: sp1-elf-smoke-rust-binaries
           directory: rust
           profile: release
           persist_to_workspace: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - sccache-gcs-optimism
-      - rust-build-sp1-super-range-executor:
-          name: sp1-elf-smoke-executor
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -479,13 +505,13 @@ workflows:
       - sp1-super-range-elf-smoke:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
             - slack
           requires:
             - prep-go-modules
             - prep-superchain
             - contracts-bedrock-build
             - sp1-elf-smoke-rust-binaries
-            - sp1-elf-smoke-executor
             - kona-build-sp1-elfs
             - cannon-prestate
             - go-binaries-for-sysgo

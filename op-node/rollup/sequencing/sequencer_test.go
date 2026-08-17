@@ -3,6 +3,7 @@ package sequencing
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/rand" // nosemgrep
 	"testing"
@@ -161,22 +162,49 @@ func (f *FakeAsyncGossip) Start() {
 
 var _ AsyncGossiper = (*FakeAsyncGossip)(nil)
 
-type fakeEngController struct{}
+// fakeEngController is a scripted SequencerEngine: tests configure the
+// direct-call results per method. Unconfigured methods fail with an error,
+// so unexpected engine calls surface as sequencing errors.
+type fakeEngController struct {
+	fcuRequests int
 
-func (fakeEngController) RequestForkchoiceUpdate(ctx context.Context) {}
-
-func (fakeEngController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+	startBuildFn     func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error)
+	sealBuildFn      func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error)
+	processPayloadFn func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error
 }
 
-func (fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+func (f *fakeEngController) RequestForkchoiceUpdate(ctx context.Context) {
+	f.fcuRequests++
 }
 
-func (fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {}
+func (f *fakeEngController) StartBuild(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+	if f.startBuildFn != nil {
+		return f.startBuildFn(ctx, attrs)
+	}
+	return nil, errors.New("StartBuild not configured")
+}
 
-func (fakeEngController) IsEngineInitialELSyncing() bool { return false }
+func (f *fakeEngController) SealBuild(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+	if f.sealBuildFn != nil {
+		return f.sealBuildFn(ctx, info, buildStarted)
+	}
+	return nil, errors.New("SealBuild not configured")
+}
 
-func (fakeEngController) IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error) {
-	return false, nil
+func (f *fakeEngController) ProcessPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+	if f.processPayloadFn != nil {
+		return f.processPayloadFn(ctx, envelope, ref, buildStarted)
+	}
+	return errors.New("ProcessPayload not configured")
+}
+
+var _ SequencerEngine = (*fakeEngController)(nil)
+
+// deliver feeds an event through OnEvent and synchronously replays the inbox,
+// standing in for the sequencer goroutine's loop-top drain.
+func deliver(seq *Sequencer, ev event.Event) {
+	seq.OnEvent(context.Background(), ev)
+	seq.drainInbox()
 }
 
 // TestSequencer_StartStop runs through start/stop state back and forth to test state changes.
@@ -203,32 +231,17 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.Equal(t, common.Hash{}, seq.latestSealed.Hash)
 	require.Equal(t, common.Hash{}, seq.latestHead.Hash)
 
-	// update the latestSealed
-	envelope := &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: &eth.ExecutionPayload{},
-	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Envelope: envelope,
-		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
-	})
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Envelope: envelope,
-		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
-	})
-	require.Equal(t, common.Hash{0xaa}, seq.latest.Ref.Hash)
-	require.Equal(t, common.Hash{0xaa}, seq.latestSealed.Hash)
-	require.Equal(t, common.Hash{}, seq.latestHead.Hash)
-
-	// update latestHead
-	emitter.AssertExpectations(t)
-	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+	// Set latestHead via a forkchoice update through the inbox
+	deliver(seq, engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    eth.L2BlockRef{Hash: common.Hash{0xaa}},
 		SafeL2Head:      eth.L2BlockRef{},
 		FinalizedL2Head: eth.L2BlockRef{},
 	})
-	require.Equal(t, common.Hash{0xaa}, seq.latest.Ref.Hash)
-	require.Equal(t, common.Hash{0xaa}, seq.latestSealed.Hash)
 	require.Equal(t, common.Hash{0xaa}, seq.latestHead.Hash)
+	// Sealing happens via direct engine calls now; no sealed block exists in
+	// this test, so match latestSealed to latestHead manually to keep Stop()
+	// from waiting for the (nonexistent) sealed block to become canonical.
+	seq.latestSealed = eth.L2BlockRef{Hash: common.Hash{0xaa}}
 
 	require.False(t, seq.Active())
 	// no action scheduled
@@ -264,11 +277,11 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestSequencer_NoActionAfterStop verifies that a sequencer-action event that fires
-// after Stop() (because the driver's timer was already armed before we deactivated)
+// TestSequencer_NoActionAfterStop verifies that a sequencer action that fires
+// after Stop() (because the loop's timer was already armed before we deactivated)
 // is ignored, rather than starting a new block-building job. Acting on that stale
-// event would issue a forkchoice update reasserting our head and could undo a reorg
-// introduced externally after we stopped. Regression test for issue #20198.
+// deadline would issue a forkchoice update reasserting our head and could undo a
+// reorg introduced externally after we stopped. Regression test for issue #20198.
 func TestSequencer_NoActionAfterStop(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	seq, deps := createSequencer(logger)
@@ -279,19 +292,17 @@ func TestSequencer_NoActionAfterStop(t *testing.T) {
 	testCtx := context.Background()
 	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
+	fcuRequestsAfterInit := deps.eng.fcuRequests
 
 	// Bring latestSealed and latestHead to the same known block, so Stop() does not
 	// block waiting for the sealed block to catch up to the head.
 	head := eth.L2BlockRef{Hash: common.Hash{0xaa}}
-	envelope := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{}}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{Envelope: envelope, Ref: head})
-	seq.OnEvent(testCtx, engine.BuildSealedEvent{Envelope: envelope, Ref: head})
-	emitter.AssertExpectations(t)
-	seq.OnEvent(testCtx, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
+	deliver(seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
 	require.Equal(t, head.Hash, seq.latestHead.Hash)
+	seq.latestSealed = head
 
-	// Start, then stop. While active the sequencer scheduled work; the driver may have
-	// already armed the sequencer-action timer at this point.
+	// Start, then stop. While active the sequencer scheduled work; the loop may
+	// have already armed the action timer at this point.
 	require.NoError(t, seq.Start(testCtx, head.Hash))
 	require.True(t, seq.Active())
 	_, ok := seq.NextAction()
@@ -302,19 +313,23 @@ func TestSequencer_NoActionAfterStop(t *testing.T) {
 	require.Equal(t, head.Hash, stopHead)
 	require.False(t, seq.Active())
 
-	// Provide a valid L1 origin so that, absent the inactive-guard, onSequencerAction
-	// would proceed all the way to emitting a BuildStartEvent — turning a regression
-	// into a clear unexpected-emit failure rather than a panic.
+	// Provide a valid L1 origin so that, absent the inactive-guard, RunAction
+	// would proceed all the way to a StartBuild call — turning a regression
+	// into a clear test failure.
 	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{Number: 1000}, nil
 	}
+	deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		t.Error("StartBuild must not be called after Stop")
+		return nil, errors.New("unexpected StartBuild")
+	}
 
-	// Fire the stale action. The MockEmitter has no pending expectations, so any emit
-	// here (i.e. the sequencer acting while stopped) fails the test.
-	seq.OnEvent(testCtx, SequencerActionEvent{})
+	// Fire the stale action. The sequencer must not act while stopped.
+	seq.RunAction()
 	emitter.AssertExpectations(t)
 
 	require.Equal(t, BuildingState{}, seq.latest, "no block-building job started while stopped")
+	require.Equal(t, fcuRequestsAfterInit, deps.eng.fcuRequests, "no forkchoice update requested while stopped")
 	_, ok = seq.NextAction()
 	require.False(t, ok, "stopped sequencer schedules no further work")
 }
@@ -351,7 +366,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		},
 		Time: uint64(testClock.Now().Unix()),
 	}
-	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
+	deliver(seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
 
 	require.NoError(t, seq.Start(context.Background(), head.Hash))
 	require.True(t, seq.Active())
@@ -371,58 +386,39 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 		return l1Origin, nil
 	}
-	var sentAttributes *derive.AttributesWithParent
-	emitter.ExpectOnceRun(func(ev event.Event) {
-		x, ok := ev.(engine.BuildStartEvent)
-		require.True(t, ok)
-		require.Equal(t, head, x.Attributes.Parent)
-		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(x.Attributes.Attributes.Timestamp))
-		require.Equal(t, eth.L1BlockRef{}, x.Attributes.DerivedFrom)
-		sentAttributes = x.Attributes
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
 
-	// Now report the block was started
+	// pretend we are already 150ms into the block-window when starting building
 	startedTime := time.Unix(int64(head.Time), 0).Add(time.Millisecond * 150)
-	testClock.Set(startedTime)
 	payloadInfo := eth.PayloadInfo{
 		ID:        eth.PayloadID{0x42},
 		Timestamp: head.Time + deps.cfg.BlockTime,
 	}
-	seq.OnEvent(context.Background(), engine.BuildStartedEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Parent:       head,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
+	deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		require.Equal(t, head, attrs.Parent)
+		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(attrs.Attributes.Timestamp))
+		require.Equal(t, eth.L1BlockRef{}, attrs.DerivedFrom)
+		testClock.Set(startedTime)
+		return &engine.BuildStartResult{
+			Info:         payloadInfo,
+			BuildStarted: startedTime,
+			Parent:       head,
+		}, nil
+	}
+
+	// First action: start building. Direct engine call, no events.
+	seq.RunAction()
+	require.Equal(t, payloadInfo, seq.latest.Info, "must have recorded payload info of the started job")
 
 	_, ok = seq.NextAction()
 	require.True(t, ok, "must be ready to seal the block now")
 
-	emitter.ExpectOnce(engine.BuildSealEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
-
-	_, ok = seq.NextAction()
-	require.False(t, ok, "cannot act until sealing completes/fails")
-
 	payloadEnvelope := &eth.ExecutionPayloadEnvelope{
-		ParentBeaconBlockRoot: sentAttributes.Attributes.ParentBeaconBlockRoot,
 		ExecutionPayload: &eth.ExecutionPayload{
 			ParentHash:   head.Hash,
-			FeeRecipient: sentAttributes.Attributes.SuggestedFeeRecipient,
-			BlockNumber:  eth.Uint64Quantity(sentAttributes.Parent.Number + 1),
+			BlockNumber:  eth.Uint64Quantity(head.Number + 1),
 			BlockHash:    common.Hash{0x12, 0x34},
-			Timestamp:    sentAttributes.Attributes.Timestamp,
-			Transactions: sentAttributes.Attributes.Transactions,
-			// Not all attributes matter to sequencer. We can leave these nil.
+			Timestamp:    eth.Uint64Quantity(head.Time + deps.cfg.BlockTime),
+			Transactions: []eth.Data{encodeID(l1Origin.ID())},
 		},
 	}
 	payloadRef := eth.L2BlockRef{
@@ -433,27 +429,28 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		L1Origin:       l1Origin.ID(),
 		SequenceNumber: 0,
 	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// And report back the sealing result to the engine
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Info:        payloadInfo,
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// The sequencer should start processing the payload
-	emitter.AssertExpectations(t)
-	// But also optimistically give it to the conductor and the async gossip
+	deps.eng.sealBuildFn = func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, payloadInfo, info)
+		return &engine.SealResult{
+			Envelope: payloadEnvelope,
+			Ref:      payloadRef,
+		}, nil
+	}
+	// The block seals fine, but local processing fails with a temporary
+	// (non-sentinel) error: the block is committed and gossiped, but not canonical.
+	processPayloadCalled := false
+	deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		processPayloadCalled = true
+		return fmt.Errorf("mock temporary engine error")
+	}
+
+	// Seal action: SealBuild succeeds, commits to conductor and gossip, ProcessPayload fails.
+	seq.RunAction()
+	require.True(t, processPayloadCalled, "ProcessPayload must have been called")
 	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
 	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "must send to async gossip")
 	_, ok = seq.NextAction()
-	require.False(t, ok, "optimistically published, but not ready to sequence next, until local processing completes")
+	require.False(t, ok, "not ready to act; the engine's temporary-error event re-arms the schedule via the inbox")
 
 	// attempting to stop block building here should timeout, because the sealed block is different from the latestHead
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -461,28 +458,6 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	_, err := seq.Stop(ctx)
 	require.Error(t, err, "stop should have timed out")
 	require.ErrorIs(t, err, ctx.Err())
-
-	// reset latestSealed to the previous head
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Envelope: payloadEnvelope,
-		Ref:      head,
-	})
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Info:     payloadInfo,
-		Envelope: payloadEnvelope,
-		Ref:      head,
-	})
-	emitter.AssertExpectations(t)
-
-	// Now we stop the block building,
-	// before successful local processing of the committed block!
-	stopHead, err := seq.Stop(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, head.Hash, stopHead, "sequencer should not have accepted any new block yet")
-	require.False(t, deps.seqState.active, "sequencer signaled it is no longer active")
-
-	// Async-gossip will try to publish this committed block
-	require.NotNil(t, deps.asyncGossip.payload, "still holding on to async-gossip block")
 
 	// Now let's say another sequencer built a bunch of blocks,
 	// can we continue from there? We'll have to wipe the old in-flight block,
@@ -503,12 +478,23 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		L1Origin: newL1Origin.ID(),
 		Time:     uint64(testClock.Now().Unix()),
 	}
-	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: newHead})
+	deliver(seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: newHead})
+	_, ok = seq.NextAction()
+	require.True(t, ok, "new head re-arms the sequencer")
 
 	// Regression check: async-gossip is cleared upon sequencer un-pause.
 	// We could clear it earlier. But absolutely have to clear it upon Start(),
 	// to not continue from this older point.
 	require.NotNil(t, deps.asyncGossip.payload, "async-gossip still not cleared")
+
+	// Stop() waits for latestSealed == latestHead. The head advanced past our
+	// sealed block (another sequencer took over), so match latestSealed to
+	// unblock Stop().
+	seq.latestSealed = newHead
+	stopHead, err := seq.Stop(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, newHead.Hash, stopHead)
+	require.False(t, deps.seqState.active, "sequencer signaled it is no longer active")
 
 	// start sequencing on top of the new chain
 	require.NoError(t, seq.Start(context.Background(), newHead.Hash), "must continue from new block")
@@ -520,18 +506,22 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 		return newL1Origin, nil
 	}
-	// Sequencer action, assert we build on top of something new,
-	// and don't try to seal what was previously.
 	_, ok = seq.NextAction()
 	require.True(t, ok, "ready to sequence again")
-	// start, not seal, when continuing to sequence.
-	emitter.ExpectOnceRun(func(ev event.Event) {
-		buildEv, ok := ev.(engine.BuildStartEvent)
-		require.True(t, ok)
-		require.Equal(t, newHead, buildEv.Attributes.Parent, "build on the new L2 head")
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
+
+	// Sequencer action must start a fresh build on top of the new head,
+	// and not try to seal what was previously in-flight.
+	deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		require.Equal(t, newHead, attrs.Parent, "build on the new L2 head")
+		return &engine.BuildStartResult{
+			Info:         eth.PayloadInfo{ID: eth.PayloadID{0x99}, Timestamp: newHead.Time + deps.cfg.BlockTime},
+			BuildStarted: testClock.Now(),
+			Parent:       newHead,
+		}, nil
+	}
+	deps.eng.sealBuildFn = nil
+	seq.RunAction()
+	require.Equal(t, newHead, seq.latest.Onto, "must build on the new head")
 }
 
 func TestSequencerBuild(t *testing.T) {
@@ -544,14 +534,18 @@ func TestSequencerBuild(t *testing.T) {
 	seq.AttachEmitter(emitter)
 
 	testCtx := context.Background()
-	// Init will request a forkchoice update
+	// Init requests a forkchoice update directly from the engine
 	require.NoError(t, seq.Init(testCtx, true))
-	emitter.AssertExpectations(t)
 	require.True(t, seq.Active(), "started in active mode")
+	require.Equal(t, 1, deps.eng.fcuRequests)
 
-	// It will request a forkchoice update, it needs the head before being able to build on top of it
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
+	// Without a known head there is nothing to build on; the sequencer requests
+	// a forkchoice update to learn the head, and parks until it arrives —
+	// re-arming the unchanged deadline would hot-loop forkchoice requests.
+	seq.RunAction()
+	require.Equal(t, 2, deps.eng.fcuRequests)
+	_, ok := seq.NextAction()
+	require.False(t, ok, "parked until the requested head update arrives")
 
 	// Now send the forkchoice data, for the sequencer to learn what to build on top of.
 	head := eth.L2BlockRef{
@@ -563,8 +557,7 @@ func TestSequencerBuild(t *testing.T) {
 		},
 		Time: uint64(testClock.Now().Unix()),
 	}
-	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
-	emitter.AssertExpectations(t)
+	deliver(seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
 
 	// pretend we progress to the next L1 origin, catching up with the L2 time
 	l1Origin := eth.L1BlockRef{
@@ -576,50 +569,38 @@ func TestSequencerBuild(t *testing.T) {
 	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 		return l1Origin, nil
 	}
-	var sentAttributes *derive.AttributesWithParent
-	emitter.ExpectOnceRun(func(ev event.Event) {
-		x, ok := ev.(engine.BuildStartEvent)
-		require.True(t, ok)
-		require.Equal(t, head, x.Attributes.Parent)
-		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(x.Attributes.Attributes.Timestamp))
-		require.Equal(t, eth.L1BlockRef{}, x.Attributes.DerivedFrom)
-		sentAttributes = x.Attributes
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
 
 	// pretend we are already 150ms into the block-window when starting building
 	startedTime := time.Unix(int64(head.Time), 0).Add(time.Millisecond * 150)
-	testClock.Set(startedTime)
 	payloadInfo := eth.PayloadInfo{
 		ID:        eth.PayloadID{0x42},
 		Timestamp: head.Time + deps.cfg.BlockTime,
 	}
-	seq.OnEvent(context.Background(), engine.BuildStartedEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Parent:       head,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
+	var sentAttributes *derive.AttributesWithParent
+	deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		require.Equal(t, head, attrs.Parent)
+		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(attrs.Attributes.Timestamp))
+		require.Equal(t, eth.L1BlockRef{}, attrs.DerivedFrom)
+		sentAttributes = attrs
+		testClock.Set(startedTime)
+		return &engine.BuildStartResult{
+			Info:         payloadInfo,
+			BuildStarted: startedTime,
+			Parent:       head,
+		}, nil
+	}
+
+	// The action starts building via a direct StartBuild call.
+	seq.RunAction()
+	require.NotNil(t, sentAttributes, "StartBuild must have been called")
+	require.Equal(t, payloadInfo, seq.latest.Info)
+
 	// The sealing should now be scheduled as next action.
 	// We expect to seal just before the block-time boundary, leaving enough time for the sealing itself.
 	sealTargetTime, ok := seq.NextAction()
 	require.True(t, ok)
 	buildDuration := sealTargetTime.Sub(time.Unix(int64(head.Time), 0))
 	require.Equal(t, (time.Duration(deps.cfg.BlockTime)*time.Second)-defaultSealingDuration, buildDuration)
-
-	// Now trigger the sequencer to start sealing
-	emitter.ExpectOnce(engine.BuildSealEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
-	_, ok = seq.NextAction()
-	require.False(t, ok, "cannot act until sealing completes/fails")
 
 	payloadEnvelope := &eth.ExecutionPayloadEnvelope{
 		ParentBeaconBlockRoot: sentAttributes.Attributes.ParentBeaconBlockRoot,
@@ -641,53 +622,47 @@ func TestSequencerBuild(t *testing.T) {
 		L1Origin:       l1Origin.ID(),
 		SequenceNumber: 0,
 	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// And report back the sealing result to the engine
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Info:        payloadInfo,
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// The sequencer should start processing the payload
-	emitter.AssertExpectations(t)
-	// But also optimistically give it to the conductor and the async gossip
+	deps.eng.sealBuildFn = func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, payloadInfo, info)
+		require.Equal(t, startedTime, buildStarted)
+		return &engine.SealResult{
+			Envelope: payloadEnvelope,
+			Ref:      payloadRef,
+		}, nil
+	}
+	deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		require.Equal(t, payloadEnvelope, envelope)
+		require.Equal(t, payloadRef, ref)
+		require.Equal(t, startedTime, buildStarted)
+		return nil
+	}
+
+	// Seal action: seals, commits to conductor, gossips, and inserts the payload,
+	// all synchronously via direct calls.
+	seq.RunAction()
 	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
-	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "must send to async gossip")
-	_, ok = seq.NextAction()
-	require.False(t, ok, "optimistically published, but not ready to sequence next, until local processing completes")
+	require.Nil(t, deps.asyncGossip.payload, "async gossip should have cleared after successful insert")
+	require.Equal(t, BuildingState{}, seq.latest, "building state cleared after successful insert")
+	require.Equal(t, payloadRef, seq.latestSealed, "sealed block recorded")
 
-	// Mock that the processing was successful
-	seq.OnEvent(context.Background(), engine.PayloadSuccessEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	require.Nil(t, deps.asyncGossip.payload, "async gossip should have cleared,"+
-		" after previous publishing and now having persisted the block ourselves")
-	_, ok = seq.NextAction()
-	require.False(t, ok, "published and processed, but not canonical yet. Cannot proceed until then.")
+	// After a successful insert the sequencer schedules the next block itself,
+	// without waiting for the forkchoice update to travel through the event system.
+	nextTime, ok := seq.NextAction()
+	require.True(t, ok, "ready to build next block")
+	require.Equal(t, payloadRef, seq.latestHead, "latestHead updated directly after successful insert")
+	require.Equal(t, time.Unix(int64(payloadRef.Time), 0), nextTime,
+		"next build starts a block-time before the next payload deadline")
 
-	// Once the forkchoice update identifies the processed block
-	// as canonical we can proceed to the next sequencer cycle iteration.
-	// Pretend we only completed processing the block 120 ms into the next block time window.
-	// (This is why we publish optimistically)
+	// The engine's ForkchoiceUpdateEvent still arrives later via the inbox;
+	// it is idempotent since the head was already updated.
 	testClock.Set(time.Unix(int64(payloadRef.Time), 0).Add(time.Millisecond * 120))
-	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+	deliver(seq, engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    payloadRef,
 		SafeL2Head:      eth.L2BlockRef{},
 		FinalizedL2Head: eth.L2BlockRef{},
 	})
-	nextTime, ok := seq.NextAction()
-	require.True(t, ok, "ready to build next block")
-	require.Equal(t, testClock.Now(), nextTime, "start asap on the next block")
+	_, ok = seq.NextAction()
+	require.True(t, ok, "still ready after idempotent forkchoice update")
 }
 
 func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
@@ -705,7 +680,7 @@ func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	require.True(t, seq.Active(), "started in active mode")
 
 	// It needs the head before being able to build on top of it
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	seq.RunAction()
 
 	// Now send the forkchoice data, for the sequencer to learn what to build on top of.
 	head := eth.L2BlockRef{
@@ -717,7 +692,7 @@ func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 		},
 		Time: uint64(testClock.Now().Unix()),
 	}
-	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
+	deliver(seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
 	emitter.AssertExpectations(t)
 
 	// force FindL1Origin to return an error
@@ -731,13 +706,524 @@ func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	})
 
 	sealTargetTime1, ok1 := seq.NextAction()
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	seq.RunAction()
 	emitter.AssertExpectations(t)
 
-	// FindL1Origin error will updating d.nextAction
+	// FindL1Origin error pushes d.nextAction into the future
 	sealTargetTime2, ok2 := seq.NextAction()
 
 	require.True(t, ok1 == ok2 && sealTargetTime2.After(sealTargetTime1))
+}
+
+// seqTestSetup is an active sequencer at a known head, with a mocked clock at
+// the head timestamp and an L1 origin ready for the next block.
+type seqTestSetup struct {
+	seq      *Sequencer
+	deps     *sequencerTestDeps
+	clock    *clock.SimpleClock
+	head     eth.L2BlockRef
+	l1Origin eth.L1BlockRef
+}
+
+func newSeqSetup(t *testing.T) *seqTestSetup {
+	logger := testlog.Logger(t, log.LevelError)
+	seq, deps := createSequencer(logger)
+	testClock := clock.NewSimpleClock()
+	testClock.SetTime(30000)
+	seq.timeNow = testClock.Now
+	seq.AttachEmitter(&testutils.MockEmitter{})
+	deps.conductor.leader = true
+	require.NoError(t, seq.Init(context.Background(), true))
+
+	head := eth.L2BlockRef{
+		Hash:   common.Hash{0x22},
+		Number: 100,
+		L1Origin: eth.BlockID{
+			Hash:   common.Hash{0x11, 0xa},
+			Number: 1000,
+		},
+		Time: uint64(testClock.Now().Unix()),
+	}
+	deliver(seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
+
+	l1Origin := eth.L1BlockRef{
+		Hash:       common.Hash{0x11, 0xb},
+		ParentHash: head.L1Origin.Hash,
+		Number:     head.L1Origin.Number + 1,
+		Time:       head.Time,
+	}
+	deps.l1OriginSelector.l1OriginFn = func(eth.L2BlockRef) (eth.L1BlockRef, error) {
+		return l1Origin, nil
+	}
+	return &seqTestSetup{seq: seq, deps: deps, clock: testClock, head: head, l1Origin: l1Origin}
+}
+
+// startBuild runs one action that successfully starts a block-building job.
+func (s *seqTestSetup) startBuild(t *testing.T) eth.PayloadInfo {
+	info := eth.PayloadInfo{ID: eth.PayloadID{0x42}, Timestamp: s.head.Time + s.deps.cfg.BlockTime}
+	s.deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		return &engine.BuildStartResult{Info: info, BuildStarted: s.clock.Now(), Parent: attrs.Parent}, nil
+	}
+	s.seq.RunAction()
+	require.Equal(t, info, s.seq.latest.Info, "build must have started")
+	return info
+}
+
+// sealedPayload returns a payload envelope and matching block-ref for the block
+// on top of the setup head. The L1 origin is encoded in tx[0], so the test
+// toBlockRef hook can reconstruct the same ref from the envelope.
+func (s *seqTestSetup) sealedPayload() (*eth.ExecutionPayloadEnvelope, eth.L2BlockRef) {
+	envelope := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			ParentHash:   s.head.Hash,
+			BlockNumber:  eth.Uint64Quantity(s.head.Number + 1),
+			BlockHash:    common.Hash{0x12, 0x34},
+			Timestamp:    eth.Uint64Quantity(s.head.Time + s.deps.cfg.BlockTime),
+			Transactions: []eth.Data{encodeID(s.l1Origin.ID())},
+		},
+	}
+	ref := eth.L2BlockRef{
+		Hash:           envelope.ExecutionPayload.BlockHash,
+		Number:         uint64(envelope.ExecutionPayload.BlockNumber),
+		ParentHash:     envelope.ExecutionPayload.ParentHash,
+		Time:           uint64(envelope.ExecutionPayload.Timestamp),
+		L1Origin:       s.l1Origin.ID(),
+		SequenceNumber: 0,
+	}
+	return envelope, ref
+}
+
+func (s *seqTestSetup) blockTime() time.Duration {
+	return time.Duration(s.deps.cfg.BlockTime) * time.Second
+}
+
+// TestSequencerStartBuildErrors covers the direct-call StartBuild error paths.
+func TestSequencerStartBuildErrors(t *testing.T) {
+	t.Run("stale build", func(t *testing.T) {
+		s := newSeqSetup(t)
+		// The engine rejects the build because the parent is not the unsafe head
+		// anymore. It has already requested a forkchoice update; the sequencer
+		// must pause until that head update arrives, instead of hot-retrying.
+		s.deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+			return nil, engine.ErrStaleBuild
+		}
+		s.seq.RunAction()
+		require.Equal(t, BuildingState{}, s.seq.latest, "stale build leaves no building state")
+		_, ok := s.seq.NextAction()
+		require.False(t, ok, "no action until the next head update")
+
+		// The head update the engine requested arrives and re-arms the sequencer.
+		newHead := eth.L2BlockRef{
+			Hash:     common.Hash{0x23},
+			Number:   s.head.Number + 1,
+			L1Origin: s.head.L1Origin,
+			Time:     s.head.Time + s.deps.cfg.BlockTime,
+		}
+		deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: newHead})
+		_, ok = s.seq.NextAction()
+		require.True(t, ok, "head update resumes sequencing")
+	})
+
+	t.Run("invalid attributes", func(t *testing.T) {
+		s := newSeqSetup(t)
+		s.deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+			return nil, fmt.Errorf("%w: mock payload rejection", engine.ErrBuildInvalid)
+		}
+		s.seq.RunAction()
+		require.Equal(t, BuildingState{}, s.seq.latest)
+		next, ok := s.seq.NextAction()
+		require.True(t, ok, "retry after backoff; no recovery echo exists for invalid attributes")
+		require.Equal(t, s.clock.Now().Add(s.blockTime()), next, "back off one block time")
+	})
+
+	t.Run("temporary failure", func(t *testing.T) {
+		s := newSeqSetup(t)
+		mockErr := errors.New("mock temporary start failure")
+		s.deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+			// The real engine emits EngineTemporaryErrorEvent before returning;
+			// that echo arrives through the mailbox and re-arms the sequencer.
+			return nil, mockErr
+		}
+		s.seq.RunAction()
+		_, ok := s.seq.NextAction()
+		require.False(t, ok, "parked until the temporary-error echo re-arms")
+
+		deliver(s.seq, rollup.EngineTemporaryErrorEvent{Err: mockErr})
+		require.Equal(t, BuildingState{}, s.seq.latest, "no job id to resume, start over")
+		next, ok := s.seq.NextAction()
+		require.True(t, ok, "temporary-error echo re-arms")
+		require.Equal(t, s.clock.Now().Add(time.Second), next, "short backoff for temporary errors")
+	})
+}
+
+// TestSequencerSealError checks that a failed SealBuild (expired or invalid seal)
+// restarts building: nothing is committed or gossiped, and a new build is
+// scheduled after a backoff.
+func TestSequencerSealError(t *testing.T) {
+	s := newSeqSetup(t)
+	info := s.startBuild(t)
+
+	s.deps.eng.sealBuildFn = func(ctx context.Context, gotInfo eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, info, gotInfo)
+		return nil, errors.New("mock seal error: job expired")
+	}
+	s.seq.RunAction()
+
+	require.Equal(t, BuildingState{}, s.seq.latest, "seal failure restarts the build")
+	require.Nil(t, s.deps.conductor.committed, "nothing committed to conductor")
+	require.Nil(t, s.deps.asyncGossip.payload, "nothing gossiped")
+	next, ok := s.seq.NextAction()
+	require.True(t, ok)
+	require.Equal(t, s.clock.Now().Add(s.blockTime()), next, "back off one block time")
+}
+
+// TestSequencerSealStale checks that a stale seal (competing block landed while
+// building) drops the job without committing or gossiping, parks the sequencer,
+// and resumes on the engine-requested head update.
+func TestSequencerSealStale(t *testing.T) {
+	s := newSeqSetup(t)
+	s.startBuild(t)
+	// A competing block landed while building: the engine refuses to seal
+	// the stale job. Nothing may be committed or gossiped; the sequencer
+	// parks until the engine-requested head update arrives.
+	s.deps.eng.sealBuildFn = func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		return nil, engine.ErrStaleBuild
+	}
+	s.seq.RunAction()
+	require.Equal(t, BuildingState{}, s.seq.latest, "stale job dropped")
+	require.Equal(t, eth.L2BlockRef{}, s.seq.latestSealed, "nothing sealed")
+	require.Nil(t, s.deps.conductor.committed, "nothing committed to conductor")
+	require.Nil(t, s.deps.asyncGossip.payload, "nothing gossiped")
+	_, ok := s.seq.NextAction()
+	require.False(t, ok, "parked until the next head update")
+
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: eth.L2BlockRef{
+		Hash:     common.Hash{0x77},
+		Number:   s.head.Number + 1,
+		L1Origin: s.head.L1Origin,
+		Time:     s.head.Time + s.deps.cfg.BlockTime,
+	}})
+	_, ok = s.seq.NextAction()
+	require.True(t, ok, "head update resumes sequencing")
+}
+
+// TestSequencerProcessPayloadErrors covers the ProcessPayload error paths of the
+// seal action: sentinel errors (invalid/denied) drop the payload, while a
+// temporary error keeps it in async-gossip so a later action can retry it.
+func TestSequencerProcessPayloadErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		// dropped marks the payload as permanently rejected: gossip and building
+		// state are cleared, and a fresh build is scheduled after a backoff.
+		dropped bool
+	}{
+		{name: "payload invalid", err: engine.ErrPayloadInvalid, dropped: true},
+		{name: "payload denied", err: engine.ErrPayloadDenied, dropped: true},
+		{name: "temporary error", err: errors.New("mock temp engine error"), dropped: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newSeqSetup(t)
+			s.startBuild(t)
+			envelope, ref := s.sealedPayload()
+			s.deps.eng.sealBuildFn = func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+				return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
+			}
+			s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+				return tc.err
+			}
+			s.seq.RunAction()
+			require.Equal(t, envelope, s.deps.conductor.committed, "sealed block is committed before processing")
+
+			if tc.dropped {
+				require.Nil(t, s.deps.asyncGossip.payload, "rejected payload is dropped from gossip")
+				require.Equal(t, BuildingState{}, s.seq.latest)
+				next, ok := s.seq.NextAction()
+				require.True(t, ok, "restart building after backoff")
+				require.Equal(t, s.clock.Now().Add(s.blockTime()), next)
+				return
+			}
+
+			require.Equal(t, envelope, s.deps.asyncGossip.payload, "payload stays in gossip for retry")
+			require.Equal(t, ref, s.seq.latest.Ref, "building state is kept")
+			_, ok := s.seq.NextAction()
+			require.False(t, ok, "paused until the engine's temporary-error event re-arms the schedule")
+
+			// The engine emitted an EngineTemporaryErrorEvent; once it arrives
+			// through the inbox, the schedule is re-armed with a backoff.
+			deliver(s.seq, rollup.EngineTemporaryErrorEvent{Err: tc.err})
+			next, ok := s.seq.NextAction()
+			require.True(t, ok)
+			require.Equal(t, s.clock.Now().Add(time.Second), next, "temporary-error backoff")
+
+			// The retry action processes the gossiped payload instead of re-sealing.
+			var retried *eth.ExecutionPayloadEnvelope
+			s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, gotRef eth.L2BlockRef, buildStarted time.Time) error {
+				retried = envelope
+				require.Equal(t, ref, gotRef, "ref reconstructed from the gossiped payload")
+				require.True(t, buildStarted.IsZero(), "no build-start time for gossip-buffer retries")
+				return nil
+			}
+			s.seq.RunAction()
+			require.Equal(t, envelope, retried, "gossiped payload was retried")
+			require.Nil(t, s.deps.asyncGossip.payload, "gossip cleared after successful retry")
+			require.Equal(t, BuildingState{}, s.seq.latest)
+			require.Equal(t, ref, s.seq.latestHead, "head updated directly after successful insert")
+			_, ok = s.seq.NextAction()
+			require.True(t, ok, "ready to build the next block")
+		})
+	}
+}
+
+// TestSequencerMaxSafeLagStall checks that the maxSafeLag stall overrides the
+// head-advancement arming within a single forkchoice update, and that sequencing
+// resumes once the safe head catches up.
+func TestSequencerMaxSafeLagStall(t *testing.T) {
+	s := newSeqSetup(t)
+	require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 2))
+
+	// Unsafe head advances, but safe head lags too far: the stall check runs
+	// after the head-advance arming and must win.
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head: eth.L2BlockRef{Hash: common.Hash{0x31}, Number: s.head.Number + 1, Time: s.head.Time + 2},
+		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x30}, Number: s.head.Number - 1},
+	})
+	_, ok := s.seq.NextAction()
+	require.False(t, ok, "stalled by max safe lag despite advancing head")
+
+	// Still lagging: stays stalled.
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head: eth.L2BlockRef{Hash: common.Hash{0x32}, Number: s.head.Number + 2, Time: s.head.Time + 4},
+		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x30}, Number: s.head.Number - 1},
+	})
+	_, ok = s.seq.NextAction()
+	require.False(t, ok, "still stalled while safe head lags")
+
+	// Safe head catches up: resume immediately.
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head: eth.L2BlockRef{Hash: common.Hash{0x33}, Number: s.head.Number + 3, Time: s.head.Time + 6},
+		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x32}, Number: s.head.Number + 2},
+	})
+	next, ok := s.seq.NextAction()
+	require.True(t, ok, "resumed after safe head caught up")
+	require.Equal(t, s.clock.Now(), next, "resume immediately")
+}
+
+// TestSequencerMaxSafeLagDirectPath checks that the maxSafeLag bound is also
+// enforced when the schedule advances via the direct-call insertion path, not
+// only on ingested forkchoice updates: the sequencer must not outrun the bound
+// while the stalling forkchoice echo is still queued behind derivation events.
+func TestSequencerMaxSafeLagDirectPath(t *testing.T) {
+	s := newSeqSetup(t)
+	require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 1))
+
+	// Safe head is exactly at the bound: building the next block will exceed it.
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head: s.head,
+		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x30}, Number: s.head.Number},
+	})
+	_, ok := s.seq.NextAction()
+	require.True(t, ok, "not stalled yet at the bound")
+
+	// Build, seal, and insert one block via direct calls.
+	info := s.startBuild(t)
+	envelope, ref := s.sealedPayload()
+	s.deps.eng.sealBuildFn = func(ctx context.Context, gotInfo eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, info, gotInfo)
+		return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
+	}
+	s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		return nil
+	}
+	s.seq.RunAction()
+	require.Equal(t, ref, s.seq.latestHead, "block inserted via direct path")
+
+	// The insertion armed the next block, but the safe head (as of the last
+	// ingested forkchoice update) now lags beyond the bound: stalled.
+	_, ok = s.seq.NextAction()
+	require.False(t, ok, "stalled on the direct path, before any forkchoice echo")
+
+	// The safe head catches up: resume.
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head: ref,
+		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x31}, Number: ref.Number},
+	})
+	_, ok = s.seq.NextAction()
+	require.True(t, ok, "resumed after safe head caught up")
+}
+
+// TestSequencerActionHonorsParkingDrain checks the replay-to-action boundary:
+// when an action fires, RunAction first replays the inbox; if that replay
+// parks the schedule (e.g. a reset arrived while the timer was pending), the
+// action must not run against the pre-drain decision.
+func TestSequencerActionHonorsParkingDrain(t *testing.T) {
+	s := newSeqSetup(t)
+	_, ok := s.seq.NextAction()
+	require.True(t, ok, "armed before the reset arrives")
+
+	// The reset is appended to the inbox but not yet drained, as if it arrived
+	// while the action timer was already firing.
+	s.seq.OnEvent(context.Background(), rollup.ResetEvent{Err: errors.New("mock reset")})
+
+	s.deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		t.Fatal("must not start building during a reset")
+		return nil, nil
+	}
+	s.seq.RunAction()
+	_, ok = s.seq.NextAction()
+	require.False(t, ok, "parked by the replayed reset")
+	require.Equal(t, BuildingState{}, s.seq.latest, "no build started")
+}
+
+// TestSequencerStopAfterStaleProcess checks that Stop does not wait for a
+// sealed-and-dropped block to become the head: a stale ProcessPayload resets
+// the sealed marker, so a leader can stop promptly after losing the race.
+func TestSequencerStopAfterStaleProcess(t *testing.T) {
+	s := newSeqSetup(t)
+	info := s.startBuild(t)
+	envelope, ref := s.sealedPayload()
+	s.deps.eng.sealBuildFn = func(ctx context.Context, gotInfo eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, info, gotInfo)
+		return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
+	}
+	s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		return engine.ErrStaleBuild // competing block won after we gossiped
+	}
+	s.seq.RunAction()
+	require.Equal(t, s.seq.latestHead, s.seq.latestSealed, "nothing outstanding after the stale drop")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	hash, err := s.seq.Stop(ctx)
+	require.NoError(t, err, "Stop must not wait for the dropped block")
+	require.Equal(t, s.seq.latestHead.Hash, hash)
+}
+
+// TestSequencerRearmsAfterStaleBufferedPayload covers the retry of a payload
+// left in the async-gossip buffer by an earlier temporary insertion failure.
+// If the chain has already moved on by the time it is retried, the engine
+// rejects it and requests a forkchoice update — but that update names the head
+// the sequencer already knows, so it re-plans nothing. Waiting for it would
+// park an active leader forever.
+func TestSequencerRearmsAfterStaleBufferedPayload(t *testing.T) {
+	s := newSeqSetup(t)
+	envelope, ref := s.sealedPayload()
+
+	// A previous action sealed and gossiped this payload, then failed to insert
+	// it with a temporary error, so it stayed in the buffer.
+	s.deps.asyncGossip.payload = envelope
+	s.seq.latestSealed = ref
+
+	// Meanwhile a competing block at the same height became the head, and the
+	// sequencer has already ingested that update.
+	competing := eth.L2BlockRef{
+		Hash:       common.Hash{0xc1},
+		Number:     ref.Number,
+		ParentHash: s.head.Hash,
+		Time:       ref.Time,
+		L1Origin:   s.head.L1Origin,
+	}
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: competing})
+	require.Equal(t, competing, s.seq.latestHead)
+	_, ok := s.seq.NextAction()
+	require.True(t, ok, "the competing head re-armed the sequencer")
+
+	// Retrying the buffered payload now fails: it does not extend the new head.
+	s.deps.eng.processPayloadFn = func(context.Context, *eth.ExecutionPayloadEnvelope, eth.L2BlockRef, time.Time) error {
+		return engine.ErrStaleBuild
+	}
+	s.seq.RunAction()
+
+	require.Nil(t, s.deps.asyncGossip.payload, "the stale payload is discarded")
+	next, ok := s.seq.NextAction()
+	require.True(t, ok, "must re-plan locally; the requested forkchoice update is one we already have")
+	require.Equal(t, competing, s.seq.latestHead, "the next build targets the current head")
+	require.False(t, next.After(time.Unix(int64(competing.Time+s.deps.cfg.BlockTime), 0)),
+		"scheduled no later than the next block's slot")
+}
+
+// TestSequencerStopAfterRejectedInsert checks that a block discarded as
+// invalid after it was sealed does not leave Stop waiting for a head that can
+// never arrive: handleInvalid reconciles the sealed marker.
+func TestSequencerStopAfterRejectedInsert(t *testing.T) {
+	s := newSeqSetup(t)
+	info := s.startBuild(t)
+	envelope, ref := s.sealedPayload()
+	s.deps.eng.sealBuildFn = func(ctx context.Context, gotInfo eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, info, gotInfo)
+		return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
+	}
+	s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		return engine.ErrPayloadInvalid
+	}
+	s.seq.RunAction()
+	require.Equal(t, s.seq.latestHead, s.seq.latestSealed, "rejected block is not left outstanding")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	hash, err := s.seq.Stop(ctx)
+	require.NoError(t, err, "Stop must not wait for the rejected block")
+	require.Equal(t, s.seq.latestHead.Hash, hash)
+}
+
+// TestSequencerRearmsOnRewoundHead reproduces a stall seen in the flashblocks
+// acceptance tests: the engine head is rewound (reset, block replacement,
+// backup-unsafe restore) while a block is being built, so the engine rejects
+// the seal as stale and the sequencer parks. The forkchoice update that
+// recovers it names the *rewound*, lower-numbered head, so re-planning only on
+// a higher block number leaves the sequencer parked forever.
+func TestSequencerRearmsOnRewoundHead(t *testing.T) {
+	s := newSeqSetup(t)
+	info := s.startBuild(t)
+	_, ref := s.sealedPayload()
+
+	// The chain moved off our parent while we were building, so the engine
+	// refuses to hand us the sealed block.
+	s.deps.eng.sealBuildFn = func(ctx context.Context, gotInfo eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, info, gotInfo)
+		return nil, engine.ErrStaleBuild
+	}
+	s.seq.RunAction()
+	require.Equal(t, BuildingState{}, s.seq.latest, "stale job dropped")
+	_, ok := s.seq.NextAction()
+	require.False(t, ok, "parked until the engine reports its head")
+
+	// The engine's requested forkchoice update carries the rewound head, one
+	// block *below* what we had recorded.
+	rewound := eth.L2BlockRef{
+		Hash:     common.Hash{0x55},
+		Number:   s.head.Number - 1,
+		L1Origin: s.head.L1Origin,
+		Time:     s.head.Time - s.deps.cfg.BlockTime,
+	}
+	require.Less(t, rewound.Number, s.seq.latestHead.Number, "the recovering update rewinds the head")
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: rewound})
+
+	require.Equal(t, rewound, s.seq.latestHead, "the rewound head is adopted")
+	_, ok = s.seq.NextAction()
+	require.True(t, ok, "a rewind re-arms the sequencer instead of parking it forever")
+	require.NotEqual(t, ref.Hash, s.seq.latestHead.Hash)
+}
+
+// TestSequencerSetMaxSafeLagResumes checks that relaxing the bound at runtime
+// resumes a stalled sequencer immediately: while stalled its goroutine is
+// parked with no timer armed, so nothing else would re-evaluate the bound.
+func TestSequencerSetMaxSafeLagResumes(t *testing.T) {
+	s := newSeqSetup(t)
+	require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 2))
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head: eth.L2BlockRef{Hash: common.Hash{0x31}, Number: s.head.Number + 1, Time: s.head.Time + 2},
+		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x30}, Number: s.head.Number - 1},
+	})
+	_, ok := s.seq.NextAction()
+	require.False(t, ok, "stalled by max safe lag")
+	<-s.seq.wakeCh // drain the wake from the ingest above
+
+	require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 0))
+	next, ok := s.seq.NextAction()
+	require.True(t, ok, "disabling the bound resumes sequencing without a forkchoice update")
+	require.Equal(t, s.clock.Now(), next, "resume immediately")
+	require.Len(t, s.seq.wakeCh, 1, "the parked goroutine is woken to re-plan")
 }
 
 type sequencerTestDeps struct {
@@ -747,6 +1233,7 @@ type sequencerTestDeps struct {
 	seqState         *BasicSequencerStateListener
 	conductor        *FakeConductor
 	asyncGossip      *FakeAsyncGossip
+	eng              *fakeEngController
 }
 
 func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
@@ -776,6 +1263,7 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 		IsthmusTime:       new(uint64),
 		JovianTime:        new(uint64),
 	}
+	eng := &fakeEngController{}
 	deps := &sequencerTestDeps{
 		cfg:           cfg,
 		attribBuilder: &FakeAttributesBuilder{cfg: cfg, rng: rng},
@@ -787,10 +1275,11 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 		seqState:    &BasicSequencerStateListener{},
 		conductor:   &FakeConductor{},
 		asyncGossip: &FakeAsyncGossip{},
+		eng:         eng,
 	}
 	seq := NewSequencer(context.Background(), log, cfg, defaultSealingDuration, deps.attribBuilder,
 		deps.l1OriginSelector, deps.seqState, deps.conductor,
-		deps.asyncGossip, metrics.NoopMetrics, fakeEngController{})
+		deps.asyncGossip, metrics.NoopMetrics, eng)
 	// We create mock payloads, with the epoch-id as tx[0], rather than proper L1Block-info deposit tx.
 	seq.toBlockRef = func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error) {
 		return eth.L2BlockRef{
@@ -803,4 +1292,144 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 		}, nil
 	}
 	return seq, deps
+}
+
+// TestSequencerStaysParkedUntilResetConfirmed pins the reset ordering: the
+// engine emits the rewound forkchoice update before EngineResetConfirmedEvent.
+// If that update re-armed the sequencer, the confirmation's deliberate
+// one-block cool-down — which keeps a reset loop from running hot — would be
+// skipped, and the rewound head's past timestamp would schedule immediately.
+func TestSequencerStaysParkedUntilResetConfirmed(t *testing.T) {
+	s := newSeqSetup(t)
+
+	deliver(s.seq, rollup.ResetEvent{Err: errors.New("mock reset")})
+	_, ok := s.seq.NextAction()
+	require.False(t, ok, "reset parks the sequencer")
+
+	rewound := s.head
+	rewound.Hash = common.Hash{0x33}
+	rewound.Number = s.head.Number - 1
+	rewound.Time = s.head.Time - s.deps.cfg.BlockTime
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: rewound})
+	_, ok = s.seq.NextAction()
+	require.False(t, ok, "the pre-confirmation head update must not re-arm the sequencer")
+	require.Equal(t, rewound, s.seq.latestHead,
+		"the head is still recorded, so the confirmation arms onto the rewound head")
+
+	deliver(s.seq, engine.EngineResetConfirmedEvent{})
+	next, ok := s.seq.NextAction()
+	require.True(t, ok, "the confirmation resumes sequencing")
+	require.Equal(t, s.clock.Now().Add(s.blockTime()), next,
+		"the confirmation applies the one-block cool-down")
+}
+
+// TestSequencerMaxSafeLagHoldsThroughRecovery covers the two re-arm paths that
+// can release a maxSafeLag stall: an engine temporary error, and a reset
+// confirmation. Both must re-check the bound instead of arming unconditionally,
+// or the sequencer builds a block past a bound that is still exceeded.
+func TestSequencerMaxSafeLagHoldsThroughRecovery(t *testing.T) {
+	stall := func(t *testing.T) *seqTestSetup {
+		s := newSeqSetup(t)
+		require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 1))
+		ahead := s.head
+		ahead.Hash = common.Hash{0x44}
+		ahead.Number = s.head.Number + 5
+		deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: ahead, SafeL2Head: s.head})
+		_, ok := s.seq.NextAction()
+		require.False(t, ok, "unsafe head past the lag bound stalls the sequencer")
+		return s
+	}
+
+	t.Run("engine temporary error", func(t *testing.T) {
+		s := stall(t)
+		deliver(s.seq, rollup.EngineTemporaryErrorEvent{Err: errors.New("mock temp error")})
+		_, ok := s.seq.NextAction()
+		require.False(t, ok, "a temporary-error backoff must not release the stall")
+	})
+
+	t.Run("reset confirmation", func(t *testing.T) {
+		s := stall(t)
+		deliver(s.seq, rollup.ResetEvent{Err: errors.New("mock reset")})
+		deliver(s.seq, engine.EngineResetConfirmedEvent{})
+		_, ok := s.seq.NextAction()
+		require.False(t, ok, "a reset confirmation must not release the stall")
+	})
+}
+
+// TestSequencerPayloadSuccessClearsGossip covers the retained ingest path for
+// derivation-originated payloads: the async-gossip buffer must be cleared when
+// the inserted block is the one we were building, so a stale payload cannot be
+// reused, and left alone otherwise.
+func TestSequencerPayloadSuccessClearsGossip(t *testing.T) {
+	s := newSeqSetup(t)
+	envelope, ref := s.sealedPayload()
+
+	s.seq.latest = BuildingState{Ref: ref}
+	s.deps.asyncGossip.payload = envelope
+
+	unrelated := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+		BlockHash: common.Hash{0xaa},
+	}}
+	deliver(s.seq, engine.PayloadSuccessEvent{Envelope: unrelated})
+	require.NotNil(t, s.deps.asyncGossip.payload, "another block's insertion is not ours to act on")
+	require.Equal(t, ref, s.seq.latest.Ref, "build state untouched")
+
+	deliver(s.seq, engine.PayloadSuccessEvent{Envelope: envelope})
+	require.Nil(t, s.deps.asyncGossip.payload, "our block was inserted: drop the gossip buffer")
+	require.Equal(t, BuildingState{}, s.seq.latest, "our block was inserted: build state is done")
+}
+
+// TestSequencerStaysParkedOnTemporaryErrorDuringReset covers the window between
+// a reset signal and its confirmation, during which the engine has not rewound
+// anything yet: an engine temporary error must not re-arm the sequencer, or it
+// resumes building on the pre-reset head — a chain it has already decided must
+// be rewound — and can seal and gossip a block there.
+func TestSequencerStaysParkedOnTemporaryErrorDuringReset(t *testing.T) {
+	s := newSeqSetup(t)
+
+	deliver(s.seq, rollup.ResetEvent{Err: errors.New("mock reset")})
+	_, ok := s.seq.NextAction()
+	require.False(t, ok, "reset parks the sequencer")
+
+	// The engine is still resolving the new heads (FindL2Heads); ordinary
+	// temporary errors keep arriving in the meantime.
+	deliver(s.seq, rollup.EngineTemporaryErrorEvent{Err: errors.New("mock temporary error")})
+	_, ok = s.seq.NextAction()
+	require.False(t, ok, "an error backoff must not pre-empt the reset confirmation")
+
+	// Even forced, no build may start on the head the reset is about to discard.
+	s.deps.eng.startBuildFn = func(context.Context, *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		t.Fatal("must not start a build on the pre-reset head while the reset is unconfirmed")
+		return nil, nil
+	}
+	s.seq.RunAction()
+
+	deliver(s.seq, engine.EngineResetConfirmedEvent{})
+	next, ok := s.seq.NextAction()
+	require.True(t, ok, "the confirmation still resumes sequencing")
+	require.Equal(t, s.clock.Now().Add(s.blockTime()), next, "with its cool-down intact")
+}
+
+// TestSequencerStartDuringResetStaysParked is the same rule for the operator
+// path. Start only checks that the caller's head matches latestHead, which
+// during an unconfirmed reset is still the pre-reset head — so a conductor
+// promoting a mid-reset node succeeds, and must not sequence on the chain the
+// reset is about to discard.
+func TestSequencerStartDuringResetStaysParked(t *testing.T) {
+	s := newSeqSetup(t)
+	// Stop waits for the head to reach what we last sealed; nothing is in flight.
+	s.seq.latestSealed = s.head
+	_, err := s.seq.Stop(context.Background())
+	require.NoError(t, err)
+
+	deliver(s.seq, rollup.ResetEvent{Err: errors.New("mock reset")})
+	require.NoError(t, s.seq.Start(context.Background(), s.head.Hash),
+		"the pre-reset head still matches, so Start succeeds")
+	require.True(t, s.seq.Active(), "the sequencer is started")
+	_, ok := s.seq.NextAction()
+	require.False(t, ok, "but stays parked until the reset is confirmed")
+
+	deliver(s.seq, engine.EngineResetConfirmedEvent{})
+	_, ok = s.seq.NextAction()
+	require.True(t, ok, "the confirmation arms it on the post-reset head")
 }

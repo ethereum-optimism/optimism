@@ -8,9 +8,9 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -19,7 +19,7 @@ import (
 
 type L1BlockRefByNumberFetcher interface {
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
 }
 
 type L1Traversal struct {
@@ -75,7 +75,7 @@ func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s (parent: %s) for L1 sysCfg update: %w", nextL1Origin, origin, err))
 	}
-	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg, nextL1Origin.Time); err != nil {
+	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts.Geth(), l1t.cfg, nextL1Origin.Time); err != nil {
 		// if UpdateSystemConfigWithL1Receipts returns an error, it is because one or more of the receipts are malformed or invalid
 		// failure to apply is just informational, so we just log the error and continue
 		l1t.log.Warn("failed to fully update L1 sysCfg with receipts from block", "block", nextL1Origin, "error", err)

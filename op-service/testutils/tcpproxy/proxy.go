@@ -51,6 +51,12 @@ func (p *Proxy) SetUpstream(addr string) {
 	p.mu.Unlock()
 }
 
+// ClearUpstream unsets the upstream address; connections are refused until
+// SetUpstream is called again.
+func (p *Proxy) ClearUpstream() {
+	p.SetUpstream("")
+}
+
 func (p *Proxy) Start() error {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

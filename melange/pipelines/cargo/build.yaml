@@ -55,6 +55,12 @@ inputs:
       Directory where binaries will be installed
     default: bin
 
+  install-output:
+    description: |
+      Whether to install Cargo's output into the package context after building.
+      Set to false for a build-only pipeline whose subpackages install the outputs.
+    default: "true"
+
   output-dir:
     description: |
       Directory where the binaris will be placed after building. Defaults to target/release
@@ -140,11 +146,24 @@ pipeline:
         run_wrap="mold -run"
       fi
 
+      export VERGEN_GIT_SHA="${VERGEN_GIT_SHA:-${GIT_COMMIT:-0000000000000000000000000000000000000000}}"
+      export VERGEN_GIT_DIRTY="${VERGEN_GIT_DIRTY:-false}"
+      export VERGEN_GIT_DESCRIBE="${VERGEN_GIT_DESCRIBE:-${GIT_VERSION:-${GIT_COMMIT:-unknown}}}"
+
       RUSTFLAGS="${{inputs.rustflags}}" $run_wrap cargo auditable build \
         $profile_flag $build_opts $jobs_flag
 
-      if [ -n "${{inputs.output}}" ]; then
-        install -Dm755 "${OUTPUT_PATH}/${{inputs.output}}" "${INSTALL_PATH}/${{inputs.output}}"
-      else
-        install -Dm755 "${OUTPUT_PATH}"/* -t "${INSTALL_PATH}"
-      fi
+      case "${{inputs.install-output}}" in
+        true)
+          if [ -n "${{inputs.output}}" ]; then
+            install -Dm755 "${OUTPUT_PATH}/${{inputs.output}}" "${INSTALL_PATH}/${{inputs.output}}"
+          else
+            install -Dm755 "${OUTPUT_PATH}"/* -t "${INSTALL_PATH}"
+          fi
+          ;;
+        false) ;;
+        *)
+          echo "install-output must be true or false" >&2
+          exit 1
+          ;;
+      esac

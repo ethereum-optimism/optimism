@@ -70,14 +70,15 @@ func TestCLIPrepareCommitsSuperchainDeployment(t *testing.T) {
 
 		prepared, err := pipeline.ReadState(workdir)
 		require.NoError(t, err)
-		require.True(t, prepared.Prepared)
+		require.NotNil(t, prepared.PreparedDeployment)
 
 		// The read must reproduce what apply recorded when it deployed the superchain.
 		require.NotNil(t, prepared.SuperchainDeployment)
 		require.Equal(t, *applied.SuperchainDeployment, *prepared.SuperchainDeployment)
 
-		// prepare deploys no implementations, so it must not claim any.
-		require.Nil(t, prepared.ImplementationsDeployment)
+		// prepare must record implementations the pinned OPCM installs.
+		require.NotNil(t, prepared.ImplementationsDeployment)
+		require.Equal(t, *applied.ImplementationsDeployment, *prepared.ImplementationsDeployment)
 
 		// The committed proxy must match the frozen intent the continuation deploys from.
 		require.NotNil(t, prepared.PreparedDeployment)
@@ -107,7 +108,6 @@ func TestCLIPrepareCommitsSuperchainDeployment(t *testing.T) {
 
 		unwritten, err := pipeline.ReadState(workdir)
 		require.NoError(t, err)
-		require.False(t, unwritten.Prepared)
 		require.Nil(t, unwritten.SuperchainDeployment)
 		require.Nil(t, unwritten.SuperchainRoles)
 		require.Nil(t, unwritten.PreparedDeployment)

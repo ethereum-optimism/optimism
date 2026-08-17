@@ -103,6 +103,7 @@ func (n *SuperNode) StopControlled(ctx context.Context) error {
 	}
 	sn := n.sn
 	cancel := n.cancel
+	n.clearProxyUpstreams()
 	n.mu.Unlock()
 
 	if cancel != nil {
@@ -137,6 +138,7 @@ func (n *SuperNode) stopLocked() {
 		n.logger.Warn("Supernode already stopped")
 		return
 	}
+	n.clearProxyUpstreams()
 	if n.cancel != nil {
 		n.cancel()
 		n.cancel = nil
@@ -145,6 +147,13 @@ func (n *SuperNode) stopLocked() {
 	defer cancel()
 	_ = n.sn.Stop(stopCtx)
 	n.sn = nil
+}
+
+// Callers must hold n.mu.
+func (n *SuperNode) clearProxyUpstreams() {
+	if n.httpProxy != nil {
+		n.httpProxy.ClearUpstream()
+	}
 }
 
 // InteropActivity returns the interop activity, or nil if the supernode is

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -287,7 +288,7 @@ func setupFetcherTest(t *testing.T) (*InputFetcher, *stubOracle, *stubL1Source) 
 	}
 	l1Source := &stubL1Source{
 		blocks:     make(map[uint64]common.Hash),
-		rcpts:      make(map[common.Hash]types.Receipts),
+		rcpts:      make(map[common.Hash]optypes.Receipts),
 		txs:        make(map[uint64]types.Transactions),
 		rcptStatus: make(map[common.Hash]uint64),
 		logs:       make(map[common.Hash][]*types.Log),
@@ -358,7 +359,7 @@ type stubL1Source struct {
 	// Map block number to block hash
 	blocks map[uint64]common.Hash
 	// Map block hash to receipts
-	rcpts map[common.Hash]types.Receipts
+	rcpts map[common.Hash]optypes.Receipts
 	// Map block number to tx
 	txs map[uint64]types.Transactions
 	// Map txHash to receipt
@@ -378,7 +379,7 @@ func (s *stubL1Source) BlockRefByNumber(_ context.Context, num uint64) (eth.Bloc
 	}, nil
 }
 
-func (s *stubL1Source) FetchReceipts(_ context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
+func (s *stubL1Source) FetchReceipts(_ context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {
 	rcpts, ok := s.rcpts[blockHash]
 	if !ok {
 		return nil, nil, errors.New("not found")
@@ -392,7 +393,7 @@ func uint64ToHash(num uint64) common.Hash {
 	return crypto.Keccak256Hash(data)
 }
 
-func (s *stubL1Source) createReceipt(blockNum uint64, status uint64, proposals ...*proposalConfig) *types.Receipt {
+func (s *stubL1Source) createReceipt(blockNum uint64, status uint64, proposals ...*proposalConfig) *optypes.Receipt {
 	// Make the block exist
 	s.blocks[blockNum] = uint64ToHash(blockNum)
 
@@ -420,7 +421,7 @@ func (s *stubL1Source) createReceipt(blockNum uint64, status uint64, proposals .
 		}
 		logs[i] = txLog
 	}
-	rcpt := &types.Receipt{TxHash: uint64ToHash(txId), Status: status, Logs: logs}
+	rcpt := &optypes.Receipt{Receipt: types.Receipt{TxHash: uint64ToHash(txId), Status: status, Logs: logs}}
 	blockHash := s.blocks[blockNum]
 	rcpts := s.rcpts[blockHash]
 	s.rcpts[blockHash] = append(rcpts, rcpt)

@@ -3,10 +3,9 @@
 //! Exposes `op-reth op-proofs snapshot {init,drop}`.
 
 use clap::{Parser, Subcommand};
+use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::CliNodeTypes;
-use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_primitives::OpPrimitives;
 use std::sync::Arc;
 
 pub mod drop;
@@ -19,9 +18,9 @@ pub struct SnapshotCommand<C: ChainSpecParser> {
     command: SnapshotSubcommand<C>,
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> SnapshotCommand<C> {
+impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotCommand<C> {
     /// Execute the snapshot subcommand.
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {

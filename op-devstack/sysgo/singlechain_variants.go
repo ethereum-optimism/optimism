@@ -114,8 +114,18 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 		StartProposer:   true,
 		StartChallenger: false,
 	})
-	nodeB := addSingleChainOpNode(t, runtime, "b", true, "", cfg.GlobalL2CLOptions...)
-	nodeC := addSingleChainOpNode(t, runtime, "c", true, "", cfg.GlobalL2CLOptions...)
+	// Every conductor member sequences once leadership reaches it, so a binary override has to
+	// apply to all of them or it would silently stop taking effect on transfer. The primary already
+	// received these options from startDefaultSingleChainPrimary.
+	candidateELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
+	nodeB := addSingleChainOpNodeWithELOpts(t, runtime, "b", true, "", candidateELOpts, cfg.GlobalL2CLOptions...)
+	nodeC := addSingleChainOpNodeWithELOpts(t, runtime, "c", true, "", candidateELOpts, cfg.GlobalL2CLOptions...)
+
+	// A non-candidate node, always stock: it never sequences, so it independently validates every
+	// block the candidates build. Without it an overridden binary on all three members could accept
+	// its own invalid blocks and the run would still pass.
+	nodeVerifier := addSingleChainOpNode(t, runtime, "verifier", false, "", cfg.GlobalL2CLOptions...)
+	connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeVerifier)
 
 	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, runtime.L2CL.(*OpNode), runtime.L2EL, true, false)
 	conductorB := startConductorNode(t, "b", runtime.L2Network, nodeB.CL.(*OpNode), nodeB.EL, false, true)
@@ -165,9 +175,24 @@ func addSingleChainOpNode(
 	followSource string,
 	l2Opts ...L2CLOption,
 ) *SingleChainNodeRuntime {
+	return addSingleChainOpNodeWithELOpts(t, runtime, name, isSequencer, followSource, nil, l2Opts...)
+}
+
+// addSingleChainOpNodeWithELOpts adds a node whose EL takes op-reth options. Passing none yields a
+// stock op-reth, which is what lets a preset keep an independent check on blocks built by an
+// overridden binary.
+func addSingleChainOpNodeWithELOpts(
+	t devtest.T,
+	runtime *SingleChainRuntime,
+	name string,
+	isSequencer bool,
+	followSource string,
+	elOpts []OpRethOption,
+	l2Opts ...L2CLOption,
+) *SingleChainNodeRuntime {
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0), elOpts...)
 	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts)
 	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, l2CL)
 	runtime.Nodes[name] = node

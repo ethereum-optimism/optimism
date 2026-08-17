@@ -533,7 +533,6 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
         SealTaskError::UnsafeHeadChangedSinceBuild => false,
         SealTaskError::DepositOnlyPayloadFailed |
         SealTaskError::DepositOnlyPayloadReattemptFailed |
-        SealTaskError::FromBlock(_) |
         SealTaskError::MpscSend(_) |
         SealTaskError::ClockWentBackwards => true,
     }

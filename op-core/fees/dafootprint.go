@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
@@ -39,6 +40,7 @@ func ExtractDAFootprintGasScalar(data []byte) (uint16, error) {
 // Jovian introduces a DA footprint block limit which is stored in the BlobGasUsed header field
 // and that is taken into account during base fee updates.
 // CalcDAFootprint must not be called for pre-Jovian blocks.
+// Deposit and post-exec transactions do not contribute to the footprint.
 func CalcDAFootprint(txs []*types.Transaction) (uint64, error) {
 	if len(txs) == 0 || txs[0].Type() != types.DepositTxType {
 		return 0, errors.New("missing deposit transaction")
@@ -61,7 +63,7 @@ func CalcDAFootprint(txs []*types.Transaction) (uint64, error) {
 	}
 	var daFootprint uint64
 	for _, tx := range txs {
-		if tx.Type() == types.DepositTxType {
+		if tx.Type() == types.DepositTxType || optypes.IsPostExecTx(tx) {
 			continue
 		}
 		daFootprint += bigs.Uint64Strict(TxRollupCostData(tx).EstimatedDASize()) * uint64(daFootprintGasScalar)

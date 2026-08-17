@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opbindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -24,8 +25,26 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
+
+func TestValidateInputsRejectsSP1VerifierWithPredeployedOPCM(t *testing.T) {
+	_, _, dk := shared.DefaultPrivkey(t)
+	l1ChainID := big.NewInt(900)
+	loc := artifacts.MustNewLocatorFromURL("file:///test-artifacts")
+	intent, st := shared.NewIntent(t, l1ChainID, dk, uint256.NewInt(1), loc, loc, standard.GasLimit)
+
+	opcmAddress := common.Address{0x06}
+	intent.OPCMAddress = &opcmAddress
+	intent.SuperchainRoles = nil
+	intent.GlobalDeployOverrides = map[string]any{
+		"sp1Verifier": common.Address{0x05},
+	}
+
+	err := ValidateInputs(intent, st)
+	require.ErrorContains(t, err, "sp1Verifier must not be specified when using a predeployed OPCM")
+}
 
 func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Parallel()

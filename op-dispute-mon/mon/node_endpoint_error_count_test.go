@@ -12,7 +12,7 @@ import (
 )
 
 func TestCheckNodeEndpointErrorCount_NoErrors(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointErrorCount: 0},
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointErrorCount: 0},
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, NodeEndpointErrorCount: 0},
@@ -28,7 +28,7 @@ func TestCheckNodeEndpointErrorCount_NoErrors(t *testing.T) {
 }
 
 func TestCheckNodeEndpointErrorCount_SingleGameWithErrors(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointErrorCount: 5,
@@ -49,7 +49,7 @@ func TestCheckNodeEndpointErrorCount_SingleGameWithErrors(t *testing.T) {
 }
 
 func TestCheckNodeEndpointErrorCount_MultipleGamesWithErrors(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointErrorCount: 3,
@@ -75,7 +75,7 @@ func TestCheckNodeEndpointErrorCount_MultipleGamesWithErrors(t *testing.T) {
 }
 
 func TestCheckNodeEndpointErrorCount_MixedGamesWithAndWithoutErrors(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointErrorCount: 0,
@@ -105,7 +105,7 @@ func TestCheckNodeEndpointErrorCount_MixedGamesWithAndWithoutErrors(t *testing.T
 }
 
 func TestCheckNodeEndpointErrorCount_EmptyGamesList(t *testing.T) {
-	games := []*types.EnrichedGameData{}
+	games := []*types.CommonGameData{}
 
 	metrics := &stubNodeEndpointErrorCountMetrics{}
 	logger := testlog.Logger(t, log.LvlDebug)
@@ -117,7 +117,7 @@ func TestCheckNodeEndpointErrorCount_EmptyGamesList(t *testing.T) {
 }
 
 func TestCheckNodeEndpointErrorCount_HighVolumeErrors(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointErrorCount: 100,
@@ -145,17 +145,17 @@ func TestCheckNodeEndpointErrorCount_HighVolumeErrors(t *testing.T) {
 func TestCountGamesWithErrors(t *testing.T) {
 	tests := []struct {
 		name     string
-		games    []*types.EnrichedGameData
+		games    []*types.CommonGameData
 		expected int
 	}{
 		{
 			name:     "no games",
-			games:    []*types.EnrichedGameData{},
+			games:    []*types.CommonGameData{},
 			expected: 0,
 		},
 		{
 			name: "no errors",
-			games: []*types.EnrichedGameData{
+			games: []*types.CommonGameData{
 				{NodeEndpointErrorCount: 0},
 				{NodeEndpointErrorCount: 0},
 			},
@@ -163,7 +163,7 @@ func TestCountGamesWithErrors(t *testing.T) {
 		},
 		{
 			name: "all games have errors",
-			games: []*types.EnrichedGameData{
+			games: []*types.CommonGameData{
 				{NodeEndpointErrorCount: 1},
 				{NodeEndpointErrorCount: 5},
 				{NodeEndpointErrorCount: 10},
@@ -172,7 +172,7 @@ func TestCountGamesWithErrors(t *testing.T) {
 		},
 		{
 			name: "mixed errors",
-			games: []*types.EnrichedGameData{
+			games: []*types.CommonGameData{
 				{NodeEndpointErrorCount: 0},
 				{NodeEndpointErrorCount: 3},
 				{NodeEndpointErrorCount: 0},

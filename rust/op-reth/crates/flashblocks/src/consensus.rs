@@ -1,7 +1,7 @@
 use crate::{FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx};
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadStatusEnum;
-use op_alloy_rpc_types_engine::OpExecutionData;
+use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadEnvelope};
 use reth_engine_primitives::ConsensusEngineHandle;
 use reth_optimism_payload_builder::OpPayloadTypes;
 use reth_payload_primitives::{ExecutionPayload, PayloadTypes};
@@ -157,22 +157,22 @@ impl TryFrom<&FlashBlockCompleteSequence> for OpExecutionData {
     type Error = &'static str;
 
     fn try_from(sequence: &FlashBlockCompleteSequence) -> Result<Self, Self::Error> {
-        let mut data = Self::from_flashblocks_unchecked(sequence);
+        let mut data = OpExecutionPayloadEnvelope::from_flashblocks_unchecked(sequence);
 
         // If execution outcome is available, use the computed state_root and block_hash.
         // FlashBlockService computes these when building sequences on top of the local tip.
         if let Some(execution_outcome) = sequence.execution_outcome() {
-            let payload = data.payload.as_v1_mut();
+            let payload = data.as_v1_mut();
             payload.state_root = execution_outcome.state_root;
             payload.block_hash = execution_outcome.block_hash;
         }
 
         // Only proceed if we have a valid state_root (non-zero).
-        if data.payload.as_v1_mut().state_root == B256::ZERO {
+        if data.as_v1().state_root == B256::ZERO {
             return Err("No state_root available for payload");
         }
 
-        Ok(data)
+        Ok(data.into())
     }
 }
 

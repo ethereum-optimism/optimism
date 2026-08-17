@@ -69,7 +69,11 @@ pub use tx::OpTx;
 pub use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory, PostExecMode,
     PreRefundGasUsed,
-    post_exec::{PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind, WarmingState},
+    post_exec::{
+        NullRefundPolicy, PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecExecutorExt,
+        PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind, PostExecTxContext,
+        PostExecTxKind,
+    },
 };
 
 mod post_exec_ext;
@@ -130,7 +134,11 @@ impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, 
 {
     /// Creates a new [`OpEvmConfig`] with the given chain spec.
     pub fn new(chain_spec: Arc<ChainSpec>, receipt_builder: R) -> Self {
-        Self::new_with_evm_factory(chain_spec, receipt_builder, OpEvmFactory::<OpTx>::default())
+        Self::new_with_evm_factory(
+            chain_spec,
+            receipt_builder,
+            OpEvmFactory::<OpTx, NullRefundPolicy>::default(),
+        )
     }
 }
 
@@ -387,7 +395,7 @@ where
         )?;
 
         Ok(OpBlockExecutionCtx {
-            parent_hash: payload.parent_hash(),
+            parent_hash: payload.payload.parent_hash(),
             // No parent header on this path to detect fork-activation blocks, so the executor's
             // check is skipped; the derivation layer enforces the rule instead.
             no_user_tx_activation_block: false,

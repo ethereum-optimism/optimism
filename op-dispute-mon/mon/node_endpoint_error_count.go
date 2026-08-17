@@ -21,7 +21,7 @@ func NewNodeEndpointErrorCountMonitor(logger log.Logger, metrics NodeEndpointErr
 	}
 }
 
-func (m *NodeEndpointErrorCountMonitor) CheckNodeEndpointErrorCount(games []*types.EnrichedGameData) {
+func (m *NodeEndpointErrorCountMonitor) CheckNodeEndpointErrorCount(games []*types.CommonGameData) {
 	totalErrors := 0
 
 	for _, game := range games {
@@ -32,7 +32,7 @@ func (m *NodeEndpointErrorCountMonitor) CheckNodeEndpointErrorCount(games []*typ
 }
 
 // countGamesWithErrors returns the number of games that have at least one error
-func countGamesWithErrors(games []*types.EnrichedGameData) int {
+func countGamesWithErrors(games []*types.CommonGameData) int {
 	count := 0
 	for _, game := range games {
 		if game.NodeEndpointErrorCount > 0 {

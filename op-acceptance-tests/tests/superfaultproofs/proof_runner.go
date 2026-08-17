@@ -17,7 +17,7 @@ import (
 // ProofRunner executes the proof checks attached to one shared interop scenario.
 // Implementations are constructed here so scenario internals remain private.
 type ProofRunner interface {
-	run(t devtest.T, sys *presets.SimpleInterop, data *scenarioProofData)
+	run(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData)
 }
 
 type scenarioProofData struct {
@@ -50,17 +50,17 @@ func NewSP1NativeProofRunner() ProofRunner {
 	return sp1ProofRunner{nativeCore: true}
 }
 
-// NewSP1FullProofRunner constructs the opt-in full-ELF runner used by the single smoke test.
+// NewSP1FullProofRunner constructs the opt-in runner used by the full-ELF smoke tests.
 func NewSP1FullProofRunner(executorPath string) ProofRunner {
 	return sp1ProofRunner{executorPath: executorPath}
 }
 
-func runScenarioProofs(t devtest.T, sys *presets.SimpleInterop, data *scenarioProofData, runners ...ProofRunner) {
+func runScenarioProofs(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData, runners ...ProofRunner) {
 	if len(runners) == 0 {
 		runners = []ProofRunner{NewKonaProofRunner()}
 	}
 	for _, runner := range runners {
-		runner.run(t, sys, data)
+		runner.run(t, sys, chains, data)
 	}
 }
 
@@ -73,7 +73,7 @@ func hasSP1Runner(runners []ProofRunner) bool {
 	return false
 }
 
-func (konaProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scenarioProofData) {
+func (konaProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, _ []*chain, data *scenarioProofData) {
 	t.Require().NotEmpty(data.fpvmTransitions, "Kona runner requires FPVM transition cases")
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
 	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
@@ -90,7 +90,7 @@ func (konaProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scenar
 	}
 }
 
-func (r sp1ProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scenarioProofData) {
+func (r sp1ProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData) {
 	executorPath := r.executorPath
 	if r.nativeCore {
 		var err error
@@ -112,9 +112,9 @@ func (r sp1ProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scena
 	}
 	t.Run(name, func(t devtest.T) {
 		checkpoint := data.zkCheckpoint
-		validateZKCheckpoint(t, sys, checkpoint)
+		validateZKCheckpoint(t, sys, chains, checkpoint)
 		cfg := sys.L2ChainA.Escape().L2Challengers()[0].Config().CannonKona
-		args := superRangeExecutorArgs(t, sys, cfg, checkpoint.trustedL1Head, checkpoint.endTimestamp)
+		args := superRangeExecutorArgs(t, sys, chains, cfg, checkpoint.trustedL1Head, checkpoint.endTimestamp)
 		if r.nativeCore {
 			args = append(args, "--native-core")
 		}
@@ -126,7 +126,7 @@ func (r sp1ProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scena
 	})
 }
 
-func newZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, endTimestamp uint64, expectReplacement bool) *zkCheckpoint {
+func newZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, endTimestamp uint64, expectReplacement bool) *zkCheckpoint {
 	resp := sys.SuperRoots.SuperRootAtTimestamp(endTimestamp)
 	t.Require().NotNil(resp.Data, "expected verified super-root data at timestamp %d", endTimestamp)
 	return &zkCheckpoint{
@@ -138,7 +138,7 @@ func newZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, endTimestamp uint6
 
 func newZKCheckpointForRunners(
 	t devtest.T,
-	sys *presets.SimpleInterop,
+	sys *presets.SingleChainInterop,
 	endTimestamp uint64,
 	expectReplacement bool,
 	runners []ProofRunner,
@@ -149,13 +149,19 @@ func newZKCheckpointForRunners(
 	return newZKCheckpoint(t, sys, endTimestamp, expectReplacement)
 }
 
-func validateZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, checkpoint *zkCheckpoint) {
+func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, checkpoint *zkCheckpoint) {
 	resp := sys.SuperRoots.SuperRootAtTimestamp(checkpoint.endTimestamp)
 	t.Require().NotNil(resp.Data, "expected verified super-root data at timestamp %d", checkpoint.endTimestamp)
 	t.Require().Equal(checkpoint.trustedL1Head, resp.Data.VerifiedRequiredL1,
 		"verified required L1 changed for timestamp %d", checkpoint.endTimestamp)
-	t.Require().NotEmpty(resp.ChainIDs, "dependency set must contain at least one chain")
-	t.Require().Len(resp.OptimisticAtTimestamp, len(resp.ChainIDs),
+	expectedChainIDs := make([]eth.ChainID, len(chains))
+	for i, chain := range chains {
+		expectedChainIDs[i] = chain.ID
+	}
+	t.Require().NotEmpty(expectedChainIDs, "dependency set must contain at least one chain")
+	t.Require().Equal(expectedChainIDs, resp.ChainIDs,
+		"checkpoint dependency-set chains must match the proof system")
+	t.Require().Len(resp.OptimisticAtTimestamp, len(expectedChainIDs),
 		"every dependency-set chain must have an optimistic output")
 
 	verified, ok := resp.Data.Super.(*eth.SuperV1)
@@ -164,12 +170,11 @@ func validateZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, checkpoint *z
 		return
 	}
 	t.Require().Equal(checkpoint.endTimestamp, verified.Timestamp)
-	t.Require().Len(verified.Chains, len(resp.ChainIDs),
+	t.Require().Len(verified.Chains, len(expectedChainIDs),
 		"verified super root must contain every dependency-set chain")
-
-	verifiedRoots := make(map[eth.ChainID]eth.Bytes32, len(verified.Chains))
-	for _, output := range verified.Chains {
-		verifiedRoots[output.ChainID] = output.Output
+	for i, output := range verified.Chains {
+		t.Require().Equal(expectedChainIDs[i], output.ChainID,
+			"verified super-root chains must match the proof system")
 	}
 	trustedL1 := sys.L1EL.BlockRefByNumber(checkpoint.trustedL1Head.Number)
 	t.Require().Equal(checkpoint.trustedL1Head.Hash, trustedL1.Hash,
@@ -179,7 +184,7 @@ func validateZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, checkpoint *z
 	}
 
 	replacements := 0
-	for _, chainID := range resp.ChainIDs {
+	for i, chainID := range expectedChainIDs {
 		optimistic, exists := resp.OptimisticAtTimestamp[chainID]
 		t.Require().Truef(exists, "missing optimistic output for chain %s", chainID)
 		if !exists {
@@ -197,9 +202,7 @@ func validateZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, checkpoint *z
 		}
 		t.Require().Equalf(optimistic.RequiredL1.Hash, canonicalHash,
 			"optimistic output for chain %s is not supported by the trusted L1 chain", chainID)
-		verifiedRoot, exists := verifiedRoots[chainID]
-		t.Require().Truef(exists, "verified super root missing chain %s", chainID)
-		if optimistic.OutputRoot != verifiedRoot {
+		if optimistic.OutputRoot != verified.Chains[i].Output {
 			replacements++
 		}
 	}
@@ -212,21 +215,24 @@ func validateZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, checkpoint *z
 
 func superRangeExecutorArgs(
 	t devtest.T,
-	sys *presets.SimpleInterop,
+	sys *presets.SingleChainInterop,
+	chains []*chain,
 	cfg vm.Config,
 	l1Head eth.BlockID,
 	endTimestamp uint64,
 ) []string {
-	t.Require().Len(cfg.RollupConfigPaths, 2, "SP1 super-range requires both rollup configs")
+	t.Require().NotEmpty(chains, "SP1 super-range requires at least one chain")
+	t.Require().Len(cfg.RollupConfigPaths, len(chains), "SP1 super-range requires one rollup config per chain")
 	t.Require().NotEmpty(cfg.DepsetConfigPath, "SP1 super-range requires a dependency-set config")
+	l2NodeAddresses := make([]string, len(chains))
+	for i, chain := range chains {
+		l2NodeAddresses[i] = chain.EL.Escape().UserRPC()
+	}
 	args := []string{
 		"--supernode-address", sys.SuperRoots.UserRPC(),
 		"--l1-node-address", sys.L1EL.Escape().UserRPC(),
 		"--l1-beacon-address", sys.L1CL.BeaconHTTPAddr(),
-		"--l2-node-addresses", strings.Join([]string{
-			sys.L2ELA.Escape().UserRPC(),
-			sys.L2ELB.Escape().UserRPC(),
-		}, ","),
+		"--l2-node-addresses", strings.Join(l2NodeAddresses, ","),
 		"--l1-head", l1Head.Hash.Hex(),
 		"--end-timestamp", strconv.FormatUint(endTimestamp, 10),
 		"--rollup-config-paths", strings.Join(cfg.RollupConfigPaths, ","),

@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.12.0
-    string public constant version = "2.12.0";
+    /// @custom:semver 3.3.0
+    string public constant version = "3.3.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -120,6 +120,9 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The migration validator contract for post-interop-migration validation.
     IOPContractsManagerMigrationValidator public migrationValidator;
 
+    /// @notice The release-approved SP1 PLONK adapter address.
+    address public sp1PlonkAdapterImpl;
+
     /// @notice Struct containing the implementation addresses of the L1 contracts.
     struct Implementations {
         address l1ERC721BridgeImpl;
@@ -138,6 +141,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
         address zkDisputeGameImpl;
+        address sp1PlonkAdapterImpl;
     }
 
     /// @notice Struct containing the input parameters for the validation process.
@@ -199,6 +203,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
         superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
         zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
+        sp1PlonkAdapterImpl = _implementations.sp1PlonkAdapterImpl;
     }
 
     /// @notice Returns a string representing the overrides that are set.
@@ -275,7 +280,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertValidSystemConfig(
         string memory _errors,
         ISystemConfig _sysCfg,
-        IProxyAdmin _admin
+        IProxyAdmin _admin,
+        uint256 _l2ChainID
     )
         internal
         view
@@ -300,6 +306,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
         _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-130", _errors);
+        _errors = internalRequire(_sysCfg.l2ChainId() == _l2ChainID, "SYSCON-140", _errors);
         return _errors;
     }
 
@@ -891,7 +898,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         _errors = assertValidSuperchainConfig(_errors);
         _errors = assertValidProxyAdmin(_errors, _proxyAdmin, _overrides);
-        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _proxyAdmin, _input.l2ChainID);
         _errors = assertValidL1CrossDomainMessenger(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidL1StandardBridge(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _proxyAdmin);
@@ -1052,7 +1059,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
         _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
-            args.verifier != address(0) && args.verifier.code.length > 0, string.concat(_errorPrefix, "-80"), _errors
+            args.verifier == sp1PlonkAdapterImpl && sp1PlonkAdapterImpl.code.length > 0,
+            string.concat(_errorPrefix, "-80"),
+            _errors
         );
         _errors = internalRequire(args.maxChallengeDuration > 0, string.concat(_errorPrefix, "-90"), _errors);
         _errors = internalRequire(args.maxProveDuration > 0, string.concat(_errorPrefix, "-100"), _errors);
@@ -1113,6 +1122,8 @@ contract OPContractsManagerStandardValidator is ISemver {
             string.concat(errorPrefix, "-20"),
             _errors
         );
+        _errors =
+            internalRequire(gameImpl.gameAddress == zkDisputeGameImpl, string.concat(errorPrefix, "-150"), _errors);
         return _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, errorPrefix);
     }
 

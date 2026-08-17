@@ -9,7 +9,8 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 // Monitor is a ReceiptGetter that will continue looking for a receipt even when
@@ -34,7 +35,7 @@ var transientErrs = []error{
 	errors.New("transaction indexing is in progress"), // op-geth wording (not exported).
 }
 
-func (m *Monitor) TransactionReceipt(ctx context.Context, hash common.Hash) (*types.Receipt, error) {
+func (m *Monitor) TransactionReceipt(ctx context.Context, hash common.Hash) (*optypes.Receipt, error) {
 	for {
 		receipt, err := m.inner.TransactionReceipt(ctx, hash)
 		if err == nil {

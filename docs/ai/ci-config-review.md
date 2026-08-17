@@ -9,7 +9,10 @@ hide. For each changed file, walk the relevant items and look for the bad patter
 - **`config.yml` is a setup pipeline** (`setup: true`). `prepare-continuation-config`
   detects changed paths, runs the routing policy (`compute-workflow-conditions.sh`),
   merges the continuation fragments, and continues the pipeline. Only workflows whose
-  `c-run_*` flag the policy set to `true` execute.
+  `c-run_*` flag the policy set to `true` execute. It also front-loads the mise
+  toolset (`utils/install-mise`): it always finishes before any continuation job
+  starts, so on a cold cache it is the only job that installs over the network —
+  continuation jobs restore the mise cache it saved.
 - **Routing is data + logic split**: `routing.yml` holds the declarative data
   (schedule→workflows, API dispatch flag→workflows, change-detection patterns,
   passthrough params); `compute-workflow-conditions.sh` holds the conditions that
@@ -32,6 +35,32 @@ hide. For each changed file, walk the relevant items and look for the bad patter
 - **Continuation limits**: a setup pipeline continues exactly once, within 6h, no
   setup→setup. A param declared in both `config.yml` and a fragment with
   different defaults fails with "Conflicting pipeline parameters".
+
+## Validating a change locally
+
+Because the real config is merged from fragments, validate the **merged** file, not a
+single fragment:
+
+```bash
+# 1. Merge the fragments into /tmp/merged-config.yml (uses mise's yq; resolves anchors).
+mise exec -- bash .circleci/scripts/merge-configs.sh
+
+# 2. Validate it. --org is REQUIRED: the private org orb
+#    ethereum-optimism/circleci-utils won't resolve without it (and the CLI
+#    needs CIRCLE_TOKEN set to resolve --org).
+export CIRCLE_TOKEN="<your token>"
+circleci config validate --org gh/ethereum-optimism /tmp/merged-config.yml
+
+# 3. The setup config imports the private orb too, so it needs the same flag.
+circleci config validate --org gh/ethereum-optimism .circleci/config.yml
+```
+
+Install the CLI without sudo:
+`curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | DESTDIR="$HOME/.local/bin" bash`.
+
+This checks orb resolution and config structure, but **not** continuation-time param
+wiring — a param leak across fragment anchors still only surfaces when the pipeline
+actually continues.
 
 ## Choosing where a new job runs
 

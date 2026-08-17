@@ -17,10 +17,18 @@ import (
 
 // OPChainDeploymentResult must be obtained from ExecuteOPChainDeployment.
 type OPChainDeploymentResult struct {
-	chainID     common.Hash
-	contracts   addresses.OpChainContracts
-	readback    opcm.ReadImplementationAddressesOutput
-	initialized bool
+	chainID         common.Hash
+	contracts       addresses.OpChainContracts
+	outputContracts addresses.OpChainContracts
+	readback        opcm.ReadImplementationAddressesOutput
+	initialized     bool
+}
+
+// Contracts returns the addresses emitted by DeployOPChain, matching the set
+// recorded by prepare. RecordOPChainDeployment uses a separate set whose dispute
+// game implementations are replaced with addresses read back from their proxies.
+func (r OPChainDeploymentResult) Contracts() addresses.OpChainContracts {
+	return r.outputContracts
 }
 
 func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
@@ -101,20 +109,41 @@ func ExecuteOPChainDeployment(
 		}
 	}
 
+	return readOPChainDeployment(env, chainID, OpChainContractsFromDeployOutput(dco), dci.Opcm)
+}
+
+// ReconcileOPChainDeployment reads the implementation addresses needed to
+// produce the same recorded state as a freshly receipted deployment.
+func ReconcileOPChainDeployment(
+	env *Env,
+	chainID common.Hash,
+	expected addresses.OpChainContracts,
+	pinnedOPCM common.Address,
+) (OPChainDeploymentResult, error) {
+	return readOPChainDeployment(env, chainID, expected, pinnedOPCM)
+}
+
+func readOPChainDeployment(
+	env *Env,
+	chainID common.Hash,
+	outputContracts addresses.OpChainContracts,
+	pinnedOPCM common.Address,
+) (OPChainDeploymentResult, error) {
 	readInput := opcm.ReadImplementationAddressesInput{
-		AddressManager:                    dco.AddressManager,
-		L1ERC721BridgeProxy:               dco.L1ERC721BridgeProxy,
-		SystemConfigProxy:                 dco.SystemConfigProxy,
-		OptimismMintableERC20FactoryProxy: dco.OptimismMintableERC20FactoryProxy,
-		L1StandardBridgeProxy:             dco.L1StandardBridgeProxy,
-		OptimismPortalProxy:               dco.OptimismPortalProxy,
-		DisputeGameFactoryProxy:           dco.DisputeGameFactoryProxy,
-		Opcm:                              dci.Opcm,
+		AddressManager:                    outputContracts.AddressManagerImpl,
+		L1ERC721BridgeProxy:               outputContracts.L1Erc721BridgeProxy,
+		SystemConfigProxy:                 outputContracts.SystemConfigProxy,
+		OptimismMintableERC20FactoryProxy: outputContracts.OptimismMintableErc20FactoryProxy,
+		L1StandardBridgeProxy:             outputContracts.L1StandardBridgeProxy,
+		OptimismPortalProxy:               outputContracts.OptimismPortalProxy,
+		DisputeGameFactoryProxy:           outputContracts.DisputeGameFactoryProxy,
+		Opcm:                              pinnedOPCM,
 	}
 
 	var impls opcm.ReadImplementationAddressesOutput
+	var err error
 	if env.UseForge {
-		lgr.Info("using Forge for ReadImplementationAddresses")
+		env.Logger.Info("using Forge for ReadImplementationAddresses", "stage", "deploy-opchain")
 		forgeEnv := &opcm.ForgeEnv{
 			Client:   env.ForgeClient,
 			Context:  env.Context,
@@ -122,25 +151,26 @@ func ExecuteOPChainDeployment(
 		}
 		impls, err = opcm.ReadImplementationAddressesViaForge(forgeEnv, readInput)
 		if err != nil {
-			return result, err
+			return OPChainDeploymentResult{}, err
 		}
 	} else {
 		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
 		if err != nil {
-			return result, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
+			return OPChainDeploymentResult{}, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
 		}
 
 		impls, err = readImplementations.Run(readInput)
 		if err != nil {
-			return result, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
+			return OPChainDeploymentResult{}, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
 		}
 	}
 
 	return OPChainDeploymentResult{
-		chainID:     chainID,
-		contracts:   chainContractsForDeploy(impls, dco),
-		readback:    impls,
-		initialized: true,
+		chainID:         chainID,
+		contracts:       chainContractsForRecordedState(impls, outputContracts),
+		outputContracts: outputContracts,
+		readback:        impls,
+		initialized:     true,
 	}, nil
 }
 
@@ -172,6 +202,7 @@ func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) er
 		st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
 		st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
 		st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
+		st.ImplementationsDeployment.SP1PlonkAdapterImpl = impls.SP1PlonkAdapter
 		st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
 		st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.SuperFaultDisputeGame
 		st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.SuperPermissionedDisputeGame
@@ -284,6 +315,38 @@ func ValidateInitialGameTypeSet(gameTypes []uint32) error {
 	return nil
 }
 
+func ValidateInitialGameTypeForOPCM(gameType uint32, requireSuperGame bool, opcmAddr common.Address) error {
+	var isSuperGame bool
+	switch embedded.GameType(gameType) {
+	case embedded.GameTypePermissionedCannon, embedded.GameTypeCannonKona:
+	case embedded.GameTypeSuperPermissioned, embedded.GameTypeSuperCannonKona:
+		isSuperGame = true
+	default:
+		return fmt.Errorf("unsupported initial dispute game type %d", gameType)
+	}
+	if isSuperGame == requireSuperGame {
+		return nil
+	}
+
+	permissionless, permissioned := embedded.GameTypeCannonKona, embedded.GameTypePermissionedCannon
+	enabled := "disabled"
+	if requireSuperGame {
+		permissionless, permissioned = embedded.GameTypeSuperCannonKona, embedded.GameTypeSuperPermissioned
+		enabled = "enabled"
+	}
+	return fmt.Errorf(
+		"initial dispute game type %s (%d) is not deployable by the OPCM at %s: it has SUPER_ROOT_GAMES_MIGRATION %s, which accepts only %s (%d) or %s (%d)",
+		initialGameTypeName(gameType),
+		gameType,
+		opcmAddr,
+		enabled,
+		initialGameTypeName(uint32(permissionless)),
+		permissionless,
+		initialGameTypeName(uint32(permissioned)),
+		permissioned,
+	)
+}
+
 // ResolveInitialDeployRequirements returns requirements for a supported initial game type.
 func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirements, error) {
 	switch embedded.GameType(gameType) {
@@ -299,24 +362,29 @@ func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirement
 	}
 }
 
-// BuildContinuationDCI builds deployment input from prepared state.
-func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
-	if st == nil || !st.Prepared {
+// BuildContinuationDCI uses the values saved by prepare.
+// It reads Prestate and StartingAnchorRoot from ChainState because later steps set them.
+func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
+	if st == nil || st.PreparedDeployment == nil || st.PreparedDeployment.Intent == nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("state was not produced by op-deployer prepare. Run op-deployer prepare")
 	}
+	prepared := st.PreparedDeployment
 	if st.Create2Salt == (common.Hash{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no CREATE2 salt. Rerun op-deployer prepare")
 	}
-	if st.L1PredictSenderAddress == nil || *st.L1PredictSenderAddress == (common.Address{}) {
+	if prepared.Deployer == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no predicted sender address. Rerun op-deployer prepare")
 	}
-	if st.L1PredictOPCMAddress == nil || *st.L1PredictOPCMAddress == (common.Address{}) {
+	if prepared.OPCM == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no predicted OPCM address. Rerun op-deployer prepare")
 	}
-	if intent == nil || intent.SuperchainConfigProxy == nil || *intent.SuperchainConfigProxy == (common.Address{}) {
+	if prepared.Intent.SuperchainConfigProxy == nil || *prepared.Intent.SuperchainConfigProxy == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("intent.superchainConfigProxy must be set")
 	}
 
+	if _, err := prepared.Chain(chainID); err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
 	chainState, err := st.Chain(chainID)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf(
@@ -325,16 +393,15 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 			err,
 		)
 	}
-	thisIntent, err := intent.Chain(chainID)
+	thisIntent, err := prepared.Intent.Chain(chainID)
 	if err != nil {
-		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to get chain intent: %w", err)
+		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to get prepared chain intent: %w", err)
 	}
 
-	proofParams, err := ResolveChainProofParams(intent, thisIntent)
+	proofParams, err := ResolveChainProofParams(prepared.Intent, thisIntent)
 	if err != nil {
-		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
+		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging prepared proof params: %w", err)
 	}
-
 	preparedGameType, err := ResolvePreparedGameType(thisIntent, chainState, proofParams.DisputeGameType)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, err
@@ -361,14 +428,6 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 				chainID.Hex(),
 			)
 		}
-		if hasFaultGameAbsolutePrestateOverride(intent, thisIntent) &&
-			proofParams.DisputeAbsolutePrestate != chainState.Prestate {
-			return opcm.DeployOPChainInput{}, fmt.Errorf(
-				"chain %s faultGameAbsolutePrestate override differs from the committed prestate. Rerun op-deployer prestate",
-				chainID.Hex(),
-			)
-		}
-		proofParams.DisputeAbsolutePrestate = chainState.Prestate
 	}
 
 	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
@@ -402,11 +461,15 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 		}
 	}
 
+	if requirements.RequiresPrestate {
+		proofParams.DisputeAbsolutePrestate = chainState.Prestate
+	}
+
 	return BuildDeployOPChainInput(
 		proofParams,
 		thisIntent.Roles,
-		*st.L1PredictOPCMAddress,
-		*intent.SuperchainConfigProxy,
+		prepared.OPCM,
+		*prepared.Intent.SuperchainConfigProxy,
 		chainID,
 		st.Create2Salt.String(),
 		thisIntent.GasLimit,
@@ -522,11 +585,10 @@ func OpChainContractsFromDeployOutput(dco opcm.DeployOPChainOutput) addresses.Op
 	return opChainContracts
 }
 
-// chainContractsForDeploy builds the OpChainContracts for a deployed chain,
-// overriding the dispute game impls with the values read back from the proxies.
-func chainContractsForDeploy(impls opcm.ReadImplementationAddressesOutput, dco opcm.DeployOPChainOutput) addresses.OpChainContracts {
-	opChainContracts := OpChainContractsFromDeployOutput(dco)
-
+func chainContractsForRecordedState(
+	impls opcm.ReadImplementationAddressesOutput,
+	opChainContracts addresses.OpChainContracts,
+) addresses.OpChainContracts {
 	if (impls.PermissionedDisputeGame != common.Address{}) {
 		opChainContracts.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
 	}

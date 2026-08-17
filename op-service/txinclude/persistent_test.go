@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
@@ -24,10 +25,10 @@ type mockEL struct {
 	// receiptReadyCh will be closed when the receipt can be sent.
 	// mockEL doesn't always close it: it may last the life of the test.
 	receiptReadyCh chan struct{}
-	receipt        *types.Receipt
+	receipt        *optypes.Receipt
 }
 
-func newMockEL(sendTxErrs []error, receipt *types.Receipt) *mockEL {
+func newMockEL(sendTxErrs []error, receipt *optypes.Receipt) *mockEL {
 	return &mockEL{
 		sendTxErrs:     sendTxErrs,
 		receiptReadyCh: make(chan struct{}),
@@ -51,7 +52,7 @@ func (m *mockEL) SendTransaction(ctx context.Context, tx *types.Transaction) err
 	return nil
 }
 
-func (m *mockEL) TransactionReceipt(ctx context.Context, hash common.Hash) (*types.Receipt, error) {
+func (m *mockEL) TransactionReceipt(ctx context.Context, hash common.Hash) (*optypes.Receipt, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -73,11 +74,11 @@ func TestPersistentSuccessfulTxInclusion(t *testing.T) {
 	}
 	want := &txinclude.IncludedTx{
 		Transaction: types.NewTx(original),
-		Receipt: &types.Receipt{
+		Receipt: &optypes.Receipt{Receipt: types.Receipt{
 			Status:            types.ReceiptStatusSuccessful,
 			GasUsed:           original.Gas,
 			EffectiveGasPrice: original.GasFeeCap,
-		},
+		}},
 	}
 
 	el := newMockEL(nil, want.Receipt)
@@ -101,11 +102,11 @@ func TestPersistentFixesNonceTooLow(t *testing.T) {
 			Gas:       original.Gas,
 			Nonce:     original.Nonce + 2,
 		}),
-		Receipt: &types.Receipt{
+		Receipt: &optypes.Receipt{Receipt: types.Receipt{
 			Status:            types.ReceiptStatusSuccessful,
 			GasUsed:           original.Gas,
 			EffectiveGasPrice: original.GasFeeCap,
-		},
+		}},
 	}
 
 	el := newMockEL([]error{core.ErrNonceTooLow, core.ErrNonceTooLow}, want.Receipt)
@@ -125,11 +126,11 @@ func TestPersistentNoChangeOnUnderpriced(t *testing.T) {
 	}
 	want := &txinclude.IncludedTx{
 		Transaction: types.NewTx(original),
-		Receipt: &types.Receipt{
+		Receipt: &optypes.Receipt{Receipt: types.Receipt{
 			Status:            types.ReceiptStatusSuccessful,
 			GasUsed:           original.Gas,
 			EffectiveGasPrice: original.GasFeeCap,
-		},
+		}},
 	}
 
 	el := newMockEL([]error{txpool.ErrUnderpriced, txpool.ErrReplaceUnderpriced}, want.Receipt)

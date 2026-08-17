@@ -2,6 +2,7 @@ package proofs
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -50,12 +51,15 @@ type ZKClaimData struct {
 }
 
 type zkDisputeGameBinding struct {
+	L1Head               func() bindings.TypedCall[common.Hash]            `sol:"l1Head"`
 	RootClaim            func() bindings.TypedCall[common.Hash]            `sol:"rootClaim"`
 	L2SequenceNumber     func() bindings.TypedCall[*big.Int]               `sol:"l2SequenceNumber"`
 	ParentIndex          func() bindings.TypedCall[uint32]                 `sol:"parentIndex"`
 	Status               func() bindings.TypedCall[uint8]                  `sol:"status"`
 	ClaimData            func() bindings.TypedCall[ZKClaimData]            `sol:"claimData"`
 	ChallengerBond       func() bindings.TypedCall[*big.Int]               `sol:"challengerBond"`
+	TotalBonds           func() bindings.TypedCall[*big.Int]               `sol:"totalBonds"`
+	Weth                 func() bindings.TypedCall[common.Address]         `sol:"weth"`
 	GameOver             func() bindings.TypedCall[bool]                   `sol:"gameOver"`
 	ResolvedAt           func() bindings.TypedCall[uint64]                 `sol:"resolvedAt"`
 	BondDistributionMode func() bindings.TypedCall[uint8]                  `sol:"bondDistributionMode"`
@@ -72,6 +76,7 @@ type zkDisputeGameBinding struct {
 type ZKGame struct {
 	t            devtest.T
 	require      *require.Assertions
+	ethClient    apis.EthClient
 	contract     *zkDisputeGameBinding
 	Address      common.Address
 	factoryIndex uint32
@@ -83,7 +88,7 @@ func newZKGame(t devtest.T, require *require.Assertions, client apis.EthClient, 
 		bindings.WithTo(addr),
 		bindings.WithTest(t),
 	)
-	return &ZKGame{t: t, require: require, contract: &game, Address: addr}
+	return &ZKGame{t: t, require: require, ethClient: client, contract: &game, Address: addr}
 }
 
 func (g *ZKGame) withFactoryIndex(index uint32) *ZKGame {
@@ -99,6 +104,40 @@ func (g *ZKGame) RootClaimValue() common.Hash {
 	return contract.Read(g.contract.RootClaim())
 }
 
+func (g *ZKGame) L1Head() common.Hash {
+	return contract.Read(g.contract.L1Head())
+}
+
+// AwaitRootSourcePastL1Head waits until source has fully processed the L1 snapshot
+// pinned by this game.
+func (g *ZKGame) AwaitRootSourcePastL1Head(source dsl.SuperRootSource) {
+	g.t.Logf("Waiting for the root source to process past the L1 head of ZK game %v", g.Address)
+	ctx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
+	defer cancel()
+
+	var target uint64
+	var lastReadErr error
+	err := wait.For(ctx, time.Second, func() (bool, error) {
+		l1Head, err := contractio.Read(g.contract.L1Head(), ctx)
+		if err != nil {
+			lastReadErr = err
+			g.t.Logf("ZK game %v L1 head unavailable: %v", g.Address, err)
+			return false, nil
+		}
+		block, err := g.ethClient.BlockRefByHash(ctx, l1Head)
+		if err != nil {
+			lastReadErr = err
+			g.t.Logf("ZK game %v L1 head block %v unavailable: %v", g.Address, l1Head, err)
+			return false, nil
+		}
+		target = block.Number
+		lastReadErr = nil
+		return true, nil
+	})
+	g.require.NoErrorf(err, "could not resolve the L1 head of ZK game %v; last read error: %v", g.Address, lastReadErr)
+	source.AwaitFullyProcessedL1(target)
+}
+
 func (g *ZKGame) L2SequenceNumber() uint64 {
 	return bigs.Uint64Strict(contract.Read(g.contract.L2SequenceNumber()))
 }
@@ -111,6 +150,26 @@ func (g *ZKGame) ClaimData() ZKClaimData {
 	return contract.Read(g.contract.ClaimData())
 }
 
+// WaitForClaimData retries transient read failures until ctx ends or the DSL timeout elapses.
+func (g *ZKGame) WaitForClaimData(ctx context.Context) (ZKClaimData, error) {
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+
+	var claim ZKClaimData
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		claim, lastReadErr = contractio.Read(g.contract.ClaimData(), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v claim data unavailable: %v", g.Address, lastReadErr)
+		}
+		return lastReadErr == nil, nil
+	})
+	if err != nil && lastReadErr != nil {
+		return claim, fmt.Errorf("%w; last read error: %w", err, lastReadErr)
+	}
+	return claim, err
+}
+
 func (g *ZKGame) ProposalStatus() ZKProposalStatus {
 	return ZKProposalStatus(g.ClaimData().Status)
 }
@@ -121,6 +180,14 @@ func (g *ZKGame) GameStatus() gameTypes.GameStatus {
 
 func (g *ZKGame) ChallengerBond() eth.ETH {
 	return eth.WeiBig(contract.Read(g.contract.ChallengerBond()))
+}
+
+func (g *ZKGame) TotalBonds() eth.ETH {
+	return eth.WeiBig(contract.Read(g.contract.TotalBonds()))
+}
+
+func (g *ZKGame) WETHAddress() common.Address {
+	return contract.Read(g.contract.Weth())
 }
 
 func (g *ZKGame) GameOver() bool {
@@ -141,12 +208,6 @@ func (g *ZKGame) Challenge(challenger *dsl.EOA) ZKClaimData {
 	claim := g.ClaimData()
 	g.require.Equal(ZKProposalChallenged, ZKProposalStatus(claim.Status))
 	return claim
-}
-
-func (g *ZKGame) Prove(prover *dsl.EOA, proof []byte) ZKClaimData {
-	receipt := contract.Write(prover, g.contract.Prove(proof), txplan.WithGasRatio(2))
-	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
-	return g.ClaimData()
 }
 
 func (g *ZKGame) Resolve(eoa *dsl.EOA) gameTypes.GameStatus {

@@ -389,8 +389,6 @@ func convertVToYParity(v *big.Int, txType int) (uint, error) {
 		}
 	case types.AccessListTxType, types.DynamicFeeTxType, types.SetCodeTxType:
 		yParityBit = uint(bigs.Uint64Strict(v))
-	case optypes.PostExecTxType:
-		yParityBit = 0
 	default:
 		return 0, fmt.Errorf("invalid tx type: %d", txType)
 	}
@@ -429,6 +427,12 @@ func newSpanBatchTxs(txs [][]byte, chainID *big.Int) (*spanBatchTxs, error) {
 func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 	offset := sbtx.totalBlockTxCount
 	for idx, rawTx := range txs {
+		if len(rawTx) > 0 && rawTx[0] == optypes.PostExecTxType {
+			if err := sbtx.addPostExecTx(rawTx, idx+int(offset)); err != nil {
+				return err
+			}
+			continue
+		}
 		tx := &types.Transaction{}
 		if err := tx.UnmarshalBinary(rawTx); err != nil {
 			return errors.New("failed to decode tx")
@@ -441,7 +445,7 @@ func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 			sbtx.protectedBits.SetBit(sbtx.protectedBits, int(sbtx.totalLegacyTxCount), protectedBit)
 			sbtx.totalLegacyTxCount++
 		}
-		if tx.Type() != optypes.PostExecTxType && tx.Protected() && tx.ChainId().Cmp(chainID) != 0 {
+		if tx.Protected() && tx.ChainId().Cmp(chainID) != 0 {
 			return fmt.Errorf("protected tx has chain ID %d, but expected chain ID %d", tx.ChainId(), chainID)
 		}
 		var txSig spanBatchSignature
@@ -477,5 +481,32 @@ func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 		sbtx.txTypes = append(sbtx.txTypes, int(tx.Type()))
 	}
 	sbtx.totalBlockTxCount += uint64(len(txs))
+	return nil
+}
+
+// addPostExecTx appends the span batch fields of a post-exec (0x7D) transaction
+// at position idx of the span. Post-exec transactions are synthetic and unsigned:
+// they carry no signature, nonce, gas or recipient, so every transposed envelope
+// field is zero and only the opaque payload is stored. Deriving the fields from
+// the canonical encoding keeps the span batch encoder off go-ethereum's typed
+// transaction decoding, which does not know the OP Stack transaction classes.
+func (sbtx *spanBatchTxs) addPostExecTx(rawTx []byte, idx int) error {
+	postExecTx, err := optypes.UnmarshalPostExecTx(rawTx)
+	if err != nil {
+		return fmt.Errorf("failed to decode post-exec tx: %w", err)
+	}
+	stx := &spanBatchTx{inner: &spanBatchPostExecTxData{Data: postExecTx.Data}}
+	txData, err := stx.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	sbtx.txSigs = append(sbtx.txSigs, spanBatchSignature{v: new(big.Int), r: new(uint256.Int), s: new(uint256.Int)})
+	// No recipient: the contract creation bit is set and no address is stored.
+	sbtx.contractCreationBits.SetBit(sbtx.contractCreationBits, idx, 1)
+	sbtx.yParityBits.SetBit(sbtx.yParityBits, idx, 0)
+	sbtx.txNonces = append(sbtx.txNonces, 0)
+	sbtx.txGases = append(sbtx.txGases, 0)
+	sbtx.txDatas = append(sbtx.txDatas, txData)
+	sbtx.txTypes = append(sbtx.txTypes, optypes.PostExecTxType)
 	return nil
 }

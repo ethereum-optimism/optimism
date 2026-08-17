@@ -4,6 +4,8 @@ description: Learn how to use Supersim in vanilla mode (non-forked).
 diataxis: how-to
 ---
 
+import SupersimDepositPointer from '/snippets/supersim-deposit-pointer.mdx';
+
 This guide explains how to start `supersim` in vanilla (non-forked) mode. By default, two OP Stack systems will be spun up in vanilla mode:
 
 *   OPChainA (chainID 901)
@@ -148,4 +150,5 @@ GLOBAL OPTIONS:
 
 *   Explore the Supersim [included contracts](/app-developers/reference/tools/supersim/included-contracts) being used to help replicate the OP Stack interop environment.
 *   Get network details about the two OP Stack systems spun up in vanilla mode: [OPChainA (chainID 901)](/app-developers/reference/tools/supersim/chain-a) and [OPChainB (chainID 902)](/app-developers/reference/tools/supersim/chain-b).
-*   Learn how to [deposit transactions](/app-developers/tutorials/bridging/deposit-transactions) with Supersim, using a much simpler approach that bypasses the derivation pipeline.
+
+<SupersimDepositPointer />

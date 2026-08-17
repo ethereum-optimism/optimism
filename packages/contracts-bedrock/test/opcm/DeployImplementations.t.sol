@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { Test } from "test/setup/Test.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
+import { MockSP1Verifier } from "test/dispute/zk/MockSP1Verifier.sol";
 import "../setup/FeatureFlags.sol";
 
 // Libraries
@@ -16,6 +17,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 
@@ -34,11 +36,13 @@ contract DeployImplementations_Test is Test, FeatureFlags {
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
     address l1ProxyAdminOwner = makeAddr("l1ProxyAdminOwner");
     address challenger = makeAddr("challenger");
+    ISP1Verifier sp1Verifier;
 
     function setUp() public virtual {
         resolveFeaturesFromEnv();
         // We'll need to store some code on this address so that the deployment script checks pass
         vm.etch(address(superchainConfigProxy), hex"01");
+        sp1Verifier = new MockSP1Verifier();
 
         deployImplementations = new DeployImplementations();
     }
@@ -146,9 +150,27 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertEq(address(output1.ethLockboxImpl), address(output2.ethLockboxImpl), "1300");
         assertEq(address(output1.faultDisputeGameImpl), address(output2.faultDisputeGameImpl), "1400");
         assertEq(address(output1.permissionedDisputeGameImpl), address(output2.permissionedDisputeGameImpl), "1500");
+        assertEq(address(output1.sp1PlonkAdapterSingleton), address(output2.sp1PlonkAdapterSingleton), "1600");
 
         assertNotEq(address(output1.faultDisputeGameImpl), address(0), "V2 contracts should not be null");
         assertNotEq(address(output1.permissionedDisputeGameImpl), address(0), "V2 contracts should not be null");
+    }
+
+    /// @notice Different release-approved raw verifiers must produce different deterministic adapters.
+    function test_differentSP1Verifiers_deployDifferentAdapters_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        DeployImplementations.Input memory inputA = defaultInput();
+        DeployImplementations.Output memory outputA = deployImplementations.run(inputA);
+
+        ISP1Verifier verifierB = new MockSP1Verifier();
+        DeployImplementations.Input memory inputB = defaultInput();
+        inputB.sp1Verifier = verifierB;
+        DeployImplementations.Output memory outputB = deployImplementations.run(inputB);
+
+        assertNotEq(address(outputA.sp1PlonkAdapterSingleton), address(outputB.sp1PlonkAdapterSingleton));
+        assertEq(address(outputA.sp1PlonkAdapterSingleton.sp1Verifier()), address(sp1Verifier));
+        assertEq(address(outputB.sp1PlonkAdapterSingleton.sp1Verifier()), address(verifierB));
     }
 
     /// @notice Test that the deployImplementations script succeeds with a range of input values.
@@ -217,7 +239,10 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             superchainConfigProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
-            challenger
+            challenger,
+            DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
+                ? sp1Verifier
+                : ISP1Verifier(address(0))
         );
 
         DeployImplementations.Output memory output = deployImplementations.run(input);
@@ -335,6 +360,11 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         // Architecture assertions.
         assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "600");
+        if (DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            assertEq(
+                address(output.sp1PlonkAdapterSingleton.sp1Verifier()), address(sp1Verifier), "SP1 verifier mismatch"
+            );
+        }
     }
 
     /// @notice Test that the deployImplementations script reverts when the Mips version is set to 1 on Mainnet or
@@ -420,6 +450,32 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
     }
 
+    /// @notice Tests that the raw SP1 verifier input matches the ZK feature gate.
+    function test_run_invalidSP1VerifierForFeatureGate_reverts() public {
+        DeployImplementations.Input memory input = defaultInput();
+        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            input.sp1Verifier = ISP1Verifier(address(0));
+            vm.expectRevert("DeployImplementations: sp1Verifier must be a contract when ZK_DISPUTE_GAME is enabled");
+        } else {
+            input.sp1Verifier = sp1Verifier;
+            vm.expectRevert("DeployImplementations: sp1Verifier must be zero when ZK_DISPUTE_GAME is disabled");
+        }
+        deployImplementations.run(input);
+    }
+
+    /// @notice Tests that the raw SP1 verifier exposes the expected verifier interface.
+    function test_run_sp1VerifierWithoutVersion_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        address verifierWithoutVersion = makeAddr("verifierWithoutVersion");
+        vm.etch(verifierWithoutVersion, hex"00");
+        DeployImplementations.Input memory input = defaultInput();
+        input.sp1Verifier = ISP1Verifier(verifierWithoutVersion);
+
+        vm.expectRevert("DeployImplementations: sp1Verifier must expose VERSION()");
+        deployImplementations.run(input);
+    }
+
     /// @notice Test that the deployImplementations script reverts when the V2 game parameters are invalid.
     function test_invalidV2GameParams_withV2Enabled_reverts() public {
         DeployImplementations.Input memory input;
@@ -491,7 +547,10 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             superchainConfigProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
-            challenger
+            challenger,
+            DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
+                ? sp1Verifier
+                : ISP1Verifier(address(0))
         );
     }
 }

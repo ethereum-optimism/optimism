@@ -33,6 +33,10 @@ type Env struct {
 	Scripts      *opcm.Scripts
 	ForgeClient  *forge.Client
 	UseForge     bool
+	// IsGenesis identifies deployments that build genesis allocations instead of targeting a running chain.
+	IsGenesis bool
+	// DeployMockSP1Verifier explicitly opts development environments into an accept-all raw verifier.
+	DeployMockSP1Verifier bool
 	// AllowUnoptimizedContracts permits contract artifacts that exceed the EIP-170 code-size limit.
 	// It is only enabled for genesis-mode deployments, which execute scripts against an in-memory host.
 	AllowUnoptimizedContracts bool

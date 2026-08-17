@@ -103,6 +103,7 @@ func (k *KonaNode) Stop() {
 		k.p.Logger().Warn("kona-node already stopped")
 		return
 	}
+	k.clearProxyUpstreams()
 	err := k.sub.Stop(true)
 	k.p.Require().NoError(err, "Must stop")
 	k.sub = nil
@@ -118,11 +119,19 @@ func (k *KonaNode) StopControlled(ctx context.Context) error {
 	if k.sub == nil {
 		return nil
 	}
+	k.clearProxyUpstreams()
 	if err := k.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
 		return err
 	}
 	k.sub = nil
 	return nil
+}
+
+// Callers must hold k.mu.
+func (k *KonaNode) clearProxyUpstreams() {
+	if k.userProxy != nil {
+		k.userProxy.ClearUpstream()
+	}
 }
 
 func (k *KonaNode) Running() bool {

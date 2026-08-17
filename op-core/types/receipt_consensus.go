@@ -25,6 +25,30 @@ type Receipts []*Receipt
 
 var _ types.DerivableList = (Receipts)(nil)
 
+// FromGethReceipt wraps a go-ethereum receipt. The receipt struct is
+// shallow-copied (reference fields like Logs still alias the source). While
+// go-ethereum resolves to op-geth, the deposit receipt fields are mirrored to
+// the authoritative outer copies so consensus encoding stays correct; those two
+// assignments stop compiling at the final cutover and are removed then.
+//
+// Use this rather than wrapping by hand: a Receipt built as &Receipt{Receipt: *r}
+// leaves the outer deposit fields nil and encodes a deposit receipt without them.
+func FromGethReceipt(r *types.Receipt) *Receipt {
+	wrapped := &Receipt{Receipt: *r}
+	wrapped.DepositNonce = r.DepositNonce
+	wrapped.DepositReceiptVersion = r.DepositReceiptVersion
+	return wrapped
+}
+
+// FromGethReceipts wraps go-ethereum receipts into Receipts, per FromGethReceipt.
+func FromGethReceipts(rs types.Receipts) Receipts {
+	out := make(Receipts, len(rs))
+	for i, r := range rs {
+		out[i] = FromGethReceipt(r)
+	}
+	return out
+}
+
 // Geth returns a view of the embedded go-ethereum receipts, for boundaries
 // that operate on standard receipt fields only. The elements alias the
 // receivers' embedded structs — mutations are visible in both.

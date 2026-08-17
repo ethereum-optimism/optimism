@@ -24,7 +24,8 @@ func (*NoopMetricsImpl) RecordMonitorDuration(_ time.Duration) {}
 func (*NoopMetricsImpl) CacheAdd(_ string, _ int, _ bool) {}
 func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
 
-func (*NoopMetricsImpl) RecordHonestActorClaims(_ common.Address, _ *HonestActorData) {}
+func (*NoopMetricsImpl) RecordHonestActorClaims(_ common.Address, _ *HonestActorClaimData) {}
+func (*NoopMetricsImpl) RecordHonestActorBonds(_ common.Address, _ *HonestActorBondData)   {}
 
 func (*NoopMetricsImpl) RecordGameResolutionStatus(_ ResolutionStatus, _ int) {}
 
@@ -68,4 +69,8 @@ func (*NoopMetricsImpl) RecordDifferentRootGames(_ int) {}
 
 func (*NoopMetricsImpl) RecordGameTypes(_ map[string]int) {}
 
+func (*NoopMetricsImpl) RecordGamesWaitingForRootSource(_ map[string]int) {}
+
 func (*NoopMetricsImpl) RecordAnchorStateL2SequenceNumber(_ common.Address, _ uint64) {}
+
+func (*NoopMetricsImpl) RecordZKGamesPendingLifecycleActions(_, _ int) {}

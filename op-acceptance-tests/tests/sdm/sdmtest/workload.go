@@ -43,10 +43,10 @@ func DeployContract(t devtest.T, eoa *dsl.EOA, hexBytecode string) common.Addres
 	return res.ContractAddress
 }
 
-// MustFindRepeatedSlotBlock drives a repeated-slot warming workload (a burst of txs hitting the
-// same storage slots) until one block lands at least minUserTxs of them together, which is what
-// produces cross-tx warming refunds and therefore a PostExec (0x7D) tx. It returns that block, the
-// txs that landed in it, and its number. Fails the test after maxAttempts dense-block misses.
+// MustFindRepeatedSlotBlock drives a dense repeated-slot workload until one block lands at least
+// minUserTxs transactions together. The fixture policy refunds every committed normal transaction,
+// so the repeated storage shape is retained only as a stable block-packing workload, not as a
+// policy oracle. It returns the block, the receipts that landed in it, and its number.
 func MustFindRepeatedSlotBlock(
 	t devtest.T,
 	sys *RethSystem,

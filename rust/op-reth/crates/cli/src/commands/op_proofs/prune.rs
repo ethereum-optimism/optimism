@@ -1,14 +1,13 @@
 //! Command that prunes the OP proofs storage.
 
 use clap::Parser;
+use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
-use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{
     ProofsHistoryStorageArgs, ProofsHistoryWindowArg, ProofsStorageVersion,
 };
-use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
     OpProofStoragePruner, OpProofsProviderRO, OpProofsStore,
     db::{MdbxProofsStorage, MdbxProofsStorageV2},
@@ -39,9 +38,9 @@ pub struct PruneCommand<C: ChainSpecParser> {
     pub proofs_history_prune_batch_size: u64,
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
+impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> PruneCommand<C> {
     /// Execute [`PruneCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {

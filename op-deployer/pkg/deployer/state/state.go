@@ -34,17 +34,6 @@ type State struct {
 	// Create2Salt is the salt used for CREATE2 deployments.
 	Create2Salt common.Hash `json:"create2Salt"`
 
-	// L1PredictSenderAddress is the address that performed the L1 deploy dry-run.
-	// It is used to verify that the same deployer address is used for the relevant stages of the permissionless pipeline.
-	L1PredictSenderAddress *common.Address `json:"predictSenderAddress,omitempty"`
-
-	// L1PredictOPCMAddress is the OPCM address used for the L1 deploy dry-run.
-	// It is used to verify that the same OPCM is used for the relevant stages of the permissionless pipeline.
-	L1PredictOPCMAddress *common.Address `json:"predictOpcmAddress,omitempty"`
-
-	// Prepared is set when this state was produced by the prepare pipeline.
-	Prepared bool `json:"prepared,omitempty"`
-
 	// PreparedDeployment freezes inputs and predictions for chains awaiting deployment.
 	// Values committed by other stages, such as Prestate and StartingAnchorRoot, remain in ChainState.
 	PreparedDeployment *PreparedDeployment `json:"preparedDeployment,omitempty"`
@@ -69,6 +58,9 @@ type State struct {
 	// ImplementationsDeployment contains the addresses of the common implementation
 	// contracts required for the Superchain to function.
 	ImplementationsDeployment *addresses.ImplementationsContracts `json:"implementationsDeployment"`
+
+	// SP1Verifier is the raw verifier selected when deploying the implementations bundle.
+	SP1Verifier *common.Address `json:"sp1Verifier,omitempty"`
 
 	// Chains contains data about L2 chain deployments.
 	Chains []*ChainState `json:"opChainDeployments"`
@@ -101,15 +93,16 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 }
 
 // CheckL1PredictInputs verifies that the deployer and OPCM match the values pinned
-// during the prepare dry-run, keeping the predicted L1 addresses valid across the
-// relevant stages of the permissionless pipeline. A nil pinned value means nothing
-// was pinned for that input, so any value is accepted (older pipeline).
+// during the prepare dry-run. States outside the prepare flow have no snapshot.
 func (s *State) CheckL1PredictInputs(deployer common.Address, opcm common.Address) error {
-	if s.L1PredictSenderAddress != nil && *s.L1PredictSenderAddress != deployer {
-		return fmt.Errorf("deployer address mismatch: expected %s, got %s", s.L1PredictSenderAddress.Hex(), deployer.Hex())
+	if s.PreparedDeployment == nil {
+		return nil
 	}
-	if s.L1PredictOPCMAddress != nil && *s.L1PredictOPCMAddress != opcm {
-		return fmt.Errorf("opcm address mismatch: expected %s, got %s", s.L1PredictOPCMAddress.Hex(), opcm.Hex())
+	if s.PreparedDeployment.Deployer != deployer {
+		return fmt.Errorf("deployer address mismatch: expected %s, got %s", s.PreparedDeployment.Deployer.Hex(), deployer.Hex())
+	}
+	if s.PreparedDeployment.OPCM != opcm {
+		return fmt.Errorf("opcm address mismatch: expected %s, got %s", s.PreparedDeployment.OPCM.Hex(), opcm.Hex())
 	}
 	return nil
 }
@@ -117,7 +110,7 @@ func (s *State) CheckL1PredictInputs(deployer common.Address, opcm common.Addres
 // CheckNotPrepared returns an error if the state was produced by the prepare
 // pipeline.
 func (s *State) CheckNotPrepared() error {
-	if s.Prepared {
+	if s.PreparedDeployment != nil {
 		return fmt.Errorf("state was produced by the prepare pipeline and cannot be applied")
 	}
 	return nil
@@ -207,6 +200,9 @@ func (p *PreparedDeployment) Clone() (*PreparedDeployment, error) {
 	return &clone, nil
 }
 
+// ContinuationState marks a chain recorded by the continuation workflow.
+type ContinuationState struct{}
+
 type ChainState struct {
 	ID common.Hash `json:"id"`
 
@@ -236,6 +232,8 @@ type ChainState struct {
 	// GenesisTime is the L2 genesis timestamp pinned with StartBlock.
 	// Nil leaves deploy config to derive it from L1StartingBlockTag.
 	GenesisTime *hexutil.Uint64 `json:"genesisTime,omitempty"`
+
+	Continuation *ContinuationState `json:"continuation,omitempty"`
 
 	// GenesisBlockHash is the L2 genesis block hash computed from Allocs, the combined deploy
 	// config, and the pinned StartBlock/GenesisTime. Used by post-deploy validation to confirm

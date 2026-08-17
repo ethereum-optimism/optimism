@@ -45,6 +45,9 @@ contract OPContractsManagerUtils {
     bytes32 internal constant OZ_V5_INITIALIZABLE_SLOT =
         0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
 
+    /// @notice ABI-encoded ZKDisputeGameConfig length: four static 32-byte fields.
+    uint256 internal constant ZK_DISPUTE_GAME_CONFIG_LENGTH = 4 * 32;
+
     /// @notice Emitted when a proxy is created by this contract.
     /// @param name  The name of the proxy.
     /// @param proxy The address of the proxy.
@@ -506,11 +509,14 @@ contract OPContractsManagerUtils {
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig));
             return abi.encodePacked(address(_anchorStateRegistry), parsedInputArgs.proposer);
         } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            if (_gcfg.gameArgs.length != ZK_DISPUTE_GAME_CONFIG_LENGTH) {
+                revert IOPContractsManagerUtils.OPContractsManagerUtils_InvalidZKGameArgsLength(_gcfg.gameArgs.length);
+            }
             IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
             return abi.encodePacked(
                 parsedInputArgs.absolutePrestate,
-                parsedInputArgs.verifier,
+                impls.sp1PlonkAdapterImpl,
                 parsedInputArgs.maxChallengeDuration,
                 parsedInputArgs.maxProveDuration,
                 parsedInputArgs.challengerBond,
