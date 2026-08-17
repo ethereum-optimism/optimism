@@ -38,18 +38,20 @@ pub struct Transaction<T = OpTxEnvelope> {
 impl<T: OpTransaction + TransactionTrait> Transaction<T> {
     /// Converts a consensus `tx` with an additional context `tx_info` into an RPC [`Transaction`].
     pub fn from_transaction(tx: Recovered<T>, tx_info: OpTransactionInfo) -> Self {
-        let base_fee = tx_info.inner.base_fee;
         let effective_gas_price = if tx.is_deposit() {
             // For deposits, we must always set the `gasPrice` field to 0 in rpc
             // deposit tx don't have a gas price field, but serde of `Transaction` will take care of
             // it
             0
         } else {
-            base_fee
-                .map(|base_fee| {
-                    tx.effective_tip_per_gas(base_fee).unwrap_or_default() + base_fee as u128
-                })
-                .unwrap_or_else(|| tx.max_fee_per_gas())
+            // `min(max_fee_per_gas, max_priority_fee_per_gas + base_fee)`, i.e. the price the
+            // executor actually charges and the one reported on the receipt.
+            //
+            // Deriving this as `effective_tip_per_gas(base_fee) + base_fee` instead is wrong for a
+            // transaction whose `max_fee_per_gas` is below the block's base fee: the tip is `None`
+            // there, so the price collapses to `base_fee` rather than to `max_fee_per_gas`, and
+            // `eth_getTransactionByHash` then disagrees with `eth_getTransactionReceipt`.
+            tx.effective_gas_price(tx_info.inner.base_fee)
         };
 
         Self {
@@ -370,8 +372,9 @@ mod tx_serde {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_consensus::transaction::Recovered;
-    use alloy_primitives::Address;
+    use alloy_consensus::{Signed, TxEip1559, transaction::Recovered};
+    use alloy_primitives::{Address, Signature};
+    use alloy_rpc_types_eth::TransactionInfo;
     use op_alloy_consensus::{
         OpTxEnvelope, SDMGasEntry, build_post_exec_tx, transaction::OpTransactionInfo,
     };
@@ -415,6 +418,57 @@ mod tests {
         assert_eq!(value.get("from"), Some(&serde_json::to_value(Address::ZERO).unwrap()));
         assert!(value.get("gasRefundEntries").is_none());
         assert!(value.get("version").is_none());
+    }
+
+    /// Builds an RPC transaction for an EIP-1559 tx with the given fee fields, mined in a block
+    /// with the given base fee.
+    fn rpc_tx_with_fees(
+        max_fee_per_gas: u128,
+        max_priority_fee_per_gas: u128,
+        base_fee: Option<u64>,
+    ) -> Transaction {
+        let tx = TxEip1559 {
+            chain_id: 10,
+            nonce: 0,
+            gas_limit: 21_000,
+            max_fee_per_gas,
+            max_priority_fee_per_gas,
+            to: TxKind::Call(Address::ZERO),
+            value: U256::ZERO,
+            input: Bytes::new(),
+            access_list: Default::default(),
+        };
+        let signed = Signed::new_unchecked(
+            tx,
+            Signature::new(U256::from(1), U256::from(1), false),
+            B256::ZERO,
+        );
+
+        Transaction::from_transaction(
+            Recovered::new_unchecked(OpTxEnvelope::Eip1559(signed), Address::ZERO),
+            OpTransactionInfo::new(
+                TransactionInfo { base_fee, ..Default::default() },
+                Default::default(),
+            ),
+        )
+    }
+
+    #[test]
+    fn effective_gas_price_is_min_of_fee_cap_and_tip_plus_base_fee() {
+        // Tip caps the price: min(100, 2 + 10).
+        assert_eq!(rpc_tx_with_fees(100, 2, Some(10)).inner.effective_gas_price, Some(12));
+
+        // Fee cap caps the price: min(100, 200 + 10).
+        assert_eq!(rpc_tx_with_fees(100, 200, Some(10)).inner.effective_gas_price, Some(100));
+
+        // A fee cap below the base fee must report the fee cap, not the base fee. Deriving the
+        // price as `effective_tip_per_gas(base_fee) + base_fee` yields `base_fee` here, which
+        // overstates what was paid and disagrees with the receipt.
+        assert_eq!(rpc_tx_with_fees(0, 0, Some(10)).inner.effective_gas_price, Some(0));
+        assert_eq!(rpc_tx_with_fees(4, 0, Some(10)).inner.effective_gas_price, Some(4));
+
+        // Without a base fee the fee cap is reported as-is.
+        assert_eq!(rpc_tx_with_fees(100, 2, None).inner.effective_gas_price, Some(100));
     }
 
     /// Deposit classification on the rpc wrapper derives from the inner consensus tx, never the
