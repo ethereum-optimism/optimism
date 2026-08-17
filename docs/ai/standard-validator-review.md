@@ -47,9 +47,11 @@ types because each helper numbers from its own base. `ZKDG-70` asserts
 reports the ZK path as symmetric when it is not. Resolve each call through the shared
 helpers to what it actually asserts, and compare that.
 
-**Compare across kinds, not only across siblings.** The game implementations are checked
-by `version()` alone, while every other proxied contract in the graph pairs a `version()`
-check with an implementation-address check.
+**Compare across kinds, not only across siblings.** Every proxied contract in the graph
+pairs a `version()` check with an implementation-address check except `SuperchainConfig`,
+which has neither — it is only asserted non-paused
+(`StandardValidatorUtils.sol:138`). `OptimismMintableERC20Factory` is likewise the one
+proxied contract with no `proxyAdmin() == _admin` assertion.
 
 ## Technique 2: diff-driven review
 
@@ -88,10 +90,16 @@ Resolve a getter to what it returns before claiming its value is unconstrained.
 **2. Is the value behind an implementation-identity check?** An `immutable` is baked
 into implementation bytecode, so an exact implementation-address assertion already pins
 every immutable of that implementation. The portal's proof-maturity delay and the
-registry's finality delay are pinned this way, not by direct assertion.
+registry's finality delay are pinned this way, not by direct assertion. The games' `-150`
+(`StandardValidatorUtils.sol:433` and `:508`,
+`OPContractsManagerStandardValidator.sol:1126`) pins the game implementation address
+exactly, so the clock extension, split depth, max game depth and max clock duration read
+off it (`-80`/`-90`/`-100`/`-110`) are already implied — do not report them as missing or
+propose duplicate assertions for them. The game *args* (prestate, VM, WETH, chain ID) are
+decoded from factory storage rather than the implementation, so they are not implied.
 
 **3. Is it a composite rather than the component?** `SystemConfig.paused()` ORs the
-global pause with a per-identifier local pause (`SystemConfig.sol:581-587`). Asserting
+global pause with a per-identifier local pause (`SystemConfig.sol:581-589`). Asserting
 it equals the global flag would be *wrong*, not missing.
 
 ## What auditors actually find
@@ -101,8 +109,9 @@ contains StandardValidator findings: `2026_05-U19-Cantina.pdf` (nine findings, a
 or Informational). In frequency order the recurring types are:
 
 1. **A value with a known expected constant that is never asserted** — most common.
-2. **A comparison made through a lossy projection** — e.g. matching an implementation by
-   its self-reported `version()` string instead of its address.
+2. **A comparison made through a lossy projection** — e.g. the preimage oracle is matched
+   by its self-reported `version()` string against a constant, never by address
+   (`StandardValidatorUtils.sol:316`).
 3. **A value reachable by two independent paths that is never bound to itself.**
 
 Auditors do not find whole unvalidated contracts; feature work catches those. Types 2
