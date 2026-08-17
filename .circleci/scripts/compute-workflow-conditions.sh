@@ -80,21 +80,29 @@ case "${TRIGGER_SOURCE}" in
 
     # 2. Merge queue (pre-merge validation)
     #    Runs when GitHub merge queue picks up the PR.
-    #    Full contract tests, path-gated rust/docs.
+    #    Docs-only changes emit the required gates without running test suites.
+    #    All other changes run full contract tests and path-gated Rust tests.
     # ---------------------------------------------------------
     elif [[ "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
-      run main
-      run release
-      run contracts_feature_tests
-      if is_true rust_changes_detected; then
-        run rust_ci
-        run rust_e2e_ci
-      else
+      if is_true only_docs_changes; then
+        run ci_gate_skip
+        run contracts_feature_tests_short
         run rust_ci_gate_short
         run rust_e2e_gate_skip
-      fi
-      if is_true circleci_changed; then
-        run circleci_schedule_trigger_check
+      else
+        run main
+        run release
+        run contracts_feature_tests
+        if is_true rust_changes_detected; then
+          run rust_ci
+          run rust_e2e_ci
+        else
+          run rust_ci_gate_short
+          run rust_e2e_gate_skip
+        fi
+        if is_true circleci_changed; then
+          run circleci_schedule_trigger_check
+        fi
       fi
 
     # 3. After merge (develop push)
