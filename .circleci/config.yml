@@ -11,7 +11,7 @@ parameters:
   default_docker_image:
     type: string
     default: cimg/base:2026.03
-  # Pinned ci-base-clang image (cimg/base + clang/llvm-dev/libclang-dev + protobuf-compiler) for Rust jobs.
+  # Pinned ci-base-clang image (cimg/base + clang/llvm-dev/libclang-dev) for Rust jobs.
   # Provenance is verified by .github/workflows/security.yml.
   rust_base_image:
     type: string
