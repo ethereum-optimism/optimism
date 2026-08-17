@@ -6,7 +6,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:02bbcf0c7bdc15da25149060330d28929c988a118490489f9d71cf981f40593f
   c-base_image:
     type: string
     default: default
@@ -28,7 +28,7 @@ parameters:
     default: cimg/base:2026.03
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:02bbcf0c7bdc15da25149060330d28929c988a118490489f9d71cf981f40593f
   base_image:
     type: string
     default: default
@@ -197,7 +197,7 @@ commands:
       for every ref and develop overrides to the writer. The write/read split is
       enforced by GCP Workload Identity on the signed CircleCI OIDC vcs-ref
       claim, so a non-develop ref impersonating the writer is denied by GCP;
-      this only selects the SA. sccache is preinstalled in the ci-base-clang
+      this only selects the SA. sccache is preinstalled in the Rust base
       image.
 
       Not fail-open: if the sccache server can't start, the job fails so a
@@ -247,7 +247,7 @@ commands:
                 name: "Start sccache"
                 command: |
                   # Skip where sccache is not installed (machine-executor jobs like
-                  # the cannon builds run on a VM, not the ci-base-clang image). This
+                  # the cannon builds run on a VM, not the Rust base image). This
                   # is NOT fail-open for a broken cache: if sccache IS present, a
                   # failed server start below still fails the job.
                   if ! command -v sccache >/dev/null 2>&1; then
@@ -695,7 +695,7 @@ commands:
               # build alone would omit crates other workspace members need).
               cargo fetch --locked
             fi
-            # Use the mold linker (pinned via mise; also present in ci-base-clang)
+            # Use the mold linker (pinned via mise; also present in the Rust base image)
             # to cut final link time. `mold -run` intercepts the linker at exec
             # time, so it needs no RUSTFLAGS change and does not perturb the sccache
             # compile-cache key. The CI env is controlled, so a missing mold must
