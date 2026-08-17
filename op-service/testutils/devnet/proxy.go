@@ -165,6 +165,8 @@ func (p *RetryProxy) doProxyReq(ctx context.Context, body []byte) (*http.Respons
 	if err != nil {
 		panic(fmt.Errorf("failed to create request: %w", err))
 	}
+	// Some clients reject JSON-RPC requests that arrive without this header.
+	req.Header.Set("Content-Type", "application/json")
 	res, err := p.client.Do(req)
 	if err != nil {
 		p.lgr.Warn("failed to proxy request", "err", err)
