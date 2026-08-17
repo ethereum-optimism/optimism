@@ -4,7 +4,7 @@ use crate::{
 };
 use alloy_consensus::Header;
 use alloy_eips::Encodable2718;
-use op_alloy_consensus::{OpReceiptEnvelope, SDMGasEntry, build_post_exec_tx};
+use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
 use rstest::rstest;
 use std::path::PathBuf;
 
@@ -112,10 +112,7 @@ async fn post_exec_sdm_enabled_rejects_duplicate_post_exec_txs() {
 }
 
 #[tokio::test]
-async fn post_exec_valid_empty_payload_executes_without_state_or_gas_change() {
-    let baseline = execute_loaded_fixture(load_test_fixture(post_exec_fixture_path()).await, None)
-        .expect("baseline fixture must execute");
-
+async fn post_exec_rejects_empty_payload_entries() {
     let mut loaded = load_test_fixture(post_exec_fixture_path()).await;
     let block_number = fixture_block_number(&loaded.fixture.parent_header);
     append_post_exec_tx(
@@ -124,19 +121,21 @@ async fn post_exec_valid_empty_payload_executes_without_state_or_gas_change() {
         Vec::new(),
     );
 
-    let outcome = execute_loaded_fixture(loaded, Some(true)).expect("post-exec fixture executes");
-    assert_eq!(
-        outcome.execution_result.receipts.len(),
-        baseline.execution_result.receipts.len() + 1
-    );
-    assert!(matches!(
-        outcome.execution_result.receipts.last(),
-        Some(OpReceiptEnvelope::PostExec(_))
-    ));
-    assert_eq!(outcome.execution_result.gas_used, baseline.execution_result.gas_used);
-    assert_eq!(outcome.header.state_root, baseline.header.state_root);
-    assert_ne!(outcome.header.transactions_root, baseline.header.transactions_root);
-    assert_ne!(outcome.header.receipts_root, baseline.header.receipts_root);
+    let err = execute_loaded_fixture(loaded, Some(true)).unwrap_err();
+    assert_post_exec_validation_failure(err, "empty post-exec payload gas refund entries");
+}
+
+#[tokio::test]
+async fn post_exec_rejects_entries_exceeding_block_transaction_count() {
+    let mut loaded = load_test_fixture(post_exec_fixture_path()).await;
+    let block_number = fixture_block_number(&loaded.fixture.parent_header);
+    let transactions = loaded.fixture.executing_payload.transactions.as_mut().unwrap();
+    let entries =
+        (0..=transactions.len() as u64).map(|index| SDMGasEntry { index, gas_refund: 1 }).collect();
+    append_post_exec_tx(transactions, block_number, entries);
+
+    let err = execute_loaded_fixture(loaded, Some(true)).unwrap_err();
+    assert_post_exec_validation_failure(err, "entries exceed block transaction count");
 }
 
 #[tokio::test]

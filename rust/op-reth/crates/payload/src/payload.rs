@@ -12,7 +12,10 @@ use alloy_rpc_types_engine::{
     BlobsBundleV1, ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2, ExecutionPayloadV1,
     ExecutionPayloadV3, PayloadId,
 };
-use op_alloy_consensus::{EIP1559ParamError, encode_holocene_extra_data, encode_jovian_extra_data};
+use op_alloy_consensus::{
+    EIP1559ParamError, encode_holocene_extra_data, encode_jovian_extra_data,
+    validate_post_exec_entry_count,
+};
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
     OpExecutionPayloadV4,
@@ -303,9 +306,9 @@ impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> OpPayloadBuilderA
     ) -> Result<Self, alloy_rlp::Error> {
         let id = payload_id_optimism(&parent, &attributes, version);
 
-        let transactions = attributes
-            .transactions
-            .unwrap_or_default()
+        let encoded_transactions = attributes.transactions.unwrap_or_default();
+        validate_post_exec_entry_count(&encoded_transactions)?;
+        let transactions = encoded_transactions
             .into_iter()
             .map(|data| {
                 Decodable2718::decode_2718_exact(data.as_ref()).map(|tx| WithEncoded::new(data, tx))
@@ -337,9 +340,9 @@ impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> OpPayloadBuilderA
         id: PayloadId,
         attributes: OpPayloadAttributes,
     ) -> Result<Self, alloy_rlp::Error> {
-        let transactions = attributes
-            .transactions
-            .unwrap_or_default()
+        let encoded_transactions = attributes.transactions.unwrap_or_default();
+        validate_post_exec_entry_count(&encoded_transactions)?;
+        let transactions = encoded_transactions
             .into_iter()
             .map(|data| {
                 Decodable2718::decode_2718_exact(data.as_ref()).map(|tx| WithEncoded::new(data, tx))

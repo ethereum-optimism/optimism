@@ -141,6 +141,48 @@ fn post_exec_tx_rlp_decode_rejects_unknown_version() {
 }
 
 #[test]
+fn encoded_entry_count_preflight_uses_block_transaction_count() {
+    let post_exec = build_post_exec_tx(
+        1,
+        vec![SDMGasEntry { index: 0, gas_refund: 1 }, SDMGasEntry { index: 1, gas_refund: 1 }],
+    );
+    let filler = Bytes::from_static(&[0x01]);
+
+    validate_post_exec_entry_count(&[
+        filler.clone(),
+        filler.clone(),
+        post_exec.encoded_2718().into(),
+    ])
+    .expect("two entries fit two preceding transactions");
+
+    let err = validate_post_exec_entry_count(&[filler, post_exec.encoded_2718().into()])
+        .expect_err("two entries cannot target one other block transaction");
+    assert_eq!(
+        err,
+        alloy_rlp::Error::Custom("post-exec gas refund entries exceed block transaction count")
+    );
+}
+
+#[test]
+fn encoded_entry_count_preflight_rejects_non_final_post_exec_before_decoding() {
+    let malformed_post_exec = Bytes::from_static(&[POST_EXEC_TX_TYPE_ID]);
+    let filler = Bytes::from_static(&[0x01]);
+
+    let err = validate_post_exec_entry_count(&[malformed_post_exec, filler])
+        .expect_err("post-exec transaction must be final");
+    assert_eq!(err, alloy_rlp::Error::Custom("post-exec transaction must be final"));
+}
+
+#[test]
+fn encoded_entry_count_preflight_rejects_multiple_post_exec_txs_before_decoding() {
+    let malformed_post_exec = Bytes::from_static(&[POST_EXEC_TX_TYPE_ID]);
+
+    let err = validate_post_exec_entry_count(&[malformed_post_exec.clone(), malformed_post_exec])
+        .expect_err("multiple post-exec transactions must fail preflight");
+    assert_eq!(err, alloy_rlp::Error::Custom("multiple post-exec transactions"));
+}
+
+#[test]
 fn post_exec_tx_eip2718_roundtrip_empty_refunds() {
     let tx = build_post_exec_tx(1, vec![]);
 
@@ -246,6 +288,28 @@ fn parse_accepts_trailing_post_exec_tx() {
     assert_eq!(parsed.tx_index, 2);
     assert_eq!(parsed.payload.block_number, PARSE_BLOCK);
     assert_eq!(parsed.payload.gas_refund_entries, vec![SDMGasEntry { index: 1, gas_refund: 9 }]);
+}
+
+#[test]
+fn parse_rejects_more_entries_than_preceding_transactions() {
+    let post_exec = crate::OpTxEnvelope::PostExec(
+        build_post_exec_tx(
+            PARSE_BLOCK,
+            vec![SDMGasEntry { index: 0, gas_refund: 1 }, SDMGasEntry { index: 1, gas_refund: 1 }],
+        )
+        .seal_slow(),
+    );
+    let txs = vec![filler_tx(), post_exec];
+
+    let err = parse_post_exec_payload_from_transactions(&txs, PARSE_BLOCK, true)
+        .expect_err("entries cannot outnumber preceding block transactions");
+    assert_eq!(
+        err,
+        PostExecPayloadValidationError::TooManyGasRefundEntries {
+            entry_count: 2,
+            preceding_transaction_count: 1,
+        },
+    );
 }
 
 #[test]

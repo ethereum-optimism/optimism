@@ -21,7 +21,7 @@ use alloy_op_evm::{
 use core::fmt::Debug;
 use op_alloy_consensus::{
     EIP1559ParamError, OpTransaction as OpConsensusTransaction,
-    parse_post_exec_payload_from_transactions,
+    parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
 };
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
@@ -381,6 +381,8 @@ where
         &self,
         payload: &'a OpExecutionData,
     ) -> Result<ExecutionCtxFor<'a, Self>, Self::Error> {
+        validate_post_exec_entry_count(payload.payload.transactions())
+            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
         let transactions = payload
             .payload
             .transactions()
@@ -409,6 +411,8 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
+        validate_post_exec_entry_count(payload.payload.transactions())
+            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
         let transactions = payload.payload.transactions().clone();
         let convert = |encoded: Bytes| {
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
@@ -432,7 +436,7 @@ mod tests {
         Address, B256, LogData, bytes,
         map::{AddressMap, B256Map, HashMap},
     };
-    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
+    use op_alloy_consensus::{SDMGasEntry, TxDeposit, build_post_exec_tx};
     use op_revm::OpSpecId;
     use reth_chainspec::ChainSpec;
     use reth_evm::execute::ProviderError;
@@ -501,13 +505,16 @@ mod tests {
         SealedBlock::new_unhashed(Block::<OpTransactionSigned> {
             header: Header { number, timestamp, ..Default::default() },
             body: BlockBody {
-                transactions: vec![OpTransactionSigned::PostExec(
-                    build_post_exec_tx(
-                        tx_block_number,
-                        vec![SDMGasEntry { index: 0, gas_refund: 1 }],
-                    )
-                    .seal_slow(),
-                )],
+                transactions: vec![
+                    OpTransactionSigned::Deposit(TxDeposit::default().seal_slow()),
+                    OpTransactionSigned::PostExec(
+                        build_post_exec_tx(
+                            tx_block_number,
+                            vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+                        )
+                        .seal_slow(),
+                    ),
+                ],
                 ..Default::default()
             },
         })
