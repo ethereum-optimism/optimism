@@ -106,3 +106,4 @@ workflows:
       - rust-nightly-bump:
           context:
             - circleci-repo-optimism
+            - slack
