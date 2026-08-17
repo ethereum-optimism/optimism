@@ -1,0 +1,4 @@
+include: apko/op-node.yaml
+contents:
+  packages:
+    - apk-tools

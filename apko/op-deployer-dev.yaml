@@ -1,0 +1,4 @@
+include: apko/op-deployer.yaml
+contents:
+  packages:
+    - apk-tools

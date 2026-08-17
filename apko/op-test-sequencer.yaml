@@ -8,7 +8,6 @@ contents:
     - wolfi-baselayout
     - op-test-sequencer@local
     - busybox
-    - apk-tools
 
 environment:
   PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin

@@ -1,0 +1,4 @@
+include: apko/op-proposer.yaml
+contents:
+  packages:
+    - apk-tools

@@ -8,7 +8,6 @@ contents:
     - wolfi-baselayout
     - op-faucet@local
     - busybox
-    - apk-tools
 
 environment:
   PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin

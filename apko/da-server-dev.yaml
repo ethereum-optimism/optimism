@@ -1,0 +1,4 @@
+include: apko/da-server.yaml
+contents:
+  packages:
+    - apk-tools

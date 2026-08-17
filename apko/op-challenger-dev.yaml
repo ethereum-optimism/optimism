@@ -1,0 +1,4 @@
+include: apko/op-challenger.yaml
+contents:
+  packages:
+    - apk-tools

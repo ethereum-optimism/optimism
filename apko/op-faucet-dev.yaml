@@ -1,0 +1,4 @@
+include: apko/op-faucet.yaml
+contents:
+  packages:
+    - apk-tools

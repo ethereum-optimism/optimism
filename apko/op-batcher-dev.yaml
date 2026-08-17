@@ -1,0 +1,4 @@
+include: apko/op-batcher.yaml
+contents:
+  packages:
+    - apk-tools

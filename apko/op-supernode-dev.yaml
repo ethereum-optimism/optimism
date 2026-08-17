@@ -1,0 +1,4 @@
+include: apko/op-supernode.yaml
+contents:
+  packages:
+    - apk-tools

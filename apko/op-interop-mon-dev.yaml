@@ -1,0 +1,4 @@
+include: apko/op-interop-mon.yaml
+contents:
+  packages:
+    - apk-tools

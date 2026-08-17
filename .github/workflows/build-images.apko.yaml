@@ -63,7 +63,7 @@ jobs:
 
       - name: Plan melange, apko, and smoke matrices
         id: plan
-        uses: ethereum-optimism/factory/actions/apko-plan@103d850873d85202fc2f53473191d691229240d3
+        uses: ethereum-optimism/factory/actions/apko-plan@c134f3256fe2bff619e0ac24be44d1f6e47164b2
         with:
           config: .github/images.apko.json
 
@@ -80,7 +80,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@103d850873d85202fc2f53473191d691229240d3
+    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@c134f3256fe2bff619e0ac24be44d1f6e47164b2
     with:
       stack: ${{ matrix.stack }}
       arch: ${{ matrix.arch }}
@@ -113,12 +113,14 @@ jobs:
       attestations: write
       artifact-metadata: write
       actions: read
-    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@103d850873d85202fc2f53473191d691229240d3
+    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@c134f3256fe2bff619e0ac24be44d1f6e47164b2
     with:
       service: ${{ matrix.service }}
       needs-melange-apks: ${{ matrix.needs_melange_apks }}
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       publish-tag: ${{ matrix.publish_tag }}
+      apko-config: ${{ matrix.apko_config }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       archs: ${{ matrix.archs }}
 
   smoke-test:
@@ -136,7 +138,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@103d850873d85202fc2f53473191d691229240d3
+    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@c134f3256fe2bff619e0ac24be44d1f6e47164b2
     with:
       service: ${{ matrix.service }}
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images

@@ -1,0 +1,4 @@
+include: apko/op-reth.yaml
+contents:
+  packages:
+    - apk-tools

@@ -1,0 +1,4 @@
+include: apko/kona-sp1-proposer.yaml
+contents:
+  packages:
+    - apk-tools

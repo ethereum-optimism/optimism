@@ -1,0 +1,4 @@
+include: apko/kona-host.yaml
+contents:
+  packages:
+    - apk-tools

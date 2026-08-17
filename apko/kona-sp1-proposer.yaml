@@ -13,7 +13,6 @@ contents:
     - libstdc++
     - openssl
     - kona-sp1-proposer@local
-    - apk-tools
 
 environment:
   PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin

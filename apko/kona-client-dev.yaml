@@ -1,0 +1,4 @@
+include: apko/kona-client.yaml
+contents:
+  packages:
+    - apk-tools

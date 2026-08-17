@@ -1,0 +1,4 @@
+include: apko/op-test-sequencer.yaml
+contents:
+  packages:
+    - apk-tools

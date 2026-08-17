@@ -1,0 +1,4 @@
+include: apko/rollup-boost.yaml
+contents:
+  packages:
+    - apk-tools

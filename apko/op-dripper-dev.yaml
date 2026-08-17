@@ -1,0 +1,4 @@
+include: apko/op-dripper.yaml
+contents:
+  packages:
+    - apk-tools

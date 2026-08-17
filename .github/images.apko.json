@@ -73,6 +73,10 @@
   },
   "images": {
     "op-node": {
+      "apko_configs": [
+        "apko/op-node.yaml",
+        "apko/op-node-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -87,6 +91,10 @@
       "smoke_test": "op-node --version"
     },
     "op-batcher": {
+      "apko_configs": [
+        "apko/op-batcher.yaml",
+        "apko/op-batcher-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -101,6 +109,10 @@
       "smoke_test": "op-batcher --version"
     },
     "op-proposer": {
+      "apko_configs": [
+        "apko/op-proposer.yaml",
+        "apko/op-proposer-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -115,6 +127,10 @@
       "smoke_test": "op-proposer --version"
     },
     "op-conductor": {
+      "apko_configs": [
+        "apko/op-conductor.yaml",
+        "apko/op-conductor-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -130,6 +146,10 @@
       "smoke_test": "op-conductor --version"
     },
     "op-dispute-mon": {
+      "apko_configs": [
+        "apko/op-dispute-mon.yaml",
+        "apko/op-dispute-mon-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -144,6 +164,10 @@
       "smoke_test": "op-dispute-mon --version"
     },
     "op-dripper": {
+      "apko_configs": [
+        "apko/op-dripper.yaml",
+        "apko/op-dripper-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -158,6 +182,10 @@
       "smoke_test": "op-dripper --version"
     },
     "op-faucet": {
+      "apko_configs": [
+        "apko/op-faucet.yaml",
+        "apko/op-faucet-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -172,6 +200,10 @@
       "smoke_test": "op-faucet --version"
     },
     "op-interop-filter": {
+      "apko_configs": [
+        "apko/op-interop-filter.yaml",
+        "apko/op-interop-filter-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -186,6 +218,10 @@
       "smoke_test": "op-interop-filter --version"
     },
     "op-interop-mon": {
+      "apko_configs": [
+        "apko/op-interop-mon.yaml",
+        "apko/op-interop-mon-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -200,6 +236,10 @@
       "smoke_test": "op-interop-mon --version"
     },
     "op-supernode": {
+      "apko_configs": [
+        "apko/op-supernode.yaml",
+        "apko/op-supernode-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -215,6 +255,10 @@
       "smoke_test": "op-supernode --version"
     },
     "op-test-sequencer": {
+      "apko_configs": [
+        "apko/op-test-sequencer.yaml",
+        "apko/op-test-sequencer-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -229,6 +273,10 @@
       "smoke_test": "op-test-sequencer --version"
     },
     "da-server": {
+      "apko_configs": [
+        "apko/da-server.yaml",
+        "apko/da-server-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -243,6 +291,10 @@
       "smoke_test": "da-server --version"
     },
     "op-challenger": {
+      "apko_configs": [
+        "apko/op-challenger.yaml",
+        "apko/op-challenger-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
@@ -262,6 +314,10 @@
       "smoke_test": "op-challenger --version,cannon --help,cannon load-elf --type multithreaded64-5 --help,kona-host --help"
     },
     "kona-node": {
+      "apko_configs": [
+        "apko/kona-node.yaml",
+        "apko/kona-node-dev.yaml"
+      ],
       "type": "rust",
       "verify_version": true,
       "needs_melange": [
@@ -276,6 +332,10 @@
       "smoke_test": "kona-node --version"
     },
     "kona-host": {
+      "apko_configs": [
+        "apko/kona-host.yaml",
+        "apko/kona-host-dev.yaml"
+      ],
       "type": "rust",
       "needs_melange": [
         "op-stack-rust"
@@ -289,6 +349,10 @@
       "smoke_test": "kona-host --help"
     },
     "kona-client": {
+      "apko_configs": [
+        "apko/kona-client.yaml",
+        "apko/kona-client-dev.yaml"
+      ],
       "type": "rust",
       "needs_melange": [
         "op-stack-rust"
@@ -302,6 +366,10 @@
       "smoke_test": "kona-client --help"
     },
     "kona-sp1-proposer": {
+      "apko_configs": [
+        "apko/kona-sp1-proposer.yaml",
+        "apko/kona-sp1-proposer-dev.yaml"
+      ],
       "type": "rust",
       "needs_melange": [
         "op-stack-rust"
@@ -315,6 +383,10 @@
       "smoke_test": "kona-sp1-proposer --version"
     },
     "op-reth": {
+      "apko_configs": [
+        "apko/op-reth.yaml",
+        "apko/op-reth-dev.yaml"
+      ],
       "type": "rust",
       "verify_version": true,
       "needs_melange": [
@@ -329,6 +401,10 @@
       "smoke_test": "op-reth --version"
     },
     "op-rbuilder": {
+      "apko_configs": [
+        "apko/op-rbuilder.yaml",
+        "apko/op-rbuilder-dev.yaml"
+      ],
       "type": "rust",
       "needs_melange": [
         "op-stack-rust"
@@ -342,6 +418,10 @@
       "smoke_test": "/app/rbuilder --help"
     },
     "rollup-boost": {
+      "apko_configs": [
+        "apko/rollup-boost.yaml",
+        "apko/rollup-boost-dev.yaml"
+      ],
       "type": "rust",
       "needs_melange": [
         "op-stack-rust"
@@ -355,6 +435,10 @@
       "smoke_test": "rollup-boost --help"
     },
     "op-deployer": {
+      "apko_configs": [
+        "apko/op-deployer.yaml",
+        "apko/op-deployer-dev.yaml"
+      ],
       "type": "go",
       "verify_version": true,
       "needs_melange": [
