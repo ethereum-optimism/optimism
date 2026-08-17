@@ -182,13 +182,6 @@
       "bake_file": "docker-bake.hcl",
       "target": "rollup-boost",
       "paths": ["rust/**"]
-    },
-    "ci-base-clang": {
-      "check": "none",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "ci-base-clang",
-      "paths": ["ops/docker/ci-base-clang/**"]
     }
   }
 }
