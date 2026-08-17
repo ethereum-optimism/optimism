@@ -319,11 +319,15 @@ The first scaffold is implemented in this crate:
   shuts down RPC, unsafe-chain, then safe-chain in order;
 - `RollupNode::run_until` provides deterministic embedded/test shutdown;
 - `Engine` provides thin `new_payload` and `forkchoice_updated` RPC methods;
-- lifecycle and unsafe-mode transition tests are present;
+- `UnsafeChainBuilder` receives network payloads through `UnsafePayloadSource`, locks Engine across
+  `newPayload`, FCU, and the state update, and drops network payloads while sequencing;
+- lifecycle, unsafe-mode transition, network following, invalid-payload drop, and
+  sequencing-suppression tests are present;
 - metrics and concrete chain workflows are not implemented.
 
-The task loops currently process lifecycle/control messages only. No derivation, P2P, conductor,
-RPC-server, startup-reconciliation, or conceptual Engine operation is implemented yet.
+The safe-chain and RPC task loops currently process lifecycle/control messages only. Concrete P2P
+transport, derivation, conductor, RPC-server, startup-reconciliation, and the remaining conceptual
+Engine operations are not implemented yet.
 
 ## Implementation Plan
 
@@ -334,15 +338,14 @@ core-type work is to:
 
 - keep composition-owned synchronization out of the Engine implementation as operations are added;
 - add authoritative state watches and typed semantic errors;
-- wrap existing `kona-engine` tasks where they already implement the required protocol mechanics;
+- keep semantic operation boundaries explicit rather than wrapping the existing task queue;
 - avoid duplicating raw Engine API version-selection logic unnecessarily.
 
 ### 2. Semantic Engine operations
 
-Implement and unit test:
+`AcceptUnsafeFromNetwork` is implemented in `UnsafeChainBuilder`. Implement and unit test:
 
 - startup forkchoice recovery;
-- `AcceptUnsafeFromNetwork` in `UnsafeChainBuilder`;
 - `AdvanceSafeAndFinal`;
 - `BuildSafe`;
 - `L1Reorg`;
@@ -356,7 +359,8 @@ Each operation should expose a semantic result rather than leaking raw task erro
 
 - Port origin selection and attributes construction.
 - Port conductor integration and exact-payload publication behavior.
-- Integrate P2P intake and publication without giving Network ownership of Engine state.
+- Connect the existing network builder/handler to `UnsafePayloadSource` and add publication without
+  giving Network ownership of Engine state.
 - Implement following/sequencing transitions and administration.
 - Reuse the existing network builder/handler and signer tracking where practical.
 

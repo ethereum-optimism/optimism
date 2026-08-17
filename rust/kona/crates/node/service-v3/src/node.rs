@@ -2,7 +2,7 @@
 
 use crate::{
     Engine, Rpc, RpcHandle, SafeChainBuilder, SafeChainBuilderHandle, UnsafeChainBuilder,
-    UnsafeChainBuilderHandle,
+    UnsafeChainBuilderHandle, UnsafePayloadSource,
 };
 use std::{future::Future, sync::Arc};
 use thiserror::Error;
@@ -64,8 +64,8 @@ where
     SafeL1: Send + 'static,
     L2: Send + 'static,
     UnsafeL1: Send + 'static,
-    EngineClient: Send + Sync + 'static,
-    Network: Send + 'static,
+    EngineClient: kona_engine::EngineClient + 'static,
+    Network: UnsafePayloadSource + 'static,
     Conductor: Send + 'static,
 {
     /// Starts all core tasks, handles process shutdown signals, and joins every task.
@@ -294,14 +294,17 @@ pub enum NodeError {
 mod tests {
     use super::*;
     use crate::Engine;
+    use kona_engine::test_utils::MockEngineClient;
     use kona_genesis::RollupConfig;
     use std::sync::Arc;
     use tokio::sync::oneshot;
 
     #[tokio::test]
     async fn node_starts_and_joins_all_three_tasks() {
-        let engine = Engine::new(Arc::new(()), Arc::new(RollupConfig::default()));
-        let node = RollupNode::new((), (), (), engine, (), None::<()>);
+        let config = Arc::new(RollupConfig::default());
+        let engine = Engine::new(Arc::new(MockEngineClient::new(config.clone())), config);
+        let (_payload_tx, payload_rx) = tokio::sync::mpsc::channel(1);
+        let node = RollupNode::new((), (), (), engine, payload_rx, None::<()>);
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
         let running = tokio::spawn(

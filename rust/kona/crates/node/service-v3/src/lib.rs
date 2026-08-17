@@ -17,7 +17,8 @@ pub use safe_chain::{SafeChainBuilder, SafeChainBuilderError, SafeChainBuilderHa
 
 pub mod unsafe_chain;
 pub use unsafe_chain::{
-    UnsafeChainBuilder, UnsafeChainBuilderError, UnsafeChainBuilderHandle, UnsafeMode,
+    AcceptUnsafeFromNetworkError, UnsafeChainBuilder, UnsafeChainBuilderError,
+    UnsafeChainBuilderHandle, UnsafeMode, UnsafePayloadSource,
 };
 
 pub mod rpc;

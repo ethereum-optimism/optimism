@@ -35,6 +35,11 @@ impl<Client> Engine<Client> {
     pub const fn state(&self) -> &EngineState {
         &self.state
     }
+
+    /// Returns mutable access to the authoritative engine state.
+    pub(crate) const fn state_mut(&mut self) -> &mut EngineState {
+        &mut self.state
+    }
 }
 
 impl<Client> Engine<Client>

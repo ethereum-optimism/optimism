@@ -7434,10 +7434,14 @@ dependencies = [
 name = "kona-node-service-v3"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus 2.1.1",
  "alloy-rpc-types-engine",
  "alloy-transport",
+ "async-trait",
  "kona-engine",
  "kona-genesis",
+ "kona-protocol",
+ "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "thiserror 2.0.18",
  "tokio",

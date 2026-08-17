@@ -17,13 +17,20 @@ workspace = true
 # Workspace
 kona-engine.workspace = true
 kona-genesis.workspace = true
+kona-protocol.workspace = true
 
 # Alloy
 alloy-rpc-types-engine.workspace = true
 alloy-transport.workspace = true
+op-alloy-consensus.workspace = true
 op-alloy-rpc-types-engine.workspace = true
 
 # General
+async-trait.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "sync"] }
+
+[dev-dependencies]
+alloy-consensus.workspace = true
+kona-engine = { workspace = true, features = ["test-utils"] }
