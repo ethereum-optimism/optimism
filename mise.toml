@@ -28,9 +28,7 @@ svm-rs = "0.5.19"
 mold = { version = "2.41.0", os = ["linux"] }
 
 # Required to build the Rust workspace: prost-build (via sp1-prover-types)
-# shells out to protoc and fails the build if it is absent. CI gets it from the
-# ci-base-clang image, so this is what makes a local `cargo build` work without
-# installing protobuf-compiler by hand.
+# shells out to protoc and fails the build if it is absent.
 protoc = "35.1"
 
 # Rust tooling
