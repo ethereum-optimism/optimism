@@ -20,6 +20,13 @@ parameters:
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
+  # Exact conditional routing choices forwarded to post-merge-gate.
+  c-rust_changes_detected:
+    type: boolean
+    default: false
+  c-security_changed:
+    type: boolean
+    default: false
   # CircleCI forwards user-supplied setup params into continuation validation.
   # These aliases are transformed into c-* params by config.yml and are not
   # referenced by jobs in the continuation config.
@@ -136,6 +143,9 @@ parameters:
     type: boolean
     default: false
   c-run_publish_contract_artifacts:
+    type: boolean
+    default: false
+  c-run_post_merge_gate:
     type: boolean
     default: false
 
@@ -734,6 +744,36 @@ jobs:
       - run:
           name: Check CircleCI schedule triggers
           command: bun .circleci/scripts/test-schedule-triggers.js
+
+  post-merge-gate-tests:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: Test post-merge gate
+          command: bun test ./.circleci/scripts/post-merge-gate.test.ts
+
+  post-merge-gate:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: Wait for authoritative post-merge result
+          command: bun .circleci/scripts/post-merge-gate.ts
+          no_output_timeout: 10m
+          environment:
+            POST_MERGE_RUST_CHANGED: << pipeline.parameters.c-rust_changes_detected >>
+            POST_MERGE_SECURITY_CHANGED: << pipeline.parameters.c-security_changed >>
+            POST_MERGE_GATE_TIMEOUT_SECONDS: "14400"
+            POST_MERGE_GATE_POLL_INTERVAL_SECONDS: "60"
 
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
@@ -2592,6 +2632,9 @@ workflows:
       - l2-chains-sync-check:
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - post-merge-gate-tests:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-upload:
           requires:
             - contracts-bedrock-build
@@ -2842,6 +2885,7 @@ workflows:
             - l2-chains-sync-check: terminal
             - nut-provenance-verify: terminal
             - diff-fetcher-forge-artifacts: terminal
+            - post-merge-gate-tests: terminal
           context:
             - circleci-api-token
           filters:
@@ -2941,6 +2985,16 @@ workflows:
     jobs:
       - publish-contract-artifacts:
           context:
+            - circleci-repo-readonly-authenticated-github-token
+
+  # The workflow name is the GitHub check name emitted by the CircleCI App.
+  # Keep this stable: consumers require `circleci-checks / post-merge-gate`.
+  post-merge-gate:
+    when: << pipeline.parameters.c-run_post_merge_gate >>
+    jobs:
+      - post-merge-gate:
+          context:
+            - circleci-api-token
             - circleci-repo-readonly-authenticated-github-token
 
   develop-fault-proofs:

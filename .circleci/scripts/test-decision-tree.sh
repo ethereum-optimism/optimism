@@ -75,6 +75,19 @@ run_scenario() {
     fi
   done
 
+  # The authoritative post-merge signal must exist only for webhook pushes to
+  # develop, never for PR, merge queue, tag, API, or scheduled pipelines.
+  local expected_gate=false
+  if [[ "${trigger}" == "webhook" && "${branch}" == "develop" && -z "${tag}" ]]; then
+    expected_gate=true
+  fi
+  local actual_gate
+  actual_gate=$(echo "${_json}" | jq -r '."c-run_post_merge_gate" // false')
+  if [[ "${actual_gate}" != "${expected_gate}" ]]; then
+    echo "  FAIL: expected c-run_post_merge_gate=${expected_gate}, got ${actual_gate}"
+    all_pass=false
+  fi
+
   if ${all_pass}; then
     echo "PASS: ${name}"
     PASS=$((PASS + 1))
@@ -157,13 +170,13 @@ run_scenario \
   "After merge (develop), rust changed" \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": true}' \
-  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates
+  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests post_merge_gate rust_ci rust_e2e_ci kona_publish_prestates
 
 run_scenario \
   "After merge (develop), no rust changes" \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
-  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip
+  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests post_merge_gate rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "Scheduled: build_four_hours" \

@@ -182,17 +182,22 @@ jobs:
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
       # Change-detection patterns live in routing.yml (change_patterns.any and
       # change_patterns.all). Each is a POSIX ERE matched line-by-line against
-      # `git diff --name-only origin/develop...HEAD`; collect-params.sh writes
-      # the resulting c-<name> boolean into the JSON.
+      # the feature-branch merge-base diff, or the first-parent diff for a
+      # webhook push to develop (where origin/develop already equals HEAD).
+      # collect-params.sh writes the resulting c-<name> boolean into the JSON.
       #
       # Test a pattern locally:
       #   git diff --name-only origin/develop...HEAD | grep -E "^your/pattern/"
       - run:
           name: Detect file tree changes and store in JSON file
           command: .circleci/scripts/collect-params.sh detect
+          environment: &change-detection-trigger
+            CURRENT_BRANCH: << pipeline.git.branch >>
+            TRIGGER_SOURCE: << pipeline.trigger_source >>
       - run:
           name: Detect docs-only changes (all-match)
           command: .circleci/scripts/collect-params.sh detect_all
+          environment: *change-detection-trigger
       # Routing policy: enables the c-run_* workflow flags based on trigger,
       # branch, schedule, and the detected params. The workflow lists are data
       # in routing.yml; the conditions live in compute-workflow-conditions.sh.

@@ -27,11 +27,16 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   changed files (`detect` true if *any* file matches, `detect_all` only if *every*
   file matches). `workflow-helpers.sh` sets the `c-run_*` flags;
   `test-decision-tree.sh` asserts the routing policy.
-- **The gate**: the GitHub `enforce-ci-checks-develop` ruleset requires exactly
-  four checks — `ci-gate`, `required-contracts-ci`, `required-rust-ci`,
+- **The pre-merge gate**: the GitHub `enforce-ci-checks-develop` ruleset requires
+  exactly four checks — `ci-gate`, `required-contracts-ci`, `required-rust-ci`,
   `required-rust-e2e`. These are fan-in jobs (no work, just `requires:`). A merge
   is gated *only* by what they transitively require; anything outside their
   `requires:` chain can fail without blocking merge. Gates use `utils/ci-gate`.
+- **The post-merge gate**: `.circleci/routing.yml` explicitly classifies every
+  workflow routed on a webhook push to `develop`. The `post-merge-gate` CircleCI
+  workflow polls that exact CircleCI pipeline and exact-SHA GitHub Actions push
+  runs. Add a new develop-push workflow to this policy as either gated or
+  explicitly excluded; policy-drift tests reject unclassified workflows.
 - **Continuation limits**: a setup pipeline continues exactly once, within 6h, no
   setup→setup. A param declared in both `config.yml` and a fragment with
   different defaults fails with "Conflicting pipeline parameters".

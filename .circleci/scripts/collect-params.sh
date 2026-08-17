@@ -9,11 +9,15 @@
 #
 # str/bool read c-* env vars (CircleCI pipeline params). detect/detect_all read
 # their ERE patterns from routing.yml so the patterns are declarative data.
+# On webhook pushes to develop, changed paths come from the pushed commit's
+# first-parent diff: origin/develop already points at HEAD after checkout, so a
+# merge-base diff there would be empty and misroute conditional post-merge work.
 # Each invocation appends to /tmp/pipeline-parameters.json.
 set -euo pipefail
 
 MODE="${1:?Usage: collect-params.sh <str|bool|detect|detect_all>}"
-OUTPUT="/tmp/pipeline-parameters.json"
+# OUTPUT is overridable so tests can use an isolated parameters file.
+OUTPUT="${OUTPUT:-/tmp/pipeline-parameters.json}"
 ROUTING="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/routing.yml"
 
 [ -f "${OUTPUT}" ] || echo '{}' > "${OUTPUT}"
@@ -44,8 +48,13 @@ case "${MODE}" in
   detect|detect_all)
     [[ "${MODE}" == "detect_all" ]] && section=".change_patterns.all" || section=".change_patterns.any"
 
-    CHANGED=$(git diff --name-only "origin/${BASE_REVISION}...HEAD" 2>/dev/null \
-      || git diff --name-only HEAD~1 HEAD || true)
+    if [[ "${TRIGGER_SOURCE:-}" == "webhook" && "${CURRENT_BRANCH:-}" == "develop" ]]; then
+      CHANGED=$(git diff --name-only HEAD^ HEAD)
+    elif git rev-parse --verify --quiet "origin/${BASE_REVISION:-develop}" >/dev/null; then
+      CHANGED=$(git diff --name-only "origin/${BASE_REVISION:-develop}...HEAD")
+    else
+      CHANGED=$(git diff --name-only HEAD~1 HEAD)
+    fi
     echo "=== Changed files ==="
     echo "${CHANGED:-<none>}"
     echo "====================="
