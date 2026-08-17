@@ -2518,6 +2518,48 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         });
     }
 
+    /// @notice Helper function to append a dispute game config to a migrate input.
+    /// @param _input The migrate input to append to.
+    /// @param _gameConfig The dispute game config to append.
+    function _appendDisputeGameConfig(
+        IOPContractsManagerMigrator.MigrateInput memory _input,
+        IOPContractsManagerUtils.DisputeGameConfig memory _gameConfig
+    )
+        internal
+        pure
+    {
+        IOPContractsManagerUtils.DisputeGameConfig[] memory existing = _input.disputeGameConfigs;
+        IOPContractsManagerUtils.DisputeGameConfig[] memory updated =
+            new IOPContractsManagerUtils.DisputeGameConfig[](existing.length + 1);
+        for (uint256 i = 0; i < existing.length; i++) {
+            updated[i] = existing[i];
+        }
+        updated[existing.length] = _gameConfig;
+        _input.disputeGameConfigs = updated;
+    }
+
+    /// @notice Helper function to build a SUPER_CANNON_KONA dispute game config. SUPER_CANNON_KONA
+    ///         is a permissionless super-root FDG, so its game args are the single absolute
+    ///         prestate.
+    /// @param _initBond The init bond for the game.
+    /// @param _absolutePrestate The absolute prestate for the game.
+    /// @return config_ The dispute game config.
+    function _superCannonKonaConfig(
+        uint256 _initBond,
+        Claim _absolutePrestate
+    )
+        internal
+        pure
+        returns (IOPContractsManagerUtils.DisputeGameConfig memory config_)
+    {
+        config_ = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: _initBond,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _absolutePrestate }))
+        });
+    }
+
     /// @notice Helper function to execute a migration.
     /// @param _input The input to the migration function.
     function _doMigration(IOPContractsManagerMigrator.MigrateInput memory _input) internal {
@@ -3026,27 +3068,69 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Tests that the migration function reverts when the SUPER_PERMISSIONED game config
+    ///         has a non-zero init bond. SUPER_PERMISSIONED does not use bonds.
+    /// @param _initBond The non-zero init bond to test.
+    function testFuzz_migrate_superPermissionedNonZeroInitBond_reverts(uint256 _initBond) public {
+        vm.assume(_initBond != 0);
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.disputeGameConfigs[0].initBond = _initBond;
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidInitBond.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a game type that uses bonds is given
+    ///         a zero init bond.
+    function test_migrate_bondedGameZeroInitBond_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _appendDisputeGameConfig(input, _superCannonKonaConfig(0, superPrestate));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidInitBond.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a permissionless fault game config
+    ///         has a zero absolute prestate.
+    function test_migrate_zeroAbsolutePrestate_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _appendDisputeGameConfig(input, _superCannonKonaConfig(0.08 ether, Claim.wrap(bytes32(0))));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidAbsolutePrestate.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config is supplied
+    ///         while the ZK_DISPUTE_GAME dev feature is disabled.
+    function test_migrate_zkDisputeGameNotEnabled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Game args are irrelevant: validation rejects the config before they are decoded.
+        _appendDisputeGameConfig(
+            input,
+            IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: 0.08 ether,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
+                gameArgs: hex""
+            })
+        );
+
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
+            abi.encode(false)
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ZKDisputeGameNotEnabled.selector);
+    }
+
     /// @notice Tests that the migration function succeeds with SUPER_CANNON_KONA as the starting
     ///         respected game type. The default input registers SUPER_PERMISSIONED;
     ///         this test appends a SUPER_CANNON_KONA config so the respected type has a matching impl.
     function test_migrate_superCannonKonaStartingRespectedGameType_succeeds() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
 
-        // SUPER_CANNON_KONA is a permissionless super-root FDG, so its game args are the
-        // single absolute prestate. `superPrestate` is already a Claim; do not wrap it again.
-        IOPContractsManagerUtils.DisputeGameConfig[] memory existing = input.disputeGameConfigs;
-        IOPContractsManagerUtils.DisputeGameConfig[] memory updated =
-            new IOPContractsManagerUtils.DisputeGameConfig[](existing.length + 1);
-        for (uint256 i = 0; i < existing.length; i++) {
-            updated[i] = existing[i];
-        }
-        updated[existing.length] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: superPrestate }))
-        });
-        input.disputeGameConfigs = updated;
+        // `superPrestate` is already a Claim; do not wrap it again.
+        _appendDisputeGameConfig(input, _superCannonKonaConfig(0.08 ether, superPrestate));
         input.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
 
         _doMigration(input);

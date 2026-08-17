@@ -127,6 +127,16 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidAbsolutePrestate",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidInitBond",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_InvalidStartingRespectedGameType",
     "type": "error"
   },
@@ -148,6 +158,11 @@
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_SystemPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_ZKDisputeGameNotEnabled",
     "type": "error"
   },
   {

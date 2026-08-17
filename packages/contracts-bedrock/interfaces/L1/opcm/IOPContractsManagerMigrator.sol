@@ -49,6 +49,17 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when chainSystemConfigs are not provided in ascending order by l2ChainId.
     error OPContractsManagerMigrator_ChainIdsNotAscending();
 
+    /// @notice Thrown when the ZK_DISPUTE_GAME dev feature is not enabled.
+    error OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
+
+    /// @notice Thrown when a dispute game config has an init bond that its game type does not
+    ///         allow: non-zero for SUPER_PERMISSIONED, which does not use bonds, or zero for any
+    ///         other game type.
+    error OPContractsManagerMigrator_InvalidInitBond();
+
+    /// @notice Thrown when a permissionless fault game config has a zero absolute prestate.
+    error OPContractsManagerMigrator_InvalidAbsolutePrestate();
+
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 
