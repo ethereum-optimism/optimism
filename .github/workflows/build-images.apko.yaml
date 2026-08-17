@@ -32,7 +32,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  # Tag pushes get a group per tag: a release commonly tags several components on
+  # one commit, and each tag builds a different image, so they must not share a
+  # group -- GitHub keeps only one waiting run per group and evicts the rest.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || (github.ref_type == 'tag' && format('{0}-{1}', github.sha, github.ref_name) || github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
