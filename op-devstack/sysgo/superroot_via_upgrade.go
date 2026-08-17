@@ -2,13 +2,16 @@ package sysgo
 
 import (
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -70,6 +73,90 @@ func upgradeToSuperRoots(
 				},
 			},
 		})
+	}
+}
+
+// setInteropZKDisputeGameViaUpgrade re-points the shared dispute games of a migrated interop set
+// to the ZK dispute game. The chains in the set share an AnchorStateRegistry and
+// DisputeGameFactory, so upgrading a single chain applies the new dispute game config to the set.
+func setInteropZKDisputeGameViaUpgrade(
+	t devtest.T,
+	keys devkeys.Keys,
+	migration *interopMigrationState,
+	l1ChainID eth.ChainID,
+	l1EL L1ELNode,
+	sharedDGF common.Address,
+	programVKey common.Hash,
+	cfg ZKDisputeGameConfig,
+	primaryL2 eth.ChainID,
+) {
+	require := t.Require()
+	require.NoError(cfg.validate())
+	require.NotNil(migration, "interop migration state is required")
+	require.NotEmpty(migration.opcmImpl, "must have an OPCM implementation")
+	require.NotEmpty(migration.l2Deployments, "must have L2 deployments for interop upgrade")
+
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
+	require.NoError(err)
+	defer rpcClient.Close()
+	client := ethclient.NewClient(rpcClient)
+	w3Client := w3.NewClient(rpcClient)
+
+	l2Ops := devkeys.ChainOperatorKeys(primaryL2.ToBig())
+	proposer, err := keys.Address(l2Ops(devkeys.ProposerRole))
+	require.NoError(err, "must have configured proposer")
+
+	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to download artifacts")
+
+	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
+		Prank: l1PAO,
+		Opcm:  migration.opcmImpl,
+		UpgradeInputV2: &embedded.UpgradeInputV2{
+			SystemConfig:       sortedChainSystemConfigs(migration)[0],
+			DisputeGameConfigs: buildZKUpgradeGameConfigs(programVKey, cfg, proposer),
+			ExtraInstructions: []embedded.ExtraInstruction{
+				{
+					Key:  "overrides.cfg.startingRespectedGameType",
+					Data: encodeStartingRespectedGameType(t, uint32(gameTypes.ZKDisputeGameType)),
+				},
+			},
+		},
+	})
+
+	require.Equal(common.Address{}, getGameImpl(t, w3Client, sharedDGF, superCannonKonaGameType), "retired super game must be disabled")
+	require.NotEqual(common.Address{}, getGameImpl(t, w3Client, sharedDGF, uint32(gameTypes.ZKDisputeGameType)), "ZK dispute game must be installed")
+}
+
+// buildZKUpgradeGameConfigs keeps SuperPermissioned as the permissioned liveness backup, retires
+// the permissionless super fault game, and enables the ZK dispute game in its place.
+func buildZKUpgradeGameConfigs(
+	programVKey common.Hash,
+	cfg ZKDisputeGameConfig,
+	proposer common.Address,
+) []embedded.DisputeGameConfig {
+	return []embedded.DisputeGameConfig{
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypePermissionedCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannonKona},
+		{
+			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermissioned,
+			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+				Proposer: proposer,
+			},
+		},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
+		{
+			Enabled: true, InitBond: new(big.Int).Set(defaultInitBond), GameType: embedded.GameTypeZKDisputeGame,
+			ZKDisputeGameConfig: &embedded.ZKDisputeGameConfig{
+				AbsolutePrestate:     programVKey,
+				MaxChallengeDuration: uint64(cfg.MaxChallengeDuration / time.Second),
+				MaxProveDuration:     uint64(cfg.MaxProveDuration / time.Second),
+				ChallengerBond:       new(big.Int).Set(defaultInitBond),
+			},
+		},
 	}
 }
 
