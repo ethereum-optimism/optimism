@@ -15,7 +15,7 @@ parameters:
   # Provenance is verified by .github/workflows/security.yml.
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:61d609ab8025d197e46c80b9193eb33229512dd970069dd43171c25915c2e337
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:c27652bd50a5e70cedfffebcead6b5c6356e51044f456e03b9ee4eee7d2de612
   base_image:
     type: string
     default: default
