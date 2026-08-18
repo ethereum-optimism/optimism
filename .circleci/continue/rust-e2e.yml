@@ -13,7 +13,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:02bbcf0c7bdc15da25149060330d28929c988a118490489f9d71cf981f40593f
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:2727f032ee6155e1c94ab4e2ac26c8c6a735cb3166ef710ba408989ae4d0d881
   c-go-cache-version:
     type: string
     default: "v0.1"
