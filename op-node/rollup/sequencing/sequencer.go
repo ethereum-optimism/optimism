@@ -555,6 +555,9 @@ func (s *Sequencer) onReset(x rollup.ResetEvent) {
 		s.emitter.Emit(s.ctx, engine.BuildCancelEvent{Info: s.building.Info})
 	}
 	s.building = BuildingState{}
+	// A block we sealed may be discarded by this reset, and the head is rewound
+	// again right after, so clear the marker rather than pointing it at the head.
+	s.lastSealed = eth.L2BlockRef{}
 	s.stalledByMaxSafeLag = false
 	// no action to perform until we get a reset-confirmation
 	s.nextActionArmed = false
@@ -977,8 +980,9 @@ func (s *Sequencer) Stop(ctx context.Context) (common.Hash, error) {
 		return common.Hash{}, ErrSequencerAlreadyStopped
 	}
 
-	// ensure unsafeHead has been updated to the latest sealed/gossiped block before stopping the sequencer
-	for s.unsafeHead.Hash != s.lastSealed.Hash {
+	// Wait for the head to catch up to a block we sealed and gossiped. A zero
+	// marker means there is no such block, so there is nothing to wait for.
+	for s.lastSealed != (eth.L2BlockRef{}) && s.unsafeHead.Hash != s.lastSealed.Hash {
 
 		// if we are not the leader, lastSealed will never be updated and we will wait forever
 		if isLeader, err := s.conductor.Leader(ctx); err != nil {
