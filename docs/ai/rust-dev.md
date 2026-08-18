@@ -176,6 +176,15 @@ Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
 
 Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs this automatically — if you see bindgen errors locally, install clang.
 
+## Cross-implementation parity
+
+`rust/op-alloy` holds the OP transaction and receipt types that op-reth and kona consume; the Go
+services run the same formats through op-geth and `op-core/*`. A change to a wire format or hash
+rule on either side has to agree with the other, pinned by a shared golden vector asserted in both
+suites. The rule and the current
+example live in [opgeth-decoupling.md](opgeth-decoupling.md#cross-implementation-parity);
+batcher-controlled decoders are covered in [derivation.md](derivation.md).
+
 ## Hardforks
 
 The OP fork → implied L1 (Ethereum) fork mapping is defined once, in `OpHardfork::activates_l1_fork` in `rust/alloy-op-hardforks/src/lib.rs`. When a new OP hardfork rides an L1 fork (e.g. Isthmus → Prague, Karst → Osaka), add the single match arm there; the cumulative (`implied_l1_fork`) and inverse (`activating_op_fork`) views and all downstream consumers (op-revm, op-reth chainspec, kona) derive from it.
