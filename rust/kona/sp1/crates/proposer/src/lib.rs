@@ -22,6 +22,9 @@ pub mod proving;
 pub mod signer;
 pub mod superroot;
 
+mod adapters;
+mod ports;
+
 use alloy_eips::BlockId;
 use alloy_primitives::U256;
 use alloy_provider::{Provider, RootProvider};
