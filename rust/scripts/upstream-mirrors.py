@@ -36,7 +36,7 @@ RUST_ROOT = Path(__file__).resolve().parent.parent
 TAG_RE = re.compile(
     r"UPSTREAM-MIRROR\((?P<kind>[a-z]+)\):\s*"
     r"(?P<crate>[A-Za-z0-9_-]+)@(?P<version>[A-Za-z0-9_.:-]+)\s+"
-    r"(?P<symbol>[A-Za-z0-9_:]+)"
+    r"`?(?P<symbol>[A-Za-z0-9_:]+)`?"
 )
 DOC_RE = re.compile(r"^\s*(///|//!)\s?(.*)$")
 KINDS = {"override", "copy", "delegate", "set", "port"}
