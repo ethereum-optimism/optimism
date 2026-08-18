@@ -71,9 +71,7 @@ where
                 .l2_chain_provider
                 .l2_block_info_by_hash(current.block_info.parent_hash)
                 .await
-                .map_err(|e| {
-                    PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp()
-                })?;
+                .map_err(Into::<PipelineErrorKind>::into)?;
         }
 
         let system_config = self
@@ -261,7 +259,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DerivationPipeline, test_utils::*};
+    use crate::{DerivationPipeline, ResetError, test_utils::*};
     use alloc::{string::ToString, sync::Arc};
     use alloy_rpc_types_engine::PayloadAttributes;
     use kona_genesis::{RollupConfig, SystemConfig};
@@ -465,6 +463,29 @@ mod tests {
             address!("000000000000000000000000000000000000aaaa"),
             "Expected old batcher from walked-back block 90"
         );
+    }
+
+    #[tokio::test]
+    async fn test_initial_reset_preserves_parent_lookup_error_kind() {
+        let rollup_config = Arc::new(RollupConfig { channel_timeout: 1, ..Default::default() });
+        let l2_chain_provider = TestL2ChainProvider::default();
+        let attributes = TestNextAttributes::default();
+        let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
+
+        let parent_hash = test_block_hash(1);
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: test_block_hash(2),
+                number: 2,
+                parent_hash,
+                ..Default::default()
+            },
+            l1_origin: BlockNumHash { number: 2, ..Default::default() },
+            seq_num: 0,
+        };
+
+        let err = pipeline.initial_reset(l2_safe_head).await.unwrap_err();
+        assert_eq!(err, ResetError::BlockNotFound(parent_hash.into()).reset());
     }
 
     #[tokio::test]
