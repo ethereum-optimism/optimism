@@ -1432,3 +1432,59 @@ func TestSequencerStartDuringResetStaysParked(t *testing.T) {
 	_, ok = s.seq.NextAction()
 	require.True(t, ok, "the confirmation arms it on the post-reset head")
 }
+
+// TestSequencerStopWithoutSealedBlock covers stopping a sequencer that has not
+// sealed anything yet. There is no published block for the head to catch up to,
+// so Stop must not wait for one: it would block until the caller's context
+// expires, which on the conductor's failover path has no deadline at all.
+func TestSequencerStopWithoutSealedBlock(t *testing.T) {
+	s := newSeqSetup(t)
+	require.Equal(t, eth.L2BlockRef{}, s.seq.lastSealed, "nothing sealed yet")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	hash, err := s.seq.Stop(ctx)
+	require.NoError(t, err, "Stop must not wait when we never sealed a block")
+	require.Equal(t, s.seq.unsafeHead.Hash, hash)
+}
+
+// TestSequencerStopAfterResetDropsSealed covers a reset that rewinds below the
+// block we last sealed and gossiped. That block is discarded, so the head can
+// never reach it and Stop would wait forever — the same "dead block" case that
+// handleInvalid and the stale-insert path already reconcile, but on the reset
+// path, which does not.
+func TestSequencerStopAfterResetDropsSealed(t *testing.T) {
+	s := newSeqSetup(t)
+	info := s.startBuild(t)
+	envelope, ref := s.sealedPayload()
+	s.deps.eng.sealBuildFn = func(ctx context.Context, gotInfo eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, info, gotInfo)
+		return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
+	}
+	// Sealed and gossiped, but the local insert failed temporarily, so the block
+	// is outstanding: Stop legitimately waits for the head to catch up to it.
+	s.deps.eng.processPayloadFn = func(context.Context, *eth.ExecutionPayloadEnvelope, eth.L2BlockRef, time.Time) error {
+		return errors.New("mock temporary insert failure")
+	}
+	s.seq.RunAction()
+	require.Equal(t, ref, s.seq.lastSealed, "our gossiped block is outstanding")
+
+	// An L1 reorg now resets the engine below that block, discarding it.
+	em := &testutils.MockEmitter{}
+	em.ExpectOnceType("engine.BuildCancelEvent") // the reset cancels the in-flight job
+	s.seq.AttachEmitter(em)
+	deliver(s.seq, rollup.ResetEvent{Err: errors.New("mock reset")})
+	rewound := s.head
+	rewound.Hash = common.Hash{0x33}
+	rewound.Number = s.head.Number - 1
+	deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: rewound})
+	deliver(s.seq, engine.EngineResetConfirmedEvent{})
+	em.AssertExpectations(t)
+	require.NotEqual(t, ref.Hash, s.seq.unsafeHead.Hash, "the sealed block is not the head")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	hash, err := s.seq.Stop(ctx)
+	require.NoError(t, err, "Stop must not wait for a block the reset discarded")
+	require.Equal(t, s.seq.unsafeHead.Hash, hash)
+}
