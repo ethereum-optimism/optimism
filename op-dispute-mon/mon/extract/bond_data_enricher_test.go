@@ -16,11 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFaultBondSnapshotCompatibility(t *testing.T) {
+func TestFaultBondSnapshotRefundMode(t *testing.T) {
 	claimant := common.Address{0x01}
 	counterer := common.Address{0x02}
 	blockChallenger := common.Address{0x03}
-	pendingClaimant := common.Address{0x04}
+	secondClaimant := common.Address{0x04}
 	block := rpcblock.ByHash(common.Hash{0xaa})
 	game := &monTypes.FaultGameData{
 		CommonGameData:        monTypes.CommonGameData{GameMetadata: faultGameMetadata(10)},
@@ -42,7 +42,7 @@ func TestFaultBondSnapshotCompatibility(t *testing.T) {
 			{
 				Claim: faultTypes.Claim{
 					ClaimData: faultTypes.ClaimData{Bond: big.NewInt(11)},
-					Claimant:  pendingClaimant,
+					Claimant:  secondClaimant,
 				},
 			},
 		},
@@ -50,9 +50,8 @@ func TestFaultBondSnapshotCompatibility(t *testing.T) {
 	withdrawals := []*contracts.WithdrawalRequest{
 		{Amount: big.NewInt(1), Timestamp: big.NewInt(2)},
 		{Amount: big.NewInt(3), Timestamp: big.NewInt(4)},
-		{Amount: big.NewInt(5), Timestamp: big.NewInt(6)},
 	}
-	credits := []*big.Int{big.NewInt(13), big.NewInt(17), big.NewInt(19)}
+	credits := []*big.Int{big.NewInt(13), big.NewInt(17)}
 	caller := &bondSnapshotCaller{
 		withdrawals: withdrawals,
 		credits:     credits,
@@ -65,18 +64,17 @@ func TestFaultBondSnapshotCompatibility(t *testing.T) {
 	err := NewBondDataEnricher().Enrich(t.Context(), block, faultBondCaller(caller), game)
 	require.NoError(t, err)
 	data := game.BondGameData
-	require.Equal(t, []string{"withdrawals", "credits", "mode", "balance"}, caller.trace)
+	require.Equal(t, []string{"mode", "withdrawals", "credits", "balance"}, caller.trace)
 	require.Equal(t, []rpcblock.Block{block, block, block, block}, caller.blocks)
-	require.Equal(t, []common.Address{counterer, blockChallenger, pendingClaimant}, caller.recipients)
+	require.Equal(t, []common.Address{claimant, secondClaimant}, caller.recipients)
 	require.Equal(t, map[common.Address]bool{
-		counterer:       true,
-		blockChallenger: true,
-		pendingClaimant: true,
+		claimant:       true,
+		secondClaimant: true,
 	}, data.Recipients)
-	require.Equal(t, map[common.Address]*big.Int{blockChallenger: big.NewInt(7)}, data.ExpectedCredits)
+	require.Equal(t, map[common.Address]*big.Int{claimant: big.NewInt(7), secondClaimant: big.NewInt(11)}, data.ExpectedCredits)
 	require.Equal(t, []monTypes.BondRecord{
-		{Depositor: claimant, Recipient: counterer, Amount: big.NewInt(7), Resolved: true, Forfeited: true},
-		{Depositor: pendingClaimant, Amount: big.NewInt(11)},
+		{Depositor: claimant, Recipient: claimant, Amount: big.NewInt(7), Resolved: true},
+		{Depositor: secondClaimant, Recipient: secondClaimant, Amount: big.NewInt(11), Resolved: true},
 	}, data.Bonds)
 	require.Equal(t, faultTypes.RefundDistributionMode, data.BondDistributionMode)
 	require.Equal(t, common.Address{0xee}, data.WETHContract)
@@ -92,11 +90,11 @@ func TestFaultBondSnapshotCompatibility(t *testing.T) {
 	withdrawals[0].Amount.SetInt64(99)
 	caller.balance.SetInt64(99)
 	game.Claims[0].Bond.SetInt64(99)
-	require.Equal(t, big.NewInt(13), data.Credits[counterer])
-	require.Equal(t, big.NewInt(1), data.WithdrawalRequests[counterer].Amount)
+	require.Equal(t, big.NewInt(13), data.Credits[claimant])
+	require.Equal(t, big.NewInt(1), data.WithdrawalRequests[claimant].Amount)
 	require.Equal(t, big.NewInt(23), data.ETHCollateral)
 	require.Equal(t, big.NewInt(7), data.Bonds[0].Amount)
-	require.Equal(t, big.NewInt(7), data.ExpectedCredits[blockChallenger])
+	require.Equal(t, big.NewInt(7), data.ExpectedCredits[claimant])
 }
 
 func TestFaultBondSnapshotStopsAfterErrors(t *testing.T) {
@@ -110,37 +108,37 @@ func TestFaultBondSnapshotStopsAfterErrors(t *testing.T) {
 		{
 			name:          "withdrawals",
 			configure:     func(c *bondSnapshotCaller) { c.withdrawalsErr = testErr },
-			expectedTrace: []string{"withdrawals"},
+			expectedTrace: []string{"mode", "withdrawals"},
 			expectedError: testErr,
 		},
 		{
 			name:          "withdrawal count",
 			configure:     func(c *bondSnapshotCaller) { c.withdrawals = append(c.withdrawals, &contracts.WithdrawalRequest{}) },
-			expectedTrace: []string{"withdrawals"},
+			expectedTrace: []string{"mode", "withdrawals"},
 			expectedError: ErrIncorrectWithdrawalsCount,
 		},
 		{
 			name:          "credits",
 			configure:     func(c *bondSnapshotCaller) { c.creditsErr = testErr },
-			expectedTrace: []string{"withdrawals", "credits"},
+			expectedTrace: []string{"mode", "withdrawals", "credits"},
 			expectedError: testErr,
 		},
 		{
 			name:          "credit count",
 			configure:     func(c *bondSnapshotCaller) { c.credits = append(c.credits, big.NewInt(1)) },
-			expectedTrace: []string{"withdrawals", "credits"},
+			expectedTrace: []string{"mode", "withdrawals", "credits"},
 			expectedError: ErrIncorrectCreditCount,
 		},
 		{
 			name:          "mode",
 			configure:     func(c *bondSnapshotCaller) { c.modeErr = testErr },
-			expectedTrace: []string{"withdrawals", "credits", "mode"},
+			expectedTrace: []string{"mode"},
 			expectedError: testErr,
 		},
 		{
 			name:          "balance",
 			configure:     func(c *bondSnapshotCaller) { c.balanceErr = testErr },
-			expectedTrace: []string{"withdrawals", "credits", "mode", "balance"},
+			expectedTrace: []string{"mode", "withdrawals", "credits", "balance"},
 			expectedError: testErr,
 		},
 	}
@@ -215,7 +213,7 @@ func TestFaultBondSnapshotSumsExpectedCredits(t *testing.T) {
 		},
 	}}
 
-	data := normalizeFaultBondData(game)
+	data := normalizeFaultBondData(game, faultTypes.NormalDistributionMode)
 	require.Equal(t, map[common.Address]*big.Int{recipient: big.NewInt(5)}, data.ExpectedCredits)
 }
 
@@ -237,7 +235,7 @@ func TestFaultBondSnapshotDistinguishesRefundsFromSelfCounters(t *testing.T) {
 		},
 	}}
 
-	data := normalizeFaultBondData(game)
+	data := normalizeFaultBondData(game, faultTypes.NormalDistributionMode)
 	require.Equal(t, []monTypes.BondRecord{
 		{Depositor: refunded, Recipient: refunded, Amount: big.NewInt(2), Resolved: true},
 		{Depositor: selfCountered, Recipient: selfCountered, Amount: big.NewInt(3), Resolved: true, Forfeited: true},
@@ -259,7 +257,7 @@ func TestFaultBondSnapshotRetainsZeroAddressBlockChallengeCredit(t *testing.T) {
 		}},
 	}
 
-	data := normalizeFaultBondData(game)
+	data := normalizeFaultBondData(game, faultTypes.NormalDistributionMode)
 	require.Equal(t, map[common.Address]*big.Int{common.Address{}: big.NewInt(7)}, data.ExpectedCredits)
 	require.NotContains(t, data.Recipients, common.Address{})
 	require.Equal(t, map[common.Address]bool{counterer: true}, data.Recipients)

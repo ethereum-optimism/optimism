@@ -209,7 +209,11 @@ func normalizeZKBondData(game *monTypes.ZKGameData, mode faultTypes.BondDistribu
 }
 
 func (*BondDataEnricher) load(ctx context.Context, block rpcblock.Block, caller BondGameCaller, game *monTypes.FaultGameData) (monTypes.BondGameData, error) {
-	data := normalizeFaultBondData(game)
+	mode, err := caller.GetBondDistributionMode(ctx, block)
+	if err != nil {
+		return monTypes.BondGameData{}, err
+	}
+	data := normalizeFaultBondData(game, mode)
 	recipients := slices.Collect(maps.Keys(data.Recipients))
 	slices.SortFunc(recipients, func(a, b common.Address) int {
 		return bytes.Compare(a[:], b[:])
@@ -231,10 +235,6 @@ func (*BondDataEnricher) load(ctx context.Context, block rpcblock.Block, caller 
 		return monTypes.BondGameData{}, fmt.Errorf("%w, requested %v values but got %v", ErrIncorrectCreditCount, len(recipients), len(credits))
 	}
 
-	mode, err := caller.GetBondDistributionMode(ctx, block)
-	if err != nil {
-		return monTypes.BondGameData{}, err
-	}
 	balance, delay, wethContract, err := caller.GetBalanceAndDelay(ctx, block)
 	if err != nil {
 		return monTypes.BondGameData{}, fmt.Errorf("failed to fetch balance: %w", err)
@@ -256,7 +256,7 @@ func (*BondDataEnricher) load(ctx context.Context, block rpcblock.Block, caller 
 	return data, nil
 }
 
-func normalizeFaultBondData(game *monTypes.FaultGameData) monTypes.BondGameData {
+func normalizeFaultBondData(game *monTypes.FaultGameData, mode faultTypes.BondDistributionMode) monTypes.BondGameData {
 	data := monTypes.BondGameData{
 		Bonds:           make([]monTypes.BondRecord, 0, len(game.Claims)),
 		Recipients:      make(map[common.Address]bool),
@@ -264,7 +264,7 @@ func normalizeFaultBondData(game *monTypes.FaultGameData) monTypes.BondGameData 
 	}
 	for _, claim := range game.Claims {
 		rpcRecipient := claim.Claimant
-		if claim.CounteredBy != (common.Address{}) {
+		if mode != faultTypes.RefundDistributionMode && claim.CounteredBy != (common.Address{}) {
 			rpcRecipient = claim.CounteredBy
 		}
 		data.Recipients[rpcRecipient] = true
@@ -275,7 +275,12 @@ func normalizeFaultBondData(game *monTypes.FaultGameData) monTypes.BondGameData 
 			Resolved:  claim.Resolved,
 			Forfeited: claim.Resolved && claim.CounteredBy != (common.Address{}),
 		}
-		if claim.Resolved {
+		if mode == faultTypes.RefundDistributionMode {
+			record.Resolved = true
+			record.Recipient = claim.Claimant
+			record.Forfeited = false
+			addExpectedCredit(data.ExpectedCredits, claim.Claimant, claim.Bond)
+		} else if claim.Resolved {
 			record.Recipient = rpcRecipient
 			expectedRecipient := rpcRecipient
 			if claim.IsRoot() && game.BlockNumberChallenged {
@@ -285,7 +290,7 @@ func normalizeFaultBondData(game *monTypes.FaultGameData) monTypes.BondGameData 
 		}
 		data.Bonds = append(data.Bonds, record)
 	}
-	if game.BlockNumberChallenger != (common.Address{}) {
+	if mode != faultTypes.RefundDistributionMode && game.BlockNumberChallenger != (common.Address{}) {
 		data.Recipients[game.BlockNumberChallenger] = true
 	}
 	return data
