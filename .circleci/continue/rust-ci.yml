@@ -1008,8 +1008,8 @@ workflows:
       - rust-vendored-checks:
           name: op-rbuilder-checks
           directory: rust/op-rbuilder
-          # libsqlite3 (db), libtss2 (tdx-quote-provider); upstream installs both.
-          apt_packages: "libsqlite3-dev libtss2-dev"
+          # libsqlite3 (db) + libtss2 (tdx-quote-provider) are preinstalled in the
+          # Wolfi base image (sqlite-dev, tpm2-tss-dev); no apt-install needed.
           # Match upstream's pre-compile of the tester helper + main binary.
           pre_command: |
             make tester
