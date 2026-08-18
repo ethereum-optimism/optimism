@@ -14,9 +14,9 @@ import (
 // Interop activates via a JSON NUT bundle (see UpgradeTransactions(forks.Lagoon))
 // that may be wrapped between two hardcoded deposit transactions:
 //
-//	[1] interopSetFeatureTx           — must run before the bundle so the L2CM
+//	[1] interopSetFeatureDeposit           — must run before the bundle so the L2CM
 //	                                    upgrade reads isFeatureEnabled(INTEROP)=true
-//	[N] interopETHLiquidityFundingTx  — runs after the bundle; the only Interop
+//	[N] interopETHLiquidityFundingDeposit  — runs after the bundle; the only Interop
 //	                                    deposit with non-zero mint and value
 //	                                    (max uint128), so it cannot be expressed
 //	                                    in the JSON schema.
@@ -31,31 +31,27 @@ var (
 	interopETHLiquidityFundData = crypto.Keccak256([]byte("fund()"))[:4]
 )
 
-// InteropActivationUpgradeTransactions returns the Interop activation deposits and the gas to add
-// to the activation block's gas limit. The NUT bundle always executes. The setFeature and
-// ETHLiquidity funding wrappers execute only when activateInteropContracts is true.
+// LagoonActivationUpgradeTransactions returns the Lagoon activation deposits and the gas to add to
+// the activation block's gas limit. The NUT bundle always executes. The setFeature and ETHLiquidity
+// funding wrappers execute only when activateInteropContracts is true.
 //
-// The gas is UpgradeGas(forks.Lagoon) either way — it always covers the wrappers, even when they
-// are not emitted, so that the amount is independent of the dependency set. See UpgradeGas.
-func InteropActivationUpgradeTransactions(activateInteropContracts bool) ([]hexutil.Bytes, uint64, error) {
-	bundleTxs, _, err := UpgradeTransactions(forks.Lagoon)
+// The gas covers the wrappers either way, so that the amount is independent of the dependency set.
+// See UpgradeGas.
+func LagoonActivationUpgradeTransactions(activateInteropContracts bool) ([]hexutil.Bytes, uint64, error) {
+	bundleTxs, gas, err := UpgradeTransactions(forks.Lagoon)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to load interop NUT bundle: %w", err)
-	}
-	upgradeGas, err := UpgradeGas(forks.Lagoon)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to read interop upgrade gas: %w", err)
+		return nil, 0, fmt.Errorf("failed to load Lagoon NUT bundle: %w", err)
 	}
 
 	if !activateInteropContracts {
-		return bundleTxs, upgradeGas, nil
+		return bundleTxs, gas, nil
 	}
 
-	setFeatureTx, err := interopSetFeatureTx()
+	setFeatureTx, err := interopSetFeatureDeposit().MarshalBinary()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to build interop setFeature wrapper: %w", err)
 	}
-	fundingTx, err := interopETHLiquidityFundingTx()
+	fundingTx, err := interopETHLiquidityFundingDeposit().MarshalBinary()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to build interop ETHLiquidity funding wrapper: %w", err)
 	}
@@ -64,7 +60,13 @@ func InteropActivationUpgradeTransactions(activateInteropContracts bool) ([]hexu
 	txs = append(txs, setFeatureTx)
 	txs = append(txs, bundleTxs...)
 	txs = append(txs, fundingTx)
-	return txs, upgradeGas, nil
+	return txs, gas, nil
+}
+
+// interopWrapperGas is the gas the wrapper deposits occupy in the activation block. It is summed
+// from the deposits themselves, so the reservation cannot drift from what they actually cost.
+func interopWrapperGas() uint64 {
+	return interopSetFeatureDeposit().Gas + interopETHLiquidityFundingDeposit().Gas
 }
 
 // InteropETHLiquidityFundingAmount returns the bootstrap liquidity minted into the
@@ -75,10 +77,10 @@ func InteropETHLiquidityFundingAmount() *big.Int {
 	return v
 }
 
-// interopSetFeatureTx returns the encoded pre-bundle setFeature(INTEROP) deposit.
+// interopSetFeatureDeposit returns the pre-bundle setFeature(INTEROP) deposit.
 // It flips L1Block.isFeatureEnabled(INTEROP) so that the L2CM upgrade
 // (executed inside the bundle's last tx) applies the Interop-gated proxy upgrades.
-func interopSetFeatureTx() (hexutil.Bytes, error) {
+func interopSetFeatureDeposit() *optypes.DepositTx {
 	selector := crypto.Keccak256([]byte("setFeature(bytes32)"))[:4]
 	var featureBytes [32]byte
 	copy(featureBytes[:], "INTEROP")
@@ -87,7 +89,7 @@ func interopSetFeatureTx() (hexutil.Bytes, error) {
 	data = append(data, featureBytes[:]...)
 
 	addr := predeploys.L1BlockAddr
-	return (&optypes.DepositTx{
+	return &optypes.DepositTx{
 		SourceHash:          interopSetFeatureSource.SourceHash(),
 		From:                L1InfoDepositerAddress,
 		To:                  &addr,
@@ -96,16 +98,16 @@ func interopSetFeatureTx() (hexutil.Bytes, error) {
 		Gas:                 interopSetFeatureGas,
 		IsSystemTransaction: false,
 		Data:                data,
-	}).MarshalBinary()
+	}
 }
 
-// interopETHLiquidityFundingTx returns the encoded post-bundle ETHLiquidity funding
-// deposit. The mint and value are u128::MAX — the only Interop deposit with
-// non-zero mint/value, hence not expressible in the JSON NUT bundle schema.
-func interopETHLiquidityFundingTx() (hexutil.Bytes, error) {
+// interopETHLiquidityFundingDeposit returns the post-bundle ETHLiquidity funding
+// deposit. The mint and value are u128::MAX — the only Lagoon activation deposit
+// with a non-zero mint, hence not expressible in the JSON NUT bundle schema.
+func interopETHLiquidityFundingDeposit() *optypes.DepositTx {
 	addr := predeploys.ETHLiquidityAddr
 	amount := InteropETHLiquidityFundingAmount()
-	return (&optypes.DepositTx{
+	return &optypes.DepositTx{
 		SourceHash:          interopETHLiquidityFundSrc.SourceHash(),
 		From:                L1InfoDepositerAddress,
 		To:                  &addr,
@@ -114,5 +116,5 @@ func interopETHLiquidityFundingTx() (hexutil.Bytes, error) {
 		Gas:                 interopETHLiquidityFundGas,
 		IsSystemTransaction: false,
 		Data:                interopETHLiquidityFundData,
-	}).MarshalBinary()
+	}
 }

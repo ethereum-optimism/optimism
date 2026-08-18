@@ -173,12 +173,12 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		// ETHLiquidity funding wrappers only execute for chains in a multi-chain
 		// dependency set, which signals the L2ContractsManager to activate
 		// Interop-specific contracts.
-		interopTxs, interopGas, err := InteropActivationUpgradeTransactions(len(ba.depSet.Chains()) > 1)
+		lagoonTxs, lagoonGas, err := LagoonActivationUpgradeTransactions(len(ba.depSet.Chains()) > 1)
 		if err != nil {
 			return nil, NewCriticalError(err)
 		}
-		upgradeTxs = append(upgradeTxs, interopTxs...)
-		upgradeGas += interopGas
+		upgradeTxs = append(upgradeTxs, lagoonTxs...)
+		upgradeGas += lagoonGas
 	}
 
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, ba.l1ChainConfig, sysConfig, seqNumber, l1Info, nextL2Time)

@@ -7,11 +7,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
-func TestInteropSetFeatureTx(t *testing.T) {
-	encoded, err := interopSetFeatureTx()
+func TestInteropSetFeatureDeposit(t *testing.T) {
+	encoded, err := interopSetFeatureDeposit().MarshalBinary()
 	require.NoError(t, err)
 
 	from, dep := toDepositTxn(t, encoded)
@@ -32,8 +33,8 @@ func TestInteropSetFeatureTx(t *testing.T) {
 	require.Equal(t, expectedFeature[:], dep.Data()[4:])
 }
 
-func TestInteropETHLiquidityFundingTx(t *testing.T) {
-	encoded, err := interopETHLiquidityFundingTx()
+func TestInteropETHLiquidityFundingDeposit(t *testing.T) {
+	encoded, err := interopETHLiquidityFundingDeposit().MarshalBinary()
 	require.NoError(t, err)
 
 	from, dep := toDepositTxn(t, encoded)
@@ -48,31 +49,48 @@ func TestInteropETHLiquidityFundingTx(t *testing.T) {
 	require.Equal(t, expected.SourceHash(), dep.SourceHash())
 }
 
-func TestInteropActivationUpgradeTransactions(t *testing.T) {
-	bundleTxs, bundleGas, err := UpgradeTransactions(forks.Lagoon)
+func TestLagoonActivationUpgradeTransactions(t *testing.T) {
+	bundleTxs, gotGas, err := UpgradeTransactions(forks.Lagoon)
 	require.NoError(t, err)
-	wantGas := interopSetFeatureGas + bundleGas + interopETHLiquidityFundGas
+
+	// Derive the expectation from the deposits themselves rather than from the getters under test,
+	// so this cannot pass by agreeing with a wrong implementation.
+	var bundleTxGas uint64
+	for _, tx := range bundleTxs {
+		_, dep := toDepositTxn(t, tx)
+		bundleTxGas += dep.Gas()
+	}
+	wantGas := bundleTxGas + interopSetFeatureGas + interopETHLiquidityFundGas
+	require.Equal(t, wantGas, gotGas, "UpgradeTransactions must report the full activation reservation")
 
 	// Only the tx set varies with the dependency set; the reserved gas covers the wrappers either
 	// way, so the reconstruction can subtract it without knowing the dependency set.
-	singleChainTxs, singleChainGas, err := InteropActivationUpgradeTransactions(false)
+	singleChainTxs, singleChainGas, err := LagoonActivationUpgradeTransactions(false)
 	require.NoError(t, err)
 	require.Equal(t, bundleTxs, singleChainTxs)
 	require.Equal(t, wantGas, singleChainGas)
 
-	multiChainTxs, multiChainGas, err := InteropActivationUpgradeTransactions(true)
+	multiChainTxs, multiChainGas, err := LagoonActivationUpgradeTransactions(true)
 	require.NoError(t, err)
 	require.Len(t, multiChainTxs, len(bundleTxs)+2)
 	require.Equal(t, bundleTxs, multiChainTxs[1:len(multiChainTxs)-1])
 	require.Equal(t, wantGas, multiChainGas)
 
-	setFeatureTx, err := interopSetFeatureTx()
-	require.NoError(t, err)
-	require.Equal(t, setFeatureTx, multiChainTxs[0])
+	// Only the multi-chain branch's deposits actually sum to the reservation.
+	var multiChainTxGas uint64
+	for _, tx := range multiChainTxs {
+		_, dep := toDepositTxn(t, tx)
+		multiChainTxGas += dep.Gas()
+	}
+	require.Equal(t, wantGas, multiChainTxGas)
 
-	fundingTx, err := interopETHLiquidityFundingTx()
+	setFeatureTx, err := interopSetFeatureDeposit().MarshalBinary()
 	require.NoError(t, err)
-	require.Equal(t, fundingTx, multiChainTxs[len(multiChainTxs)-1])
+	require.Equal(t, hexutil.Bytes(setFeatureTx), multiChainTxs[0])
+
+	fundingTx, err := interopETHLiquidityFundingDeposit().MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, hexutil.Bytes(fundingTx), multiChainTxs[len(multiChainTxs)-1])
 }
 
 // TestLagoonUpgradeGasAddEqualsStrip pins the invariant that the gas added to the Lagoon activation
@@ -92,7 +110,7 @@ func TestLagoonUpgradeGasAddEqualsStrip(t *testing.T) {
 	require.NotZero(t, stripped, "Lagoon must strip a non-zero amount")
 
 	for _, activateInteropContracts := range []bool{false, true} {
-		_, added, err := InteropActivationUpgradeTransactions(activateInteropContracts)
+		_, added, err := LagoonActivationUpgradeTransactions(activateInteropContracts)
 		require.NoError(t, err)
 		require.Equalf(t, added, stripped,
 			"activateInteropContracts=%v: gas added to the activation block must equal the gas stripped for the next block",
@@ -117,11 +135,12 @@ func TestUpgradeTransactionsInterop(t *testing.T) {
 	_, depLast := toDepositTxn(t, txs[len(txs)-1])
 	require.Equal(t, last.SourceHash(), depLast.SourceHash())
 
-	// Total gas equals sum of per-tx limits.
+	// The reserved gas deliberately exceeds these transactions' own limits: it also covers the two
+	// wrapper deposits that only a multi-chain activation emits. See UpgradeGas.
 	var sumGas uint64
 	for _, tx := range txs {
 		_, dep := toDepositTxn(t, tx)
 		sumGas += dep.Gas()
 	}
-	require.Equal(t, gas, sumGas)
+	require.Equal(t, sumGas+interopSetFeatureGas+interopETHLiquidityFundGas, gas)
 }

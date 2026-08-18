@@ -107,7 +107,22 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 		require.NoError(t, expected.UnmarshalBinary(rawExpected))
 		totalUpgradeGas += expected.Gas()
 	}
-	require.Equal(t, expectedGas, totalUpgradeGas, "total NUT gas must equal bundle total")
+	// The reservation covers wrapper deposits that only a multi-chain activation emits, which this
+	// single-chain devnet does not execute. Sum the multi-chain deposit set — the one that actually
+	// adds up to the reservation — rather than trusting the getter that reported it.
+	reservedTxs := expectedTxs
+	if fork == forks.Lagoon {
+		reservedTxs, _, err = derive.LagoonActivationUpgradeTransactions(true)
+		require.NoError(t, err)
+	}
+	var reservedGas uint64
+	for _, raw := range reservedTxs {
+		var tx types.Transaction
+		require.NoError(t, tx.UnmarshalBinary(raw))
+		reservedGas += tx.Gas()
+	}
+	require.Equal(t, expectedGas, reservedGas, "reserved gas must equal its activation deposits' total")
+	require.LessOrEqual(t, totalUpgradeGas, reservedGas, "executed deposits must fit within the reservation")
 
 	// Every tx in the activation block — the L1 info deposit and all NUT upgrade
 	// deposits — must execute successfully. A reverted upgrade tx would leave the

@@ -80,6 +80,12 @@ impl Lagoon {
         bundle.to_deposit_transactions().expect("Interop NUT bundle is invalid")
     }
 
+    /// Returns the gas the wrapper deposits occupy in the activation block. Summed from the
+    /// deposits themselves, so the reservation cannot drift from what they actually cost.
+    fn wrapper_gas() -> u64 {
+        Self::set_feature_tx().gas_limit + Self::eth_liquidity_funding_tx().gas_limit
+    }
+
     /// Returns all deposit transactions for the Interop activation block.
     pub fn deposits(activate_interop_contracts: bool) -> Vec<TxDeposit> {
         let bundle_deposits = Self::bundle_deposits();
@@ -113,15 +119,13 @@ impl Hardfork for Lagoon {
         self.txs_for_activation(true)
     }
 
-    /// Returns the gas added to the Interop activation block's gas limit.
+    /// Returns the gas added to the Lagoon activation block's gas limit.
     ///
     /// This always covers the `setFeature` and `ETHLiquidity` funding wrappers, even for a
-    /// single-chain activation that does not emit them. The system config reconstructed from the
-    /// activation block subtracts the same amount again for the next block, and that path never
-    /// sees the dependency set — so the reservation must not vary with it. A single-chain
-    /// activation carries the wrapper gas as unused headroom in that one block.
+    /// single-chain activation that does not emit them, so that the amount cannot vary with the
+    /// dependency set — which the system config reconstructed from the block never sees.
     fn upgrade_gas(&self) -> u64 {
-        interop_nut_bundle().total_gas() + SET_FEATURE_GAS + ETH_LIQUIDITY_FUND_GAS
+        interop_nut_bundle().total_gas() + Self::wrapper_gas()
     }
 }
 
@@ -172,7 +176,7 @@ mod tests {
         // The build script generates the bundle with a capitalized fork name
         // ("interop" → "Interop"), so the qualified intent on the kona side is
         // "Interop 0: ...". This matches the hardcoded intent literals in
-        // op-node's interop_activation_transactions.go to preserve
+        // op-node's lagoon_activation_transactions.go to preserve
         // source_hash determinism. The bundle prefix stays concept-level
         // "Interop" even though the fork was renamed to Lagoon.
         let expected_intent = "Interop 0: Deploy StorageSetter Implementation";

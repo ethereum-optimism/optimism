@@ -139,8 +139,13 @@ func nutBundleForFork(fork forks.Name) (*nutBundle, error) {
 	return bundle, nil
 }
 
-// UpgradeTransactions returns the deposit transactions and total gas required for a
-// fork's NUT bundle. The fork name selects the embedded bundle JSON.
+// UpgradeTransactions returns a fork's NUT bundle deposits and the gas its activation block adds
+// to the gas limit. The fork name selects the embedded bundle JSON.
+//
+// The gas is UpgradeGas(fork) rather than the sum of the returned transactions' own gas limits:
+// for Lagoon it also covers the wrapper deposits that only a multi-chain activation emits. Both
+// getters report the same number, so no caller can reserve less than the system config
+// reconstructed from the activation block subtracts again. See UpgradeGas.
 func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 	bundle, err := nutBundleForFork(fork)
 	if err != nil {
@@ -152,7 +157,7 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 		return nil, 0, fmt.Errorf("converting %s NUT bundle to deposit txs: %w", fork, err)
 	}
 
-	return txs, bundle.totalGas(), nil
+	return txs, upgradeGasForBundle(fork, bundle), nil
 }
 
 // UpgradeGas returns the gas added to a fork's activation block gas limit so its upgrade
@@ -160,7 +165,7 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 //
 // For Lagoon this exceeds the NUT bundle's own total: it also reserves gas for the setFeature and
 // ETHLiquidity funding wrappers, which only a multi-chain activation emits (see
-// InteropActivationUpgradeTransactions). The reservation is unconditional because the system config
+// LagoonActivationUpgradeTransactions). The reservation is unconditional because the system config
 // reconstructed from the activation block must subtract the same amount again for the next block,
 // and that path sees only the rollup config and a timestamp — never the dependency set. A
 // single-chain activation therefore carries the wrapper gas as unused headroom in that one block.
@@ -169,9 +174,16 @@ func UpgradeGas(fork forks.Name) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
+	return upgradeGasForBundle(fork, bundle), nil
+}
+
+// upgradeGasForBundle is the single definition of a fork's activation-block gas bump: its bundle's
+// own total, plus for Lagoon the gas its wrapper deposits occupy. Both UpgradeTransactions and
+// UpgradeGas route through here so the two can never disagree.
+func upgradeGasForBundle(fork forks.Name, bundle *nutBundle) uint64 {
 	gas := bundle.totalGas()
 	if fork == forks.Lagoon {
-		gas += interopSetFeatureGas + interopETHLiquidityFundGas
+		gas += interopWrapperGas()
 	}
-	return gas, nil
+	return gas
 }
