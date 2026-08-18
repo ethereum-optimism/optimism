@@ -256,7 +256,7 @@ func (s *Sequencer) drainInbox() {
 	}
 	if s.nextActionArmed != preOk || s.nextAction != preTime {
 		s.log.Debug("Sequencer action schedule changed",
-			"time", s.nextAction, "wait", s.nextAction.Sub(s.timeNow()), "ok", s.nextActionArmed)
+			"time", s.nextAction, "wait", s.nextAction.Sub(s.timeNow()), "armed", s.nextActionArmed)
 	}
 }
 
@@ -376,7 +376,7 @@ func (s *Sequencer) RunAction() {
 	defer func() {
 		if s.nextActionArmed != preOk || s.nextAction != preTime {
 			s.log.Debug("Sequencer action schedule changed",
-				"time", s.nextAction, "wait", s.nextAction.Sub(s.timeNow()), "ok", s.nextActionArmed)
+				"time", s.nextAction, "wait", s.nextAction.Sub(s.timeNow()), "armed", s.nextActionArmed)
 		}
 	}()
 
@@ -573,11 +573,11 @@ func (s *Sequencer) onEngineResetConfirmedEvent(engine.EngineResetConfirmedEvent
 	// badly lagging sequencer does not build one extra block before the next
 	// forkchoice update re-stalls it. (onReset cleared stalledByMaxSafeLag.)
 	s.evalMaxSafeLag()
-	s.log.Info("Engine reset confirmed, sequencer may continue", "next", s.nextActionArmed)
+	s.log.Info("Engine reset confirmed, sequencer may continue", "armed", s.nextActionArmed)
 }
 
 func (s *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
-	s.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "latest", s.unsafeHead)
+	s.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "prev_unsafe_head", s.unsafeHead)
 
 	s.safeHead = x.SafeL2Head
 	if !s.active.Load() {
@@ -643,7 +643,7 @@ func (s *Sequencer) evalMaxSafeLag() {
 		if s.safeHead.Number+maxSafeLag <= s.unsafeHead.Number {
 			if !s.stalledByMaxSafeLag {
 				s.log.Warn("sequencer has fallen behind safe head by more than lag, stalling",
-					"head", s.unsafeHead, "safe", s.safeHead, "max_lag", maxSafeLag)
+					"unsafe_head", s.unsafeHead, "safe_head", s.safeHead, "max_lag", maxSafeLag)
 			}
 			s.nextActionArmed = false
 			s.stalledByMaxSafeLag = true
@@ -652,7 +652,7 @@ func (s *Sequencer) evalMaxSafeLag() {
 			// Only resume if we were stalled by maxSafeLag specifically, to avoid
 			// interfering with other nextActionArmed=false states (reset, L1-derivation backoff, etc).
 			s.log.Info("safe head caught up, resuming sequencing",
-				"head", s.unsafeHead, "safe", s.safeHead, "max_lag", maxSafeLag)
+				"unsafe_head", s.unsafeHead, "safe_head", s.safeHead, "max_lag", maxSafeLag)
 			s.stalledByMaxSafeLag = false
 			s.nextActionArmed = s.active.Load()
 			s.nextAction = s.timeNow()
@@ -939,7 +939,7 @@ func (s *Sequencer) forceStart() error {
 		s.asyncGossip.Clear() // if we are starting from an unknown pre-state, just clear gossip out of caution.
 	} else {
 		// This happens when we start sequencing on an already-running node.
-		s.log.Info("Starting sequencing on top of known pre-state", "head", s.unsafeHead)
+		s.log.Info("Starting sequencing on top of known pre-state", "unsafe_head", s.unsafeHead)
 		if payload := s.asyncGossip.Get(); payload != nil &&
 			payload.ExecutionPayload.BlockHash != s.unsafeHead.Hash {
 			s.log.Warn("Cleared old block from async-gossip buffer, sequencing pre-state is different",
