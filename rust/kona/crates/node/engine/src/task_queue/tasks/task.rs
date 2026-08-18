@@ -266,9 +266,8 @@ mod tests {
     #[derive(Debug, Default)]
     struct RecordingSink(std::sync::Mutex<Vec<(alloy_primitives::B256, u64)>>);
 
-    #[async_trait::async_trait]
     impl crate::ImportedBlockSink for RecordingSink {
-        async fn block_imported(
+        fn block_imported(
             &self,
             block: op_alloy_consensus::OpBlock,
             info: kona_protocol::L2BlockInfo,

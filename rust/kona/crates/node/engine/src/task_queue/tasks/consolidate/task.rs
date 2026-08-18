@@ -205,7 +205,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                 // call for every block in the span batch.
                 Ok(block_info) if !self.input.is_attributes_last_in_span() => {
                     // The next attributes built are this block's child, and ask for its config.
-                    self.block_sink.block_imported(consensus_block, block_info).await;
+                    self.block_sink.block_imported(consensus_block, block_info);
 
                     let total_duration = global_start.elapsed();
 
@@ -229,7 +229,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                 }
                 Ok(block_info) => {
                     // The next attributes built are this block's child, and ask for its config.
-                    self.block_sink.block_imported(consensus_block, block_info).await;
+                    self.block_sink.block_imported(consensus_block, block_info);
 
                     let fcu_start = Instant::now();
 
@@ -326,9 +326,8 @@ mod tests {
     #[derive(Debug, Default)]
     struct RecordingSink(std::sync::Mutex<Vec<B256>>);
 
-    #[async_trait]
     impl ImportedBlockSink for RecordingSink {
-        async fn block_imported(&self, _: op_alloy_consensus::OpBlock, info: L2BlockInfo) {
+        fn block_imported(&self, _: op_alloy_consensus::OpBlock, info: L2BlockInfo) {
             self.0.lock().unwrap().push(info.block_info.hash);
         }
     }
