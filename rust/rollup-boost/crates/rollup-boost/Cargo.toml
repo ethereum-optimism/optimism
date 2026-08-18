@@ -68,7 +68,7 @@ dashmap = "6.1.0"
 backoff.workspace = true
 uuid = { version = "1.17.0", features = ["v4", "v7"] }
 bytes = "1.10.1"
-lru = "0.16"
+lru = "0.18"
 reth-rpc-layer = { git = "https://github.com/op-rs/reth.git", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
 
 [dev-dependencies]
