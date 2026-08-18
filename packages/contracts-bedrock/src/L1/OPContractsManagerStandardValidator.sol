@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
-import { GameType, Claim, GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, Claim, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -630,6 +630,12 @@ contract OPContractsManagerStandardValidator is ISemver {
             _buildDisputeGameConfig(_overrides)
         );
 
+        _errors = internalRequire(
+            IDisputeGameFactory(_sysCfg.disputeGameFactory()).initBonds(_gameType) > 0,
+            string.concat(_errorPrefix, "-160"),
+            _errors
+        );
+
         return _errors;
     }
 
@@ -906,14 +912,25 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
 
-        // Determine if the chain is in super game mode by checking the ASR's respectedGameType.
+        IAnchorStateRegistry asr = IOptimismPortal2(payable(_input.sysCfg.optimismPortal())).anchorStateRegistry();
+        // Left as CANNON, which no branch accepts, when the registry is not a contract: reporting
+        // ASR-RGT keeps the remaining errors readable instead of reverting the whole run.
+        GameType rgt;
+        if (address(asr).code.length > 0) {
+            rgt = asr.respectedGameType();
+        }
         bool isSuperMode = false;
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            IOptimismPortal2 portal = IOptimismPortal2(payable(_input.sysCfg.optimismPortal()));
-            IAnchorStateRegistry asr = portal.anchorStateRegistry();
-            GameType rgt = asr.respectedGameType();
             isSuperMode = GameTypes.isSuperGame(rgt);
         }
+
+        _errors = internalRequire(
+            isSuperMode
+                ? (rgt.raw() == GameTypes.SUPER_PERMISSIONED.raw() || rgt.raw() == GameTypes.SUPER_CANNON_KONA.raw())
+                : (rgt.raw() == GameTypes.PERMISSIONED_CANNON.raw() || rgt.raw() == GameTypes.CANNON_KONA.raw()),
+            "ASR-RGT",
+            _errors
+        );
 
         if (isSuperMode) {
             _errors = assertValidSuperRootDisputeGames(_errors, _input.sysCfg);
@@ -1095,6 +1112,8 @@ contract OPContractsManagerStandardValidator is ISemver {
             anchorStateRegistryImpl,
             _errorPrefix
         );
+        (Hash anchorRoot,) = IAnchorStateRegistry(args.anchorStateRegistry).getAnchorRoot();
+        _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
         return _errors;
     }
 

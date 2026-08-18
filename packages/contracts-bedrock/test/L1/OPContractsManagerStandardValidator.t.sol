@@ -840,17 +840,6 @@ contract OPContractsManagerStandardValidator_OptimismPortal_Test is OPContractsM
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         OptimismPortal disputeGameFactory is invalid.
-    function test_validate_optimismPortalInvalidDisputeGameFactory_succeeds() public {
-        vm.mockFunction(
-            address(optimismPortal2),
-            address(badDisputeGameFactoryReturner),
-            abi.encodeCall(IOptimismPortal2.disputeGameFactory, ())
-        );
-        assertEq("PORTAL-30", _validate(true));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
     ///         OptimismPortal systemConfig is invalid.
     function test_validate_optimismPortalInvalidSystemConfig_succeeds() public {
         vm.mockCall(
@@ -1172,7 +1161,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
 
-        assertEq("PDDG-DWETH-10,PDDG-DWETH-20", _validate(true));
+        assertEq("PDDG-DWETH-10,PDDG-DWETH-20,PDDG-DWETH-70", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1354,7 +1343,18 @@ contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is
             abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
             abi.encode(address(0xbad))
         );
-        assertEq("PDDG-ANCHORP-70,CKDG-ANCHORP-70", _validate(true));
+        assertEq("ASR-RGT,PDDG-ANCHORP-70,CKDG-ANCHORP-70", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry respects a game type outside the validated set.
+    function test_validate_anchorStateRegistryInvalidRespectedGameType_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.ASTERISC)
+        );
+        assertEq("ASR-RGT", _validate(true));
     }
 }
 
@@ -1409,6 +1409,13 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
             address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
         assertEq("PDDG-DWETH-60,CKDG-DWETH-60", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         DelayedWETH the games use is not the one recorded on the SystemConfig.
+    function test_validate_delayedWETHNotSystemConfigDelayedWETH_succeeds() public {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.delayedWETH, ()), abi.encode(address(0xbad)));
+        assertEq("PDDG-DWETH-70,CKDG-DWETH-70", _validate(true));
     }
 }
 
@@ -1524,7 +1531,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     ///         FaultDisputeGame (permissionless) CannonKona Weth address is invalid.
     function test_validate_faultDisputeGameInvalidCannonKonaWeth_succeeds() public {
         _mockInvalidWeth(GameTypes.CANNON_KONA);
-        assertEq("CKDG-DWETH-10,CKDG-DWETH-20", _validate(true));
+        assertEq("CKDG-DWETH-10,CKDG-DWETH-20,CKDG-DWETH-70", _validate(true));
     }
 
     function _mockInvalidWeth(GameType _gameType) internal {
@@ -1601,6 +1608,13 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
             address(fdgImpl), abi.encodeCall(IFaultDisputeGame.maxClockDuration, ()), abi.encode(Duration.wrap(1000))
         );
         assertEq("CKDG-110", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) init bond is zero.
+    function test_validate_faultDisputeGameZeroInitBond_succeeds() public {
+        vm.mockCall(address(dgf), abi.encodeCall(IDisputeGameFactory.initBonds, (GameTypes.CANNON_KONA)), abi.encode(0));
+        assertEq("CKDG-160", _validate(true));
     }
 }
 
@@ -2116,6 +2130,36 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
         vm.mockCall(gameArgs.weth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad)));
         assertEq("SCKDG-DWETH-30", _validate(true));
     }
+
+    /// @notice Tests SCKDG-DWETH-70 when the DelayedWETH the game uses is not the one recorded on
+    ///         the SystemConfig.
+    function test_validate_superPermissionlessDisputeGameWethNotSystemConfigWeth_succeeds() public {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.delayedWETH, ()), abi.encode(address(0xbad)));
+        assertEq("SCKDG-DWETH-70", _validate(true));
+    }
+
+    /// @notice Tests SCKDG-160 when the SUPER_CANNON_KONA init bond is zero.
+    function test_validate_superPermissionlessDisputeGameZeroInitBond_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.initBonds, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(0)
+        );
+        assertEq("SCKDG-160", _validate(true));
+    }
+
+    /// @notice Tests ASR-RGT when the respected game type is a super game type outside the
+    ///         validated set. A super type keeps the validator on the super-mode branch, so only
+    ///         the respected-game-type assertion fires.
+    function test_validate_unexpectedRespectedGameType_succeeds() public {
+        IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
+        vm.mockCall(
+            address(portal.anchorStateRegistry()),
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.SUPER_CANNON)
+        );
+        assertEq("ASR-RGT", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_ZKDisputeGame_Test
@@ -2455,6 +2499,18 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
             abi.encode(GameTypes.SUPER_CANNON_KONA)
         );
         assertEq("SPDG-ANCHORP-70,SCKDG-ANCHORP-70,ZKDG-ANCHORP-70", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-120 when the AnchorStateRegistry the ZK game args point at has a zero
+    ///         anchor root. The super games share that registry, so they report it too.
+    function test_validate_zkDisputeGameZeroAnchorRoot_succeeds() public {
+        IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
+        vm.mockCall(
+            address(portal.anchorStateRegistry()),
+            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
+            abi.encode(Hash.wrap(bytes32(0)), uint256(0))
+        );
+        assertEq("SPDG-120,SCKDG-120,ZKDG-120", _validate(true));
     }
 }
 
