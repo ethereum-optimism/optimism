@@ -67,6 +67,8 @@ subpackages:
             "${CARGO_TARGET_DIR}/rust/${profile}/op-reth" \
             "${{targets.contextdir}}/usr/local/bin/op-reth"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: kona-node
     description: kona-node — OP Stack Kona rollup node
@@ -77,6 +79,8 @@ subpackages:
             "${CARGO_TARGET_DIR}/rust/${profile}/kona-node" \
             "${{targets.contextdir}}/usr/local/bin/kona-node"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: kona-host
     description: kona-host — OP Stack Kona fault proof host
@@ -87,6 +91,8 @@ subpackages:
             "${CARGO_TARGET_DIR}/rust/${profile}/kona-host" \
             "${{targets.contextdir}}/usr/local/bin/kona-host"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: kona-client
     description: kona-client — OP Stack Kona fault proof client
@@ -97,6 +103,8 @@ subpackages:
             "${CARGO_TARGET_DIR}/rust/${profile}/kona-client" \
             "${{targets.contextdir}}/usr/local/bin/kona-client"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: kona-sp1-proposer
     description: kona-sp1-proposer — OP Stack SP1 fault proof proposer
@@ -107,6 +115,8 @@ subpackages:
             "${CARGO_TARGET_DIR}/rust/${profile}/kona-sp1-proposer" \
             "${{targets.contextdir}}/usr/local/bin/kona-sp1-proposer"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   # The monorepo vendors op-rbuilder and rollup-boost as NESTED workspaces
   # (own Cargo.toml + Cargo.lock, not members of the main rust/ workspace), and
@@ -128,6 +138,8 @@ subpackages:
           mv "${{targets.contextdir}}/usr/local/bin/op-rbuilder" \
              "${{targets.contextdir}}/app/rbuilder"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: rollup-boost
     description: rollup-boost — OP Stack block builder multiplexer (monorepo vendored copy)
@@ -140,3 +152,5 @@ subpackages:
           output: rollup-boost
           opts: --release --locked --package rollup-boost
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
