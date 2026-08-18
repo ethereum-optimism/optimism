@@ -105,8 +105,6 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
         export OP_VALIDATOR_WITH_RETH=0
     fi
 
-    export SKIP_P2P_CONNECTION_CHECK=true
-
     # Run the test with count=1 to avoid caching the test results.
     cd {{SOURCE}}
     mkdir -p ./tmp/test-results ./tmp/testlogs
