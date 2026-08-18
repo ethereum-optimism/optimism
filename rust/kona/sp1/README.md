@@ -108,22 +108,7 @@ RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \
 Real recursive proof generation, SPN credentials, and production verifier proof-byte validation
 remain network-proving concerns rather than deterministic acceptance-test coverage.
 
-## CI TODOs
-
-TODO(#18326): the monorepo's CircleCI runs the
-workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
-gates over the SP1 host-side crates that are workspace members. The guest program entrypoints and
-`range-vkeys` crate live outside that workspace. The `kona-build-sp1-elfs` rust-e2e job runs
-`just build-elfs-native`, tests and lints all guests, and checks and tests `range-vkeys`; scheduled
-vkey drift coverage is tracked in #21661. The following standalone-kona GitHub workflow behavior
-is not yet reproduced:
-
-- Codecov flag wiring for SP1 coverage.
-- no-std checks for the SP1/zkVM crates. The monorepo `rust-check-no-std` job is
-  package-allowlisted and does not include SP1; add SP1 there if no-std coverage
-  is wanted.
-
-### Guest Precompile Patches
+## Guest Precompile Patches
 
 All four guest programs are isolated in `programs/Cargo.toml`, a nested Cargo workspace with its
 own `Cargo.lock` and `[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
