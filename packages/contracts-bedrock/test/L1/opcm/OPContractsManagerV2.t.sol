@@ -2615,7 +2615,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertTrue(address(sharedDgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0), "source not registered");
         assertEq(address(sharedDgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)), address(0), "ZK already registered");
 
-        // Enable ZK, clear everything else, and make ZK the respected game type.
+        // Enable ZK and make it the respected game type. SUPER_PERMISSIONED stays enabled with a
+        // new proposer, the production shape where a permissioned game is kept as a liveness
+        // backup, so the upgrade must rebuild its args against the shared registry.
+        address newProposer = makeAddr("swapProposer");
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -2637,10 +2640,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: bytes("")
         });
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
+            enabled: true,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED,
-            gameArgs: bytes("")
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: newProposer }))
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -2681,7 +2684,12 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         assertTrue(address(sharedDgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0), "ZK not registered");
         assertEq(sharedDgf.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
-        assertEq(address(sharedDgf.gameImpls(GameTypes.SUPER_PERMISSIONED)), address(0), "source not cleared");
+        // The co-enabled permissioned game survives with args rebuilt against the shared registry.
+        assertTrue(address(sharedDgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0), "source game not retained");
+        LibGameArgs.SuperPermissionedGameArgs memory sourceArgs =
+            LibGameArgs.decodeSuperPermissioned(sharedDgf.gameArgs(GameTypes.SUPER_PERMISSIONED));
+        assertEq(sourceArgs.proposer, newProposer, "source proposer not updated");
+        assertEq(sourceArgs.anchorStateRegistry, address(sharedAsr), "source game args lost the shared registry");
         assertEq(sharedAsr.respectedGameType().raw(), GameTypes.ZK_DISPUTE_GAME.raw(), "respected not ZK");
 
         // The anchor root is preserved because the upgrade reads it back from the shared registry.
