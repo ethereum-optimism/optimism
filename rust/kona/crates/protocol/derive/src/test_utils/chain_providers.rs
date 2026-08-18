@@ -1,7 +1,7 @@
 //! Test Utilities for chain provider traits
 
 use crate::{
-    errors::{PipelineError, PipelineErrorKind},
+    errors::{PipelineError, PipelineErrorKind, ResetError},
     traits::{ChainProvider, L2ChainProvider},
 };
 use alloc::{boxed::Box, string::ToString, sync::Arc, vec::Vec};
@@ -91,6 +91,9 @@ pub enum TestProviderError {
     /// The L2 block was not found.
     #[error("L2 Block not found")]
     L2BlockNotFound,
+    /// The L2 block was not found by hash.
+    #[error("L2 block {0} not found by hash")]
+    L2BlockHashNotFound(B256),
     /// The system config was not found.
     #[error("System config not found")]
     SystemConfigNotFound(B256),
@@ -98,7 +101,12 @@ pub enum TestProviderError {
 
 impl From<TestProviderError> for PipelineErrorKind {
     fn from(val: TestProviderError) -> Self {
-        PipelineError::Provider(val.to_string()).temp()
+        match val {
+            TestProviderError::L2BlockHashNotFound(hash) => {
+                ResetError::BlockNotFound(hash.into()).reset()
+            }
+            other => PipelineError::Provider(other.to_string()).temp(),
+        }
     }
 }
 
@@ -191,13 +199,17 @@ impl BatchValidationProvider for TestL2ChainProvider {
 
     async fn l2_block_info_by_hash(&mut self, hash: B256) -> Result<L2BlockInfo, Self::Error> {
         if self.short_circuit {
-            return self.blocks.first().copied().ok_or(TestProviderError::BlockNotFound);
+            return self
+                .blocks
+                .first()
+                .copied()
+                .ok_or(TestProviderError::L2BlockHashNotFound(hash));
         }
         self.blocks
             .iter()
             .find(|b| b.block_info.hash == hash)
             .copied()
-            .ok_or(TestProviderError::BlockNotFound)
+            .ok_or(TestProviderError::L2BlockHashNotFound(hash))
     }
 
     async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
