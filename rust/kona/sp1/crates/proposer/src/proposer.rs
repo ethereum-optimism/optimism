@@ -20,7 +20,6 @@ use std::{
 use alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, U256};
 use alloy_provider::ProviderBuilder;
-use alloy_sol_types::SolEvent;
 use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result, anyhow, bail};
 use kona_sp1_host_utils::metrics::MetricsGauge;
@@ -30,23 +29,25 @@ use tokio::{
     sync::{Mutex, OnceCell, RwLock},
     time,
 };
+use tracing::Instrument;
 
 use crate::{
-    L1Provider, TX_REVERTED_PREFIX, TxErrorExt, ZK_GAME_TYPE,
-    adapters::{ProductionL1View, SystemQueryTime},
-    config::{PrestatePrograms, ProofProviderKind, ProposerConfig, load_prestate},
-    contract::{
-        DisputeGameFactory::{DisputeGameCreated, DisputeGameFactoryInstance},
-        GameStatus, ProposalStatus, ZKDisputeGame,
+    L1Provider, TxErrorExt, ZK_GAME_TYPE,
+    adapters::{
+        ProductionActionExecutor, ProductionL1View, ProductionProofEngine,
+        ProductionSuperRootSource, SystemQueryTime,
     },
+    config::{PrestatePrograms, ProofProviderKind, ProposalSafety, ProposerConfig, load_prestate},
+    contract::{DisputeGameFactory::DisputeGameFactoryInstance, GameStatus, ProposalStatus},
     metrics::ProposerGauge,
-    ports::{ClaimPreflight, L1View, ProofInputs, QueryTime},
-    prover::{ProofKeys, ProofProvider, setup_proof_keys},
-    proving::{
-        GameProofInputs, fetch_span_responses, is_unprovable, prove_game_inner, response_trusted,
+    ports::{
+        ActionExecutor, ClaimPreflight, L1View, ProofEngine, ProofInputs, QueryTime,
+        SuperRootSource,
     },
+    prover::{ProofKeys, ProofProvider, setup_proof_keys},
+    proving::{GameProofInputs, fetch_span_responses, is_unprovable, response_trusted},
     signer::{FeeCaps, SignerLock},
-    superroot::{ResponseSelection, SuperrootClient, zk_extra_data},
+    superroot::{SuperrootClient, zk_extra_data},
 };
 
 /// Max allowed time (secs) between a game's deadline and the anchor game's deadline.
@@ -401,20 +402,18 @@ fn classify_claim_preflight(preflight: &ClaimPreflight) -> ClaimPreflightDecisio
 pub struct Proposer {
     /// Proposer configuration loaded at startup.
     pub config: ProposerConfig,
-    /// Shared transaction signer, serialized behind a lock.
-    pub signer: SignerLock,
     /// Cached proposer address used by policy and proof public inputs.
     proposer_address: Address,
-    /// L1 execution-layer provider used to construct transactions.
-    pub l1_provider: L1Provider,
     /// Read-only L1 observations consumed by proposer policy.
     l1_view: Arc<dyn L1View>,
     /// Host query time used for current super-root requests.
     query_time: Arc<dyn QueryTime>,
-    /// Supernode client used to fetch super roots and safe-head data.
-    pub superroot_client: SuperrootClient,
-    /// `DisputeGameFactory` contract instance used to construct game-creation transactions.
-    pub factory: Arc<DisputeGameFactoryInstance<L1Provider>>,
+    /// Super-root observations used by proposal and proof policy.
+    superroot_source: Arc<dyn SuperRootSource>,
+    /// Witness collection and SP1 proof execution.
+    proof_engine: Arc<dyn ProofEngine>,
+    /// Serialized transaction submission and receipt decoding.
+    action_executor: Arc<dyn ActionExecutor>,
     /// Prestate program cache: loaded ELFs keyed by `absolutePrestate()`
     /// hash, fetched from `KONA_SP1_PROPOSER_PRESTATES_URL` on demand (see [`PrestateCache`]).
     pub prestates: Arc<PrestateCache>,
@@ -443,11 +442,6 @@ pub struct Proposer {
     /// re-validated each sync - unlike terminal invalidity, pending games
     /// must not be dropped by the cursor (see `fetch_game`).
     pending_games: Arc<RwLock<HashSet<U256>>>,
-    /// The proof provider defending challenged games.
-    pub proof_provider: ProofProvider,
-    /// Deployment-scoped witness endpoints and config paths for the
-    /// `InteropHost` (built once from the config).
-    host_inputs: Arc<HostInputs>,
     /// The registered game args' `maxProveDuration`, read once during
     /// `try_init`. Used for the deadline-approaching warning tier only;
     /// per-game deadlines come from `claimData` each sync.
@@ -497,17 +491,31 @@ impl Proposer {
             config.l1_rpc.clone(),
         ));
         let proposer_address = signer.address();
+        let superroot_source =
+            Arc::new(ProductionSuperRootSource::new(SuperrootClient::new(&config.superroot_rpcs)?));
+        let proof_engine = Arc::new(ProductionProofEngine::new(
+            proof_provider,
+            host_inputs,
+            config.range_split_count,
+            config.max_concurrent_range_proofs,
+        ));
+        let action_executor = Arc::new(ProductionActionExecutor::new(
+            signer,
+            l1_provider,
+            factory,
+            config.l1_rpc.clone(),
+            config.tx_confirmation_timeout,
+            Self::fee_caps_for(&config),
+        ));
         Self::new_with_dependencies(
             config,
-            signer,
             proposer_address,
-            factory,
-            proof_provider,
-            l1_provider,
             l1_view,
             Arc::new(SystemQueryTime),
+            superroot_source,
+            proof_engine,
+            action_executor,
             prestates,
-            host_inputs,
         )
         .await
     }
@@ -516,29 +524,25 @@ impl Proposer {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new_with_dependencies(
         config: ProposerConfig,
-        signer: SignerLock,
         proposer_address: Address,
-        factory: DisputeGameFactoryInstance<L1Provider>,
-        proof_provider: ProofProvider,
-        l1_provider: L1Provider,
         l1_view: Arc<dyn L1View>,
         query_time: Arc<dyn QueryTime>,
+        superroot_source: Arc<dyn SuperRootSource>,
+        proof_engine: Arc<dyn ProofEngine>,
+        action_executor: Arc<dyn ActionExecutor>,
         prestates: Arc<PrestateCache>,
-        host_inputs: Arc<HostInputs>,
     ) -> Result<Self> {
         let identity = ProposerIdentity::new();
         identity.log_startup_info(&config.prestates_url);
 
-        let superroot_client = SuperrootClient::new(&config.superroot_rpcs)?;
         Ok(Self {
             config,
-            signer,
             proposer_address,
-            l1_provider,
             l1_view,
             query_time,
-            superroot_client,
-            factory: Arc::new(factory),
+            superroot_source,
+            proof_engine,
+            action_executor,
             prestates,
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
@@ -549,8 +553,6 @@ impl Proposer {
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
             in_flight_creation: Arc::new(tokio::sync::Mutex::new(None)),
             pending_games: Arc::new(RwLock::new(HashSet::new())),
-            proof_provider,
-            host_inputs,
             max_prove_duration: Arc::new(OnceCell::new()),
             max_challenge_duration: Arc::new(OnceCell::new()),
             undefendable: Arc::new(Mutex::new(HashSet::new())),
@@ -1311,10 +1313,10 @@ impl Proposer {
     }
 
     /// Operator fee caps applied to every submitted transaction.
-    const fn fee_caps(&self) -> FeeCaps {
+    const fn fee_caps_for(config: &ProposerConfig) -> FeeCaps {
         FeeCaps {
-            max_fee_per_gas: self.config.max_fee_per_gas,
-            max_priority_fee_per_gas: self.config.max_priority_fee_per_gas,
+            max_fee_per_gas: config.max_fee_per_gas,
+            max_priority_fee_per_gas: config.max_priority_fee_per_gas,
         }
     }
 
@@ -1326,42 +1328,15 @@ impl Proposer {
         // Read at creation time rather than startup: the factory's init bond
         // can change, and a stale value would revert every create.
         let init_bond = self.l1_view.init_bond().await?;
-        let transaction_request = self
-            .factory
-            .create(ZK_GAME_TYPE, root_claim, extra_data.into())
-            .value(init_bond)
-            .into_transaction_request();
-
-        let receipt = self
-            .signer
-            .send_transaction_request_with_timeout(
-                self.config.l1_rpc.clone(),
-                transaction_request,
-                self.config.tx_confirmation_timeout,
-                self.fee_caps(),
-            )
-            .await?;
-
-        if !receipt.status() {
-            bail!("{TX_REVERTED_PREFIX} {receipt:?}");
-        }
-
-        let game_address = receipt
-            .inner
-            .logs()
-            .iter()
-            .find_map(|log| {
-                DisputeGameCreated::decode_log(&log.inner).ok().map(|event| event.disputeProxy)
-            })
-            .context("Could not find DisputeGameCreated event in transaction receipt logs")?;
+        let receipt = self.action_executor.create_game(root_claim, extra_data, init_bond).await?;
 
         tracing::info!(
-            game_address = ?game_address,
+            game_address = ?receipt.game_address,
             tx_hash = ?receipt.transaction_hash,
             "Game created successfully"
         );
 
-        Ok(game_address)
+        Ok(receipt.game_address)
     }
 
     async fn resolve_games(&self) -> Result<()> {
@@ -1466,9 +1441,8 @@ impl Proposer {
             // submit a phase-2 payout before the WETH delay matures.
             let preflight =
                 self.l1_view.claim_preflight(game.address, game.weth, proposer_address).await;
-            let mut is_payout = false;
-            match classify_claim_preflight(&preflight) {
-                ClaimPreflightDecision::Submit => {}
+            let is_payout = match classify_claim_preflight(&preflight) {
+                ClaimPreflightDecision::Submit => false,
                 ClaimPreflightDecision::AlreadyClaimed => {
                     tracing::info!(
                         game_index = %game.index,
@@ -1506,31 +1480,47 @@ impl Proposer {
                         );
                         continue;
                     }
-                    is_payout = true;
+                    true
                 }
-            }
+            };
 
-            if let Err(error) = self.submit_bond_claim_transaction(&game).await {
-                if error.is_revert() {
-                    tracing::error!(
-                        game_index = %game.index,
-                        game_address = ?game.address,
-                        l2_sequence_end = %game.l2_sequence_number,
-                        ?error,
-                        "Bond claim tx included but reverted on-chain"
-                    );
-                } else {
-                    tracing::warn!(
-                        game_index = %game.index,
-                        game_address = ?game.address,
-                        l2_sequence_end = %game.l2_sequence_number,
-                        ?error,
-                        "Bond claim tx unconfirmed (may be on-chain), will verify next cycle"
-                    );
+            let transaction_hash = match self
+                .action_executor
+                .claim_credit(game.address, proposer_address)
+                .instrument(tracing::info_span!("[[Claiming Proposer Bonds]]"))
+                .await
+            {
+                Ok(transaction_hash) => transaction_hash,
+                Err(error) => {
+                    if error.is_revert() {
+                        tracing::error!(
+                            game_index = %game.index,
+                            game_address = ?game.address,
+                            l2_sequence_end = %game.l2_sequence_number,
+                            ?error,
+                            "Bond claim tx included but reverted on-chain"
+                        );
+                    } else {
+                        tracing::warn!(
+                            game_index = %game.index,
+                            game_address = ?game.address,
+                            l2_sequence_end = %game.l2_sequence_number,
+                            ?error,
+                            "Bond claim tx unconfirmed (may be on-chain), will verify next cycle"
+                        );
+                    }
+                    ProposerGauge::BondClaimingError.increment(1.0);
+                    continue;
                 }
-                ProposerGauge::BondClaimingError.increment(1.0);
-                continue;
-            }
+            };
+
+            tracing::info!(
+                game_index = %game.index,
+                game_address = ?game.address,
+                l2_sequence_end = %game.l2_sequence_number,
+                tx_hash = ?transaction_hash,
+                "Bond claimed successfully"
+            );
 
             // If the pre-flight reads failed we cannot know the phase; skip
             // the count (under-count in a degraded state, never a double-count).
@@ -1544,61 +1534,14 @@ impl Proposer {
 
     /// Submits a `resolve()` transaction for the game and bails if it reverted.
     pub async fn submit_resolution_transaction(&self, game: &Game) -> Result<()> {
-        let contract = ZKDisputeGame::new(game.address, self.l1_provider.clone());
-        let transaction_request = contract.resolve().into_transaction_request();
-        let receipt = self
-            .signer
-            .send_transaction_request_with_timeout(
-                self.config.l1_rpc.clone(),
-                transaction_request,
-                self.config.tx_confirmation_timeout,
-                self.fee_caps(),
-            )
-            .await?;
-
-        if !receipt.status() {
-            bail!("{TX_REVERTED_PREFIX} {receipt:?}");
-        }
+        let transaction_hash = self.action_executor.resolve_game(game.address).await?;
 
         tracing::info!(
             game_index = %game.index,
             game_address = ?game.address,
             l2_sequence_end = %game.l2_sequence_number,
-            tx_hash = ?receipt.transaction_hash,
+            tx_hash = ?transaction_hash,
             "Game resolved successfully"
-        );
-
-        Ok(())
-    }
-
-    /// Submit the on-chain transaction to claim the proposer's bond for a given game.
-    #[tracing::instrument(name = "[[Claiming Proposer Bonds]]", skip(self, game))]
-    pub async fn submit_bond_claim_transaction(&self, game: &Game) -> Result<()> {
-        let contract = ZKDisputeGame::new(game.address, self.l1_provider.clone());
-        // No explicit gas limit: claimCredit's implicit closeGame (anchor
-        // update + WETH ops) exceeds op-succinct's hardcoded 200k.
-        let transaction_request =
-            contract.claimCredit(self.proposer_address).into_transaction_request();
-        let receipt = self
-            .signer
-            .send_transaction_request_with_timeout(
-                self.config.l1_rpc.clone(),
-                transaction_request,
-                self.config.tx_confirmation_timeout,
-                self.fee_caps(),
-            )
-            .await?;
-
-        if !receipt.status() {
-            bail!("{TX_REVERTED_PREFIX} {receipt:?}");
-        }
-
-        tracing::info!(
-            game_index = %game.index,
-            game_address = ?game.address,
-            l2_sequence_end = %game.l2_sequence_number,
-            tx_hash = ?receipt.transaction_hash,
-            "Bond claimed successfully"
         );
 
         Ok(())
@@ -1721,52 +1664,31 @@ impl Proposer {
         // force. Hold the game as pending instead: it stays outside the DAG
         // (never parent-eligible) and is re-checked each sync, bounded to one
         // query per cycle.
-        let response = match self
-            .superroot_client
-            .superroot_at_timestamp(sequence_number, ResponseSelection::PreferData)
-            .await
-        {
-            Ok(response) => response,
-            Err(e) => {
-                tracing::warn!(
-                    game_index = %index,
-                    ?game_address,
-                    sequence_number,
-                    error = %e,
-                    "Super-root data unavailable for game; deferring validation"
-                );
-                ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending {
-                    index,
-                    deadline,
-                    prestate: absolute_prestate,
-                });
-            }
-        };
-        let super_root = match SuperrootClient::super_root_at(&response, sequence_number) {
-            Ok(super_root) => super_root,
-            Err(e) => {
-                tracing::warn!(
-                    game_index = %index,
-                    ?game_address,
-                    sequence_number,
-                    error = %e,
-                    "Super-root response failed validation for game; deferring"
-                );
-                ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending {
-                    index,
-                    deadline,
-                    prestate: absolute_prestate,
-                });
-            }
-        };
-        match super_root {
+        let super_root_at =
+            match self.superroot_source.super_root_at_timestamp(sequence_number).await {
+                Ok(super_root_at) => super_root_at,
+                Err(e) => {
+                    tracing::warn!(
+                        game_index = %index,
+                        ?game_address,
+                        sequence_number,
+                        error = %e,
+                        "Super-root data unavailable for game; deferring validation"
+                    );
+                    ProposerGauge::SuperRootUnavailable.increment(1.0);
+                    return Ok(GameFetchResult::Pending {
+                        index,
+                        deadline,
+                        prestate: absolute_prestate,
+                    });
+                }
+            };
+        match super_root_at.root {
             None => {
                 // Not yet safe from this node's view. Far-future timestamps beyond
                 // the validation horizon are terminal (bonded spam); anything
                 // nearer is pending and re-validated next sync.
-                let local_safe = response.current_local_safe_timestamp;
+                let local_safe = super_root_at.response.current_local_safe_timestamp;
                 if local_safe > 0 &&
                     sequence_number > local_safe.saturating_add(MAX_GAME_DEADLINE_LAG)
                 {
@@ -1792,7 +1714,7 @@ impl Proposer {
                 });
             }
             Some(super_root) if super_root.super_root != claim => {
-                if !response_trusted(&response) {
+                if !response_trusted(&super_root_at.response) {
                     tracing::warn!(
                         game_index = %index,
                         ?game_address,
@@ -1870,12 +1792,9 @@ impl Proposer {
         let max_proposable = self.max_proposable_timestamp().await?;
 
         loop {
-            let response = self
-                .superroot_client
-                .superroot_at_timestamp(sequence_number, ResponseSelection::PreferData)
-                .await?;
-            let Some(super_root) = SuperrootClient::super_root_at(&response, sequence_number)?
-            else {
+            let super_root_at =
+                self.superroot_source.super_root_at_timestamp(sequence_number).await?;
+            let Some(super_root) = super_root_at.root else {
                 // Transient: the chosen timestamp is not yet safe from this
                 // node's view. Bail and retry on a later tick.
                 bail!("no canonical super root at timestamp {sequence_number} yet");
@@ -2521,9 +2440,11 @@ impl Proposer {
     /// configured safety level, from a fresh supernode response.
     async fn max_proposable_timestamp(&self) -> Result<u64> {
         let now = self.query_time.unix_timestamp()?;
-        let response =
-            self.superroot_client.superroot_at_timestamp(now, ResponseSelection::HighestL1).await?;
-        Ok(SuperrootClient::max_proposable_timestamp(&response, self.config.proposal_safety))
+        let horizon = self.superroot_source.proposal_horizon(now).await?;
+        Ok(match self.config.proposal_safety {
+            ProposalSafety::Safe => horizon.safe_timestamp,
+            ProposalSafety::Finalized => horizon.finalized_timestamp,
+        })
     }
 
     /// Spawn a game resolution task
@@ -2829,17 +2750,8 @@ impl Proposer {
         };
 
         let inputs = self.game_proof_inputs(proof_inputs, prestate);
-        let responses = fetch_span_responses(&self.superroot_client, &inputs).await?;
-        let proof_bytes = prove_game_inner(
-            &self.proof_provider,
-            keys.as_deref(),
-            &self.host_inputs,
-            &inputs,
-            &responses,
-            self.config.range_split_count,
-            self.config.max_concurrent_range_proofs,
-        )
-        .await?;
+        let responses = fetch_span_responses(self.superroot_source.as_ref(), &inputs).await?;
+        let proof_bytes = self.proof_engine.prove(keys, inputs, responses).await?;
 
         // Pre-submit re-check: proving can take long; avoid a guaranteed
         // revert when the game was proven by someone else, resolved, hit
@@ -2848,28 +2760,13 @@ impl Proposer {
             return Ok(());
         }
 
-        let transaction_request = ZKDisputeGame::new(game_address, self.l1_provider.clone())
-            .prove(proof_bytes.into())
-            .into_transaction_request();
-        let receipt = self
-            .signer
-            .send_transaction_request_with_timeout(
-                self.config.l1_rpc.clone(),
-                transaction_request,
-                self.config.tx_confirmation_timeout,
-                self.fee_caps(),
-            )
-            .await?;
-
-        if !receipt.status() {
-            bail!("{TX_REVERTED_PREFIX} {receipt:?}");
-        }
+        let transaction_hash = self.action_executor.prove_game(game_address, proof_bytes).await?;
 
         ProposerGauge::GamesProven.increment(1.0);
         ProposerGauge::ProvingDurationSeconds.set(start_time.elapsed().as_secs_f64());
         tracing::info!(
             game_address = ?game_address,
-            tx_hash = ?receipt.transaction_hash,
+            tx_hash = ?transaction_hash,
             duration_s = start_time.elapsed().as_secs_f64(),
             "Game proven successfully"
         );
@@ -3471,6 +3368,9 @@ mod tests {
     use alloy_signer_local::PrivateKeySigner;
     use async_trait::async_trait;
     use kona_sp1_host_utils::metrics::MetricsListen;
+    use kona_sp1_super_range_executor::{
+        BlockId as SuperBlockId, SuperRootAtTimestampResponse, SuperRootResponseData, SuperV1,
+    };
 
     use super::{
         ClaimPreflightDecision, Cursor, DEADLINE_WARNING_DIVISOR, DeadlineStatus, Game,
@@ -3486,11 +3386,13 @@ mod tests {
         },
         contract::{DisputeGameFactory, GameStatus, ProposalStatus, ZKGameArgs},
         ports::{
-            AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim, GameIdentity,
-            GameLifecycle, GameStanding, GameValidity, L1BlockRef, L1View, NonceState, ProofInputs,
-            QueryTime, WithdrawalState,
+            ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
+            GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity,
+            L1BlockRef, L1View, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
+            SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
         },
-        prover::{MockProofProvider, ProofProvider},
+        prover::{MockProofProvider, ProofKeys, ProofProvider},
+        proving::GameProofInputs,
         signer::{Signer, SignerLock},
     };
 
@@ -3507,6 +3409,132 @@ mod tests {
     impl QueryTime for ErrorQueryTime {
         fn unix_timestamp(&self) -> anyhow::Result<u64> {
             anyhow::bail!("query time unavailable")
+        }
+    }
+
+    struct UnavailableSuperRootSource;
+
+    #[async_trait]
+    impl SuperRootSource for UnavailableSuperRootSource {
+        async fn proposal_horizon(&self, _timestamp: u64) -> anyhow::Result<ProposalHorizon> {
+            anyhow::bail!("super-root unavailable")
+        }
+
+        async fn super_root_at_timestamp(
+            &self,
+            _timestamp: u64,
+        ) -> anyhow::Result<SuperRootAtTimestamp> {
+            anyhow::bail!("super-root unavailable")
+        }
+    }
+
+    struct ScriptedSuperRootSource {
+        horizon: ProposalHorizon,
+        roots: Vec<(u64, SuperRootAtTimestamp)>,
+    }
+
+    #[async_trait]
+    impl SuperRootSource for ScriptedSuperRootSource {
+        async fn proposal_horizon(&self, _timestamp: u64) -> anyhow::Result<ProposalHorizon> {
+            Ok(self.horizon)
+        }
+
+        async fn super_root_at_timestamp(
+            &self,
+            timestamp: u64,
+        ) -> anyhow::Result<SuperRootAtTimestamp> {
+            self.roots
+                .iter()
+                .find(|(observed_timestamp, _)| *observed_timestamp == timestamp)
+                .map(|(_, super_root_at)| super_root_at.clone())
+                .ok_or_else(|| anyhow::anyhow!("missing super root at timestamp {timestamp}"))
+        }
+    }
+
+    #[derive(Default)]
+    struct RecordingProofEngine {
+        calls: StdMutex<Vec<(GameProofInputs, Vec<SuperRootAtTimestampResponse>)>>,
+        proof: Vec<u8>,
+        fail: bool,
+    }
+
+    #[async_trait]
+    impl ProofEngine for RecordingProofEngine {
+        async fn prove(
+            &self,
+            _keys: Option<Arc<ProofKeys>>,
+            game: GameProofInputs,
+            responses: Vec<SuperRootAtTimestampResponse>,
+        ) -> anyhow::Result<Vec<u8>> {
+            self.calls.lock().unwrap().push((game, responses));
+            if self.fail {
+                anyhow::bail!("proof execution failed")
+            }
+            Ok(self.proof.clone())
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    enum ActionCall {
+        Create { root_claim: B256, extra_data: Vec<u8>, init_bond: U256 },
+        Prove { game: Address, proof: Vec<u8> },
+        Resolve(Address),
+        ClaimCredit { game: Address, recipient: Address },
+    }
+
+    #[derive(Clone, Copy)]
+    enum CreateFailure {
+        Reverted,
+        Uncertain,
+    }
+
+    #[derive(Default)]
+    struct RecordingActionExecutor {
+        calls: StdMutex<Vec<ActionCall>>,
+        create_failure: Option<CreateFailure>,
+    }
+
+    #[async_trait]
+    impl ActionExecutor for RecordingActionExecutor {
+        async fn create_game(
+            &self,
+            root_claim: B256,
+            extra_data: Vec<u8>,
+            init_bond: U256,
+        ) -> anyhow::Result<GameCreationReceipt> {
+            match self.create_failure {
+                Some(CreateFailure::Reverted) => {
+                    anyhow::bail!("{} receipt", crate::TX_REVERTED_PREFIX)
+                }
+                Some(CreateFailure::Uncertain) => {
+                    anyhow::bail!("transaction submission uncertain")
+                }
+                None => {}
+            }
+            self.calls.lock().unwrap().push(ActionCall::Create {
+                root_claim,
+                extra_data,
+                init_bond,
+            });
+            Ok(GameCreationReceipt {
+                game_address: Address::left_padding_from(&[0xc1]),
+                transaction_hash: B256::left_padding_from(&[0xc2]),
+            })
+        }
+
+        async fn prove_game(&self, game: Address, proof: Vec<u8>) -> anyhow::Result<B256> {
+            self.calls.lock().unwrap().push(ActionCall::Prove { game, proof });
+            Ok(B256::left_padding_from(&[0xc3]))
+        }
+
+        async fn resolve_game(&self, game: Address) -> anyhow::Result<B256> {
+            self.calls.lock().unwrap().push(ActionCall::Resolve(game));
+            Ok(B256::left_padding_from(&[0xd1]))
+        }
+
+        async fn claim_credit(&self, game: Address, recipient: Address) -> anyhow::Result<B256> {
+            self.calls.lock().unwrap().push(ActionCall::ClaimCredit { game, recipient });
+            Ok(B256::left_padding_from(&[0xf1]))
         }
     }
 
@@ -3530,6 +3558,13 @@ mod tests {
         lifecycle: GameLifecycle,
         parent_status: u8,
         bond_state: BondState,
+        claim_preflight: Option<(U256, WithdrawalState)>,
+        init_bond: U256,
+        game_by_uuid: Address,
+        proof_inputs: ProofInputs,
+        proof_standing: GameStanding,
+        proof_registry: Address,
+        latest_l1_timestamp: u64,
     }
 
     impl Default for RecordingL1View {
@@ -3590,6 +3625,13 @@ mod tests {
                     withdrawal_timestamp: U256::ZERO,
                     delay: U256::ZERO,
                 },
+                claim_preflight: None,
+                init_bond: U256::ZERO,
+                game_by_uuid: Address::ZERO,
+                proof_inputs: ProofInputs::default(),
+                proof_standing: GameStanding { blacklisted: false, retired: false },
+                proof_registry: Address::ZERO,
+                latest_l1_timestamp: 1_000,
             }
         }
     }
@@ -3734,7 +3776,8 @@ mod tests {
         }
 
         async fn init_bond(&self) -> anyhow::Result<U256> {
-            panic!("unexpected L1 call: init_bond")
+            self.record("init_bond");
+            Ok(self.init_bond)
         }
 
         async fn game_status(&self, _game: Address) -> anyhow::Result<u8> {
@@ -3747,7 +3790,10 @@ mod tests {
             _weth: Address,
             _proposer: Address,
         ) -> ClaimPreflight {
-            panic!("unexpected L1 call: claim_preflight")
+            self.record("claim_preflight");
+            let (credit, withdrawal) =
+                self.claim_preflight.expect("unexpected L1 call: claim_preflight");
+            ClaimPreflight { credit: Ok(credit), withdrawal: Ok(withdrawal) }
         }
 
         async fn weth_delay(&self, _weth: Address) -> anyhow::Result<U256> {
@@ -3759,7 +3805,8 @@ mod tests {
             _root_claim: B256,
             _extra_data: Vec<u8>,
         ) -> anyhow::Result<Address> {
-            panic!("unexpected L1 call: game_by_uuid")
+            self.record("game_by_uuid");
+            Ok(self.game_by_uuid)
         }
 
         async fn game_creator(&self, _game: Address) -> anyhow::Result<Address> {
@@ -3787,7 +3834,11 @@ mod tests {
             _game: Address,
             _registry: Address,
         ) -> anyhow::Result<GameStanding> {
-            panic!("unexpected L1 call: game_standing")
+            self.record("game_standing");
+            Ok(GameStanding {
+                blacklisted: self.proof_standing.blacklisted,
+                retired: self.proof_standing.retired,
+            })
         }
 
         async fn proof_status(&self, _game: Address) -> anyhow::Result<u8> {
@@ -3795,15 +3846,63 @@ mod tests {
         }
 
         async fn proof_inputs(&self, _game: Address) -> anyhow::Result<ProofInputs> {
-            panic!("unexpected L1 call: proof_inputs")
+            self.record("proof_inputs");
+            Ok(self.proof_inputs)
         }
 
         async fn anchor_state_registry(&self, _game: Address) -> anyhow::Result<Address> {
-            panic!("unexpected L1 call: anchor_state_registry")
+            self.record("anchor_state_registry");
+            Ok(self.proof_registry)
         }
 
         async fn latest_l1_timestamp(&self) -> anyhow::Result<u64> {
-            panic!("unexpected L1 call: latest_l1_timestamp")
+            self.record("latest_l1_timestamp");
+            Ok(self.latest_l1_timestamp)
+        }
+    }
+
+    fn super_root_at_timestamp(
+        timestamp: u64,
+        root: B256,
+        current_l1: u64,
+        required_l1: u64,
+    ) -> SuperRootAtTimestamp {
+        SuperRootAtTimestamp {
+            response: SuperRootAtTimestampResponse {
+                current_l1: SuperBlockId { number: current_l1, ..Default::default() },
+                current_safe_timestamp: timestamp,
+                current_local_safe_timestamp: timestamp,
+                current_finalized_timestamp: timestamp,
+                optimistic_at_timestamp: Default::default(),
+                chain_ids: Vec::new(),
+                data: Some(SuperRootResponseData {
+                    verified_required_l1: SuperBlockId {
+                        number: required_l1,
+                        ..Default::default()
+                    },
+                    super_v1: SuperV1 { timestamp, chains: Vec::new() },
+                    super_root: root,
+                }),
+            },
+            root: Some(crate::superroot::SuperRootAt {
+                proof_bytes: vec![timestamp as u8],
+                super_root: root,
+            }),
+        }
+    }
+
+    fn absent_super_root_at_timestamp(local_safe: u64) -> SuperRootAtTimestamp {
+        SuperRootAtTimestamp {
+            response: SuperRootAtTimestampResponse {
+                current_l1: SuperBlockId::default(),
+                current_safe_timestamp: local_safe,
+                current_local_safe_timestamp: local_safe,
+                current_finalized_timestamp: local_safe,
+                optimistic_at_timestamp: Default::default(),
+                chain_ids: Vec::new(),
+                data: None,
+            },
+            root: None,
         }
     }
 
@@ -3896,7 +3995,6 @@ mod tests {
             Proposer::new(config, signer, factory, ProofProvider::Mock(MockProofProvider))
                 .await
                 .unwrap();
-        proposer.l1_provider = provider;
         proposer.l1_view = Arc::new(l1_view);
         proposer.query_time = Arc::new(TestQueryTime(1_000));
         proposer
@@ -4162,6 +4260,111 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn discovery_defers_game_when_super_root_rpc_is_unavailable() {
+        let prestate = B256::left_padding_from(&[0x77]);
+        let view = Arc::new(RecordingL1View {
+            factory_game: FactoryGame {
+                address: Address::left_padding_from(&[0x44]),
+                game_type: ZK_GAME_TYPE,
+            },
+            game_identity: GameIdentity { sequence_number: U256::from(100), ..Default::default() },
+            game_validity: GameValidity {
+                root_claim: B256::ZERO,
+                was_respected: true,
+                status: GameStatus::InProgress,
+                absolute_prestate: prestate,
+            },
+            ..Default::default()
+        });
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = view.clone();
+        proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
+
+        assert!(matches!(
+            proposer.fetch_game(U256::ZERO, BlockId::number(1)).await.unwrap(),
+            GameFetchResult::Pending { index, deadline: 2_000, prestate: observed }
+                if index == U256::ZERO && observed == prestate
+        ));
+        assert_eq!(
+            view.block_calls(),
+            vec![
+                ("factory_game", BlockId::number(1)),
+                ("game_claim", BlockId::number(1)),
+                ("game_identity", BlockId::number(1)),
+                ("game_validity", BlockId::number(1)),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn discovery_classifies_super_root_at_timestamp_results() {
+        enum Expected {
+            Pending,
+            Invalid,
+            Valid,
+        }
+
+        let canonical = B256::repeat_byte(0x11);
+        let cases = [
+            (100, absent_super_root_at_timestamp(99), canonical, Expected::Pending),
+            (
+                super::MAX_GAME_DEADLINE_LAG + 101,
+                absent_super_root_at_timestamp(100),
+                canonical,
+                Expected::Invalid,
+            ),
+            (100, super_root_at_timestamp(100, canonical, 12, 11), canonical, Expected::Valid),
+            (
+                100,
+                super_root_at_timestamp(100, canonical, 12, 11),
+                B256::repeat_byte(0x22),
+                Expected::Invalid,
+            ),
+            (
+                100,
+                super_root_at_timestamp(100, canonical, 11, 11),
+                B256::repeat_byte(0x22),
+                Expected::Pending,
+            ),
+        ];
+
+        for (sequence_number, super_root_at, claim, expected) in cases {
+            let game_address = Address::repeat_byte(0x44);
+            let view = Arc::new(RecordingL1View {
+                factory_game: FactoryGame { address: game_address, game_type: ZK_GAME_TYPE },
+                game_identity: GameIdentity {
+                    sequence_number: U256::from(sequence_number),
+                    ..Default::default()
+                },
+                game_validity: GameValidity {
+                    root_claim: claim,
+                    was_respected: true,
+                    status: GameStatus::InProgress,
+                    absolute_prestate: B256::ZERO,
+                },
+                ..Default::default()
+            });
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = view;
+            proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+                horizon: ProposalHorizon { safe_timestamp: 100, finalized_timestamp: 100 },
+                roots: vec![(sequence_number, super_root_at)],
+            });
+
+            let result = proposer.fetch_game(U256::ZERO, BlockId::number(1)).await.unwrap();
+            assert!(match expected {
+                Expected::Pending => matches!(result, GameFetchResult::Pending { .. }),
+                Expected::Invalid => matches!(result, GameFetchResult::InvalidGame { .. }),
+                Expected::Valid => matches!(
+                    result,
+                    GameFetchResult::ValidGame { game_address: observed, .. }
+                        if observed == game_address
+                ),
+            });
+        }
+    }
+
+    #[tokio::test]
     async fn initialization_snapshots_proving_durations_across_registry_rotation() {
         fn registered_view(
             prestate: B256,
@@ -4248,6 +4451,191 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn proposal_safety_selects_the_injected_horizon() {
+        for (safety, expected) in [(ProposalSafety::Safe, 120), (ProposalSafety::Finalized, 110)] {
+            let mut config = test_config();
+            config.proposal_safety = safety;
+            let mut proposer = test_proposer_with(config).await;
+            proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+                horizon: ProposalHorizon { safe_timestamp: 120, finalized_timestamp: 110 },
+                roots: Vec::new(),
+            });
+
+            assert_eq!(proposer.max_proposable_timestamp().await.unwrap(), expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn semantic_action_ports_receive_policy_inputs() {
+        let actions = Arc::new(RecordingActionExecutor::default());
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            claim_preflight: Some((
+                U256::from(1),
+                WithdrawalState { amount: U256::ZERO, timestamp: U256::ZERO },
+            )),
+            ..Default::default()
+        });
+        proposer.action_executor = actions.clone();
+        let root_claim = B256::left_padding_from(&[0x11]);
+        let extra_data = vec![0x22, 0x33];
+        let prestate = B256::left_padding_from(&[0x44]);
+        let mut game = game_with(7, u32::MAX, 100);
+        game.absolute_prestate = prestate;
+        game.should_attempt_to_claim_bond = true;
+        proposer
+            .prestates
+            .insert_for_tests(
+                prestate,
+                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+            )
+            .await;
+        proposer.state.write().await.games.insert(game.index, game.clone());
+
+        assert_eq!(
+            proposer.create_game(root_claim, extra_data.clone()).await.unwrap(),
+            Address::left_padding_from(&[0xc1])
+        );
+        proposer.submit_resolution_transaction(&game).await.unwrap();
+        proposer.claim_bonds().await.unwrap();
+
+        assert_eq!(
+            *actions.calls.lock().unwrap(),
+            vec![
+                ActionCall::Create { root_claim, extra_data, init_bond: U256::ZERO },
+                ActionCall::Resolve(game.address),
+                ActionCall::ClaimCredit {
+                    game: game.address,
+                    recipient: proposer.proposer_address,
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn proof_port_forwards_validated_inputs_and_opaque_bytes() {
+        let starting_root = B256::repeat_byte(0x11);
+        let root_claim = B256::repeat_byte(0x22);
+        let proof = vec![0xaa, 0xbb];
+        let game = game_with(7, u32::MAX, 101);
+        let view = Arc::new(RecordingL1View {
+            proof_inputs: ProofInputs {
+                l1_head: B256::repeat_byte(0x33),
+                l1_head_number: 20,
+                starting_root,
+                starting_sequence_number: 100,
+                root_claim,
+                sequence_number: 101,
+            },
+            ..Default::default()
+        });
+        let engine = Arc::new(RecordingProofEngine {
+            calls: StdMutex::new(Vec::new()),
+            proof: proof.clone(),
+            fail: false,
+        });
+        let actions = Arc::new(RecordingActionExecutor::default());
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = view;
+        proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+            horizon: ProposalHorizon { safe_timestamp: 101, finalized_timestamp: 101 },
+            roots: vec![
+                (100, super_root_at_timestamp(100, starting_root, 12, 10)),
+                (101, super_root_at_timestamp(101, root_claim, 12, 10)),
+            ],
+        });
+        proposer.proof_engine = engine.clone();
+        proposer.action_executor = actions.clone();
+        proposer.state.write().await.games.insert(game.index, game.clone());
+
+        proposer.prove_game(game.address).await.unwrap();
+
+        let calls = engine.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0.starting_root, starting_root);
+        assert_eq!(calls[0].0.root_claim, root_claim);
+        assert_eq!(calls[0].0.prover, proposer.proposer_address);
+        assert_eq!(calls[0].1.len(), 2);
+        drop(calls);
+        assert_eq!(
+            *actions.calls.lock().unwrap(),
+            vec![ActionCall::Prove { game: game.address, proof }]
+        );
+    }
+
+    #[tokio::test]
+    async fn proof_failure_and_post_proof_skip_do_not_submit() {
+        for (fail, status) in [
+            (true, ProposalStatus::Unchallenged),
+            (false, ProposalStatus::UnchallengedAndValidProofProvided),
+        ] {
+            let starting_root = B256::repeat_byte(0x11);
+            let root_claim = B256::repeat_byte(0x22);
+            let game = game_with(7, u32::MAX, 101);
+            let view = Arc::new(RecordingL1View {
+                game_claim: GameClaim {
+                    status: status as u8,
+                    deadline: 2_000,
+                    parent_index: u32::MAX,
+                },
+                proof_inputs: ProofInputs {
+                    l1_head_number: 20,
+                    starting_root,
+                    starting_sequence_number: 100,
+                    root_claim,
+                    sequence_number: 101,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+            let engine = Arc::new(RecordingProofEngine {
+                calls: StdMutex::new(Vec::new()),
+                proof: vec![0xaa],
+                fail,
+            });
+            let actions = Arc::new(RecordingActionExecutor::default());
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = view;
+            proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+                horizon: ProposalHorizon { safe_timestamp: 101, finalized_timestamp: 101 },
+                roots: vec![
+                    (100, super_root_at_timestamp(100, starting_root, 12, 10)),
+                    (101, super_root_at_timestamp(101, root_claim, 12, 10)),
+                ],
+            });
+            proposer.proof_engine = engine;
+            proposer.action_executor = actions.clone();
+            proposer.state.write().await.games.insert(game.index, game.clone());
+
+            let result = proposer.prove_game(game.address).await;
+            assert_eq!(result.is_err(), fail);
+            assert!(actions.calls.lock().unwrap().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn create_revert_clears_in_flight_while_uncertainty_retains_it() {
+        for (failure, should_retain) in
+            [(CreateFailure::Reverted, false), (CreateFailure::Uncertain, true)]
+        {
+            let root = B256::repeat_byte(0x11);
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = Arc::new(RecordingL1View::default());
+            proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+                horizon: ProposalHorizon { safe_timestamp: 100, finalized_timestamp: 100 },
+                roots: vec![(100, super_root_at_timestamp(100, root, 12, 11))],
+            });
+            proposer.action_executor = Arc::new(RecordingActionExecutor {
+                create_failure: Some(failure),
+                ..Default::default()
+            });
+
+            assert!(proposer.handle_game_creation(100, u32::MAX).await.is_err());
+            assert_eq!(proposer.in_flight_creation.lock().await.is_some(), should_retain);
+        }
+    }
+
+    #[tokio::test]
     async fn proof_pre_submit_claim_failure_is_fatal_and_stops_later_reads() {
         let view = Arc::new(RecordingL1View { fail_on: Some("game_claim"), ..Default::default() });
         let mut proposer = test_proposer().await;
@@ -4260,41 +4648,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn private_constructor_preserves_injected_identity_cache_and_host_inputs() {
+    async fn private_constructor_preserves_injected_identity_cache_and_ports() {
         let config = test_config();
         let signer = SignerLock::new(Signer::LocalSigner(PrivateKeySigner::random()));
         let injected_address = Address::left_padding_from(&[0xaa]);
         assert_ne!(injected_address, signer.address());
-        let provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
-        let factory = DisputeGameFactory::new(Address::ZERO, provider.clone());
         let prestates = Arc::new(PrestateCache::new(config.prestates_url.clone()));
-        let host_inputs = Arc::new(kona_sp1_super_range_executor::HostInputs {
-            l1_node_address: "injected-l1".into(),
-            l1_beacon_address: "injected-beacon".into(),
-            l2_node_addresses: vec!["injected-l2".into()],
-            rollup_config_paths: None,
-            l1_config_path: None,
-            dependency_set_path: None,
-        });
 
         let proposer = Proposer::new_with_dependencies(
             config,
-            signer,
             injected_address,
-            factory,
-            ProofProvider::Mock(MockProofProvider),
-            provider,
             Arc::new(RecordingL1View::default()),
             Arc::new(TestQueryTime(1_000)),
+            Arc::new(UnavailableSuperRootSource),
+            Arc::new(RecordingProofEngine::default()),
+            Arc::new(RecordingActionExecutor::default()),
             prestates.clone(),
-            host_inputs.clone(),
         )
         .await
         .unwrap();
 
         assert_eq!(proposer.proposer_address, injected_address);
         assert!(Arc::ptr_eq(&proposer.prestates, &prestates));
-        assert!(Arc::ptr_eq(&proposer.host_inputs, &host_inputs));
         let proof_inputs = proposer.game_proof_inputs(ProofInputs::default(), B256::ZERO);
         assert_eq!(proof_inputs.prover, injected_address);
     }
@@ -4846,7 +5221,7 @@ mod tests {
                 let mut game = game_with(index, u32::MAX, 100 * index);
                 game.deadline = deadline;
                 game.absolute_prestate = prestate;
-                game.creator = proposer.signer.address();
+                game.creator = proposer.proposer_address;
                 proposer.state.write().await.games.insert(game.index, game);
             }
 
@@ -4910,7 +5285,7 @@ mod tests {
             let mut game = game_with(1, u32::MAX, 100);
             game.deadline = 100_000;
             game.absolute_prestate = prestate;
-            game.creator = proposer.signer.address();
+            game.creator = proposer.proposer_address;
             proposer.state.write().await.games.insert(game.index, game);
 
             push_claim_error_and_default_head(&asserter);
@@ -4935,22 +5310,22 @@ mod tests {
             let mut foreign_prestate = game_with(1, u32::MAX, 100);
             foreign_prestate.deadline = u64::MAX;
             foreign_prestate.absolute_prestate = B256::left_padding_from(&[0x99]);
-            foreign_prestate.creator = proposer.signer.address();
+            foreign_prestate.creator = proposer.proposer_address;
             // An in-flight proving task exercises per-game dedup.
             let mut in_flight = game_with(2, 1, 200);
             in_flight.deadline = u64::MAX;
             in_flight.absolute_prestate = prestate;
-            in_flight.creator = proposer.signer.address();
+            in_flight.creator = proposer.proposer_address;
             // Challenged games belong to the defense scan.
             let mut challenged = game_with(3, 2, 300);
             challenged.proposal_status = ProposalStatus::Challenged;
             challenged.deadline = u64::MAX;
             challenged.absolute_prestate = prestate;
-            challenged.creator = proposer.signer.address();
+            challenged.creator = proposer.proposer_address;
             let mut eligible = game_with(4, 3, 400);
             eligible.deadline = u64::MAX;
             eligible.absolute_prestate = prestate;
-            eligible.creator = proposer.signer.address();
+            eligible.creator = proposer.proposer_address;
 
             let in_flight_address = in_flight.address;
             let eligible_address = eligible.address;

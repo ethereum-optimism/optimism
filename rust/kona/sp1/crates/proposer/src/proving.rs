@@ -8,7 +8,7 @@
 
 use std::num::NonZeroUsize;
 
-use alloy_primitives::{Address, B256};
+use alloy_primitives::B256;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use futures::stream::{StreamExt, TryStreamExt};
 use kona_sp1_client_utils::super_root::{SuperAggregationInputs, TimestampSpan};
@@ -20,37 +20,14 @@ use kona_sp1_super_range_executor::{
 };
 use sp1_sdk::{SP1Proof, SP1Stdin};
 
+pub use crate::ports::GameProofInputs;
+
 use crate::{
     config::RangeSplitCount,
     metrics::ProposerGauge,
+    ports::SuperRootSource,
     prover::{MOCK_PROOF_BYTES, ProofKeys, ProofProvider},
-    superroot::{ResponseSelection, SuperrootClient},
 };
-
-/// The on-chain facts a defense proof is built from, read from the game
-/// contract at task spawn time.
-#[derive(Clone, Debug)]
-pub struct GameProofInputs {
-    /// The game's pinned L1 head (`l1Head()`); every witness derives from
-    /// L1 data at or below it.
-    pub l1_head: B256,
-    /// Block number of `l1_head`.
-    pub l1_head_number: u64,
-    /// The agreed starting super root (`startingProposal().root`).
-    pub starting_root: B256,
-    /// Timestamp of the starting super root.
-    pub starting_ts: u64,
-    /// The claimed super root (`rootClaim()`).
-    pub root_claim: B256,
-    /// Timestamp of the claim (`l2SequenceNumber()`).
-    pub claim_ts: u64,
-    /// The game's `absolutePrestate()`; selects the proving programs.
-    pub prestate: B256,
-    /// The address that will submit `prove()`. The proof's public values
-    /// bind it (`msg.sender` on-chain), so proofs are non-transferable
-    /// between signers.
-    pub prover: Address,
-}
 
 /// Marker error: this game can never be proven by this proposer. The
 /// defense scheduler maps it into the permanent `undefendable` set so the
@@ -93,8 +70,8 @@ pub fn is_unprovable(err: &anyhow::Error) -> bool {
 /// unprovable. A response is trusted only when
 /// `current_l1 > verified_required_l1`; stale responses during rewinds cannot
 /// determine a permanent verdict.
-pub async fn fetch_span_responses(
-    client: &SuperrootClient,
+pub(crate) async fn fetch_span_responses(
+    source: &dyn SuperRootSource,
     game: &GameProofInputs,
 ) -> Result<Vec<SuperRootAtTimestampResponse>> {
     ensure!(
@@ -106,14 +83,13 @@ pub async fn fetch_span_responses(
     let mut responses = Vec::with_capacity((game.claim_ts - game.starting_ts + 1) as usize);
     let mut roots = Vec::with_capacity(responses.capacity());
     for timestamp in game.starting_ts..=game.claim_ts {
-        let response =
-            client.superroot_at_timestamp(timestamp, ResponseSelection::PreferData).await?;
-        let Some(at) = SuperrootClient::super_root_at(&response, timestamp)? else {
+        let super_root_at = source.super_root_at_timestamp(timestamp).await?;
+        let Some(root) = super_root_at.root else {
             ProposerGauge::SuperRootUnavailable.increment(1.0);
             return Err(anyhow::Error::new(SuperRootDataUnavailable(timestamp)));
         };
-        roots.push(at.super_root);
-        responses.push(response);
+        roots.push(root.super_root);
+        responses.push(super_root_at.response);
     }
     check_span_roots(game, &roots, &responses)?;
     check_provable(game, responses.last().expect("span is non-empty"))?;
@@ -413,7 +389,7 @@ fn collect_indexed<T>(items: Vec<Option<T>>, what: &str) -> Result<Vec<T>> {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U256;
+    use alloy_primitives::{Address, U256};
     use kona_sp1_client_utils::test_utils::valid_aggregation_inputs;
     use kona_sp1_super_range_executor::{
         BlockId, ChainId, ChainIdAndOutput, SuperRootResponseData, SuperV1,
