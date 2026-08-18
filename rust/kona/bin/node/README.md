@@ -80,6 +80,7 @@ Many configuration options can be set via environment variables:
 - `KONA_NODE_L1_ETH_RPC` - L1 execution client RPC URL
 - `KONA_NODE_L1_TRUST_RPC` - Whether to trust the L1 RPC without verification (default: true)
 - `KONA_NODE_L1_BEACON` - L1 beacon API URL
+- `KONA_NODE_L1_CHAIN_CONFIG` - Path to a custom L1 chain config, or standard base64-encoded JSON; accepts a direct chain config or a genesis document with the config under `.config`
 - `KONA_NODE_L2_ENGINE_RPC` - L2 engine API URL
 - `KONA_NODE_L2_TRUST_RPC` - Whether to trust the L2 RPC without verification (default: true)
 - `KONA_NODE_L2_ENGINE_AUTH` - Path to L2 engine JWT secret file

@@ -12,6 +12,7 @@ use alloy_rpc_types_engine::JwtSecret;
 use alloy_transport_http::Http;
 use anyhow::{Result, bail};
 use backon::{ExponentialBuilder, Retryable};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
 use kona_engine::{HyperAuthClient, OpEngineClient};
@@ -21,8 +22,13 @@ use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuild
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
-use serde_json::from_reader;
-use std::{fs::File, io::Write, path::PathBuf, sync::Arc};
+use serde_json::{Value, from_reader, from_value};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::PathBuf,
+    sync::Arc,
+};
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
@@ -103,8 +109,9 @@ pub struct NodeCommand {
     /// (overrides the default rollup configuration from the registry)
     #[arg(long, visible_alias = "rollup-cfg", env = "KONA_NODE_ROLLUP_CONFIG")]
     pub l2_config_file: Option<PathBuf>,
-    /// Path to a custom L1 rollup configuration file
-    /// (overrides the default rollup configuration from the registry)
+    /// Path to a custom L1 chain configuration file, or its base64-encoded JSON contents.
+    /// Accepts a direct chain config or a genesis document with the config under `.config`.
+    /// Overrides the default L1 chain configuration from the registry.
     #[arg(long, visible_alias = "rollup-l1-cfg", env = "KONA_NODE_L1_CHAIN_CONFIG")]
     pub l1_config_file: Option<PathBuf>,
     /// Path to a JSON file describing the interop dependency set for this
@@ -364,15 +371,40 @@ impl NodeCommand {
         }
     }
 
-    /// Get the L1 config, either from a file or the known chains.
+    /// Parses an L1 chain config from either a direct config or a genesis document.
+    fn parse_l1_config(reader: impl Read) -> serde_json::Result<L1ChainConfig> {
+        let value: Value = from_reader(reader)?;
+        let config = match value {
+            Value::Object(mut object) => object.remove("config").unwrap_or(Value::Object(object)),
+            value => value,
+        };
+        from_value(config)
+    }
+
+    /// Get the L1 config from a file, base64-encoded JSON, or the known chains.
     pub fn get_l1_config(&self, l1_chain_id: u64) -> Result<L1ChainConfig> {
         match &self.l1_config_file {
-            Some(path) => {
-                debug!("Loading l1 config from file: {:?}", path);
-                let file = File::open(path)
-                    .map_err(|e| anyhow::anyhow!("Failed to open l1 config file: {e}"))?;
-                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l1 config: {e}"))
-            }
+            Some(path) => match File::open(path) {
+                Ok(file) => {
+                    debug!("Loading l1 config from file: {:?}", path);
+                    Self::parse_l1_config(file)
+                        .map_err(|e| anyhow::anyhow!("Failed to parse l1 config file: {e}"))
+                }
+                Err(file_error) => {
+                    let encoded = path.to_str().ok_or_else(|| {
+                        anyhow::anyhow!("Failed to open l1 config file: {file_error}")
+                    })?;
+                    let bytes = STANDARD.decode(encoded).map_err(|decode_error| {
+                        anyhow::anyhow!(
+                            "Failed to open l1 config file: {file_error}; configured value is not valid base64: {decode_error}"
+                        )
+                    })?;
+                    debug!("Loading l1 config from base64-encoded JSON");
+                    Self::parse_l1_config(bytes.as_slice()).map_err(|e| {
+                        anyhow::anyhow!("Failed to parse base64-encoded l1 config: {e}")
+                    })
+                }
+            },
             None => {
                 debug!("Loading l1 config from known chains");
                 let cfg = L1Config::get_l1_genesis(l1_chain_id).map_err(|e| {
@@ -505,6 +537,42 @@ mod tests {
         ])
         .unwrap_err();
         assert!(err.to_string().contains("--l2-engine-rpc"));
+    }
+
+    #[test]
+    fn test_get_l1_config_from_direct_and_genesis_files() {
+        let documents = [
+            serde_json::json!({"chainId": 123}),
+            serde_json::json!({"config": {"chainId": 123}, "alloc": {}}),
+        ];
+
+        for document in documents {
+            let mut file = tempfile::NamedTempFile::new().unwrap();
+            serde_json::to_writer(&mut file, &document).unwrap();
+
+            let command =
+                NodeCommand { l1_config_file: Some(file.path().into()), ..Default::default() };
+            assert_eq!(command.get_l1_config(123).unwrap().chain_id, 123);
+        }
+    }
+
+    #[test]
+    fn test_get_l1_config_from_base64_direct_and_genesis() {
+        let documents = [
+            serde_json::json!({"chainId": 123}),
+            serde_json::json!({
+                "config": {"chainId": 123},
+                "alloc": {},
+                "extraData": "00".repeat(4096),
+            }),
+        ];
+
+        for document in documents {
+            let encoded = STANDARD.encode(serde_json::to_vec(&document).unwrap());
+            let command =
+                NodeCommand { l1_config_file: Some(encoded.into()), ..Default::default() };
+            assert_eq!(command.get_l1_config(123).unwrap().chain_id, 123);
+        }
     }
 
     #[test]

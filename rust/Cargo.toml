@@ -633,6 +633,7 @@ backon = { version = "1.6.0", default-features = false, features = [
   "std-blocking-sleep",
   "tokio-sleep",
 ] }
+base64 = "0.22.1"
 bitflags = "2.10"
 boyer-moore-magiclen = "0.2.22"
 buddy_system_allocator = "0.12.0"
