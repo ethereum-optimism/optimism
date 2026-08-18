@@ -80,7 +80,7 @@ where
     }
 
     /// UPSTREAM-MIRROR(override): reth@rev:aef8d3e
-    /// reth_rpc_eth_api::helpers::EthTransactions::send_raw_transaction_sync
+    /// `reth_rpc_eth_api::helpers::EthTransactions::send_raw_transaction_sync`
     ///
     /// Derived from the upstream default: the timeout computation is taken verbatim and the
     /// wait loop is extended to also resolve the receipt from a flashblock. Re-derive on any

@@ -48,7 +48,7 @@ impl OpPrecompiles {
     }
 }
 
-/// UPSTREAM-MIRROR(set): revm-precompile@41.0.0 revm_precompile::Precompiles
+/// UPSTREAM-MIRROR(set): revm-precompile@41.0.0 `revm_precompile::Precompiles`
 ///
 /// The per-fork tables below (`fjord` .. `karst`) derive from upstream's L1 sets by
 /// extension and difference. A precompile added, removed or re-priced upstream at a fork

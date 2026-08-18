@@ -4,7 +4,7 @@
 //! - `FromConsensusTx`, `TryIntoSimTx`: `crates/rpc/rpc-convert/src/transaction.rs`
 //! - `SignableTxRequest`: `crates/rpc/rpc-convert/src/rpc.rs`
 //!
-//! UPSTREAM-MIRROR(port): reth@v1.11.3 reth_rpc_convert::transaction
+//! UPSTREAM-MIRROR(port): reth@v1.11.3 `reth_rpc_convert::transaction`
 //!
 //! The traits themselves moved from `reth-rpc-convert` to the published `reth-rpc-traits`
 //! crate, so the impls now target `reth-rpc-traits` types. The logic is identical to upstream.

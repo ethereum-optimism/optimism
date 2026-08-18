@@ -3,7 +3,7 @@
 //! Ported from reth v1.11.3 (`d6324d63e`):
 //! - `crates/primitives-traits/src/size.rs` (behind `cfg(feature = "op")`)
 //!
-//! UPSTREAM-MIRROR(port): reth@v1.11.3 reth_primitives_traits::size
+//! UPSTREAM-MIRROR(port): reth@v1.11.3 `reth_primitives_traits::size`
 //!
 //! Differences from upstream:
 //! - `OpTxType` and `TxDeposit` impls are new (upstream only had them for the compound types, but
