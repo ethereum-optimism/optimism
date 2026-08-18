@@ -207,9 +207,8 @@ func checkSequencerTxData(log log.Logger, txIndex int, txBytes []byte, isIsthmus
 	return BatchAccept
 }
 
-// checkSpanBatchPrefix performs the span batch prefix rules for Holocene.
-// Next to the validity, it also returns the parent L2 block as determined during the checks for
-// further consumption.
+// checkSpanBatchPrefix performs the span batch prefix rules shared by the legacy full checks and
+// the Holocene checks. It also returns the parent L2 block determined during validation.
 func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
 	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
 ) (BatchValidity, eth.L2BlockRef) {
@@ -318,6 +317,18 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 		return BatchDrop, parentBlock
 	}
 	return BatchAccept, parentBlock
+}
+
+// checkSpanBatchHolocene validates the span batch prefix followed by its overlap with the safe
+// chain. Holocene validates batches as they are loaded, so the legacy full checks are not run.
+func checkSpanBatchHolocene(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
+	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
+) BatchValidity {
+	prefixValidity, parentBlock := checkSpanBatchPrefix(ctx, cfg, log, l1Blocks, l2SafeHead, batch, l1InclusionBlock, l2Fetcher)
+	if prefixValidity != BatchAccept {
+		return prefixValidity
+	}
+	return checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher)
 }
 
 // checkSpanBatch checks the full SpanBatch semantic validation rules on a syntactically-correct
@@ -430,8 +441,9 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 // overlapped element's transactions and L1 origin must match the canonical block at the same
 // height. A batch whose overlap disagrees with the safe chain — possible since interop block
 // replacement — describes a different history and is dropped as a whole, so that its elements
-// past the safe head cannot be applied. Returns BatchUndecided if a canonical payload cannot be
-// fetched right now.
+// past the safe head cannot be applied. The prefix rules must have accepted the batch first:
+// parentBlock must be the prefix-determined parent (an ancestor of, or equal to, l2SafeHead), and
+// the batch must extend past the safe head. Returns BatchUndecided if a payload cannot be fetched.
 func checkSpanBatchOverlap(ctx context.Context, cfg *rollup.Config, log log.Logger, batch *SpanBatch,
 	parentBlock, l2SafeHead eth.L2BlockRef, l2Fetcher SafeBlockFetcher,
 ) BatchValidity {
