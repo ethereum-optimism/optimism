@@ -577,7 +577,7 @@ func (s *Sequencer) onEngineResetConfirmedEvent(engine.EngineResetConfirmedEvent
 }
 
 func (s *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
-	s.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "prev_unsafe_head", s.unsafeHead)
+	s.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "prev_unsafe", s.unsafeHead)
 
 	s.safeHead = x.SafeL2Head
 	if !s.active.Load() {
@@ -589,7 +589,7 @@ func (s *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	// engine reset), so compare identity, not height.
 	if s.building != (BuildingState{}) && s.building.Onto.Hash != x.UnsafeL2Head.Hash {
 		s.log.Debug("Dropping stale/completed block-building job",
-			"state", s.building.Onto, "unsafe_head", x.UnsafeL2Head)
+			"state", s.building.Onto, "unsafe", x.UnsafeL2Head)
 		// The cleared state stops the next sequencer action from sealing the stale build job.
 		s.building = BuildingState{}
 	}
@@ -643,7 +643,7 @@ func (s *Sequencer) evalMaxSafeLag() {
 		if s.safeHead.Number+maxSafeLag <= s.unsafeHead.Number {
 			if !s.stalledByMaxSafeLag {
 				s.log.Warn("sequencer has fallen behind safe head by more than lag, stalling",
-					"unsafe_head", s.unsafeHead, "safe_head", s.safeHead, "max_lag", maxSafeLag)
+					"unsafe", s.unsafeHead, "safe", s.safeHead, "max_lag", maxSafeLag)
 			}
 			s.nextActionArmed = false
 			s.stalledByMaxSafeLag = true
@@ -652,7 +652,7 @@ func (s *Sequencer) evalMaxSafeLag() {
 			// Only resume if we were stalled by maxSafeLag specifically, to avoid
 			// interfering with other nextActionArmed=false states (reset, L1-derivation backoff, etc).
 			s.log.Info("safe head caught up, resuming sequencing",
-				"unsafe_head", s.unsafeHead, "safe_head", s.safeHead, "max_lag", maxSafeLag)
+				"unsafe", s.unsafeHead, "safe", s.safeHead, "max_lag", maxSafeLag)
 			s.stalledByMaxSafeLag = false
 			s.nextActionArmed = s.active.Load()
 			s.nextAction = s.timeNow()
@@ -939,7 +939,7 @@ func (s *Sequencer) forceStart() error {
 		s.asyncGossip.Clear() // if we are starting from an unknown pre-state, just clear gossip out of caution.
 	} else {
 		// This happens when we start sequencing on an already-running node.
-		s.log.Info("Starting sequencing on top of known pre-state", "unsafe_head", s.unsafeHead)
+		s.log.Info("Starting sequencing on top of known pre-state", "unsafe", s.unsafeHead)
 		if payload := s.asyncGossip.Get(); payload != nil &&
 			payload.ExecutionPayload.BlockHash != s.unsafeHead.Hash {
 			s.log.Warn("Cleared old block from async-gossip buffer, sequencing pre-state is different",
