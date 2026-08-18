@@ -79,7 +79,7 @@ where
     type Error = ERROR;
     type HaltReason = OpHaltReason;
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 revm_handler::Handler::validate_env
+    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::validate_env`
     ///
     /// Deposits return early: they are pre-verified on L1, so none of the upstream
     /// block/transaction validation applies to them. Non-deposits add the `enveloped_tx`
@@ -110,7 +110,7 @@ where
     }
 
     /// UPSTREAM-MIRROR(override): revm-handler@41.0.0
-    /// revm_handler::pre_execution::validate_against_state_and_deduct_caller
+    /// `revm_handler::pre_execution::validate_against_state_and_deduct_caller`
     ///
     /// The non-deposit arm reproduces the upstream body with the L1-fee deduction inserted
     /// between the nonce/code validation and `calculate_caller_fee`. The deposit arm skips
@@ -195,7 +195,7 @@ where
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 revm_handler::Handler::last_frame_result
+    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::last_frame_result`
     ///
     /// Structure, locals and several comment blocks are taken verbatim from the upstream
     /// default, with the Bedrock/Regolith deposit branches spliced into the ok and revert
@@ -297,7 +297,7 @@ where
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 revm_handler::Handler::reimburse_caller
+    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::reimburse_caller`
     ///
     /// Delegates to upstream `post_execution::reimburse_caller`, adding the operator-fee
     /// refund for non-deposits. Re-check that the upstream helper's signature and semantics
@@ -319,7 +319,7 @@ where
         reimburse_caller(evm.ctx(), frame_result.gas(), additional_refund).map_err(From::from)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 revm_handler::Handler::refund
+    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::refund`
     ///
     /// Same as upstream except that pre-Regolith deposits get no refund at all.
     fn refund(
@@ -342,7 +342,7 @@ where
         }
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 revm_handler::Handler::reward_beneficiary
+    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::reward_beneficiary`
     ///
     /// Returns early for deposits, otherwise calls the upstream implementation and then pays
     /// the three OP vaults. Re-check on any change to how upstream computes the beneficiary
@@ -396,7 +396,7 @@ where
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 revm_handler::Handler::execution_result
+    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::execution_result`
     ///
     /// Reproduces the upstream teardown (`take_error`, `post_execution::output`, `commit_tx`,
     /// clearing local state and the frame stack) with the post-Regolith halted-deposit
@@ -429,7 +429,7 @@ where
         Ok(exec_result)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 revm_handler::Handler::catch_error
+    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::catch_error`
     ///
     /// Overriding this method is what caused the SDM warm-set leak fixed in
     /// <https://github.com/ethereum-optimism/optimism/pull/21723>: revm added

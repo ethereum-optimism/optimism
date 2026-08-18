@@ -34,7 +34,7 @@ pub enum OpSpecId {
 }
 
 impl OpSpecId {
-    /// UPSTREAM-MIRROR(set): revm-primitives@41.0.0 revm_primitives::hardfork::SpecId
+    /// UPSTREAM-MIRROR(set): revm-primitives@41.0.0 `revm_primitives::hardfork::SpecId`
     ///
     /// Maps each OP fork onto the L1 fork whose semantics it activates. A new upstream
     /// `SpecId` needs a decision here: which OP fork (if any) turns it on.

@@ -18,7 +18,7 @@ function.
 ## The tag
 
 ```rust
-/// UPSTREAM-MIRROR(<kind>): <crate>@<version> <upstream::symbol::path>
+/// UPSTREAM-MIRROR(<kind>): <crate>@<version> `<upstream::symbol::path>`
 ///
 /// <prose: what differs from upstream, and what to look at when re-checking>
 ```
