@@ -646,10 +646,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - apt-install:
-          packages: "clang llvm-dev libclang-dev"
-          extra_flags: "--no-install-recommends"
       - rust-prepare-and-restore-cache:
+          needs_clang: false
           directory: rust
           features: "all"
       - run:
@@ -672,10 +670,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - apt-install:
-          packages: "clang llvm-dev libclang-dev"
-          extra_flags: "--no-install-recommends"
-      - rust-prepare
+      - rust-prepare:
+          needs_clang: false
       - run:
           name: Build <<parameters.target>>
           working_directory: rust/kona
@@ -768,15 +764,13 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - apt-install:
-          packages: "clang llvm-dev libclang-dev"
-          extra_flags: "--no-install-recommends"
       # No sccache here: the prestates are built reproducibly in Docker
       # (just build-kona-reproducible-prestate), so the host never compiles and
       # the job doesn't need the sccache-gcs-optimism context. That context also
       # defines GCP_SERVICE_ACCOUNT_EMAIL, which would otherwise shadow the
       # oplabs-network-data publisher SA used by the upload below.
       - rust-prepare-and-restore-cache:
+          needs_clang: false
           directory: rust
           profile: release
           enable_sccache: false
