@@ -79,16 +79,16 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 			elfDir := os.Getenv(konaSP1ELFDirEnv)
 			programVKey, err := loadZKProgramVKey(elfDir)
 			t.Require().NoError(err, "load Kona SP1 super-aggregation vkey")
-			setInteropZKDisputeGameForRuntime(
+			setInteropZKDisputeGameViaUpgrade(
 				t,
 				runtime.Keys,
 				runtime.Migration,
 				runtime.L1Network.ChainID(),
 				runtime.L1EL,
-				startingAnchor,
 				sharedDGF,
 				programVKey,
 				*cfg.ZKDisputeGame,
+				proofChain.Network.ChainID(),
 			)
 			nets := make([]*L2Network, 0, len(chains))
 			els := make([]L2ELNode, 0, len(chains))
