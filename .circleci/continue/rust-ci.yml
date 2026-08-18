@@ -608,11 +608,11 @@ jobs:
       - run:
           name: Set run environment
           command: |
-            echo 'export BLOCK_NUMBER=42427365' >> $BASH_ENV
-            echo 'export L2_CLAIM=0xaaf7cb1725cb9766899cbd78866270d8561e79b91c00be5c53adb7699e0e7715' >> $BASH_ENV
-            echo 'export L2_OUTPUT_ROOT=0xac90a2e8cfee33ecb47b73f3e83f9aa18ff7ecf28bc8d34b2de857919e50b6c6' >> $BASH_ENV
-            echo 'export L2_HEAD=0xc5fa07d52e83f7a2e68de356e7a7bfc9306a9b28666ec6c9cc6e4f8e1b268278' >> $BASH_ENV
-            echo 'export L1_HEAD=0xab33322985684f2c6fbcf375bdcb69cc0f10547e58cb5a7b889172ee9ea77aef' >> $BASH_ENV
+            echo 'export BLOCK_NUMBER=47600000' >> $BASH_ENV
+            echo 'export L2_CLAIM=0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0' >> $BASH_ENV
+            echo 'export L2_OUTPUT_ROOT=0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96' >> $BASH_ENV
+            echo 'export L2_HEAD=0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb' >> $BASH_ENV
+            echo 'export L1_HEAD=0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d' >> $BASH_ENV
             echo 'export L2_CHAIN_ID=11155420' >> $BASH_ENV
       - run:
           name: Run host + client offline
