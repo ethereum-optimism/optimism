@@ -1,6 +1,5 @@
 //! Feeds blocks the engine imports into the buffer that backs derivation's L2 lookups.
 
-use async_trait::async_trait;
 use kona_engine::ImportedBlockSink;
 use kona_protocol::L2BlockInfo;
 use kona_providers_local::BufferedL2Provider;
@@ -18,11 +17,10 @@ pub(crate) struct BufferImportedBlocks {
     buffer: BufferedL2Provider,
 }
 
-#[async_trait]
 impl ImportedBlockSink for BufferImportedBlocks {
-    async fn block_imported(&self, block: OpBlock, info: L2BlockInfo) {
+    fn block_imported(&self, block: OpBlock, info: L2BlockInfo) {
         // A block that fails to buffer only costs a fetch later, so this must never be fatal.
-        if let Err(err) = self.buffer.add_block(block, info).await {
+        if let Err(err) = self.buffer.add_block(block, info) {
             warn!(target: "engine", ?err, "Failed to buffer imported block");
         }
     }

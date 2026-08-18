@@ -110,7 +110,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         .await?;
 
         // The block is now canonical, so anything reading the L2 chain locally can rely on it.
-        self.block_sink.block_imported(block, new_unsafe_ref).await;
+        self.block_sink.block_imported(block, new_unsafe_ref);
 
         let total_duration = time_start.elapsed();
 
