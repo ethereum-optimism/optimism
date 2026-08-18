@@ -180,7 +180,9 @@ main's CI actually validated.
    ```
 
    Review the snapshot diff like code: it is the operator-facing surface of
-   the node.
+   the node. Upstream flags op-reth deliberately rejects (the `DENIED_ARGS`
+   deny-list in `op-reth/crates/cli/src/lib.rs`, e.g. `--minimal`) must stay
+   rejected — they render with a `[hidden]` marker in the snapshot.
 
 ## Expect upstream churn beyond your target change
 
