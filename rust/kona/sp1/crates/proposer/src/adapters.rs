@@ -17,7 +17,7 @@ use async_trait::async_trait;
 use kona_sp1_super_range_executor::{HostInputs, SuperRootAtTimestampResponse};
 
 use crate::{
-    FactoryTrait, TX_REVERTED_PREFIX, ZK_GAME_TYPE,
+    TX_REVERTED_PREFIX, ZK_GAME_TYPE,
     config::RangeSplitCount,
     contract::{
         AnchorStateRegistry, DelayedWETH,
@@ -86,7 +86,11 @@ where
     }
 
     async fn latest_game_index(&self, block: BlockId) -> Result<Option<U256>> {
-        self.factory.fetch_latest_game_index(block).await
+        let game_count = self.factory.gameCount().block(block).call().await?;
+        if game_count == U256::ZERO {
+            return Ok(None);
+        }
+        Ok(Some(game_count - U256::from(1)))
     }
 
     async fn registered_anchor_game(&self, block: BlockId) -> Result<Address> {
@@ -157,9 +161,8 @@ where
     }
 
     async fn parent_game_status(&self, parent_index: u32, block: BlockId) -> Result<u8> {
-        let parent =
-            self.factory.fetch_game_address_by_index(U256::from(parent_index), block).await?;
-        Ok(ZKDisputeGame::new(parent, self.factory.provider().clone())
+        let parent = self.factory.gameAtIndex(U256::from(parent_index)).block(block).call().await?;
+        Ok(ZKDisputeGame::new(parent.proxy_, self.factory.provider().clone())
             .status()
             .block(block)
             .call()
@@ -190,7 +193,7 @@ where
     }
 
     async fn init_bond(&self) -> Result<U256> {
-        self.factory.fetch_init_bond(ZK_GAME_TYPE).await
+        Ok(self.factory.initBonds(ZK_GAME_TYPE).call().await?)
     }
 
     async fn game_status(&self, game: Address) -> Result<u8> {
