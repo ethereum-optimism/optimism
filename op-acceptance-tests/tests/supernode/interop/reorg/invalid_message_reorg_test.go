@@ -19,6 +19,26 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
+// Wait budgets for the invalid-message replacement scenario. The light-sequencer follow path
+// recovers slowly — cross-safe advances roughly one block per two follow-source poll cycles
+// (#21119) — so the cross-safe waits carry the largest budgets.
+const (
+	// Retry attempts, spaced dsl.DefaultPollInterval apart.
+	canonicalReadSettleAttempts = 15
+	crossSafeMatchAttempts      = 30
+	crossSafeReachAttempts      = 45
+	elSafeReachAttempts         = 30
+
+	// crossSafeAdvanceBlocks is how far cross-safe must advance past the replacement before
+	// the reads below observe the settled chain.
+	crossSafeAdvanceBlocks = 3
+
+	// ResendUntilSafe budget: fresh-tx broadcasts, each polled once per second for inclusion
+	// at/below the safe head.
+	resendPollsPerSend = 20
+	resendSendAttempts = 8
+)
+
 // TestSupernodeInteropInvalidMessageReplacement runs the invalid-message
 // replacement scenario with the supernode virtual sequencer.
 func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
@@ -143,22 +163,24 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 	// at the replacement. Gate on cross-safe advancing past it — a match alone passes trivially
 	// while both sides are pinned — so reads below see the settled chain.
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(safety.CrossSafe, 3, 45),
-		sys.L2BCL.AdvancedFn(safety.CrossSafe, 3, 45),
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, crossSafeAdvanceBlocks, crossSafeReachAttempts),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, crossSafeAdvanceBlocks, crossSafeReachAttempts),
 	)
 	dsl.CheckAll(t,
-		sys.L2ACL.MatchedFn(sys.L2ASupernodeCL, safety.CrossSafe, 30),
-		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.CrossSafe, 30),
+		sys.L2ACL.MatchedFn(sys.L2ASupernodeCL, safety.CrossSafe, crossSafeMatchAttempts),
+		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.CrossSafe, crossSafeMatchAttempts),
 	)
 
 	// The invalid exec-message tx must be gone from the replacement block on BOTH the light
 	// sequencer's EL and the supernode VN's EL — distinct nodes joined only by L1 + P2P, so
-	// agreement proves one canonical chain. AssertTxNotInBlock reads by number (the oscillating
-	// unsafe head), so gate each read on that EL's safe head reaching the block first; blocks
-	// at/below safe are irreversible.
-	sys.L2ELB.Reached(eth.Safe, invalidBlockNumber, 30)
-	sys.L2ELB.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
-	sys.L2BSupernodeEL.Reached(eth.Safe, invalidBlockNumber, 30)
+	// agreement proves one canonical chain. The reads are by number, so gate each on that EL's
+	// safe head reaching the block first. On the light EL the safe gate alone is not enough:
+	// its sequencer can seal an in-flight block on a stale parent right after a follow-source
+	// reorg, transiently flipping the canonical block at this height back to its own branch
+	// (#22234), so retry the read there until it settles.
+	sys.L2ELB.Reached(eth.Safe, invalidBlockNumber, elSafeReachAttempts)
+	sys.L2ELB.AwaitTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash, canonicalReadSettleAttempts)
+	sys.L2BSupernodeEL.Reached(eth.Safe, invalidBlockNumber, elSafeReachAttempts)
 	sys.L2BSupernodeEL.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
 
 	t.Logger().Info("test complete: invalid block was replaced and verified",
@@ -174,16 +196,18 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 		// Fresh funded account per attempt => clean nonce space, immune to an orphaned prior send.
 		eoa := sys.FunderB.NewFundedEOA(eth.OneEther)
 		return txplan.NewPlannedTx(eoa.PlanTransfer(alice.Address(), eth.OneHundredthEther))
-	}, 8, 20)
+	}, resendSendAttempts, resendPollsPerSend)
 	sys.Supernode.AwaitValidatedTimestamp(sys.L2B.TimestampForBlockNum(settledBlock))
 	// The tx is in a derived-safe block on the supernode; the light sequencer must agree there.
 	// The fresh tx re-diverges the light sequencer from upstream, so the follow-source loop must
 	// reconcile again. It advances the light CL's cross-safe roughly one block per two poll cycles
 	// (every other forceReset resets local-safe to genesis before re-adopting upstream, #21119), so
 	// settle on the CL's cross-safe reaching settledBlock before polling the EL: the EL's safe
-	// forkchoice pointer only moves once the CL emits the FCU for that cross-safe head.
-	sys.L2BCL.Reached(safety.CrossSafe, settledBlock, 45)
+	// forkchoice pointer only moves once the CL emits the FCU for that cross-safe head. Even
+	// then the light EL's canonical block at settledBlock can transiently flip back to its own
+	// branch via a stale-parent seal (#22234), so retry that read until it settles.
+	sys.L2BCL.Reached(safety.CrossSafe, settledBlock, crossSafeReachAttempts)
 	sys.L2BSupernodeEL.AssertTxInBlock(settledBlock, settledTxHash)
-	sys.L2ELB.Reached(eth.Safe, settledBlock, 30)
-	sys.L2ELB.AssertTxInBlock(settledBlock, settledTxHash)
+	sys.L2ELB.Reached(eth.Safe, settledBlock, elSafeReachAttempts)
+	sys.L2ELB.AwaitTxInBlock(settledBlock, settledTxHash, canonicalReadSettleAttempts)
 }

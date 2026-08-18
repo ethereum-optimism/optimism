@@ -657,35 +657,75 @@ func (el *L2ELNode) AssertExecMessageNotInBlock(execMessage *ExecMessage) {
 	el.AssertTxNotInBlock(bigs.Uint64Strict(execMessage.BlockNumber()), execMessage.TxHash())
 }
 
-// AssertTxNotInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
-func (el *L2ELNode) AssertTxNotInBlock(blockNumber uint64, txHash common.Hash) {
+// blockContainsTx reports whether the canonical block at blockNumber contains a
+// transaction with the given hash.
+func (el *L2ELNode) blockContainsTx(blockNumber uint64, txHash common.Hash) (bool, error) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
 
 	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
-	el.require.NoError(err, "failed to fetch block %d", blockNumber)
-
-	for _, tx := range txs {
-		el.require.NotEqualf(tx.Hash(), txHash, "transaction should not exist in block", "Found tx %v in block %v", tx.Hash(), blockNumber)
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch block %d: %w", blockNumber, err)
 	}
-	el.log.Info("confirmed transaction not in block", "blockNumber", blockNumber, "txHash", txHash)
-}
-
-// AssertTxInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
-func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
-	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
-	defer cancel()
-
-	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
-	el.require.NoError(err, "failed to fetch block %d", blockNumber)
-
 	for _, tx := range txs {
 		if tx.Hash() == txHash {
-			el.log.Info("confirmed transaction in block", "blockNumber", blockNumber, "txHash", txHash)
-			return
+			return true, nil
 		}
 	}
-	el.require.Fail("transaction should exist in block", "blockNumber", blockNumber, "txHash", txHash)
+	return false, nil
+}
+
+// AssertTxNotInBlock asserts that a transaction with the given hash does not exist in the
+// canonical block at the given number. The read is single-shot; on a node whose canonical
+// head can transiently flip between branches, use AwaitTxNotInBlock instead.
+func (el *L2ELNode) AssertTxNotInBlock(blockNumber uint64, txHash common.Hash) {
+	el.awaitTxPresence(blockNumber, txHash, false, 1)
+}
+
+// AssertTxInBlock asserts that a transaction with the given hash exists in the canonical
+// block at the given number. The read is single-shot; on a node whose canonical head can
+// transiently flip between branches, use AwaitTxInBlock instead.
+func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
+	el.awaitTxPresence(blockNumber, txHash, true, 1)
+}
+
+// AwaitTxInBlock waits until the canonical block at blockNumber contains a transaction with
+// the given hash. A by-number read resolves against the canonical head chain, and on a node
+// whose canonical head can transiently flip between branches — e.g. a light follow-CL whose
+// sequencer seals an in-flight block on a stale parent right after a follow-source reorg —
+// a single read races the flip even when blockNumber is at/below the safe label. Polls every
+// DefaultPollInterval.
+func (el *L2ELNode) AwaitTxInBlock(blockNumber uint64, txHash common.Hash, attempts int) {
+	el.awaitTxPresence(blockNumber, txHash, true, attempts)
+}
+
+// AwaitTxNotInBlock waits until the canonical block at blockNumber does not contain a
+// transaction with the given hash, re-reading until a successful read shows it absent. See
+// AwaitTxInBlock for why a single by-number read is not always enough. Polls every
+// DefaultPollInterval.
+func (el *L2ELNode) AwaitTxNotInBlock(blockNumber uint64, txHash common.Hash, attempts int) {
+	el.awaitTxPresence(blockNumber, txHash, false, attempts)
+}
+
+// awaitTxPresence re-reads the canonical block at blockNumber until its inclusion of the
+// transaction with the given hash matches wantInBlock, failing the test after attempts reads
+// spaced DefaultPollInterval apart.
+func (el *L2ELNode) awaitTxPresence(blockNumber uint64, txHash common.Hash, wantInBlock bool, attempts int) {
+	el.require.NoError(retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: DefaultPollInterval}, func() error {
+		found, err := el.blockContainsTx(blockNumber, txHash)
+		if err != nil {
+			el.log.Warn("block read failed; will retry", "blockNumber", blockNumber, "err", err)
+			return err
+		}
+		if found != wantInBlock {
+			if wantInBlock {
+				return fmt.Errorf("tx %s absent from canonical block %d, expected present", txHash, blockNumber)
+			}
+			return fmt.Errorf("tx %s present in canonical block %d, expected absent", txHash, blockNumber)
+		}
+		el.log.Info("confirmed transaction presence in block", "blockNumber", blockNumber, "txHash", txHash, "inBlock", found)
+		return nil
+	}))
 }
 
 // ResendUntilSafe broadcasts a transaction from makeTx and waits for it to derive onto this
