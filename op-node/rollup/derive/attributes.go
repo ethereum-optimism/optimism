@@ -168,12 +168,13 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeGas += nutGas
 	}
 
-	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
-		// The Interop NUT bundle executes on all chains. The setFeature and
-		// ETHLiquidity funding wrappers only execute for chains in a multi-chain
-		// dependency set, which signals the L2ContractsManager to activate
-		// Interop-specific contracts.
-		lagoonTxs, lagoonGas, err := LagoonActivationUpgradeTransactions(len(ba.depSet.Chains()) > 1)
+	if ba.rollupCfg.IsLagoonActivationBlock(nextL2Time) {
+		// The NUT bundle carries the fork's predeploy upgrades, so it executes on every chain
+		// activating Lagoon. The setFeature and ETHLiquidity funding wrappers are interop-specific:
+		// they additionally require the interop feature, and a multi-chain dependency set, which is
+		// what signals the L2ContractsManager to activate the Interop-gated contracts.
+		activateInteropContracts := ba.rollupCfg.IsInterop(nextL2Time) && len(ba.depSet.Chains()) > 1
+		lagoonTxs, lagoonGas, err := LagoonActivationUpgradeTransactions(activateInteropContracts)
 		if err != nil {
 			return nil, NewCriticalError(err)
 		}

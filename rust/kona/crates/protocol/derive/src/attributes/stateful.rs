@@ -195,20 +195,22 @@ where
             upgrade_transactions.append(&mut Hardforks::KARST.txs().collect());
             upgrade_gas += Hardforks::KARST.upgrade_gas();
         }
-        if self.rollup_cfg.is_interop_active(next_l2_time) &&
-            !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_lagoon_active(next_l2_time) &&
+            !self.rollup_cfg.is_lagoon_active(l2_parent.block_info.timestamp)
         {
-            // The Interop NUT bundle executes on all chains. The setFeature and
-            // ETHLiquidity funding wrappers only execute for chains in a multi-chain
-            // dependency set, which signals the L2ContractsManager to activate
-            // Interop-specific contracts. Matches op-node's gate at
+            // The NUT bundle carries the fork's predeploy upgrades, so it executes on every
+            // chain activating Lagoon. The setFeature and ETHLiquidity funding wrappers are
+            // interop-specific: they additionally require the interop feature, and a
+            // multi-chain dependency set, which is what signals the L2ContractsManager to
+            // activate the Interop-gated contracts. Matches op-node's gate at
             // op-node/rollup/derive/attributes.go.
             // `dependency_set` is guaranteed Some(_) here because the constructor
             // panics when lagoon_time.is_some() && dependency_set.is_none().
             let dependency_set = self.dependency_set.as_ref().expect(
-                "dependency_set must be Some when interop is active — constructor invariant",
+                "dependency_set must be Some when Lagoon is active — constructor invariant",
             );
-            let activate_interop_contracts = dependency_set.dependencies.len() > 1;
+            let activate_interop_contracts = self.rollup_cfg.is_interop_active(next_l2_time) &&
+                dependency_set.dependencies.len() > 1;
             upgrade_transactions.append(
                 &mut Hardforks::LAGOON.txs_for_activation(activate_interop_contracts).collect(),
             );
