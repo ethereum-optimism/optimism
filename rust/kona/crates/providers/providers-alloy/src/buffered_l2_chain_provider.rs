@@ -38,6 +38,13 @@ impl BatchValidationProvider for BufferedAlloyL2ChainProvider {
         self.rpc.l2_block_info_by_number(number).await
     }
 
+    async fn l2_block_info_by_hash(&mut self, hash: B256) -> Result<L2BlockInfo, Self::Error> {
+        match self.buffered.l2_block_info_by_hash(hash).await {
+            Ok(block_info) => Ok(block_info),
+            Err(_) => self.rpc.l2_block_info_by_hash(hash).await,
+        }
+    }
+
     async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
         self.rpc.block_by_number(number).await
     }

@@ -169,6 +169,9 @@ pub enum AlloyL2ChainProviderError {
     /// Failed to construct [`L2BlockInfo`] from the block and genesis.
     #[error("Failed to construct L2BlockInfo from block {0} and genesis")]
     L2BlockInfoConstruction(u64),
+    /// Failed to construct [`L2BlockInfo`] from the block with the given hash and genesis.
+    #[error("Failed to construct L2BlockInfo from block {0} and genesis")]
+    L2BlockInfoConstructionByHash(B256),
     /// Failed to convert the block into a [`SystemConfig`].
     #[error("Failed to convert block {0} into SystemConfig")]
     SystemConfigConversion(B256),
@@ -187,7 +190,8 @@ impl From<AlloyL2ChainProviderError> for PipelineErrorKind {
             AlloyL2ChainProviderError::BlockHashNotFound(hash) => {
                 ResetError::BlockNotFound(hash.into()).reset()
             }
-            AlloyL2ChainProviderError::L2BlockInfoConstruction(_) => Self::Temporary(
+            AlloyL2ChainProviderError::L2BlockInfoConstruction(_) |
+            AlloyL2ChainProviderError::L2BlockInfoConstructionByHash(_) => Self::Temporary(
                 PipelineError::Provider("L2 block info construction failed".to_string()),
             ),
             AlloyL2ChainProviderError::SystemConfigConversion(_) => Self::Temporary(
@@ -208,6 +212,12 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
             .map_err(|_| AlloyL2ChainProviderError::BlockNotFound(number))?;
         L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
             .map_err(|_| AlloyL2ChainProviderError::L2BlockInfoConstruction(number))
+    }
+
+    async fn l2_block_info_by_hash(&mut self, hash: B256) -> Result<L2BlockInfo, Self::Error> {
+        let block = self.block_by_hash(hash).await?;
+        L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
+            .map_err(|_| AlloyL2ChainProviderError::L2BlockInfoConstructionByHash(hash))
     }
 
     async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
