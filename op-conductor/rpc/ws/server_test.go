@@ -589,3 +589,49 @@ func TestHubShutdown(t *testing.T) {
 
 	t.Log("Hub shutdown completed successfully")
 }
+
+// TestWebSocketRegistrationAfterHubShutdown verifies that a request accepted
+// while the HTTP server is still running after hub shutdown is not left
+// blocked on the hub's unbuffered registration channel.
+func TestWebSocketRegistrationAfterHubShutdown(t *testing.T) {
+	handler, tracker, server, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Stop the hub while keeping the HTTP listener alive to reproduce the
+	// shutdown window in Handler.Stop.
+	// The test server's handler must still be able to accept the request.
+	// Wait for stopped so the registration channel has no receiver.
+	//
+	// setupTestServer starts the hub before returning.
+	close(handler.hub.done)
+	select {
+	case <-handler.hub.stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("hub shutdown timed out")
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	conn, resp, err := websocket.Dial(ctx, wsURL, nil)
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatalf("failed to connect during hub shutdown: %v", err)
+	}
+	defer conn.CloseNow()
+
+	readCtx, readCancel := context.WithTimeout(context.Background(), time.Second)
+	defer readCancel()
+	_, _, err = conn.Read(readCtx)
+	if err == nil {
+		t.Fatal("expected the server to close the connection after hub shutdown")
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("WebSocket handler remained blocked during hub shutdown")
+	}
+	if got := tracker.getClientCount(); got != 0 {
+		t.Fatalf("expected no clients to be registered after hub shutdown, got %d", got)
+	}
+}
