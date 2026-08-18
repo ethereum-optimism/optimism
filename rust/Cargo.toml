@@ -579,7 +579,7 @@ tracing-subscriber = { version = "0.3.22", default-features = false }
 opentelemetry = { version = "0.31", features = ["logs", "trace"] }
 opentelemetry-appender-tracing = "0.31"
 opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "logs"] }
-opentelemetry_sdk = { version = "0.31", features = ["logs", "trace", "rt-tokio"] }
+opentelemetry_sdk = { version = "0.32", features = ["logs", "trace", "rt-tokio"] }
 
 # ==================== TESTING ====================
 arbitrary = { version = "1.4.2", features = ["derive"] }

@@ -6293,9 +6293,6 @@ dependencies = [
  "rand 0.8.6",
  "serde_json",
  "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "tracing",
 ]
 
 [[package]]
@@ -6312,6 +6309,8 @@ dependencies = [
  "portable-atomic",
  "rand 0.9.4",
  "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
@@ -10860,7 +10859,7 @@ dependencies = [
  "op-alloy-rpc-types-engine",
  "opentelemetry 0.28.0",
  "opentelemetry-otlp 0.28.0",
- "opentelemetry_sdk 0.28.0",
+ "opentelemetry_sdk 0.32.1",
  "parking_lot",
  "paste",
  "predicates",
