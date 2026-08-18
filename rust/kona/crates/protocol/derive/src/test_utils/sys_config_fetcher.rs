@@ -56,6 +56,10 @@ impl BatchValidationProvider for TestSystemConfigL2Fetcher {
     async fn l2_block_info_by_number(&mut self, _: u64) -> Result<L2BlockInfo, Self::Error> {
         unimplemented!()
     }
+
+    async fn l2_block_info_by_hash(&mut self, _: B256) -> Result<L2BlockInfo, Self::Error> {
+        unimplemented!()
+    }
 }
 
 #[async_trait]
