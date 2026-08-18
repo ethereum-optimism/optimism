@@ -46,7 +46,7 @@ protoc = "35.1"
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
-"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4"    # Osaka testnet release.
+"go:github.com/ethereum/go-ethereum/cmd/geth" = "e9bac5fac00d77fe87e4c1a28c48ee57cda942cc" # Glamsterdam development commit.
 
 # Python dependencies
 "pipx:slither-analyzer" = "0.10.2"

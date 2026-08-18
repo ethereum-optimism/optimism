@@ -422,6 +422,10 @@ wrapping) — small design task, metric names/labels must be preserved. `rpc.Jso
 `op-core/predeploys`) — ride the §2-style call-site swaps (#20263 family). Derive current sites
 by grepping the symbol; listed file snapshots go stale.
 
+**Cutover check:** revisit `op-batcher/batcher.maxFloorDataGas`; check whether the then-current
+upstream `core.FloorDataGas` can replace its local pre- and post-Amsterdam floor calculations while
+preserving the conservative maximum across both rule sets.
+
 ---
 
 ## 16. `op-chain-ops/script` + op-deployer — Rust script engine

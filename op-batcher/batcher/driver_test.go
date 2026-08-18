@@ -159,33 +159,40 @@ func (q *MockTxQueue) Load(id string) txmgr.TxCandidate {
 	return c.(txmgr.TxCandidate)
 }
 
-func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
+func TestBatchSubmitter_sendTx_GasLimit(t *testing.T) {
 	bs, _ := setup(t, nil)
 
-	q := new(MockTxQueue)
-
-	txData := txData{
-		frames: []frameData{
-			{
-				data: []byte{0x01, 0x02, 0x03}, // 3 nonzero bytes = 12 tokens https://github.com/ethereum/EIPs/blob/master/EIPS/eip-7623.md
-			},
+	tests := []struct {
+		name     string
+		data     []byte
+		expected uint64
+	}{
+		{
+			name:     "PreAmsterdamFloorIsHigher",
+			data:     []byte{0x01, 0x02, 0x03},
+			expected: params.TxGas + 3*params.TxTokenPerNonZeroByte*params.TxCostFloorPerToken,
+		},
+		{
+			name:     "AmsterdamFloorIsHigher",
+			data:     make([]byte, 371),
+			expected: 15_000 + 371*64,
 		},
 	}
-	candidate := txmgr.TxCandidate{
-		To:     &bs.RollupConfig.BatchInboxAddress,
-		TxData: txData.CallData(),
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := new(MockTxQueue)
+			txData := txData{frames: []frameData{{data: tt.data}}}
+			candidate := txmgr.TxCandidate{
+				To:     &bs.RollupConfig.BatchInboxAddress,
+				TxData: tt.data,
+			}
+
+			bs.sendTx(txData, false, &candidate, q, make(chan txmgr.TxReceipt[txRef]))
+
+			candidateOut := q.Load(txData.ID().String())
+			require.Equal(t, tt.expected, candidateOut.GasLimit)
+		})
 	}
-
-	bs.sendTx(txData,
-		false,
-		&candidate,
-		q,
-		make(chan txmgr.TxReceipt[txRef]))
-
-	candidateOut := q.Load(txData.ID().String())
-
-	expectedFloorDataGas := uint64(21_000 + 12*10)
-	require.GreaterOrEqual(t, candidateOut.GasLimit, expectedFloorDataGas)
 }
 
 type handlerFailureMode string
