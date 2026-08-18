@@ -36,11 +36,14 @@ jobs:
           name: Open PR if the pinned nightly is outdated
           command: |
             set -euo pipefail
-            TODAY=$(date -u +%Y-%m-%d)
-            LATEST="nightly-${TODAY}"
+            # The weekly schedule fires just after 00:00 UTC, but a given day's
+            # nightly only lands on the dist server around 01:30 UTC that day, so
+            # today's date always 404s. Target the previous day.
+            TARGET=$(date -u -d yesterday +%Y-%m-%d)
+            LATEST="nightly-${TARGET}"
             CURRENT=$(grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' mise.toml | head -1)
 
-            echo "Latest nightly: ${LATEST}"
+            echo "Target nightly: ${LATEST}"
             echo "Current pin:    ${CURRENT}"
 
             # Recorded for the Slack success notification so the message can
@@ -54,13 +57,13 @@ jobs:
             fi
 
             # Nightly is not guaranteed to be published every day (builds can be
-            # skipped when broken). Only proceed if today's toolchain actually
+            # skipped when broken). Only proceed if the target toolchain actually
             # exists on the dist server, otherwise we would open a PR pinning a
             # nightly that rustup cannot install.
-            MANIFEST_URL="https://static.rust-lang.org/dist/${TODAY}/channel-rust-nightly.toml"
+            MANIFEST_URL="https://static.rust-lang.org/dist/${TARGET}/channel-rust-nightly.toml"
             if ! curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o /dev/null "${MANIFEST_URL}"; then
-              echo "No nightly published for ${TODAY} yet (${MANIFEST_URL} unavailable). Nothing to do."
-              record_summary "No nightly published for ${TODAY}; no PR opened."
+              echo "No nightly published for ${TARGET} (${MANIFEST_URL} unavailable). Nothing to do."
+              record_summary "No nightly published for ${TARGET}; no PR opened."
               exit 0
             fi
 
