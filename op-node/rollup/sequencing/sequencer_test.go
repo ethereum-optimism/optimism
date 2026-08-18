@@ -226,22 +226,21 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.True(t, deps.asyncGossip.started, "async gossip is always started on initialization")
 	require.False(t, deps.seqState.active, "sequencer not active yet")
 
-	// latest refs should all be empty
-	require.Equal(t, common.Hash{}, seq.latest.Ref.Hash)
-	require.Equal(t, common.Hash{}, seq.latestSealed.Hash)
-	require.Equal(t, common.Hash{}, seq.latestHead.Hash)
+	require.Equal(t, common.Hash{}, seq.building.Ref.Hash)
+	require.Equal(t, common.Hash{}, seq.lastSealed.Hash)
+	require.Equal(t, common.Hash{}, seq.unsafeHead.Hash)
 
-	// Set latestHead via a forkchoice update through the inbox
+	// Set unsafeHead via a forkchoice update through the inbox
 	deliver(seq, engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    eth.L2BlockRef{Hash: common.Hash{0xaa}},
 		SafeL2Head:      eth.L2BlockRef{},
 		FinalizedL2Head: eth.L2BlockRef{},
 	})
-	require.Equal(t, common.Hash{0xaa}, seq.latestHead.Hash)
+	require.Equal(t, common.Hash{0xaa}, seq.unsafeHead.Hash)
 	// Sealing happens via direct engine calls now; no sealed block exists in
-	// this test, so match latestSealed to latestHead manually to keep Stop()
+	// this test, so match lastSealed to unsafeHead manually to keep Stop()
 	// from waiting for the (nonexistent) sealed block to become canonical.
-	seq.latestSealed = eth.L2BlockRef{Hash: common.Hash{0xaa}}
+	seq.lastSealed = eth.L2BlockRef{Hash: common.Hash{0xaa}}
 
 	require.False(t, seq.Active())
 	// no action scheduled
@@ -294,12 +293,12 @@ func TestSequencer_NoActionAfterStop(t *testing.T) {
 	emitter.AssertExpectations(t)
 	fcuRequestsAfterInit := deps.eng.fcuRequests
 
-	// Bring latestSealed and latestHead to the same known block, so Stop() does not
+	// Bring lastSealed and unsafeHead to the same known block, so Stop() does not
 	// block waiting for the sealed block to catch up to the head.
 	head := eth.L2BlockRef{Hash: common.Hash{0xaa}}
 	deliver(seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
-	require.Equal(t, head.Hash, seq.latestHead.Hash)
-	seq.latestSealed = head
+	require.Equal(t, head.Hash, seq.unsafeHead.Hash)
+	seq.lastSealed = head
 
 	// Start, then stop. While active the sequencer scheduled work; the loop may
 	// have already armed the action timer at this point.
@@ -328,7 +327,7 @@ func TestSequencer_NoActionAfterStop(t *testing.T) {
 	seq.RunAction()
 	emitter.AssertExpectations(t)
 
-	require.Equal(t, BuildingState{}, seq.latest, "no block-building job started while stopped")
+	require.Equal(t, BuildingState{}, seq.building, "no block-building job started while stopped")
 	require.Equal(t, fcuRequestsAfterInit, deps.eng.fcuRequests, "no forkchoice update requested while stopped")
 	_, ok = seq.NextAction()
 	require.False(t, ok, "stopped sequencer schedules no further work")
@@ -407,7 +406,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 
 	// First action: start building. Direct engine call, no events.
 	seq.RunAction()
-	require.Equal(t, payloadInfo, seq.latest.Info, "must have recorded payload info of the started job")
+	require.Equal(t, payloadInfo, seq.building.Info, "must have recorded payload info of the started job")
 
 	_, ok = seq.NextAction()
 	require.True(t, ok, "must be ready to seal the block now")
@@ -452,7 +451,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	_, ok = seq.NextAction()
 	require.False(t, ok, "not ready to act; the engine's temporary-error event re-arms the schedule via the inbox")
 
-	// attempting to stop block building here should timeout, because the sealed block is different from the latestHead
+	// attempting to stop block building here should timeout, because the sealed block is different from the unsafeHead
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	_, err := seq.Stop(ctx)
@@ -487,10 +486,10 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	// to not continue from this older point.
 	require.NotNil(t, deps.asyncGossip.payload, "async-gossip still not cleared")
 
-	// Stop() waits for latestSealed == latestHead. The head advanced past our
-	// sealed block (another sequencer took over), so match latestSealed to
+	// Stop() waits for lastSealed == unsafeHead. The head advanced past our
+	// sealed block (another sequencer took over), so match lastSealed to
 	// unblock Stop().
-	seq.latestSealed = newHead
+	seq.lastSealed = newHead
 	stopHead, err := seq.Stop(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, newHead.Hash, stopHead)
@@ -521,7 +520,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	}
 	deps.eng.sealBuildFn = nil
 	seq.RunAction()
-	require.Equal(t, newHead, seq.latest.Onto, "must build on the new head")
+	require.Equal(t, newHead, seq.building.Onto, "must build on the new head")
 }
 
 func TestSequencerBuild(t *testing.T) {
@@ -593,7 +592,7 @@ func TestSequencerBuild(t *testing.T) {
 	// The action starts building via a direct StartBuild call.
 	seq.RunAction()
 	require.NotNil(t, sentAttributes, "StartBuild must have been called")
-	require.Equal(t, payloadInfo, seq.latest.Info)
+	require.Equal(t, payloadInfo, seq.building.Info)
 
 	// The sealing should now be scheduled as next action.
 	// We expect to seal just before the block-time boundary, leaving enough time for the sealing itself.
@@ -642,14 +641,14 @@ func TestSequencerBuild(t *testing.T) {
 	seq.RunAction()
 	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
 	require.Nil(t, deps.asyncGossip.payload, "async gossip should have cleared after successful insert")
-	require.Equal(t, BuildingState{}, seq.latest, "building state cleared after successful insert")
-	require.Equal(t, payloadRef, seq.latestSealed, "sealed block recorded")
+	require.Equal(t, BuildingState{}, seq.building, "building state cleared after successful insert")
+	require.Equal(t, payloadRef, seq.lastSealed, "sealed block recorded")
 
 	// After a successful insert the sequencer schedules the next block itself,
 	// without waiting for the forkchoice update to travel through the event system.
 	nextTime, ok := seq.NextAction()
 	require.True(t, ok, "ready to build next block")
-	require.Equal(t, payloadRef, seq.latestHead, "latestHead updated directly after successful insert")
+	require.Equal(t, payloadRef, seq.unsafeHead, "unsafeHead updated directly after successful insert")
 	require.Equal(t, time.Unix(int64(payloadRef.Time), 0), nextTime,
 		"next build starts a block-time before the next payload deadline")
 
@@ -709,7 +708,7 @@ func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	seq.RunAction()
 	emitter.AssertExpectations(t)
 
-	// FindL1Origin error pushes d.nextAction into the future
+	// FindL1Origin error pushes s.nextAction into the future
 	sealTargetTime2, ok2 := seq.NextAction()
 
 	require.True(t, ok1 == ok2 && sealTargetTime2.After(sealTargetTime1))
@@ -765,7 +764,7 @@ func (s *seqTestSetup) startBuild(t *testing.T) eth.PayloadInfo {
 		return &engine.BuildStartResult{Info: info, BuildStarted: s.clock.Now(), Parent: attrs.Parent}, nil
 	}
 	s.seq.RunAction()
-	require.Equal(t, info, s.seq.latest.Info, "build must have started")
+	require.Equal(t, info, s.seq.building.Info, "build must have started")
 	return info
 }
 
@@ -808,7 +807,7 @@ func TestSequencerStartBuildErrors(t *testing.T) {
 			return nil, engine.ErrStaleBuild
 		}
 		s.seq.RunAction()
-		require.Equal(t, BuildingState{}, s.seq.latest, "stale build leaves no building state")
+		require.Equal(t, BuildingState{}, s.seq.building, "stale build leaves no building state")
 		_, ok := s.seq.NextAction()
 		require.False(t, ok, "no action until the next head update")
 
@@ -830,7 +829,7 @@ func TestSequencerStartBuildErrors(t *testing.T) {
 			return nil, fmt.Errorf("%w: mock payload rejection", engine.ErrBuildInvalid)
 		}
 		s.seq.RunAction()
-		require.Equal(t, BuildingState{}, s.seq.latest)
+		require.Equal(t, BuildingState{}, s.seq.building)
 		next, ok := s.seq.NextAction()
 		require.True(t, ok, "retry after backoff; no recovery echo exists for invalid attributes")
 		require.Equal(t, s.clock.Now().Add(s.blockTime()), next, "back off one block time")
@@ -849,7 +848,7 @@ func TestSequencerStartBuildErrors(t *testing.T) {
 		require.False(t, ok, "parked until the temporary-error echo re-arms")
 
 		deliver(s.seq, rollup.EngineTemporaryErrorEvent{Err: mockErr})
-		require.Equal(t, BuildingState{}, s.seq.latest, "no job id to resume, start over")
+		require.Equal(t, BuildingState{}, s.seq.building, "no job id to resume, start over")
 		next, ok := s.seq.NextAction()
 		require.True(t, ok, "temporary-error echo re-arms")
 		require.Equal(t, s.clock.Now().Add(time.Second), next, "short backoff for temporary errors")
@@ -869,7 +868,7 @@ func TestSequencerSealError(t *testing.T) {
 	}
 	s.seq.RunAction()
 
-	require.Equal(t, BuildingState{}, s.seq.latest, "seal failure restarts the build")
+	require.Equal(t, BuildingState{}, s.seq.building, "seal failure restarts the build")
 	require.Nil(t, s.deps.conductor.committed, "nothing committed to conductor")
 	require.Nil(t, s.deps.asyncGossip.payload, "nothing gossiped")
 	next, ok := s.seq.NextAction()
@@ -890,8 +889,8 @@ func TestSequencerSealStale(t *testing.T) {
 		return nil, engine.ErrStaleBuild
 	}
 	s.seq.RunAction()
-	require.Equal(t, BuildingState{}, s.seq.latest, "stale job dropped")
-	require.Equal(t, eth.L2BlockRef{}, s.seq.latestSealed, "nothing sealed")
+	require.Equal(t, BuildingState{}, s.seq.building, "stale job dropped")
+	require.Equal(t, eth.L2BlockRef{}, s.seq.lastSealed, "nothing sealed")
 	require.Nil(t, s.deps.conductor.committed, "nothing committed to conductor")
 	require.Nil(t, s.deps.asyncGossip.payload, "nothing gossiped")
 	_, ok := s.seq.NextAction()
@@ -937,7 +936,7 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 
 			if tc.dropped {
 				require.Nil(t, s.deps.asyncGossip.payload, "rejected payload is dropped from gossip")
-				require.Equal(t, BuildingState{}, s.seq.latest)
+				require.Equal(t, BuildingState{}, s.seq.building)
 				next, ok := s.seq.NextAction()
 				require.True(t, ok, "restart building after backoff")
 				require.Equal(t, s.clock.Now().Add(s.blockTime()), next)
@@ -945,7 +944,7 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 			}
 
 			require.Equal(t, envelope, s.deps.asyncGossip.payload, "payload stays in gossip for retry")
-			require.Equal(t, ref, s.seq.latest.Ref, "building state is kept")
+			require.Equal(t, ref, s.seq.building.Ref, "building state is kept")
 			_, ok := s.seq.NextAction()
 			require.False(t, ok, "paused until the engine's temporary-error event re-arms the schedule")
 
@@ -967,8 +966,8 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 			s.seq.RunAction()
 			require.Equal(t, envelope, retried, "gossiped payload was retried")
 			require.Nil(t, s.deps.asyncGossip.payload, "gossip cleared after successful retry")
-			require.Equal(t, BuildingState{}, s.seq.latest)
-			require.Equal(t, ref, s.seq.latestHead, "head updated directly after successful insert")
+			require.Equal(t, BuildingState{}, s.seq.building)
+			require.Equal(t, ref, s.seq.unsafeHead, "head updated directly after successful insert")
 			_, ok = s.seq.NextAction()
 			require.True(t, ok, "ready to build the next block")
 		})
@@ -1036,7 +1035,7 @@ func TestSequencerMaxSafeLagDirectPath(t *testing.T) {
 		return nil
 	}
 	s.seq.RunAction()
-	require.Equal(t, ref, s.seq.latestHead, "block inserted via direct path")
+	require.Equal(t, ref, s.seq.unsafeHead, "block inserted via direct path")
 
 	// The insertion armed the next block, but the safe head (as of the last
 	// ingested forkchoice update) now lags beyond the bound: stalled.
@@ -1072,7 +1071,7 @@ func TestSequencerActionHonorsParkingDrain(t *testing.T) {
 	s.seq.RunAction()
 	_, ok = s.seq.NextAction()
 	require.False(t, ok, "parked by the replayed reset")
-	require.Equal(t, BuildingState{}, s.seq.latest, "no build started")
+	require.Equal(t, BuildingState{}, s.seq.building, "no build started")
 }
 
 // TestSequencerStopAfterStaleProcess checks that Stop does not wait for a
@@ -1090,13 +1089,13 @@ func TestSequencerStopAfterStaleProcess(t *testing.T) {
 		return engine.ErrStaleBuild // competing block won after we gossiped
 	}
 	s.seq.RunAction()
-	require.Equal(t, s.seq.latestHead, s.seq.latestSealed, "nothing outstanding after the stale drop")
+	require.Equal(t, s.seq.unsafeHead, s.seq.lastSealed, "nothing outstanding after the stale drop")
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	hash, err := s.seq.Stop(ctx)
 	require.NoError(t, err, "Stop must not wait for the dropped block")
-	require.Equal(t, s.seq.latestHead.Hash, hash)
+	require.Equal(t, s.seq.unsafeHead.Hash, hash)
 }
 
 // TestSequencerRearmsAfterStaleBufferedPayload covers the retry of a payload
@@ -1112,7 +1111,7 @@ func TestSequencerRearmsAfterStaleBufferedPayload(t *testing.T) {
 	// A previous action sealed and gossiped this payload, then failed to insert
 	// it with a temporary error, so it stayed in the buffer.
 	s.deps.asyncGossip.payload = envelope
-	s.seq.latestSealed = ref
+	s.seq.lastSealed = ref
 
 	// Meanwhile a competing block at the same height became the head, and the
 	// sequencer has already ingested that update.
@@ -1124,7 +1123,7 @@ func TestSequencerRearmsAfterStaleBufferedPayload(t *testing.T) {
 		L1Origin:   s.head.L1Origin,
 	}
 	deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: competing})
-	require.Equal(t, competing, s.seq.latestHead)
+	require.Equal(t, competing, s.seq.unsafeHead)
 	_, ok := s.seq.NextAction()
 	require.True(t, ok, "the competing head re-armed the sequencer")
 
@@ -1137,7 +1136,7 @@ func TestSequencerRearmsAfterStaleBufferedPayload(t *testing.T) {
 	require.Nil(t, s.deps.asyncGossip.payload, "the stale payload is discarded")
 	next, ok := s.seq.NextAction()
 	require.True(t, ok, "must re-plan locally; the requested forkchoice update is one we already have")
-	require.Equal(t, competing, s.seq.latestHead, "the next build targets the current head")
+	require.Equal(t, competing, s.seq.unsafeHead, "the next build targets the current head")
 	require.False(t, next.After(time.Unix(int64(competing.Time+s.deps.cfg.BlockTime), 0)),
 		"scheduled no later than the next block's slot")
 }
@@ -1157,13 +1156,13 @@ func TestSequencerStopAfterRejectedInsert(t *testing.T) {
 		return engine.ErrPayloadInvalid
 	}
 	s.seq.RunAction()
-	require.Equal(t, s.seq.latestHead, s.seq.latestSealed, "rejected block is not left outstanding")
+	require.Equal(t, s.seq.unsafeHead, s.seq.lastSealed, "rejected block is not left outstanding")
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	hash, err := s.seq.Stop(ctx)
 	require.NoError(t, err, "Stop must not wait for the rejected block")
-	require.Equal(t, s.seq.latestHead.Hash, hash)
+	require.Equal(t, s.seq.unsafeHead.Hash, hash)
 }
 
 // TestSequencerRearmsOnRewoundHead reproduces a stall seen in the flashblocks
@@ -1184,7 +1183,7 @@ func TestSequencerRearmsOnRewoundHead(t *testing.T) {
 		return nil, engine.ErrStaleBuild
 	}
 	s.seq.RunAction()
-	require.Equal(t, BuildingState{}, s.seq.latest, "stale job dropped")
+	require.Equal(t, BuildingState{}, s.seq.building, "stale job dropped")
 	_, ok := s.seq.NextAction()
 	require.False(t, ok, "parked until the engine reports its head")
 
@@ -1196,13 +1195,13 @@ func TestSequencerRearmsOnRewoundHead(t *testing.T) {
 		L1Origin: s.head.L1Origin,
 		Time:     s.head.Time - s.deps.cfg.BlockTime,
 	}
-	require.Less(t, rewound.Number, s.seq.latestHead.Number, "the recovering update rewinds the head")
+	require.Less(t, rewound.Number, s.seq.unsafeHead.Number, "the recovering update rewinds the head")
 	deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: rewound})
 
-	require.Equal(t, rewound, s.seq.latestHead, "the rewound head is adopted")
+	require.Equal(t, rewound, s.seq.unsafeHead, "the rewound head is adopted")
 	_, ok = s.seq.NextAction()
 	require.True(t, ok, "a rewind re-arms the sequencer instead of parking it forever")
-	require.NotEqual(t, ref.Hash, s.seq.latestHead.Hash)
+	require.NotEqual(t, ref.Hash, s.seq.unsafeHead.Hash)
 }
 
 // TestSequencerSetMaxSafeLagResumes checks that relaxing the bound at runtime
@@ -1313,7 +1312,7 @@ func TestSequencerStaysParkedUntilResetConfirmed(t *testing.T) {
 	deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: rewound})
 	_, ok = s.seq.NextAction()
 	require.False(t, ok, "the pre-confirmation head update must not re-arm the sequencer")
-	require.Equal(t, rewound, s.seq.latestHead,
+	require.Equal(t, rewound, s.seq.unsafeHead,
 		"the head is still recorded, so the confirmation arms onto the rewound head")
 
 	deliver(s.seq, engine.EngineResetConfirmedEvent{})
@@ -1364,7 +1363,7 @@ func TestSequencerPayloadSuccessClearsGossip(t *testing.T) {
 	s := newSeqSetup(t)
 	envelope, ref := s.sealedPayload()
 
-	s.seq.latest = BuildingState{Ref: ref}
+	s.seq.building = BuildingState{Ref: ref}
 	s.deps.asyncGossip.payload = envelope
 
 	unrelated := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
@@ -1372,11 +1371,11 @@ func TestSequencerPayloadSuccessClearsGossip(t *testing.T) {
 	}}
 	deliver(s.seq, engine.PayloadSuccessEvent{Envelope: unrelated})
 	require.NotNil(t, s.deps.asyncGossip.payload, "another block's insertion is not ours to act on")
-	require.Equal(t, ref, s.seq.latest.Ref, "build state untouched")
+	require.Equal(t, ref, s.seq.building.Ref, "build state untouched")
 
 	deliver(s.seq, engine.PayloadSuccessEvent{Envelope: envelope})
 	require.Nil(t, s.deps.asyncGossip.payload, "our block was inserted: drop the gossip buffer")
-	require.Equal(t, BuildingState{}, s.seq.latest, "our block was inserted: build state is done")
+	require.Equal(t, BuildingState{}, s.seq.building, "our block was inserted: build state is done")
 }
 
 // TestSequencerStaysParkedOnTemporaryErrorDuringReset covers the window between
@@ -1411,14 +1410,14 @@ func TestSequencerStaysParkedOnTemporaryErrorDuringReset(t *testing.T) {
 }
 
 // TestSequencerStartDuringResetStaysParked is the same rule for the operator
-// path. Start only checks that the caller's head matches latestHead, which
+// path. Start only checks that the caller's head matches unsafeHead, which
 // during an unconfirmed reset is still the pre-reset head — so a conductor
 // promoting a mid-reset node succeeds, and must not sequence on the chain the
 // reset is about to discard.
 func TestSequencerStartDuringResetStaysParked(t *testing.T) {
 	s := newSeqSetup(t)
 	// Stop waits for the head to reach what we last sealed; nothing is in flight.
-	s.seq.latestSealed = s.head
+	s.seq.lastSealed = s.head
 	_, err := s.seq.Stop(context.Background())
 	require.NoError(t, err)
 
