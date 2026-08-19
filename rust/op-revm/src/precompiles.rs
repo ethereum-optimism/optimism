@@ -48,7 +48,7 @@ impl OpPrecompiles {
     }
 }
 
-/// UPSTREAM-MIRROR(set): revm-precompile@41.0.0 `revm_precompile::Precompiles`
+/// UPSTREAM-MIRROR(set): revm-precompile@42.0.1 `revm_precompile::Precompiles`
 ///
 /// Fjord extends the upstream Cancun set with P256 verification. Re-check the
 /// inherited address set and gas parameters on each bump.

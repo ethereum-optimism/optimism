@@ -281,7 +281,7 @@ impl<'a, P> HashedPostStateProvider for MemoryOverlayOpProofsStateProviderRef<'a
 where
     P: OpProofsProviderRO + Clone,
 {
-    fn hashed_post_state(&self, bundle_state: &BundleState) -> HashedPostState {
+    fn hashed_post_state(&self, bundle_state: &BundleState) -> ProviderResult<HashedPostState> {
         self.inner.hashed_post_state(bundle_state)
     }
 }
