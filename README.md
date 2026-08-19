@@ -99,7 +99,8 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
     ├── <a href="./rust/op-revm">op-revm</a>: OP Stack EVM implementation (revm fork)
     ├── <a href="./rust/op-alloy">op-alloy</a>: OP Stack types and providers for the alloy ecosystem
     ├── <a href="./rust/alloy-op-evm">alloy-op-evm</a>: OP Stack EVM support for the alloy ecosystem
-    └── <a href="./rust/alloy-op-hardforks">alloy-op-hardforks</a>: OP Stack hardfork definitions for the alloy ecosystem
+    ├── <a href="./rust/alloy-op-hardforks">alloy-op-hardforks</a>: OP Stack hardfork definitions for the alloy ecosystem
+    └── <a href="./rust/supernode">supernode</a>: Rust rewrite of op-supernode, the multi-chain consensus-layer host (WIP)
 </pre>
 
 ## Development and Release Process
