@@ -1,12 +1,12 @@
-//! The `rust-supernode` CLI.
+//! The `lokahi` CLI.
 
 use crate::version;
 use clap::Parser;
 
 /// The greeting the CLI prints until the supernode has behaviour of its own.
-const GREETING: &str = "Hello Rust Supernode";
+const GREETING: &str = "Hello Lokahi";
 
-/// The `rust-supernode` CLI.
+/// The `lokahi` CLI.
 #[derive(Parser, Clone, Debug)]
 #[command(
     author,

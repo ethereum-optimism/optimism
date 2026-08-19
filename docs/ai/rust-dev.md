@@ -9,7 +9,7 @@ All Rust code lives under `rust/`. This is a unified Cargo workspace — always 
 - **Kona** — Proof system and rollup node (`rust/kona/`)
 - **Op-Reth** — OP Stack execution client built on reth (`rust/op-reth/`)
 - **Op-Alloy / Alloy extensions** — OP Stack types and providers
-- **Rust Supernode** — Rust rewrite of the Go `op-supernode` multi-chain consensus-layer host (`rust/supernode/`, binary `rust-supernode`). Early development: the crate currently builds a CLI skeleton only.
+- **Lokahi** — Rust rewrite of the Go `op-supernode` multi-chain consensus-layer host (`rust/lokahi/`, binary `lokahi`). Early development: the crate currently builds a CLI skeleton only.
 
 Check `rust/Cargo.toml` for the full workspace member list, dependency versions, and lint configuration. The Rust toolchain version is pinned in `rust/rust-toolchain.toml`.
 
@@ -50,7 +50,7 @@ just build-release
 # Build specific binaries
 just build-node             # kona-node
 just build-op-reth          # op-reth
-just build-rust-supernode   # rust-supernode
+just build-lokahi   # lokahi
 ```
 
 ### superchain-registry submodule (op-reth)

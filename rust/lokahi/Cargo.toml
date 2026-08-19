@@ -1,5 +1,5 @@
 [package]
-name = "rust-supernode"
+name = "lokahi"
 version = "0.1.0"
 description = "Rust implementation of the OP Stack supernode: a multi-chain consensus-layer host"
 

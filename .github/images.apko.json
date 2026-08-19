@@ -314,7 +314,7 @@
       ],
       "smoke_test": "kona-sp1-proposer --version"
     },
-    "rust-supernode": {
+    "lokahi": {
       "type": "rust",
       "verify_version": true,
       "needs_melange": [
@@ -324,9 +324,9 @@
         "rust/**"
       ],
       "nexus_paths": [
-        "apko/rust-supernode.yaml"
+        "apko/lokahi.yaml"
       ],
-      "smoke_test": "rust-supernode --version"
+      "smoke_test": "lokahi --version"
     },
     "op-reth": {
       "type": "rust",

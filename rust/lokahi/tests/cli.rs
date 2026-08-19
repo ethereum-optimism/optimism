@@ -1,13 +1,13 @@
-//! End-to-end specification for the `rust-supernode` binary.
+//! End-to-end specification for the `lokahi` binary.
 
 use std::process::{Command, Output};
 
 /// Runs the binary under test with `args` and returns its output.
 fn run(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_rust-supernode"))
+    Command::new(env!("CARGO_BIN_EXE_lokahi"))
         .args(args)
         .output()
-        .expect("failed to run the rust-supernode binary")
+        .expect("failed to run the lokahi binary")
 }
 
 /// Asserts the command succeeded and returns its stdout.
@@ -24,14 +24,14 @@ fn stdout_of(output: &Output) -> &str {
 #[test]
 fn prints_the_greeting() {
     let output = run(&[]);
-    assert_eq!(stdout_of(&output), "Hello Rust Supernode\n");
+    assert_eq!(stdout_of(&output), "Hello Lokahi\n");
 }
 
 #[test]
 fn short_version_flag_reports_one_line() {
     let output = run(&["-V"]);
     let stdout = stdout_of(&output);
-    let version = stdout.strip_prefix("rust-supernode ").expect("version is prefixed by the name");
+    let version = stdout.strip_prefix("lokahi ").expect("version is prefixed by the name");
     assert_eq!(version.lines().count(), 1, "unexpected short version: {stdout}");
 }
 

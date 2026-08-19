@@ -12,7 +12,7 @@ contents:
     - libgcc
     - libstdc++
     - openssl
-    - rust-supernode@local
+    - lokahi@local
     - apk-tools
 
 environment:
@@ -32,8 +32,8 @@ accounts:
   run-as: 65532
 
 entrypoint:
-  command: /usr/local/bin/rust-supernode
+  command: /usr/local/bin/lokahi
 
 annotations:
   org.opencontainers.image.source: https://github.com/ethereum-optimism/optimism
-  org.opencontainers.image.title: rust-supernode
+  org.opencontainers.image.title: lokahi

@@ -1,5 +1,5 @@
 # Consolidated build for the Rust services of the optimism monorepo. kona,
-# op-reth, and rust-supernode live in the same cargo workspace (rust/) with a
+# op-reth, and lokahi live in the same cargo workspace (rust/) with a
 # single Cargo.lock, so one melange run shares the whole common dependency
 # graph (alloy, op-alloy, revm, ...) across all six binaries instead of
 # compiling it once per CI leg. The main pipeline builds all six binaries once
@@ -55,7 +55,7 @@ pipeline:
       install-output: "false"
       modroot: rust
       profile: "${MELANGE_CARGO_PROFILE}"
-      opts: --locked --package op-reth --package kona-node --package kona-host --package kona-client --package kona-sp1-proposer --package rust-supernode
+      opts: --locked --package op-reth --package kona-node --package kona-host --package kona-client --package kona-sp1-proposer --package lokahi
 
 subpackages:
   - name: op-reth
@@ -118,14 +118,14 @@ subpackages:
         with:
           opts: -g --remove-section=.note.package
 
-  - name: rust-supernode
-    description: rust-supernode — OP Stack multi-chain consensus-layer host
+  - name: lokahi
+    description: lokahi — OP Stack multi-chain consensus-layer host
     pipeline:
       - runs: |
           profile="${MELANGE_CARGO_PROFILE:-release}"
           install -Dm755 \
-            "${CARGO_TARGET_DIR}/rust/${profile}/rust-supernode" \
-            "${{targets.contextdir}}/usr/local/bin/rust-supernode"
+            "${CARGO_TARGET_DIR}/rust/${profile}/lokahi" \
+            "${{targets.contextdir}}/usr/local/bin/lokahi"
       - uses: strip
         with:
           opts: -g --remove-section=.note.package
