@@ -1,7 +1,14 @@
-//! Byte-exact key/value encoding for the safe-head database.
+//! Key/value encoding for the safe-head database.
 //!
-//! Keys and values match the `op-node` `safedb` layout exactly so that databases are
-//! interchangeable between the Go and Rust implementations.
+//! Each record is one entry in the "safe head by L1 block number" column:
+//!
+//! ```text
+//! key   (9 bytes):  0x00 | L1 block number (big-endian u64)
+//! value (72 bytes): L1 block hash (32) | L2 block hash (32) | L2 block number (big-endian u64)
+//! ```
+//!
+//! The L1 block number lives in the key so that big-endian ordering makes the store iterate
+//! records in ascending L1 order, which is what the range and seek queries rely on.
 
 use crate::{error::SafeDbError, traits::SafeHeadRecord};
 use alloy_eips::BlockNumHash;

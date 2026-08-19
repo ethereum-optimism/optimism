@@ -1,7 +1,7 @@
 [package]
-name = "kona-safedb-v3"
+name = "kona-safedb"
 version = "0.1.0"
-description = "Derivation safe-head database (v3 interface) for the OP Stack rollup node"
+description = "Derivation safe-head database for the OP Stack rollup node"
 
 edition.workspace = true
 authors.workspace = true
@@ -37,6 +37,6 @@ tempfile.workspace = true
 
 [features]
 default = []
-# Enables the on-disk [`SafeDatabaseV3`] backend. Off by default so that consumers needing only the
-# `SafeDbV3` trait (or `DisabledDatabaseV3`) avoid the rocksdb/libclang build dependency.
+# Enables the on-disk [`SafeDatabase`] backend. Off by default so that consumers needing only the
+# `SafeDb` trait (or `DisabledDatabase`) avoid the rocksdb/libclang build dependency.
 rocksdb = ["dep:rocksdb"]
