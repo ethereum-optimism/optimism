@@ -2,7 +2,7 @@
 
 use crate::{BlockStateDiff, api::OpProofsProviderRO, provider::OpProofsStateProviderRef};
 use alloy_eips::eip1898::BlockWithParent;
-use alloy_primitives::{Address, B256, BlockNumber, Bytes, StorageValue, keccak256};
+use alloy_primitives::{Address, B256, BlockNumber, Bytes, StorageValue, U256, keccak256};
 use reth_primitives_traits::{Account, Bytecode};
 use reth_provider::{
     AccountReader, BlockHashReader, BytecodeReader, HashedPostStateProvider, ProviderResult,
@@ -282,6 +282,28 @@ where
     P: OpProofsProviderRO + Clone,
 {
     fn hashed_post_state(&self, bundle_state: &BundleState) -> ProviderResult<HashedPostState> {
-        self.inner.hashed_post_state(bundle_state)
+        let mut hashed_state = self.inner.hashed_post_state(bundle_state)?;
+
+        // `self.inner` zeroes destroyed accounts' storage against the *persisted* proofs
+        // storage only. Slots written by blocks still in the buffer live in the overlay, so
+        // zero those too, or a destroyed account stays partially wiped and the state root is
+        // wrong. Mirrors upstream's `MemoryOverlayStateProviderRef::hashed_post_state`.
+        for (address, account) in bundle_state.state() {
+            // Accounts created in this bundle cannot have parent storage to zero.
+            if !account.was_destroyed() || account.original_info.is_none() {
+                continue;
+            }
+
+            let hashed_address = keccak256(address);
+            let Some(parent_storage) = self.trie_input().state.storages.get(&hashed_address) else {
+                continue;
+            };
+            let storage = &mut hashed_state.storages.entry(hashed_address).or_default().storage;
+            for hashed_slot in parent_storage.storage.keys() {
+                storage.entry(*hashed_slot).or_insert(U256::ZERO);
+            }
+        }
+
+        Ok(hashed_state)
     }
 }
