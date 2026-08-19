@@ -5,7 +5,7 @@ use std::{env, sync::OnceLock};
 use anyhow::{Context, Result};
 use opentelemetry::{KeyValue, global};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use opentelemetry_otlp::{ExportConfig, LogExporter, Protocol, WithExportConfig};
+use opentelemetry_otlp::{LogExporter, Protocol, WithExportConfig};
 use opentelemetry_sdk::{Resource, logs::SdkLoggerProvider, propagation::TraceContextPropagator};
 use tracing_subscriber::{
     EnvFilter, Layer, Registry, fmt::format::JsonFields, layer::SubscriberExt,
@@ -110,11 +110,8 @@ pub fn setup_logger(prefix: &str) {
         let log_export_layer: Option<Box<dyn Layer<_> + Send + Sync>> = if otlp_enabled {
             let export_layer = LogExporter::builder()
                 .with_tonic()
-                .with_export_config(ExportConfig {
-                    endpoint: Some(otlp_endpoint.clone()),
-                    protocol: Protocol::Grpc,
-                    ..Default::default()
-                })
+                .with_endpoint(otlp_endpoint.clone())
+                .with_protocol(Protocol::Grpc)
                 .build()
                 .context("Failed to create OpenTelemetry log exporter")?;
             let logger_provider = SdkLoggerProvider::builder()

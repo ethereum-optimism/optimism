@@ -94,7 +94,10 @@ impl SpanProcessor for MetricsSpanProcessor {
         Ok(())
     }
 
-    fn shutdown(&self) -> opentelemetry_sdk::error::OTelSdkResult {
+    fn shutdown_with_timeout(
+        &self,
+        _timeout: std::time::Duration,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
         Ok(())
     }
 }
