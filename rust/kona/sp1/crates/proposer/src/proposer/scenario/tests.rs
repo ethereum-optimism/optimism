@@ -448,11 +448,37 @@ async fn insert_allocated_task(
     proposer.tasks.lock().await.insert(task_id, (handle, info));
 }
 
-fn pending_handle() -> tokio::task::JoinHandle<anyhow::Result<TaskSuccess>> {
-    tokio::spawn(async {
-        std::future::pending::<()>().await;
-        Ok(TaskSuccess::Completed)
-    })
+struct ParkedTask {
+    task_id: u64,
+    barrier: NamedBarrier,
+}
+
+impl ParkedTask {
+    async fn insert(proposer: &Proposer, info: TaskInfo, barrier_name: &str) -> Self {
+        let task_id = allocate_task_id(proposer);
+        let barrier = NamedBarrier::new(barrier_name);
+        let task_barrier = barrier.clone();
+        insert_allocated_task(
+            proposer,
+            task_id,
+            info,
+            tokio::spawn(async move {
+                task_barrier.park(task_id).await;
+                Ok(TaskSuccess::Completed)
+            }),
+        )
+        .await;
+        barrier.wait_until_reached().await;
+        Self { task_id, barrier }
+    }
+
+    async fn record(&self, control: &mut ScenarioControl) {
+        control.record_parked(self.task_id, &self.barrier).await.unwrap();
+    }
+
+    fn release(&self) {
+        self.barrier.release();
+    }
 }
 
 #[tokio::test(start_paused = true)]
@@ -538,6 +564,7 @@ async fn sync_error_skips_reaping_and_scheduling() {
     let view = Arc::new(ScenarioL1View::new());
     view.fail_latest_head.store(true, Ordering::Relaxed);
     let proposer = proposer_with(test_config(30), view).await;
+    let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
     let (done_tx, done_rx) = oneshot::channel();
     let completed = insert_task(
         &proposer,
@@ -551,21 +578,22 @@ async fn sync_error_skips_reaping_and_scheduling() {
     let _ = done_rx.await;
     let next_id_before = proposer.next_task_id.load(Ordering::Relaxed);
 
-    assert!(proposer.cycle().await.is_err());
+    assert!(matches!(control.tick().await, Err(ScenarioError::Cycle(_))));
 
     assert!(proposer.tasks.lock().await.contains_key(&completed));
     assert_eq!(proposer.next_task_id.load(Ordering::Relaxed), next_id_before);
 }
 
 #[tokio::test]
-async fn cycle_schedules_other_work_when_creation_planning_fails() {
+async fn tick_schedules_other_work_when_creation_planning_fails() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view.clone()).await;
     proposer.sync_state().await.unwrap();
     proposer.state.write().await.games.insert(U256::ONE, challenged_game(1, 5_000));
     view.fail_respected_game_type.store(true, Ordering::Relaxed);
+    let mut control = ScenarioControl::new(proposer, Duration::from_secs(1));
 
-    let result = proposer.cycle().await.unwrap();
+    let result = control.tick().await.unwrap();
     assert!(result.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
         OperationSummary::ProveGame { purpose: ProvingPurpose::Defense, .. }
@@ -590,7 +618,7 @@ async fn cycle_schedules_other_work_when_creation_planning_fails() {
 }
 
 #[tokio::test]
-async fn cycle_schedules_resolution_and_claims_when_defense_planning_fails() {
+async fn tick_schedules_resolution_and_claims_when_defense_planning_fails() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view.clone()).await;
     proposer.sync_state().await.unwrap();
@@ -602,8 +630,9 @@ async fn cycle_schedules_resolution_and_claims_when_defense_planning_fails() {
     }
     view.fail_respected_game_type.store(true, Ordering::Relaxed);
     view.fail_latest_l1_timestamp_on.store(2, Ordering::Relaxed);
+    let mut control = ScenarioControl::new(proposer, Duration::from_secs(1));
 
-    let result = proposer.cycle().await.unwrap();
+    let result = control.tick().await.unwrap();
     assert_eq!(
         result
             .scheduled
@@ -662,20 +691,23 @@ async fn snapshot_is_sorted_and_detached_from_proposer_state() {
             },
         );
     }
-    let claim_id = insert_task(
+    let claim = ParkedTask::insert(
         &proposer,
         TaskInfo::from_operation(OperationSummary::ClaimSweep),
-        pending_handle(),
+        "claim sweep",
     )
     .await;
-    let resolution_id = insert_task(
+    let resolution = ParkedTask::insert(
         &proposer,
         TaskInfo::from_operation(OperationSummary::ResolutionSweep),
-        pending_handle(),
+        "resolution sweep",
     )
     .await;
+    let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
+    claim.record(&mut control).await;
+    resolution.record(&mut control).await;
 
-    let result = proposer.cycle().await.unwrap();
+    let result = control.tick().await.unwrap();
     assert_eq!(
         result.snapshot.last_successful_pinned_l1,
         Some(L1BlockRef { number: 1, timestamp: 1_000 })
@@ -698,19 +730,23 @@ async fn snapshot_is_sorted_and_detached_from_proposer_state() {
     );
     assert_eq!(
         result.snapshot.active_tasks.iter().map(|task| task.task_id).collect::<Vec<_>>(),
-        vec![resolution_id, claim_id]
+        vec![resolution.task_id, claim.task_id]
     );
     let snapshot = result.snapshot.clone();
     proposer.pending_games.write().await.clear();
     proposer.state.write().await.anchor_game = None;
     assert_eq!(result.snapshot, snapshot);
+    claim.release();
+    resolution.release();
+    control.settle(&[claim.task_id, resolution.task_id]).await.unwrap();
 }
 
 #[tokio::test]
-async fn cycle_distinguishes_proposal_and_reconciliation_summaries() {
+async fn tick_distinguishes_proposal_and_reconciliation_summaries() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view).await;
-    let proposed = proposer.cycle().await.unwrap();
+    let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
+    let proposed = control.tick().await.unwrap();
     let proposal = proposed
         .scheduled
         .iter()
@@ -741,7 +777,8 @@ async fn cycle_distinguishes_proposal_and_reconciliation_summaries() {
         sequence_number: 7_200,
         parent_game_index: 4,
     });
-    let reconciled = proposer.cycle().await.unwrap();
+    let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
+    let reconciled = control.tick().await.unwrap();
     assert_eq!(
         reconciled.snapshot.in_flight_creation,
         Some(crate::proposer::InFlightCreationSummary {
@@ -938,7 +975,7 @@ async fn settle_rejects_task_reaped_by_later_tick() {
 }
 
 #[tokio::test]
-async fn cycle_caps_defense_tasks_at_concurrency_limit() {
+async fn tick_caps_defense_tasks_at_concurrency_limit() {
     let view = Arc::new(ScenarioL1View::new());
     let mut config = test_config(30);
     config.max_concurrent_defense_tasks = NonZeroU64::new(2).unwrap();
@@ -951,18 +988,20 @@ async fn cycle_caps_defense_tasks_at_concurrency_limit() {
         }
     }
     let game_one = challenged_game(1, 5_000);
-    insert_task(
+    let active = ParkedTask::insert(
         &proposer,
         TaskInfo::from_operation(OperationSummary::ProveGame {
             factory_index: game_one.index,
             address: game_one.address,
             purpose: ProvingPurpose::Defense,
         }),
-        pending_handle(),
+        "active defense",
     )
     .await;
+    let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
+    active.record(&mut control).await;
 
-    let result = proposer.cycle().await.unwrap();
+    let result = control.tick().await.unwrap();
     let proving = result
         .scheduled
         .iter()
@@ -983,36 +1022,42 @@ async fn cycle_caps_defense_tasks_at_concurrency_limit() {
             .count(),
         2
     );
+    active.release();
+    control.settle(&[active.task_id]).await.unwrap();
 }
 
 #[tokio::test]
-async fn cycle_does_not_schedule_singletons_when_they_are_active() {
+async fn tick_does_not_schedule_singletons_when_they_are_active() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view).await;
     proposer.sync_state().await.unwrap();
-    insert_task(
+    let creation = ParkedTask::insert(
         &proposer,
         TaskInfo::from_operation(OperationSummary::ProposeGame {
             sequence_number: 9,
             parent_game_index: 8,
         }),
-        pending_handle(),
+        "creation",
     )
     .await;
-    insert_task(
+    let resolution = ParkedTask::insert(
         &proposer,
         TaskInfo::from_operation(OperationSummary::ResolutionSweep),
-        pending_handle(),
+        "resolution",
     )
     .await;
-    insert_task(
+    let claim = ParkedTask::insert(
         &proposer,
         TaskInfo::from_operation(OperationSummary::ClaimSweep),
-        pending_handle(),
+        "claim",
     )
     .await;
+    let mut control = ScenarioControl::new(proposer, Duration::from_secs(1));
+    creation.record(&mut control).await;
+    resolution.record(&mut control).await;
+    claim.record(&mut control).await;
 
-    let result = proposer.cycle().await.unwrap();
+    let result = control.tick().await.unwrap();
 
     assert!(!result.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
@@ -1030,6 +1075,10 @@ async fn cycle_does_not_schedule_singletons_when_they_are_active() {
             .iter()
             .any(|scheduled| matches!(scheduled.operation, OperationSummary::ClaimSweep))
     );
+    creation.release();
+    resolution.release();
+    claim.release();
+    control.settle(&[creation.task_id, resolution.task_id, claim.task_id]).await.unwrap();
 }
 
 #[tokio::test]
