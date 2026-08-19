@@ -487,9 +487,9 @@ hack-tests-default partition="" shuffle="false" seed="default":
 ########################### Release #################################
 
 # Release crates at the given version.
-# target: either "workspace" (releases every subdir under rust/ except op-reth,
-#         in dependency order) or one of the subdir names (op-alloy,
-#         alloy-op-hardforks, alloy-op-evm, op-revm, kona).
+# target: either "workspace" (releases every subdir under rust/ that
+#         RELEASED_SUBDIRS covers, in dependency order) or one of those subdir
+#         names (op-alloy, alloy-op-hardforks, alloy-op-evm, op-revm, kona).
 # mode: "dry" (default, prints changes without applying) or "execute"
 # Extra args are forwarded to `cargo release`.
 # kona is split into two topologically-ordered batches to stay under the
@@ -532,27 +532,32 @@ release TARGET VERSION MODE="dry" *ARGS="":
     fi
 
     # Release order is dependency-driven: foundational crates first, kona last.
-    ALL_SUBDIRS="op-alloy alloy-op-hardforks alloy-op-evm op-revm kona"
+    RELEASED_SUBDIRS="op-alloy alloy-op-hardforks alloy-op-evm op-revm kona"
 
-    EXPECTED_SUBDIRS=$(echo "$ALL_SUBDIRS" | tr ' ' '\n' | sort -u)
-    ACTUAL_SUBDIRS=$(echo "$METADATA" \
-      | jq -r '.packages[].manifest_path' \
-      | sed -nE 's|.*/rust/([^/]+)/.*|\1|p' \
-      | grep -vx 'op-reth' \
-      | sort -u)
-    if [[ "$EXPECTED_SUBDIRS" != "$ACTUAL_SUBDIRS" ]]; then
-      echo "error: hardcoded ALL_SUBDIRS list doesn't match actual subdirs under rust/." >&2
-      echo "  diff (expected vs actual):" >&2
-      diff <(echo "$EXPECTED_SUBDIRS") <(echo "$ACTUAL_SUBDIRS") >&2 || true
-      echo "  Update ALL_SUBDIRS in rust/justfile." >&2
+    # Subdirs this recipe deliberately does not release: op-reth releases on its
+    # own cadence, and the others hold internal crates (build metadata, test
+    # support, work in progress) that no workspace release covers.
+    SKIPPED_SUBDIRS="op-reth op-version revm-ee-tests op-reth-test-engine"
+
+    # Every subdir has to be classified, so a new one fails here rather than
+    # being silently left out of a release. Only unclassified subdirs are an
+    # error; a stale name in either list releases nothing, because its package
+    # list comes out empty below.
+    UNCLASSIFIED=$(comm -23 \
+      <(echo "$METADATA" | jq -r '.packages[].manifest_path' | sed -nE 's|.*/rust/([^/]+)/.*|\1|p' | sort -u) \
+      <(echo "$RELEASED_SUBDIRS $SKIPPED_SUBDIRS" | tr ' ' '\n' | sort -u))
+    if [[ -n "$UNCLASSIFIED" ]]; then
+      echo "error: subdirs under rust/ that neither release list covers:" >&2
+      echo "$UNCLASSIFIED" | sed 's/^/    /' >&2
+      echo "  Add each to RELEASED_SUBDIRS (in dependency order) or SKIPPED_SUBDIRS in rust/justfile." >&2
       exit 1
     fi
 
     case "{{TARGET}}" in
-      workspace) SUBDIRS="$ALL_SUBDIRS" ;;
+      workspace) SUBDIRS="$RELEASED_SUBDIRS" ;;
       *)
-        if ! echo " $ALL_SUBDIRS " | grep -q " {{TARGET}} "; then
-          echo "error: unknown target '{{TARGET}}'. Must be 'workspace' or one of: $ALL_SUBDIRS" >&2
+        if ! echo " $RELEASED_SUBDIRS " | grep -q " {{TARGET}} "; then
+          echo "error: unknown target '{{TARGET}}'. Must be 'workspace' or one of: $RELEASED_SUBDIRS" >&2
           exit 1
         fi
         SUBDIRS="{{TARGET}}"
