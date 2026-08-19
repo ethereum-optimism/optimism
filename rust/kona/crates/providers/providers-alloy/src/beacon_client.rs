@@ -3,13 +3,14 @@
 #[cfg(feature = "metrics")]
 use crate::Metrics;
 use crate::blobs::BoxedBlob;
-use alloy_eips::eip4844::{env_settings::EnvKzgSettings, kzg_to_versioned_hash};
+use alloy_eips::eip4844::{
+    Blob as AlloyBlob, deserialize_blob, env_settings::EnvKzgSettings, kzg_to_versioned_hash,
+};
 use alloy_primitives::{B256, FixedBytes};
-use alloy_rpc_types_beacon::sidecar::GetBlobsResponse;
 use async_trait::async_trait;
 use c_kzg::Blob;
 use reqwest::{self, Client};
-use std::{boxed::Box, collections::HashMap, format, string::String, vec::Vec};
+use std::{boxed::Box, format, string::String, vec::Vec};
 use thiserror::Error;
 
 /// The config spec engine api method.
@@ -96,6 +97,19 @@ pub trait BeaconClient {
 }
 
 const BLOB_SIZE: usize = 131072;
+
+/// A beacon API blob decoded directly into its final heap allocation.
+///
+/// [`alloy_rpc_types_beacon::sidecar::GetBlobsResponse`] stores blobs inline in a `Vec<Blob>`.
+/// Deserializing the 128 KiB fixed-size values through serde can exhaust a Tokio worker's stack.
+#[derive(Debug, serde::Deserialize)]
+struct BoxedBeaconBlob(#[serde(deserialize_with = "deserialize_blob")] Box<AlloyBlob>);
+
+/// The subset of the beacon API blob response used by the online provider.
+#[derive(Debug, serde::Deserialize)]
+struct BoxedGetBlobsResponse {
+    data: Vec<BoxedBeaconBlob>,
+}
 
 /// [`blob_versioned_hash`] computes the versioned hash of a blob.
 fn blob_versioned_hash(blob: &FixedBytes<BLOB_SIZE>) -> Result<B256, BeaconClientError> {
@@ -184,27 +198,28 @@ impl OnlineBeaconClient {
         }
 
         let response = response.error_for_status()?;
-        let bundle = response.json::<GetBlobsResponse>().await?;
+        let bundle = response.json::<BoxedGetBlobsResponse>().await?;
 
-        let returned_blobs_mapped_by_hash = bundle
+        let mut returned_blobs = bundle
             .data
-            .iter()
+            .into_iter()
             .map(|data| -> Result<_, BeaconClientError> {
-                let recomputed_hash = blob_versioned_hash(data)?;
-                Ok((recomputed_hash, data))
+                let recomputed_hash = blob_versioned_hash(&data.0)?;
+                Ok((recomputed_hash, data.0))
             })
-            .collect::<Result<HashMap<_, _>, BeaconClientError>>()?;
+            .collect::<Result<Vec<_>, BeaconClientError>>()?;
 
-        // Map the input (blob_hashes) into the output,
-        // finding the blob from the response
-        // whose hash matches the input:
+        // Map the input blob hashes into the output while moving each blob's existing allocation.
+        // Using a vector also preserves duplicate blobs in a response.
         blob_hashes
             .iter()
             .map(|blob_hash| -> Result<BoxedBlob, BeaconClientError> {
-                let matching_data = returned_blobs_mapped_by_hash
-                    .get(blob_hash)
+                let position = returned_blobs
+                    .iter()
+                    .position(|(recomputed_hash, _)| recomputed_hash == blob_hash)
                     .ok_or(BeaconClientError::BlobNotFound(blob_hash.to_string()))?;
-                Ok(BoxedBlob { blob: Box::new(**matching_data) })
+                let (_, blob) = returned_blobs.swap_remove(position);
+                Ok(BoxedBlob { blob })
             })
             .collect::<Result<Vec<_>, BeaconClientError>>()
     }
