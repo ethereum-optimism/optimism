@@ -1,9 +1,9 @@
-//! A [`rocksdb`]-backed [`SafeDbV2`] implementation.
+//! A [`rocksdb`]-backed [`SafeDb`] implementation.
 
 use crate::{
     encoding::SafeByL1BlockNum,
     error::SafeDbError,
-    traits::{SafeDbV2, SafeHeadRecord},
+    traits::{SafeDb, SafeHeadRecord},
 };
 use alloy_eips::BlockNumHash;
 use kona_protocol::L2BlockInfo;
@@ -15,15 +15,14 @@ use std::{
 
 /// A safe-head database that persists records to a [`rocksdb`] store.
 ///
-/// The store is held behind an [`RwLock`] so that [`SafeDatabaseV2::close`] can drop it while
-/// ensuring no read iterator is still borrowing it, mirroring the read/write exclusion of the Go
-/// implementation.
+/// The store is held behind an [`RwLock`] so that [`SafeDatabase::close`] can drop it while
+/// ensuring no read iterator is still borrowing it.
 #[derive(Debug)]
-pub struct SafeDatabaseV2 {
+pub struct SafeDatabase {
     inner: RwLock<Option<DB>>,
 }
 
-impl SafeDatabaseV2 {
+impl SafeDatabase {
     /// Opens (creating if necessary) a safe-head database at `path`.
     pub fn new(path: impl AsRef<Path>) -> Result<Self, SafeDbError> {
         let mut options = Options::default();
@@ -40,7 +39,7 @@ impl SafeDatabaseV2 {
         self.inner.write().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Write options that fsync each write, matching the Go implementation's synchronous writes.
+    /// Write options that fsync each write, so a recorded safe head survives a crash.
     fn sync_write_options() -> WriteOptions {
         let mut options = WriteOptions::default();
         options.set_sync(true);
@@ -49,8 +48,8 @@ impl SafeDatabaseV2 {
 
     /// Read options bounding iteration to the "safe head by L1 block number" column.
     ///
-    /// The upper bound is exclusive, matching the Go implementation's `IterRange`. Without these
-    /// bounds an iterator would walk into any other column a future schema adds.
+    /// The upper bound is exclusive. Without these bounds an iterator would walk into any other
+    /// column a future schema adds.
     fn column_read_options() -> ReadOptions {
         let mut options = ReadOptions::default();
         options.set_iterate_lower_bound(SafeByL1BlockNum::key(0).to_vec());
@@ -66,7 +65,7 @@ impl SafeDatabaseV2 {
     }
 }
 
-impl SafeDbV2 for SafeDatabaseV2 {
+impl SafeDb for SafeDatabase {
     fn enabled(&self) -> bool {
         true
     }
@@ -135,7 +134,7 @@ impl SafeDbV2 for SafeDatabaseV2 {
         let guard = self.read_guard();
         let db = guard.as_ref().ok_or(SafeDbError::Closed)?;
         let mut iter = db.raw_iterator_opt(Self::column_read_options());
-        // Largest key <= l1_block_num, equivalent to the Go `SeekLT(l1_block_num + 1)`.
+        // Largest key <= l1_block_num.
         iter.seek_for_prev(SafeByL1BlockNum::key(l1_block_num));
         if !iter.valid() {
             iter.status()?;

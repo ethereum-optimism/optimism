@@ -1,6 +1,6 @@
 //! Error type for the safe-head database.
 
-/// Errors returned by [`SafeDbV2`](crate::SafeDbV2) implementations.
+/// Errors returned by [`SafeDb`](crate::SafeDb) implementations.
 #[derive(Debug, thiserror::Error)]
 pub enum SafeDbError {
     /// No matching entry was found.

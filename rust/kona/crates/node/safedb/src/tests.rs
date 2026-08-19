@@ -44,8 +44,7 @@ mod encoding {
 
     #[test]
     fn key_layout_is_exact() {
-        // One prefix byte (0x00) followed by the big-endian L1 block number. This exact layout
-        // is what makes an on-disk database interchangeable with the Go implementation.
+        // One prefix byte (0x00) followed by the big-endian L1 block number.
         let key = SafeByL1BlockNum::key(0x0102_0304_0506_0708);
         assert_eq!(key, [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
     }
@@ -110,7 +109,7 @@ mod encoding {
 
 #[cfg(feature = "rocksdb")]
 mod safe_db {
-    use crate::{SafeDatabaseV3, SafeDbError, SafeDbV3, SafeHeadRecord};
+    use crate::{SafeDatabase, SafeDb, SafeDbError, SafeHeadRecord};
     use alloy_eips::BlockNumHash;
     use alloy_primitives::B256;
     use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -141,9 +140,9 @@ mod safe_db {
         }
     }
 
-    fn open() -> (TempDir, SafeDatabaseV3) {
+    fn open() -> (TempDir, SafeDatabase) {
         let dir = TempDir::new().unwrap();
-        let db = SafeDatabaseV3::new(dir.path()).unwrap();
+        let db = SafeDatabase::new(dir.path()).unwrap();
         (dir, db)
     }
 
@@ -160,7 +159,7 @@ mod safe_db {
         let l1a = id(0x01, 0xaa, 100);
         let l1b = id(0x01, 0xbb, 150);
 
-        let verify = |db: &SafeDatabaseV3| {
+        let verify = |db: &SafeDatabase| {
             assert!(matches!(db.safe_head_at_l1(l1a.number - 1), Err(SafeDbError::NotFound)));
             assert_record(db.safe_head_at_l1(l1a.number).unwrap(), l1a, l2a.block_info.id());
             assert_record(db.safe_head_at_l1(l1a.number + 1).unwrap(), l1a, l2a.block_info.id());
@@ -168,14 +167,14 @@ mod safe_db {
             assert_record(db.safe_head_at_l1(l1b.number + 1).unwrap(), l1b, l2b.block_info.id());
         };
 
-        let db = SafeDatabaseV3::new(dir.path()).unwrap();
+        let db = SafeDatabase::new(dir.path()).unwrap();
         db.safe_head_updated(l2a, l1a).unwrap();
         db.safe_head_updated(l2b, l1b).unwrap();
         verify(&db);
 
         // Close and reopen to confirm the data is durable.
         db.close().unwrap();
-        let reopened = SafeDatabaseV3::new(dir.path()).unwrap();
+        let reopened = SafeDatabase::new(dir.path()).unwrap();
         verify(&reopened);
     }
 
@@ -310,7 +309,7 @@ mod safe_db {
         db.safe_head_updated(l2b, l1b).unwrap();
         db.safe_head_updated(l2c, l1c).unwrap();
 
-        let verify = |db: &SafeDatabaseV3| {
+        let verify = |db: &SafeDatabase| {
             assert_record(db.safe_head_at_l1(l1a.number).unwrap(), l1a, l2a.block_info.id());
             assert_record(db.safe_head_at_l1(l1b.number).unwrap(), l1b, l2b.block_info.id());
             assert_record(db.safe_head_at_l1(l1c.number).unwrap(), l1c, l2c.block_info.id());
@@ -326,7 +325,7 @@ mod safe_db {
         verify(&db);
     }
 
-    fn populated_l1_at_safe_head_db() -> (TempDir, SafeDatabaseV3) {
+    fn populated_l1_at_safe_head_db() -> (TempDir, SafeDatabase) {
         let (dir, db) = open();
         db.safe_head_updated(l2(0x02, 0xaa, 500, 0), id(0x01, 0xaa, 100)).unwrap();
         db.safe_head_updated(l2(0x02, 0xbb, 510, 0), id(0x01, 0xbb, 110)).unwrap();
@@ -378,20 +377,20 @@ mod safe_db {
         // rocksdb holds an exclusive lock on an open database directory, so a second open of the
         // same path surfaces a backend error.
         let (dir, _held) = open();
-        assert!(matches!(SafeDatabaseV3::new(dir.path()), Err(SafeDbError::Backend(_))));
+        assert!(matches!(SafeDatabase::new(dir.path()), Err(SafeDbError::Backend(_))));
     }
 }
 
 mod disabled {
-    use crate::{DisabledDatabaseV3, SafeDbError, SafeDbV3};
+    use crate::{DisabledDatabase, SafeDb, SafeDbError};
 
     #[test]
     fn l1_at_safe_head_disabled() {
-        assert!(matches!(DisabledDatabaseV3.l1_at_safe_head(500), Err(SafeDbError::NotEnabled)));
+        assert!(matches!(DisabledDatabase.l1_at_safe_head(500), Err(SafeDbError::NotEnabled)));
     }
 
     #[test]
     fn reports_disabled() {
-        assert!(!DisabledDatabaseV3.enabled());
+        assert!(!DisabledDatabase.enabled());
     }
 }

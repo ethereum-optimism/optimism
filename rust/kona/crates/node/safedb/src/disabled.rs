@@ -1,20 +1,20 @@
-//! A no-op [`SafeDbV2`] implementation for hosts that do not record derivation.
+//! A no-op [`SafeDb`] implementation for hosts that do not record derivation.
 
 use crate::{
     error::SafeDbError,
-    traits::{SafeDbV2, SafeHeadRecord},
+    traits::{SafeDb, SafeHeadRecord},
 };
 use alloy_eips::BlockNumHash;
 use kona_protocol::L2BlockInfo;
 
-/// A [`SafeDbV2`] that records nothing and reports itself disabled.
+/// A [`SafeDb`] that records nothing and reports itself disabled.
 ///
 /// Writes succeed as no-ops so callers need not branch on whether recording is enabled, while
 /// reads return [`SafeDbError::NotEnabled`].
 #[derive(Debug, Default, Clone, Copy)]
-pub struct DisabledDatabaseV2;
+pub struct DisabledDatabase;
 
-impl SafeDbV2 for DisabledDatabaseV2 {
+impl SafeDb for DisabledDatabase {
     fn enabled(&self) -> bool {
         false
     }
