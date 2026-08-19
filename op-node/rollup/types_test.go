@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -73,6 +74,23 @@ func TestConfigJSON(t *testing.T) {
 	var roundTripped Config
 	assert.NoError(t, json.Unmarshal(data, &roundTripped))
 	assert.Equal(t, &roundTripped, config)
+}
+
+func TestAltDAConfigMaxInputSize(t *testing.T) {
+	custom := uint64(1_000_000)
+
+	require.Equal(t, uint64(altda.MaxInputSize), (*AltDAConfig)(nil).MaxInputSizeOrDefault())
+	require.Equal(t, uint64(altda.MaxInputSize), (&AltDAConfig{}).MaxInputSizeOrDefault())
+	require.Equal(t, custom, (&AltDAConfig{MaxInputSize: &custom}).MaxInputSizeOrDefault())
+
+	cfg := randConfig()
+	zero := uint64(0)
+	cfg.AltDAConfig = &AltDAConfig{
+		DAChallengeAddress: common.Address{1},
+		CommitmentType:     altda.KeccakCommitmentString,
+		MaxInputSize:       &zero,
+	}
+	require.EqualError(t, cfg.Check(), "altDA max input size must be greater than zero")
 }
 
 // TestConfigChainOpConfigJSONWireFormat pins the on-the-wire serialization of the

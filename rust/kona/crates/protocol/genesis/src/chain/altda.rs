@@ -20,6 +20,8 @@ pub struct AltDAConfig {
     pub da_resolve_window: Option<u64>,
     /// `AltDA` commitment type
     pub da_commitment_type: Option<String>,
+    /// Maximum input size for Keccak commitments.
+    pub da_max_input_size: Option<u64>,
 }
 
 #[cfg(test)]
@@ -36,7 +38,8 @@ mod tests {
             "da_challenge_address": "0x12c6a7db25b20347ca6f5d47e56d5e8219871c6d",
             "da_challenge_window": 1,
             "da_resolve_window": 1,
-            "da_commitment_type": "KeccakCommitment"
+            "da_commitment_type": "KeccakCommitment",
+            "da_max_input_size": 1000000
         }
         "#;
 
@@ -45,6 +48,7 @@ mod tests {
             da_challenge_window: Some(1),
             da_resolve_window: Some(1),
             da_commitment_type: Some("KeccakCommitment".to_string()),
+            da_max_input_size: Some(1_000_000),
         };
 
         let deserialized: AltDAConfig = serde_json::from_str(raw).unwrap();
