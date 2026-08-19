@@ -46,7 +46,7 @@ impl<T> OpContextTr for T where
 /// Type alias for the error type of the `OpEvm`.
 pub type OpError<CTX> = EVMError<<<CTX as ContextTr>::Db as Database>::Error, OpTransactionError>;
 
-/// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::api`
+/// UPSTREAM-MIRROR(copy): revm-handler@42.0.1 `revm_handler::api`
 ///
 /// The `ExecuteEvm` / `ExecuteCommitEvm` / `InspectEvm` / `InspectCommitEvm` /
 /// `SystemCallEvm` impls below reproduce upstream's impls for `revm::Evm` with `OpHandler`
@@ -82,10 +82,16 @@ where
         &mut self,
     ) -> Result<ExecResultAndState<Self::ExecutionResult, Self::State>, Self::Error> {
         let mut h = OpHandler::<_, _, EthFrame<EthInterpreter>>::new();
-        h.run(self).map(|result| {
-            let state = self.finalize();
-            ExecResultAndState::new(result, state)
-        })
+        h.run(self)
+            // finalize (clear) the journal on error; on success the `map`
+            // branch below finalizes it.
+            .inspect_err(|_| {
+                let _ = self.finalize();
+            })
+            .map(|result| {
+                let state = self.finalize();
+                ExecResultAndState::new(result, state)
+            })
     }
 }
 

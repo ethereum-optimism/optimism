@@ -20,15 +20,16 @@ use revm::{
     handler::{
         EthFrame, EvmTr, FrameResult, Handler, MainnetHandler,
         evm::FrameTr,
+        handle_reservoir_remaining_gas,
         handler::EvmTrError,
         post_execution::{self, reimburse_caller},
         pre_execution::{calculate_caller_fee, validate_account_nonce_and_code_with_components},
     },
     inspector::{Inspector, InspectorEvmTr, InspectorHandler},
     interpreter::{
-        Gas, InitialAndFloorGas, interpreter::EthInterpreter, interpreter_action::FrameInit,
+        GasTracker, InitialAndFloorGas, interpreter::EthInterpreter, interpreter_action::FrameInit,
     },
-    primitives::{U256, hardfork::SpecId},
+    primitives::U256,
 };
 use std::{boxed::Box, vec::Vec};
 
@@ -79,7 +80,7 @@ where
     type Error = ERROR;
     type HaltReason = OpHaltReason;
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::validate_env`
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::validate_env`
     ///
     /// Deposits return early: they are pre-verified on L1, so none of the upstream
     /// block/transaction validation applies to them. Non-deposits add the `enveloped_tx`
@@ -109,7 +110,7 @@ where
         self.mainnet.validate_env(evm)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1
     /// `revm_handler::pre_execution::validate_against_state_and_deduct_caller`
     ///
     /// The non-deposit arm reproduces the upstream body with the L1-fee deduction inserted
@@ -195,109 +196,84 @@ where
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::last_frame_result`
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::last_frame_result`
     ///
-    /// Structure, locals and several comment blocks are taken verbatim from the upstream
-    /// default, with the Bedrock/Regolith deposit branches spliced into the ok and revert
-    /// arms. Re-derive as (old upstream default -> new upstream default) applied onto this
-    /// body, leaving the deposit branches byte-identical.
+    /// Structure and comments are taken verbatim from the upstream default: the frame is
+    /// settled into the transaction-level gas exactly as upstream does, and the
+    /// Bedrock/Regolith deposit rules are applied on top of the settled result. Re-derive as
+    /// (old upstream default -> new upstream default) applied onto this body, leaving the
+    /// deposit branch byte-identical.
     fn last_frame_result(
         &mut self,
         evm: &mut Self::Evm,
-        _original_reservoir: u64,
         frame_result: &mut <<Self::Evm as EvmTr>::Frame as FrameTr>::FrameResult,
+        parent_gas: &mut GasTracker,
     ) -> Result<(), Self::Error> {
         let ctx = evm.ctx();
         let tx = ctx.tx();
         let is_deposit = tx.tx_type() == DEPOSIT_TRANSACTION_TYPE;
+        let is_system_transaction = tx.is_system_transaction();
         let tx_gas_limit = tx.gas_limit();
         let is_regolith = ctx.cfg().spec().is_enabled_in(OpSpecId::REGOLITH);
 
-        let instruction_result = frame_result.interpreter_result().result;
-        // Detect a failed top-level CREATE so the intrinsic `create_state_gas`
-        // charged at tx entry can be unwound below. Mirrors the `create_failed`
-        // condition used in `EthFrame::return_result` for nested creates.
-        let create_failed =
-            matches!(frame_result, FrameResult::Create(_)) && !instruction_result.is_ok();
-        let gas = frame_result.gas_mut();
-        let remaining = gas.remaining();
-        let refunded = gas.refunded();
-        let reservoir = gas.reservoir();
-        let state_gas_spent = gas.state_gas_spent();
+        let instruction_result = frame_result.instruction_result();
 
-        // Spend the gas limit. Gas is reimbursed when the tx returns successfully.
-        *gas = Gas::new_spent_with_reservoir(tx_gas_limit, reservoir);
+        // All regular gas was forwarded to the first frame: consume it on the
+        // transaction-level gas; the settle below returns the frame's unused part.
+        parent_gas.spend_all();
 
-        if instruction_result.is_ok() {
-            // On Optimism, deposit transactions report gas usage uniquely to other
-            // transactions due to them being pre-paid on L1.
-            //
-            // Hardfork Behavior:
-            // - Bedrock (success path):
-            //   - Deposit transactions (non-system) report their gas limit as the usage. No
-            //     refunds.
-            //   - Deposit transactions (system) report 0 gas used. No refunds.
-            //   - Regular transactions report gas usage as normal.
-            // - Regolith (success path):
-            //   - Deposit transactions (all) report their gas used as normal. Refunds enabled.
-            //   - Regular transactions report their gas used as normal.
-            if !is_deposit || is_regolith {
-                // Return unused regular gas and unused reservoir gas.
-                gas.erase_cost(remaining);
-                gas.record_refund(refunded);
-            } else if is_deposit && tx.is_system_transaction() {
+        // Settle the frame into the transaction-level gas like a parent frame.
+        handle_reservoir_remaining_gas(
+            instruction_result,
+            parent_gas,
+            frame_result.gas_mut().tracker_mut(),
+        );
+
+        // On Optimism, deposit transactions report gas usage uniquely to other
+        // transactions due to them being pre-paid on L1.
+        //
+        // Hardfork Behavior:
+        // - Bedrock:
+        //   - Deposit transactions (non-system) report their gas limit as the usage. No refunds.
+        //   - Deposit transactions (system) report 0 gas used. No refunds.
+        //   - Regular transactions report gas usage as normal.
+        // - Regolith:
+        //   - Deposit transactions (all) report their gas used as normal. Refunds enabled.
+        //   - Regular transactions report their gas used as normal.
+        //
+        // The settle above already returned the frame's unused regular gas and its refund
+        // counter; a pre-Regolith deposit gets neither, so take both back.
+        if is_deposit && !is_regolith {
+            parent_gas.spend_all();
+            parent_gas.set_refunded(0);
+            if is_system_transaction && instruction_result.is_ok() {
                 // System transactions were a special type of deposit transaction in
                 // the Bedrock hardfork that did not incur any gas costs.
-                gas.erase_cost(tx_gas_limit);
-            }
-        } else if instruction_result.is_revert() {
-            // On Optimism, deposit transactions report gas usage uniquely to other
-            // transactions due to them being pre-paid on L1.
-            //
-            // Hardfork Behavior:
-            // - Bedrock (revert path):
-            //   - Deposit transactions (all) report the gas limit as the amount of gas used on
-            //     failure. No refunds.
-            //   - Regular transactions receive a refund on remaining gas as normal.
-            // - Regolith (revert path):
-            //   - Deposit transactions (all) report the actual gas used as the amount of gas used
-            //     on failure. Refunds on remaining gas enabled.
-            //   - Regular transactions receive a refund on remaining gas as normal.
-            if !is_deposit || is_regolith {
-                // Return unused regular gas.
-                gas.erase_cost(remaining);
+                parent_gas.erase_cost(tx_gas_limit);
             }
         }
 
-        if instruction_result.is_ok() {
-            // Restore state_gas_spent on successful paths (lost by the Gas overwrite above;
-            // the reservoir is carried over by the constructor).
-            gas.set_state_gas_spent(state_gas_spent);
-        } else {
-            // On failure - zero execution state gas: [bal-devnet notes](<https://notes.ethereum.org/@ethpandaops/bal-devnet-4#Changes-vs-bal-devnet-3>)
-            // and [specs](<https://github.com/ethereum/EIPs/pull/11476>)
-            //
-            // State changes rolled back, so recover the pre-tx reservoir value: signed
-            // `reservoir + state_gas_spent` (state_gas_spent can be negative when 0→x→0
-            // restoration refilled more than this tx charged).
-            gas.set_state_gas_spent(0);
-            gas.set_reservoir(reservoir.saturating_add_signed(state_gas_spent));
+        // Refund the EIP-2780 refundable first-frame charge when no account
+        // leaf was created, exactly like `EthFrame::return_result` refunds
+        // the upfront CALL/CREATE state charges of inner frames.
+        if let Some(charge) = frame_result.refundable_state_gas(evm.ctx().cfg().gas_params()) {
+            parent_gas.refill_reservoir(charge);
+            // Unlike an inner frame's caller, the transaction ends here: an
+            // exceptional halt consumes all regular gas, including the
+            // spilled portion the refill just credited back to `remaining`.
+            if instruction_result.is_halt() {
+                parent_gas.spend_all();
+            }
         }
 
-        // EIP-8037: for a failed top-level CREATE (or one that self-destructs in init
-        // code, see EIP-6780), refund the intrinsic `create_state_gas` to the reservoir.
-        // At the top level the charge is deducted in `initial_gas_and_reservoir` rather
-        // than via `record_state_cost`, so it would otherwise stay consumed when the
-        // deployment is rolled back or erased.
-        if create_failed && evm.ctx().cfg().is_amsterdam_eip8037_enabled() {
-            let state_gas_charged = evm.ctx().cfg().gas_params().create_state_gas();
-            gas.refill_reservoir(state_gas_charged);
-        }
+        // The frame result carries the transaction-level gas onward to the
+        // post-execution phase.
+        *frame_result.gas_mut().tracker_mut() = *parent_gas;
 
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::reimburse_caller`
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::reimburse_caller`
     ///
     /// Delegates to upstream `post_execution::reimburse_caller`, adding the operator-fee
     /// refund for non-deposits. Re-check that the upstream helper's signature and semantics
@@ -319,7 +295,7 @@ where
         reimburse_caller(evm.ctx(), frame_result.gas(), additional_refund).map_err(From::from)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::refund`
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::refund`
     ///
     /// Same as upstream except that pre-Regolith deposits get no refund at all.
     fn refund(
@@ -327,7 +303,7 @@ where
         evm: &mut Self::Evm,
         frame_result: &mut <<Self::Evm as EvmTr>::Frame as FrameTr>::FrameResult,
         eip7702_refund: i64,
-    ) {
+    ) -> Result<(), Self::Error> {
         frame_result.gas_mut().record_refund(eip7702_refund);
 
         let is_deposit = evm.ctx().tx().tx_type() == DEPOSIT_TRANSACTION_TYPE;
@@ -336,13 +312,15 @@ where
         // Prior to Regolith, deposit transactions did not receive gas refunds.
         let is_gas_refund_disabled = is_deposit && !is_regolith;
         if !is_gas_refund_disabled {
-            frame_result.gas_mut().set_final_refund(
-                evm.ctx().cfg().spec().into_eth_spec().is_enabled_in(SpecId::LONDON),
-            );
+            frame_result
+                .gas_mut()
+                .set_final_refund(evm.ctx().cfg().gas_params().max_refund_quotient());
         }
+
+        Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::reward_beneficiary`
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::reward_beneficiary`
     ///
     /// Returns early for deposits, otherwise calls the upstream implementation and then pays
     /// the three OP vaults. Re-check on any change to how upstream computes the beneficiary
@@ -396,7 +374,7 @@ where
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::execution_result`
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::execution_result`
     ///
     /// Reproduces the upstream teardown (`take_error`, `post_execution::output`, `commit_tx`,
     /// clearing local state and the frame stack) with the post-Regolith halted-deposit
@@ -429,7 +407,7 @@ where
         Ok(exec_result)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::catch_error`
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::catch_error`
     ///
     /// Overriding this method is what caused the SDM warm-set leak fixed in
     /// <https://github.com/ethereum-optimism/optimism/pull/21723>: revm added
@@ -576,8 +554,8 @@ mod tests {
         database::InMemoryDB,
         database_interface::EmptyDB,
         handler::EthFrame,
-        interpreter::{CallOutcome, CreateOutcome, InstructionResult, InterpreterResult},
-        primitives::{Address, B256, Bytes, bytes},
+        interpreter::{CallOutcome, CreateOutcome, Gas, InstructionResult, InterpreterResult},
+        primitives::{Address, B256, Bytes, bytes, hardfork::SpecId},
         state::AccountInfo,
     };
     use rstest::rstest;
@@ -599,29 +577,44 @@ mod tests {
         let mut handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
 
-        handler.last_frame_result(&mut evm, 0, &mut exec_result).unwrap();
-        handler.refund(&mut evm, &mut exec_result, 0);
+        // The transaction-level gas the handler settles the frame into, built the same way
+        // `Handler::run` does for a transaction with no intrinsic gas.
+        let mut tx_gas = handler.tx_gas(&mut evm, &InitialAndFloorGas::new(0, 0));
+
+        handler.last_frame_result(&mut evm, &mut exec_result, &mut tx_gas).unwrap();
+        handler.refund(&mut evm, &mut exec_result, 0).unwrap();
         *exec_result.gas()
     }
 
     /// Like [`call_last_frame_return`], but wraps the result in a top-level CREATE frame.
+    ///
+    /// `charged_create_state_gas` is what the CREATE path records when it charged the
+    /// conditional EIP-8037 `create_state_gas`; the refund is driven off that flag.
     fn create_last_frame_return(
         ctx: OpContext<EmptyDB>,
         instruction_result: InstructionResult,
         gas: Gas,
+        created_address: Option<Address>,
+        charged_create_state_gas: bool,
     ) -> Gas {
         let mut evm = ctx.build_op();
 
-        let mut exec_result = FrameResult::Create(CreateOutcome::new(
+        let mut outcome = CreateOutcome::new(
             InterpreterResult { result: instruction_result, output: Bytes::new(), gas },
-            None,
-        ));
+            created_address,
+        );
+        outcome.charged_create_state_gas = charged_create_state_gas;
+        let mut exec_result = FrameResult::Create(outcome);
 
         let mut handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
 
-        handler.last_frame_result(&mut evm, 0, &mut exec_result).unwrap();
-        handler.refund(&mut evm, &mut exec_result, 0);
+        // The transaction-level gas the handler settles the frame into, built the same way
+        // `Handler::run` does for a transaction with no intrinsic gas.
+        let mut tx_gas = handler.tx_gas(&mut evm, &InitialAndFloorGas::new(0, 0));
+
+        handler.last_frame_result(&mut evm, &mut exec_result, &mut tx_gas).unwrap();
+        handler.refund(&mut evm, &mut exec_result, 0).unwrap();
         *exec_result.gas()
     }
 
@@ -654,7 +647,13 @@ mod tests {
             .with_tx(OpTransaction::builder().base(TxEnv::builder().gas_limit(100)).build_fill())
             .with_cfg(cfg);
 
-        let gas = create_last_frame_return(ctx, InstructionResult::Revert, gas_with_state_usage());
+        let gas = create_last_frame_return(
+            ctx,
+            InstructionResult::Revert,
+            gas_with_state_usage(),
+            None,
+            true,
+        );
         // Unused regular gas is returned on revert.
         assert_eq!(gas.remaining(), 90);
         assert_eq!(gas.total_gas_spent(), 10);
@@ -673,7 +672,14 @@ mod tests {
             .with_tx(OpTransaction::builder().base(TxEnv::builder().gas_limit(100)).build_fill())
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::KARST));
 
-        let gas = create_last_frame_return(ctx, InstructionResult::Revert, gas_with_state_usage());
+        // Without EIP-8037 the CREATE never charges `create_state_gas`.
+        let gas = create_last_frame_return(
+            ctx,
+            InstructionResult::Revert,
+            gas_with_state_usage(),
+            None,
+            false,
+        );
         assert_eq!(gas.remaining(), 90);
         assert_eq!(gas.total_gas_spent(), 10);
         // No EIP-8037: the pre-tx reservoir is recovered, but no create_state_gas refund.
@@ -687,7 +693,13 @@ mod tests {
             .with_tx(OpTransaction::builder().base(TxEnv::builder().gas_limit(100)).build_fill())
             .with_cfg(amsterdam_cfg());
 
-        let gas = create_last_frame_return(ctx, InstructionResult::Return, gas_with_state_usage());
+        let gas = create_last_frame_return(
+            ctx,
+            InstructionResult::Return,
+            gas_with_state_usage(),
+            Some(Address::repeat_byte(0x11)),
+            true,
+        );
         assert_eq!(gas.remaining(), 90);
         assert_eq!(gas.total_gas_spent(), 10);
         // Success: state gas was genuinely consumed — no recovery, no refill.
@@ -775,6 +787,24 @@ mod tests {
             )
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK));
         let gas = call_last_frame_return(ctx, InstructionResult::Stop, Gas::new(90));
+        assert_eq!(gas.remaining(), 0);
+        assert_eq!(gas.total_gas_spent(), 100);
+        assert_eq!(gas.refunded(), 0);
+    }
+
+    #[test]
+    fn test_revert_gas_deposit_tx_pre_regolith() {
+        let ctx = Context::op()
+            .with_tx(
+                OpTransaction::builder()
+                    .base(TxEnv::builder().gas_limit(100))
+                    .source_hash(B256::from([1u8; 32]))
+                    .build_fill(),
+            )
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK));
+        let gas = call_last_frame_return(ctx, InstructionResult::Revert, Gas::new(90));
+        // Pre-Regolith deposits are pre-paid on L1: a revert still reports the gas limit as
+        // used, so the frame's unused gas is not returned.
         assert_eq!(gas.remaining(), 0);
         assert_eq!(gas.total_gas_spent(), 100);
         assert_eq!(gas.refunded(), 0);

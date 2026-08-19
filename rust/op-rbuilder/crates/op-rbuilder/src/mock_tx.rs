@@ -392,7 +392,7 @@ impl EthPoolTransaction for MockFbTransaction {
     fn take_blob(&mut self) -> EthBlobTransactionSidecar {
         match &self.inner {
             MockTransaction::Eip4844 { sidecar, .. } => {
-                EthBlobTransactionSidecar::Present(sidecar.clone())
+                EthBlobTransactionSidecar::Present(sidecar.clone().into())
             }
             _ => EthBlobTransactionSidecar::None,
         }

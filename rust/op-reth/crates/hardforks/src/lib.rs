@@ -23,7 +23,7 @@ use alloy_primitives::U256;
 use once_cell::sync::Lazy as LazyLock;
 use reth_ethereum_forks::{ChainHardforks, EthereumHardfork, ForkCondition, Hardfork};
 
-/// UPSTREAM-MIRROR(set): reth@rev:aef8d3e `reth_ethereum_forks::DEV_HARDFORKS`
+/// UPSTREAM-MIRROR(set): reth@v2.5.0 `reth_ethereum_forks::DEV_HARDFORKS`
 ///
 /// Mirrors reth's dev hardfork list with the OP forks interleaved. Known to have drifted:
 /// this list carries three Glacier forks upstream's does not, and neither carries Amsterdam

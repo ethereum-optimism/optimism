@@ -79,7 +79,7 @@ where
         Ok(hash)
     }
 
-    /// UPSTREAM-MIRROR(override): reth@rev:aef8d3e
+    /// UPSTREAM-MIRROR(override): reth@v2.5.0
     /// `reth_rpc_eth_api::helpers::EthTransactions::send_raw_transaction_sync`
     ///
     /// Derived from the upstream default: the timeout computation is taken verbatim and the
@@ -190,8 +190,10 @@ where
                     return Ok(Some(receipt));
                 }
             }
-            let Some((tx, meta, receipt, all_receipts)) = tx_receipt else { return Ok(None) };
-            self.build_transaction_receipt(tx, meta, receipt, all_receipts).await.map(Some)
+            let Some((tx, meta, receipt, all_receipts, block)) = tx_receipt else {
+                return Ok(None);
+            };
+            self.build_transaction_receipt(tx, meta, receipt, all_receipts, block).await.map(Some)
         }
     }
 }

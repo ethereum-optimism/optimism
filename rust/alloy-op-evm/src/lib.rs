@@ -297,7 +297,7 @@ impl<DB: Database, I, P, Tx, R> DerefMut for OpEvm<DB, I, P, Tx, R> {
     }
 }
 
-/// UPSTREAM-MIRROR(delegate): alloy-evm@0.37.1 `alloy_evm::eth::EthEvm`
+/// UPSTREAM-MIRROR(delegate): alloy-evm@0.38.0 `alloy_evm::eth::EthEvm`
 ///
 /// Mirrors upstream's `Evm` impl for `EthEvm`, adding the OP transaction wrapper and the
 /// post-exec refund tracking in `transact_raw`. A method added to the `Evm` trait, or a

@@ -213,7 +213,7 @@ fn backfill_then_forward_write_preserves_state_roots() {
             let block_executor = evm_config.batch_executor(db);
             let exec = block_executor.execute(&block).unwrap();
             let hashed_state =
-                LatestStateProviderRef::new(&provider).hashed_post_state(&exec.state);
+                LatestStateProviderRef::new(&provider).hashed_post_state(&exec.state).unwrap();
             let (state_root, trie_updates) = LatestStateProviderRef::new(&provider)
                 .state_root_with_updates(hashed_state.clone())
                 .unwrap();
