@@ -207,10 +207,6 @@ where
         self.batch = None;
         self.prev.flush_channel().await
     }
-
-    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
-        self.prev.provide_block(block).await
-    }
 }
 
 #[cfg(test)]

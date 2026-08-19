@@ -2,12 +2,12 @@
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
-    EngineActorRequest, EngineConfig, EngineRpcActor, EngineRpcRequest, InteropMode,
-    JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor, NetworkActor, NetworkBuilder,
-    NetworkConfig, NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
+    EngineActorRequest, EngineConfig, EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher,
+    L1OriginSelector, L1WatcherActor, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
+    NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
+    QueuedEngineRpcClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
+    QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient, RpcActor, RpcServerLauncher,
+    SequencerActor, SequencerConfig,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };
@@ -68,8 +68,6 @@ pub struct RollupNode {
     pub(crate) config: Arc<RollupConfig>,
     /// The L1 configuration.
     pub(crate) l1_config: L1Config,
-    /// The interop mode for the node.
-    pub(crate) interop_mode: InteropMode,
     /// The L2 EL provider.
     pub(crate) l2_provider: RootProvider<Optimism>,
     /// Whether to trust the L2 RPC.
@@ -215,24 +213,14 @@ impl RollupNode {
             ),
         );
 
-        match self.interop_mode {
-            InteropMode::Polled => OnlinePipeline::new_polled(
-                self.config.clone(),
-                self.l1_config.chain_config.clone(),
-                OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
-                l1_derivation_provider,
-                l2_derivation_provider,
-                self.dependency_set.clone(),
-            ),
-            InteropMode::Indexed => OnlinePipeline::new_indexed(
-                self.config.clone(),
-                self.l1_config.chain_config.clone(),
-                OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
-                l1_derivation_provider,
-                l2_derivation_provider,
-                self.dependency_set.clone(),
-            ),
-        }
+        OnlinePipeline::new_polled(
+            self.config.clone(),
+            self.l1_config.chain_config.clone(),
+            OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
+            l1_derivation_provider,
+            l2_derivation_provider,
+            self.dependency_set.clone(),
+        )
     }
 
     /// Builds both engine actors. They share a single [`kona_engine::EngineClient`] and a watch
