@@ -2,11 +2,12 @@
 # Validates a commit subject against the Scoped Commits format
 # (https://scopedcommits.com):
 #
-#   <scope>: <description>
+#   <scope>[!]: <description>
 #
 # Multiple comma-separated scopes are permitted (no spaces), and "all" is the
-# scope for tree-wide changes. Conventional Commits type prefixes (feat, fix,
-# chore, ...) are rejected; see CONTRIBUTING.md for the rationale.
+# scope for tree-wide changes. An optional trailing "!" flags a breaking change.
+# Conventional Commits type prefixes (feat, fix, chore, ...) are rejected; see
+# CONTRIBUTING.md for the rationale.
 set -euo pipefail
 
 subject="${1-}"
@@ -14,8 +15,8 @@ subject="${1-}"
 fail() {
   echo "FAIL: ${1}" >&2
   echo "  subject:  '${subject}'" >&2
-  echo "  expected: '<scope>: <description>' where scope names the component or area changed" >&2
-  echo "  examples: 'op-node: handle unsafe head reorgs', 'op-node,op-batcher: share event loop metrics', 'all: update license headers'" >&2
+  echo "  expected: '<scope>[!]: <description>' where scope names the component or area changed" >&2
+  echo "  examples: 'op-node: handle unsafe head reorgs', 'op-node!: remove legacy sync mode', 'op-node,op-batcher: share event loop metrics'" >&2
   echo "  see https://scopedcommits.com and CONTRIBUTING.md" >&2
   exit 1
 }
@@ -45,13 +46,18 @@ if [[ -z "${description// /}" ]]; then
   fail "empty description"
 fi
 
+scope_list="${prefix}"
+if [[ "${scope_list}" == *'!' ]]; then
+  scope_list="${scope_list%!}"
+fi
+
 scope_list_regex='^[a-zA-Z0-9][a-zA-Z0-9._/-]*(,[a-zA-Z0-9][a-zA-Z0-9._/-]*)*$'
-if [[ ! "${prefix}" =~ ${scope_list_regex} ]]; then
-  fail "scope '${prefix}' must be component names ([a-zA-Z0-9._/-]), comma-separated without spaces; 'type(scope):' is not accepted"
+if [[ ! "${scope_list}" =~ ${scope_list_regex} ]]; then
+  fail "scope '${prefix}' must be component names ([a-zA-Z0-9._/-]), comma-separated without spaces, with an optional trailing '!'; 'type(scope):' is not accepted"
 fi
 
 conventional_types=(build chore feat fix perf refactor revert style test upkeep)
-IFS=',' read -ra scopes <<<"${prefix}"
+IFS=',' read -ra scopes <<<"${scope_list}"
 for scope in "${scopes[@]}"; do
   scope_lc="${scope,,}"
   for conventional_type in "${conventional_types[@]}"; do
