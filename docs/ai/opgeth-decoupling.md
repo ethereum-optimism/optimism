@@ -88,6 +88,32 @@ All op-geth-specific code lives in `op-core/` packages (alongside the pre-existi
   (`OptimismConfig`), byte-identical encodings (`DepositTx`: `0x7E || RLP(struct)`), verified by
   the differential tests.
 
+### Cross-implementation parity
+
+Every OP wire format and hash rule has a second implementation in this repo: `rust/op-alloy`
+defines the OP transaction and receipt types that both op-reth and kona consume, opposite op-geth's
+Go definitions that `op-core/*` mirrors. Both sides serve one chain, so a value one produces and
+the other rejects is a consensus split — and agreeing with op-geth establishes only the Go half.
+
+- **op-geth parity is necessary, never sufficient.** The differential tests pin the Go side to
+  the fork; by construction they cannot see a rule where the fork itself is wrong. Any new or
+  changed encoding, hash or accept-set is checked against `rust/op-alloy` too, and a disagreement
+  is a question of which one is correct — decided from the [specs](https://specs.optimism.io), not
+  from the incumbent. Fixing op-geth (and bumping the pin) is a normal outcome.
+- **Pin the agreed value in both languages.** A shared golden vector — the same literal asserted
+  in the Go and the Rust suite — is what keeps the pair locked together;
+  `TestPostExecTxHashGoldenVector` (`op-core/types/post_exec_tx_test.go`) and
+  `rust/op-alloy/crates/consensus/src/post_exec/tests.rs` pin the post-exec (`0x7D`) tx hash this
+  way. Reference-implementation fixtures are not a substitute: they only cover values that
+  implementation can produce.
+- **The vectors outlive the differential tests.** op-geth differential tests are deleted at the
+  cutover (§ #20266). The cross-implementation vectors are not — after the flip they are the only
+  thing tying the Go types to op-reth and kona.
+
+For batcher-controlled bytes (batches, frames, channels) the second implementation is kona's own
+decoder rather than op-alloy's types, and the rule takes a different shape — accept-sets compared
+over a generated corpus rather than single values; see [derivation.md](derivation.md).
+
 ---
 
 ## 0. Remove ProtocolVersions watching from op-node — **DONE**
@@ -422,6 +448,10 @@ wrapping) — small design task, metric names/labels must be preserved. `rpc.Jso
 `op-core/predeploys`) — ride the §2-style call-site swaps (#20263 family). Derive current sites
 by grepping the symbol; listed file snapshots go stale.
 
+**Cutover check:** revisit `op-batcher/batcher.maxFloorDataGas`; check whether the then-current
+upstream `core.FloorDataGas` can replace its local pre- and post-Amsterdam floor calculations while
+preserving the conservative maximum across both rule sets.
+
 ---
 
 ## 16. `op-chain-ops/script` + op-deployer — Rust script engine
@@ -519,7 +549,7 @@ import op-geth-only symbols by design).
 | Test migration: wait.go split, L2 call sites, `L2Client` type, sysgo audit, delete op-e2e/opgeth (§13) | `apis.EthClient` + header-only variants | open (#20265 + subs) |
 | op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | open (#20415 Rust, #21196 Go) |
 | Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
-| op-simulate / op-run-block (§14) | delete | open (#21282) |
+| op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
 | Log context extensions (§15) | owned `op-service/log` layer (alias sweep → owned interface) | open |
 | RPC recorder hooks + `JsonError` (§15) | client wrappers + server-side interception | open |
@@ -527,6 +557,6 @@ import op-geth-only symbols by design).
 | `op-chain-ops/script` + op-deployer (§16) | **Rust script engine** (foundry crates) | open |
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | open |
-| `op-wheel/cheat` (§18) | delete (`engine` stays) | open |
+| `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | CI ratchet (§19) | scheduled upstream-build job + tightening baseline | open |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |

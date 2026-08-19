@@ -44,9 +44,13 @@ alloy-trie.workspace = true
 # general
 anyhow.workspace = true
 async-trait.workspace = true
+bytes.workspace = true
 cfg-if.workspace = true
 c-kzg.workspace = true
 futures.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["http1", "server"] }
+hyper-util = { workspace = true, features = ["tokio"] }
 kzg-rs.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
@@ -57,7 +61,7 @@ rkyv.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["net", "rt", "time"] }
 tracing.workspace = true
 lazy_static.workspace = true
 
@@ -70,6 +74,9 @@ opentelemetry.workspace = true
 opentelemetry_sdk.workspace = true
 opentelemetry-otlp.workspace = true
 opentelemetry-appender-tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

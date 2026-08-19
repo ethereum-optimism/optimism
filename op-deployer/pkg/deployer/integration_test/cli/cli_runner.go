@@ -42,10 +42,14 @@ func WithPrivateKey(pkHex string) CLITestRunnerOption {
 
 func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
 	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-	return &CLITestRunner{
+	runner := &CLITestRunner{
 		workDir: workDir,
 		lgr:     testlog.Logger(t, slog.LevelDebug),
 	}
+	for _, opt := range opts {
+		opt(runner)
+	}
+	return runner
 }
 
 // NewCLITestRunnerWithNetwork creates a new CLI test runner with default network setup.
@@ -125,8 +129,15 @@ func newCaptureOutputWriter() *captureOutputWriter {
 func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]string) (string, error) {
 	// Set up environment variables
 	for key, value := range env {
+		previousValue, existed := os.LookupEnv(key)
 		os.Setenv(key, value)
-		defer os.Unsetenv(key)
+		defer func(key string, previousValue string, existed bool) {
+			if existed {
+				_ = os.Setenv(key, previousValue)
+			} else {
+				_ = os.Unsetenv(key)
+			}
+		}(key, previousValue, existed)
 	}
 
 	// Change to the working directory for the test

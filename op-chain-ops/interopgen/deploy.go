@@ -203,6 +203,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		L1ProxyAdminOwner:               superCfg.ProxyAdminOwner,
 		Challenger:                      superCfg.Challenger,
+		SP1Verifier:                     common.Address{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)

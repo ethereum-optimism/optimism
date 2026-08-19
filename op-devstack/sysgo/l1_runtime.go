@@ -173,6 +173,7 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 		"--verbosity", "5",
 		"--miner.recommit", "2s",
 		"--gcmode", "archive",
+		"--syncmode", "full",
 	}
 	require.NoError(sub.Start(execPath, args, nil), "must start geth subprocess")
 

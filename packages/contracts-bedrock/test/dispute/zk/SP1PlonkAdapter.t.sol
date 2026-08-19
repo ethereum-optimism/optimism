@@ -44,7 +44,7 @@ contract SP1PlonkAdapter_Version_Test is SP1PlonkAdapter_TestInit {
 contract SP1PlonkAdapter_VerifierType_Test is SP1PlonkAdapter_TestInit {
     /// @notice Tests that verifierType returns the expected string.
     function test_verifierType_succeeds() external view {
-        assertEq(adapter.verifierType(), "SP1-PLONK-v6.0.0");
+        assertEq(adapter.verifierType(), "SP1-PLONK-v0.0.0-MOCK");
     }
 }
 

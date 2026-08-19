@@ -1,7 +1,10 @@
 package sysgo
 
 import (
+	"crypto/ecdsa"
+	"fmt"
 	"math/big"
+	"os"
 	"path/filepath"
 	"slices"
 	"time"
@@ -33,7 +36,19 @@ import (
 
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
 const funderMnemonicIndex = 10_000
+
+// FunderKey returns the private key of the genesis-prefunded funder account.
+// Every sysgo runtime prefunds this account at genesis (see the WithPrefundedAccount
+// calls in this package), so tests hand out funds from a prefunded EOA
+// (dsl.NewFunderEOA) rather than a hosted faucet service. Setup transactions
+// using this key must be included before NewFunderEOA snapshots its nonce; the
+// FunderEOA must own the key exclusively thereafter.
+func FunderKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
+	return keys.Secret(devkeys.UserKey(funderMnemonicIndex))
+}
+
 const devFeatureBitmapKey = "devFeatureBitmap"
+const DevstackL1ForkEnvVar = "DEVSTACK_L1_FORK"
 
 // proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used
 // by every L2 predeploy proxy (`bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)`).
@@ -54,10 +69,8 @@ func WithForkAtL1Offset(fork forks.Fork, offset uint64) DeployerOption {
 	}
 }
 
-func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
-	// Once we get the latest changes from op-geth we can change this to
-	// params.DefaultBlobSchedule.
-	builder.L1().WithL1BlobSchedule(&params.BlobScheduleConfig{
+func defaultL1BlobSchedule() *params.BlobScheduleConfig {
+	return &params.BlobScheduleConfig{
 		Cancun: params.DefaultCancunBlobConfig,
 		Osaka:  params.DefaultOsakaBlobConfig,
 		Prague: params.DefaultPragueBlobConfig,
@@ -65,7 +78,31 @@ func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuild
 		BPO2:   params.DefaultBPO2BlobConfig,
 		BPO3:   params.DefaultBPO3BlobConfig,
 		BPO4:   params.DefaultBPO4BlobConfig,
-	})
+		// Upstream defaults are not available yet, so keep the latest parameters.
+		BPO5:      params.DefaultBPO4BlobConfig,
+		Amsterdam: params.DefaultBPO4BlobConfig,
+	}
+}
+
+func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	builder.L1().WithL1BlobSchedule(defaultL1BlobSchedule())
+}
+
+// parseL1Fork accepts both Ethereum upgrade names and their geth execution-layer names.
+// BPO selectors are intentionally excluded while the bundled op-geth rejects newPayloadV4 for them.
+func parseL1Fork(value string) (forks.Fork, error) {
+	fork, ok := map[string]forks.Fork{
+		"pectra":      forks.Prague,
+		"prague":      forks.Prague,
+		"fusaka":      forks.Osaka,
+		"osaka":       forks.Osaka,
+		"glamsterdam": forks.Amsterdam,
+		"amsterdam":   forks.Amsterdam,
+	}[value]
+	if ok {
+		return fork, nil
+	}
+	return 0, fmt.Errorf("unsupported L1 fork %q", value)
 }
 
 func WithKarstAtOffset(offset *uint64) DeployerOption {
@@ -248,11 +285,18 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		l1StartTimestamp := uint64(time.Now().Unix()) + 1
 		l1Config.WithTimestamp(l1StartTimestamp)
 
-		l1Config.WithL1ForkAtGenesis(forks.Prague) // activate pectra on L1
+		l1Fork := forks.Prague // activate Pectra on L1 by default
+		if value, ok := os.LookupEnv(DevstackL1ForkEnvVar); ok {
+			var err error
+			l1Fork, err = parseL1Fork(value)
+			p.Require().NoError(err, "invalid %s", DevstackL1ForkEnvVar)
+		}
+		l1Config.WithL1BlobSchedule(defaultL1BlobSchedule())
+		l1Config.WithL1ForkAtGenesis(l1Fork)
 
-		faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+		funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 		p.Require().NoError(err, "need funder addr")
-		l1Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+		l1Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 
 		// We use the L1 chain ID to identify the superchain-wide roles.
 		addrFor := intentbuilder.RoleToAddrProvider(p, keys, l1ChainID)
@@ -279,9 +323,9 @@ func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
 		// l2configurator L1ProxyAdminOwner must be also populated
 		intentbuilder.WithDevkeyL1Roles(p, keys, l2Config, l1ChainID)
 		{
-			faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+			funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 			p.Require().NoError(err, "need funder addr")
-			l2Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+			l2Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 		}
 		{
 			addrFor := intentbuilder.RoleToAddrProvider(p, keys, l2ChainID)
@@ -542,6 +586,8 @@ func (wb *worldBuilder) Build() {
 		State:              st,
 		Logger:             wb.logger,
 		StateWriter:        wb, // direct output back here
+		// Devstack deliberately uses an accept-all raw verifier when ZK dispute games are enabled.
+		DeployMockSP1Verifier: true,
 	}
 	for _, opt := range wb.deployerPipelineOptions {
 		opt(wb, intent, &pipelineOpts)

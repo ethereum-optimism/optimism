@@ -3,6 +3,7 @@ package sysgo
 import (
 	"context"
 	"math/big"
+	"os"
 	"runtime"
 	"sort"
 	"time"
@@ -75,23 +76,27 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 		}
 		sharedDGF := migrateSuperRootsWithProposal(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, startingAnchor, proofChain.Network.ChainID())
 		if cfg.ZKDisputeGame != nil {
-			setInteropZKDisputeGameForRuntime(
+			elfDir := os.Getenv(konaSP1ELFDirEnv)
+			programVKey, err := loadZKProgramVKey(elfDir)
+			t.Require().NoError(err, "load Kona SP1 super-aggregation vkey")
+			setInteropZKDisputeGameViaUpgrade(
 				t,
 				runtime.Keys,
 				runtime.Migration,
 				runtime.L1Network.ChainID(),
 				runtime.L1EL,
-				startingAnchor,
 				sharedDGF,
+				programVKey,
 				*cfg.ZKDisputeGame,
+				proofChain.Network.ChainID(),
 			)
+			nets := make([]*L2Network, 0, len(chains))
+			els := make([]L2ELNode, 0, len(chains))
+			for _, chain := range chains {
+				nets = append(nets, chain.Network)
+				els = append(els, chain.EL)
+			}
 			if !cfg.SkipHonestChallenger {
-				nets := make([]*L2Network, 0, len(chains))
-				els := make([]L2ELNode, 0, len(chains))
-				for _, chain := range chains {
-					nets = append(nets, chain.Network)
-					els = append(els, chain.EL)
-				}
 				challenger := startInteropChallenger(
 					t,
 					runtime.Keys,
@@ -106,16 +111,26 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 				)
 				runtime.L2ChallengerConfig = challenger.Config()
 			}
-			if !cfg.SkipHonestProposer {
-				startZKProposer(
+			runtime.startZKProposerFn = func() string {
+				return startZKProposer(
 					t,
 					runtime.Keys,
 					proofChain.Network.ChainID(),
+					runtime.L1Network,
 					runtime.L1EL,
+					runtime.L1CL,
+					runtime.DependencySet,
 					runtime.Supernode.UserRPC(),
+					nets,
+					els,
 					sharedDGF,
-					cfg.ZKDisputeGame.ProgramVKey,
+					programVKey,
+					elfDir,
+					cfg.ZKProposerOptions...,
 				)
+			}
+			if !cfg.SkipHonestProposer {
+				runtime.StartZKProposer(t)
 			}
 			return runtime
 		}
@@ -171,19 +186,21 @@ func attachSuperChallengerAndProposer(
 	// The honest challenger for interop super games runs the super-cannon-kona trace regardless of the
 	// proposed game type; proposerGameType configures only the proposer below. SuperPermissioned, for
 	// example, resolves at initialization and is never challenged here.
-	challenger := startInteropChallenger(
-		t,
-		runtime.Keys,
-		runtime.L1Network,
-		runtime.L1EL,
-		runtime.L1CL,
-		runtime.DependencySet,
-		runtime.Supernode.UserRPC(),
-		nets,
-		els,
-		gameTypes.SuperCannonKonaGameType,
-	)
-	runtime.L2ChallengerConfig = challenger.Config()
+	if !cfg.SkipHonestChallenger {
+		challenger := startInteropChallenger(
+			t,
+			runtime.Keys,
+			runtime.L1Network,
+			runtime.L1EL,
+			runtime.L1CL,
+			runtime.DependencySet,
+			runtime.Supernode.UserRPC(),
+			nets,
+			els,
+			gameTypes.SuperCannonKonaGameType,
+		)
+		runtime.L2ChallengerConfig = challenger.Config()
+	}
 
 	if !cfg.SkipHonestProposer {
 		proposerOpts := append([]ProposerOption{

@@ -316,8 +316,8 @@ arg: --rollup.sequencer-headers <SEQUENCER_HEADERS> [action: Append] [num-args: 
 arg: --rollup.historicalrpc <HISTORICAL_HTTP_URL> [action: Set] [num-args: 1] [aliases: rollup.historical-rpc] help: RPC endpoint for historical data
 arg: --min-suggested-priority-fee <MIN_SUGGESTED_PRIORITY_FEE> [action: Set] [num-args: 1] [default: 1000000] help: Minimum suggested priority fee (tip) in wei, default `1_000_000`
 arg: --rollup.max-uncompressed-block-size <MAX_UNCOMPRESSED_BLOCK_SIZE> [action: Set] [num-args: 1] help: Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes
-arg: --flashblocks-url <FLASHBLOCKS_URL> [action: Set] [num-args: 1] [aliases: websocket-url] help: A URL pointing to a secure websocket subscription that streams out flashblocks
-arg: --flashblock-consensus [action: SetTrue] [num-args: 0] [default: false] [requires: [(IsPresent, "flashblocks_url")]] help: Enable flashblock consensus client to drive the chain forward
+arg: --flashblocks-url <FLASHBLOCKS_URL> [action: Set] [num-args: 1] [aliases: websocket-url, subblocks-url] help: A URL pointing to a secure websocket subscription that streams out flashblocks
+arg: --flashblock-consensus [action: SetTrue] [num-args: 0] [aliases: subblocks-consensus] [default: false] [requires: [(IsPresent, "flashblocks_url")]] help: Enable flashblock consensus client to drive the chain forward
 arg: --proofs-history [action: SetTrue] [num-args: 0] [default-values-if: [("proofs-history.storage-path", IsPresent, Some(["true"]))]] help: If true, initialize external-proofs exex to save and serve trie nodes to provide proofs faster
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
 arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node

@@ -36,13 +36,14 @@ type SingleChainInterop struct {
 
 	Wallet *dsl.HDWallet
 
-	FaucetA  *dsl.Faucet
-	FaucetL1 *dsl.Faucet
-	FunderL1 *dsl.Funder
-	FunderA  *dsl.Funder
+	FunderL1 *dsl.FunderEOA
+	FunderA  *dsl.FunderEOA
 
 	// May be nil if not using sysgo
-	challengerConfig *challengerConfig.Config
+	challengerConfig              *challengerConfig.Config
+	zkChallengerSuperRootRPCProxy *sysgo.StallableProxy
+	startZKProposer               func()
+	zkMetricsAddr                 func() string
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -65,6 +66,30 @@ func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 	s.L1EL.AdvanceTime(s.timeTravel, amount)
 }
 
+// StartZKProposer starts the kona-sp1-proposer after a system configured with
+// WithZK and WithoutHonestProposer has seeded its initial dispute games.
+func (s *SingleChainInterop) StartZKProposer() {
+	s.T.Require().NotNil(s.startZKProposer, "ZK proposer is not configured")
+	s.startZKProposer()
+}
+
+// ZKProposerMetricsURL returns the proposer's Prometheus scrape URL. It
+// requires WithZKProposerOption(sysgo.WithZKMetrics()).
+func (s *SingleChainInterop) ZKProposerMetricsURL() string {
+	s.T.Require().NotNil(s.zkMetricsAddr, "ZK proposer is not configured")
+	addr := s.zkMetricsAddr()
+	s.T.Require().NotEmpty(addr, "no ZK proposer metrics endpoint; pass sysgo.WithZKMetrics()")
+	return "http://" + addr + "/metrics"
+}
+
+// ZKChallengerSuperRootRPCProxy returns the proxy in front of the live ZK
+// challenger's super-root RPC.
+func (s *SingleChainInterop) ZKChallengerSuperRootRPCProxy() *sysgo.StallableProxy {
+	s.T.Require().NotNil(s.zkChallengerSuperRootRPCProxy,
+		"ZK challenger super-root RPC proxy is not configured")
+	return s.zkChallengerSuperRootRPCProxy
+}
+
 func (s *SingleChainInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {
 	return s.T, s.L1EL, []*dsl.L2Network{s.L2ChainA}
 }
@@ -77,8 +102,7 @@ type SimpleInterop struct {
 	L2ELB      *dsl.L2ELNode
 	L2CLB      *dsl.L2CLNode
 
-	FaucetB *dsl.Faucet
-	FunderB *dsl.Funder
+	FunderB *dsl.FunderEOA
 }
 
 func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
@@ -137,7 +161,7 @@ func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChain
 // op-supernode). The op-challenger plays super-cannon-kona games against this op-node
 // source. This exercises the "op-node as super root RPC" path end-to-end.
 func NewSingleChainInteropNoSupernode(t devtest.T, opts ...Option) *SingleChainInterop {
-	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, 0)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, singleChainInteropNoSupernodePresetSupportedOptionKinds)
 	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t, presetCfg))
 }
 
@@ -160,9 +184,9 @@ func NewSingleChainInteropSuperRootAtGenesis(t devtest.T, opts ...Option) *Singl
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, presetCfg))
 }
 
-// WithSuggestedInteropActivationOffset suggests a hardfork time offset to use.
+// WithSuggestedLagoonActivationOffset suggests a Lagoon hardfork time offset to use.
 // This is applied e.g. to the deployment if running against sysgo.
-func WithSuggestedInteropActivationOffset(offset uint64) Option {
+func WithSuggestedLagoonActivationOffset(offset uint64) Option {
 	return WithDeployerOptions(
 		func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {

@@ -293,7 +293,7 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 		Prefund:                     make(map[common.Address]*big.Int),
 		SaltMixer:                   "",
 		GasLimit:                    60_000_000,
-		DisputeGameType:             1, // PERMISSIONED_CANNON Game Type
+		DisputeGameType:             5, // SUPER_PERMISSIONED Game Type
 		DisputeAbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 		DisputeKonaAbsolutePrestate: common.HexToHash("0x035ef680a6fa34c50d8d8169075b5d133ecd7b38fe2b2a83cc76fc81ae5d7c52"),
 		DisputeMaxGameDepth:         73,

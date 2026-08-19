@@ -43,7 +43,6 @@ func TestFaultGameAbsolutePrestateOverrideKeyMatchesJSONTag(t *testing.T) {
 }
 
 func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
-	verifier := common.HexToAddress("0xabc")
 	prestate := common.HexToHash("0xdef")
 
 	tests := []struct {
@@ -56,7 +55,6 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,
@@ -74,22 +72,10 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			expectErr: ErrZKDisputeGameMissingParams,
 		},
 		{
-			name: "zero Verifier address fails",
-			game: AdditionalDisputeGame{
-				VMType: VMTypeZK,
-				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:         common.Address{},
-					AbsolutePrestate: prestate,
-				},
-			},
-			expectErr: ErrZKDisputeGameMissingParams,
-		},
-		{
 			name: "zero AbsolutePrestate fails",
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:         verifier,
 					AbsolutePrestate: common.Hash{},
 				},
 			},
@@ -100,7 +86,6 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 0,
 					MaxProveDuration:     7200,
@@ -114,7 +99,6 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     0,
@@ -128,7 +112,6 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,
@@ -142,7 +125,6 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,

@@ -10,11 +10,12 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/eip1559"
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -223,7 +224,7 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 			"blockNumber", latest.Number(),
 			"note", "Zero could indicate an empty block or pre-Jovian state")
 	default:
-		expectedDAFootprint, err := types.CalcDAFootprint(txs)
+		expectedDAFootprint, err := opfees.CalcDAFootprint(txs)
 		if err != nil {
 			return fmt.Errorf("failed to calculate DA footprint for block %d: %w", latest.Number(), err)
 		}
@@ -247,12 +248,12 @@ func checkExtraData(ctx context.Context, env *actionEnv) error {
 
 	extra := latest.Extra
 
-	// Validate using op-geth's validation function
+	// Validate using op-core's validation function
 	if err := eip1559.ValidateJovianExtraData(extra); err != nil {
 		return fmt.Errorf("invalid extraData format: %w", err)
 	}
 
-	// Decode the validated extra data using op-geth's decode function
+	// Decode the validated extra data using op-core's decode function
 	denominator, elasticity, minBaseFee := eip1559.DecodeJovianExtraData(extra)
 
 	env.log.Info("ExtraData format test: success",

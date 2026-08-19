@@ -22,6 +22,7 @@ import (
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 )
 
@@ -60,6 +61,25 @@ type PlannedTx struct {
 	BlobFeeCap plan.Lazy[*uint256.Int]                 // resolves to nil if not a blob tx
 	BlobHashes plan.Lazy[[]common.Hash]                // resolves to nil if not a blob tx
 	Sidecar    plan.Lazy[*types.BlobTxSidecar]         // resolves to nil if not a blob tx
+
+	flags locks.RWMap[Flag, struct{}]
+}
+
+// Flag is an opaque marker one Option sets and another reads at eval time, letting Options
+// coordinate regardless of the order they are applied in.
+// Use an unexported zero-size type from the owning package so flags cannot collide.
+type Flag any
+
+// WithFlag sets a flag on the tx.
+func WithFlag(f Flag) Option {
+	return func(tx *PlannedTx) {
+		tx.flags.Set(f, struct{}{})
+	}
+}
+
+// HasFlag returns whether the given flag was set on this tx.
+func (ptx *PlannedTx) HasFlag(f Flag) bool {
+	return ptx.flags.Has(f)
 }
 
 func (ptx *PlannedTx) String() string {
@@ -224,10 +244,11 @@ func WithEstimator(cl Estimator, invalidateOnNewBlock bool) Option {
 			tx.Gas.DependOn(&tx.AgainstBlock)
 		}
 		tx.Gas.Fn(func(ctx context.Context) (uint64, error) {
+			// Leave CallMsg.Gas unset so the target node applies the estimation ceiling for its active
+			// fork.
 			msg := ethereum.CallMsg{
 				From:       tx.Sender.Value(),
 				To:         tx.To.Value(),
-				Gas:        params.MaxTxGas, // max gas, will be estimated
 				GasPrice:   nil,
 				GasFeeCap:  tx.GasFeeCap.Value(),
 				GasTipCap:  tx.GasTipCap.Value(),
@@ -295,7 +316,29 @@ func WithRetrySubmission(cl TransactionSubmitter, maxAttempts int, strategy retr
 }
 
 type ReceiptGetter interface {
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*optypes.Receipt, error)
+}
+
+// GethReceiptGetter is the receipt getter shape of go-ethereum clients
+// (e.g. *ethclient.Client).
+type GethReceiptGetter interface {
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+}
+
+// FromGethReceipts adapts a go-ethereum receipt getter to ReceiptGetter.
+// The JSON-only OP fee fields stay nil — suitable for L1 clients.
+func FromGethReceipts(cl GethReceiptGetter) ReceiptGetter {
+	return gethReceiptGetter{inner: cl}
+}
+
+type gethReceiptGetter struct{ inner GethReceiptGetter }
+
+func (g gethReceiptGetter) TransactionReceipt(ctx context.Context, txHash common.Hash) (*optypes.Receipt, error) {
+	receipt, err := g.inner.TransactionReceipt(ctx, txHash)
+	if err != nil || receipt == nil {
+		return nil, err
+	}
+	return optypes.FromGethReceipt(receipt), nil
 }
 
 // WithAssumedInclusion assumes inclusion at the time of evaluation,
@@ -304,7 +347,11 @@ func WithAssumedInclusion(cl ReceiptGetter) Option {
 	return func(tx *PlannedTx) {
 		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
 		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
-			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
+			receipt, err := cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
+			if err != nil {
+				return nil, err
+			}
+			return &receipt.Receipt, nil
 		})
 	}
 }
@@ -313,7 +360,11 @@ func WithRetryInclusion(cl ReceiptGetter, maxAttempts int, strategy retry.Strate
 	return func(tx *PlannedTx) {
 		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
 		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
-			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
+			receipt, err := cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
+			if err != nil {
+				return nil, err
+			}
+			return &receipt.Receipt, nil
 		})
 		tx.Included.Wrap(func(fn plan.Fn[*types.Receipt]) plan.Fn[*types.Receipt] {
 			return func(ctx context.Context) (*types.Receipt, error) {

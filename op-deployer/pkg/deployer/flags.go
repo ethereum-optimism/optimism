@@ -170,6 +170,12 @@ var PrepareFlags = []cli.Flag{
 	GenesisTimeOffsetFlag,
 }
 
+var ContinueFlags = []cli.Flag{
+	WorkdirFlag,
+	PrivateKeyFlag,
+	L1RPCURLFlag,
+}
+
 var ApplyFlags = []cli.Flag{
 	L1RPCURLFlag,
 	WorkdirFlag,

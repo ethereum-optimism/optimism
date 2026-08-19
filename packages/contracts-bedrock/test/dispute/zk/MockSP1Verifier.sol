@@ -8,7 +8,7 @@ import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 contract MockSP1Verifier is ISP1Verifier {
     /// @notice Returns the mock version string.
     function VERSION() external pure returns (string memory) {
-        return "v6.0.0";
+        return "v0.0.0-MOCK";
     }
 
     /// @notice Always succeeds (no-op).

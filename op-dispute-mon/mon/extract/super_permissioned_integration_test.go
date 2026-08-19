@@ -7,6 +7,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -52,17 +53,19 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 	extractor := NewExtractor(
 		logger,
 		clock.NewDeterministicClock(time.Unix(48294294, 58)),
+		new(stubGamesWaitingForRootSourceMetrics),
 		creator.CreateContract,
 		fetchGames,
 		nil,
+		nil,
 		1,
-		NewClaimEnricher(),
-		NewRecipientEnricher(),
-		NewWithdrawalsEnricher(),
-		NewBondEnricher(),
-		NewBalanceEnricher(),
-		NewL1HeadBlockNumEnricher(&stubBlockFetcher{num: l1HeadNum}),
-		NewSuperAgreementEnricher(logger, metrics, []SuperRootProvider{provider}, clock.NewDeterministicClock(time.Unix(9824924, 499))),
+		[]CommonEnricher{
+			NewL1HeadBlockNumEnricher(&stubBlockFetcher{num: l1HeadNum}),
+			NewSuperAgreementEnricher(logger, metrics, []SuperRootProvider{provider}, clock.NewDeterministicClock(time.Unix(9824924, 499))),
+		},
+		nil,
+		nil,
+		nil,
 	)
 
 	games, ignored, failed, err := extractor.Extract(context.Background(), blockHash, 0)
@@ -71,17 +74,15 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 	require.Zero(t, failed)
 	require.Len(t, games, 1)
 
-	game := games[0]
+	game, ok := games[0].(*monTypes.SuperPermissionedGameData)
+	require.True(t, ok)
 	require.Equal(t, uint32(gameTypes.SuperPermissionedGameType), game.GameType)
 	require.Equal(t, l1Head, game.L1Head)
 	require.Equal(t, l1HeadNum, game.L1HeadNum)
 	require.Equal(t, l2SequenceNumber, game.L2SequenceNumber)
 	require.Equal(t, gameTypes.GameStatusDefenderWon, game.Status)
-	require.Empty(t, game.Claims)
 	require.True(t, game.AgreeWithClaim)
 	require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
 	require.Equal(t, l2SequenceNumber, provider.requestedTimestamp)
 	require.NotZero(t, metrics.fetchTime)
-	require.Nil(t, game.ETHCollateral)
-	require.Equal(t, common.Address{}, game.WETHContract)
 }

@@ -1,6 +1,6 @@
 use super::{
-    ExecutionInfo, OpPayloadBuilderCtx, PayloadTransactionsWithCommitHook, RethPayloadTransactions,
-    build_post_exec_recovered_tx, try_include_post_exec_tx,
+    CommittedTxGas, ExecutionInfo, OpPayloadBuilderCtx, PayloadTransactionsWithCommitHook,
+    RethPayloadTransactions, build_post_exec_recovered_tx, try_include_post_exec_tx,
 };
 use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
 use alloy_consensus::{
@@ -15,12 +15,14 @@ use alloy_eips::{
 use alloy_evm::RecoveredTx;
 use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxHash, TxKind, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
-use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
+use op_alloy_consensus::{
+    POST_EXEC_PAYLOAD_VERSION, PostExecPayload, SDMGasEntry, build_post_exec_tx,
+};
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
 use reth_evm::execute::{BlockBuilder, BlockExecutionError};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
-use reth_optimism_evm::{OpEvmConfig, PostExecMode};
+use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed};
 use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
 use reth_optimism_txpool::{
     OpPooledTransaction, OpPooledTx,
@@ -437,10 +439,10 @@ fn execute_best_transactions_committed_txs_preserves_execution() {
     assert_eq!(committed_info.total_fees, none_info.total_fees);
 }
 
-/// `on_commit(gas)` fires once per committed tx, in commit order, with that tx's gas — never for a
-/// skipped one. Gas is pinned to the executor's own value via an oracle re-execution, and an
-/// over-gas-limit tx between the committed ones is skipped yet still yielded, exercising both
-/// halves of the contract.
+/// `on_commit(gas)` fires once per committed tx, in commit order, with that tx's canonical and
+/// pre-refund gas — never for a skipped one. Both figures are pinned to the executor's own values
+/// via an oracle re-execution, and an over-gas-limit tx between the committed ones is skipped yet
+/// still yielded, exercising both halves of the contract.
 #[test]
 fn execute_best_transactions_on_commit_hook_execution() {
     use reth_payload_util::PayloadTransactions;
@@ -449,8 +451,8 @@ fn execute_best_transactions_on_commit_hook_execution() {
     /// The gas an `on_commit` reported, attributed to the most-recently-yielded tx hash — the
     /// per-inclusion accounting a real consumer would keep.
     #[derive(Debug, PartialEq, Eq)]
-    struct CommittedGas {
-        gas_used: u64,
+    struct ReportedGas {
+        gas: CommittedTxGas,
         tx_hash: TxHash,
     }
 
@@ -459,7 +461,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
     struct TestPayloadTxsImpl {
         inner: PayloadTransactionsFixed<OpPooledTransaction>,
         yielded_hashes: Rc<RefCell<Vec<TxHash>>>,
-        committed_txs_gas: Rc<RefCell<Vec<CommittedGas>>>,
+        committed_txs_gas: Rc<RefCell<Vec<ReportedGas>>>,
     }
 
     impl PayloadTransactions for TestPayloadTxsImpl {
@@ -477,9 +479,9 @@ fn execute_best_transactions_on_commit_hook_execution() {
     }
 
     impl PayloadTransactionsWithCommitHook for TestPayloadTxsImpl {
-        fn on_commit(&mut self, gas_used: u64) {
+        fn on_commit(&mut self, gas: CommittedTxGas) {
             let tx_hash = *self.yielded_hashes.borrow().last().expect("on_commit after a next()");
-            self.committed_txs_gas.borrow_mut().push(CommittedGas { gas_used, tx_hash });
+            self.committed_txs_gas.borrow_mut().push(ReportedGas { gas, tx_hash });
         }
     }
 
@@ -511,8 +513,8 @@ fn execute_best_transactions_on_commit_hook_execution() {
         Default::default(),
     );
 
-    // Re-execute each tx that should be committed so we know the gas used passed to on_commit.
-    let expected_committed_gas: Vec<CommittedGas> = {
+    // Re-execute each tx that should be committed so we know the gas passed to on_commit.
+    let expected_committed_gas: Vec<ReportedGas> = {
         let mut oracle_db = State::builder()
             .with_database(StateProviderDatabase::new(&state_provider))
             .with_bundle_update()
@@ -520,12 +522,19 @@ fn execute_best_transactions_on_commit_hook_execution() {
         let mut oracle = ctx.block_builder(&mut oracle_db).expect("oracle block builder");
         committed_order
             .iter()
-            .map(|tx| CommittedGas {
-                tx_hash: *tx.hash(),
-                gas_used: oracle
-                    .execute_transaction(tx.clone().into_consensus())
+            .map(|tx| {
+                let mut evm_gas_used = 0;
+                let canonical_gas_used = oracle
+                    .execute_transaction_with_result_closure(
+                        tx.clone().into_consensus(),
+                        |result| evm_gas_used = result.evm_gas_used(),
+                    )
                     .expect("oracle executes committed tx")
-                    .tx_gas_used(),
+                    .tx_gas_used();
+                ReportedGas {
+                    tx_hash: *tx.hash(),
+                    gas: CommittedTxGas { canonical_gas_used, evm_gas_used },
+                }
             })
             .collect()
     };
@@ -538,7 +547,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
     let mut info = ExecutionInfo::new();
 
     let yielded_hashes = Rc::new(RefCell::new(Vec::<TxHash>::new()));
-    let committed_txs_gas = Rc::new(RefCell::new(Vec::<CommittedGas>::new()));
+    let committed_txs_gas = Rc::new(RefCell::new(Vec::<ReportedGas>::new()));
     let best_txs = TestPayloadTxsImpl {
         inner: PayloadTransactionsFixed::new(txs),
         yielded_hashes: yielded_hashes.clone(),
@@ -549,7 +558,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
         .expect("best transactions execute");
 
     let distinct_gas: std::collections::HashSet<u64> =
-        expected_committed_gas.iter().map(|a| a.gas_used).collect();
+        expected_committed_gas.iter().map(|a| a.gas.canonical_gas_used).collect();
     assert_eq!(
         distinct_gas.len(),
         expected_committed_gas.len(),
@@ -561,6 +570,104 @@ fn execute_best_transactions_on_commit_hook_execution() {
         *committed_txs_gas.borrow(),
         expected_committed_gas,
         "committed txs and gas do not match expected"
+    );
+}
+
+/// With an SDM refund applied, the two figures `on_commit` reports must actually differ, and each
+/// must match the counter it feeds: `canonical` the receipt-visible total, `evm` the pre-refund
+/// total that block-limit admission is measured against. The plumbing test above cannot catch a
+/// swap of the two fields, because without a refund they are equal.
+#[test]
+fn on_commit_reports_canonical_and_pre_refund_gas_separately_under_sdm_refund() {
+    use reth_payload_util::PayloadTransactions;
+    use std::{cell::RefCell, rc::Rc};
+
+    struct RefundProbe {
+        inner: PayloadTransactionsFixed<OpPooledTransaction>,
+        reported: Rc<RefCell<Vec<CommittedTxGas>>>,
+    }
+
+    impl PayloadTransactions for RefundProbe {
+        type Transaction = OpPooledTransaction;
+
+        fn next(&mut self, ctx: ()) -> Option<Self::Transaction> {
+            self.inner.next(ctx)
+        }
+
+        fn mark_invalid(&mut self, sender: Address, nonce: u64) {
+            self.inner.mark_invalid(sender, nonce);
+        }
+    }
+
+    impl PayloadTransactionsWithCommitHook for RefundProbe {
+        fn on_commit(&mut self, gas: CommittedTxGas) {
+            self.reported.borrow_mut().push(gas);
+        }
+    }
+
+    const REFUND: u64 = 5_000;
+
+    let gas_limit = 10_000_000;
+    let signer = Address::repeat_byte(0x11);
+    let recipient = Address::repeat_byte(0x22);
+    let tx = op_pooled_tx_with_input(0, signer, recipient, Bytes::from(vec![0x11; 64]));
+
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build());
+    let mut ctx = payload_builder_ctx(chain_spec, gas_limit);
+    // Holocene/Jovian are active under Lagoon; supply the EIP-1559 params and min base fee that
+    // next-env construction requires (zero means "use chain defaults", matching op-node).
+    ctx.config.attributes.eip_1559_params = Some(B64::ZERO);
+    ctx.config.attributes.min_base_fee = Some(0);
+
+    let mut state_provider = StateProviderTest::default();
+    state_provider.insert_account(
+        signer,
+        Account { balance: U256::MAX, ..Default::default() },
+        None,
+        Default::default(),
+    );
+
+    // Verify mode takes the refund straight from an embedded payload keyed by tx index, so a
+    // refund can be injected without the SDM contract state that Produce mode's inspector needs.
+    let post_exec_payload = PostExecPayload {
+        version: POST_EXEC_PAYLOAD_VERSION,
+        block_number: 1,
+        gas_refund_entries: entries(&[(0, REFUND)]),
+    };
+
+    let mut db = State::builder()
+        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_bundle_update()
+        .build();
+    let mut builder = ctx
+        .block_builder_with_mode(&mut db, PostExecMode::Verify(post_exec_payload))
+        .expect("block builder can be created");
+    let mut info = ExecutionInfo::new();
+
+    let reported = Rc::new(RefCell::new(Vec::<CommittedTxGas>::new()));
+    let best_txs =
+        RefundProbe { inner: PayloadTransactionsFixed::new(vec![tx]), reported: reported.clone() };
+
+    ctx.execute_best_transactions(&mut info, &mut builder, best_txs, None, None)
+        .expect("best transactions execute");
+
+    let reported = reported.borrow();
+    let [gas] = reported.as_slice() else {
+        panic!("expected exactly one committed tx, got {reported:?}");
+    };
+
+    assert_eq!(
+        gas.evm_gas_used - gas.canonical_gas_used,
+        REFUND,
+        "the two reported figures must differ by exactly the refund",
+    );
+    assert_eq!(
+        gas.canonical_gas_used, info.cumulative_gas_used,
+        "canonical gas must match the receipt counter",
+    );
+    assert_eq!(
+        gas.evm_gas_used, info.cumulative_evm_gas_used,
+        "evm gas must match the pre-refund counter that admission is gated on",
     );
 }
 

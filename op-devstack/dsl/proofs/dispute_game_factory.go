@@ -3,7 +3,6 @@ package proofs
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"math"
 	"math/big"
 	"net/url"
@@ -40,6 +39,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -229,13 +229,21 @@ func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
 
 func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	initialCount := f.GameCount()
-	f.t.Require().Eventually(func() bool {
-		gameCount := f.GameCount()
-		check := gameCount > initialCount
+	timedCtx, cancel := context.WithTimeout(f.t.Ctx(), 10*time.Minute)
+	defer cancel()
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		count, readErr := contractio.Read(f.dgf.GameCount(), timedCtx)
+		lastReadErr = readErr
+		if readErr != nil {
+			f.log.Debug("Game count unavailable while waiting for new game", "current", initialCount, "err", readErr)
+			return false, nil
+		}
+		gameCount := count.Int64()
 		f.t.Logf("waiting for new game. current=%d new=%d", initialCount, gameCount)
-		return check
-	}, time.Minute*10, time.Second*5)
-
+		return gameCount > initialCount, nil
+	})
+	f.require.NoErrorf(err, "dispute game factory did not create a new game beyond count %d; last read error: %v", initialCount, lastReadErr)
 	return f.GameAtIndex(initialCount)
 }
 
@@ -244,16 +252,29 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 func (f *DisputeGameFactory) WaitForZKGameAtIndex(idx int64) *ZKGame {
 	f.require.GreaterOrEqual(idx, int64(0), "game index must not be negative")
 	f.require.Less(idx, int64(math.MaxUint32), "game index must fit in uint32")
-	f.t.Require().Eventually(func() bool {
-		gameCount := f.GameCount()
-		f.log.Info("Waiting for ZK game", "index", idx, "count", gameCount)
-		if gameCount <= idx {
-			return false
+	timedCtx, cancel := context.WithTimeout(f.t.Ctx(), 2*time.Minute)
+	defer cancel()
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		count, readErr := contractio.Read(f.dgf.GameCount(), timedCtx)
+		lastReadErr = readErr
+		if readErr != nil {
+			f.log.Debug("Game count unavailable while waiting for ZK game", "index", idx, "err", readErr)
+			return false, nil
 		}
-		gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
-		return gameTypes.GameType(gameInfo.GameType) == gameTypes.ZKDisputeGameType
-	}, 2*time.Minute, time.Second,
-		fmt.Sprintf("dispute game factory did not have a ZK game at index %d", idx))
+		f.log.Info("Waiting for ZK game", "index", idx, "count", count)
+		if count.Int64() <= idx {
+			return false, nil
+		}
+		gameInfo, readErr := contractio.Read(f.dgf.GameAtIndex(big.NewInt(idx)), timedCtx)
+		lastReadErr = readErr
+		if readErr != nil {
+			f.log.Debug("Game info unavailable while waiting for ZK game", "index", idx, "err", readErr)
+			return false, nil
+		}
+		return gameTypes.GameType(gameInfo.GameType) == gameTypes.ZKDisputeGameType, nil
+	})
+	f.require.NoErrorf(err, "dispute game factory did not have a ZK game at index %d; last read error: %v", idx, lastReadErr)
 	return f.ZKGameAtIndex(uint32(idx))
 }
 
@@ -588,10 +609,20 @@ func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType gameTypes.Game
 	receipt := contract.Write(eoa, f.dgf.Create(uint32(gameType), claim, extraData), txplan.WithValue(requiredBonds), txplan.WithGasRatio(2))
 	f.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
-	// Extract logs from receipt
-	f.require.Equal(2, len(receipt.Logs))
-	createdLog, err := f.dgf.ParseDisputeGameCreated(receipt.Logs[1])
-	f.require.NoError(err)
+	var createdLog *bindings.DisputeGameCreated
+	for _, eventLog := range receipt.Logs {
+		if len(eventLog.Topics) == 0 {
+			continue
+		}
+		parsed, err := f.dgf.ParseDisputeGameCreated(eventLog)
+		if err == bindings.InvalidLogSignature {
+			continue
+		}
+		f.require.NoError(err)
+		f.require.Nil(createdLog, "Multiple DisputeGameCreated events in receipt")
+		createdLog = parsed
+	}
+	f.require.NotNil(createdLog, "DisputeGameCreated event not found in receipt")
 
 	gameAddr := createdLog.DisputeProxy
 	log.Info("Dispute game created", "address", gameAddr.Hex())

@@ -9,16 +9,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type ForecastResolution func(games []*types.EnrichedGameData, ignoredCount, failedCount int)
-type AnchorStateCheck func(ctx context.Context, blockHash common.Hash, games []*types.EnrichedGameData)
-type Monitor func(games []*types.EnrichedGameData)
+type ForecastResolution func(games []types.EnrichedGame, ignoredCount, failedCount int)
+type AnchorStateCheck func(ctx context.Context, blockHash common.Hash, games []*types.CommonGameData)
+type CommonMonitor func(games []*types.CommonGameData)
+type FaultMonitor func(games []*types.FaultGameData)
+type BondMonitor func(games []types.BondedGame)
+type ZKMonitor func(games []*types.ZKGameData)
 type HeadBlockFetcher func(ctx context.Context) (eth.L1BlockRef, error)
-type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, int, error)
+type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]types.EnrichedGame, int, int, error)
 
 type MonitorMetrics interface {
 	RecordMonitorDuration(dur time.Duration)
@@ -41,7 +43,10 @@ type gameMonitor struct {
 
 	forecast         ForecastResolution
 	checkAnchorState AnchorStateCheck
-	monitors         []Monitor
+	commonMonitors   []CommonMonitor
+	faultMonitors    []FaultMonitor
+	bondMonitors     []BondMonitor
+	zkMonitors       []ZKMonitor
 	extract          Extract
 	fetchHeadBlock   HeadBlockFetcher
 }
@@ -57,7 +62,11 @@ func newGameMonitor(
 	extract Extract,
 	forecast ForecastResolution,
 	checkAnchorState AnchorStateCheck,
-	monitors ...Monitor) *gameMonitor {
+	commonMonitors []CommonMonitor,
+	faultMonitors []FaultMonitor,
+	bondMonitors []BondMonitor,
+	zkMonitors []ZKMonitor,
+) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
 		clock:            cl,
@@ -69,7 +78,10 @@ func newGameMonitor(
 		gameWindow:       gameWindow,
 		forecast:         forecast,
 		checkAnchorState: checkAnchorState,
-		monitors:         monitors,
+		commonMonitors:   commonMonitors,
+		faultMonitors:    faultMonitors,
+		bondMonitors:     bondMonitors,
+		zkMonitors:       zkMonitors,
 		extract:          extract,
 		fetchHeadBlock:   fetchHeadBlock,
 	}
@@ -87,10 +99,20 @@ func (m *gameMonitor) monitorGames() error {
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
+	commonGames, faultGames, bondedGames, zkGames := partitionGames(enrichedGames)
 	m.forecast(enrichedGames, ignored, failed)
-	m.checkAnchorState(m.ctx, headBlock.Hash, enrichedGames)
-	for _, monitor := range m.monitors {
-		monitor(enrichedGames)
+	m.checkAnchorState(m.ctx, headBlock.Hash, commonGames)
+	for _, monitor := range m.bondMonitors {
+		monitor(bondedGames)
+	}
+	for _, monitor := range m.faultMonitors {
+		monitor(faultGames)
+	}
+	for _, monitor := range m.commonMonitors {
+		monitor(commonGames)
+	}
+	for _, monitor := range m.zkMonitors {
+		monitor(zkGames)
 	}
 	timeTaken := m.clock.Since(start)
 	m.metrics.RecordMonitorDuration(timeTaken)
@@ -102,6 +124,33 @@ func (m *gameMonitor) monitorGames() error {
 		"ignored", ignored,
 		"failed", failed)
 	return nil
+}
+
+func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*types.FaultGameData, []types.BondedGame, []*types.ZKGameData) {
+	commonGames := make([]*types.CommonGameData, 0, len(games))
+	faultGames := make([]*types.FaultGameData, 0, len(games))
+	bondedGames := make([]types.BondedGame, 0, len(games))
+	zkGames := make([]*types.ZKGameData, 0, len(games))
+	for _, game := range games {
+		switch game := game.(type) {
+		case *types.FaultGameData:
+			commonGames = append(commonGames, game.Common())
+			faultGames = append(faultGames, game)
+		case *types.SuperPermissionedGameData:
+			commonGames = append(commonGames, game.Common())
+		case *types.ZKGameData:
+			commonGames = append(commonGames, game.Common())
+		default:
+			panic(fmt.Sprintf("unsupported enriched game type %T", game))
+		}
+		if bondedGame, ok := game.(types.BondedGame); ok {
+			bondedGames = append(bondedGames, bondedGame)
+		}
+		if zkGame, ok := game.(*types.ZKGameData); ok {
+			zkGames = append(zkGames, zkGame)
+		}
+	}
+	return commonGames, faultGames, bondedGames, zkGames
 }
 
 func (m *gameMonitor) loop() {
@@ -122,9 +171,7 @@ func (m *gameMonitor) loop() {
 }
 
 func (m *gameMonitor) StartMonitoring() {
-	// Setup the cancellation only if it's not already set.
-	// This prevents overwriting the context and cancel function
-	// if, for example, this function is called multiple times.
+	// Keep the original context and cancel function if this is called multiple times.
 	if m.cancel == nil {
 		ctx, cancel := context.WithCancel(m.ctx)
 		m.ctx = ctx

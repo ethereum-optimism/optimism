@@ -21,8 +21,13 @@ use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuild
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
-use serde_json::from_reader;
-use std::{fs::File, io::Write, path::PathBuf, sync::Arc};
+use serde_json::{Value, from_reader, from_value};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::PathBuf,
+    sync::Arc,
+};
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
@@ -103,8 +108,8 @@ pub struct NodeCommand {
     /// (overrides the default rollup configuration from the registry)
     #[arg(long, visible_alias = "rollup-cfg", env = "KONA_NODE_ROLLUP_CONFIG")]
     pub l2_config_file: Option<PathBuf>,
-    /// Path to a custom L1 rollup configuration file
-    /// (overrides the default rollup configuration from the registry)
+    /// Path to a custom L1 chain configuration or genesis file
+    /// (overrides the default L1 configuration from the registry)
     #[arg(long, visible_alias = "rollup-l1-cfg", env = "KONA_NODE_L1_CHAIN_CONFIG")]
     pub l1_config_file: Option<PathBuf>,
     /// Path to a JSON file describing the interop dependency set for this
@@ -364,6 +369,17 @@ impl NodeCommand {
         }
     }
 
+    /// Parses an L1 chain config from either a direct config or a genesis document.
+    fn parse_l1_config(reader: impl Read) -> serde_json::Result<L1ChainConfig> {
+        let mut value: Value = from_reader(reader)?;
+        if let Value::Object(object) = &mut value &&
+            let Some(config) = object.remove("config")
+        {
+            return from_value(config);
+        }
+        from_value(value)
+    }
+
     /// Get the L1 config, either from a file or the known chains.
     pub fn get_l1_config(&self, l1_chain_id: u64) -> Result<L1ChainConfig> {
         match &self.l1_config_file {
@@ -371,7 +387,8 @@ impl NodeCommand {
                 debug!("Loading l1 config from file: {:?}", path);
                 let file = File::open(path)
                     .map_err(|e| anyhow::anyhow!("Failed to open l1 config file: {e}"))?;
-                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l1 config: {e}"))
+                Self::parse_l1_config(file)
+                    .map_err(|e| anyhow::anyhow!("Failed to parse l1 config: {e}"))
             }
             None => {
                 debug!("Loading l1 config from known chains");
@@ -505,6 +522,23 @@ mod tests {
         ])
         .unwrap_err();
         assert!(err.to_string().contains("--l2-engine-rpc"));
+    }
+
+    #[test]
+    fn test_get_l1_config_from_direct_and_genesis_files() {
+        let documents = [
+            serde_json::json!({"chainId": 123}),
+            serde_json::json!({"config": {"chainId": 123}, "alloc": {}}),
+        ];
+
+        for document in documents {
+            let mut file = tempfile::NamedTempFile::new().unwrap();
+            serde_json::to_writer(&mut file, &document).unwrap();
+
+            let command =
+                NodeCommand { l1_config_file: Some(file.path().into()), ..Default::default() };
+            assert_eq!(command.get_l1_config(123).unwrap().chain_id, 123);
+        }
     }
 
     #[test]

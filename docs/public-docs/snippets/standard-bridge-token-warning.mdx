@@ -1,0 +1,21 @@
+{/*
+  Shared Standard Bridge unsupported-token warning: fee-on-transfer and
+  rebasing tokens break bridge accounting. Single home for this warning
+  (duplication census cluster S4).
+
+  Hand-maintained; not generated.
+
+  Usage:
+    import StandardBridgeTokenWarning from "/snippets/standard-bridge-token-warning.mdx"
+
+    <StandardBridgeTokenWarning />
+
+  Consumer pages (keep this list in sync):
+    app-developers/guides/bridging/standard-bridge.mdx
+    app-developers/tutorials/bridging/cross-dom-bridge-erc20.mdx
+    app-developers/tutorials/bridging/standard-bridge-standard-token.mdx
+*/}
+
+<Info>
+  The Standard Bridge **does not** support [**fee on transfer tokens**](https://github.com/d-xo/weird-erc20#fee-on-transfer) or [**rebasing tokens**](https://github.com/d-xo/weird-erc20#balance-modifications-outside-of-transfers-rebasingairdrops) because they can cause bridge accounting errors.
+</Info>

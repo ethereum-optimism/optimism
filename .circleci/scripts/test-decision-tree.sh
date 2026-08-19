@@ -144,26 +144,40 @@ run_scenario \
 run_scenario \
   "Merge queue, rust changed" \
   "webhook" "gh-readonly-queue/develop/pr-123" "" "" \
-  '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
+  '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
   main release contracts_feature_tests rust_ci rust_e2e_ci
 
 run_scenario \
   "Merge queue, no changes" \
   "webhook" "gh-readonly-queue/develop/pr-123" "" "" \
-  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
   main release contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
-  "After merge (develop), rust changed" \
+  "Merge queue, docs only" \
+  "webhook" "gh-readonly-queue/develop/pr-123" "" "" \
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
+  ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip \
+  --not main release contracts_feature_tests rust_ci rust_e2e_ci
+
+# Develop runs the full post-merge set unconditionally. The two scenarios below
+# seed opposite change-detection results and assert an identical routing, which
+# is what pins that behaviour: on a develop push the changed-file list is always
+# empty (BASE_REVISION is develop, so HEAD is the base), so any path gating here
+# would be dead code that never fires in production.
+run_scenario \
+  "After merge (develop), empty change set (production reality)" \
   "webhook" "develop" "" "" \
-  '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": true}' \
-  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-circleci_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
+  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
+  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
 
 run_scenario \
-  "After merge (develop), no rust changes" \
+  "After merge (develop), change detection must not alter routing" \
   "webhook" "develop" "" "" \
-  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
-  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip
+  '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
+  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
+  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
 
 run_scenario \
   "Scheduled: build_four_hours" \
@@ -178,6 +192,12 @@ run_scenario \
   scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke circleci_schedule_trigger_check
 
 run_scenario \
+  "Scheduled: build_weekly" \
+  "scheduled_pipeline" "" "" "build_weekly" \
+  '{}' \
+  scheduled_rust_nightly_bump
+
+run_scenario \
   "API: main_dispatch (no github event)" \
   "api" "" "" "" \
   '{"c-main_dispatch": true, "c-github-event-type": "__not_set__"}' \
@@ -188,6 +208,12 @@ run_scenario \
   "api" "" "" "" \
   '{"c-main_dispatch": false, "c-rust_ci_dispatch": true, "c-github-event-type": "__not_set__"}' \
   release rust_ci
+
+run_scenario \
+  "API: rust_nightly_bump_dispatch" \
+  "api" "" "" "" \
+  '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  release scheduled_rust_nightly_bump
 
 run_scenario \
   "API: publish_contract_artifacts_dispatch" \

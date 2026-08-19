@@ -16,10 +16,10 @@ const PostExecTxType = 0x7D
 // PostExecTxType || Data, where Data is appended verbatim with no outer RLP
 // envelope, matching op-geth's types.PostExecTx wire format. Data is itself an
 // RLP-encoded payload, but op-geth (and this type) treat it as opaque bytes and
-// never parse it. NB: the Rust side (op-alloy TxPostExec) parses and validates
-// the payload on decode — malformed payload bytes are accepted here but
-// rejected there, a Go-lenient/Rust-strict wire-acceptance divergence inherited
-// from op-geth's design.
+// never parse it; use [DecodePostExecPayload] to decode Data. NB: the Rust side
+// (op-alloy TxPostExec) parses and validates the payload on decode — malformed
+// payload bytes are accepted here but rejected there, a Go-lenient/Rust-strict
+// wire-acceptance divergence inherited from op-geth's design.
 type PostExecTx struct {
 	Data []byte
 }

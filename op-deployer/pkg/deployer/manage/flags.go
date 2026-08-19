@@ -2,106 +2,9 @@ package manage
 
 import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/urfave/cli/v2"
-)
-
-var (
-	L1ProxyAdminOwnerFlag = &cli.StringFlag{
-		Name:    "l1-proxy-admin-owner-address",
-		Usage:   "Address to use for as the proxy admin owner. Not compatible with the --workdir flag.",
-		EnvVars: deployer.PrefixEnvVar("PROXY_ADMIN_OWNER"),
-	}
-	OPCMImplFlag = &cli.StringFlag{
-		Name:    "opcm-impl-address",
-		Usage:   "Address of the OPCM implementation contract. Not compatible with the --workdir flag.",
-		EnvVars: deployer.PrefixEnvVar("OPCM_IMPL_ADDRESS"),
-	}
-	OPChainProxyAdminFlag = &cli.StringFlag{
-		Name:    "op-chain-proxy-admin-address",
-		Usage:   "Address of the OP Chain's proxy admin on L1. Not compatible with the --workdir flag.",
-		EnvVars: deployer.PrefixEnvVar("OP_CHAIN_PROXY_ADMIN_ADDRESS"),
-	}
-	DelayedWETHProxyFlag = &cli.StringFlag{
-		Name: "delayed-weth-proxy-address",
-		Usage: "Address of the DelayedWETHProxy contract to include as part of this game type. If not specified, " +
-			"one will be deployed for you by the OPCM.",
-		EnvVars: deployer.PrefixEnvVar("DELAYED_WETH_PROXY_ADDRESS"),
-	}
-	DisputeAbsolutePrestateFlag = &cli.StringFlag{
-		Name:    "dispute-absolute-prestate",
-		Usage:   "The absolute prestate hash for the dispute game. Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
-		Value:   standard.DisputeAbsolutePrestate.Hex(),
-	}
-	InitialBondFlag = &cli.StringFlag{
-		Name:    "initial-bond",
-		Usage:   "Initial bond amount required for the dispute game (value as string, in wei). Defaults to 1 ETH.",
-		EnvVars: deployer.PrefixEnvVar("INITIAL_BOND"),
-		Value:   "1000000000000000000",
-	}
-	VMFlag = &cli.StringFlag{
-		Name:    "vm-address",
-		Usage:   "Address of the VM contract used by the dispute game.",
-		EnvVars: deployer.PrefixEnvVar("VM_ADDRESS"),
-	}
-	StartingAnchorRootFlag = &cli.StringFlag{
-		Name:    "starting-anchor-root",
-		Usage:   "Starting anchor root.",
-		EnvVars: deployer.PrefixEnvVar("STARTING_ANCHOR_ROOT"),
-	}
-	StartingAnchorL2SequenceNumberFlag = &cli.Uint64Flag{
-		Name:    "starting-anchor-l2-sequence-number",
-		Usage:   "Starting anchor L2 sequence number.",
-		EnvVars: deployer.PrefixEnvVar("STARTING_ANCHOR_L2_SEQUENCE_NUMBER"),
-	}
-	SaltMixerFlag = &cli.StringFlag{
-		Name:    "salt-mixer",
-		Usage:   "String value for the salt mixer, used in CREATE2 address calculation. Default to keccak256(\"op-stack-contract-impls-salt-v0\").",
-		EnvVars: deployer.PrefixEnvVar("SALT_MIXER"),
-		Value:   "89fca2352a158519d2daabf7e53686272e828ddbff9487204546d918490b2ecf",
-	}
-	WorkdirFlag = &cli.StringFlag{
-		Name:    "workdir",
-		Usage:   "Path to a working directory containing a state file. Addresses will be retrieved from the state file, and cannot be specified on the command line.",
-		EnvVars: deployer.PrefixEnvVar("WORKDIR"),
-	}
-	L2ChainIDFlag = &cli.StringFlag{
-		Name:    "l2-chain-id",
-		Usage:   "Chain ID of the L2 network to retrieve from state. Must be specified when --workdir is set.",
-		EnvVars: deployer.PrefixEnvVar("CHAIN_ID"),
-	}
-	SystemConfigProxyAddressesFlag = &cli.StringFlag{
-		Name:    "system-config-proxy-addresses",
-		Usage:   "Comma-separated list of SystemConfig proxy addresses for the interop set.",
-		EnvVars: deployer.PrefixEnvVar("SYSTEM_CONFIG_PROXY_ADDRESSES"),
-	}
-	SourceGameTypesFlag = &cli.StringFlag{
-		Name: "source-game-types",
-		Usage: "Comma-separated numeric type identifiers of the source super games to retire " +
-			"(cleared by the swap). Defaults to 9 (SUPER_CANNON_KONA), the permissionless super " +
-			"fault game that ZK replaces. SUPER_PERMISSIONED (5) is intentionally kept as a " +
-			"permissioned liveness backup, mirroring the current SPDG + permissionless shape.",
-		EnvVars: deployer.PrefixEnvVar("SOURCE_GAME_TYPES"),
-		Value:   "9",
-	}
-	ZKVerifierFlag = &cli.StringFlag{
-		Name:    "zk-verifier-address",
-		Usage:   "Address of the IZKVerifier contract for the ZK dispute game.",
-		EnvVars: deployer.PrefixEnvVar("ZK_VERIFIER_ADDRESS"),
-	}
-	ZKMaxChallengeDurationFlag = &cli.Uint64Flag{
-		Name:    "zk-max-challenge-duration",
-		Usage:   "Max challenge duration (seconds) for the ZK dispute game.",
-		EnvVars: deployer.PrefixEnvVar("ZK_MAX_CHALLENGE_DURATION"),
-	}
-	ZKMaxProveDurationFlag = &cli.Uint64Flag{
-		Name:    "zk-max-prove-duration",
-		Usage:   "Max prove duration (seconds) for the ZK dispute game.",
-		EnvVars: deployer.PrefixEnvVar("ZK_MAX_PROVE_DURATION"),
-	}
 )
 
 var Commands = cli.Commands{
@@ -116,27 +19,5 @@ var Commands = cli.Commands{
 			deployer.CacheDirFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: AddGameTypeOPCMV2CLI,
-	},
-	&cli.Command{
-		Name:  "set-interop-dispute-games",
-		Usage: "swaps the shared dispute games of an already-interop set to the ZK dispute game.",
-		Flags: append([]cli.Flag{
-			deployer.CacheDirFlag,
-			deployer.L1RPCURLFlag,
-			deployer.PrivateKeyFlag,
-			deployer.ArtifactsLocatorFlag,
-			L1ProxyAdminOwnerFlag,
-			OPCMImplFlag,
-			SystemConfigProxyAddressesFlag,
-			StartingAnchorRootFlag,
-			StartingAnchorL2SequenceNumberFlag,
-			InitialBondFlag,
-			SourceGameTypesFlag,
-			DisputeAbsolutePrestateFlag,
-			ZKVerifierFlag,
-			ZKMaxChallengeDurationFlag,
-			ZKMaxProveDurationFlag,
-		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
-		Action: SetInteropDisputeGamesCLI,
 	},
 }

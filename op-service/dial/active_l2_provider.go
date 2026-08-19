@@ -8,20 +8,19 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 const DefaultActiveSequencerFollowerCheckDuration = 2 * DefaultDialTimeout
 
-type ethDialer func(ctx context.Context, log log.Logger, url string) (EthClientInterface, error)
+type ethDialer func(ctx context.Context, log log.Logger, url string) (PayloadSource, error)
 
-// ActiveL2EndpointProvider is an interface for providing a RollupClient and l2 eth client
-// It manages the lifecycle of the RollupClient and eth client for callers
+// ActiveL2EndpointProvider is an interface for providing a RollupClient and L2 payload source.
+// It manages the lifecycle of both for callers.
 // It does this by failing over down the list of rollupUrls if the current one is inactive or broken
 type ActiveL2EndpointProvider struct {
 	ActiveL2RollupProvider
-	currentEthClient EthClientInterface
+	currentEthClient PayloadSource
 	ethClientIndex   int
 	ethDialer        ethDialer
 	ethUrls          []string
@@ -36,13 +35,13 @@ func NewActiveL2EndpointProvider(ctx context.Context,
 	networkTimeout time.Duration,
 	logger log.Logger,
 ) (*ActiveL2EndpointProvider, error) {
-	ethDialer := func(ctx context.Context, log log.Logger, url string) (EthClientInterface, error) {
+	ethDialer := func(ctx context.Context, log log.Logger, url string) (PayloadSource, error) {
+		// One-shot dial: on failure, failover moves on to the next endpoint.
 		rpcCl, err := dialRPCClient(ctx, log, url)
 		if err != nil {
 			return nil, err
 		}
-
-		return ethclient.NewClient(rpcCl), nil
+		return newL2PayloadSource(log, rpcCl)
 	}
 	rollupDialer := func(ctx context.Context, log log.Logger, url string) (RollupClientInterface, error) {
 		rpcCl, err := dialRPCClient(ctx, log, url)
@@ -82,13 +81,13 @@ func newActiveL2EndpointProvider(
 	}
 	cctx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	if _, err = p.EthClient(cctx); err != nil {
+	if _, err = p.PayloadSource(cctx); err != nil {
 		return nil, fmt.Errorf("setting provider eth client: %w", err)
 	}
 	return p, nil
 }
 
-func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInterface, error) {
+func (p *ActiveL2EndpointProvider) PayloadSource(ctx context.Context) (PayloadSource, error) {
 	p.clientLock.Lock()
 	defer p.clientLock.Unlock()
 	err := p.ensureActiveEndpoint(ctx)

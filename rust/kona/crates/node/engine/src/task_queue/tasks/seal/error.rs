@@ -2,7 +2,6 @@
 
 use crate::{EngineTaskError, InsertTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
 use alloy_transport::{RpcError, TransportErrorKind};
-use kona_protocol::FromBlockError;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -26,12 +25,6 @@ pub enum SealTaskError {
     /// be flushed post-holocene.
     #[error("Invalid payload, must flush post-holocene")]
     HoloceneInvalidFlush,
-    /// Failed to convert a [`OpExecutionPayload`] to a [`L2BlockInfo`].
-    ///
-    /// [`OpExecutionPayload`]: op_alloy_rpc_types_engine::OpExecutionPayload
-    /// [`L2BlockInfo`]: kona_protocol::L2BlockInfo
-    #[error(transparent)]
-    FromBlock(#[from] FromBlockError),
     /// Error sending the built payload envelope.
     #[error(transparent)]
     MpscSend(#[from] Box<mpsc::error::SendError<Result<OpExecutionPayloadEnvelope, Self>>>),
@@ -56,7 +49,6 @@ impl EngineTaskError for SealTaskError {
             Self::HoloceneInvalidFlush => EngineTaskErrorSeverity::Flush,
             Self::DepositOnlyPayloadReattemptFailed |
             Self::DepositOnlyPayloadFailed |
-            Self::FromBlock(_) |
             Self::MpscSend(_) |
             Self::ClockWentBackwards |
             Self::UnsafeHeadChangedSinceBuild => EngineTaskErrorSeverity::Critical,

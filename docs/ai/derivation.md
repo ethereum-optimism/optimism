@@ -82,6 +82,44 @@ Two guards fail loudly on a field left unwired:
   timeout values must not be modified without protocol review.
 - **Reorg unwinding**: reorg handling must correctly unwind all derived state.
 
+### Validate transactions after span decomposition
+
+For post-Holocene derivation, transaction-list validation belongs to the batch stage, after a span
+batch has been decomposed and its singular batches are streamed one at a time. In particular,
+activation-gated transaction rules must use the streamed singular batch's timestamp. Do not inspect
+transactions while decoding or constructing a `SpanBatch`, and keep post-Holocene whole-span
+processing limited to prefix and extraction checks. A span may cross a fork boundary; only singular
+batches emitted after the safe head are candidates for validation.
+
+Add new per-block transaction rules to `checkSingularBatch` (op-node) and
+`SingleBatch::check_batch` (kona), where singular batches from both wire formats converge. Rejecting
+during `DeriveSpanBatch` can discard valid later elements before the batch stage has selected the
+singular batches that actually apply. The legacy pre-Holocene batch queue has no singular-streaming
+batch stage, so it still performs its historical full-span transaction checks. Keep those legacy
+checks aligned between op-node and Kona.
+
+## Cross-client wire-format parity
+
+Both clients decode the same batcher-controlled bytes, so their decoders must accept **exactly**
+the same byte set. A byte string that one client decodes and the other rejects splits derivation on
+identical L1 data.
+
+- **The spec is the reference; op-node is the incumbent.** Decide what is correct from the
+  [specs](https://specs.optimism.io). op-node additionally defines what OP Mainnet currently does,
+  so where the spec is silent or ambiguous its behavior is the tie-breaker — but a decoder that
+  contradicts the spec, or looks outright buggy, is a finding to raise rather than something to
+  mirror into kona. Either way, take a spec/op-node disagreement to the user before encoding a
+  choice in either client.
+- **Verify a codec's accept-set, don't infer it from the format name.** Wire formats come in
+  families that differ on exactly the inputs a batcher controls. Span-batch `uvarint` is a protobuf
+  Base128 varint, whose non-minimal encodings are valid; the `unsigned-varint` crate implements the
+  minimal-only multiformats variant instead and rejects them. Span-batch fields go through
+  `read_uvarint` (`rust/kona/crates/protocol/protocol/src/batch/varint.rs`), a port of Go's
+  `binary.ReadUvarint`. Before trusting any decoder on this path, diff its accept-set against
+  op-node's over a generated corpus — a spec citation does not distinguish two families.
+- **Pin every decision in both suites.** When changing either decoder, add the same byte vector to
+  the kona and op-node tests so the pair stays locked together.
+
 ## Testing Requirements
 
 - Unit tests for every pipeline stage.

@@ -4,13 +4,16 @@ Guidance for AI agents working with Rust code in the Optimism monorepo. See [dev
 
 ## Workspace Layout
 
-All Rust code lives under `rust/`. This is a unified Cargo workspace — always run Rust commands from this directory. The workspace contains three main component groups:
+All Rust code lives under `rust/`. This is a unified Cargo workspace — always run Rust commands from this directory. The workspace contains four main component groups:
 
 - **Kona** — Proof system and rollup node (`rust/kona/`)
 - **Op-Reth** — OP Stack execution client built on reth (`rust/op-reth/`)
 - **Op-Alloy / Alloy extensions** — OP Stack types and providers
+- **Lokahi** — Rust rewrite of the Go `op-supernode` multi-chain consensus-layer host (`rust/lokahi/`, binary `lokahi`). Early development: the crate currently builds a CLI skeleton only.
 
 Check `rust/Cargo.toml` for the full workspace member list, dependency versions, and lint configuration. The Rust toolchain version is pinned in `rust/rust-toolchain.toml`.
+
+Workspace tool config lives at **`rust/.config/`** — `nextest.toml` (test settings, JUnit output) and `zepter.yaml` (feature-propagation lint). `nextest`, `zepter`, and `cargo-release` discover config **only from the workspace root**, so per-component `rust/<crate>/.config/*.toml` files are *not* read and have no effect — put new test/lint config at `rust/.config/`. (`rust/op-rbuilder` and `rust/rollup-boost` are separate vendored Cargo workspaces with their own root configs.)
 
 ### Migrated, not vendored
 
@@ -45,8 +48,9 @@ just build-no-examples
 just build-release
 
 # Build specific binaries
-just build-node      # kona-node
-just build-op-reth   # op-reth
+just build-node             # kona-node
+just build-op-reth          # op-reth
+just build-lokahi   # lokahi
 ```
 
 ### superchain-registry submodule (op-reth)
@@ -173,6 +177,15 @@ Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
 ## CI
 
 Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs this automatically — if you see bindgen errors locally, install clang.
+
+## Cross-implementation parity
+
+`rust/op-alloy` holds the OP transaction and receipt types that op-reth and kona consume; the Go
+services run the same formats through op-geth and `op-core/*`. A change to a wire format or hash
+rule on either side has to agree with the other, pinned by a shared golden vector asserted in both
+suites. The rule and the current
+example live in [opgeth-decoupling.md](opgeth-decoupling.md#cross-implementation-parity);
+batcher-controlled decoders are covered in [derivation.md](derivation.md).
 
 ## Hardforks
 

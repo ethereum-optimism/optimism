@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::{Address, B256, Bytes};
+use alloy_primitives::B256;
 use serde::{Deserialize, Serialize};
 
 /// Single-block replay request, accepting either a block tag/number or a block hash.
@@ -18,7 +18,7 @@ pub enum ReplayPostExecBlockRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ReplayPostExecBlockOptions {
-    /// Compare replay refunds against any embedded post-exec payload in the source block.
+    /// Check any embedded post-exec payload in the source block against replayed raw gas.
     pub compare_payload: bool,
 }
 
@@ -31,7 +31,7 @@ impl Default for ReplayPostExecBlockOptions {
 /// Replay configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PostExecReplayConfig {
-    /// Compare replay refunds against an embedded payload when present.
+    /// Check an embedded payload against replayed raw gas when present.
     pub compare_payload: bool,
 }
 
@@ -47,40 +47,11 @@ impl From<ReplayPostExecBlockOptions> for PostExecReplayConfig {
     }
 }
 
-/// Exact refund categories emitted by the replay engine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PostExecReplayRefundKind {
-    /// Warm account rebate (+2500).
-    WarmAccount,
-    /// Warm storage read rebate (+2000).
-    WarmSload,
-    /// Warm storage write rebate (+2100).
-    WarmSstore,
-}
-
-/// Exact refund attribution event for one replayed transaction.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PostExecReplayRefundEvent {
-    /// Replay-local transaction index that claimed the rebate.
-    pub claiming_replay_tx_index: u64,
-    /// Original transaction index in the source block that claimed the rebate.
-    pub claiming_tx_index: u64,
-    /// Refund kind.
-    pub kind: PostExecReplayRefundKind,
-    /// Refund amount in gas.
-    pub amount: u64,
-    /// Account touched by the rebate.
-    pub address: Address,
-    /// Storage slot touched by the rebate, when applicable.
-    pub slot: Option<B256>,
-    /// Replay-local transaction index that first warmed the account or slot.
-    pub first_warmed_by_replay_tx_index: u64,
-    /// Original transaction index in the source block that first warmed the account or slot.
-    pub first_warmed_by_tx_index: u64,
-}
-
 /// Per-transaction replay row.
+///
+/// `raw_gas_used` comes from policy-free re-execution, so it is the transaction's gas cost before
+/// any rebate. `canonical_gas_used` is what the block's embedded payload implies the producer
+/// charged (`raw_gas_used` less the claimed refund); with no embedded claim the two are equal.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PostExecReplayTx {
     pub tx_index: u64,
@@ -90,9 +61,7 @@ pub struct PostExecReplayTx {
     pub is_deposit_tx: bool,
     pub raw_gas_used: u64,
     pub canonical_gas_used: u64,
-    pub op_gas_refund_replay: u64,
     pub op_gas_refund_payload: Option<u64>,
-    pub refund_breakdown: Vec<PostExecReplayRefundEvent>,
     pub mismatch: bool,
 }
 
@@ -104,7 +73,6 @@ pub enum PostExecReplayMismatchKind {
     PayloadIndexOutOfRange,
     PayloadTargetsDeposit,
     PayloadTargetsPostExec,
-    PayloadRefundMismatch,
     PayloadRefundExceedsRawGas,
 }
 
@@ -130,7 +98,6 @@ pub struct PostExecReplaySummary {
     pub post_exec_payload_entry_count: usize,
     pub block_gas_used: u64,
     pub block_raw_gas_used: u64,
-    pub replay_refund_total: u64,
     pub payload_refund_total: u64,
     pub mismatch_count: usize,
 }
@@ -145,8 +112,6 @@ pub struct PostExecReplayBlock {
     pub post_exec_tx_present: bool,
     pub post_exec_tx_index: Option<u64>,
     pub embedded_payload: Option<PostExecReplayPayload>,
-    pub synthesized_payload: PostExecReplayPayload,
-    pub synthesized_payload_bytes: Bytes,
     pub txs: Vec<PostExecReplayTx>,
     pub mismatches: Vec<PostExecReplayMismatch>,
     pub summary: PostExecReplaySummary,

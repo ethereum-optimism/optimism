@@ -156,7 +156,7 @@ func TestRandomDirectedGraph(gt *testing.T) {
 
 	// fund EOAs per chain
 	eoasPerChain := make([][]*dsl.EOA, l2ChainNum)
-	for chainIdx, funder := range []*dsl.Funder{sys.FunderA, sys.FunderB} {
+	for chainIdx, funder := range []*dsl.FunderEOA{sys.FunderA, sys.FunderB} {
 		eoas := funder.NewFundedEOAs(pubSubPairCnt, fundAmount)
 		eoasPerChain[chainIdx] = eoas
 	}
@@ -602,8 +602,10 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 
 	for _, faults := range faultsLists {
 		logger.Info("Attempt to validate message with invalid attribute", "faults", faults)
-		// Intent to validate message on chain B
-		txC := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](chuck.Plan())
+		// Intent to validate message on chain B.
+		// The identifiers are fabricated, so their timestamps name blocks chain A will never build.
+		txC := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
+			chuck.Plan(), txintent.WithoutInteropDependencyWait())
 		txC.Content.DependOn(&txA.Result)
 
 		// Random select event index in tx for injecting faults

@@ -627,7 +627,7 @@ library Predeploys {
                     // Additional conditions for interop
                     if (DevFeatures.isDevFeatureEnabled(records[i].devFeatureGate, DevFeatures.OPTIMISM_PORTAL_INTEROP))
                     {
-                        if (_fork < uint256(Fork.INTEROP) || !_useInterop) {
+                        if (_fork < uint256(Fork.LAGOON) || !_useInterop) {
                             return false;
                         }
                     }

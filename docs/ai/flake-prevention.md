@@ -359,6 +359,49 @@ Prefer binding port `0` in the service that will own the socket, then discover t
 
 **Examples:** [#21872](https://github.com/ethereum-optimism/optimism/pull/21872). **Lint:** no (cross-process lifecycle).
 
+### F16 — Proxy left pointing at a stopped process's address
+
+A long-lived proxy that keeps its upstream address after the owning process stops forwards traffic to a freed port, which the OS may hand to an unrelated process — silently cross-wiring one node's endpoints to another. Clear the upstream *before* initiating the stop: clearing afterwards shrinks the window but does not close it, and early-returning error paths skip it entirely.
+
+```go
+// BAD — Stop frees the ports; the proxy forwards to a stale address
+// until the clear runs, and never if Stop errors.
+err := n.sub.Stop(true)
+require.NoError(t, err)
+n.proxy.ClearUpstream()
+
+// GOOD — clear first; new dials are refused instead of cross-wired.
+n.proxy.ClearUpstream()
+err := n.sub.Stop(true)
+require.NoError(t, err)
+```
+
+Invariant: a proxy's upstream is set only while the process owning that address is alive and listening.
+
+**Examples:** [#22014](https://github.com/ethereum-optimism/optimism/pull/22014). **Lint:** no (cross-process lifecycle).
+
+### F17 — Setup that triggers simultaneous dials between two nodes
+
+Making both sides of a peering dial each other at setup is a race: reth dials trusted peers immediately, and when two dials cross in flight each node rejects the other's connection with `AlreadyConnected` — both die (reth has no simultaneous-connect tie-break), and the trusted-peer re-dial backoff (~30s) can outlive the verification budget.
+
+```go
+// BAD — admin_addPeer starts the initiator's dial; the acceptor's trusted add
+// makes reth dial back immediately. Two in-flight dials can kill each other.
+addPeer(initiator, acceptorEnode)
+addTrustedPeer(initiator, acceptorEnode)
+addTrustedPeer(acceptor, initiatorEnode)
+waitForPeerConnected(initiator, acceptorID)
+
+// GOOD — one dial at a time: confirm the session is up before the acceptor's
+// trusted add, which then only upgrades the live session's peer kind.
+addPeer(initiator, acceptorEnode)
+addTrustedPeer(initiator, acceptorEnode)
+waitForPeerConnected(initiator, acceptorID)
+addTrustedPeer(acceptor, initiatorEnode)
+```
+
+**Examples:** [#22486](https://github.com/ethereum-optimism/optimism/issues/22486), [#22487](https://github.com/ethereum-optimism/optimism/pull/22487). **Lint:** no (cross-process lifecycle).
+
 ## Reviewer checklist
 
 When reviewing a PR that touches `op-acceptance-tests/` or `op-devstack/`, ask:
@@ -378,6 +421,8 @@ When reviewing a PR that touches `op-acceptance-tests/` or `op-devstack/`, ask:
 - [ ] **F13**: Concurrent transaction submissions sharing a nonce source?
 - [ ] **F14**: New `MarkFlaky` → linked C-flake issue and owner?
 - [ ] **F15**: Any code selecting a free port, closing the listener, then starting a service on that port?
+- [ ] **F16**: Any stop path for a process fronted by a long-lived proxy that does not clear the proxy upstream *before* initiating the stop?
+- [ ] **F17**: Any setup path that can have two nodes dialing each other at the same time (e.g. add-peer plus a trusted/static entry on the other side)? Confirm one connection is established before triggering anything that dials back.
 
 ## When a flake report comes in
 

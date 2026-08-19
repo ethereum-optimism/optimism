@@ -218,6 +218,22 @@ func WithProposerOption(opt sysgo.ProposerOption) Option {
 	}
 }
 
+func WithZKProposerOption(opt sysgo.ZKProposerOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindZKProposer
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if opt == nil {
+				return
+			}
+			cfg.ZKProposerOptions = append(cfg.ZKProposerOptions, opt)
+		},
+	}
+}
+
 func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
 	var kinds optionKinds
 	if opt != nil {
@@ -234,6 +250,9 @@ func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
 	}
 }
 
+// WithOpRethOption applies an op-reth option to every EL in the preset that can sequence. Nodes
+// that only verify stay on stock op-reth, so a binary override here yields a sequencing-builds /
+// stock-verifies split rather than a uniform swap.
 func WithOpRethOption(opt sysgo.OpRethOption) Option {
 	var kinds optionKinds
 	if opt != nil {
@@ -349,7 +368,7 @@ func WithInteropLogBackfillDepth(d time.Duration) Option {
 	}
 }
 
-// WithoutHonestProposer skips starting op-proposer.
+// WithoutHonestProposer skips starting the honest proposer (op-proposer, or kona-sp1-proposer for the ZK preset).
 func WithoutHonestProposer() Option {
 	return option{
 		kinds: optionKindSkipHonestProposer,
@@ -370,9 +389,9 @@ func WithoutHonestChallenger() Option {
 	}
 }
 
-// WithInteropAtGenesis activates the Interop hardfork at genesis on the L2 chain and provisions
+// WithInteropAtGenesis activates the Lagoon hardfork at genesis on the L2 chain and provisions
 // a DependencySet for op-node startup without a supervisor. Required by presets that exercise
-// Interop-gated consensus features (e.g. SDM PostExec).
+// interop-gated consensus features (e.g. SDM PostExec).
 func WithInteropAtGenesis() Option {
 	return option{
 		kinds: optionKindInteropAtGenesis,

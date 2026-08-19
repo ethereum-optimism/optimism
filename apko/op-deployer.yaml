@@ -7,6 +7,8 @@ contents:
     - ca-certificates-bundle
     - wolfi-baselayout
     - op-deployer@local
+    - busybox
+    - apk-tools
 
 archs:
   - amd64

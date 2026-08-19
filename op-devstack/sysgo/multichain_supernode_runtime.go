@@ -20,10 +20,6 @@ import (
 	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
-	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
-	fconf "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -120,7 +116,7 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 // startSupernodeEL starts an L2 EL node for the supernode runtime,
 // respecting DEVSTACK_L2EL_KIND (defaults to op-reth when unset).
 func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
-	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
 }
 
 // startSupernodeELWithInteropURL starts an L2 EL node with --rollup.interop-http
@@ -152,7 +148,7 @@ func startSupernodeELWithInteropURL(
 		return l2EL
 	default: // op-reth
 		return startMixedOpRethNodeWithInteropURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1")
+			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1", ResolveMixedL2ELOpts(t)...)
 	}
 }
 
@@ -196,7 +192,6 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	}
 	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
-	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
 	// Use the potentially-overridden depSetStatic if available.
 	var runtimeDepSet depset.DependencySet
@@ -222,9 +217,8 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 				Batcher: l2Batcher,
 			},
 		},
-		Supernode:     supernode,
-		FaucetService: faucetService,
-		TimeTravel:    timeTravelClock,
+		Supernode:  supernode,
+		TimeTravel: timeTravelClock,
 	}
 }
 
@@ -339,8 +333,9 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	if !supernodeSequencerEnabled {
 		// Production-faithful topology: each follow-mode sequencer runs its own
 		// EL, distinct from the supernode VN's EL, joined only by L1 and P2P.
-		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0))
-		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+		sequencerELOpts := ResolveMixedL2ELOpts(t)
+		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
+		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
 
 		// Light sequencers follow the supernode's safe head (production:
 		// kind=sequencer, lightNode=true, deps on op-supernode). They sequence
@@ -401,12 +396,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, batchBCL, batchBEL, cfg.BatcherOptions...)
 	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
 
-	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{
-		l1Net.ChainID():  l1EL.UserRPC(),
-		l2ANet.ChainID(): seqL2AEL.UserRPC(),
-		l2BNet.ChainID(): seqL2BEL.UserRPC(),
-	})
-
 	// Wait for interop filter readiness now that the supernode and batchers are running.
 	// The filter needs blocks to be produced before its chain ingesters can backfill.
 	if interopFilter != nil {
@@ -443,7 +432,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			},
 		},
 		Supernode:     supernode,
-		FaucetService: faucetService,
 		TimeTravel:    timeTravelClock,
 		InteropFilter: interopFilter,
 	}, activationTime
@@ -1028,48 +1016,4 @@ func startTestSequencerForL2Chains(
 		controlRPC: controlRPCs,
 		service:    sq,
 	}
-}
-
-func startFaucetsForRPCs(t devtest.T, keys devkeys.Keys, chainRPCs map[eth.ChainID]string) *faucet.Service {
-	require := t.Require()
-	logger := t.Logger().New("component", "faucet")
-
-	funderKey, err := keys.Secret(devkeys.UserKey(funderMnemonicIndex))
-	require.NoError(err, "need faucet funder key")
-	funderKeyStr := hexutil.Encode(crypto.FromECDSA(funderKey))
-
-	faucets := make(map[ftypes.FaucetID]*fconf.FaucetEntry, len(chainRPCs))
-	for chainID, rpcURL := range chainRPCs {
-		faucetID := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", chainID))
-		faucets[faucetID] = &fconf.FaucetEntry{
-			ELRPC:   endpoint.MustRPC{Value: endpoint.URL(rpcURL)},
-			ChainID: chainID,
-			TxCfg: fconf.TxManagerConfig{
-				PrivateKey: funderKeyStr,
-			},
-		}
-	}
-
-	cfg := &faucetConfig.Config{
-		RPC: oprpc.CLIConfig{
-			ListenAddr: "127.0.0.1",
-		},
-		Faucets: &fconf.Config{
-			Faucets: faucets,
-		},
-	}
-
-	srv, err := faucet.FromConfig(t.Ctx(), cfg, logger)
-	require.NoError(err, "failed to create faucet service")
-	require.NoError(srv.Start(t.Ctx()), "failed to start faucet service")
-
-	t.Cleanup(func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // force-close
-		logger.Info("Closing faucet service")
-		closeErr := srv.Stop(ctx)
-		logger.Info("Closed faucet service", "err", closeErr)
-	})
-
-	return srv
 }

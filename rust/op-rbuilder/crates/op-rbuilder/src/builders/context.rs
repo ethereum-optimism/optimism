@@ -20,7 +20,6 @@ use reth_node_api::PayloadBuilderError;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::{
     ConfigurePostExecEvm, OpEvmConfig, OpNextBlockEnvAttributes, PostExecExecutorExt, PostExecMode,
-    WarmingState,
 };
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::OpPayloadBuilderAttributes;
@@ -345,7 +344,7 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
     ) -> Result<
         impl BlockBuilder<
             Primitives = reth_optimism_primitives::OpPrimitives,
-            Executor: PostExecExecutorExt<Snapshot = WarmingState>
+            Executor: PostExecExecutorExt<Snapshot = ()>
                           + AlloyBlockExecutor<
                 Transaction = OpTransactionSigned,
                 Receipt = OpReceipt,
@@ -581,8 +580,8 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
             let mut tx_succeeded = false;
             let mut gas_limit_exceeded = false;
             let mut address_limit_exceeded = false;
-            // Declining a candidate (CommitChanges::No, below) must not leak SDM block-warming into
-            // a later committed tx; that rollback lives in alloy-op-evm's
+            // Declining a candidate (CommitChanges::No, below) must not leak refund-policy state
+            // into a later committed tx; that rollback lives in alloy-op-evm's
             // execute_transaction_with_commit_condition override (ethereum-optimism/optimism#21354).
             let committed = match builder.execute_transaction_with_commit_condition(
                 tx.clone(),

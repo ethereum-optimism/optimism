@@ -285,7 +285,8 @@ async fn test_system_config_retrieval(mut provider: BufferedL2Provider) {
     provider.add_block(block, l2_info).await.unwrap();
 
     // Retrieve system config for genesis
-    let genesis_config = provider.system_config_by_number(0, config.clone()).await.unwrap();
+    let genesis_config =
+        provider.system_config_by_l2_hash(config.genesis.l2.hash, config.clone()).await.unwrap();
     // Just verify we got a config back
     // The default SystemConfig might have zero values, so we just check it exists
     let _ = genesis_config;

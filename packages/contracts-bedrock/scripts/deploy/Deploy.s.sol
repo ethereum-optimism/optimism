@@ -42,6 +42,7 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -268,7 +269,8 @@ contract Deploy is Deployer {
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 l1ProxyAdminOwner: superchainProxyAdmin.owner(),
-                challenger: cfg.l2OutputOracleChallenger()
+                challenger: cfg.l2OutputOracleChallenger(),
+                sp1Verifier: ISP1Verifier(cfg.sp1Verifier())
             })
         );
 
@@ -279,6 +281,9 @@ contract Deploy is Deployer {
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
         artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameImpl));
+        if (address(dio.sp1PlonkAdapterSingleton) != address(0)) {
+            artifacts.save("SP1PlonkAdapter", address(dio.sp1PlonkAdapterSingleton));
+        }
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);

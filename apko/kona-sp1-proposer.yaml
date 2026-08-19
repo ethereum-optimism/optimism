@@ -1,0 +1,38 @@
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+  packages:
+    - ca-certificates-bundle
+    - wolfi-baselayout
+    - ca-certificates
+    - busybox
+    - glibc
+    - libgcc
+    - libstdc++
+    - openssl
+    - kona-sp1-proposer@local
+    - apk-tools
+
+environment:
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+
+accounts:
+  groups:
+    - groupname: kona
+      gid: 10001
+  users:
+    - username: kona
+      uid: 10001
+      gid: 10001
+  # uid 10001, matching the other Kona service images.
+  run-as: 10001
+
+entrypoint:
+  command: /usr/local/bin/kona-sp1-proposer
+
+annotations:
+  org.opencontainers.image.source: https://github.com/ethereum-optimism/optimism
+  org.opencontainers.image.title: kona-sp1-proposer

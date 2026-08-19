@@ -1,0 +1,153 @@
+---
+title: Integrate Subblocks in your app
+description: Query pre-confirmed Subblocks state from your app using standard JSON-RPC methods with the pending tag, or through viem and ethers.
+diataxis: how-to
+---
+
+A chain that streams [Subblocks](/op-stack/features/subblocks) publishes a partial block every 200 ms, so your app can show a transaction's result well before the block containing it is sealed.
+This guide shows how to read that pre-confirmed state over standard Ethereum JSON-RPC and from the viem and ethers libraries.
+
+Most apps need only a change of endpoint and the `pending` block tag.
+
+*   In production, point your app to a subblocks-aware RPC endpoint from your provider of choice. If your provider doesn't support subblocks yet, let us know on [Discord](https://discord.gg/jPQhHTdemH)
+    and we'll work with them to get it added.
+*   To run your own subblocks-aware node, start `op-reth` with `--flashblocks-url=<websocket-url>` pointing at the chain's stream. The node then serves `pending` from the subblock state.
+    OP Mainnet and OP Sepolia stream URLs are listed on the [network information page](/op-mainnet/network-information/connecting-to-op).
+
+<Info>
+  This guide covers reading pre-confirmed state through an RPC endpoint, which is what most apps want.
+  If you consume the WebSocket stream directly instead, four payload fields are zeroed and need handling — see the [Subblocks notice](/notices/subblocks).
+</Info>
+
+## Supported RPC methods
+
+You read subblock state with the same Ethereum JSON-RPC calls you already use.
+The difference is using the "pending" tag in some of them to explicitly query the pre-confirmed state instead of the last finalized block.
+
+*   **`eth_getBlockByNumber`**: Use the `pending` tag to retrieve the latest subblock snapshot.
+    <Expandable title="Sample response">
+
+      ```json
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "number": "0x1234",
+              "hash": "0x...",
+              "transactions": [...]
+            }
+          }
+      ```
+    </Expandable>
+
+*   **`eth_call`**: Use the `pending` tag to execute calls against the most recent pre-confirmed state.
+
+    <Expandable title="Sample request">
+
+      ```json
+      {
+        "jsonrpc": "2.0",
+        "method": "eth_call",
+        "params": [{"to": "0x...", "data": "0x..."}, "pending"],
+        "id": 1
+      }
+      ```
+    </Expandable>
+
+*   `eth_getBalance` / `eth_getTransactionCount`: Use the `pending` tag to fetch balances or transaction counts respectively as they evolve within the block window.
+
+    <Expandable title="Sample response for `eth_getBalance`">
+
+      ```json
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "0x0234"
+      }
+      ```
+    </Expandable>
+
+    <Expandable title="Sample response for `eth_getTransactionCount`">
+
+      ```json
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "0x1b" // 27 transactions
+      }
+      ```
+    </Expandable>
+
+    Other methods, like `eth_getTransactionReceipt`, `eth_getTransactionByHash` or `eth_simulateV1`, return data from pre-confirmed transactions without requiring the `pending` tag.
+    Consult the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html#flashblock-json-rpc-apis) for more details on each of these methods.
+
+## Libraries
+
+You need a subblocks‑aware RPC endpoint to use the following libraries:
+
+### Viem
+
+```ts
+import { createPublicClient, createWalletClient, http, parseEther } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { opSepolia } from 'viem/chains';
+import { publicActionsL2, walletActionsL2 } from 'viem/op-stack';
+
+const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY}`);
+
+const walletClient = createWalletClient({
+  account,
+  chain: opSepolia,
+  transport: http("https://sepolia.optimism.io"),
+}).extend(walletActionsL2());
+
+const publicClient = createPublicClient({
+  chain: opSepolia,
+  transport: http("https://sepolia.optimism.io"),
+}).extend(publicActionsL2());
+
+const submissionTime = new Date();
+const hash = await walletClient.sendTransaction({
+  to: '0x...',
+  value: parseEther('0.0001'),
+});
+
+// Wait for pre-confirmation
+const receipt = await publicClient.waitForTransactionReceipt({ hash });
+const confirmTime = new Date();
+console.log('pre-confirmed in ms:', confirmTime.getTime() - submissionTime.getTime());
+```
+
+### Ethers
+
+```ts
+import { ethers } from 'ethers';
+
+// Here, provider is a subblocks-enabled RPC provider
+const provider = new ethers.JsonRpcProvider("https://sepolia.optimism.io");
+const wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string, provider);
+
+const tx = { to: '0x...', value: ethers.parseEther('0.0001') };
+const submission = new Date();
+
+const sent = await wallet.sendTransaction(tx);
+
+await sent.wait(0);
+const confirmed = new Date();
+
+// should represent the transaction (pre)confirmation faster than standard RPC
+console.log('Pre-confirmed in ms:', confirmed.getTime() - submission.getTime());
+
+// validates the transaction hash returned by the pre-confirmed transaction above
+const receipt = await provider.getTransactionReceipt(sent.hash);
+const validated = new Date();
+console.log('Receipt validated in ms:', validated.getTime() - submission.getTime());
+console.log('Transaction receipt:', receipt);
+```
+
+## Next steps
+
+*   Understand how subblocks affect [gas usage and large transactions](/app-developers/guides/transactions/subblocks-and-gas-usage).
+*   Learn how subblocks work in the [Subblocks explainer](/op-stack/features/subblocks).
+*   Review the [technical specs](https://specs.optimism.io/protocol/flashblocks.html) for architecture details.
+*   Join our [community](https://discord.gg/jPQhHTdemH) to share best practices and get support!

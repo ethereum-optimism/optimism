@@ -56,7 +56,7 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 
-	l2EL := startSequencerEL(t, l2Net, jwtPath, jwtSecret, NewELNodeIdentity(0))
+	l2EL := startSequencerEL(t, l2Net, jwtPath, jwtSecret, NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
 	l2CL := startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 		Key:           "sequencer",
 		IsSequencer:   true,
@@ -111,8 +111,6 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	// (the two-L2 supernode runtime does the same for verifier-mode VNs).
 	connectL2CLPeers(t, t.Logger(), l2CL, supernodeProxy)
 
-	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
-
 	var runtimeDepSet depset.DependencySet
 	if depSetStatic != nil {
 		runtimeDepSet = depSetStatic
@@ -137,10 +135,9 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 				Batcher:     l2Batcher,
 			},
 		},
-		Supernode:     supernode,
-		FaucetService: faucetService,
-		TimeTravel:    timeTravelClock,
-		DelaySeconds:  delaySeconds,
+		Supernode:    supernode,
+		TimeTravel:   timeTravelClock,
+		DelaySeconds: delaySeconds,
 		SyncTester: &SyncTesterRuntime{
 			Service: syncTester,
 			EL:      syncTesterEL,

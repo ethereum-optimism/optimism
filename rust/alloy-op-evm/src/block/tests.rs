@@ -1,11 +1,13 @@
 use alloc::{string::ToString, vec};
-use alloy_consensus::{Sealed, SignableTransaction, TxLegacy, transaction::Recovered};
+use alloy_consensus::{Sealable, Sealed, SignableTransaction, TxLegacy, transaction::Recovered};
 use alloy_eips::eip2718::WithEncoded;
 use alloy_evm::{EvmEnv, ToTxEnv};
 use alloy_hardforks::ForkCondition;
 use alloy_op_hardforks::{OpHardfork, OpHardforks};
-use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256, uint};
-use op_alloy::consensus::{OpTxEnvelope, TxDeposit};
+use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256, keccak256, uint};
+use op_alloy::consensus::{
+    OpTxEnvelope, PostExecPayload, SDMGasEntry, TxDeposit, build_post_exec_tx,
+};
 use op_revm::{
     L1BlockInfo, OpBuilder, OpSpecId, OpTransaction,
     constants::{
@@ -16,13 +18,18 @@ use op_revm::{
 use revm::{
     Context, MainContext,
     context::{BlockEnv, CfgEnv},
+    context_interface::ContextTr,
     database::{CacheDB, EmptyDB, InMemoryDB, State},
-    inspector::NoOpInspector,
+    inspector::{JournalExt, NoOpInspector},
+    interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
     primitives::HashMap,
-    state::{AccountInfo, Bytecode},
+    state::{Account, AccountInfo, Bytecode, EvmState},
 };
 
-use crate::OpEvm;
+use crate::{
+    OpEvm,
+    post_exec::{PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext},
+};
 
 use super::*;
 
@@ -41,30 +48,6 @@ fn recovered_legacy_from(sender: Address, tx: TxLegacy) -> Recovered<OpTxEnvelop
         ))),
         sender,
     )
-}
-
-/// Build the standard verifier payload (version 1) used by every test.
-fn post_exec_payload(block_number: u64, gas_refund_entries: Vec<SDMGasEntry>) -> PostExecPayload {
-    PostExecPayload { version: 1, block_number, gas_refund_entries }
-}
-
-/// Runtime of a contract that reads (warms) its own storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
-///
-/// Two transactions that *call* this contract warm the same storage slot across the block, so the
-/// second tx earns a genuine, non-intrinsic SLOAD warming rebate — the kind of cross-tx warming SDM
-/// exists to rebate, as opposed to the intrinsic sender/`to`/fee-vault touches a plain value
-/// transfer makes (which are correctly never rebated).
-const WARMING_CONTRACT_CODE: [u8; 5] = [0x60, 0x00, 0x54, 0x50, 0x00];
-
-const WARMING_CONTRACT: Address = Address::new([0x77; 20]);
-
-fn warming_contract_account() -> AccountInfo {
-    let code = Bytecode::new_raw(Bytes::from_static(&WARMING_CONTRACT_CODE));
-    AccountInfo {
-        code_hash: alloy_primitives::keccak256(WARMING_CONTRACT_CODE),
-        code: Some(code),
-        ..Default::default()
-    }
 }
 
 #[test]
@@ -127,7 +110,7 @@ fn prepare_jovian_db(da_footprint_gas_scalar: u16) -> State<InMemoryDB> {
     db
 }
 
-type SDMTestExecutor<'a> = OpBlockExecutor<
+type JovianTestExecutor<'a> = OpBlockExecutor<
     OpEvm<
         &'a mut State<InMemoryDB>,
         NoOpInspector,
@@ -146,6 +129,9 @@ const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
 /// a bare `bool` at the call sites.
 enum Inspect {
     Enabled,
+    /// Models real block building and validation, which construct the EVM without an inspector
+    /// (`create_evm` passes `false`). The inspected `inspect_tx` path is then reached *only* via
+    /// SDM Produce's `begin_post_exec_tx`, exactly as in production.
     Disabled,
 }
 
@@ -160,7 +146,7 @@ fn build_executor<'a>(
     base_fee: u64,
     beneficiary: Address,
     inspect: Inspect,
-) -> SDMTestExecutor<'a> {
+) -> JovianTestExecutor<'a> {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
         .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
@@ -199,7 +185,7 @@ fn build_executor<'a>(
     )
 }
 
-struct SDMExecutorFixture {
+struct JovianExecutorFixture {
     db: State<InMemoryDB>,
     receipt_builder: OpAlloyReceiptBuilder,
     op_chain_hardforks: OpChainHardforks,
@@ -210,7 +196,7 @@ struct SDMExecutorFixture {
     beneficiary: Address,
 }
 
-impl SDMExecutorFixture {
+impl JovianExecutorFixture {
     fn new(da_footprint_gas_scalar: u16, gas_limit: u64, jovian_timestamp: u64) -> Self {
         Self {
             db: prepare_jovian_db(da_footprint_gas_scalar),
@@ -222,8 +208,8 @@ impl SDMExecutorFixture {
             ),
             gas_limit,
             jovian_timestamp,
-            // SDM/post-exec tests run normal (non-activation) blocks; leaving the parent timestamp
-            // unset skips the fork-activation guard, matching op-reth's parentless import path.
+            // These Jovian execution tests run normal (non-activation) blocks; leaving the parent
+            // timestamp unset skips the fork-activation guard, matching op-reth's import path.
             parent_timestamp: None,
             // Default to a zero base fee; settlement tests opt into a non-zero one.
             base_fee: 0,
@@ -233,7 +219,7 @@ impl SDMExecutorFixture {
         }
     }
 
-    fn executor(&mut self) -> SDMTestExecutor<'_> {
+    fn executor(&mut self) -> JovianTestExecutor<'_> {
         build_executor(
             &mut self.db,
             &self.receipt_builder,
@@ -250,22 +236,22 @@ impl SDMExecutorFixture {
     fn executor_with_post_exec_mode(
         &mut self,
         post_exec_mode: PostExecMode,
-    ) -> SDMTestExecutor<'_> {
+    ) -> JovianTestExecutor<'_> {
         let mut executor = self.executor();
         executor.set_post_exec_mode(post_exec_mode);
         executor
     }
 
-    /// Shorthand for an executor in `Verify` mode against `post_exec_payload(block, entries)`.
-    fn verifier(&mut self, block_number: u64, entries: Vec<SDMGasEntry>) -> SDMTestExecutor<'_> {
-        self.executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(
+    fn verifier(&mut self, block_number: u64, entries: Vec<SDMGasEntry>) -> JovianTestExecutor<'_> {
+        self.executor_with_post_exec_mode(PostExecMode::Verify(PostExecPayload {
+            version: 1,
             block_number,
-            entries,
-        )))
+            gas_refund_entries: entries,
+        }))
     }
 }
 
-impl Default for SDMExecutorFixture {
+impl Default for JovianExecutorFixture {
     fn default() -> Self {
         Self::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, DEFAULT_GAS_LIMIT, JOVIAN_TIMESTAMP)
     }
@@ -273,7 +259,7 @@ impl Default for SDMExecutorFixture {
 
 #[test]
 fn test_jovian_da_footprint_estimation() {
-    let mut fixture = SDMExecutorFixture::default();
+    let mut fixture = JovianExecutorFixture::default();
     let mut executor = fixture.executor();
     let tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
     let tx_env = tx.to_tx_env();
@@ -289,7 +275,7 @@ fn test_jovian_da_footprint_estimation_out_of_gas() {
     const GAS_LIMIT: u64 = 100;
 
     let mut fixture =
-        SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, GAS_LIMIT, JOVIAN_TIMESTAMP);
+        JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, GAS_LIMIT, JOVIAN_TIMESTAMP);
     let mut executor = fixture.executor();
     let tx = recovered_legacy(TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() });
     let tx_env = tx.to_tx_env();
@@ -317,7 +303,8 @@ fn test_jovian_da_footprint_estimation_maxed_out_da_footprint() {
     const DA_FOOTPRINT_GAS_SCALAR: u16 = 2000;
     const GAS_LIMIT: u64 = 200_000;
 
-    let mut fixture = SDMExecutorFixture::new(DA_FOOTPRINT_GAS_SCALAR, GAS_LIMIT, JOVIAN_TIMESTAMP);
+    let mut fixture =
+        JovianExecutorFixture::new(DA_FOOTPRINT_GAS_SCALAR, GAS_LIMIT, JOVIAN_TIMESTAMP);
     let mut executor = fixture.executor();
     let tx = recovered_legacy(TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() });
     let tx_env = tx.to_tx_env();
@@ -356,13 +343,16 @@ fn assert_gas_limit_exceeded(
     }
 }
 
-// SDM-off regression: with refunds disabled `evm_gas_used` equals `gas_used`, so a tx over the
-// block gas limit is rejected with the full block gas limit as available gas.
+// With the stock null refund policy `evm_gas_used` equals `gas_used`, so a tx over the block gas
+// limit is rejected with the full block gas limit as available gas.
 #[test]
 fn test_pre_refund_gas_limit_never_binds_with_sdm_off() {
     const BLOCK_GAS_LIMIT: u64 = 100_000;
-    let mut fixture =
-        SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, BLOCK_GAS_LIMIT, JOVIAN_TIMESTAMP);
+    let mut fixture = JovianExecutorFixture::new(
+        DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+        BLOCK_GAS_LIMIT,
+        JOVIAN_TIMESTAMP,
+    );
     let mut executor = fixture.executor();
 
     let tx = recovered_legacy(TxLegacy { gas_limit: BLOCK_GAS_LIMIT + 1, ..Default::default() });
@@ -371,57 +361,6 @@ fn test_pre_refund_gas_limit_never_binds_with_sdm_off() {
     assert_gas_limit_exceeded(err, BLOCK_GAS_LIMIT + 1, BLOCK_GAS_LIMIT);
 }
 
-// SDM refunds lower canonical gas but must not increase the real compute admitted into a block:
-// after a refund, a tx that fits canonical `gas_used` while exceeding the pre-refund `evm_gas_used`
-// budget must still be rejected.
-#[test]
-fn test_pre_refund_gas_limit_counts_sdm_refunded_gas() {
-    const BLOCK_GAS_LIMIT: u64 = 100_000;
-    // Both txs call a contract that SLOADs a shared slot, so tx1 earns a genuine cross-tx warming
-    // rebate and canonical gas falls below pre-refund EVM gas.
-    let target = WARMING_CONTRACT;
-    let tx0 = recovered_legacy(TxLegacy {
-        nonce: 0,
-        gas_limit: 50_000,
-        to: alloy_primitives::TxKind::Call(target),
-        ..Default::default()
-    });
-    let tx1 = recovered_legacy(TxLegacy {
-        nonce: 1,
-        gas_limit: 50_000,
-        to: alloy_primitives::TxKind::Call(target),
-        ..Default::default()
-    });
-
-    let mut fixture =
-        SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, BLOCK_GAS_LIMIT, JOVIAN_TIMESTAMP);
-    fixture.db.insert_account(target, warming_contract_account());
-    let mut executor = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-    executor.execute_transaction(&tx0).expect("first tx fits");
-    executor.execute_transaction(&tx1).expect("second tx fits and receives a refund");
-
-    assert!(executor.evm_gas_used > executor.gas_used, "expected SDM to refund canonical gas");
-    let evm_gas_available = BLOCK_GAS_LIMIT - executor.evm_gas_used;
-    let canonical_gas_available = BLOCK_GAS_LIMIT - executor.gas_used;
-    assert!(evm_gas_available < canonical_gas_available);
-
-    let tx2_gas_limit = evm_gas_available + 1;
-    assert!(
-        tx2_gas_limit <= canonical_gas_available,
-        "test tx should fit canonical gas but exceed pre-refund gas"
-    );
-    let tx2 = recovered_legacy(TxLegacy {
-        nonce: 2,
-        gas_limit: tx2_gas_limit,
-        to: alloy_primitives::TxKind::Call(target),
-        ..Default::default()
-    });
-
-    let err = executor
-        .execute_transaction(&tx2)
-        .expect_err("tx exceeding pre-refund block gas must be rejected");
-    assert_gas_limit_exceeded(err, tx2_gas_limit, evm_gas_available);
-}
 /// A deposit transaction emulating the L1-attributes / network-upgrade deposits that a
 /// fork-activation block legitimately contains. Detection is parent-timestamp based, so the
 /// calldata contents are irrelevant here.
@@ -613,1536 +552,277 @@ fn test_none_parent_timestamp_skips_check() {
         .expect("check skipped when the parent timestamp is unavailable");
 }
 
-mod sdm {
-    use super::*;
-    use alloy_consensus::{Sealable, TxEip7702};
-    use alloy_eips::eip7702::{Authorization, SignedAuthorization};
-    use op_alloy::consensus::build_post_exec_tx;
+const OBSERVER_TEST_CONTRACT: Address = Address::with_last_byte(0x42);
 
-    /// Builds a recovered post-exec (0x7D) tx with a zero signer.
-    fn recovered_post_exec(
-        block_number: u64,
-        entries: Vec<SDMGasEntry>,
-    ) -> Recovered<OpTxEnvelope> {
-        Recovered::new_unchecked(
-            OpTxEnvelope::PostExec(build_post_exec_tx(block_number, entries).seal_slow()),
-            Address::ZERO,
-        )
-    }
+/// Bytecode that executes CREATE, CALL, and SELFDESTRUCT. Every opcode also drives `step`.
+const OBSERVER_TEST_BYTECODE: &[u8] = &[
+    0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0xf0, 0x50, // CREATE; POP
+    0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, // CALL output/input offsets
+    0x60, 0x00, 0x60, 0x00, 0x5a, 0xf1, 0x50, // value, target, GAS, CALL, POP
+    0x60, 0x00, 0xff, // SELFDESTRUCT to the zero address
+];
 
-    fn legacy_tx(nonce: u64, to: Address) -> Recovered<OpTxEnvelope> {
-        legacy_tx_with_gas(nonce, to, 50_000)
-    }
+fn prepare_observer_db() -> State<InMemoryDB> {
+    let mut db = prepare_jovian_db(0);
+    let code = Bytes::from_static(OBSERVER_TEST_BYTECODE);
+    db.insert_account(
+        OBSERVER_TEST_CONTRACT,
+        AccountInfo {
+            code_hash: keccak256(&code),
+            code: Some(Bytecode::new_raw(code)),
+            ..Default::default()
+        },
+    );
+    db
+}
 
-    fn legacy_tx_with_gas(nonce: u64, to: Address, gas_limit: u64) -> Recovered<OpTxEnvelope> {
-        recovered_legacy(TxLegacy {
-            nonce,
-            gas_limit,
-            to: alloy_primitives::TxKind::Call(to),
+type PolicyTestExecutor<'a, R> = OpBlockExecutor<
+    OpEvm<
+        &'a mut State<InMemoryDB>,
+        NoOpInspector,
+        op_revm::precompiles::OpPrecompiles,
+        crate::OpTx,
+        R,
+    >,
+    &'a OpAlloyReceiptBuilder,
+    &'a OpChainHardforks,
+>;
+
+fn build_policy_executor<'a, R>(
+    db: &'a mut State<InMemoryDB>,
+    receipt_builder: &'a OpAlloyReceiptBuilder,
+    hardforks: &'a OpChainHardforks,
+) -> PolicyTestExecutor<'a, R>
+where
+    R: Default + PostExecRefundInspector,
+{
+    build_policy_executor_with(db, receipt_builder, hardforks, 0, Address::ZERO, Inspect::Enabled)
+}
+
+/// [`build_policy_executor`] with an explicit base fee, beneficiary, and inspector setting, for
+/// tests whose assertion depends on fees actually moving ETH or on how the EVM is constructed.
+fn build_policy_executor_with<'a, R>(
+    db: &'a mut State<InMemoryDB>,
+    receipt_builder: &'a OpAlloyReceiptBuilder,
+    hardforks: &'a OpChainHardforks,
+    base_fee: u64,
+    beneficiary: Address,
+    inspect: Inspect,
+) -> PolicyTestExecutor<'a, R>
+where
+    R: Default + PostExecRefundInspector,
+{
+    let ctx = Context::mainnet()
+        .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
+        .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+        .with_chain(L1BlockInfo::default())
+        .with_db(db)
+        .with_block(BlockEnv {
+            timestamp: U256::from(JOVIAN_TIMESTAMP),
+            gas_limit: 500_000,
+            basefee: base_fee,
+            beneficiary,
             ..Default::default()
         })
+        .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
+
+    let evm: OpEvm<_, _, _, crate::OpTx, R> = OpEvm::new(
+        ctx.build_op_with_inspector(NoOpInspector {}),
+        matches!(inspect, Inspect::Enabled),
+    );
+    OpBlockExecutor::new(
+        evm,
+        OpBlockExecutionCtx { post_exec_mode: PostExecMode::Produce, ..Default::default() },
+        hardforks,
+        receipt_builder,
+    )
+}
+
+fn observer_test_tx() -> Recovered<OpTxEnvelope> {
+    recovered_legacy(TxLegacy {
+        to: TxKind::Call(OBSERVER_TEST_CONTRACT),
+        gas_limit: 200_000,
+        ..Default::default()
+    })
+}
+
+#[derive(Debug, Clone, Default)]
+struct HookObservingPolicy {
+    observed_hooks: u64,
+}
+
+impl PostExecRefundInspector for HookObservingPolicy {
+    type Snapshot = u64;
+
+    fn begin_tx(&mut self, _ctx: PostExecTxContext) {
+        self.observed_hooks = 0;
     }
 
-    /// A legacy tx with an explicit gas price, so post-exec settlement deltas (which scale with
-    /// `effective_gas_price - basefee`) are non-trivial.
-    fn legacy_tx_with_price(
-        nonce: u64,
-        to: Address,
-        gas_limit: u64,
-        gas_price: u128,
-    ) -> Recovered<OpTxEnvelope> {
-        recovered_legacy(TxLegacy {
-            nonce,
-            gas_limit,
-            gas_price,
-            to: alloy_primitives::TxKind::Call(to),
-            ..Default::default()
-        })
+    fn note_account_touch(&mut self, _address: Address) {}
+
+    fn finish_tx(&mut self) -> PostExecExecutedTx {
+        PostExecExecutedTx { refund_total: self.observed_hooks, refund_events: Vec::new() }
     }
 
-    fn legacy_tx_from(sender: Address, nonce: u64, to: Address) -> Recovered<OpTxEnvelope> {
-        recovered_legacy_from(
-            sender,
-            TxLegacy {
-                nonce,
-                gas_limit: 50_000,
-                to: alloy_primitives::TxKind::Call(to),
-                ..Default::default()
-            },
-        )
+    fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+    where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+        self.observed_hooks |= 1;
     }
 
-    /// A top-level CREATE tx with empty init code (deploys an empty contract).
-    fn create_tx(nonce: u64) -> Recovered<OpTxEnvelope> {
-        recovered_legacy(TxLegacy {
-            nonce,
-            gas_limit: 100_000,
-            to: alloy_primitives::TxKind::Create,
-            ..Default::default()
-        })
+    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+        self.observed_hooks |= 2;
     }
 
-    fn full_refund_for_second_tx(
-        block_gas_limit: u64,
-        tx0: &Recovered<OpTxEnvelope>,
-        tx1: &Recovered<OpTxEnvelope>,
-    ) -> Vec<SDMGasEntry> {
-        let mut fixture = SDMExecutorFixture::new(
-            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-            block_gas_limit,
-            JOVIAN_TIMESTAMP,
-        );
-        let mut probe = fixture.executor();
-        probe.execute_transaction(tx0).expect("probe first tx");
-        let tx1_evm_gas_used =
-            probe.execute_transaction(tx1).expect("probe second tx").tx_gas_used();
-
-        vec![SDMGasEntry { index: 1, gas_refund: tx1_evm_gas_used }]
+    fn inspect_call_end<CTX>(
+        &mut self,
+        _context: &mut CTX,
+        _inputs: &CallInputs,
+        _outcome: &CallOutcome,
+    ) where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+        self.observed_hooks |= 16;
     }
 
-    fn assert_invalid_post_exec(err: BlockExecutionError, expected_reason: &str) {
-        match err {
-            BlockExecutionError::Validation(BlockValidationError::Other(err)) => {
-                match err.downcast_ref::<OpBlockExecutionError>() {
-                    Some(OpBlockExecutionError::InvalidPostExecPayload(reason)) => {
-                        assert_eq!(reason, expected_reason);
-                    }
-                    other => panic!("expected invalid post-exec payload error, got: {other:?}"),
-                }
-            }
-            other => panic!("expected invalid post-exec payload error, got: {other:?}"),
-        }
+    fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+    where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+        self.observed_hooks |= 4;
     }
 
-    #[test]
-    fn test_settlement_state_account_preserves_original_info() {
-        type TestExecutor<'a> = OpBlockExecutor<
-            OpEvm<&'a mut State<InMemoryDB>, NoOpInspector>,
-            &'a OpAlloyReceiptBuilder,
-            &'a OpChainHardforks,
-        >;
-
-        let mut backing_db = InMemoryDB::default();
-        backing_db.insert_account_info(
-            BASE_FEE_RECIPIENT,
-            AccountInfo { balance: U256::from(10), ..Default::default() },
-        );
-        let mut db = State::builder().with_database(backing_db).with_bundle_update().build();
-        revm::Database::basic(&mut db, BASE_FEE_RECIPIENT)
-            .expect("failed to load base fee recipient into cache");
-
-        let mut credited_account =
-            Account::from(AccountInfo { balance: U256::from(15), ..Default::default() });
-        credited_account.mark_touch();
-        revm::DatabaseCommit::commit(
-            &mut db,
-            HashMap::from_iter([(BASE_FEE_RECIPIENT, credited_account)]),
-        );
-
-        let mut state = EvmState::default();
-        let mut db_ref = &mut db;
-        let account = TestExecutor::state_account_mut(&mut db_ref, &mut state, BASE_FEE_RECIPIENT)
-            .expect("failed to materialize settlement account");
-        assert_eq!(account.info.balance, U256::from(15));
-        // original_info mirrors current info here — State::commit computes the
-        // true previous value from its own cache, so the bundle stays correct.
-        assert_eq!(account.original_info().balance, U256::from(15));
-
-        account.info.balance = account.info.balance.saturating_sub(U256::from(3));
-        revm::DatabaseCommit::commit(&mut db, state);
-        db.merge_transitions(revm::database::states::bundle_state::BundleRetention::Reverts);
-
-        let bundle = db.take_bundle();
-        let bundle_account = bundle
-            .account(&BASE_FEE_RECIPIENT)
-            .expect("bundle must contain the base fee recipient");
-        assert_eq!(bundle_account.original_info.as_ref().unwrap().balance, U256::from(10));
-        assert_eq!(bundle_account.info.as_ref().unwrap().balance, U256::from(12));
+    fn inspect_create_end<CTX>(
+        &mut self,
+        _context: &mut CTX,
+        _inputs: &CreateInputs,
+        _outcome: &CreateOutcome,
+    ) where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+        self.observed_hooks |= 32;
     }
 
-    // "Where the rebate money comes from": settling a refund credits the sender exactly the sum of
-    // three recipient debits (beneficiary priority fee, base-fee vault, operator-fee vault), so
-    // total ETH supply is conserved — no value is minted. Pins each per-recipient share against the
-    // spec formula and the conservation identity.
-    #[test]
-    fn test_post_exec_settlement_deltas_conserve_value() {
-        const BASE_FEE: u64 = 7;
-        const GAS_PRICE: u128 = 100;
-        const EVM_GAS_USED: u64 = 50_000;
-        const REFUND: u64 = 1_000;
-
-        let mut fixture = SDMExecutorFixture { base_fee: BASE_FEE, ..Default::default() };
-        let mut executor = fixture.executor();
-
-        let tx = legacy_tx_with_price(0, Address::from([0x11; 20]), DEFAULT_GAS_LIMIT, GAS_PRICE);
-        let deltas = executor
-            .post_exec_settlement_deltas(&tx, EVM_GAS_USED, REFUND, false, false)
-            .expect("settlement deltas computed");
-
-        let refund = U256::from(REFUND);
-        // Base-fee share: refund * basefee.
-        assert_eq!(deltas.base_fee_balance_delta, refund * U256::from(BASE_FEE));
-        // Beneficiary (priority) share: refund * (effective_gas_price - basefee).
-        assert_eq!(
-            deltas.beneficiary_balance_delta,
-            refund * U256::from(GAS_PRICE - u128::from(BASE_FEE)),
-        );
-        // Operator-fee share is non-zero post-Isthmus (the Jovian fixture sets operator-fee
-        // scalars).
-        assert!(
-            deltas.operator_fee_balance_delta > U256::ZERO,
-            "operator-fee delta should be charged post-Isthmus",
-        );
-
-        // Conservation ("no infinite mint"): the sender credit equals the sum of the three
-        // recipient debits, so settlement neither creates nor destroys ETH.
-        assert_eq!(
-            deltas.sender_balance_delta,
-            deltas.beneficiary_balance_delta +
-                deltas.base_fee_balance_delta +
-                deltas.operator_fee_balance_delta,
-        );
-        // Cross-check the sender credit against the spec formula directly.
-        assert_eq!(
-            deltas.sender_balance_delta,
-            refund * U256::from(GAS_PRICE) + deltas.operator_fee_balance_delta,
-        );
+    fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {
+        self.observed_hooks |= 8;
     }
 
-    // Settlement only moves money for refunding standard txs. Deposits, the post-exec tx itself,
-    // and zero-refund txs produce no balance deltas, regardless of gas price / basefee.
-    #[test]
-    fn test_post_exec_settlement_deltas_skip_non_refunding_txs() {
-        let mut fixture = SDMExecutorFixture { base_fee: 7, ..Default::default() };
-        let mut executor = fixture.executor();
-        let tx = legacy_tx_with_price(0, Address::from([0x11; 20]), DEFAULT_GAS_LIMIT, 100);
-
-        let is_no_op = |d: PostExecAdjustment| {
-            d.sender_balance_delta.is_zero() &&
-                d.beneficiary_balance_delta.is_zero() &&
-                d.base_fee_balance_delta.is_zero() &&
-                d.operator_fee_balance_delta.is_zero()
-        };
-
-        // Deposit: warms state for later txs but is never refunded.
-        assert!(
-            is_no_op(
-                executor.post_exec_settlement_deltas(&tx, 50_000, 1_000, true, false).unwrap()
-            ),
-            "deposits never settle a refund",
-        );
-        // The post-exec (0x7D) tx itself never claims.
-        assert!(
-            is_no_op(
-                executor.post_exec_settlement_deltas(&tx, 50_000, 1_000, false, true).unwrap()
-            ),
-            "the post-exec tx never settles a refund",
-        );
-        // Zero refund: nothing to settle.
-        assert!(
-            is_no_op(executor.post_exec_settlement_deltas(&tx, 50_000, 0, false, false).unwrap()),
-            "a zero refund produces no settlement",
-        );
+    fn snapshot(&self) -> Self::Snapshot {
+        self.observed_hooks
     }
 
-    // A settlement debit larger than a recipient's balance invalidates the block via
-    // PostExecSettlementUnderflow rather than silently saturating — this is the guard against a
-    // malformed/adversarial payload minting ETH out of an underfunded vault.
-    #[test]
-    fn test_post_exec_settlement_underflow_is_rejected() {
-        let mut fixture = SDMExecutorFixture::default();
-        let mut executor = fixture.executor();
+    fn restore(&mut self, snapshot: Self::Snapshot) {
+        self.observed_hooks = snapshot;
+    }
+}
 
-        // BASE_FEE_RECIPIENT is unfunded in the test DB, so any base-fee debit underflows.
-        let deltas = PostExecAdjustment {
-            refund: 1,
-            sender_balance_delta: U256::from(5),
-            base_fee_balance_delta: U256::from(5),
-            ..Default::default()
-        };
+#[test]
+fn post_exec_composite_dispatches_every_observer_hook() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut executor =
+        build_policy_executor::<HookObservingPolicy>(&mut db, &receipt_builder, &hardforks);
 
-        let sender = Address::from([0x22; 20]);
-        let mut state = EvmState::default();
-        let err = executor
-            .apply_post_exec_refund_to_state(&mut state, sender, &deltas)
-            .expect_err("settlement must reject an unfunded recipient debit");
+    executor.execute_transaction(&observer_test_tx()).expect("observer workload executes");
 
-        match err {
-            BlockExecutionError::Validation(BlockValidationError::Other(inner)) => {
-                match inner.downcast_ref::<OpBlockExecutionError>() {
-                    Some(OpBlockExecutionError::PostExecSettlementUnderflow { address, delta }) => {
-                        assert_eq!(*address, BASE_FEE_RECIPIENT);
-                        assert_eq!(*delta, U256::from(5));
-                    }
-                    other => panic!("expected PostExecSettlementUnderflow, got: {other:?}"),
-                }
-            }
-            other => panic!("expected a validation error, got: {other:?}"),
-        }
+    assert_eq!(
+        executor.post_exec_entries(),
+        &[op_alloy::consensus::SDMGasEntry { index: 0, gas_refund: 63 }],
+        "step, call, call_end, create, create_end, and selfdestruct must all reach the refund policy"
+    );
+}
+
+#[derive(Debug, Clone, Default)]
+struct ScriptedRefundPolicy {
+    executed_candidates: u64,
+}
+
+impl PostExecRefundInspector for ScriptedRefundPolicy {
+    type Snapshot = u64;
+
+    fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
+
+    fn note_account_touch(&mut self, _address: Address) {}
+
+    fn finish_tx(&mut self) -> PostExecExecutedTx {
+        self.executed_candidates += 1;
+        PostExecExecutedTx { refund_total: self.executed_candidates, refund_events: Vec::new() }
     }
 
-    // A transaction's own `to` is intrinsically warm under EIP-2929 (pre-added to the accessed set,
-    // billed warm, never cold), so it must never earn a warming rebate even when an earlier tx
-    // warmed it. Regression test: `collect_intrinsic_warmth` now marks `caller` and the Call
-    // `target` warm, so a later tx no longer claims a rebate for its own `to`/sender.
-    #[test]
-    fn test_intrinsic_warm_to_address_is_not_rebated() {
-        let target = Address::from([0x11; 20]);
-        // Two txs to the same `to`. The first warms `target`; the second touches it only as its own
-        // (intrinsically warm) `to`, so it must not claim a rebate for it.
-        let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
-
-        let mut fixture = SDMExecutorFixture::default();
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        for tx in &user_txs {
-            producer.execute_transaction(tx).expect("producer executes user tx");
-        }
-
-        // No tx may claim a warming rebate for `target`: it is the `to` of every tx, hence
-        // intrinsically warm for each. (Fee-recipient touches, a separate concern, target other
-        // addresses and are unaffected by this assertion.)
-        let claimed_own_to =
-            producer.warming_events_by_tx.iter().flatten().find(|event| event.address == target);
-        assert!(
-            claimed_own_to.is_none(),
-            "a tx claimed a warming rebate for its own intrinsically-warm `to` ({target}): {:#?}",
-            producer.warming_events_by_tx,
-        );
-    }
-
-    // Companion to the `to` case: a tx's own `sender` is also intrinsically warm under EIP-2929, so
-    // a later tx from the same sender must not claim a warming rebate for it. Uses a non-zero
-    // sender distinct from the block beneficiary (separately excluded) and distinct recipients,
-    // so the shared sender is the only warmed account under test.
-    #[test]
-    fn test_intrinsic_warm_sender_is_not_rebated() {
-        let sender = Address::from([0x55; 20]);
-        let txs = vec![
-            legacy_tx_from(sender, 0, Address::from([0xa1; 20])),
-            legacy_tx_from(sender, 1, Address::from([0xa2; 20])),
-        ];
-
-        let mut fixture = SDMExecutorFixture::default();
-        // Fund the sender so it can cover the operator fee charged on each tx.
-        fixture.db.insert_account(
-            sender,
-            AccountInfo { balance: U256::from(400_000_000), ..Default::default() },
-        );
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        for tx in &txs {
-            producer.execute_transaction(tx).expect("producer executes user tx");
-        }
-
-        let claimed_own_sender =
-            producer.warming_events_by_tx.iter().flatten().find(|event| event.address == sender);
-        assert!(
-            claimed_own_sender.is_none(),
-            "a tx claimed a warming rebate for its own intrinsically-warm sender ({sender}): {:#?}",
-            producer.warming_events_by_tx,
-        );
-    }
-
-    // A top-level CREATE's created-contract address is the tx's intrinsic "to" under EIP-2929 —
-    // pre-warmed, billed warm. Regression test: a CREATE tx whose created address an earlier tx
-    // warmed must not claim a rebate for it.
-    #[test]
-    fn test_intrinsic_warm_created_address_is_not_rebated() {
-        // A block gas limit large enough to fit the dummy tx plus the CREATE.
-        const BLOCK_GAS_LIMIT: u64 = 1_000_000;
-
-        // Probe the deterministic created address by running the same (dummy tx, CREATE) sequence.
-        let created = {
-            let mut probe_fixture = SDMExecutorFixture::new(
-                DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-                BLOCK_GAS_LIMIT,
-                JOVIAN_TIMESTAMP,
-            );
-            let mut probe = probe_fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-            probe
-                .execute_transaction(&legacy_tx(0, Address::from([0x33; 20])))
-                .expect("probe dummy tx");
-            let mut created = None;
-            probe
-                .execute_transaction_with_result_closure(&create_tx(1), |res| {
-                    if let ExecutionResult::Success {
-                        output: Output::Create(_, Some(addr)), ..
-                    } = &res.result().result
-                    {
-                        created = Some(*addr);
-                    }
-                })
-                .expect("probe create tx");
-            created.expect("create produced a contract address")
-        };
-
-        // Real run: tx0 warms `created` (as its `to`); tx1 creates at `created`.
-        let mut fixture = SDMExecutorFixture::new(
-            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-            BLOCK_GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        producer.execute_transaction(&legacy_tx(0, created)).expect("tx0 warms the create address");
-        producer.execute_transaction(&create_tx(1)).expect("tx1 creates at the warmed address");
-
-        let claimed_created =
-            producer.warming_events_by_tx.iter().flatten().find(|event| event.address == created);
-        assert!(
-            claimed_created.is_none(),
-            "a CREATE tx claimed a warming rebate for its own created address ({created}): {:#?}",
-            producer.warming_events_by_tx,
-        );
-    }
-
-    // A contract created by one tx must be warmed for a later tx that genuinely cold-accesses it,
-    // so the later tx earns its warming rebate. The `create` hook records the address via
-    // `CreateInputs::created_address`, which `revm` memoizes (`OnceCell`) from the canonical
-    // pre-bump nonce before the hook runs — so the address is always correct regardless of the
-    // nonce the inspector passes (this is why the "CREATE-address staleness" concern does not arise
-    // against the pinned revm). This guards the end-to-end property: created contract -> warmed ->
-    // later cold access rebated.
-    #[test]
-    fn test_created_contract_address_is_warmed_for_a_later_tx() {
-        const BLOCK_GAS_LIMIT: u64 = 2_000_000;
-
-        // Probe the canonical address the CREATE produces (revm computes it from the pre-bump
-        // nonce). Sender and nonce match the real run below, so the address is identical.
-        let created = {
-            let mut probe_fixture = SDMExecutorFixture::new(
-                DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-                BLOCK_GAS_LIMIT,
-                JOVIAN_TIMESTAMP,
-            );
-            let mut probe = probe_fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-            let mut created = None;
-            probe
-                .execute_transaction_with_result_closure(&create_tx(0), |res| {
-                    if let ExecutionResult::Success {
-                        output: Output::Create(_, Some(addr)), ..
-                    } = &res.result().result
-                    {
-                        created = Some(*addr);
-                    }
-                })
-                .expect("probe create tx");
-            created.expect("create produced a contract address")
-        };
-
-        // Real run: tx0 creates the contract; tx1 cold-`BALANCE`-touches it through a probe.
-        let probe = Address::from([0x8c; 20]);
-        let mut fixture = SDMExecutorFixture::new(
-            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-            BLOCK_GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        fixture.db.insert_account(probe, balance_probe_account(&[created]));
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        producer.execute_transaction(&create_tx(0)).expect("tx0 creates the contract");
-        producer
-            .execute_transaction(&legacy_tx(1, probe))
-            .expect("tx1 cold-touches the created contract");
-
-        let created_event = all_warming_events(&producer)
-            .into_iter()
-            .find(|event| event.address == created)
-            .expect("tx1 must earn a warming rebate for the contract created by tx0");
-        assert_eq!(created_event.claiming_tx_index, 1, "rebate is claimed by tx1");
-        assert_eq!(created_event.first_warmed_by_tx_index, 0, "contract was warmed by tx0");
-        assert_eq!(created_event.amount, 2_500, "warm-account rebate amount");
-        assert_eq!(created_event.slot, None, "account rebate has no storage slot");
-    }
-
-    // End-to-end companion to the inspector-level settlement test: the OP fee vaults (L1/base-fee/
-    // operator-fee recipients) are warmed by the protocol's per-tx fee settlement write in
-    // `transact_raw`, not by a user opcode access, so no cold EIP-2929 access is ever paid for
-    // them. Regression test: a second non-deposit tx must not claim a warming rebate for them
-    // just because the first tx's settlement warmed them.
-    #[test]
-    fn test_fee_recipient_settlement_touch_is_not_rebated() {
-        // Two plain transfers to distinct fresh recipients: the only accounts tx1 re-touches that
-        // tx0 warmed are the fee vaults, via each tx's settlement write.
-        let txs =
-            vec![legacy_tx(0, Address::from([0xc1; 20])), legacy_tx(1, Address::from([0xc2; 20]))];
-
-        let mut fixture = SDMExecutorFixture::default();
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        for tx in &txs {
-            producer.execute_transaction(tx).expect("producer executes user tx");
-        }
-
-        let fee_recipients = [L1_FEE_RECIPIENT, BASE_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT];
-        let claimed: Vec<Address> = producer
-            .warming_events_by_tx
-            .iter()
-            .flatten()
-            .map(|event| event.address)
-            .filter(|address| fee_recipients.contains(address))
-            .collect();
-        assert!(
-            claimed.is_empty(),
-            "fee recipients were rebated for a settlement-only touch (no cold access paid): {claimed:?}",
-        );
-    }
-
-    // End-to-end executor coverage for SDM: a producer emits refund entries and appends a
-    // post-exec tx, then a verifier replays the same tx stream and consumes the payload.
-    #[test]
-    fn test_post_exec_producer_verifier_roundtrip() {
-        // Both txs call a contract that SLOADs a shared slot, so tx1 earns a genuine cross-tx
-        // (non-intrinsic) warming rebate.
-        let target = WARMING_CONTRACT;
-        let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
-
-        let mut producer_fixture = SDMExecutorFixture::default();
-        producer_fixture.db.insert_account(target, warming_contract_account());
-        let mut producer = producer_fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        let first_user_gas = producer
-            .execute_transaction(&user_txs[0])
-            .expect("producer executes first user tx")
-            .tx_gas_used();
-        let second_user_gas = producer
-            .execute_transaction(&user_txs[1])
-            .expect("producer executes second user tx")
-            .tx_gas_used();
-        assert!(second_user_gas < first_user_gas, "second user tx should receive an SDM refund");
-
-        let snapshot = producer.post_exec_entries().to_vec();
-        assert!(!snapshot.is_empty(), "snapshot should expose produced SDM entries");
-        assert_eq!(producer.post_exec_entries(), snapshot.as_slice(), "snapshot must not drain");
-
-        let entries = producer.take_post_exec_entries();
-        assert_eq!(entries, snapshot, "take should return the same entries observed by snapshot");
-        assert!(producer.post_exec_entries().is_empty(), "take should drain produced entries");
-        assert!(!entries.is_empty(), "producer should emit at least one SDM refund entry");
-        assert_eq!(entries[0].index, 1, "the second tx reuses block-warmed addresses");
-        assert!(entries[0].gas_refund > 0);
-
-        let post_exec_recovered = recovered_post_exec(0, entries.clone());
-        assert_eq!(producer.execute_transaction(&post_exec_recovered).unwrap().tx_gas_used(), 0);
-        let (_, produced) = producer.finish().expect("producer finishes block");
-
-        let mut verifier_fixture = SDMExecutorFixture::default();
-        verifier_fixture.db.insert_account(target, warming_contract_account());
-        let mut verifier = verifier_fixture.verifier(0, entries);
-        for tx in &user_txs {
-            verifier.execute_transaction(tx).expect("verifier executes user tx");
-        }
-        assert_eq!(verifier.execute_transaction(&post_exec_recovered).unwrap().tx_gas_used(), 0);
-        let (_, verified) = verifier.finish().expect("verifier consumes all entries");
-
-        assert_eq!(verified.gas_used, produced.gas_used);
-        assert_eq!(verified.blob_gas_used, produced.blob_gas_used);
-        assert_eq!(verified.receipts, produced.receipts);
-        assert_eq!(verified.receipts.len(), user_txs.len() + 1);
-    }
-
-    // Demonstrates the accounting the pre-refund cap relies on: under SDM refunds, canonical
-    // `gas_used` falls below `evm_gas_used`, so capping on `evm_gas_used` (not `gas_used`) keeps
-    // tracking the real compute performed.
-    #[test]
-    fn test_evm_gas_used_tracks_pre_refund_gas_under_sdm() {
-        let target = WARMING_CONTRACT;
-        let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
-
-        let mut fixture = SDMExecutorFixture::default();
-        fixture.db.insert_account(target, warming_contract_account());
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        for tx in &user_txs {
-            producer.execute_transaction(tx).expect("producer executes user tx");
-        }
-
-        // The second tx reuses block-warmed addresses and earns an SDM refund, so canonical gas is
-        // strictly less than the pre-refund EVM gas spent.
-        assert!(!producer.post_exec_entries().is_empty(), "expected an SDM refund to be produced");
-        assert!(
-            producer.evm_gas_used > producer.gas_used,
-            "pre-refund evm_gas_used ({}) must exceed canonical gas_used ({}) once refunds apply",
-            producer.evm_gas_used,
-            producer.gas_used,
-        );
-        // The gap is exactly the total refund.
-        let total_refund: u64 = producer.post_exec_entries().iter().map(|e| e.gas_refund).sum();
-        assert_eq!(producer.evm_gas_used - producer.gas_used, total_refund);
-    }
-
-    #[test]
-    fn test_verifier_rejects_malicious_payload_whose_refunds_hide_pre_refund_overuse() {
-        const BLOCK_GAS_LIMIT: u64 = 100_000;
-        let target = Address::from([0x11; 20]);
-        let tx0 = legacy_tx(0, target);
-        let tx1 = legacy_tx(1, target);
-
-        // Refund the second tx completely. The verifier accepts refund == evm_gas_used but must not
-        // let that canonical-gas discount buy extra real compute later in the block.
-        let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
-
-        let mut fixture = SDMExecutorFixture::new(
-            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-            BLOCK_GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        let mut verifier = fixture.verifier(0, entries);
-        verifier.execute_transaction(&tx0).expect("first tx fits");
-        verifier.execute_transaction(&tx1).expect("second tx is fully refunded canonically");
-
-        let evm_gas_available = BLOCK_GAS_LIMIT - verifier.evm_gas_used;
-        let canonical_gas_available = BLOCK_GAS_LIMIT - verifier.gas_used;
-        assert!(evm_gas_available < canonical_gas_available);
-
-        let tx2_gas_limit = evm_gas_available + 1;
-        assert!(
-            tx2_gas_limit <= canonical_gas_available,
-            "malicious tx should fit canonical gas but exceed pre-refund gas"
-        );
-        let tx2 = legacy_tx_with_gas(2, target, tx2_gas_limit);
-
-        let err = verifier
-            .execute_transaction(&tx2)
-            .expect_err("verifier must reject pre-refund gas overuse even if refunds hide it");
-        assert_gas_limit_exceeded(err, tx2_gas_limit, evm_gas_available);
-    }
-
-    #[test]
-    fn test_verifier_accepts_payload_when_pre_refund_stays_below_limit() {
-        const BLOCK_GAS_LIMIT: u64 = 100_000;
-        let target = Address::from([0x11; 20]);
-        let tx0 = legacy_tx(0, target);
-        let tx1 = legacy_tx(1, target);
-        let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
-
-        let mut fixture = SDMExecutorFixture::new(
-            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-            BLOCK_GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        let mut verifier = fixture.verifier(0, entries.clone());
-        verifier.execute_transaction(&tx0).expect("first tx fits");
-        verifier.execute_transaction(&tx1).expect("second tx is fully refunded canonically");
-
-        let tx2 = legacy_tx_with_gas(2, target, BLOCK_GAS_LIMIT - verifier.evm_gas_used);
-        verifier
-            .execute_transaction(&tx2)
-            .expect("tx declared within the remaining pre-refund budget is accepted");
-        let post_exec_recovered = recovered_post_exec(0, entries);
-        verifier.execute_transaction(&post_exec_recovered).expect("post-exec tx verifies");
-        verifier.finish().expect("verifier finishes accepted boundary block");
-    }
-
-    #[test]
-    fn test_mismatched_payload_block_number_fails_pre_execution() {
-        // build_executor configures BlockEnv with block number 0; a payload anchored to a
-        // different block must be rejected before any tx runs.
-        let mut fixture = SDMExecutorFixture::default();
-        let mut executor = fixture.verifier(42, vec![]);
-
-        let err =
-            executor.apply_pre_execution_changes().expect_err("mismatched block number must fail");
-        assert_invalid_post_exec(err, "payload block number 42 does not match block number 0");
-    }
-
-    #[test]
-    fn test_duplicate_payload_index_fails_pre_execution() {
-        // Two entries colliding on tx index 3 — the second insert must be flagged at construction
-        // and surface as a pre-execution failure.
-        let mut fixture = SDMExecutorFixture::default();
-        let mut executor = fixture.verifier(
-            0,
-            vec![
-                SDMGasEntry { index: 3, gas_refund: 10 },
-                SDMGasEntry { index: 3, gas_refund: 20 },
-            ],
-        );
-
-        let err = executor
-            .apply_pre_execution_changes()
-            .expect_err("duplicate payload index must fail pre-execution");
-        assert_invalid_post_exec(err, "duplicate post-exec payload entry for tx index 3");
-    }
-
-    #[test]
-    fn test_verifier_rejects_payload_targeting_non_normal_tx() {
-        for (tx_index, is_deposit, is_post_exec, evm_gas_used, expected_reason) in [
-            (0, true, false, 21_000, "payload entry targets deposit tx index 0"),
-            (4, false, true, 0, "payload entry targets post-exec tx index 4"),
-        ] {
-            let mut fixture = SDMExecutorFixture::default();
-            let executor =
-                fixture.verifier(0, vec![SDMGasEntry { index: tx_index, gas_refund: 1 }]);
-
-            let err = executor
-                .verifier_post_exec_refund_for_tx(tx_index, is_deposit, is_post_exec, evm_gas_used)
-                .expect_err("payload entries must not target non-normal txs");
-            assert_invalid_post_exec(err, expected_reason);
-        }
-    }
-
-    #[test]
-    fn test_verifier_rejects_refund_exceeding_evm_gas() {
-        let mut fixture = SDMExecutorFixture::default();
-        let executor = fixture.verifier(0, vec![SDMGasEntry { index: 2, gas_refund: 50_000 }]);
-
-        // evm_gas_used < payload refund — a refund that exceeds the tx's EVM-reported cost is
-        // impossible under SDM semantics and must be rejected, otherwise canonical_gas_used
-        // would underflow to a bogus value via saturating_sub.
-        let err = executor
-            .verifier_post_exec_refund_for_tx(2, false, false, 40_000)
-            .expect_err("refund greater than evm_gas_used must be rejected");
-        assert_invalid_post_exec(
-            err,
-            "payload refund 50000 exceeds evm_gas_used 40000 for tx index 2",
-        );
-
-        // Boundary: refund == evm_gas_used is permitted (canonical_gas_used ends up at zero).
-        let ok = executor
-            .verifier_post_exec_refund_for_tx(2, false, false, 50_000)
-            .expect("refund equal to evm_gas_used is permitted");
-        assert_eq!(ok, 50_000);
-    }
-
-    #[test]
-    fn test_verifier_returns_zero_when_no_entry_for_tx() {
-        // Deposit and post-exec cases guard against the inverse-ordering regression: every
-        // block calls this helper for every deposit and for the synthetic 0x7D tx, so the
-        // is_deposit / is_post_exec error branches must only fire when a payload entry actually
-        // targets that tx index. If those branches are checked before the entry-existence guard,
-        // every block fails at its first deposit (and at the synthetic tx).
-        for (label, tx_index, is_deposit, is_post_exec) in [
-            ("normal tx with no payload entry", 3, false, false),
-            ("deposit tx with no payload entry", 3, true, false),
-            ("post-exec tx with no payload entry", 3, false, true),
-        ] {
-            let mut fixture = SDMExecutorFixture::default();
-            let executor = fixture.verifier(0, vec![SDMGasEntry { index: 7, gas_refund: 42 }]);
-
-            let refund = executor
-                .verifier_post_exec_refund_for_tx(tx_index, is_deposit, is_post_exec, 21_000)
-                .unwrap_or_else(|err| panic!("{label}: expected no refund, got error: {err:?}"));
-            assert_eq!(refund, 0, "{label}");
-        }
-    }
-
-    #[test]
-    fn test_finish_reports_all_unconsumed_post_exec_entries() {
-        let mut fixture = SDMExecutorFixture::default();
-        let executor = fixture.verifier(
-            0,
-            vec![SDMGasEntry { index: 2, gas_refund: 7 }, SDMGasEntry { index: 5, gas_refund: 11 }],
-        );
-
-        let Err(err) = executor.finish() else {
-            panic!("unconsumed verifier entries must fail");
-        };
-        assert_invalid_post_exec(
-            err,
-            "2 unconsumed post-exec payload entries for tx indexes [2, 5]",
-        );
-    }
-
-    /// A `Verify` block whose normal txs apply the claimed refunds but which never carries the
-    /// trailing `0x7D` post-exec tx must be rejected. Per-tx settlement drains each verifier entry
-    /// as the refunded tx commits, so the unconsumed-entries check above passes — the presence of
-    /// the synthetic `0x7D` is the only thing proving the producer actually committed those refunds
-    /// on-chain. Without this guard the block validates while diverging from one that includes the
-    /// tx, and the `0x7D`'s payload-vs-block byte check is skipped entirely.
-    #[test]
-    fn test_finish_rejects_verify_block_missing_post_exec_tx() {
-        const BLOCK_GAS_LIMIT: u64 = 100_000;
-        let target = Address::from([0x11; 20]);
-        let tx0 = legacy_tx(0, target);
-        let tx1 = legacy_tx(1, target);
-        // Refund the second tx so its verifier entry is consumed during normal settlement.
-        let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
-
-        let mut fixture = SDMExecutorFixture::new(
-            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-            BLOCK_GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        let mut verifier = fixture.verifier(0, entries);
-        verifier.execute_transaction(&tx0).expect("first tx executes");
-        verifier.execute_transaction(&tx1).expect("refunded tx consumes its verifier entry");
-        assert!(
-            verifier.post_exec.remaining_verifier_indexes().is_empty(),
-            "the refunded tx must already have drained every verifier entry",
-        );
-
-        // The 0x7D was never executed, so the unconsumed-entries check cannot catch this.
-        let Err(err) = verifier.finish() else {
-            panic!("a Verify block that applies refunds but omits the 0x7D must be rejected");
-        };
-        assert_invalid_post_exec(
-            err,
-            "post-exec payload present but block carries no post-exec tx",
-        );
-    }
-
-    /// Followers running with SDM disabled must reject any block that carries a post-exec
-    /// 0x7D tx. Silently short-circuiting the tx (which is what the pre-guard code did) would
-    /// let a producer ship a payload with arbitrary refund entries that no follower validates,
-    /// and the two nodes' states would diverge without anyone noticing.
-    #[test]
-    fn test_disabled_mode_rejects_post_exec_tx() {
-        let mut fixture = SDMExecutorFixture::default();
-        // build_executor leaves post_exec_mode at the default (Disabled).
-        let mut executor = fixture.executor();
-        assert!(matches!(executor.post_exec, PostExecState::Disabled));
-
-        let tx = recovered_post_exec(0, vec![]);
-        let err =
-            executor.execute_transaction(&tx).expect_err("0x7D tx in Disabled mode must fail");
-        assert_invalid_post_exec(
-            err,
-            "unexpected post-exec tx at index 0: SDM not active for this block",
-        );
-    }
-
-    #[derive(Debug, Default)]
-    struct ErroringRefundInspector {
-        block_state: u64,
-    }
-
-    impl<CTX, INTR: revm::interpreter::InterpreterTypes> revm::Inspector<CTX, INTR>
-        for ErroringRefundInspector
+    fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+    where
+        CTX: ContextTr<Journal: JournalExt>,
     {
     }
 
-    impl crate::post_exec::PostExecRefundInspector for ErroringRefundInspector {
-        type Snapshot = u64;
-
-        fn begin_tx(&mut self, _ctx: PostExecTxContext) {
-            self.block_state += 1;
-        }
-
-        fn note_account_touch(&mut self, _address: Address) {
-            self.block_state += 1;
-        }
-
-        fn finish_tx(&mut self) -> crate::post_exec::PostExecExecutedTx {
-            crate::post_exec::PostExecExecutedTx {
-                refund_total: u64::MAX,
-                refund_events: Vec::new(),
-            }
-        }
-
-        fn snapshot(&self) -> Self::Snapshot {
-            self.block_state
-        }
-
-        fn restore(&mut self, snapshot: Self::Snapshot) {
-            self.block_state = snapshot;
-        }
+    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
     }
 
-    // An execution error after post-exec tracking starts must restore the same snapshot used for
-    // declined candidates. Today the reachable post-warming errors are fatal block-validation
-    // errors, but payload-builder code may catch some execution errors and continue; restoring here
-    // prevents those skipped txs from leaving phantom producer-only warming behind.
-    #[test]
-    fn test_execution_error_restores_warming_snapshot() {
-        let mut fixture = SDMExecutorFixture::default();
-        let ctx = Context::mainnet()
-            .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
-            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
-            .with_db(&mut fixture.db)
-            .with_chain(L1BlockInfo {
-                operator_fee_scalar: Some(U256::from(2)),
-                operator_fee_constant: Some(U256::from(50)),
-                ..Default::default()
-            })
-            .with_block(BlockEnv {
-                timestamp: U256::from(fixture.jovian_timestamp),
-                gas_limit: fixture.gas_limit,
-                basefee: fixture.base_fee,
-                beneficiary: fixture.beneficiary,
-                ..Default::default()
-            })
-            .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
-        let evm = OpEvm::<_, _, _, crate::OpTx, ErroringRefundInspector>::new(
-            ctx.build_op_with_inspector(NoOpInspector {}),
-            true,
-        );
-        let mut producer = OpBlockExecutor::new(
-            evm,
-            OpBlockExecutionCtx::default(),
-            &fixture.op_chain_hardforks,
-            &fixture.receipt_builder,
-        )
-        .with_post_exec_mode(PostExecMode::Produce);
-
-        let err = producer
-            .execute_transaction_with_commit_condition(
-                &legacy_tx(0, Address::from([0x55; 20])),
-                |_| CommitChanges::Yes,
-            )
-            .expect_err("custom refund inspector must force a post-exec validation error");
-        assert_invalid_post_exec(
-            err,
-            "produced refund 18446744073709551615 exceeds evm_gas_used 21000 for tx index 0",
-        );
-        assert_eq!(
-            producer.refund_snapshot(),
-            0,
-            "post-exec snapshot must be restored when execution returns an error",
-        );
+    fn inspect_call_end<CTX>(
+        &mut self,
+        _context: &mut CTX,
+        _inputs: &CallInputs,
+        _outcome: &CallOutcome,
+    ) where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
     }
 
-    // A candidate that is executed but declined (`CommitChanges::No`) must not leave behind
-    // block-scoped warming: without rollback, an uncommitted candidate would grant a later
-    // committed tx a phantom refund, diverging the producer's payload from derivation
-    // (ethereum-optimism/optimism#21354).
-    #[test]
-    fn test_declined_candidate_does_not_warm_later_committed_tx() {
-        // Route warming through a probe contract that BALANCE-touches a *third* account: a tx's own
-        // `to` (here `probe`) is intrinsically warm and never rebated, so we observe warming on
-        // `warmed`, which each call reaches via a genuine cold EIP-2929 access.
-        let probe = Address::from([0x11; 20]);
-        let warmed = Address::from([0x22; 20]);
-
-        let mut fixture = SDMExecutorFixture::default();
-        fixture.db.insert_account(probe, balance_probe_account(&[warmed]));
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-
-        // Execute a candidate that warms `warmed` but decline to commit it, as the payload builder
-        // does when a candidate exceeds a limit or is reverted-and-excluded.
-        let outcome = producer
-            .execute_transaction_with_commit_condition(&legacy_tx(0, probe), |_| CommitChanges::No)
-            .expect("declined candidate still executes");
-        assert!(outcome.is_none(), "candidate must not be committed");
-        assert!(
-            producer.post_exec_entries().is_empty(),
-            "a declined candidate emits no SDM refund entries",
-        );
-
-        // The first committed tx touching `warmed` must be its first toucher: the declined
-        // candidate's warming was rolled back, so no refund.
-        producer.execute_transaction(&legacy_tx(0, probe)).expect("first committed tx executes");
-        assert!(
-            producer.post_exec_entries().is_empty(),
-            "an uncommitted candidate must not warm a later committed tx (no phantom SDM refund)",
-        );
-
-        // Sanity: committed warmth still accumulates — a second committed tx re-warms the
-        // now-committed address and earns a refund.
-        producer.execute_transaction(&legacy_tx(1, probe)).expect("second committed tx executes");
-        let entries = producer.post_exec_entries();
-        assert_eq!(entries.len(), 1, "second committed tx re-warms the block-warmed address");
-        assert_eq!(entries[0].index, 1, "refund is attributed to the second committed tx");
-        assert!(entries[0].gas_refund > 0);
+    fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+    where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
     }
 
-    // An *included* tx that reverts still paid for its cold EIP-2929 accesses (revert undoes state,
-    // not burned gas), so its block-scoped warming must survive and flow to a later committed tx.
-    // The inspector records warming at step time and never journals it, so this holds for free.
-    // Mirror of `test_declined_candidate_does_not_warm_later_committed_tx`, where an *excluded*
-    // candidate paid nothing and its warming is rolled back.
-    #[test]
-    fn test_included_reverted_tx_warms_later_committed_tx() {
-        // A tx's own `to` is intrinsically warm, so we observe warming on a third account
-        // (`warmed`) each probe reaches via a genuine cold BALANCE access.
-        let reverting_probe = Address::from([0x11; 20]);
-        let probe = Address::from([0x33; 20]);
-        let warmed = Address::from([0x22; 20]);
-
-        let mut fixture = SDMExecutorFixture::default();
-        fixture.db.insert_account(reverting_probe, balance_probe_then_revert(&[warmed]));
-        fixture.db.insert_account(probe, balance_probe_account(&[warmed]));
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-
-        // tx0: included but reverts after a genuine cold BALANCE access on `warmed`.
-        let mut tx0_reverted = false;
-        producer
-            .execute_transaction_with_result_closure(&legacy_tx(0, reverting_probe), |res| {
-                tx0_reverted = matches!(res.result().result, ExecutionResult::Revert { .. });
-            })
-            .expect("a reverting tx is still included in the block");
-        assert!(tx0_reverted, "tx0 must actually revert for this test to be meaningful");
-        assert!(
-            producer.post_exec_entries().is_empty(),
-            "the first toucher earns no warming rebate, even when it reverts",
-        );
-
-        // tx1: a committed tx cold-touches `warmed` again, so it is rebated — attributed to the
-        // included-but-reverted tx0 that paid for the cold load.
-        producer.execute_transaction(&legacy_tx(1, probe)).expect("first committed tx executes");
-        let warmed_event = all_warming_events(&producer)
-            .into_iter()
-            .find(|event| event.address == warmed)
-            .expect("tx1 must earn a warming rebate for `warmed`, warmed by the reverted tx0");
-        assert_eq!(warmed_event.claiming_tx_index, 1, "rebate is claimed by tx1");
-        assert_eq!(
-            warmed_event.first_warmed_by_tx_index, 0,
-            "rebate is attributed to the included-but-reverted tx0",
-        );
-        assert_eq!(
-            warmed_event.amount, 2_500,
-            "warm-account rebate amount (ACCOUNT_REWARM_REFUND)"
-        );
+    fn inspect_create_end<CTX>(
+        &mut self,
+        _context: &mut CTX,
+        _inputs: &CreateInputs,
+        _outcome: &CreateOutcome,
+    ) where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
     }
 
-    // A reverted tx that re-touches a block-warmed account still earns (and keeps) its rebate, so
-    // the block produces SDM settlement entries even when *every* user tx reverts. A non-empty
-    // entry set is what makes the payload builder append the post-exec (0x7D) settlement tx.
-    #[test]
-    fn test_all_reverted_txs_still_settle_warming_rebate() {
-        let reverting_probe = Address::from([0x11; 20]);
-        let warmed = Address::from([0x22; 20]);
+    fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-        let mut fixture = SDMExecutorFixture::default();
-        fixture.db.insert_account(reverting_probe, balance_probe_then_revert(&[warmed]));
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-
-        // Two included-but-reverted txs, both cold-touching `warmed`.
-        for nonce in 0..2 {
-            let mut reverted = false;
-            producer
-                .execute_transaction_with_result_closure(
-                    &legacy_tx(nonce, reverting_probe),
-                    |res| {
-                        reverted = matches!(res.result().result, ExecutionResult::Revert { .. });
-                    },
-                )
-                .expect("a reverting tx is still included in the block");
-            assert!(reverted, "tx{nonce} must revert");
-        }
-
-        // tx0 is the first toucher (no rebate); the reverted tx1 re-touches `warmed` and settles a
-        // rebate, leaving a non-empty entry set despite every tx reverting.
-        let entries = producer.post_exec_entries();
-        assert_eq!(entries.len(), 1, "only the second, re-touching reverted tx settles a rebate");
-        assert_eq!(entries[0].index, 1, "rebate is attributed to the second reverted tx");
-        assert_eq!(entries[0].gas_refund, 2_500, "ACCOUNT_REWARM_REFUND");
+    fn snapshot(&self) -> Self::Snapshot {
+        self.executed_candidates
     }
 
-    /// Bytecode that runs `BALANCE` against each address in turn, warming it through a genuine
-    /// cold EIP-2929 access: `PUSH20 <addr>; BALANCE; POP` per address, then `STOP`. Unlike a
-    /// plain transfer (which only touches the intrinsically-warm sender/`to`), calling this
-    /// contract lets a test warm arbitrary accounts the way a real opcode access would.
-    fn balance_probe_account(addrs: &[Address]) -> AccountInfo {
-        let mut code = Vec::new();
-        for addr in addrs {
-            code.push(0x73); // PUSH20
-            code.extend_from_slice(addr.as_slice());
-            code.push(0x31); // BALANCE
-            code.push(0x50); // POP
-        }
-        code.push(0x00); // STOP
-        let raw = Bytes::from(code);
-        let code_hash = alloy_primitives::keccak256(&raw);
-        AccountInfo { code_hash, code: Some(Bytecode::new_raw(raw)), ..Default::default() }
-    }
-
-    /// Like [`balance_probe_account`], but ends in `REVERT` instead of `STOP`: cold-`BALANCE`-warms
-    /// each address, then reverts with empty data (`PUSH1 0; PUSH1 0; REVERT`). Exercises an
-    /// included tx whose top-level execution reverts after paying for its cold accesses.
-    fn balance_probe_then_revert(addrs: &[Address]) -> AccountInfo {
-        let mut code = Vec::new();
-        for addr in addrs {
-            code.push(0x73); // PUSH20
-            code.extend_from_slice(addr.as_slice());
-            code.push(0x31); // BALANCE
-            code.push(0x50); // POP
-        }
-        code.push(0x60); // PUSH1
-        code.push(0x00); //   0x00 (revert data size)
-        code.push(0x60); // PUSH1
-        code.push(0x00); //   0x00 (revert data offset)
-        code.push(0xfd); // REVERT
-        let raw = Bytes::from(code);
-        let code_hash = alloy_primitives::keccak256(&raw);
-        AccountInfo { code_hash, code: Some(Bytecode::new_raw(raw)), ..Default::default() }
-    }
-
-    /// Builds a recovered EIP-7702 (set-code) tx signed with the zero signer, carrying a single
-    /// authorization. Used to exercise the authority intrinsic-warm path.
-    fn recovered_7702(
-        nonce: u64,
-        to: Address,
-        auth: SignedAuthorization,
-    ) -> Recovered<OpTxEnvelope> {
-        let tx = TxEip7702 {
-            chain_id: 1,
-            nonce,
-            gas_limit: 200_000,
-            max_fee_per_gas: 0,
-            max_priority_fee_per_gas: 0,
-            to,
-            value: U256::ZERO,
-            access_list: Default::default(),
-            authorization_list: vec![auth],
-            input: Bytes::new(),
-        };
-        Recovered::new_unchecked(
-            OpTxEnvelope::Eip7702(tx.into_signed(Signature::new(
-                Default::default(),
-                Default::default(),
-                false,
-            ))),
-            Address::ZERO,
-        )
-    }
-
-    /// Sums the ETH balance of each address (absent accounts count as zero).
-    fn sum_balances(db: &mut State<InMemoryDB>, addrs: &[Address]) -> U256 {
-        addrs.iter().fold(U256::ZERO, |acc, addr| {
-            let balance = revm::Database::basic(db, *addr)
-                .expect("load account")
-                .map(|info| info.balance)
-                .unwrap_or_default();
-            acc + balance
-        })
-    }
-
-    /// Returns every warming rebate event the producer attributed, flattened across txs.
-    fn all_warming_events(producer: &SDMTestExecutor<'_>) -> Vec<WarmingRefundEvent> {
-        producer.warming_events_by_tx.iter().flatten().copied().collect()
-    }
-
-    // The block beneficiary (coinbase) is in every transaction's EIP-2929 intrinsically-warm set,
-    // billed warm and never cold, so it must never earn a warming rebate — even after an earlier
-    // tx warmed it. Regression test for the `collect_intrinsic_warmth` beneficiary insert: a
-    // control account warmed the same way (a genuine cold BALANCE) still earns its rebate, proving
-    // the assertion isn't vacuous.
-    #[test]
-    fn test_intrinsic_warm_beneficiary_is_not_rebated() {
-        const BLOCK_GAS_LIMIT: u64 = 1_000_000;
-        let beneficiary = Address::from([0x99; 20]);
-        let control = Address::from([0xcc; 20]);
-        let probe = Address::from([0x88; 20]);
-
-        let mut fixture = SDMExecutorFixture::new(
-            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-            BLOCK_GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        fixture.beneficiary = beneficiary;
-        fixture.db.insert_account(probe, balance_probe_account(&[beneficiary, control]));
-
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        producer
-            .execute_transaction(&legacy_tx(0, probe))
-            .expect("tx0 warms beneficiary + control");
-        producer.execute_transaction(&legacy_tx(1, probe)).expect("tx1 re-touches both");
-
-        let events = all_warming_events(&producer);
-        assert!(
-            !events.iter().any(|e| e.address == beneficiary),
-            "the block beneficiary was rebated despite being intrinsically warm: {events:#?}",
-        );
-        assert!(
-            events.iter().any(|e| e.address == control && e.amount == 2_500),
-            "a control account warmed across txs must still be rebated: {events:#?}",
-        );
-    }
-
-    // A precompile address is added to every transaction's intrinsically-warm set (it is in the
-    // journal's precompile set), billed warm and never cold, so it must never earn a warming
-    // rebate. Regression test for the `collect_intrinsic_warmth` precompile-set extension.
-    #[test]
-    fn test_intrinsic_warm_precompile_is_not_rebated() {
-        const BLOCK_GAS_LIMIT: u64 = 1_000_000;
-        let precompile = Address::with_last_byte(1); // ecrecover — always in the precompile set.
-        let control = Address::from([0xcd; 20]);
-        let probe = Address::from([0x8a; 20]);
-
-        let mut fixture = SDMExecutorFixture::new(
-            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-            BLOCK_GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        fixture.db.insert_account(probe, balance_probe_account(&[precompile, control]));
-
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        producer.execute_transaction(&legacy_tx(0, probe)).expect("tx0 warms precompile + control");
-        producer.execute_transaction(&legacy_tx(1, probe)).expect("tx1 re-touches both");
-
-        let events = all_warming_events(&producer);
-        assert!(
-            !events.iter().any(|e| e.address == precompile),
-            "a precompile was rebated despite being intrinsically warm: {events:#?}",
-        );
-        assert!(
-            events.iter().any(|e| e.address == control && e.amount == 2_500),
-            "a control account warmed across txs must still be rebated: {events:#?}",
-        );
-    }
-
-    // An EIP-7702 authorization authority is pre-warmed for the transaction that lists it (added to
-    // the accessed set at tx start), so that tx must not earn a warming rebate for it — even though
-    // an earlier tx warmed the same account through a genuine cold access. Regression test for the
-    // `collect_intrinsic_warmth` authorization-list loop.
-    #[test]
-    fn test_intrinsic_warm_7702_authority_is_not_rebated() {
-        const BLOCK_GAS_LIMIT: u64 = 2_000_000;
-        let delegate = Address::from([0xde; 20]);
-        let auth = Authorization { chain_id: U256::ZERO, address: delegate, nonce: 0 }
-            .into_signed(Signature::test_signature());
-        let authority = auth.recover_authority().expect("authority recovers");
-        let control = Address::from([0xce; 20]);
-        let probe = Address::from([0x8b; 20]);
-        // Guard against an accidental address collision making the assertion vacuous.
-        assert!(![Address::ZERO, delegate, control, probe].contains(&authority));
-
-        let mut fixture = SDMExecutorFixture::new(
-            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
-            BLOCK_GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        fixture.db.insert_account(probe, balance_probe_account(&[authority, control]));
-
-        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-        // tx0: a normal tx warms `authority` and `control` via genuine cold BALANCE accesses.
-        producer.execute_transaction(&legacy_tx(0, probe)).expect("tx0 warms authority + control");
-        // tx1: a 7702 tx listing `authority`, which makes `authority` intrinsically warm for it.
-        producer
-            .execute_transaction(&recovered_7702(1, probe, auth))
-            .expect("tx1 (7702) re-touches both");
-
-        let events = all_warming_events(&producer);
-        assert!(
-            !events.iter().any(|e| e.address == authority),
-            "a 7702 authority was rebated despite being intrinsically warm: {events:#?}",
-        );
-        assert!(
-            events.iter().any(|e| e.address == control && e.amount == 2_500),
-            "a control account warmed across txs must still be rebated: {events:#?}",
-        );
-    }
-
-    /// The set of accounts that can hold ETH in the SDM fixture: the sender, the block
-    /// beneficiary, the three OP fee vaults, the `L1Block` predeploy and the called contract.
-    fn eth_holding_universe(beneficiary: Address, target: Address) -> [Address; 7] {
-        [
-            Address::ZERO,
-            beneficiary,
-            target,
-            L1_BLOCK_CONTRACT,
-            L1_FEE_RECIPIENT,
-            BASE_FEE_RECIPIENT,
-            OPERATOR_FEE_RECIPIENT,
-        ]
-    }
-
-    /// Runs a two-tx warming block in Produce mode and, when `settle` is set, appends the produced
-    /// post-exec (0x7D) tx so its SDM settlement is applied. Returns the total ETH balance over
-    /// `universe` after the block finishes, plus the produced refund entries.
-    fn run_block_and_total(
-        beneficiary: Address,
-        target: Address,
-        settle: bool,
-        universe: &[Address],
-    ) -> (U256, Vec<SDMGasEntry>) {
-        let mut fixture =
-            SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 1_000_000, JOVIAN_TIMESTAMP);
-        fixture.beneficiary = beneficiary;
-        fixture.base_fee = 7;
-        fixture.db.insert_account(target, warming_contract_account());
-
-        // Two txs sharing a warmed SLOAD slot, priced above basefee so the priority-fee share that
-        // settlement moves between the sender and the beneficiary is non-trivial.
-        let tx0 = legacy_tx_with_price(0, target, 50_000, 100);
-        let tx1 = legacy_tx_with_price(1, target, 50_000, 100);
-        let entries = {
-            let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
-            producer.execute_transaction(&tx0).expect("tx0 executes");
-            producer.execute_transaction(&tx1).expect("tx1 earns a refund");
-            let entries = producer.take_post_exec_entries();
-            if settle {
-                let post_exec = recovered_post_exec(0, entries.clone());
-                producer.execute_transaction(&post_exec).expect("post-exec settles the refund");
-            }
-            // Dropping the EVM releases its borrow of `fixture.db` so the audit can read balances.
-            let (evm, _result) = producer.finish().expect("producer finishes the block");
-            drop(evm);
-            entries
-        };
-        (sum_balances(&mut fixture.db, universe), entries)
-    }
-
-    // State-level ETH-supply audit of post-exec settlement ("audit total balances before and after
-    // refund blocks"). The per-delta test pins that one settlement credit equals the sum of its
-    // debits; this pins the same conservation on real account state. We run the identical two-tx
-    // block twice — once applying the SDM refund settlement, once not — and sum every account that
-    // can hold ETH. Settlement only moves ETH between the sender and the fee recipients, so the
-    // total must match the un-settled run exactly: no ETH is minted or burned ("no infinite mint").
-    // Comparing the two runs cancels block-level effects (e.g. the test harness' coinbase reward)
-    // so the assertion isolates the settlement.
-    #[test]
-    fn test_post_exec_settlement_conserves_total_eth_supply() {
-        let beneficiary = Address::from([0x99; 20]);
-        let target = WARMING_CONTRACT;
-        let universe = eth_holding_universe(beneficiary, target);
-
-        let (total_settled, entries) = run_block_and_total(beneficiary, target, true, &universe);
-        let (total_unsettled, _) = run_block_and_total(beneficiary, target, false, &universe);
-
-        assert!(
-            entries.iter().any(|e| e.gas_refund > 0),
-            "the block under audit must actually settle a non-zero refund",
-        );
-        assert_eq!(
-            total_settled, total_unsettled,
-            "SDM post-exec settlement minted or burned ETH relative to the unsettled block",
-        );
-    }
-
-    /// Regression coverage for a warm-set leak in op-revm's `catch_error`.
-    ///
-    /// `catch_error` must discard the journal on a non-deposit tx error, as upstream revm's
-    /// `EthHandler::catch_error` does. Were it not to, then on the SDM Produce execution path
-    /// (`alloy-op-evm` routes to `inspect_tx`, which skips `finalize()` on error) a failed
-    /// candidate tx would leave its sender EIP-2929-warm in the shared journal, so a later tx
-    /// executed on the same EVM would be mischarged — diverging from a validator that never
-    /// executed the failed tx. These tests pin that the leak does not occur, and that the current
-    /// production (SDM-disabled) configuration is unaffected either way.
-    mod warm_set_leak {
-        use super::*;
-
-        /// Sender of the failing tx `A` — loaded+warmed during validation before the nonce
-        /// check rejects it. Its leaked warmth is the bug.
-        const LEAK_ADDR: Address = Address::new([0xAA; 20]);
-        /// Sender of the probe tx `B`.
-        const PROBE_SENDER: Address = Address::new([0xBB; 20]);
-        /// Probe contract: `PUSH20 <LEAK_ADDR>; BALANCE; POP; STOP` — a Berlin account access
-        /// on `A`'s sender, charged 100 (warm) or 2600 (cold).
-        const PROBE_CONTRACT: Address = Address::new([0xCC; 20]);
-
-        fn nonce_too_low_db() -> State<InMemoryDB> {
-            // `A`'s sender: nonce 5 so `A` (nonce 0) is rejected `NonceTooLow` *after* the
-            // sender is loaded+warmed, leaving no other state mutation (crisp signal).
-            db_with_leak_account(AccountInfo {
-                nonce: 5,
-                balance: U256::from(1_000_000_000u64),
-                ..Default::default()
-            })
-        }
-
-        /// Like [`nonce_too_low_db`] but `A`'s sender carries code, so `A` is rejected by EIP-3607
-        /// (sender-has-code) instead of by the nonce check — still only after it is loaded+warmed.
-        fn contract_sender_db() -> State<InMemoryDB> {
-            let code = Bytecode::new_raw(vec![0x00u8].into()); // STOP
-            // nonce 0 so the nonce check passes and EIP-3607 is the sole rejection reason.
-            db_with_leak_account(AccountInfo {
-                code_hash: code.hash_slow(),
-                code: Some(code),
-                balance: U256::from(1_000_000_000u64),
-                ..Default::default()
-            })
-        }
-
-        /// Seeds the shared warm-leak accounts; `A`'s sender (`LEAK_ADDR`) is supplied by the
-        /// caller so each test can choose the validation error `A` fails with.
-        fn db_with_leak_account(leak_account: AccountInfo) -> State<InMemoryDB> {
-            let mut db = prepare_jovian_db(DEFAULT_DA_FOOTPRINT_GAS_SCALAR);
-            db.insert_account(LEAK_ADDR, leak_account);
-            // `B`'s sender: funded.
-            db.insert_account(
-                PROBE_SENDER,
-                AccountInfo {
-                    balance: U256::from(1_000_000_000_000_000_000u128),
-                    ..Default::default()
-                },
-            );
-            // Probe contract bytecode: `PUSH20 <LEAK_ADDR>; BALANCE; POP; STOP`.
-            let mut code = vec![0x73u8]; // PUSH20
-            code.extend_from_slice(LEAK_ADDR.as_slice());
-            code.extend_from_slice(&[0x31, 0x50, 0x00]); // BALANCE, POP, STOP
-            let bytecode = Bytecode::new_raw(code.into());
-            db.insert_account(
-                PROBE_CONTRACT,
-                AccountInfo {
-                    code_hash: bytecode.hash_slow(),
-                    code: Some(bytecode),
-                    ..Default::default()
-                },
-            );
-            db
-        }
-
-        fn legacy_with_sender(
-            sender: Address,
-            nonce: u64,
-            to: Address,
-            gas_limit: u64,
-        ) -> Recovered<OpTxEnvelope> {
-            recovered_legacy_from(
-                sender,
-                TxLegacy {
-                    nonce,
-                    gas_limit,
-                    gas_price: 0,
-                    to: alloy_primitives::TxKind::Call(to),
-                    ..Default::default()
-                },
-            )
-        }
-
-        /// Activates every fork through Lagoon at `JOVIAN_TIMESTAMP`. Lagoon gates SDM, so the
-        /// Produce path exercised here runs on a genuinely SDM-active fork rather than being forced
-        /// on a pre-SDM one.
-        fn hardforks() -> OpChainHardforks {
-            let forks = OpHardfork::op_mainnet()
-                .into_iter()
-                .filter(|(fork, _)| fork.idx() < OpHardfork::Jovian.idx())
-                .chain(
-                    OpHardfork::Jovian
-                        .forks_from()
-                        .take_while(|fork| fork.idx() <= OpHardfork::Lagoon.idx())
-                        .map(|fork| (fork, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))),
-                );
-            OpChainHardforks::new(forks)
-        }
-
-        /// Canonical gas charged to probe tx `B` (BALANCE on `LEAK_ADDR`), optionally preceded
-        /// by a failing tx `A` from `LEAK_ADDR` that is attempted then skipped on the same
-        /// executor — mirroring the builder's skip-and-continue loop.
-        fn probe_b_canonical_gas(mode: PostExecMode, include_failing_a: bool) -> u64 {
-            let mut db = nonce_too_low_db();
-            let receipt_builder = OpAlloyReceiptBuilder::default();
-            let op_chain_hardforks = hardforks();
-            // `inspect=false` models real block building/validation (`create_evm` uses false);
-            // the leaky `inspect_tx` path is then reached *only* via SDM Produce's
-            // `begin_post_exec_tx`, exactly as in production.
-            let mut executor = build_executor(
-                &mut db,
-                &receipt_builder,
-                &op_chain_hardforks,
-                1_000_000,
-                JOVIAN_TIMESTAMP,
-                None,
-                0,
-                Address::ZERO,
-                Inspect::Disabled,
-            );
-            executor.set_post_exec_mode(mode);
-
-            if include_failing_a {
-                let tx_a = legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000);
-                executor
-                    .execute_transaction(&tx_a)
-                    .expect_err("tx A must fail NonceTooLow and be skipped");
-            }
-
-            let tx_b = legacy_with_sender(PROBE_SENDER, 0, PROBE_CONTRACT, 200_000);
-            executor.execute_transaction(&tx_b).expect("probe tx B executes").tx_gas_used()
-        }
-
-        /// Drives the builder-vs-validator consensus scenario: a builder in SDM `Produce` mode
-        /// attempts `failing_a` (which must error and be skipped), then includes probe tx `B` and
-        /// the 0x7D refund payload; a validator in `Verify` mode re-executes only `B` and the
-        /// payload, never `A`. Asserts the sealed-block gas matches — i.e. the skipped tx left no
-        /// warm residue for the builder to bill `B` for. `make_db` and `failing_a` are the only
-        /// things that vary between the different validation errors `A` can fail with.
-        fn assert_no_builder_validator_divergence(
-            make_db: impl Fn() -> State<InMemoryDB>,
-            failing_a: Recovered<OpTxEnvelope>,
-            a_error_context: &str,
-        ) {
-            let receipt_builder = OpAlloyReceiptBuilder::default();
-            let op_chain_hardforks = hardforks();
-
-            // ---- Builder (SDM Produce): A is attempted, fails, and is skipped; B is included.
-            let mut producer_db = make_db();
-            let mut producer = build_executor(
-                &mut producer_db,
-                &receipt_builder,
-                &op_chain_hardforks,
-                1_000_000,
-                JOVIAN_TIMESTAMP,
-                None,
-                0,
-                Address::ZERO,
-                Inspect::Disabled,
-            );
-            producer.set_post_exec_mode(PostExecMode::Produce);
-            producer.execute_transaction(&failing_a).expect_err(a_error_context);
-            producer
-                .execute_transaction(&legacy_with_sender(PROBE_SENDER, 0, PROBE_CONTRACT, 200_000))
-                .expect("probe tx B executes");
-            let entries = producer.take_post_exec_entries();
-            let post_exec_tx = recovered_post_exec(0, entries.clone());
-            producer.execute_transaction(&post_exec_tx).expect("producer appends 0x7D tx");
-            let (_, produced) = producer.finish().expect("producer finishes block");
-
-            // ---- Validator (SDM Verify of the sealed block): only B and the 0x7D tx; never A.
-            let mut verifier_db = make_db();
-            let mut verifier = build_executor(
-                &mut verifier_db,
-                &receipt_builder,
-                &op_chain_hardforks,
-                1_000_000,
-                JOVIAN_TIMESTAMP,
-                None,
-                0,
-                Address::ZERO,
-                Inspect::Disabled,
-            );
-            verifier.set_post_exec_mode(PostExecMode::Verify(post_exec_payload(0, entries)));
-            verifier
-                .execute_transaction(&legacy_with_sender(PROBE_SENDER, 0, PROBE_CONTRACT, 200_000))
-                .expect("validator executes B");
-            verifier.execute_transaction(&post_exec_tx).expect("validator consumes 0x7D tx");
-            let (_, verified) = verifier.finish().expect("validator finishes block");
-
-            assert_eq!(
-                produced.gas_used,
-                verified.gas_used,
-                "builder built B against a leaked-warm sender (from skipped tx A) but the \
-                 validator re-executes B cold: {}-gas builder-vs-validator divergence -> block \
-                 rejected. The failed tx's journal must be discarded on the error path",
-                produced.gas_used.abs_diff(verified.gas_used),
-            );
-        }
-
-        /// The faithful builder-vs-validator consensus test.
-        ///
-        /// A *builder* in SDM Produce mode runs `[A (fails, skipped), B]` on one EVM and seals
-        /// a block containing only `B` plus the 0x7D refund payload. A *validator* re-executes
-        /// that block in Verify mode — it never runs `A`. Were `OpHandler::catch_error` not to
-        /// discard the failed tx's journal, the builder would charge `B` warm (100) for the
-        /// access to `A`'s leaked-warm sender while the validator charges it cold (2600), so
-        /// `produced.gas_used != verified.gas_used` (a 2500-gas divergence) and the validator
-        /// rejects the block — a chain halt.
-        ///
-        /// Note: the SDM refund the builder emits for `B` (~7500, from `A` warming the fee
-        /// recipients) is *trusted* by the validator (it only bounds-checks the payload), so it
-        /// is applied identically on both sides and does NOT contribute to this divergence.
-        #[test]
-        fn skipped_failed_tx_in_sdm_produce_does_not_diverge_builder_vs_validator() {
-            // `A`'s sender has nonce 5, so `A` (nonce 0) is rejected `NonceTooLow` after being
-            // loaded+warmed during validation.
-            assert_no_builder_validator_divergence(
-                nonce_too_low_db,
-                legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000),
-                "tx A must fail NonceTooLow and be skipped",
-            );
-        }
-
-        /// EIP-3607 variant of the divergence test: `A` is rejected because its sender carries
-        /// code (a contract may not originate a tx), not because of a stale nonce. revm still
-        /// loads and warms the sender before that check, so a different validation error must
-        /// discard the same warmth — otherwise the builder over-warms `B` and diverges from the
-        /// validator exactly as in the `NonceTooLow` case.
-        #[test]
-        fn skipped_eip3607_failed_tx_in_sdm_produce_does_not_diverge_builder_vs_validator() {
-            assert_no_builder_validator_divergence(
-                contract_sender_db,
-                legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000),
-                "tx A must fail EIP-3607 (contract sender) and be skipped",
-            );
-        }
-
-        /// With SDM disabled (production config: Karst pre-Lagoon, opt-in OFF) execution uses
-        /// the `transact` path, whose `finalize()` runs even on error and wipes the failed tx's
-        /// journal — so a skipped failing tx cannot affect `B` regardless of whether
-        /// `OpHandler::catch_error` discards the journal. This guards today's chains' safety.
-        #[test]
-        fn skipped_failed_tx_does_not_affect_next_tx_when_sdm_disabled() {
-            let with_failed_a = probe_b_canonical_gas(PostExecMode::Disabled, true);
-            let without = probe_b_canonical_gas(PostExecMode::Disabled, false);
-            assert_eq!(
-                without, with_failed_a,
-                "with SDM disabled (prod config) a skipped failing tx must not affect the next tx",
-            );
-        }
+    fn restore(&mut self, snapshot: Self::Snapshot) {
+        self.executed_candidates = snapshot;
     }
 }
+
+#[test]
+fn declined_candidate_restores_refund_policy_snapshot() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut executor =
+        build_policy_executor::<ScriptedRefundPolicy>(&mut db, &receipt_builder, &hardforks);
+    let tx = observer_test_tx();
+
+    let declined = executor
+        .execute_transaction_with_commit_condition(&tx, |_| CommitChanges::No)
+        .expect("declined candidate executes");
+    assert!(declined.is_none());
+
+    executor.execute_transaction(&tx).expect("committed candidate executes");
+    assert_eq!(
+        executor.post_exec_entries(),
+        &[op_alloy::consensus::SDMGasEntry { index: 0, gas_refund: 1 }],
+        "a declined candidate must not leak policy state into the committed transaction"
+    );
+}
+
+mod structural_tests;

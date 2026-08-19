@@ -6,7 +6,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
   c-base_image:
     type: string
     default: default
@@ -28,7 +28,7 @@ parameters:
     default: cimg/base:2026.03
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
   base_image:
     type: string
     default: default
@@ -140,7 +140,7 @@ parameters:
     default: false
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.27
+  utils: ethereum-optimism/circleci-utils@1.0.30
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
@@ -197,7 +197,7 @@ commands:
       for every ref and develop overrides to the writer. The write/read split is
       enforced by GCP Workload Identity on the signed CircleCI OIDC vcs-ref
       claim, so a non-develop ref impersonating the writer is denied by GCP;
-      this only selects the SA. sccache is preinstalled in the ci-base-clang
+      this only selects the SA. sccache is preinstalled in the Rust base
       image.
 
       Not fail-open: if the sccache server can't start, the job fails so a
@@ -247,7 +247,7 @@ commands:
                 name: "Start sccache"
                 command: |
                   # Skip where sccache is not installed (machine-executor jobs like
-                  # the cannon builds run on a VM, not the ci-base-clang image). This
+                  # the cannon builds run on a VM, not the Rust base image). This
                   # is NOT fail-open for a broken cache: if sccache IS present, a
                   # failed server start below still fails the job.
                   if ! command -v sccache >/dev/null 2>&1; then
@@ -360,8 +360,8 @@ commands:
           mentions: "<< parameters.mentions >>"
 
   apt-install:
-    description: "apt-get update + install, with retries to tolerate transient
-      Ubuntu mirror sync failures."
+    description: "apt-get update + install via .circleci/scripts/apt-install.sh,
+      which installs from the Ubuntu geo mirror list."
     parameters:
       packages:
         description: "Space-separated list of apt packages to install."
@@ -374,20 +374,8 @@ commands:
     steps:
       - run:
           name: "apt install << parameters.packages >>"
-          command: |
-            export NEEDRESTART_MODE=a
-            for i in 1 2 3; do
-              if sudo -E apt-get -o Acquire::Retries=5 update; then
-                break
-              fi
-              if [ "$i" = "3" ]; then
-                echo "apt-get update failed after 3 attempts" >&2
-                exit 1
-              fi
-              echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
-              sleep 10
-            done
-            sudo -E apt-get -o Acquire::Retries=5 install -y << parameters.extra_flags >> << parameters.packages >>
+          command: bash .circleci/scripts/apt-install.sh << parameters.extra_flags
+            >> << parameters.packages >>
 
   # Kona-specific commands
   install-zstd:
@@ -695,7 +683,7 @@ commands:
               # build alone would omit crates other workspace members need).
               cargo fetch --locked
             fi
-            # Use the mold linker (pinned via mise; also present in ci-base-clang)
+            # Use the mold linker (pinned via mise; also present in the Rust base image)
             # to cut final link time. `mold -run` intercepts the linker at exec
             # time, so it needs no RUSTFLAGS change and does not perturb the sccache
             # compile-cache key. The CI env is controlled, so a missing mold must
@@ -853,13 +841,13 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: op-reth
-          binary: op-reth
+          package: "op-reth op-reth-sdm-fixture"
           save_cache: false
       - persist_to_workspace:
           root: "."
           paths:
             - "rust/target/release/op-reth"
+            - "rust/target/release/op-reth-sdm-fixture"
 
   # Build a single Rust binary from a vendored (non-submodule) directory.
   rust-build-vendored:
@@ -955,18 +943,7 @@ jobs:
             echo "Cache miss - will build"
 
             if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
-              for i in 1 2 3; do
-                if sudo apt-get -o Acquire::Retries=5 update; then
-                  break
-                fi
-                if [ "$i" = "3" ]; then
-                  echo "apt-get update failed after 3 attempts" >&2
-                  exit 1
-                fi
-                echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
-                sleep 10
-              done
-              sudo apt-get install -y --no-install-recommends clang
+              bash "$ROOT_DIR/.circleci/scripts/apt-install.sh" --no-install-recommends clang
             fi
 
             cd << parameters.directory >> && << parameters.build_command >>
@@ -1086,11 +1063,40 @@ jobs:
           name: Print forge version
           command: forge --version
       - run:
+          name: Compute forge build cache key
+          command: |
+            # Key over every input affecting forge output: all tracked package
+            # files via `git ls-files -s` (sources, config, lib/ submodule
+            # pins), mise.toml toolchain pins, and profile/args. Exact-key only
+            # (no fallback restore): a hit never serves artifacts for changed
+            # or deleted contracts; a miss is a normal clean build. The
+            # installed solc set is deliberately unkeyed — drift only makes
+            # forge recompile mismatched artifacts, never serve stale ones.
+            {
+              echo "profile=<<parameters.profile>> args=<<parameters.build_args>>"
+              sha256sum mise.toml
+              git ls-files -s -- packages/contracts-bedrock
+            } | sha256sum | cut -d' ' -f1 | tee /tmp/forge-cache-key.txt
+      - restore_cache:
+          name: Restore forge build cache
+          keys:
+            - forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
+      - run:
           name: Build contracts
           command: just forge-build <<parameters.build_args>>
           environment:
             FOUNDRY_PROFILE: <<parameters.profile>>
           working_directory: packages/contracts-bedrock
+      - save_cache:
+          name: Save forge build cache
+          key: forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
+          # These paths hold for profiles that keep foundry.toml's default
+          # output dirs; a profile that redirects them (e.g. kprove's
+          # out = kout-proofs) needs this list extended.
+          paths:
+            - packages/contracts-bedrock/cache
+            - packages/contracts-bedrock/artifacts
+            - packages/contracts-bedrock/forge-artifacts
       # copy-contract-artifacts runs `go run ... mktar`, which needs the Go
       # module set. Restore the shared cache (warmed by prep-go-modules) so it
       # doesn't hit proxy.golang.org.
@@ -1690,9 +1696,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
-      - run:
-          name: Install ripgrep
-          command: sudo apt-get install -y ripgrep
+      - apt-install:
+          packages: "ripgrep"
       - run:
           name: Check TODO issues
           command: ./ops/scripts/todo-checker.sh --verbose --strict
@@ -1817,7 +1822,22 @@ jobs:
       - restore-go-mod-cache
       - run:
           name: Download Go modules
-          command: go mod download
+          command: |
+            # proxy.golang.org intermittently returns transient stream errors
+            # (INTERNAL_ERROR). Retry with exponential backoff so a flaky
+            # download doesn't fail this shared prep job and everything behind
+            # it.
+            n=0
+            until go mod download; do
+              n=$((n+1))
+              if [ "$n" -ge 5 ]; then
+                echo "go mod download failed after $n attempts" >&2
+                exit 1
+              fi
+              backoff=$((5 * 2 ** (n - 1)))
+              echo "go mod download failed (attempt $n); retrying in ${backoff}s..." >&2
+              sleep "$backoff"
+            done
       - save-go-mod-cache
 
   check-nut-locks:
@@ -2021,6 +2041,10 @@ jobs:
 
   op-acceptance-tests:
     parameters:
+      l1_fork:
+        description: "L1 fork active at genesis"
+        type: string
+        default: "fusaka"
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
@@ -2047,15 +2071,16 @@ jobs:
     resource_class: 2xlarge+.gen2
     parallelism: <<parameters.parallelism>>
     steps:
-      - run:
-          name: Install eatmydata and disable fsync for all subprocesses
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends eatmydata
-            echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
+      # apt-install needs the working tree, so it runs after checkout.
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - apt-install:
+          extra_flags: "--no-install-recommends"
+          packages: "eatmydata"
+      - run:
+          name: Disable fsync for all subprocesses
+          command: echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
       - attach_workspace:
           at: .
       - run:
@@ -2067,17 +2092,25 @@ jobs:
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE=$ROOT_DIR/rust/target/release/op-reth-sdm-fixture" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
+
+            # Fail here in seconds rather than ~25 minutes into the test run: a drift in the
+            # persist path or the build profile would otherwise surface as an opaque devstack
+            # error when a test first tries to launch one of these.
+            test -x "$ROOT_DIR/rust/target/release/op-reth"
+            test -x "$ROOT_DIR/rust/target/release/op-reth-sdm-fixture"
             # KONA_SP1_ELF_DIR deliberately not set: acceptance tests run with
             # stub prestate artifacts (the devstack deploys the mock verifier,
             # so nothing consumes real ELF bytes until the proving path). This
             # keeps these jobs off the slow kona-build-sp1-elfs critical path;
             # kona-build-sp1-elfs is gated directly via ci-gate instead.
       - run:
-          name: Configure L2 stack
+          name: Configure devstack
           command: |
+            echo "export DEVSTACK_L1_FORK=<<parameters.l1_fork>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules (downloaded once by prep-go-modules) plus the
@@ -2148,20 +2181,6 @@ jobs:
       - run:
           name: Build prestates
           command: just reproducible-prestate
-      - run:
-          name: Capture kona prestate debug artifacts
-          command: |
-            mkdir -p /tmp/prestate-debug
-
-            # chainList.json from the checkout (baked into the binary via include_str!)
-            cp rust/kona/crates/protocol/registry/etc/chainList.json /tmp/prestate-debug/chainList.json
-
-            # The kona-client ELF binaries (for offline inspection with strings/objdump)
-            cp rust/kona/prestate-artifacts-cannon/kona-client-elf /tmp/prestate-debug/kona-client-elf-cannon 2>/dev/null || true
-            cp rust/kona/prestate-artifacts-cannon-interop/kona-client-elf /tmp/prestate-debug/kona-client-elf-cannon-interop 2>/dev/null || true
-      - store_artifacts:
-          path: /tmp/prestate-debug
-          destination: prestate-debug
       - persist_to_workspace:
           root: .
           paths:
@@ -2415,6 +2434,9 @@ jobs:
       # goreleaser compiles the Go release binaries on the host.
       - restore-go-mod-cache
       - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
+      - run:
           name: Configure Docker
           command: |
             gcloud auth configure-docker us-docker.pkg.dev
@@ -2604,35 +2626,18 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+      # One job on every branch: -short gates only a handful of tests, and a
+      # single job name lets CircleCI reuse timing data across branches (develop
+      # runs keep the store fresh). Slack notify fires on develop only
+      # (branch_pattern in notify-failures-on-develop).
       - go-tests:
-          name: go-tests-short
+          name: go-tests
+          rule: "go-tests-ci"
           parallelism: 12
-          no_output_timeout: 19m
-          test_timeout: 20m
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-            - go-binaries-for-sysgo
-            - prep-superchain
-            - prep-go-modules
-            - rust-kona-binaries
-            - rust-op-reth-binary
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-repo-rpc-secrets
-          filters:
-            branches:
-              ignore: develop # Run on all branches EXCEPT develop (PR branches only)
-      - go-tests:
-          name: go-tests-full
-          rule: "go-tests-ci" # Run full test suite instead of short
-          parallelism: 16
-          no_output_timeout: 89m # Longer timeout for full tests
-          test_timeout: 90m
+          no_output_timeout: 39m
+          test_timeout: 40m
           notify: true
-          filters:
-            branches:
-              only: develop # Only runs on develop branch (post-merge)
+          mentions: "<!subteam^S09D13R3HJ7>" # @protocol-oncall
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -2743,9 +2748,13 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
-          name: memory-all-opn-op-reth
+          name: memory-all-opn-op-reth-<<matrix.l1_fork>>
+          matrix:
+            parameters:
+              l1_fork: &acceptance_l1_forks
+                - fusaka
           l2_el_kind: op-reth
-          parallelism: 2
+          parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
@@ -2762,10 +2771,13 @@ workflows:
             - prep-superchain
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
-          name: memory-all-kona-op-reth
+          name: memory-all-kona-op-reth-<<matrix.l1_fork>>
+          matrix:
+            parameters:
+              l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
-          parallelism: 2
+          parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
@@ -2791,9 +2803,9 @@ workflows:
             - go-lint: terminal
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
-            - go-tests-short: terminal
-            - memory-all-opn-op-reth: terminal
-            - memory-all-kona-op-reth: terminal
+            - go-tests: terminal
+            - memory-all-opn-op-reth-fusaka: terminal
+            - memory-all-kona-op-reth-fusaka: terminal
             - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
@@ -3016,6 +3028,7 @@ workflows:
       - circleci-schedule-trigger-check:
           context:
             - circleci-api-token
+            - circleci-repo-readonly-authenticated-github-token
 
   close-issue-workflow:
     when: << pipeline.parameters.c-run_close_issue >>

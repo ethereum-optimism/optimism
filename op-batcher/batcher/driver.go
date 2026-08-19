@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	_ "net/http/pprof"
 	"sync"
@@ -74,7 +75,7 @@ type L1Client interface {
 }
 
 type L2Client interface {
-	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 type RollupClient interface {
@@ -284,10 +285,10 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 		l.Log.Info("Loading range of multiple blocks into state", "start", start, "end", end)
 	}
 
-	var latestBlock *types.Block
+	var latestPayload *eth.ExecutionPayload
 	// Add all blocks to "state"
 	for i := start; i <= end; i++ {
-		block, err := l.loadBlockIntoState(ctx, i)
+		payload, err := l.loadBlockIntoState(ctx, i)
 		if errors.Is(err, ErrReorg) {
 			l.Log.Warn("Found L2 reorg", "block_number", i)
 			return err
@@ -295,7 +296,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 			l.Log.Warn("Failed to load block into state", "err", err)
 			return err
 		}
-		latestBlock = block
+		latestPayload = payload
 
 		if numBlocksLoaded := (i - start + 1); numBlocksLoaded%100 == 0 {
 			// Every 100 blocks, signal the publishing loop to publish.
@@ -307,7 +308,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 
 	}
 
-	l2ref, err := derive.L2BlockToBlockRef(l.RollupConfig, latestBlock)
+	l2ref, err := derive.PayloadToBlockRef(l.RollupConfig, latestPayload)
 	if err != nil {
 		l.Log.Warn("Invalid L2 block loaded into state", "err", err)
 		return err
@@ -317,9 +318,9 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 	return nil
 }
 
-// loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
-func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (*types.Block, error) {
-	l2Client, err := l.EndpointProvider.EthClient(ctx)
+// loadBlockIntoState fetches & stores a single block into `state`. It returns the payload it loaded.
+func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (*eth.ExecutionPayload, error) {
+	l2Client, err := l.EndpointProvider.PayloadSource(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting L2 client: %w", err)
 	}
@@ -327,21 +328,20 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 	cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
 
-	block, err := l2Client.BlockByNumber(cCtx, new(big.Int).SetUint64(blockNumber))
+	envelope, err := l2Client.PayloadByNumber(cCtx, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
-
-	l.Log.Debug("Loaded L2 block", "size", block.Size())
+	payload := envelope.ExecutionPayload
 
 	l.channelMgrMutex.Lock()
 	defer l.channelMgrMutex.Unlock()
-	if err := l.channelMgr.AddL2Block(block); err != nil {
+	if err := l.channelMgr.AddL2Block(payload); err != nil {
 		return nil, fmt.Errorf("adding L2 block to state: %w", err)
 	}
 
-	l.Log.Info("Added L2 block to local state", "block", eth.ToBlockID(block), "tx_count", len(block.Transactions()), "time", block.Time())
-	return block, nil
+	l.Log.Info("Added L2 block to local state", "block", payload.ID(), "tx_count", len(payload.Transactions), "time", payload.Timestamp)
+	return payload, nil
 }
 
 func (l *BatchSubmitter) getSyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
@@ -1006,15 +1006,47 @@ type TxSender[T any] interface {
 // sendTx uses the txmgr queue to send the given transaction candidate after setting its
 // gaslimit. It will block if the txmgr queue has reached its MaxPendingTransactions limit.
 func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.TxCandidate, queue TxSender[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
-	floorDataGas, err := core.FloorDataGas(candidate.TxData)
+	gasLimit, err := maxFloorDataGas(candidate.TxData)
 	if err != nil {
-		// We log instead of return an error here because the txmgr will do its own gas estimation.
-		l.Log.Warn("Failed to calculate floor data gas", "err", err)
+		// We log instead of returning an error here because the txmgr will do its own gas estimation.
+		l.Log.Warn("Failed to calculate batch transaction gas limit", "err", err)
 	} else {
-		candidate.GasLimit = floorDataGas
+		candidate.GasLimit = gasLimit
 	}
 
 	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.asBlob}, *candidate, receiptsCh)
+}
+
+// maxFloorDataGas returns a gas limit valid under both the pre-Amsterdam EIP-7623 rules and
+// Amsterdam's EIP-2780/EIP-7976 rules. The pre-Amsterdam floor also exceeds Amsterdam's regular
+// intrinsic gas whenever it exceeds the Amsterdam floor, so the larger floor is sufficient.
+func maxFloorDataGas(data []byte) (uint64, error) {
+	preAmsterdam, err := core.FloorDataGas(data)
+	if err != nil {
+		return 0, err
+	}
+	amsterdam, err := amsterdamFloorDataGas(data)
+	if err != nil {
+		return 0, err
+	}
+	return max(preAmsterdam, amsterdam), nil
+}
+
+// NOTE: we can probably replace this function with core.FloorDataGas once our geth dependency
+// includes the Amsterdam calculation.
+func amsterdamFloorDataGas(data []byte) (uint64, error) {
+	const (
+		amsterdamTxBaseGas               = uint64(12_000 + 3_000) // EIP-2780: TX_BASE_COST + COLD_ACCOUNT_ACCESS
+		amsterdamCalldataFloorGasPerByte = uint64(64)             // EIP-7976: 4 tokens per byte at 16 gas per token
+	)
+	return addGas(amsterdamTxBaseGas, uint64(len(data)), amsterdamCalldataFloorGasPerByte)
+}
+
+func addGas(base, count, cost uint64) (uint64, error) {
+	if count > (math.MaxUint64-base)/cost {
+		return 0, core.ErrGasUintOverflow
+	}
+	return base + count*cost, nil
 }
 
 func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error) {

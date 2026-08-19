@@ -405,6 +405,11 @@
             "internalType": "address",
             "name": "storageSetterImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "sp1PlonkAdapterImpl",
+            "type": "address"
           }
         ],
         "internalType": "struct IOPContractsManagerContainer.Implementations",
@@ -572,75 +577,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "contract ISystemConfig[]",
-            "name": "chainSystemConfigs",
-            "type": "address[]"
-          },
-          {
-            "components": [
-              {
-                "internalType": "bool",
-                "name": "enabled",
-                "type": "bool"
-              },
-              {
-                "internalType": "uint256",
-                "name": "initBond",
-                "type": "uint256"
-              },
-              {
-                "internalType": "GameType",
-                "name": "gameType",
-                "type": "uint32"
-              },
-              {
-                "internalType": "bytes",
-                "name": "gameArgs",
-                "type": "bytes"
-              }
-            ],
-            "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
-            "name": "disputeGameConfigs",
-            "type": "tuple[]"
-          },
-          {
-            "components": [
-              {
-                "internalType": "Hash",
-                "name": "root",
-                "type": "bytes32"
-              },
-              {
-                "internalType": "uint256",
-                "name": "l2SequenceNumber",
-                "type": "uint256"
-              }
-            ],
-            "internalType": "struct Proposal",
-            "name": "startingAnchorRoot",
-            "type": "tuple"
-          },
-          {
-            "internalType": "GameType",
-            "name": "startingRespectedGameType",
-            "type": "uint32"
-          }
-        ],
-        "internalType": "struct IOPContractsManagerMigrator.MigrateInput",
-        "name": "_input",
-        "type": "tuple"
-      }
-    ],
-    "name": "setInteropDisputeGames",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

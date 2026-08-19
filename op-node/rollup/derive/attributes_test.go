@@ -163,7 +163,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 		l2Txs := append(append(make([]eth.Data, 0), l1InfoTx), usedDepositTxs...)
 
-		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
+		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, optypes.FromGethReceipts(receipts), nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, nil, l1Fetcher, l1CfgFetcher)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l2Txs = append(l2Txs, l1InfoTx)
 		l2Txs = append(l2Txs, userDepositTxs...)
 
-		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
+		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, optypes.FromGethReceipts(receipts), nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, depSet, l1Fetcher, l1CfgFetcher)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)

@@ -1,0 +1,182 @@
+---
+title: Choose how to run your chain
+description: The spectrum between running an OP Stack chain yourself and having it operated for you, and what your team owns at each point on it.
+diataxis: explanation
+last-reviewed: 2026-08-06
+---
+
+Every team launching an OP Stack chain lands somewhere on the same spectrum. At
+one end, your team runs every service and holds every key. At the other end,
+someone runs them for you. The choice is not about capability: it is about which
+parts of a standing operation your team wants to own.
+
+This page describes the spectrum and what falls to your team at each point on
+it. It does not pick a point for you. The pages linked below document the whole
+system regardless of who operates it.
+
+## The spectrum
+
+|                       | Run it yourself                          | Run it with engineering support                      | Have it operated for you                      |
+| --------------------- | ---------------------------------------- | ---------------------------------------------------- | --------------------------------------------- |
+| Sequencer cluster     | Your team                                | Your team, with OP Labs engineering behind it        | OP Enterprise                                  |
+| Fault-proof defense   | Your team                                | Your team, with OP Labs engineering behind it        | OP Enterprise                                  |
+| Upgrade execution     | Your team                                | Your team, with OP Labs engineering behind it        | OP Enterprise                                  |
+| Incident response     | Your team                                | Your team, with OP Labs engineering behind it        | OP Enterprise                                  |
+| These docs            | The reference for what you run           | The reference for what you run                       | The reference for what runs on your behalf     |
+
+## Run it yourself
+
+Your team runs every service, holds every key, and owns every incident. These
+docs cover all of it, and every destination below is one click away.
+
+What that ownership includes, stated the way the docs themselves state it:
+
+### The services you run
+
+*   **The sequencer.** A single sequencer is a single point of failure for the
+    whole chain: when it stops, no new unsafe blocks exist for anyone. The
+    high-availability answer is a sequencer cluster managed by
+    [op-conductor](/chain-operators/tools/op-conductor), with its nodes in
+    separate failure domains. The design is not Byzantine fault tolerant: it
+    assumes every node in the cluster is honest and operated by you, so it
+    protects against crashes and partitions, not against a malicious cluster
+    member. See
+    [the launch guide's sequencer topology step](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#step-3-design-the-sequencer-topology).
+*   **The defense.** The defense is a service you run and a set of decisions
+    your team staffs. The
+    [`op-challenger`](/op-stack/fault-proofs/challenger) is a service that
+    monitors every game, defends valid proposals, challenges invalid ones,
+    resolves games, and claims bonds. Starting it is not the whole job. Every
+    claim it posts carries a bond sent as transaction value; correct claims are
+    refunded, incorrect ones pay the counter-claimer, and bonds from won games
+    pay out only after a delay, so capital stays locked while games resolve.
+    How much the challenger's account holds, how quickly you can top it up
+    during an active dispute, and which absolute prestate it plays with are
+    operational answers your team owns; the challenger refuses to interact with
+    games whose prestate it does not have. See
+    [Run a fault-proof challenger](/use-cases/run-a-fault-proof-challenger).
+*   **The monitoring.** Watching the chain is a separate set of services from
+    running it. `op-dispute-mon` tracks the status of every dispute game and is
+    how you learn that your challenger is acting; `monitorism` carries the
+    onchain security monitors, whose security-integrity group exists to check
+    that the bridges between L2 and L1 behave as expected, including the
+    faultproof withdrawal monitor that watches `ProvenWithdrawals` events on
+    the `OptimismPortal` and flags invariant violations. Your own components
+    need their metrics endpoints scraped alongside that: `op-node`,
+    `op-batcher`, `op-proposer`, and `op-challenger` each expose one. Peer
+    count belongs on that list too, because an `op-node` without peers cannot
+    sync unsafe blocks and falls behind the sequencer. See
+    [Chain monitoring options](/chain-operators/tools/chain-monitoring) and
+    [the important node metrics](/node-operators/guides/monitoring/metrics#important-metrics).
+*   **The RPC endpoints.** Every service in the stack depends on RPC, and not
+    only on L1. Each sequencer's op-node derives the chain from an L1 RPC and
+    an L1 beacon endpoint, and the batcher, proposer, and challenger read and
+    transact against L1; `op-challenger` additionally needs an L2 archive node
+    (`--l2-eth-rpc`) and a rollup node with SafeDB (`--rollup-rpc`), and
+    `op-dispute-mon` takes a rollup RPC of its own. Redundant nodes behind a
+    generic load balancer are the wrong shape for any of them. Two nodes can be
+    at the same head, but nothing holds them there, and a service whose
+    consecutive requests round-robin between them reads that divergence as
+    blocks appearing and disappearing: reorgs that never happened. The
+    challenger is the least tolerant consumer and needs one trusted endpoint
+    that fails over deliberately rather than per request. See
+    [the launch guide's section on a consistent view](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#give-every-service-a-consistent-view-of-l1).
+
+### The keys and the decisions
+
+*   **The keys.** The batcher and proposer addresses need their private keys
+    online somewhere for the system to work, and if those addresses are
+    compromised, the system can be exploited. They are not the only privileged
+    addresses your chain has. The Proxy Admins can upgrade most of the system
+    contracts on L1 and L2, the System Config Owner can change the values in
+    the `SystemConfig` contract, the Guardian can pause withdrawal logic and
+    disable dispute game types from executing withdrawals, and the permissioned
+    Challenger role is a distinct address from the `op-challenger` service.
+    Which addresses hold which role, and how each key is held, whether through
+    an HSM or a cloud key management system, are decisions the chain operator
+    makes. See
+    [Key management](/chain-operators/guides/management/key-management) and
+    [Privileged roles in OP Stack chains](/op-stack/protocol/privileged-roles#privileged-roles-in-op-stack-chains)
+    for what every role can do and what a compromise of it means.
+*   **The path to permissionless proofs.** Chains deployed with `op-deployer`
+    start with the permissioned dispute game, in which the proposer and
+    challenger are specific addresses holding privileged roles. Moving to
+    permissionless fault proofs is a switch your team schedules after launch.
+    See
+    [the launch guide's permissionless-proofs step](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#step-7-schedule-the-switch-to-permissionless-proofs).
+
+### The work that recurs
+
+*   **The protocol upgrade cadence.** The OP Stack is being continuously
+    improved and it's your responsibility to keep it up to date. Network
+    upgrades, deprecations, security patches, and operational changes arrive as
+    time-bound action items in [Network Notices](/notices), with the permanent
+    record of each hardfork in the
+    [hardfork registry](/op-stack/protocol/network-upgrades), which records
+    activation times, the governing spec, and minimum component versions.
+    Tracking each notice, moving your components to the versions it names, and
+    executing the change on your chain recurs for as long as the chain runs.
+*   **The standing work.** Running current production releases, keeping the
+    deployment artifacts, staggering upgrade rollouts across your
+    infrastructure, isolating the sequencer, and writing your own runbooks are
+    continuous tasks rather than launch-day ones. Monitoring only helps if
+    someone is on the other end of it. Metrics endpoints on your key
+    components, and runbooks to execute when something is not behaving as
+    expected, are the documented practice; the alerting path, the people
+    reachable through it, and the incident response itself are yours to build
+    and staff. See
+    [Chain operator best practices](/chain-operators/guides/management/best-practices).
+
+<CardGroup cols={2}>
+  <Card title="Deploy a chain, component by component" icon="rocket" href="/chain-operators/tutorials/create-l2-rollup">
+    The full deployment tutorial: contracts, genesis, sequencer, batcher,
+    proposer, and challenger on a testnet.
+  </Card>
+  <Card title="Take a chain to production" icon="shield-check" href="/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing">
+    The launch guide: fault proofs from day one and a sequencer topology with no
+    single point of failure, through failover drills.
+  </Card>
+  <Card title="Staff the defense" icon="gavel" href="/use-cases/run-a-fault-proof-challenger">
+    Bond budgeting, prestate selection, the infrastructure the challenger
+    depends on, and how to confirm it is defending your chain.
+  </Card>
+  <Card title="Run it day to day" icon="wrench" href="/chain-operators/guides/management/best-practices">
+    Release selection, deployment artifacts, staggered rollouts, sequencer
+    isolation, and runbooks.
+  </Card>
+</CardGroup>
+
+## Run it with engineering support
+
+Your team still runs the chain. The difference is who sits behind the decisions
+above and behind the incidents when they happen: OP Labs engineering does,
+alongside your operators. Everything linked in the previous section stays the
+reference for what your team is running, because it is the same system.
+
+One capability on this path is not something your team has to stand up itself:
+OP Labs can optionally run a backup sequencer for your chain, alongside the
+sequencer cluster your team operates. It is opt-in rather than part of the path
+by default, and whether to take it is your team's decision.
+
+## Have it operated for you
+
+OP Enterprise runs the chain and your team consumes it. The pages above still
+describe what is running on your behalf, which is why they are worth reading on
+this path too: the properties you are buying are the ones those pages document.
+
+## What OP Enterprise is
+
+OP Enterprise is Optimism's managed offering. It covers fully managed and
+supported self-managed options, backed by an uptime SLA, priority incident
+response, direct engineering support, and managed public RPC.
+
+The
+[OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise)
+page states what each option includes and is the source of truth for its terms.
+This page does not restate them.
+
+## Where to go from here
+
+Whichever point on the spectrum you choose, the
+[chain operator quickstart](/chain-operators/quickstart) and the pages it leads
+to describe the same chain. Start there if you have not deployed one yet.

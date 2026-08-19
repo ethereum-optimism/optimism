@@ -113,6 +113,11 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
+	// A state produced by the apply pipeline MUST NOT be prepared.
+	if err := st.CheckNotApplied(); err != nil {
+		return err
+	}
+
 	if err := checkReservedOverrides(intent, st); err != nil {
 		return err
 	}
@@ -126,16 +131,12 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("intent.opcmAddress must be set to predict against an existing OPCM")
 	}
 
-	// The sender and OPCM of the deploy dry-run. Pin them into the state so a re-run
-	// cannot silently switch deployer keys or OPCM and invalidate the predicted addresses.
+	// A rerun must use the same deployer and OPCM or the predicted addresses may change.
 	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 	opcmAddr := *intent.OPCMAddress
 	if err := st.CheckL1PredictInputs(deployer, opcmAddr); err != nil {
 		return err
 	}
-	st.L1PredictSenderAddress = &deployer
-	st.L1PredictOPCMAddress = &opcmAddr
-	st.Prepared = true
 
 	if err := st.EnsureCreate2Salt(); err != nil {
 		return err
@@ -168,6 +169,27 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
+	l1Client := ethclient.NewClient(l1RPC)
+	if err := checkOPCMHasCode(ctx, l1Client, opcmAddr); err != nil {
+		return err
+	}
+
+	// Reject early a game type the pinned OPCM cannot deploy.
+	superRoot, err := opcm.ReadSuperRootEnabled(ctx, l1Client, opcmAddr)
+	if err != nil {
+		return fmt.Errorf("failed to read the OPCM game mode at %s: %w", opcmAddr, err)
+	}
+	if err := validateInitialGameTypes(intent, st, superRoot, opcmAddr); err != nil {
+		return err
+	}
+
+	// Record the implementations the pinned OPCM installs.
+	impls, err := opcm.ReadImplementations(ctx, l1Client, opcmAddr)
+	if err != nil {
+		return fmt.Errorf("failed to read implementations from OPCM at %s: %w", opcmAddr, err)
+	}
+	st.ImplementationsDeployment = impls
+
 	l1Host, err := env.DefaultForkedScriptHost(
 		ctx,
 		broadcaster.NoopBroadcaster(),
@@ -179,6 +201,17 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to create forked L1 script host: %w", err)
 	}
+
+	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
+		&pipeline.Env{Logger: cfg.Logger, L1ScriptHost: l1Host},
+		opcmAddr,
+		*intent.SuperchainConfigProxy,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to read superchain deployment: %w", err)
+	}
+	st.SuperchainDeployment = superDeployment
+	st.SuperchainRoles = superRoles
 
 	deployScript, err := opcm.NewDeployOPChainScript(l1Host)
 	if err != nil {
@@ -202,6 +235,17 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	st.PreparedDeployment, err = pipeline.NewPreparedDeployment(intent, st, deployer, opcmAddr, bundle)
 	if err != nil {
 		return fmt.Errorf("failed to freeze prepared deployment: %w", err)
+	}
+
+	// Build L2 genesis from the addresses and genesis time just committed.
+	genesisEnv := &pipeline.Env{Logger: cfg.Logger, Deployer: deployer}
+	if err := generateGenesisForChains(genesisEnv, intent, bundle, st); err != nil {
+		return err
+	}
+
+	// Compute the real genesis output root from that same genesis.
+	if err := computeGenesisOutputRootsForChains(genesisEnv, intent, st); err != nil {
+		return err
 	}
 
 	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
@@ -262,18 +306,43 @@ func validateL1ChainID(ctx context.Context, l1RPC *rpc.Client, intent *state.Int
 	return nil
 }
 
+// checkOPCMHasCode rejects an unusable OPCM address.
+func checkOPCMHasCode(ctx context.Context, l1Client *ethclient.Client, opcmAddr common.Address) error {
+	code, err := l1Client.CodeAt(ctx, opcmAddr, nil)
+	if err != nil {
+		return fmt.Errorf("failed to read code at OPCM address %s: %w", opcmAddr, err)
+	}
+	if len(code) == 0 {
+		return fmt.Errorf("no contract code at intent.opcmAddress %s", opcmAddr)
+	}
+	return nil
+}
+
+// validateInitialGameTypes rejects any chain whose resolved game type belongs to the family the
+// pinned OPCM does not install. Deployed chains are skipped, their games being fixed on L1.
+func validateInitialGameTypes(intent *state.Intent, st *state.State, superRoot bool, opcmAddr common.Address) error {
+	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+		proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
+		if err != nil {
+			return fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
+		}
+		if err := pipeline.ValidateInitialGameTypeForOPCM(proofParams.DisputeGameType, superRoot, opcmAddr); err != nil {
+			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
+		}
+	}
+	return nil
+}
+
 // resolveSuperchainConfigProxy fills the intent's superchainConfigProxy from the pinned
 // OPCM when it is unset.
 func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent *state.Intent, opcmAddr common.Address) error {
 	if intent.SuperchainConfigProxy != nil {
 		return nil
 	}
-	superCfgAddr, err := opcm.NewContract(opcmAddr, ethclient.NewClient(l1RPC)).SuperchainConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
-	}
-	intent.SuperchainConfigProxy = &superCfgAddr
-	return nil
+	return fmt.Errorf("intent.superchainConfigProxy must be set to predict against an existing OPCM at %s", opcmAddr.Hex())
 }
 
 // predictChains predicts and records contract L1 addresses for undeployed chains.
@@ -367,8 +436,8 @@ func predictChains(
 		if err != nil {
 			return fmt.Errorf("failed to clear prepared inputs for chain %s: %w", chain.ID.Hex(), err)
 		}
-		chainState.Prestate = common.Hash{}
-		chainState.StartingAnchorRoot = nil
+
+		chainState.ClearDerivedArtifacts()
 		gameType := dci.DisputeGameType
 		chainState.InitialGameType = &gameType
 
@@ -391,6 +460,26 @@ func predictChains(
 		)
 	}
 
+	return nil
+}
+
+// generateGenesisForChains builds each chain's L2 genesis allocs from the addresses and genesis
+// time predictChains just committed.
+func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, bundle artifacts.Bundle, st *state.State) error {
+	for _, chain := range intent.Chains {
+		if err := pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID); err != nil {
+			return fmt.Errorf("failed to generate L2 genesis for chain %s: %w", chain.ID.Hex(), err)
+		}
+	}
+	return nil
+}
+
+// computeGenesisOutputRootsForChains computes and persists every chain's genesis block hash and
+// starting anchor proposal from the L2 genesis generateGenesisForChains just built.
+func computeGenesisOutputRootsForChains(pEnv *pipeline.Env, intent *state.Intent, st *state.State) error {
+	if err := pipeline.ComputeGenesisOutputRoots(pEnv, intent, st); err != nil {
+		return fmt.Errorf("failed to compute genesis output roots: %w", err)
+	}
 	return nil
 }
 

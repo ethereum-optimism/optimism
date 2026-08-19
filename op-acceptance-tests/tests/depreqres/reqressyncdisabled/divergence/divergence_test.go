@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/common"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
@@ -21,15 +20,6 @@ import (
 // the corresponding block, and therefore does not serve it.
 func TestCLELDivergence(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with kona-node:
-	//
-	// assertions.go:387:             ERROR[03-31|10:19:50.846]
-	// assertions.go:387:             	Error Trace:	/Users/josh/repos/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/divergence/divergence_test.go:34
-	// assertions.go:387:             	Error:      	Not equal:
-	// assertions.go:387:             	            	expected: 0x1
-	// assertions.go:387:             	            	actual  : 0x0
-	// assertions.go:387:             	Test:       	TestCLELDivergence
-	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
 	require := t.Require()
 	l := t.Logger()
@@ -41,8 +31,9 @@ func TestCLELDivergence(gt *testing.T) {
 
 	// Complete initial EL sync by providing the first missing block.
 	// At this point, the EL has sufficient state to validate block startNum+1.
+	// Posting schedules payload processing, so wait for the EL to canonicalize it.
 	sys.L2CLB.SignalTarget(sys.L2EL, startNum+1)
-	require.Equal(startNum+1, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number)
+	sys.L2ELB.Reached(eth.Unsafe, startNum+1, 30)
 
 	// Ensure at least one L1 block is processed to ensure a derivation pipeline reset.
 	// Without this, a pipeline reset could interfere with observing divergence behavior.

@@ -26,13 +26,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     cd /app/cannon && just cannon
 
 ################################################################
-#    Build kona-client ELF + generate prestate                 #
+#    Build kona-client ELFs + generate prestates                #
 ################################################################
 
 FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0 AS kona-build-env
 SHELL ["/bin/bash", "-c"]
-
-ARG VARIANT=kona-client
 
 # --- Layer 1: mise + pinned toolchains ---
 # mise's rust plugin bootstraps rustup at a pinned version and installs
@@ -55,7 +53,7 @@ RUN mise trust && mise install rust go just jq
 
 # Rustup's cargo/rustc proxies go ahead of mise shims on PATH. Any
 # cargo call then resolves to the rustup proxy directly and respects
-# RUSTUP_TOOLCHAIN (set by build-kona-client-elf). If it went through
+# RUSTUP_TOOLCHAIN (set by build-kona-client-elfs). If it went through
 # the mise shim instead, mise would re-set RUSTUP_TOOLCHAIN to the
 # active rust from mise.toml (stable 1.95) and build the wrong
 # toolchain into the prestate.
@@ -77,12 +75,13 @@ COPY rust/alloy-op-evm/ /app/rust/alloy-op-evm/
 COPY rust/alloy-op-hardforks/ /app/rust/alloy-op-hardforks/
 COPY rust/op-revm/ /app/rust/op-revm/
 COPY rust/op-version/ /app/rust/op-version/
-# op-reth, revm-ee-tests, and op-reth-test-engine are workspace members but
-# not kona-client dependencies. We need their Cargo.toml files so the
-# workspace resolves.
+# op-reth, revm-ee-tests, op-reth-test-engine, and lokahi are workspace
+# members but not kona-client dependencies. We need their Cargo.toml files so
+# the workspace resolves.
 COPY rust/op-reth/ /app/rust/op-reth/
 COPY rust/revm-ee-tests/ /app/rust/revm-ee-tests/
 COPY rust/op-reth-test-engine/ /app/rust/op-reth-test-engine/
+COPY rust/lokahi/ /app/rust/lokahi/
 
 # kona-hardforks build.rs walks ancestors of CARGO_MANIFEST_DIR for
 # op-core/nuts/bundles. Stage the bundles at /app/op-core so the walk
@@ -97,37 +96,29 @@ ARG KONA_CUSTOM_CONFIGS=false
 COPY --from=kona-custom-configs / /usr/local/kona-custom-configs
 ENV KONA_CUSTOM_CONFIGS=${KONA_CUSTOM_CONFIGS}
 
-# --- Layer 5: Build kona-client ELF ---
-# build-kona-client-elf sets CARGO_BUILD_TARGET to the corrected target spec
-# from the source tree, overriding cannon-builder's baked-in spec.
+# --- Layer 5: Build the kona-client ELFs ---
+# build-kona-client-elfs sets CARGO_BUILD_TARGET to the corrected target spec
+# from the source tree, overriding cannon-builder's baked-in spec. Every
+# variant is built in one cargo invocation so the shared dependency graph is
+# compiled once; stage-kona-client-elfs then lifts the ELFs out of the target
+# cache mount, which does not outlive this layer.
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/rust/target \
     cd /app/rust && \
     if [ "$KONA_CUSTOM_CONFIGS" = "true" ]; then \
       export KONA_CUSTOM_CONFIGS_DIR=/usr/local/kona-custom-configs; \
     fi && \
-    just build-kona-client-elf ${VARIANT} && \
-    cp /app/rust/target/mips64-unknown-none/release-client-lto/${VARIANT} /app/kona-elf
+    just build-kona-client-elfs && \
+    just stage-kona-client-elfs /app/elf
 
 ################################################################
-#   Generate prestate                                          #
+#   Generate prestates                                          #
 ################################################################
 
 FROM kona-build-env AS prestate-build
 
 COPY --from=cannon-build /app/cannon/bin/cannon /app/cannon
-RUN /app/cannon load-elf \
-      --path=/app/kona-elf \
-      --out=/app/prestate.bin.gz \
-      --type multithreaded64-5 && \
-    /app/cannon run \
-      --proof-at "=0" \
-      --stop-at "=1" \
-      --input /app/prestate.bin.gz \
-      --meta /app/meta.json \
-      --proof-fmt "/app/%d.json" \
-      --output "" && \
-    mv /app/0.json /app/prestate-proof.json
+RUN cd /app/rust && just generate-kona-prestates /app/cannon /app/elf /app/out
 
 ################################################################
 #                       Export Artifacts                       #
@@ -135,6 +126,6 @@ RUN /app/cannon load-elf \
 
 FROM scratch AS export-stage
 
-COPY --from=prestate-build /app/prestate.bin.gz .
-COPY --from=prestate-build /app/prestate-proof.json .
-COPY --from=prestate-build /app/meta.json .
+# One directory per variant, named as the justfile's KONA_PRESTATE_VARIANTS
+# says, so `--output rust/kona` lands them where every consumer expects.
+COPY --from=prestate-build /app/out/ .

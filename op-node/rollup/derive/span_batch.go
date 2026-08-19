@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -595,8 +594,8 @@ func (b *SpanBatch) ToRawSpanBatch() (*RawSpanBatch, error) {
 // Since SpanBatchElement does not contain EpochHash, set EpochHash from the given L1 blocks.
 // The result SingularBatches do not contain ParentHash yet. It must be set by the BatchQueue/Stage.
 //
-// If the span batch is overlapping the safe head, it may happen that the batch is found to be invalid
-// only at this point and that the span batch passed the previous span batch prefix checks.
+// It may happen that the batch is found to be invalid only at this point, having passed the
+// Holocene span batch checks (which are not exhaustive).
 // In this case, an error is returned and the whole span batch must be dropped.
 func (b *SpanBatch) GetSingularBatches(l1Origins []eth.L1BlockRef, l2SafeHead eth.L2BlockRef) ([]*SingularBatch, error) {
 	var singularBatches []*SingularBatch
@@ -649,22 +648,7 @@ func DeriveSpanBatch(batchData *BatchData, cfg *rollup.Config) (*SpanBatch, erro
 	if !ok {
 		return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
 	}
-	spanBatch, err := rawSpanBatch.ToSpanBatch(cfg.BlockTime, cfg.Genesis.L2Time, cfg.L2ChainID)
-	if err != nil {
-		return nil, err
-	}
-	// Reject PostExec transactions in blocks where SDM is not active.
-	for _, b := range spanBatch.Batches {
-		if cfg.IsSDM(b.Timestamp) {
-			continue
-		}
-		for _, raw := range b.Transactions {
-			if len(raw) > 0 && raw[0] == optypes.PostExecTxType {
-				return nil, fmt.Errorf("span batch contains PostExec tx at block ts=%d but SDM is not active", b.Timestamp)
-			}
-		}
-	}
-	return spanBatch, nil
+	return rawSpanBatch.ToSpanBatch(cfg.BlockTime, cfg.Genesis.L2Time, cfg.L2ChainID)
 }
 
 // ReadTxData reads raw RLP tx data from reader and returns txData and txType

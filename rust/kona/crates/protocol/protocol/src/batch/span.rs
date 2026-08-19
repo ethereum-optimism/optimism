@@ -520,76 +520,97 @@ impl SpanBatch {
         }
 
         // Check overlapped blocks
+        let overlap_validity =
+            self.check_batch_overlap(cfg, parent_block, l2_safe_head, fetcher).await;
+        if !overlap_validity.is_accept() {
+            return overlap_validity;
+        }
+
+        BatchValidity::Accept
+    }
+
+    /// Validates the portion of a span batch that overlaps the safe chain: every overlapped
+    /// element's transactions and L1 origin must match the canonical block at the same height.
+    /// A batch whose overlap disagrees with the safe chain — possible since interop block
+    /// replacement — describes a different history and is dropped as a whole, so that its
+    /// elements past the safe head cannot be applied. Returns [`BatchValidity::Undecided`] if a
+    /// canonical payload cannot be fetched right now.
+    ///
+    /// The prefix rules must have accepted the batch first: `parent_block` must be the
+    /// prefix-determined parent (an ancestor of, or equal to, `l2_safe_head`), and the batch must
+    /// extend past the safe head — these bound the loop and the element indexing.
+    pub async fn check_batch_overlap<BV: BatchValidationProvider>(
+        &self,
+        cfg: &RollupConfig,
+        parent_block: L2BlockInfo,
+        l2_safe_head: L2BlockInfo,
+        fetcher: &mut BV,
+    ) -> BatchValidity {
         let parent_num = parent_block.block_info.number;
-        let next_timestamp = l2_safe_head.block_info.timestamp + cfg.block_time;
-        if self.starting_timestamp() < next_timestamp {
-            for i in 0..(l2_safe_head.block_info.number - parent_num) {
-                let safe_block_num = parent_num + i + 1;
-                let safe_block_payload = match fetcher.block_by_number(safe_block_num).await {
-                    Ok(p) => p,
-                    Err(e) => {
-                        warn!(target: "batch_span", "failed to fetch block number {safe_block_num}: {e}");
-                        return BatchValidity::Undecided;
-                    }
-                };
-                let safe_block = &safe_block_payload.body;
-                let batch_txs = &self.batches[i as usize].transactions;
-                // Execution payload has deposit txs but batch does not.
-                let deposit_count: usize = safe_block
-                    .transactions
-                    .iter()
-                    .map(|tx| if tx.is_deposit() { 1 } else { 0 })
-                    .sum();
-                if safe_block.transactions.len() - deposit_count != batch_txs.len() {
+        // Reused encoding buffer for the per-transaction comparison below, hoisted out of the
+        // loops to avoid one allocation per compared transaction.
+        let mut buf = Vec::new();
+        for i in 0..(l2_safe_head.block_info.number - parent_num) {
+            let safe_block_num = parent_num + i + 1;
+            let safe_block_payload = match fetcher.block_by_number(safe_block_num).await {
+                Ok(p) => p,
+                Err(e) => {
+                    warn!(target: "batch_span", "failed to fetch block number {safe_block_num}: {e}");
+                    return BatchValidity::Undecided;
+                }
+            };
+            let safe_block = &safe_block_payload.body;
+            let batch_txs = &self.batches[i as usize].transactions;
+            // Execution payload has deposit txs but batch does not.
+            let deposit_count: usize =
+                safe_block.transactions.iter().map(|tx| if tx.is_deposit() { 1 } else { 0 }).sum();
+            if safe_block.transactions.len() - deposit_count != batch_txs.len() {
+                warn!(
+                    target: "batch_span",
+                    "overlapped block's tx count does not match, safe_block_txs: {}, batch_txs: {}",
+                    safe_block.transactions.len(),
+                    batch_txs.len()
+                );
+                return BatchValidity::Drop(BatchDropReason::OverlappedTxCountMismatch);
+            }
+            let batch_txs_len = batch_txs.len();
+            #[allow(clippy::needless_range_loop)]
+            for j in 0..batch_txs_len {
+                buf.clear();
+                safe_block.transactions[j + deposit_count].encode_2718(&mut buf);
+                if buf != batch_txs[j].0 {
+                    warn!(target: "batch_span", "overlapped block's transaction does not match");
+                    return BatchValidity::Drop(BatchDropReason::OverlappedTxMismatch);
+                }
+            }
+            let safe_block_ref = match L2BlockInfo::from_block_and_genesis(
+                &safe_block_payload,
+                &cfg.genesis,
+            ) {
+                Ok(r) => r,
+                Err(e) => {
                     warn!(
                         target: "batch_span",
-                        "overlapped block's tx count does not match, safe_block_txs: {}, batch_txs: {}",
-                        safe_block.transactions.len(),
-                        batch_txs.len()
+                        "failed to extract L2BlockInfo from execution payload, hash: {}, err: {e}",
+                        safe_block_payload.header.hash_slow()
                     );
-                    return BatchValidity::Drop(BatchDropReason::OverlappedTxCountMismatch);
+                    return BatchValidity::Drop(BatchDropReason::L2BlockInfoExtractionFailed);
                 }
-                let batch_txs_len = batch_txs.len();
-                #[allow(clippy::needless_range_loop)]
-                for j in 0..batch_txs_len {
-                    let mut buf = Vec::new();
-                    safe_block.transactions[j + deposit_count].encode_2718(&mut buf);
-                    if buf != batch_txs[j].0 {
-                        warn!(target: "batch_span", "overlapped block's transaction does not match");
-                        return BatchValidity::Drop(BatchDropReason::OverlappedTxMismatch);
-                    }
-                }
-                let safe_block_ref = match L2BlockInfo::from_block_and_genesis(
-                    &safe_block_payload,
-                    &cfg.genesis,
-                ) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        warn!(
-                            target: "batch_span",
-                            "failed to extract L2BlockInfo from execution payload, hash: {}, err: {e}",
-                            safe_block_payload.header.hash_slow()
-                        );
-                        return BatchValidity::Drop(BatchDropReason::L2BlockInfoExtractionFailed);
-                    }
-                };
-                if safe_block_ref.l1_origin.number != self.batches[i as usize].epoch_num {
-                    warn!(
-                        "overlapped block's L1 origin number does not match {}, {}",
-                        safe_block_ref.l1_origin.number, self.batches[i as usize].epoch_num
-                    );
-                    return BatchValidity::Drop(BatchDropReason::OverlappedL1OriginMismatch);
-                }
+            };
+            if safe_block_ref.l1_origin.number != self.batches[i as usize].epoch_num {
+                warn!(
+                    "overlapped block's L1 origin number does not match {}, {}",
+                    safe_block_ref.l1_origin.number, self.batches[i as usize].epoch_num
+                );
+                return BatchValidity::Drop(BatchDropReason::OverlappedL1OriginMismatch);
             }
         }
 
         BatchValidity::Accept
     }
 
-    /// Checks the validity of the batch's prefix.
-    ///
-    /// This function is used for post-Holocene hardfork to perform batch validation
-    /// as each batch is being loaded in.
+    /// Checks the span batch prefix rules shared by the legacy full checks and the Holocene
+    /// checks. It also returns the parent L2 block determined during validation.
     pub async fn check_batch_prefix<BF: BatchValidationProvider>(
         &self,
         cfg: &RollupConfig,
@@ -683,7 +704,9 @@ impl SpanBatch {
                 Ok(block) => block,
                 Err(e) => {
                     warn!(target: "batch_span", "failed to fetch L2 block number {parent_num}: {e}");
-                    // Unable to validate the batch for now. Retry later.
+                    // Unable to validate the batch right now. Only the pre-Holocene
+                    // BatchQueue retains the batch for a retry; the Holocene BatchStream has
+                    // already consumed it and skips it.
                     return (BatchValidity::Undecided, None);
                 }
             };
@@ -747,6 +770,29 @@ impl SpanBatch {
         }
 
         (BatchValidity::Accept, Some(parent_block))
+    }
+
+    /// Checks the Holocene span batch rules: prefix validity followed by overlap validity.
+    pub async fn check_batch_holocene<BV: BatchValidationProvider>(
+        &self,
+        cfg: &RollupConfig,
+        l1_origins: &[BlockInfo],
+        l2_safe_head: L2BlockInfo,
+        inclusion_block: &BlockInfo,
+        fetcher: &mut BV,
+    ) -> BatchValidity {
+        let (prefix_validity, parent_block) =
+            self.check_batch_prefix(cfg, l1_origins, l2_safe_head, inclusion_block, fetcher).await;
+        if !prefix_validity.is_accept() {
+            return prefix_validity;
+        }
+        self.check_batch_overlap(
+            cfg,
+            parent_block.expect("accepted prefix checks return a parent block"),
+            l2_safe_head,
+            fetcher,
+        )
+        .await
     }
 }
 
@@ -2344,10 +2390,28 @@ mod tests {
             l1_origin: BlockNumHash { number: 9, ..Default::default() },
             ..Default::default()
         };
+        // A valid overlapped canonical block (L1 info deposit only, origin 9), so the overlap
+        // content checks pass and the per-element origin checks are reached.
+        let l1_info = crate::L1BlockInfoBedrock::new(
+            9,
+            0,
+            0,
+            B256::ZERO,
+            0,
+            alloy_primitives::Address::ZERO,
+            alloy_primitives::U256::ZERO,
+            alloy_primitives::U256::ZERO,
+        );
+        let info_tx = op_alloy_consensus::OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(
+            op_alloy_consensus::TxDeposit {
+                input: l1_info.encode_calldata(),
+                ..Default::default()
+            },
+        ));
         let block = OpBlock {
             header: Header { number: 41, ..Default::default() },
             body: alloy_consensus::BlockBody {
-                transactions: Vec::new(),
+                transactions: vec![info_tx],
                 ommers: Vec::new(),
                 withdrawals: None,
             },

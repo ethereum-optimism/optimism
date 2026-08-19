@@ -28,6 +28,7 @@ type DeployImplementationsInput struct {
 	SuperchainProxyAdmin            common.Address
 	L1ProxyAdminOwner               common.Address
 	Challenger                      common.Address
+	SP1Verifier                     common.Address `abi:"sp1Verifier"`
 }
 
 // DeployImplementationsOutput must mirror DeployImplementations.s.sol's
@@ -57,6 +58,7 @@ type DeployImplementationsOutput struct {
 	SuperPermissionedDisputeGameImpl common.Address `json:"superPermissionedDisputeGameImplAddress"`
 	ZkDisputeGameImpl                common.Address `json:"zkDisputeGameImplAddress" abi:"zkDisputeGameImpl"`
 	StorageSetterImpl                common.Address `json:"storageSetterImplAddress"`
+	SP1PlonkAdapterSingleton         common.Address `json:"sp1PlonkAdapterSingletonAddress" abi:"sp1PlonkAdapterSingleton"`
 }
 
 type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]

@@ -12,7 +12,7 @@ import (
 )
 
 func TestCheckMixedSafety(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointSafeCount: 2, NodeEndpointUnsafeCount: 1},
 		{NodeEndpointSafeCount: 3, NodeEndpointUnsafeCount: 0}, // All safe
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointSafeCount: 1, NodeEndpointUnsafeCount: 4},

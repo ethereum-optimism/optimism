@@ -272,7 +272,11 @@ func (s *L2Batcher) Buffer(t Testing, bufferOpts ...BufferOption) error {
 
 	s.ActCreateChannel(t, s.rollupCfg.IsDelta(block.Time()) && !s.l2BatcherCfg.ForceSubmitSingularBatch, options.channelModifiers...)
 
-	if _, err := s.L2ChannelOut.AddBlock(s.rollupCfg, block); err != nil {
+	payload, err := eth.BlockAsPayload(block, s.rollupCfg)
+	if err != nil {
+		return err
+	}
+	if _, err := s.L2ChannelOut.AddBlock(s.rollupCfg, payload); err != nil {
 		return err
 	}
 	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())
@@ -298,7 +302,9 @@ func (s *L2Batcher) ActAddBlockByNumber(t Testing, blockNumber int64, opts ...Bl
 		}
 	}
 
-	_, err = s.L2ChannelOut.AddBlock(s.rollupCfg, block)
+	payload, err := eth.BlockAsPayload(block, s.rollupCfg)
+	require.NoError(t, err)
+	_, err = s.L2ChannelOut.AddBlock(s.rollupCfg, payload)
 	require.NoError(t, err)
 	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), blockHash)
 	require.NoError(t, err, "failed to get L2BlockRef")

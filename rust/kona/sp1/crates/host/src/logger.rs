@@ -5,12 +5,14 @@ use std::{env, sync::OnceLock};
 use anyhow::{Context, Result};
 use opentelemetry::{KeyValue, global};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use opentelemetry_otlp::{ExportConfig, LogExporter, Protocol, WithExportConfig};
+use opentelemetry_otlp::{LogExporter, Protocol, WithExportConfig};
 use opentelemetry_sdk::{Resource, logs::SdkLoggerProvider, propagation::TraceContextPropagator};
 use tracing_subscriber::{
     EnvFilter, Layer, Registry, fmt::format::JsonFields, layer::SubscriberExt,
     util::SubscriberInitExt,
 };
+
+use crate::prefixed_env_var;
 
 static INIT: OnceLock<Result<()>> = OnceLock::new();
 
@@ -47,24 +49,25 @@ fn build_env_filter() -> EnvFilter {
 
 /// Set up the logger with optional `OpenTelemetry` export.
 ///
-/// # Environment Variables
-/// - `LOGGER_NAME`: Service name for opentelemetry logs (defaults to `kona-sp1`)
-/// - `OTLP_ENDPOINT`: `OpenTelemetry` endpoint (defaults to <http://localhost:4317>)
-/// - `OTLP_ENABLED`: Whether to enable `OpenTelemetry` export (defaults to false)
-/// - `RUST_LOG`: Standard Rust log level configuration
-/// - `LOG_FORMAT`: Output format (pretty or json, defaults to pretty)
-pub fn setup_logger() {
+/// # Environment variables
+/// - `<PREFIX>_LOGGER_NAME`: service name (default `kona-sp1`)
+/// - `<PREFIX>_OTLP_ENDPOINT`: export endpoint (default <http://localhost:4317>)
+/// - `<PREFIX>_OTLP_ENABLED`: enable export (default `false`)
+/// - `<PREFIX>_LOG_FORMAT`: `pretty` or `json` (default `pretty`)
+/// - `RUST_LOG`: standard Rust log filtering
+/// - `NO_COLOR`: disable ANSI output
+pub fn setup_logger(prefix: &str) {
     INIT.get_or_init(|| {
-        let logger_name = std::env::var("LOGGER_NAME").ok();
-        let otlp_endpoint =
-            std::env::var("OTLP_ENDPOINT").unwrap_or_else(|_| "http://localhost:4317".to_string());
-
-        let otlp_enabled = std::env::var("OTLP_ENABLED")
+        let service_name = env::var(prefixed_env_var(prefix, "LOGGER_NAME"))
+            .unwrap_or_else(|_| "kona-sp1".to_string());
+        let otlp_endpoint = env::var(prefixed_env_var(prefix, "OTLP_ENDPOINT"))
+            .unwrap_or_else(|_| "http://localhost:4317".to_string());
+        let otlp_enabled = env::var(prefixed_env_var(prefix, "OTLP_ENABLED"))
             .unwrap_or_else(|_| "false".to_string())
             .parse::<bool>()
             .unwrap_or(false);
-
-        let service_name = logger_name.unwrap_or_else(|| "kona-sp1".to_string());
+        let log_format = env::var(prefixed_env_var(prefix, "LOG_FORMAT"))
+            .unwrap_or_else(|_| "pretty".to_string());
 
         let params = vec![
             KeyValue::new("service.name", service_name),
@@ -74,7 +77,6 @@ pub fn setup_logger() {
         let resource = Resource::builder_empty().with_attributes(params).build();
         global::set_text_map_propagator(TraceContextPropagator::new());
 
-        let log_format = std::env::var("LOG_FORMAT").unwrap_or_else(|_| "pretty".to_string());
         let fmt_layer: Option<Box<dyn Layer<_> + Send + Sync>> =
             match log_format.to_lowercase().as_str() {
                 "json" => {
@@ -108,11 +110,8 @@ pub fn setup_logger() {
         let log_export_layer: Option<Box<dyn Layer<_> + Send + Sync>> = if otlp_enabled {
             let export_layer = LogExporter::builder()
                 .with_tonic()
-                .with_export_config(ExportConfig {
-                    endpoint: Some(otlp_endpoint.clone()),
-                    protocol: Protocol::Grpc,
-                    ..Default::default()
-                })
+                .with_endpoint(otlp_endpoint.clone())
+                .with_protocol(Protocol::Grpc)
                 .build()
                 .context("Failed to create OpenTelemetry log exporter")?;
             let logger_provider = SdkLoggerProvider::builder()

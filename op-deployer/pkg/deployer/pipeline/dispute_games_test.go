@@ -73,7 +73,6 @@ func TestDeployDisputeGame_ZK_ZeroImpl(t *testing.T) {
 	game := state.AdditionalDisputeGame{
 		VMType: state.VMTypeZK,
 		ZKDisputeGame: &state.ZKDisputeGameParams{
-			Verifier:         common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			AbsolutePrestate: common.HexToHash("0xdeadbeef"),
 			ChallengerBond:   (*hexutil.Big)(big.NewInt(1e18)),
 		},
@@ -126,7 +125,8 @@ func TestDeployDisputeGame_ZK_NilChallengerBond(t *testing.T) {
 	env := &Env{Logger: lgr}
 	st := &state.State{
 		ImplementationsDeployment: &addresses.ImplementationsContracts{
-			ZkDisputeGameImpl: common.HexToAddress("0x2222222222222222222222222222222222222222"),
+			ZkDisputeGameImpl:   common.HexToAddress("0x2222222222222222222222222222222222222222"),
+			SP1PlonkAdapterImpl: common.HexToAddress("0x3333333333333333333333333333333333333333"),
 		},
 	}
 	game := state.AdditionalDisputeGame{
@@ -147,7 +147,8 @@ func TestDeployDisputeGame_ZK_ZeroChallengerBond(t *testing.T) {
 	env := &Env{Logger: lgr}
 	st := &state.State{
 		ImplementationsDeployment: &addresses.ImplementationsContracts{
-			ZkDisputeGameImpl: common.HexToAddress("0x2222222222222222222222222222222222222222"),
+			ZkDisputeGameImpl:   common.HexToAddress("0x2222222222222222222222222222222222222222"),
+			SP1PlonkAdapterImpl: common.HexToAddress("0x3333333333333333333333333333333333333333"),
 		},
 	}
 	game := state.AdditionalDisputeGame{
@@ -160,6 +161,25 @@ func TestDeployDisputeGame_ZK_ZeroChallengerBond(t *testing.T) {
 
 	err := deployDisputeGame(env, st, &state.ChainIntent{}, &state.ChainState{}, game)
 	require.ErrorContains(t, err, "ChallengerBond must be set")
+}
+
+func TestDeployDisputeGame_ZK_ZeroSP1PlonkAdapter(t *testing.T) {
+	lgr := testlog.Logger(t, slog.LevelInfo)
+
+	env := &Env{Logger: lgr}
+	st := &state.State{
+		ImplementationsDeployment: &addresses.ImplementationsContracts{
+			ZkDisputeGameImpl: common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		},
+	}
+	game := state.AdditionalDisputeGame{
+		VMType:           state.VMTypeZK,
+		ZKDisputeGame:    &state.ZKDisputeGameParams{},
+		ChainProofParams: state.ChainProofParams{DisputeGameType: 10},
+	}
+
+	err := deployDisputeGame(env, st, &state.ChainIntent{}, &state.ChainState{}, game)
+	require.ErrorContains(t, err, "SP1PlonkAdapterImpl is not deployed")
 }
 
 func TestDeployDisputeGame_UnsupportedVMType(t *testing.T) {

@@ -17,6 +17,7 @@ When this happens, offer to submit the improvement to the relevant file in `docs
 
 - **Default branch**: `develop` (not `main`)
 - **Commit messages and PR titles**: use the [Scoped Commits](https://scopedcommits.com) format — `<scope>: <description>`, where the scope names the component or area changed (e.g. `op-node: handle unsafe head reorgs`). Do not use Conventional Commits type prefixes (`feat:`, `fix:`, `chore(scope):`, ...). See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages)
+- **Breaking changes**: append `!` to the scope list (`op-node!: remove the legacy sync mode`) so the change is flagged for release notes. In the PR description and commit body, add a `BREAKING CHANGE:` paragraph that identifies affected users, explains what breaks, and gives the migration path.
 - **Build system**: migrating from Make to [Just](https://github.com/casey/just) — shared justfile infra lives in `justfiles/`
 
 This repository contains multiple components spanning different technologies:
@@ -44,6 +45,7 @@ The OP Stack includes significant Rust implementations:
 - **op-reth**: OP Stack execution client built on reth
 - **op-alloy**: Rust crates providing OP Stack types and providers for the alloy ecosystem
 - **alloy-op-hardforks** / **alloy-op-evm**: OP Stack hardfork and EVM support for alloy
+- **lokahi**: Rust rewrite of op-supernode, in early development (`rust/lokahi/`)
 
 ### Fault Proof System
 
@@ -60,6 +62,12 @@ The OP Stack includes significant Rust implementations:
 Some subdirectories have their own CLAUDE.md with domain-specific conventions. Read the relevant file before working in that area — do not read them all upfront.
 
 - `rust/kona/CLAUDE.md` — Kona Rust workspace: build commands (`just b/t/l/f`), code style, architecture overview
+- `rust/` — read before working in that area; links to [docs/ai/rust-dev.md](docs/ai/rust-dev.md)
+- `packages/contracts-bedrock/` — read before working in that area; links to [docs/ai/contract-dev.md](docs/ai/contract-dev.md)
+- `op-acceptance-tests/` — read before working in that area; links to [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md)
+- `op-node/rollup/derive/` — read before working in that area; links to [docs/ai/derivation.md](docs/ai/derivation.md)
+- `rust/kona/crates/protocol/` — read before working in that area; links to [docs/ai/derivation.md](docs/ai/derivation.md)
+- `.circleci/` and `.github/` — read before editing CI config; links to [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md)
 
 ## Additional Documentation
 
@@ -69,6 +77,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md) - Reviewing changes to CI config (`.circleci/`, `.github/workflows/`): gate coverage, required checks, path filtering, caching, plus general CircleCI/GHA best practices
 - [docs/ai/docker.md](docs/ai/docker.md) - Docker image builds: making every external fetch (apt/apk/curl/wget) retry so registry/CDN blips don't flake CI
 - [docs/ai/contract-dev.md](docs/ai/contract-dev.md) - Smart contract development
+- [docs/ai/standard-validator-review.md](docs/ai/standard-validator-review.md) - Reviewing `StandardValidator` for assertions it should make but doesn't: cross-game symmetry, diff-driven coverage, read-versus-assert, plus the false-positive traps (pass-through getters, implementation-pinned immutables) that make naive gap-hunting noisy. Pairs with the `standard-validator-reviewer` agent
 - [docs/ai/dispute-game-investigation.md](docs/ai/dispute-game-investigation.md) - Investigating fault dispute games: challenger disagreements, excessive moves, self-contradiction, proposal validity, diagnosing the responsible op-node, and the bond outcome (read-only)
 - [docs/ai/flake-prevention.md](docs/ai/flake-prevention.md) - Guidance for preventing flaky tests
 - [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md) - General development workflow: pinned tools via mise, Just usage, pre-PR checks, and CI caveats

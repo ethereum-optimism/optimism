@@ -1,7 +1,7 @@
 //! Block executor for Optimism.
 
 use crate::{OpEvmFactory, spec_by_timestamp_after_bedrock};
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use alloy_consensus::{Eip658Value, Header, Transaction, TransactionEnvelope, TxReceipt};
 use alloy_eips::{Encodable2718, Typed2718, eip7685::Requests};
 use alloy_evm::{
@@ -23,8 +23,9 @@ use op_alloy::consensus::{
 use op_revm::{
     L1BlockInfo, OpTransaction,
     constants::{BASE_FEE_RECIPIENT, L1_BLOCK_CONTRACT, OPERATOR_FEE_RECIPIENT},
-    estimate_tx_compressed_size,
+    encoded_tx_da_footprint,
     transaction::deposit::DEPOSIT_TRANSACTION_TYPE,
+    tx_da_footprint,
 };
 pub use receipt_builder::OpAlloyReceiptBuilder;
 use receipt_builder::OpReceiptBuilder;
@@ -32,7 +33,7 @@ use revm::{
     Database as _, DatabaseCommit, Inspector,
     context::{
         Block, TxEnv,
-        result::{ExecutionResult, Output, ResultAndState, SuccessReason},
+        result::{ExecutionResult, ResultAndState},
     },
     database::DatabaseCommitExt,
     state::{Account, AccountStatus, EvmState},
@@ -40,7 +41,8 @@ use revm::{
 
 use crate::post_exec::{
     PostExecEvm, PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx,
-    PostExecTxContext, PostExecTxKind, WarmingRefundEvent,
+    PostExecRefundEvent, PostExecRefundInspector, PostExecTxContext, PostExecTxKind,
+    noop_post_exec_result,
 };
 
 mod canyon;
@@ -90,7 +92,7 @@ pub enum PostExecState {
     Disabled,
     /// Produce canonical post-exec refunds locally and append them to the block later.
     Producing {
-        /// Accumulated per-tx warming refunds for post-exec tx assembly.
+        /// Accumulated per-tx refunds for post-exec tx assembly.
         entries: Vec<SDMGasEntry>,
     },
     /// Verify canonical gas accounting using a post-exec payload embedded in the block.
@@ -280,8 +282,8 @@ pub struct PostExecAdjustment {
     /// Wei to debit from the operator-fee recipient — operator-fee share of the refund
     /// (post-Isthmus).
     pub operator_fee_balance_delta: U256,
-    /// Exact warming refund attribution events that produced the refund.
-    pub warming_events: Vec<WarmingRefundEvent>,
+    /// Exact policy-provided attribution events that produced the refund.
+    pub refund_events: Vec<PostExecRefundEvent>,
 }
 
 /// The result of executing an OP transaction.
@@ -370,8 +372,8 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub l1_block_info: Option<L1BlockInfo>,
     /// Post-exec execution state (mode and producer/verifier working state).
     pub post_exec: PostExecState,
-    /// Per-transaction exact warming refund attribution events aligned with receipts.
-    pub warming_events_by_tx: Vec<Vec<WarmingRefundEvent>>,
+    /// Per-transaction exact policy-provided refund attribution events aligned with receipts.
+    pub refund_events_by_tx: Vec<Vec<PostExecRefundEvent>>,
 }
 
 impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
@@ -397,7 +399,7 @@ where
             ctx,
             l1_block_info: None,
             post_exec,
-            warming_events_by_tx: Vec::new(),
+            refund_events_by_tx: Vec::new(),
         }
     }
 
@@ -427,9 +429,9 @@ where
         self.post_exec.take_entries()
     }
 
-    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
-    pub fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
-        core::mem::take(&mut self.warming_events_by_tx)
+    /// Take the exact per-transaction policy-provided refund events aligned with receipts.
+    pub fn take_refund_events_by_tx(&mut self) -> Vec<Vec<PostExecRefundEvent>> {
+        core::mem::take(&mut self.refund_events_by_tx)
     }
 }
 
@@ -507,15 +509,6 @@ where
         tx_env: &E::Tx,
         tx: impl RecoveredTx<R::Transaction>,
     ) -> Result<u64, BlockExecutionError> {
-        // Try to use the enveloped tx if it exists, otherwise use the encoded 2718 bytes
-        let encoded = tx_env
-            .encoded_bytes()
-            .map_or_else(
-                || estimate_tx_compressed_size(tx.tx().encoded_2718().as_ref()),
-                |encoded| estimate_tx_compressed_size(encoded),
-            )
-            .saturating_div(1_000_000);
-
         // Load the L1 block contract into the cache. If the L1 block contract is not pre-loaded the
         // database will panic when trying to fetch the DA footprint gas scalar.
         self.evm.db_mut().basic(L1_BLOCK_CONTRACT).map_err(BlockExecutionError::other)?;
@@ -524,7 +517,11 @@ where
             .map_err(BlockExecutionError::other)?
             .into();
 
-        Ok(encoded.saturating_mul(da_footprint_gas_scalar))
+        // Use the cached enveloped tx bytes if available, otherwise encode the transaction.
+        Ok(tx_env.encoded_bytes().map_or_else(
+            || tx_da_footprint(tx.tx(), da_footprint_gas_scalar),
+            |encoded| encoded_tx_da_footprint(encoded, da_footprint_gas_scalar),
+        ))
     }
 
     fn invalid_post_exec_payload(reason: impl Into<String>) -> BlockExecutionError {
@@ -566,6 +563,11 @@ where
         Ok(refund)
     }
 
+    /// Applies the post-exec refund to `total_gas_spent` so `tx_gas_used()` reports canonical gas.
+    ///
+    /// The EVM refund counter stays unchanged to avoid subtracting the refund twice. If the
+    /// EIP-7623 floor binds, `tx_gas_used()` remains clamped and may exceed canonical gas; whether
+    /// SDM rebates can reduce gas below that floor remains an open spec question.
     const fn canonicalize_result_gas(
         result: &mut ExecutionResult<E::HaltReason>,
         post_exec_refund: u64,
@@ -575,12 +577,9 @@ where
         }
 
         match result {
-            ExecutionResult::Success { gas, .. } => {
-                *gas = gas
-                    .with_total_gas_spent(gas.total_gas_spent().saturating_sub(post_exec_refund))
-                    .with_refunded(gas.inner_refunded().saturating_add(post_exec_refund));
-            }
-            ExecutionResult::Revert { gas, .. } | ExecutionResult::Halt { gas, .. } => {
+            ExecutionResult::Success { gas, .. } |
+            ExecutionResult::Revert { gas, .. } |
+            ExecutionResult::Halt { gas, .. } => {
                 *gas = gas
                     .with_total_gas_spent(gas.total_gas_spent().saturating_sub(post_exec_refund));
             }
@@ -719,7 +718,7 @@ where
             beneficiary_balance_delta,
             base_fee_balance_delta,
             operator_fee_balance_delta,
-            warming_events: Vec::new(),
+            refund_events: Vec::new(),
         })
     }
 
@@ -830,23 +829,16 @@ where
         tx: impl ExecutableTx<Self>,
         f: impl FnOnce(&Self::Result) -> CommitChanges,
     ) -> Result<Option<GasOutput>, BlockExecutionError> {
-        // SDM block-warming refunds are recorded during EVM execution (before the commit
-        // decision) and aren't journaled, so discarding a tx's changes doesn't roll them back. A
-        // caller that executes a candidate then declines it (`CommitChanges::No`: over a builder
-        // gas/DA/address limit, or reverted-and-excluded) would leave behind "phantom" warming: a
-        // later committed tx claims a refund attributed to a tx that never entered the block.
-        // Commit-only paths (block import, `debug_replaySDMBlock` derivation) never see that
-        // warmth, so the producer's payload would diverge from derivation.
-        //
-        // Snapshot warming before execution and restore it when the tx isn't committed or when
-        // execution fails after post-exec tracking has started. Only `Producing` mode tracks
-        // warming, so we clone the maps solely on that path.
-        let warming_snapshot = self.post_exec.is_producing().then(|| self.refund_snapshot());
+        // Producer policy state is updated during EVM execution (before the commit decision) and
+        // is not journaled with EVM state. A declined candidate must not affect a later committed
+        // transaction, or the producer's payload can diverge from commit-only derivation paths.
+        // Snapshot only in Produce mode and restore on decline or execution error.
+        let refund_snapshot = self.post_exec.is_producing().then(|| self.refund_snapshot());
 
         let output = match self.execute_transaction_without_commit(tx) {
             Ok(output) => output,
             Err(err) => {
-                if let Some(snapshot) = warming_snapshot {
+                if let Some(snapshot) = refund_snapshot {
                     self.seed_refund_snapshot(snapshot);
                 }
                 return Err(err);
@@ -854,7 +846,7 @@ where
         };
 
         if !f(&output).should_commit() {
-            if let Some(snapshot) = warming_snapshot {
+            if let Some(snapshot) = refund_snapshot {
                 self.seed_refund_snapshot(snapshot);
             }
             return Ok(None);
@@ -905,15 +897,7 @@ where
             self.verifier_post_exec_refund_for_tx(tx_index, false, true, 0)?;
             return Ok(OpTxResult {
                 inner: EthTxResult {
-                    result: ResultAndState::new(
-                        ExecutionResult::Success {
-                            reason: SuccessReason::Stop,
-                            gas: revm::context::result::ResultGas::default(),
-                            logs: vec![],
-                            output: Output::Call(Bytes::default()),
-                        },
-                        EvmState::default(),
-                    ),
+                    result: noop_post_exec_result(),
                     blob_gas_used: 0,
                     tx_type: tx.tx().tx_type(),
                 },
@@ -964,7 +948,7 @@ where
         })?;
 
         let evm_gas_used = result.result.tx_gas_used();
-        let (post_exec_refund, warming_events) = if self.post_exec.is_producing() {
+        let (post_exec_refund, refund_events) = if self.post_exec.is_producing() {
             let PostExecExecutedTx { refund_total: refund, refund_events } =
                 self.evm.take_last_post_exec_tx_result();
             // The inspector's accumulated refund must never exceed the tx's evm_gas_used. If
@@ -992,9 +976,9 @@ where
             is_deposit,
             false,
         )?;
-        deltas.warming_events = warming_events;
+        deltas.refund_events = refund_events;
         let post_exec =
-            (post_exec_refund > 0 || !deltas.warming_events.is_empty()).then_some(deltas);
+            (post_exec_refund > 0 || !deltas.refund_events.is_empty()).then_some(deltas);
 
         // Pre-compute depositor nonce here so `commit_transaction` can be infallible.
         // Only post-regolith deposit transactions need the depositor account from DB.
@@ -1045,8 +1029,8 @@ where
             depositor_nonce,
         } = output;
 
-        let (post_exec_refund, warming_events) = match post_exec {
-            Some(deltas) => (deltas.refund, deltas.warming_events),
+        let (post_exec_refund, refund_events) = match post_exec {
+            Some(deltas) => (deltas.refund, deltas.refund_events),
             None => (0, Vec::new()),
         };
 
@@ -1059,7 +1043,7 @@ where
             self.post_exec.consume_verifier_entry(tx_index);
         }
         if !is_post_exec {
-            self.warming_events_by_tx.push(warming_events);
+            self.refund_events_by_tx.push(refund_events);
         }
 
         // add canonical gas used
@@ -1249,9 +1233,10 @@ where
     }
 }
 
-impl<R, Spec, Tx> BlockExecutorFactory for OpBlockExecutorFactory<R, Spec, OpEvmFactory<Tx>>
+impl<ReceiptBuilder, Spec, Tx, RefundPolicy> BlockExecutorFactory
+    for OpBlockExecutorFactory<ReceiptBuilder, Spec, OpEvmFactory<Tx, RefundPolicy>>
 where
-    R: OpReceiptBuilder<
+    ReceiptBuilder: OpReceiptBuilder<
             Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
             Receipt: TxReceipt,
         > + 'static,
@@ -1261,22 +1246,30 @@ where
         + Default
         + Clone
         + core::fmt::Debug
-        + FromRecoveredTx<R::Transaction>
-        + FromTxWithEncoded<R::Transaction>
+        + FromRecoveredTx<ReceiptBuilder::Transaction>
+        + FromTxWithEncoded<ReceiptBuilder::Transaction>
         + OpTxEnv
         + 'static,
+    RefundPolicy: Default + PostExecRefundInspector + 'static,
     Self: 'static,
 {
-    type EvmFactory = OpEvmFactory<Tx>;
+    type EvmFactory = OpEvmFactory<Tx, RefundPolicy>;
     type ExecutionCtx<'a> = OpBlockExecutionCtx;
-    type Transaction = R::Transaction;
-    type Receipt = R::Receipt;
+    type Transaction = ReceiptBuilder::Transaction;
+    type Receipt = ReceiptBuilder::Receipt;
     type TxExecutionResult = OpTxResult<
-        <OpEvmFactory<Tx> as EvmFactory>::HaltReason,
-        <R::Transaction as TransactionEnvelope>::TxType,
+        <OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::HaltReason,
+        <ReceiptBuilder::Transaction as TransactionEnvelope>::TxType,
     >;
-    type Executor<'a, DB: StateDB, I: Inspector<<OpEvmFactory<Tx> as EvmFactory>::Context<DB>>> =
-        OpBlockExecutor<<OpEvmFactory<Tx> as EvmFactory>::Evm<DB, I>, &'a R, &'a Spec>;
+    type Executor<
+        'a,
+        DB: StateDB,
+        I: Inspector<<OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Context<DB>>,
+    > = OpBlockExecutor<
+        <OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Evm<DB, I>,
+        &'a ReceiptBuilder,
+        &'a Spec,
+    >;
 
     fn evm_factory(&self) -> &Self::EvmFactory {
         &self.evm_factory
@@ -1284,12 +1277,12 @@ where
 
     fn create_executor<'a, DB, I>(
         &'a self,
-        evm: <OpEvmFactory<Tx> as EvmFactory>::Evm<DB, I>,
+        evm: <OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Evm<DB, I>,
         ctx: Self::ExecutionCtx<'a>,
     ) -> Self::Executor<'a, DB, I>
     where
         DB: StateDB,
-        I: Inspector<<OpEvmFactory<Tx> as EvmFactory>::Context<DB>>,
+        I: Inspector<<OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Context<DB>>,
     {
         OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder)
     }

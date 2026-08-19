@@ -106,9 +106,9 @@ The [libp2p Swarm][swarm] listens on a specified
 
 As mentioned in [the previous section](#gossip), L2 blocks
 are published as payloads through the [libp2p Swarm][swarm],
-which is done using the `GossipDriver`. The actual payload
-type that is published is an [`OpNetworkPayloadEnvelope`][env],
-which is well documented in the [OP Stack P2P Specs][p2p-specs].
+which is done using the `GossipDriver`. The `GossipDriver` accepts an `OpExecutionPayloadEnvelope` and its
+signature, then privately encodes them in the wire format documented
+in the [OP Stack P2P Specs][p2p-specs].
 
 L2 blocks published through the `GossipDriver` are published on
 a "topic". The topic is used by the gossipsub protocol to publish
@@ -124,8 +124,9 @@ snappy compressed, they need to be decompressed and then decoded
 for the correct [block topic][block-topic] those messages are
 published on.
 
-Only once the [`OpNetworkPayloadEnvelope`][env] is successfully
-decoded for the corresponding block topic, is the block validated.
+After decompression, kona separates the signature from the exact encoded
+envelope bytes. It authenticates those bytes before decoding the envelope
+according to the corresponding block topic and validating the block contents.
 
 <Info>
 
@@ -136,13 +137,14 @@ Block validity in kona follows the [OP Stack block validation specs][validation]
 As of writing these docs, block validation follows a few rules.
 
 - The timestamp is between 60 seconds in the past and at most 5 seconds in the future.
-- The block hash is valid. This is checked by transforming the payload into a block
-  and then hashing the block header to produce the payload hash.
+- The block signature authenticates the exact encoded envelope bytes.
+- The block hash is valid. This is checked by computing the transaction trie root directly from
+  the encoded transaction bytes and hashing the reconstructed header. Transaction decoding and
+  execution remain the execution layer's responsibility.
 - The contents of the payload envelope are correct for its version. Since different
   versions introduce new contents to the payload from hardforks, the
   forwards-compatible payload envelope cannot have fields with content that don't exist
   for previous versions.
-- The block signature is valid.
 
 
 ### Node Identification
@@ -160,8 +162,6 @@ TODO
 [block-topic]: https://specs.optimism.io/protocol/rollup-node-p2p.html#gossip-topics
 
 [multiaddr]: https://docs.rs/libp2p/0.56.0/libp2p/struct.Multiaddr.html
-
-[env]: https://docs.rs/op-alloy-rpc-types-engine/latest/op_alloy_rpc_types_engine/struct.OpNetworkPayloadEnvelope.html
 
 [swarm]: https://docs.rs/libp2p/latest/libp2p/struct.Swarm.html
 

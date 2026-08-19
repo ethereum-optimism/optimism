@@ -57,7 +57,7 @@ type outputResult struct {
 }
 
 // Enrich validates the specified root claim against the output at the given block number.
-func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
+func (o *OutputAgreementEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.CommonGameData) error {
 	if !game.UsesOutputRoots() {
 		return nil
 	}

@@ -35,9 +35,9 @@ func (tcs testChannelStatuser) isTimedOut() bool {
 
 func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 
-	block101 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(101)})}
-	block102 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(102)})}
-	block103 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(103)})}
+	block101 := mustSizedBlockFromGeth(types.NewBlockWithHeader(&types.Header{Number: big.NewInt(101), BaseFee: big.NewInt(7)}))
+	block102 := mustSizedBlockFromGeth(types.NewBlockWithHeader(&types.Header{Number: big.NewInt(102), BaseFee: big.NewInt(7)}))
+	block103 := mustSizedBlockFromGeth(types.NewBlockWithHeader(&types.Header{Number: big.NewInt(103), BaseFee: big.NewInt(7)}))
 
 	channel103 := testChannelStatuser{
 		latestL2:       eth.ToBlockID(block103),
@@ -46,7 +46,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 		timedOut:       false,
 	}
 
-	block104 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(104)})}
+	block104 := mustSizedBlockFromGeth(types.NewBlockWithHeader(&types.Header{Number: big.NewInt(104), BaseFee: big.NewInt(7)}))
 
 	channel104 := testChannelStatuser{
 		latestL2:       eth.ToBlockID(block104),

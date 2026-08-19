@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
@@ -200,14 +200,21 @@ type ApplyPipelineOpts struct {
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
 	UseForge           bool
-	PrivateKey         string
-	Workdir            string
+	// DeployMockSP1Verifier is a test-only opt-in for development environments.
+	DeployMockSP1Verifier bool
+	PrivateKey            string
+	Workdir               string
+	ReceiptQueryInterval  time.Duration
 }
 
 func ApplyPipeline(
 	ctx context.Context,
 	opts ApplyPipelineOpts,
 ) error {
+	if opts.DeployMockSP1Verifier && opts.DeploymentTarget != DeploymentTargetGenesis {
+		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
+	}
+
 	intent := opts.Intent
 	st := opts.State
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
@@ -229,39 +236,6 @@ func ApplyPipeline(
 	var l1Client *ethclient.Client
 	var l1Host *script.Host
 
-	initForkHost := func() error {
-		l1Host, err = env.DefaultScriptHost(
-			bcaster,
-			opts.Logger,
-			deployer,
-			bundle.L1,
-			script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
-				src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, l1RPC, *cfg.BlockNumber)
-				if err != nil {
-					return nil, fmt.Errorf("failed to create RPC fork source: %w", err)
-				}
-				return forking.Cache(src), nil
-			}),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create L1 script host: %w", err)
-		}
-
-		latest, err := l1Client.HeaderByNumber(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to get latest block: %w", err)
-		}
-
-		if _, err := l1Host.CreateSelectFork(
-			script.ForkWithURLOrAlias("main"),
-			script.ForkWithBlockNumberU256(latest.Number),
-		); err != nil {
-			return fmt.Errorf("failed to select fork: %w", err)
-		}
-
-		return nil
-	}
-
 	switch opts.DeploymentTarget {
 	case DeploymentTargetLive:
 		l1RPC, err = rpc.Dial(opts.L1RPCUrl)
@@ -279,17 +253,19 @@ func ApplyPipeline(
 		signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(opts.DeployerPrivateKey, chainID))
 
 		bcaster, err = broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-			Logger:  opts.Logger,
-			ChainID: new(big.Int).SetUint64(intent.L1ChainID),
-			Client:  l1Client,
-			Signer:  signer,
-			From:    deployer,
+			Logger:               opts.Logger,
+			ChainID:              new(big.Int).SetUint64(intent.L1ChainID),
+			Client:               l1Client,
+			Signer:               signer,
+			From:                 deployer,
+			ReceiptQueryInterval: opts.ReceiptQueryInterval,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create broadcaster: %w", err)
 		}
 
-		if err := initForkHost(); err != nil {
+		l1Host, err = env.DefaultForkedScriptHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
+		if err != nil {
 			return fmt.Errorf("failed to initialize L1 host: %w", err)
 		}
 	case DeploymentTargetCalldata, DeploymentTargetNoop:
@@ -302,7 +278,8 @@ func ApplyPipeline(
 
 		bcaster = new(broadcaster.CalldataBroadcaster)
 
-		if err := initForkHost(); err != nil {
+		l1Host, err = env.DefaultForkedScriptHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
+		if err != nil {
 			return fmt.Errorf("failed to initialize L1 host: %w", err)
 		}
 	case DeploymentTargetGenesis:
@@ -351,6 +328,8 @@ func ApplyPipeline(
 		Scripts:                   opcmScripts,
 		ForgeClient:               forgeClient,
 		UseForge:                  opts.UseForge,
+		IsGenesis:                 opts.DeploymentTarget == DeploymentTargetGenesis,
+		DeployMockSP1Verifier:     opts.DeployMockSP1Verifier,
 		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis,
 		L1RPCUrl:                  opts.L1RPCUrl,
 		PrivateKey:                opts.PrivateKey,

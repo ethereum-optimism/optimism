@@ -77,7 +77,7 @@ If transaction speed is important to your application, you may want to set a hig
 The [`eth_maxPriorityFeePerGas`](https://docs.alchemy.com/reference/eth-maxpriorityfeepergas) RPC method can be used to estimate a priority fee that will get your transaction included quickly.
 
 <Info>
-OP Mainnet is running a time-boxed experiment in **stake-based priority ordering**. While the experiment is active, priority fee is no longer the sole factor in transaction ordering — stake held in the `PolicyEngineStaking` contract also influences inclusion order. See the [stake-based priority ordering notice](/notices/archive/stake-based-priority-ordering) and the [Governance Proposal](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655) for details.
+OP Mainnet has run a time-boxed experiment in **stake-based priority ordering**, in which stake held in the `PolicyEngineStaking` contract — not priority fee alone — influenced transaction ordering. The experiment was scheduled to begin on May 26, 2026 and to run for a maximum of four weeks, after which OP Mainnet reverts to the priority-fee ordering described above. Check the [stake-based priority ordering notice](/notices/archive/stake-based-priority-ordering) and the [Governance Proposal](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655) before assuming either ordering applies.
 </Info>
 
 ## L1 data fee
@@ -193,7 +193,7 @@ following the upgrade. Because the old overhead parameter becomes ignored, new L
 be (slightly, since overhead is typically very small) lower than before the fork.  Chain
 operators will likely want to retune the parameters appropriately after the fork, particularly if
 they plan on [enabling blobs](/chain-operators/guides/features/blobs).
-Chain operators can use the [Ecotone fee parameter calculator](https://docs.google.com/spreadsheets/d/12VIiXHaVECG2RUunDSVJpn67IQp9NHFJqUsma2PndpE/edit#gid=186414307) to get a better estimate of scalar values to use for your chain.&#x20;
+For guidance on choosing scalar values, chain operators can follow [Recover the spend with fee scalars](/use-cases/tune-batcher-costs#step-5-recover-the-spend-with-fee-scalars) in the Tune batcher costs guide.
 
 #### Fjord
 
@@ -227,7 +227,7 @@ Both scalars are scaled by 1e6. The final L1 Data Fee is then
 l1Cost = estimatedSizeScaled * l1FeeScaled / 1e12
 ```
 
-The new cost function takes into account the compression ratio, so chain operators will need to adjust their `baseFeeScalar` and `blobFeeScalar`  to account for any previous compression ratios that they encountered on their chains. Chain operators can use the [Fjord fee parameter calculator](https://docs.google.com/spreadsheets/d/1V3CWpeUzXv5Iopw8lBSS8tWoSzyR4PDDwV9cu2kKOrs/edit#gid=186414307) to get a better estimate of scalar values to use for their chain.
+The new cost function takes into account the compression ratio, so chain operators will need to adjust their `baseFeeScalar` and `blobFeeScalar`  to account for any previous compression ratios that they encountered on their chains. For guidance on choosing scalar values, chain operators can follow [Recover the spend with fee scalars](/use-cases/tune-batcher-costs#step-5-recover-the-spend-with-fee-scalars) in the Tune batcher costs guide.
 
 ## Operator fee
 

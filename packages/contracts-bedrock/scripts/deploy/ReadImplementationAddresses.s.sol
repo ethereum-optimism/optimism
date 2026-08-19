@@ -41,6 +41,7 @@ contract ReadImplementationAddresses is Script {
         address zkDisputeGame;
         address opcmStandardValidator;
         address opcmInteropMigrator;
+        address sp1PlonkAdapter;
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
@@ -71,6 +72,7 @@ contract ReadImplementationAddresses is Script {
         output_.superFaultDisputeGame = impls.superFaultDisputeGameImpl;
         output_.superPermissionedDisputeGame = impls.superPermissionedDisputeGameImpl;
         output_.zkDisputeGame = impls.zkDisputeGameImpl;
+        output_.sp1PlonkAdapter = impls.sp1PlonkAdapterImpl;
 
         // Get L1CrossDomainMessenger from AddressManager
         IAddressManager am = IAddressManager(_input.addressManager);

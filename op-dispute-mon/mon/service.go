@@ -232,25 +232,23 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	headBlockFetcher := func(ctx context.Context) (eth.L1BlockRef, error) {
 		return s.l1Client.L1BlockRefByLabel(ctx, "latest")
 	}
+	bondEnricher := extract.NewBondDataEnricher()
 	extractor := extract.NewExtractor(
 		s.logger,
 		s.cl,
+		s.metrics,
 		s.game.CreateContract,
 		s.factoryContract.GetGamesAtOrAfter,
+		s.factoryContract.GetGameStatusAtBlock,
 		cfg.IgnoredGames,
 		cfg.MaxConcurrency,
-		extract.NewClaimEnricher(),
-		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
-		extract.NewWithdrawalsEnricher(),
-		extract.NewBondEnricher(),
-		extract.NewBalanceEnricher(),
-		extract.NewL1HeadBlockNumEnricher(s.l1Client),
-		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
-		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
-		extract.NewAnchorStateRegistryEnricher(s.logger),
+		s.commonEnrichers(),
+		s.faultEnrichers(bondEnricher),
+		extract.NewZKAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		bondEnricher,
 	)
 	forecast := NewForecast(s.logger, s.metrics)
-	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl)
+	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl, s.honestActors)
 	resolutions := NewResolutionMonitor(s.logger, s.metrics, s.cl)
 	claims := NewClaimMonitor(s.logger, s.cl, s.honestActors, s.metrics)
 	withdrawals := NewWithdrawalMonitor(s.logger, s.cl, s.metrics, s.honestActors)
@@ -263,6 +261,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	mixedSafetyMonitor := NewMixedSafetyMonitor(s.logger, s.metrics)
 	differentRootMonitor := NewDifferentRootMonitor(s.logger, s.metrics)
 	gameTypeMonitor := NewGameTypeMonitor(s.metrics)
+	zkLifecycleMonitor := NewZKLifecycleMonitor(s.cl, s.metrics)
 	anchorStateMonitor := NewAnchorStateMonitor(s.logger, s.metrics, func(addr common.Address) AnchorRootProvider {
 		return contracts.NewAnchorStateRegistryContract(s.metrics, addr, s.l1Caller)
 	})
@@ -270,19 +269,44 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		extractor.Extract,
 		forecast.Forecast,
 		anchorStateMonitor.CheckAnchorState,
-		bonds.CheckBonds,
-		resolutions.CheckResolutions,
-		claims.CheckClaims,
-		withdrawals.CheckWithdrawals,
-		l2ChallengesMonitor.CheckL2Challenges,
-		updateTimeMonitor.CheckUpdateTimes,
-		nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
-		nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
-		nodeEndpointOutOfSyncMonitor.CheckNodeEndpointOutOfSync,
-		mixedAvailabilityMonitor.CheckMixedAvailability,
-		mixedSafetyMonitor.CheckMixedSafety,
-		differentRootMonitor.CheckDifferentRoots,
-		gameTypeMonitor.CheckGameTypes)
+		[]CommonMonitor{
+			updateTimeMonitor.CheckUpdateTimes,
+			nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
+			nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
+			nodeEndpointOutOfSyncMonitor.CheckNodeEndpointOutOfSync,
+			mixedAvailabilityMonitor.CheckMixedAvailability,
+			mixedSafetyMonitor.CheckMixedSafety,
+			differentRootMonitor.CheckDifferentRoots,
+			gameTypeMonitor.CheckGameTypes,
+		},
+		[]FaultMonitor{
+			resolutions.CheckResolutions,
+			claims.CheckClaims,
+			l2ChallengesMonitor.CheckL2Challenges,
+		},
+		[]BondMonitor{
+			bonds.CheckBonds,
+			withdrawals.CheckWithdrawals,
+		},
+		[]ZKMonitor{
+			zkLifecycleMonitor.CheckLifecycle,
+		})
+}
+
+func (s *Service) commonEnrichers() []extract.CommonEnricher {
+	return []extract.CommonEnricher{
+		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
+		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		extract.NewAnchorStateRegistryEnricher(s.logger),
+	}
+}
+
+func (s *Service) faultEnrichers(bondEnricher *extract.BondDataEnricher) []extract.FaultEnricher {
+	return []extract.FaultEnricher{
+		extract.NewClaimEnricher(),
+		bondEnricher,
+	}
 }
 
 func (s *Service) Start(ctx context.Context) error {

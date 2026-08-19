@@ -17,6 +17,7 @@ const (
 	DisputeGameFinalityDelaySecondsFlagName = "dispute-game-finality-delay-seconds"
 	MIPSVersionFlagName                     = "mips-version"
 	DevFeatureBitmapFlagName                = "dev-feature-bitmap"
+	SP1VerifierAddressFlagName              = "sp1-verifier-address"
 	ProxyOwnerFlagName                      = "proxy-owner"
 	SuperchainProxyAdminOwnerFlagName       = "superchain-proxy-admin-owner"
 	GuardianFlagName                        = "guardian"
@@ -96,6 +97,12 @@ var (
 		EnvVars: deployer.PrefixEnvVar("DEV_FEATURE_BITMAP"),
 		Value:   common.Hash{}.Hex(),
 	}
+	SP1VerifierAddressFlag = &cli.StringFlag{
+		Name:    SP1VerifierAddressFlagName,
+		Usage:   "Override the raw SP1 verifier for a ZK-enabled OPCM release. Defaults to Succinct's v6.1.0 PLONK verifier on Ethereum mainnet and Sepolia.",
+		EnvVars: deployer.PrefixEnvVar("SP1_VERIFIER_ADDRESS"),
+		Value:   common.Address{}.Hex(),
+	}
 	ProxyOwnerFlag = &cli.StringFlag{
 		Name:    ProxyOwnerFlagName,
 		Usage:   "Proxy owner address.",
@@ -154,6 +161,7 @@ var ImplementationsFlags = []cli.Flag{
 	deployer.ArtifactsLocatorFlag,
 	MIPSVersionFlag,
 	DevFeatureBitmapFlag,
+	SP1VerifierAddressFlag,
 	WithdrawalDelaySecondsFlag,
 	MinProposalSizeBytesFlag,
 	ChallengePeriodSecondsFlag,

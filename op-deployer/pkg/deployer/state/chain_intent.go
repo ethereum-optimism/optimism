@@ -56,11 +56,10 @@ type AdditionalDisputeGame struct {
 
 // ZKDisputeGameParams holds the configuration for a ZK dispute game in the upgrade pipeline.
 type ZKDisputeGameParams struct {
-	Verifier             common.Address `json:"verifier" toml:"verifier"`
-	AbsolutePrestate     common.Hash    `json:"absolutePrestate" toml:"absolutePrestate"`
-	MaxChallengeDuration uint64         `json:"maxChallengeDuration" toml:"maxChallengeDuration"`
-	MaxProveDuration     uint64         `json:"maxProveDuration" toml:"maxProveDuration"`
-	ChallengerBond       *hexutil.Big   `json:"challengerBond" toml:"challengerBond"`
+	AbsolutePrestate     common.Hash  `json:"absolutePrestate" toml:"absolutePrestate"`
+	MaxChallengeDuration uint64       `json:"maxChallengeDuration" toml:"maxChallengeDuration"`
+	MaxProveDuration     uint64       `json:"maxProveDuration" toml:"maxProveDuration"`
+	ChallengerBond       *hexutil.Big `json:"challengerBond" toml:"challengerBond"`
 }
 
 type L2DevGenesisParams struct {
@@ -173,9 +172,6 @@ func (c *ChainIntent) Check() error {
 		if game.VMType == VMTypeZK {
 			if game.ZKDisputeGame == nil {
 				return fmt.Errorf("%w: zkDisputeGame config must be set when VMType is ZK, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
-			}
-			if game.ZKDisputeGame.Verifier == (common.Address{}) {
-				return fmt.Errorf("%w: Verifier must not be zero address, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
 			if game.ZKDisputeGame.AbsolutePrestate == (common.Hash{}) {
 				return fmt.Errorf("%w: AbsolutePrestate must not be zero, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)

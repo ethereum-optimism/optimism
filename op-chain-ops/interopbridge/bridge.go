@@ -9,6 +9,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -27,6 +28,10 @@ import (
 // is the caller's context deadline; this is just large enough not to give up
 // before that deadline ends the retries.
 const maxRelayRetries = 1024
+
+// headPollInterval is how often the destination head is re-read while waiting for it to reach
+// the messages a tx executes.
+const headPollInterval = time.Second
 
 // sendETHFn is the SuperchainETHBridge.sendETH(to, chainId) entrypoint.
 var sendETHFn = w3.MustNewFunc("sendETH(address,uint256)", "bytes32")
@@ -63,7 +68,29 @@ func BridgePlan(cl apis.EthClient, key *ecdsa.PrivateKey) txplan.Option {
 		txplan.WithRetrySubmission(cl, maxRelayRetries, retry.Exponential()),
 		txplan.WithRetryInclusion(cl, maxRelayRetries, retry.Exponential()),
 		txplan.WithBlockInclusionInfo(cl),
+		txintent.WithInteropDependencyWait(awaitTime(cl)),
 	)
+}
+
+// awaitTime blocks until the chain's unsafe head reaches minTime. Head lookups fail transiently
+// on a live chain, so a failure is only reported if the head never reaches minTime.
+func awaitTime(cl apis.EthBlockRef) txintent.AwaitTimeFn {
+	return func(ctx context.Context, minTime uint64) error {
+		for {
+			head, err := cl.BlockRefByLabel(ctx, eth.Unsafe)
+			if err == nil && head.Time >= minTime {
+				return nil
+			}
+			select {
+			case <-ctx.Done():
+				if err != nil {
+					return fmt.Errorf("head lookup failed: %w: %w", err, ctx.Err())
+				}
+				return fmt.Errorf("head is %d at timestamp %d: %w", head.Number, head.Time, ctx.Err())
+			case <-time.After(headPollInterval):
+			}
+		}
+	}
 }
 
 // BridgeETH sends amount of ETH from key's account on src to recipient on dst via

@@ -6,6 +6,7 @@ import (
 	"math/big"
 	mrand "math/rand"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -93,6 +94,72 @@ func TestBuildStartRejectsStaleSequencerParent(t *testing.T) {
 		SafeL2Head:      safe,
 		FinalizedL2Head: finalized,
 	}}, emitted)
+}
+
+type sealingEngine struct {
+	testutils.MockEngine
+	envelope    *eth.ExecutionPayloadEnvelope
+	getPayloads int
+	newPayloads int
+}
+
+func (e *sealingEngine) GetPayload(context.Context, eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	e.getPayloads++
+	return e.envelope, nil
+}
+
+func (e *sealingEngine) NewPayload(context.Context, *eth.ExecutionPayload, *common.Hash) (*eth.PayloadStatusV1, error) {
+	e.newPayloads++
+	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
+}
+
+// TestSealBuildRejectsStaleParent covers the direct-call guard: a block sealed
+// on a parent the chain has moved past must not be handed to the caller, which
+// would commit and gossip a sibling of the current head.
+func TestSealBuildRejectsStaleParent(t *testing.T) {
+	cfg, parent, sealed, envelope := buildSimpleCfgAndPayload(t)
+	movedOn := eth.L2BlockRef{Hash: common.Hash{0x41}, Number: sealed.Number, Time: sealed.Time}
+
+	var emitted []event.Event
+	emitter := event.EmitterFunc(func(_ context.Context, ev event.Event) { emitted = append(emitted, ev) })
+	engine := &sealingEngine{envelope: envelope}
+	ec := NewEngineController(context.Background(), engine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, nil)
+	ec.SetUnsafeHead(movedOn)
+
+	result, err := ec.SealBuild(context.Background(), eth.PayloadInfo{ID: eth.PayloadID{0x01}}, time.Now())
+	require.ErrorIs(t, err, ErrStaleBuild)
+	require.Nil(t, result)
+	require.Equal(t, 1, engine.getPayloads, "the job can only be checked once it is sealed")
+	require.Len(t, emitted, 1, "a forkchoice update is requested so the caller can re-plan")
+	require.IsType(t, ForkchoiceUpdateEvent{}, emitted[0])
+
+	// On the matching head the same seal succeeds and stays event-free.
+	emitted = nil
+	ec.SetUnsafeHead(parent)
+	result, err = ec.SealBuild(context.Background(), eth.PayloadInfo{ID: eth.PayloadID{0x01}}, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, sealed.Hash, result.Ref.Hash)
+	require.Empty(t, emitted, "the direct seal path emits no events on success")
+}
+
+// TestProcessPayloadRejectsStaleParent covers the direct-call guard: inserting a
+// payload that no longer extends the unsafe head would reorg the head backwards.
+func TestProcessPayloadRejectsStaleParent(t *testing.T) {
+	cfg, _, sealed, envelope := buildSimpleCfgAndPayload(t)
+	movedOn := eth.L2BlockRef{Hash: common.Hash{0x41}, Number: sealed.Number, Time: sealed.Time}
+
+	var emitted []event.Event
+	emitter := event.EmitterFunc(func(_ context.Context, ev event.Event) { emitted = append(emitted, ev) })
+	engine := &sealingEngine{envelope: envelope}
+	ec := NewEngineController(context.Background(), engine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, nil)
+	ec.SetUnsafeHead(movedOn)
+
+	err := ec.ProcessPayload(context.Background(), envelope, sealed, time.Now())
+	require.ErrorIs(t, err, ErrStaleBuild)
+	require.Zero(t, engine.newPayloads, "the stale payload must not reach the engine")
+	require.Equal(t, movedOn, ec.UnsafeL2Head(), "the head must not be reorged backwards")
+	require.Len(t, emitted, 1)
+	require.IsType(t, ForkchoiceUpdateEvent{}, emitted[0])
 }
 
 // buildSimpleCfgAndPayload creates a minimal rollup config and a valid payload (A1) on top of A0.

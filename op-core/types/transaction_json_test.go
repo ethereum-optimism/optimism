@@ -229,6 +229,7 @@ func TestPostExecTxUnmarshalJSONErrors(t *testing.T) {
 		{"non-zero gas", mutate(func(o map[string]json.RawMessage) { o["gas"] = json.RawMessage(`"0x1"`) }), "gas must be 0"},
 		{"non-zero signature", mutate(func(o map[string]json.RawMessage) { o["r"] = json.RawMessage(`"0x1"`) }), "signature must be 0"},
 		{"missing input", mutate(func(o map[string]json.RawMessage) { o["input"] = json.RawMessage(`null`) }), "'input'"},
+		{"empty input", mutate(func(o map[string]json.RawMessage) { o["input"] = json.RawMessage(`"0x"`) }), "input must not be empty"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -1,0 +1,74 @@
+---
+title: "Subblocks: 200 ms interval and stream payload changes"
+description: Subblocks (formerly Flashblocks) move to a 200 ms interval on OP Sepolia and OP Mainnet, and zero four fields in the stream payload.
+date: 2026-08-17
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: subblocks
+personas:
+  - app-developer
+  - node-operator
+categories:
+  - protocol
+  - infrastructure
+is_imported_content: 'false'
+audit-source:
+  - rust/rollup-boost/crates/rollup-boost/src/flashblocks/primitives.rs
+---
+
+Subblocks (formerly Flashblocks) stream pre-confirmations on OP Stack chains.
+Two changes are rolling out to OP Sepolia and OP Mainnet: the subblock interval drops from 250 ms to 200 ms, and four fields in the stream payload are set to their zero value.
+
+The stream keeps its existing wire format, and the payload type is still named `ExecutionPayloadFlashblockDeltaV1`.
+
+<Warning>
+  The subblock stream sets `state_root`, `block_hash`, `withdrawals_root`, and `withdrawals` to their zero value.
+  The stream remains wire compatible, so reads return a zero value rather than raising an error.
+  Audit stream integrations before **August 17, 2026**.
+</Warning>
+
+## What this means
+
+*   **The interval drops from 250 ms to 200 ms.** This brings OP Sepolia and OP Mainnet to `FLASHBLOCKS_TIME = 200ms`, the default in the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html).
+*   **Four payload fields are set to their zero value.** All four remain present in `ExecutionPayloadFlashblockDeltaV1`. Nothing is removed from the wire format.
+*   **Every other field, including `receipts_root` and `logs_bloom`, continues to carry a real value.**
+
+| Field | Zero value on the stream |
+| --- | --- |
+| `state_root` | `0x0000...0000` |
+| `block_hash` | `0x0000...0000` |
+| `withdrawals_root` | `0x0000...0000` |
+| `withdrawals` | `[]` |
+
+An integration that reads any of these fields receives a zero value and continues, rather than failing loudly at the parse boundary.
+We recommend you audit your application or integration for these reads directly ahead of the migration.
+
+## The rollout is gradual
+
+This is a rolling change rather than a single switch, so you may see both the previous and the new behavior for a period.
+
+## Action required
+
+For teams consuming the subblock stream directly:
+
+*   Audit integrations for reads of `state_root`, `block_hash`, `withdrawals_root`, and `withdrawals`.
+*   Confirm that a zero value in any of them cannot propagate into downstream state, balances, or proofs.
+*   RPC providers that forward stream payloads to their own consumers should pass this notice on to those consumers.
+
+## Timeline
+
+| Network | Target rollout |
+| --- | --- |
+| OP Sepolia | August 17, 2026 |
+| OP Mainnet | August 31, 2026 |
+
+Both dates are targets and may move.
+
+## Key links
+
+| Resource | Link |
+| --- | --- |
+| Flashblocks specification | [specs.optimism.io](https://specs.optimism.io/protocol/flashblocks.html) |
+| Subblocks explainer | [How Subblocks work](/op-stack/features/subblocks) |
+| App integration guide | [Integrate Subblocks in your app](/app-developers/guides/transactions/integrating-subblocks) |
