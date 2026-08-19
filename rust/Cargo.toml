@@ -71,6 +71,9 @@ members = [
 
   # Shared build/version metadata (op-reth + kona-node)
   "op-version/",
+
+  # Rust supernode
+  "supernode/",
 ]
 default-members = [
   "kona/bin/host",

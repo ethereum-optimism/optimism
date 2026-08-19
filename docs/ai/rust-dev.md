@@ -4,11 +4,12 @@ Guidance for AI agents working with Rust code in the Optimism monorepo. See [dev
 
 ## Workspace Layout
 
-All Rust code lives under `rust/`. This is a unified Cargo workspace — always run Rust commands from this directory. The workspace contains three main component groups:
+All Rust code lives under `rust/`. This is a unified Cargo workspace — always run Rust commands from this directory. The workspace contains four main component groups:
 
 - **Kona** — Proof system and rollup node (`rust/kona/`)
 - **Op-Reth** — OP Stack execution client built on reth (`rust/op-reth/`)
 - **Op-Alloy / Alloy extensions** — OP Stack types and providers
+- **Rust Supernode** — Rust rewrite of the Go `op-supernode` multi-chain consensus-layer host (`rust/supernode/`, binary `rust-supernode`). Early development: the crate currently builds a CLI skeleton only.
 
 Check `rust/Cargo.toml` for the full workspace member list, dependency versions, and lint configuration. The Rust toolchain version is pinned in `rust/rust-toolchain.toml`.
 
@@ -47,8 +48,9 @@ just build-no-examples
 just build-release
 
 # Build specific binaries
-just build-node      # kona-node
-just build-op-reth   # op-reth
+just build-node        # kona-node
+just build-op-reth     # op-reth
+just build-supernode   # rust-supernode
 ```
 
 ### superchain-registry submodule (op-reth)
