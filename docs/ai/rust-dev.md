@@ -48,9 +48,9 @@ just build-no-examples
 just build-release
 
 # Build specific binaries
-just build-node        # kona-node
-just build-op-reth     # op-reth
-just build-supernode   # rust-supernode
+just build-node             # kona-node
+just build-op-reth          # op-reth
+just build-rust-supernode   # rust-supernode
 ```
 
 ### superchain-registry submodule (op-reth)

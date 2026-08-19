@@ -89,8 +89,6 @@ build-rust-supernode:
 build-rust-supernode-debug:
   cargo build -p rust-supernode
 
-alias build-supernode := build-rust-supernode
-
 ############################### Test ################################
 
 # Run all outer-workspace tests. SP1 guests require generated vkeys and are tested by CI after
