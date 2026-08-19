@@ -51,7 +51,6 @@ use crate::{
 };
 
 #[cfg(test)]
-#[path = "proposer/scenario/mod.rs"]
 mod scenario;
 
 /// Max allowed time (secs) between a game's deadline and the anchor game's deadline.
@@ -65,7 +64,7 @@ pub const MAX_GAME_DEADLINE_LAG: u64 = 60 * 60 * 24 * 14; // 14 days
 
 pub(crate) type TaskId = u64;
 type TaskHandle = tokio::task::JoinHandle<Result<TaskSuccess>>;
-type TaskMap = HashMap<TaskId, (TaskHandle, TaskInfo)>;
+type TaskMap = HashMap<TaskId, (TaskHandle, OperationSummary)>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum TaskClass {
@@ -106,6 +105,31 @@ pub(crate) enum OperationSummary {
 }
 
 impl OperationSummary {
+    const fn class(&self) -> TaskClass {
+        match self {
+            Self::ProposeGame { .. } | Self::ReconcileCreation { .. } => TaskClass::Creation,
+            Self::ProveGame { .. } => TaskClass::Proving,
+            Self::ResolutionSweep => TaskClass::Resolution,
+            Self::ClaimSweep => TaskClass::Claim,
+        }
+    }
+
+    const fn target(&self) -> OperationTarget {
+        match self {
+            Self::ProposeGame { sequence_number, parent_game_index } |
+            Self::ReconcileCreation { sequence_number, parent_game_index } => {
+                OperationTarget::Creation {
+                    sequence_number: *sequence_number,
+                    parent_game_index: *parent_game_index,
+                }
+            }
+            Self::ProveGame { factory_index, address, .. } => {
+                OperationTarget::Game { factory_index: *factory_index, address: *address }
+            }
+            Self::ResolutionSweep | Self::ClaimSweep => OperationTarget::AllGames,
+        }
+    }
+
     const fn deduplication_key(&self) -> TaskDeduplicationKey {
         match self {
             Self::ProposeGame { .. } | Self::ReconcileCreation { .. } => {
@@ -115,55 +139,6 @@ impl OperationSummary {
             Self::ResolutionSweep => TaskDeduplicationKey::Resolution,
             Self::ClaimSweep => TaskDeduplicationKey::Claim,
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct TaskInfo {
-    class: TaskClass,
-    target: OperationTarget,
-    operation: OperationSummary,
-}
-
-impl TaskInfo {
-    fn from_operation(operation: OperationSummary) -> Self {
-        match operation.clone() {
-            OperationSummary::ProposeGame { sequence_number, parent_game_index } |
-            OperationSummary::ReconcileCreation { sequence_number, parent_game_index } => Self {
-                class: TaskClass::Creation,
-                target: OperationTarget::Creation { sequence_number, parent_game_index },
-                operation,
-            },
-            OperationSummary::ProveGame { factory_index, address, .. } => Self {
-                class: TaskClass::Proving,
-                target: OperationTarget::Game { factory_index, address },
-                operation,
-            },
-            OperationSummary::ResolutionSweep => {
-                Self { class: TaskClass::Resolution, target: OperationTarget::AllGames, operation }
-            }
-            OperationSummary::ClaimSweep => {
-                Self { class: TaskClass::Claim, target: OperationTarget::AllGames, operation }
-            }
-        }
-    }
-
-    #[cfg(test)]
-    fn game_proving(game_address: Address, is_defense: bool) -> Self {
-        Self::from_operation(OperationSummary::ProveGame {
-            factory_index: U256::ZERO,
-            address: game_address,
-            purpose: if is_defense {
-                ProvingPurpose::Defense
-            } else {
-                ProvingPurpose::FastFinality
-            },
-        })
-    }
-
-    #[cfg(test)]
-    fn resolution() -> Self {
-        Self::from_operation(OperationSummary::ResolutionSweep)
     }
 }
 
@@ -699,9 +674,6 @@ pub struct Proposer {
     state: Arc<RwLock<ProposerState>>,
     /// Proposer identity for foreign-game filtering and hardfork safety.
     pub identity: ProposerIdentity,
-    /// L1 block number used in the last successful sync cycle. Sync is skipped when the
-    /// pinned block hasn't advanced past this value.
-    last_synced_l1_block: Arc<AtomicU64>,
     /// Full semantic observation from the last successful pinned sync.
     last_successful_pinned_l1: Arc<RwLock<Option<crate::ports::L1BlockRef>>>,
     /// Sequence number of the most recently created game. Used to prevent duplicate
@@ -827,7 +799,6 @@ impl Proposer {
             next_task_id: Arc::new(AtomicU64::new(1)),
             state: Arc::new(RwLock::new(ProposerState::default())),
             identity,
-            last_synced_l1_block: Arc::new(AtomicU64::new(0)),
             last_successful_pinned_l1: Arc::new(RwLock::new(None)),
             last_created_game_l2_sequence_number: Arc::new(AtomicU64::new(0)),
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
@@ -952,23 +923,21 @@ impl Proposer {
 
         // If L1 hasn't advanced past the last synced block, all on-chain state is identical.
         //
-        // `confirmed_number < prev` indicates backend regression from a load-balanced RPC, or a
-        // deep L1 reorg past `sync_l1_confirmations`. This case should be logged at WARN so
-        // operators can detect unhealthy backends or L1 reorg; the equal case stays at DEBUG since
-        // it's the normal "L1 hasn't ticked" path.
-        let prev = self.last_synced_l1_block.load(Ordering::Relaxed);
-        let has_successful_pin = self.last_successful_pinned_l1.read().await.is_some();
-        if has_successful_pin && confirmed_number <= prev {
-            if confirmed_number < prev {
+        // A lower confirmed number indicates backend regression from a load-balanced RPC, or a
+        // deep L1 reorg past `sync_l1_confirmations`. This case is logged at WARN; equality stays
+        // at DEBUG since it is the normal "L1 hasn't ticked" path.
+        let previous_pin = *self.last_successful_pinned_l1.read().await;
+        if let Some(previous_pin) = previous_pin.filter(|pin| confirmed_number <= pin.number) {
+            if confirmed_number < previous_pin.number {
                 tracing::warn!(
                     confirmed_number,
-                    last_synced = prev,
+                    last_synced = previous_pin.number,
                     "L1 confirmed head moved backwards (backend regression or deep reorg), skipping sync"
                 );
             } else {
                 tracing::debug!(
                     confirmed_number,
-                    last_synced = prev,
+                    last_synced = previous_pin.number,
                     "L1 head unchanged, skipping sync"
                 );
             }
@@ -1004,7 +973,6 @@ impl Proposer {
         // With the cached game statuses and anchor synchronized, recompute the canonical head.
         self.compute_canonical_head().await;
 
-        self.last_synced_l1_block.store(confirmed_number, Ordering::Relaxed);
         *self.last_successful_pinned_l1.write().await = Some(pinned_l1);
 
         Ok(SyncDisposition::Advanced)
@@ -2047,9 +2015,8 @@ impl Proposer {
                     Ok(game_address) => {
                         *self.in_flight_creation.lock().await = None;
 
-                        // Record the sequence number and address so should_create_game() skips
-                        // duplicate creation while the pinned cache hasn't caught up to this
-                        // game.
+                        // Record the sequence number and address so creation planning skips a
+                        // duplicate while the pinned cache has not caught up to this game.
                         self.last_created_game_l2_sequence_number
                             .store(sequence_number, Ordering::Relaxed);
                         *self.last_created_game_address.lock().await = game_address;
@@ -2120,8 +2087,7 @@ impl Proposer {
     /// may land, so the record is kept and proposals stay held. Once the
     /// pool drains, nothing of ours can land anymore - the original was
     /// mined (the lookup above adopts it) or dropped - so the record
-    /// clears and normal proposals resume next tick through
-    /// `should_create_game`'s checks.
+    /// clears and normal proposals resume on the next tick.
     ///
     /// The pool view is this node's: a transaction evicted here but alive
     /// in another pool can land after the clear. That residual re-creates
@@ -2272,14 +2238,16 @@ impl Proposer {
         let mut completions = Vec::with_capacity(selected.len());
         let watchdog_deadline = watchdog.map(|duration| time::Instant::now() + duration);
         let mut selected = selected.into_iter();
-        while let Some((task_id, mut handle, info)) = selected.next() {
+        while let Some((task_id, mut handle, operation)) = selected.next() {
             let joined = if let Some(deadline) = watchdog_deadline {
                 match time::timeout_at(deadline, &mut handle).await {
                     Ok(joined) => joined,
                     Err(_) => {
                         let mut tasks = self.tasks.lock().await;
-                        tasks.insert(task_id, (handle, info));
-                        tasks.extend(selected.map(|(id, handle, info)| (id, (handle, info))));
+                        tasks.insert(task_id, (handle, operation));
+                        tasks.extend(
+                            selected.map(|(id, handle, operation)| (id, (handle, operation))),
+                        );
                         return Err(completions);
                     }
                 }
@@ -2288,36 +2256,36 @@ impl Proposer {
             };
             let outcome = match joined {
                 Ok(Ok(TaskSuccess::Completed)) => {
-                    tracing::info!("Task {:?} completed successfully", info);
+                    tracing::info!("Task {:?} completed successfully", operation);
                     TaskCompletionOutcome::Success
                 }
                 Ok(Ok(TaskSuccess::TerminallyUnprovable)) => {
-                    tracing::info!("Task {:?} completed as terminally unprovable", info);
+                    tracing::info!("Task {:?} completed as terminally unprovable", operation);
                     TaskCompletionOutcome::TerminallyUnprovable
                 }
                 Ok(Err(error)) => {
-                    tracing::warn!("Task {:?} failed: {:?}", info, error);
+                    tracing::warn!("Task {:?} failed: {:?}", operation, error);
                     let error = error.to_string();
-                    self.handle_task_failure(&info);
+                    self.handle_task_failure(&operation);
                     TaskCompletionOutcome::Failed(TaskFailureClass::ReturnedError(error))
                 }
                 Err(panic) => {
-                    tracing::error!("Task {:?} panicked: {:?}", info, panic);
+                    tracing::error!("Task {:?} panicked: {:?}", operation, panic);
                     TaskCompletionOutcome::Failed(TaskFailureClass::Panicked)
                 }
             };
             completions.push(TaskCompletion {
                 task_id,
-                class: info.class,
-                target: info.target,
+                class: operation.class(),
+                target: operation.target(),
                 outcome,
             });
         }
         Ok(completions)
     }
 
-    fn handle_task_failure(&self, info: &TaskInfo) {
-        match info.class {
+    fn handle_task_failure(&self, operation: &OperationSummary) {
+        match operation.class() {
             TaskClass::Creation => {
                 ProposerGauge::GameCreationError.increment(1.0);
             }
@@ -2338,7 +2306,7 @@ impl Proposer {
             let tasks = self.tasks.lock().await;
             tasks
                 .values()
-                .map(|(_, info)| info.operation.deduplication_key())
+                .map(|(_, operation)| operation.deduplication_key())
                 .collect::<HashSet<_>>()
         };
         let mut planned = Vec::new();
@@ -2397,11 +2365,11 @@ impl Proposer {
             let tasks = self.tasks.lock().await;
             tasks
                 .iter()
-                .map(|(task_id, (_, info))| ActiveTaskSummary {
+                .map(|(task_id, (_, operation))| ActiveTaskSummary {
                     task_id: *task_id,
-                    class: info.class,
-                    target: info.target.clone(),
-                    operation: info.operation.clone(),
+                    class: operation.class(),
+                    target: operation.target(),
+                    operation: operation.clone(),
                 })
                 .collect::<Vec<_>>()
         };
@@ -2432,8 +2400,8 @@ impl Proposer {
         if active_count > 0 {
             let mut task_counts: HashMap<&str, usize> = HashMap::new();
 
-            for (_, info) in tasks.values() {
-                let task_type = match info.class {
+            for (_, operation) in tasks.values() {
+                let task_type = match operation.class() {
                     TaskClass::Creation => "GameCreation",
                     TaskClass::Resolution => "GameResolution",
                     TaskClass::Proving => "GameProving",
@@ -2716,21 +2684,6 @@ impl Proposer {
         Ok((true, next_sequence_number, parent_game_index))
     }
 
-    #[cfg(test)]
-    async fn should_create_game(&self) -> Result<(bool, u64, u32)> {
-        let mut planned = Vec::new();
-        let mut deduplicated = {
-            let tasks = self.tasks.lock().await;
-            tasks
-                .values()
-                .map(|(_, info)| info.operation.deduplication_key())
-                .collect::<HashSet<_>>()
-        };
-        let result = self.plan_game_creation_decision(&mut planned, &mut deduplicated).await;
-        self.spawn_planned_operations(planned).await;
-        result
-    }
-
     /// Returns the highest timestamp currently proposable under the
     /// configured safety level, from a fresh supernode response.
     async fn max_proposable_timestamp(&self) -> Result<u64> {
@@ -2792,8 +2745,7 @@ impl Proposer {
                     }
                 }
             });
-            let task_info = TaskInfo::from_operation(operation.clone());
-            self.tasks.lock().await.insert(task_id, (handle, task_info));
+            self.tasks.lock().await.insert(task_id, (handle, operation.clone()));
             if let OperationSummary::ProveGame { purpose, .. } = &operation {
                 match purpose {
                     ProvingPurpose::Defense => ProposerGauge::GamesDefenseSpawned.increment(1.0),
@@ -2805,42 +2757,6 @@ impl Proposer {
             tracing::info!(task_id, ?operation, "Spawned proposer task");
         }
         scheduled
-    }
-
-    /// Count active defense proving tasks (`is_defense: true` only; the
-    /// defense cap ignores fast-finality tasks).
-    #[cfg(test)]
-    async fn count_active_defense_tasks(&self) -> u64 {
-        let tasks = self.tasks.lock().await;
-        tasks
-            .values()
-            .filter(|(_, info)| {
-                matches!(
-                    info.operation,
-                    OperationSummary::ProveGame { purpose: ProvingPurpose::Defense, .. }
-                )
-            })
-            .count() as u64
-    }
-
-    /// Count ALL active proving tasks, defense and fast finality alike.
-    ///
-    /// This is the fast-finality capacity number: defense load counts
-    /// against `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT` (upstream parity), so heavy
-    /// defense pauses fast-finality proving AND game creation.
-    #[cfg(test)]
-    async fn count_active_proving_tasks(&self) -> u64 {
-        let tasks = self.tasks.lock().await;
-        tasks.values().filter(|(_, info)| info.class == TaskClass::Proving).count() as u64
-    }
-
-    /// Check if there's an active proving task for a specific game.
-    #[cfg(test)]
-    async fn has_active_proving_for_game(&self, game_address: Address) -> bool {
-        let tasks = self.tasks.lock().await;
-        tasks.values().any(|(_, info)| {
-            info.operation.deduplication_key() == TaskDeduplicationKey::Proving(game_address)
-        })
     }
 
     /// Selects owned challenged games by ascending deadline, up to the configured limit.
@@ -2857,9 +2773,9 @@ impl Proposer {
             let tasks = self.tasks.lock().await;
             tasks
                 .values()
-                .filter(|(_, info)| {
+                .filter(|(_, operation)| {
                     matches!(
-                        info.operation,
+                        operation,
                         OperationSummary::ProveGame { purpose: ProvingPurpose::Defense, .. }
                     )
                 })
@@ -2933,21 +2849,6 @@ impl Proposer {
         }
 
         Ok(tasks_planned)
-    }
-
-    #[cfg(test)]
-    async fn spawn_game_defense_tasks(&self) -> Result<bool> {
-        let mut planned = Vec::new();
-        let mut deduplicated = {
-            let tasks = self.tasks.lock().await;
-            tasks
-                .values()
-                .map(|(_, info)| info.operation.deduplication_key())
-                .collect::<HashSet<_>>()
-        };
-        let result = self.plan_game_defense_tasks(&mut planned, &mut deduplicated).await;
-        self.spawn_planned_operations(planned).await;
-        result
     }
 
     /// Check if proving should be skipped for any reason:
@@ -3738,9 +3639,9 @@ mod tests {
         ClaimPreflightDecision, CompactGameSummary, Cursor, DEADLINE_WARNING_DIVISOR,
         DeadlineStatus, Game, GameFetchResult, GameSyncAction, GameSyncFacts, GameSyncRetention,
         MAX_GAME_DEADLINE_LAG, OperationSummary, PrestateCache, Proposer, ProposerState,
-        ProvingPurpose, SyncDisposition, TaskClass, TaskInfo, TaskSuccess,
-        awaiting_proof, check_deadline_status, classify_claim_preflight, next_proposal_timestamp,
-        classify_game_sync,
+        ProvingPurpose, SyncDisposition, TaskDeduplicationKey, TaskSuccess, awaiting_proof,
+        check_deadline_status, classify_claim_preflight, classify_game_sync,
+        next_proposal_timestamp,
     };
     use crate::{
         ZK_GAME_TYPE,
@@ -4388,10 +4289,20 @@ mod tests {
         asserter.push_success(&block);
     }
 
-    async fn insert_task(proposer: &Proposer, info: TaskInfo) {
+    async fn insert_task(proposer: &Proposer, operation: OperationSummary) {
         let task_id = proposer.next_task_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let handle = tokio::spawn(async { Ok(TaskSuccess::Completed) });
-        proposer.tasks.lock().await.insert(task_id, (handle, info));
+        proposer.tasks.lock().await.insert(task_id, (handle, operation));
+    }
+
+    async fn active_task_keys(proposer: &Proposer) -> HashSet<TaskDeduplicationKey> {
+        proposer
+            .tasks
+            .lock()
+            .await
+            .values()
+            .map(|(_, operation)| operation.deduplication_key())
+            .collect()
     }
 
     #[tokio::test]
@@ -4420,14 +4331,12 @@ mod tests {
                 ..Default::default()
             });
             proposer.l1_view = view.clone();
-            proposer.last_synced_l1_block.store(previous_pin, AtomicOrdering::Relaxed);
             *proposer.last_successful_pinned_l1.write().await =
                 Some(L1BlockRef { number: previous_pin, timestamp: 1_000 });
             match expected {
                 Some(expected) => assert_eq!(proposer.sync_state().await.unwrap(), expected),
                 None => assert!(proposer.sync_state().await.is_err()),
             }
-            assert_eq!(proposer.last_synced_l1_block.load(AtomicOrdering::Relaxed), previous_pin);
             assert_eq!(
                 *proposer.last_successful_pinned_l1.read().await,
                 Some(L1BlockRef { number: previous_pin, timestamp: 1_000 })
@@ -4457,12 +4366,16 @@ mod tests {
         });
         let mut proposer = test_proposer().await;
         proposer.l1_view = view.clone();
-        proposer.last_synced_l1_block.store(3, AtomicOrdering::Relaxed);
+        *proposer.last_successful_pinned_l1.write().await =
+            Some(L1BlockRef { number: 3, timestamp: 900 });
         let cursor = Cursor::from(U256::from(7));
         proposer.state.write().await.cursor = cursor.clone();
 
         assert!(proposer.sync_state().await.is_err());
-        assert_eq!(proposer.last_synced_l1_block.load(AtomicOrdering::Relaxed), 3);
+        assert_eq!(
+            *proposer.last_successful_pinned_l1.read().await,
+            Some(L1BlockRef { number: 3, timestamp: 900 })
+        );
         assert_eq!(proposer.state.read().await.cursor, cursor);
         assert_eq!(view.calls(), vec!["latest_head", "latest_game_index"]);
     }
@@ -4525,11 +4438,15 @@ mod tests {
         });
         let mut proposer = test_proposer().await;
         proposer.l1_view = anchor_failure.clone();
-        proposer.last_synced_l1_block.store(3, AtomicOrdering::Relaxed);
+        *proposer.last_successful_pinned_l1.write().await =
+            Some(L1BlockRef { number: 3, timestamp: 900 });
         let cursor = Cursor::from(U256::ZERO);
         proposer.state.write().await.cursor = cursor.clone();
         assert!(proposer.sync_state().await.is_err());
-        assert_eq!(proposer.last_synced_l1_block.load(AtomicOrdering::Relaxed), 3);
+        assert_eq!(
+            *proposer.last_successful_pinned_l1.read().await,
+            Some(L1BlockRef { number: 3, timestamp: 900 })
+        );
         assert_eq!(proposer.state.read().await.cursor, cursor);
         assert_eq!(
             anchor_failure.calls(),
@@ -4544,9 +4461,13 @@ mod tests {
         });
         let mut proposer = test_proposer().await;
         proposer.l1_view = discovery_failure.clone();
-        proposer.last_synced_l1_block.store(3, AtomicOrdering::Relaxed);
+        *proposer.last_successful_pinned_l1.write().await =
+            Some(L1BlockRef { number: 3, timestamp: 900 });
         assert!(proposer.sync_state().await.is_err());
-        assert_eq!(proposer.last_synced_l1_block.load(AtomicOrdering::Relaxed), 3);
+        assert_eq!(
+            *proposer.last_successful_pinned_l1.read().await,
+            Some(L1BlockRef { number: 3, timestamp: 900 })
+        );
         assert_eq!(proposer.state.read().await.cursor, Cursor::none());
         assert_eq!(
             discovery_failure.calls(),
@@ -5564,6 +5485,15 @@ mod tests {
         use super::*;
         use crate::proving::GameUnprovable;
 
+        pub(super) async fn plan_defenses(
+            proposer: &Proposer,
+        ) -> anyhow::Result<Vec<OperationSummary>> {
+            let mut planned = Vec::new();
+            let mut active = active_task_keys(proposer).await;
+            proposer.plan_game_defense_tasks(&mut planned, &mut active).await?;
+            Ok(planned)
+        }
+
         #[test]
         fn challenged_candidates_sorted_and_filtered() {
             let mut challenged_late = game_with(1, u32::MAX, 100);
@@ -5594,23 +5524,6 @@ mod tests {
                 candidates.iter().map(|(index, ..)| *index).collect::<Vec<_>>(),
                 vec![U256::from(2), U256::from(1)]
             );
-        }
-
-        #[tokio::test]
-        async fn defense_task_accounting_dedups_per_game() {
-            let proposer = test_proposer().await;
-            let game_a = Address::left_padding_from(&[0xa1]);
-            let game_b = Address::left_padding_from(&[0xb1]);
-
-            insert_task(&proposer, TaskInfo::game_proving(game_a, true)).await;
-            insert_task(&proposer, TaskInfo::game_proving(game_b, false)).await;
-            insert_task(&proposer, TaskInfo::resolution()).await;
-
-            assert!(proposer.has_active_proving_for_game(game_a).await);
-            assert!(proposer.has_active_proving_for_game(game_b).await);
-            assert!(!proposer.has_active_proving_for_game(Address::ZERO).await);
-            // Only defense-triggered proving counts against the defense cap.
-            assert_eq!(proposer.count_active_defense_tasks().await, 1);
         }
 
         #[tokio::test]
@@ -5788,21 +5701,18 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn defense_scan_skips_unknown_prestate_games() {
+        async fn defense_planning_skips_unknown_prestate_games() {
             let proposer = test_proposer().await;
             let mut challenged = game_with(1, u32::MAX, 100);
             challenged.proposal_status = ProposalStatus::Challenged;
             challenged.deadline = u64::MAX;
             proposer.state.write().await.games.insert(challenged.index, challenged);
 
-            // The game's prestate is not loadable (empty cache): the scan
-            // must not spawn a defense for it.
-            assert!(!proposer.spawn_game_defense_tasks().await.unwrap());
-            assert_eq!(proposer.tasks.lock().await.len(), 0);
+            assert!(plan_defenses(&proposer).await.unwrap().is_empty());
         }
 
         #[tokio::test]
-        async fn defense_scan_skips_blacklisted_games() {
+        async fn defense_planning_skips_blacklisted_games() {
             let asserter = Asserter::new();
             let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
             let proposer = test_proposer_with_provider(provider).await;
@@ -5827,52 +5737,7 @@ mod tests {
             asserter.push_success(&yes);
             asserter.push_success(&no);
 
-            assert!(!proposer.spawn_game_defense_tasks().await.unwrap());
-            assert!(proposer.tasks.lock().await.is_empty());
-        }
-
-        #[tokio::test]
-        async fn defense_scan_enforces_concurrency_cap() {
-            let mut config = test_config();
-            config.max_concurrent_defense_tasks = std::num::NonZeroU64::MIN;
-            let asserter = Asserter::new();
-            let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
-            let proposer = test_proposer_with_config_and_provider(config, provider).await;
-            proposer.max_prove_duration.set(7200).unwrap();
-
-            // Two challenged games with a known prestate.
-            let prestate = B256::left_padding_from(&[0x77]);
-            proposer
-                .prestates
-                .insert_for_tests(
-                    prestate,
-                    crate::config::PrestatePrograms {
-                        aggregation_elf: vec![1],
-                        range_elf: vec![1],
-                    },
-                )
-                .await;
-            for index in [1u64, 2] {
-                let mut game = game_with(index, u32::MAX, 100 * index);
-                game.proposal_status = ProposalStatus::Challenged;
-                game.deadline = u64::MAX;
-                game.absolute_prestate = prestate;
-                proposer.state.write().await.games.insert(game.index, game);
-            }
-
-            push_claim_error_and_default_head(&asserter);
-            let no: Bytes = false.abi_encode().into();
-            asserter.push_success(&no);
-            asserter.push_success(&no);
-
-            // The scan spawns exactly one task (cap), not two. The spawned
-            // task itself fails when it exhausts the mock responses; only
-            // the scheduling arithmetic is under test here.
-            assert!(proposer.spawn_game_defense_tasks().await.unwrap());
-            let tasks = proposer.tasks.lock().await;
-            let proving_tasks =
-                tasks.values().filter(|(_, info)| info.class == TaskClass::Proving).count();
-            assert_eq!(proving_tasks, 1);
+            assert!(plan_defenses(&proposer).await.unwrap().is_empty());
         }
 
         /// Network mode keeps creation closed until key setup verifies the
@@ -5981,6 +5846,15 @@ mod tests {
                 .await;
         }
 
+        async fn plan_creation(
+            proposer: &Proposer,
+        ) -> (anyhow::Result<(bool, u64, u32)>, Vec<OperationSummary>) {
+            let mut planned = Vec::new();
+            let mut active = active_task_keys(proposer).await;
+            let decision = proposer.plan_game_creation_decision(&mut planned, &mut active).await;
+            (decision, planned)
+        }
+
         #[test]
         fn fast_finality_candidates_filters_and_sorts() {
             let mut unchallenged_late = game_with(1, u32::MAX, 100);
@@ -6013,21 +5887,28 @@ mod tests {
 
         #[tokio::test]
         async fn fast_finality_capacity_gate_skips_creation() {
-            let proposer = test_proposer_with(ff_config(1)).await;
-            // A DEFENSE task counts against fast-finality capacity (upstream
-            // parity): the gate must fire before any chain read, so the stub
-            // RPC is never touched and the call returns Ok.
-            insert_task(
-                &proposer,
-                TaskInfo::game_proving(Address::left_padding_from(&[0xaa]), true),
-            )
-            .await;
-            let (should_create, _, _) = proposer.should_create_game().await.unwrap();
-            assert!(!should_create);
+            for purpose in [ProvingPurpose::Defense, ProvingPurpose::FastFinality] {
+                let proposer = test_proposer_with(ff_config(1)).await;
+                insert_task(
+                    &proposer,
+                    OperationSummary::ProveGame {
+                        factory_index: U256::ZERO,
+                        address: Address::left_padding_from(&[0xaa]),
+                        purpose,
+                    },
+                )
+                .await;
+
+                let (decision, planned) = plan_creation(&proposer).await;
+                let (should_create, _, _) = decision.unwrap();
+
+                assert!(!should_create, "purpose: {purpose:?}");
+                assert!(planned.is_empty(), "purpose: {purpose:?}");
+            }
         }
 
         #[tokio::test]
-        async fn fast_finality_scan_spawns_nearest_deadlines_up_to_limit() {
+        async fn fast_finality_plans_nearest_deadlines_up_to_limit() {
             let asserter = Asserter::new();
             let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
             let proposer = test_proposer_with_config_and_provider(ff_config(3), provider).await;
@@ -6050,14 +5931,12 @@ mod tests {
                 asserter.push_success(&no);
             }
 
-            let (should_create, _, _) = proposer.should_create_game().await.unwrap();
+            let (decision, planned) = plan_creation(&proposer).await;
+            let (should_create, _, _) = decision.unwrap();
             assert!(!should_create);
-            let spawned = proposer
-                .tasks
-                .lock()
-                .await
-                .values()
-                .filter_map(|(_, info)| match &info.operation {
+            let proving = planned
+                .iter()
+                .filter_map(|operation| match operation {
                     OperationSummary::ProveGame {
                         address,
                         purpose: ProvingPurpose::FastFinality,
@@ -6070,11 +5949,11 @@ mod tests {
                 .map(|index| Address::left_padding_from(&[index]))
                 .into_iter()
                 .collect::<HashSet<_>>();
-            assert_eq!(spawned, expected);
+            assert_eq!(proving, expected);
         }
 
         #[tokio::test]
-        async fn fast_finality_scan_skips_foreign_creator() {
+        async fn fast_finality_planning_skips_foreign_creator() {
             let asserter = Asserter::new();
             let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
             let proposer = test_proposer_with_config_and_provider(ff_config(1), provider).await;
@@ -6089,12 +5968,12 @@ mod tests {
             proposer.state.write().await.games.insert(game.index, game);
 
             push_claim_error_and_default_head(&asserter);
-            drop(proposer.should_create_game().await);
-            assert!(proposer.tasks.lock().await.is_empty());
+            let (_, planned) = plan_creation(&proposer).await;
+            assert!(planned.is_empty());
         }
 
         #[tokio::test]
-        async fn fast_finality_scan_skips_blacklisted_game() {
+        async fn fast_finality_planning_skips_blacklisted_game() {
             let asserter = Asserter::new();
             let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
             let proposer = test_proposer_with_config_and_provider(ff_config(1), provider).await;
@@ -6113,12 +5992,12 @@ mod tests {
             let no: Bytes = false.abi_encode().into();
             asserter.push_success(&yes);
             asserter.push_success(&no);
-            drop(proposer.should_create_game().await);
-            assert!(proposer.tasks.lock().await.is_empty());
+            let (_, planned) = plan_creation(&proposer).await;
+            assert!(planned.is_empty());
         }
 
         #[tokio::test]
-        async fn fast_finality_scan_filters_candidates_before_spawning() {
+        async fn fast_finality_planning_filters_candidates() {
             let asserter = Asserter::new();
             let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
             let proposer = test_proposer_with_config_and_provider(ff_config(8), provider).await;
@@ -6152,42 +6031,30 @@ mod tests {
             for game in [foreign_prestate, in_flight, challenged, eligible] {
                 proposer.state.write().await.games.insert(game.index, game);
             }
-            insert_task(&proposer, TaskInfo::game_proving(in_flight_address, false)).await;
+            insert_task(
+                &proposer,
+                OperationSummary::ProveGame {
+                    factory_index: U256::ZERO,
+                    address: in_flight_address,
+                    purpose: ProvingPurpose::FastFinality,
+                },
+            )
+            .await;
 
             push_claim_error_and_default_head(&asserter);
             let no: Bytes = false.abi_encode().into();
             asserter.push_success(&no);
             asserter.push_success(&no);
-            drop(proposer.should_create_game().await);
+            let (_, planned) = plan_creation(&proposer).await;
 
-            let proving = proposer
-                .tasks
-                .lock()
-                .await
-                .values()
-                .filter_map(|(_, info)| match &info.operation {
+            let proving = planned
+                .iter()
+                .filter_map(|operation| match operation {
                     OperationSummary::ProveGame { address, .. } => Some(*address),
                     _ => None,
                 })
                 .collect::<HashSet<_>>();
-            assert_eq!(proving, HashSet::from([in_flight_address, eligible_address]));
-        }
-
-        #[tokio::test]
-        async fn count_active_proving_tasks_counts_both_kinds() {
-            let proposer = test_proposer().await;
-            insert_task(
-                &proposer,
-                TaskInfo::game_proving(Address::left_padding_from(&[0x01]), true),
-            )
-            .await;
-            insert_task(
-                &proposer,
-                TaskInfo::game_proving(Address::left_padding_from(&[0x02]), false),
-            )
-            .await;
-            insert_task(&proposer, TaskInfo::resolution()).await;
-            assert_eq!(proposer.count_active_proving_tasks().await, 2);
+            assert_eq!(proving, HashSet::from([eligible_address]));
         }
 
         #[test]
@@ -6215,7 +6082,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn defense_scan_skips_game_with_inflight_fast_finality_task() {
+        async fn defense_planning_skips_game_with_inflight_fast_finality_task() {
             let proposer = test_proposer().await;
             proposer.max_prove_duration.set(7200).unwrap();
             let prestate = B256::left_padding_from(&[0x88]);
@@ -6230,11 +6097,18 @@ mod tests {
             challenged.absolute_prestate = prestate;
             let game_address = challenged.address;
             proposer.state.write().await.games.insert(challenged.index, challenged);
-            insert_task(&proposer, TaskInfo::game_proving(game_address, false)).await;
+            insert_task(
+                &proposer,
+                OperationSummary::ProveGame {
+                    factory_index: U256::ZERO,
+                    address: game_address,
+                    purpose: ProvingPurpose::FastFinality,
+                },
+            )
+            .await;
 
-            assert!(!proposer.spawn_game_defense_tasks().await.unwrap());
+            assert!(super::defense::plan_defenses(&proposer).await.unwrap().is_empty());
             assert_eq!(proposer.tasks.lock().await.len(), 1, "no second task for the game");
-            assert_eq!(proposer.count_active_defense_tasks().await, 0);
         }
     }
 

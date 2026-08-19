@@ -37,31 +37,27 @@ use crate::{
 
 use crate::proposer::{
     CompactGameSummary, InFlightCreation, OperationSummary, Proposer, ProvingPurpose,
-    SyncDisposition, TaskClass, TaskCompletionOutcome, TaskFailureClass, TaskInfo, TaskSuccess,
+    SyncDisposition, TaskClass, TaskCompletionOutcome, TaskFailureClass, TaskSuccess,
 };
+
+const HEAD_NUMBER: u64 = 1;
+const HEAD_TIMESTAMP: u64 = 1_000;
 
 #[derive(Default)]
 struct ScenarioL1View {
-    head_number: AtomicU64,
-    head_timestamp: AtomicU64,
     latest_head_calls: AtomicU64,
     latest_head_notify: Notify,
     fail_latest_head: AtomicBool,
     fail_respected_game_type: AtomicBool,
     fail_latest_l1_timestamp_on: AtomicU64,
     latest_l1_timestamp_calls: AtomicU64,
-    confirmed_block_unavailable: AtomicBool,
     release_barrier: StdMutex<Option<NamedBarrier>>,
     task_finished: StdMutex<Option<oneshot::Receiver<()>>>,
 }
 
 impl ScenarioL1View {
     fn new() -> Self {
-        Self {
-            head_number: AtomicU64::new(1),
-            head_timestamp: AtomicU64::new(1_000),
-            ..Default::default()
-        }
+        Self::default()
     }
 
     async fn wait_for_cycles(&self, expected: u64) {
@@ -83,17 +79,11 @@ impl L1View for ScenarioL1View {
         if self.fail_latest_head.load(Ordering::Relaxed) {
             anyhow::bail!("latest head unavailable")
         }
-        Ok(Some(L1BlockRef {
-            number: self.head_number.load(Ordering::Relaxed),
-            timestamp: self.head_timestamp.load(Ordering::Relaxed),
-        }))
+        Ok(Some(L1BlockRef { number: HEAD_NUMBER, timestamp: HEAD_TIMESTAMP }))
     }
 
     async fn block_ref(&self, number: u64) -> anyhow::Result<Option<L1BlockRef>> {
-        if self.confirmed_block_unavailable.load(Ordering::Relaxed) {
-            return Ok(None);
-        }
-        Ok(Some(L1BlockRef { number, timestamp: self.head_timestamp.load(Ordering::Relaxed) }))
+        Ok(Some(L1BlockRef { number, timestamp: HEAD_TIMESTAMP }))
     }
 
     async fn registered_game_args(&self, _block: BlockId) -> anyhow::Result<ZKGameArgs> {
@@ -252,7 +242,7 @@ impl L1View for ScenarioL1View {
         if self.fail_latest_l1_timestamp_on.load(Ordering::Relaxed) == call {
             anyhow::bail!("latest timestamp unavailable")
         }
-        Ok(self.head_timestamp.load(Ordering::Relaxed))
+        Ok(HEAD_TIMESTAMP)
     }
 }
 
@@ -380,8 +370,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
     }
 }
 
-async fn proposer_with(mut config: ProposerConfig, l1_view: Arc<ScenarioL1View>) -> Arc<Proposer> {
-    config.prestates_url = "file:///nonexistent".parse().unwrap();
+async fn proposer_with(config: ProposerConfig, l1_view: Arc<ScenarioL1View>) -> Arc<Proposer> {
     let prestates = Arc::new(crate::proposer::PrestateCache::new(config.prestates_url.clone()));
     prestates
         .insert_for_tests(
@@ -427,11 +416,11 @@ fn challenged_game(index: u64, deadline: u64) -> crate::proposer::Game {
 
 async fn insert_task(
     proposer: &Proposer,
-    info: TaskInfo,
+    operation: OperationSummary,
     handle: tokio::task::JoinHandle<anyhow::Result<TaskSuccess>>,
 ) -> u64 {
     let task_id = allocate_task_id(proposer);
-    insert_allocated_task(proposer, task_id, info, handle).await;
+    insert_allocated_task(proposer, task_id, operation, handle).await;
     task_id
 }
 
@@ -442,10 +431,10 @@ fn allocate_task_id(proposer: &Proposer) -> u64 {
 async fn insert_allocated_task(
     proposer: &Proposer,
     task_id: u64,
-    info: TaskInfo,
+    operation: OperationSummary,
     handle: tokio::task::JoinHandle<anyhow::Result<TaskSuccess>>,
 ) {
-    proposer.tasks.lock().await.insert(task_id, (handle, info));
+    proposer.tasks.lock().await.insert(task_id, (handle, operation));
 }
 
 struct ParkedTask {
@@ -454,14 +443,14 @@ struct ParkedTask {
 }
 
 impl ParkedTask {
-    async fn insert(proposer: &Proposer, info: TaskInfo, barrier_name: &str) -> Self {
+    async fn insert(proposer: &Proposer, operation: OperationSummary, barrier_name: &str) -> Self {
         let task_id = allocate_task_id(proposer);
         let barrier = NamedBarrier::new(barrier_name);
         let task_barrier = barrier.clone();
         insert_allocated_task(
             proposer,
             task_id,
-            info,
+            operation,
             tokio::spawn(async move {
                 task_barrier.park(task_id).await;
                 Ok(TaskSuccess::Completed)
@@ -530,7 +519,7 @@ async fn tick_reaps_finished_tasks_before_scheduling_replacements() {
     let (done_tx, done_rx) = oneshot::channel();
     let completed = insert_task(
         &proposer,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
+        OperationSummary::ResolutionSweep,
         tokio::spawn(async move {
             let _ = release_rx.await;
             let _ = done_tx.send(());
@@ -568,7 +557,7 @@ async fn sync_error_skips_reaping_and_scheduling() {
     let (done_tx, done_rx) = oneshot::channel();
     let completed = insert_task(
         &proposer,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
+        OperationSummary::ResolutionSweep,
         tokio::spawn(async move {
             let _ = done_tx.send(());
             Ok(TaskSuccess::Completed)
@@ -691,18 +680,9 @@ async fn snapshot_is_sorted_and_detached_from_proposer_state() {
             },
         );
     }
-    let claim = ParkedTask::insert(
-        &proposer,
-        TaskInfo::from_operation(OperationSummary::ClaimSweep),
-        "claim sweep",
-    )
-    .await;
-    let resolution = ParkedTask::insert(
-        &proposer,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
-        "resolution sweep",
-    )
-    .await;
+    let claim = ParkedTask::insert(&proposer, OperationSummary::ClaimSweep, "claim sweep").await;
+    let resolution =
+        ParkedTask::insert(&proposer, OperationSummary::ResolutionSweep, "resolution sweep").await;
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
     claim.record(&mut control).await;
     resolution.record(&mut control).await;
@@ -787,25 +767,26 @@ async fn settle_reports_each_task_outcome() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view).await;
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
-    let info = || TaskInfo::from_operation(OperationSummary::ResolutionSweep);
+    let operation = || OperationSummary::ResolutionSweep;
     let success =
-        insert_task(&proposer, info(), tokio::spawn(async { Ok(TaskSuccess::Completed) })).await;
+        insert_task(&proposer, operation(), tokio::spawn(async { Ok(TaskSuccess::Completed) }))
+            .await;
     let failed =
-        insert_task(&proposer, info(), tokio::spawn(async { anyhow::bail!("worker failed") }))
+        insert_task(&proposer, operation(), tokio::spawn(async { anyhow::bail!("worker failed") }))
             .await;
     let terminal = insert_task(
         &proposer,
-        TaskInfo::from_operation(OperationSummary::ProveGame {
+        OperationSummary::ProveGame {
             factory_index: U256::ONE,
             address: Address::left_padding_from(&[1]),
             purpose: ProvingPurpose::Defense,
-        }),
+        },
         tokio::spawn(async { Ok(TaskSuccess::TerminallyUnprovable) }),
     )
     .await;
     let panicked = insert_task(
         &proposer,
-        info(),
+        operation(),
         tokio::spawn(async {
             panic!("worker panic");
             #[allow(unreachable_code)]
@@ -838,7 +819,7 @@ async fn settle_rejects_unknown_and_finalized_task_ids() {
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
     let success = insert_task(
         &proposer,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
+        OperationSummary::ResolutionSweep,
         tokio::spawn(async { Ok(TaskSuccess::Completed) }),
     )
     .await;
@@ -859,28 +840,16 @@ async fn settle_rejects_unknown_and_finalized_task_ids() {
 async fn settle_timeout_preserves_unfinished_tasks() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view).await;
-    let info = || TaskInfo::from_operation(OperationSummary::ResolutionSweep);
+    let operation = || OperationSummary::ResolutionSweep;
     let completed_before_timeout =
-        insert_task(&proposer, info(), tokio::spawn(async { Ok(TaskSuccess::Completed) })).await;
-    let blocked = allocate_task_id(&proposer);
-    let barrier = NamedBarrier::new("partial settlement barrier");
-    let task_barrier = barrier.clone();
-    insert_allocated_task(
-        &proposer,
-        blocked,
-        info(),
-        tokio::spawn(async move {
-            task_barrier.park(blocked).await;
-            Ok(TaskSuccess::Completed)
-        }),
-    )
-    .await;
-    barrier.wait_until_reached().await;
+        insert_task(&proposer, operation(), tokio::spawn(async { Ok(TaskSuccess::Completed) }))
+            .await;
+    let blocked = ParkedTask::insert(&proposer, operation(), "partial settlement barrier").await;
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_millis(10));
     assert_eq!(
-        control.settle(&[completed_before_timeout, blocked]).await.unwrap_err(),
+        control.settle(&[completed_before_timeout, blocked.task_id]).await.unwrap_err(),
         ScenarioError::SettlementWatchdog {
-            task_ids: vec![completed_before_timeout, blocked],
+            task_ids: vec![completed_before_timeout, blocked.task_id],
             completions: vec![crate::proposer::TaskCompletion {
                 task_id: completed_before_timeout,
                 class: TaskClass::Resolution,
@@ -893,12 +862,12 @@ async fn settle_timeout_preserves_unfinished_tasks() {
         control.settle(&[completed_before_timeout]).await.unwrap_err(),
         ScenarioError::AlreadyFinalized { task_id: completed_before_timeout }
     );
-    barrier.release();
-    assert_eq!(control.settle(&[blocked]).await.unwrap()[0].task_id, blocked);
+    blocked.release();
+    assert_eq!(control.settle(&[blocked.task_id]).await.unwrap()[0].task_id, blocked.task_id);
 }
 
 #[tokio::test]
-async fn settle_finalizes_task_when_it_finishes_after_reap() {
+async fn task_finishing_after_reap_remains_settleable() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view.clone()).await;
     proposer.sync_state().await.unwrap();
@@ -911,7 +880,7 @@ async fn settle_finalizes_task_when_it_finishes_after_reap() {
     insert_allocated_task(
         &proposer,
         task_id,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
+        OperationSummary::ResolutionSweep,
         tokio::spawn(async move {
             task_barrier.park(task_id).await;
             let _ = done_tx.send(());
@@ -940,7 +909,7 @@ async fn settle_rejects_task_reaped_by_later_tick() {
     let (done_tx, done_rx) = oneshot::channel();
     let reaped = insert_task(
         &proposer,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
+        OperationSummary::ResolutionSweep,
         tokio::spawn(async move {
             let _ = done_tx.send(());
             Ok(TaskSuccess::Completed)
@@ -971,11 +940,11 @@ async fn tick_caps_defense_tasks_at_concurrency_limit() {
     let game_one = challenged_game(1, 5_000);
     let active = ParkedTask::insert(
         &proposer,
-        TaskInfo::from_operation(OperationSummary::ProveGame {
+        OperationSummary::ProveGame {
             factory_index: game_one.index,
             address: game_one.address,
             purpose: ProvingPurpose::Defense,
-        }),
+        },
         "active defense",
     )
     .await;
@@ -999,7 +968,7 @@ async fn tick_caps_defense_tasks_at_concurrency_limit() {
             .lock()
             .await
             .values()
-            .filter(|(_, info)| info.class == TaskClass::Proving)
+            .filter(|(_, operation)| operation.class() == TaskClass::Proving)
             .count(),
         2
     );
@@ -1014,25 +983,13 @@ async fn tick_does_not_schedule_singletons_when_they_are_active() {
     proposer.sync_state().await.unwrap();
     let creation = ParkedTask::insert(
         &proposer,
-        TaskInfo::from_operation(OperationSummary::ReconcileCreation {
-            sequence_number: 9,
-            parent_game_index: 8,
-        }),
+        OperationSummary::ReconcileCreation { sequence_number: 9, parent_game_index: 8 },
         "creation",
     )
     .await;
-    let resolution = ParkedTask::insert(
-        &proposer,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
-        "resolution",
-    )
-    .await;
-    let claim = ParkedTask::insert(
-        &proposer,
-        TaskInfo::from_operation(OperationSummary::ClaimSweep),
-        "claim",
-    )
-    .await;
+    let resolution =
+        ParkedTask::insert(&proposer, OperationSummary::ResolutionSweep, "resolution").await;
+    let claim = ParkedTask::insert(&proposer, OperationSummary::ClaimSweep, "claim").await;
     let mut control = ScenarioControl::new(proposer, Duration::from_secs(1));
     creation.record(&mut control).await;
     resolution.record(&mut control).await;
@@ -1066,83 +1023,45 @@ async fn tick_does_not_schedule_singletons_when_they_are_active() {
 async fn tick_rejects_an_unparked_running_task() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view).await;
-    let running = allocate_task_id(&proposer);
-    let barrier = NamedBarrier::new("resolution barrier");
-    let task_barrier = barrier.clone();
-    let (finish_tx, finish_rx) = oneshot::channel();
-    insert_allocated_task(
-        &proposer,
-        running,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
-        tokio::spawn(async move {
-            task_barrier.park(running).await;
-            let _ = finish_rx.await;
-            Ok(TaskSuccess::Completed)
-        }),
-    )
-    .await;
-    barrier.wait_until_reached().await;
+    let running =
+        ParkedTask::insert(&proposer, OperationSummary::ResolutionSweep, "resolution barrier")
+            .await;
     let mut control = ScenarioControl::new(proposer, Duration::from_secs(1));
 
-    assert_eq!(control.tick().await.unwrap_err(), ScenarioError::RunningTask { task_id: running });
+    assert_eq!(
+        control.tick().await.unwrap_err(),
+        ScenarioError::RunningTask { task_id: running.task_id }
+    );
 
-    barrier.release();
-    let _ = finish_tx.send(());
-    control.settle(&[running]).await.unwrap();
+    running.release();
+    control.settle(&[running.task_id]).await.unwrap();
 }
 
 #[tokio::test]
-async fn tick_accepts_only_the_task_at_a_reached_barrier() {
+async fn tick_accepts_a_recorded_parked_task() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view).await;
-    let running = allocate_task_id(&proposer);
-    let barrier = NamedBarrier::new("resolution barrier");
-    let task_barrier = barrier.clone();
-    let (finish_tx, finish_rx) = oneshot::channel();
-    insert_allocated_task(
-        &proposer,
-        running,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
-        tokio::spawn(async move {
-            task_barrier.park(running).await;
-            let _ = finish_rx.await;
-            Ok(TaskSuccess::Completed)
-        }),
-    )
-    .await;
-    barrier.wait_until_reached().await;
+    let running =
+        ParkedTask::insert(&proposer, OperationSummary::ResolutionSweep, "resolution barrier")
+            .await;
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
 
-    control.record_parked(running, &barrier).await.unwrap();
+    running.record(&mut control).await;
     let parked_tick = control.tick().await.unwrap();
     let scheduled_ids =
         parked_tick.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>();
     control.settle(&scheduled_ids).await.unwrap();
-    barrier.release();
-    let _ = finish_tx.send(());
-    assert_eq!(control.settle(&[running]).await.unwrap()[0].task_id, running);
+    running.release();
+    assert_eq!(control.settle(&[running.task_id]).await.unwrap()[0].task_id, running.task_id);
 }
 
 #[tokio::test]
 async fn record_parked_requires_task_to_reach_matching_barrier() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view).await;
-    let running = allocate_task_id(&proposer);
-    let barrier = NamedBarrier::new("resolution barrier");
-    let task_barrier = barrier.clone();
-    let (finish_tx, finish_rx) = oneshot::channel();
-    insert_allocated_task(
-        &proposer,
-        running,
-        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
-        tokio::spawn(async move {
-            task_barrier.park(running).await;
-            let _ = finish_rx.await;
-            Ok(TaskSuccess::Completed)
-        }),
-    )
-    .await;
-    barrier.wait_until_reached().await;
+    let running =
+        ParkedTask::insert(&proposer, OperationSummary::ResolutionSweep, "resolution barrier")
+            .await;
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
 
     let mismatched = NamedBarrier::new("different task barrier");
@@ -1153,9 +1072,9 @@ async fn record_parked_requires_task_to_reach_matching_barrier() {
     };
     mismatched.wait_until_reached().await;
     assert_eq!(
-        control.record_parked(running, &mismatched).await.unwrap_err(),
+        control.record_parked(running.task_id, &mismatched).await.unwrap_err(),
         ScenarioError::BarrierTaskMismatch {
-            task_id: running,
+            task_id: running.task_id,
             barrier: "different task barrier".into(),
             reached_by: mismatched_task,
         }
@@ -1164,10 +1083,12 @@ async fn record_parked_requires_task_to_reach_matching_barrier() {
     mismatched_worker.await.unwrap();
     let unreached = NamedBarrier::new("not reached");
     assert_eq!(
-        control.record_parked(running, &unreached).await.unwrap_err(),
-        ScenarioError::BarrierNotReached { task_id: running, barrier: "not reached".into() }
+        control.record_parked(running.task_id, &unreached).await.unwrap_err(),
+        ScenarioError::BarrierNotReached {
+            task_id: running.task_id,
+            barrier: "not reached".into(),
+        }
     );
-    barrier.release();
-    let _ = finish_tx.send(());
-    assert_eq!(control.settle(&[running]).await.unwrap()[0].task_id, running);
+    running.release();
+    assert_eq!(control.settle(&[running.task_id]).await.unwrap()[0].task_id, running.task_id);
 }
