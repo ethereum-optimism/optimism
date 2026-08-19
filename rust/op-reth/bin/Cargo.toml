@@ -25,7 +25,6 @@ reth-db.workspace = true
 
 op-version.workspace = true
 
-clap = { workspace = true, features = ["derive", "env"] }
 tracing.workspace = true
 eyre.workspace = true
 

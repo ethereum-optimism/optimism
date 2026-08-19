@@ -9566,7 +9566,6 @@ dependencies = [
 name = "op-reth"
 version = "1.11.3"
 dependencies = [
- "clap",
  "eyre",
  "op-version",
  "reth-cli-util",
@@ -13319,6 +13318,7 @@ dependencies = [
  "alloy-rlp",
  "clap",
  "derive_more 2.1.1",
+ "dirs-next",
  "eyre",
  "futures-util",
  "metrics",
