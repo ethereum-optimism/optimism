@@ -1,4 +1,4 @@
-# `rust-supernode`
+# `lokahi`
 
 Rust implementation of the OP Stack supernode: a multi-chain consensus-layer host that runs several
 OP Stack chains in one process and verifies cross-chain safety in process.
@@ -12,17 +12,35 @@ verification arrive in later changes. The Go implementation in
 
 ```bash
 cd rust
-just build-rust-supernode-debug
-target/debug/rust-supernode
+just build-lokahi-debug
+target/debug/lokahi
 ```
 
 ```console
-Hello Rust Supernode
+Hello Lokahi
 ```
 
 `-V` prints the short version, `--version` prints the full build metadata block. Both come from
 [`op-version`](../op-version), so a release build reports the injected `GIT_VERSION`, `GIT_COMMIT`,
 `GIT_DATE`, and `BUILD_PROFILE`, and a local build reports `0.0.0-dev`.
+
+## Container image
+
+```bash
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/lokahi:develop
+```
+
+`build-images.apko` publishes the image for amd64 and arm64 on every `develop` push, and under the
+release version for a `lokahi/vX.Y.Z` tag. The build has two stages, the same as every other
+Rust image:
+
+- [`melange/op-stack-rust.yaml`](../../melange/op-stack-rust.yaml) compiles the workspace once and
+  packages this binary as the `lokahi` APK.
+- [`apko/lokahi.yaml`](../../apko/lokahi.yaml) assembles that APK on a Wolfi base
+  into the final image.
+
+The image runs as the unprivileged `nonroot` user and its entrypoint is
+`/usr/local/bin/lokahi`.
 
 ## Development
 

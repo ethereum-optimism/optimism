@@ -44,7 +44,7 @@ The OP Stack includes significant Rust implementations:
 - **op-reth**: OP Stack execution client built on reth
 - **op-alloy**: Rust crates providing OP Stack types and providers for the alloy ecosystem
 - **alloy-op-hardforks** / **alloy-op-evm**: OP Stack hardfork and EVM support for alloy
-- **rust-supernode**: Rust rewrite of op-supernode, in early development (`rust/supernode/`)
+- **lokahi**: Rust rewrite of op-supernode, in early development (`rust/lokahi/`)
 
 ### Fault Proof System
 
