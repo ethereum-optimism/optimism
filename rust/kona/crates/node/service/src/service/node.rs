@@ -29,6 +29,7 @@ use kona_rpc::{
     L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
     RpcBuilder, WsRPC, WsServer,
 };
+use kona_safedb::SafeDb;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{ops::Not as _, sync::Arc, time::Duration};
@@ -76,6 +77,8 @@ pub struct RollupNode {
     pub(crate) sequencer_config: SequencerConfig,
     /// Optional derivation delegate provider.
     pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
+    /// The safe-head database. [`DisabledDatabase`] unless a path was configured.
+    pub(crate) safe_db: Arc<dyn SafeDb>,
     /// The interop dependency set for this chain.
     /// Mirrors op-node's `--interop.dependency-set`.
     /// [`StatefulAttributesBuilder`] constructor panics otherwise.
@@ -285,6 +288,7 @@ impl RollupNode {
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
                 self.create_pipeline().await,
+                self.safe_db.clone(),
             )))
         }
     }
@@ -398,7 +402,14 @@ impl RollupNode {
             network_admin_tx,
         )?;
         modules
-            .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
+            .merge(
+                RollupRpc::new(
+                    engine_rpc_client.clone(),
+                    l1_watcher_queries_tx,
+                    self.safe_db.clone(),
+                )
+                .into_rpc(),
+            )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
         if config.dev_enabled() {
             modules

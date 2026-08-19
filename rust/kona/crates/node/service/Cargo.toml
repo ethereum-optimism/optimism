@@ -14,6 +14,7 @@ workspace = true
 [dependencies]
 # workspace
 kona-gossip.workspace = true
+kona-safedb.workspace = true
 kona-disc.workspace = true
 kona-engine.workspace = true
 kona-sources.workspace = true
@@ -68,6 +69,8 @@ http-body-util.workspace = true
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
+kona-safedb = { workspace = true, features = ["rocksdb"] }
+tempfile.workspace = true
 rstest.workspace = true
 arbitrary.workspace = true
 rand.workspace = true

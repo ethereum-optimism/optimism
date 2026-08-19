@@ -11,7 +11,9 @@ use kona_derive::{
     SignalReceiver, StepResult,
 };
 use kona_engine::FinalizeBlockId;
-use kona_protocol::OpAttributesWithParent;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use kona_safedb::{SafeDb, SafeDbError};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::mpsc;
 
@@ -37,6 +39,8 @@ where
     derivation_state_machine: DerivationStateMachine,
     /// The [`L2Finalizer`] tracks derived L2 blocks awaiting finalization.
     pub(crate) finalizer: L2Finalizer,
+    /// Records the safe head reached as of each L1 block.
+    safe_db: Arc<dyn SafeDb>,
 }
 
 impl<DerivationEngineClient_, PipelineSignalReceiver>
@@ -50,11 +54,13 @@ where
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
+        safe_db: Arc<dyn SafeDb>,
     ) -> Self {
         Self {
             pipeline,
             inbound_request_rx,
             engine_client,
+            safe_db,
             derivation_state_machine: DerivationStateMachine::default(),
             finalizer: L2Finalizer::default(),
         }
@@ -140,6 +146,9 @@ where
                                         DerivationError::Sender(Box::new(e))
                                     })?;
                                 }
+                                self.safe_db.safe_head_reset(
+                                    self.derivation_state_machine.last_confirmed_safe_head(),
+                                )?;
                                 self.derivation_state_machine
                                     .update(&DerivationStateUpdate::SignalNeeded)?;
                                 return Err(DerivationError::Yield);
@@ -191,6 +200,7 @@ where
             }
             DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
                 info!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
+                self.record_safe_head(*safe_head)?;
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head))?;
 
@@ -198,6 +208,9 @@ where
             }
             DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
+                // EL sync can land on a chain that diverges from what was recorded, so drop
+                // anything at or above the synced head and keep the contiguous history below it.
+                self.safe_db.safe_head_reset(*safe_head)?;
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::ELSyncCompleted(safe_head))?;
 
@@ -205,6 +218,20 @@ where
             }
         }
 
+        Ok(())
+    }
+
+    /// Records that `safe_head` became safe as of the pipeline's current L1 origin.
+    ///
+    /// The origin is read here rather than carried from where the attributes were derived
+    /// because the state machine blocks derivation between `NewAttributesDerived` and this
+    /// confirmation, so the pipeline cannot have advanced its origin in between.
+    fn record_safe_head(&self, safe_head: L2BlockInfo) -> Result<(), DerivationError> {
+        if !self.safe_db.enabled() {
+            return Ok(());
+        }
+        let origin = self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?;
+        self.safe_db.safe_head_updated(safe_head, origin.id())?;
         Ok(())
     }
 
@@ -282,10 +309,106 @@ pub enum DerivationError {
     /// An error originating from the broadcast sender.
     #[error("Failed to send event to broadcast sender: {0}")]
     Sender(Box<dyn std::error::Error>),
+    /// The safe-head database rejected an update. Derivation stops rather than continuing with
+    /// a recorded history that no longer matches the chain.
+    #[error(transparent)]
+    SafeDb(#[from] SafeDbError),
     /// Failed to receive inbound request
     #[error("Failed to receive inbound request")]
     RequestReceiveFailed,
     /// An invalid state transition occurred.
     #[error(transparent)]
     StateTransitionError(#[from] DerivationStateTransitionError),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actors::derivation::engine_client::MockDerivationEngineClient;
+    use alloy_eips::BlockNumHash;
+    use alloy_primitives::B256;
+    use kona_derive::{
+        PipelineBuilder,
+        test_utils::{TestAttributesBuilder, TestChainProvider, TestDAP, TestL2ChainProvider},
+    };
+    use kona_genesis::RollupConfig;
+    use kona_protocol::BlockInfo;
+    use kona_safedb::SafeDatabase;
+    use tempfile::TempDir;
+
+    const PIPELINE_ORIGIN: u64 = 100;
+    /// Deliberately different from [`PIPELINE_ORIGIN`] so a test that passes cannot be recording
+    /// the safe head's own L1 origin by mistake.
+    const SAFE_HEAD_L1_ORIGIN: u64 = 42;
+
+    fn l1_origin_block() -> BlockInfo {
+        BlockInfo {
+            hash: B256::repeat_byte(1),
+            number: PIPELINE_ORIGIN,
+            parent_hash: B256::ZERO,
+            timestamp: 0,
+        }
+    }
+
+    fn safe_head() -> L2BlockInfo {
+        L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::repeat_byte(2),
+                number: 20,
+                parent_hash: B256::ZERO,
+                timestamp: 0,
+            },
+            l1_origin: BlockNumHash { hash: B256::ZERO, number: SAFE_HEAD_L1_ORIGIN },
+            seq_num: 0,
+        }
+    }
+
+    fn actor(
+        safe_db: Arc<dyn SafeDb>,
+    ) -> DerivationActor<MockDerivationEngineClient, impl Pipeline + SignalReceiver> {
+        let pipeline = PipelineBuilder::new()
+            .rollup_config(Arc::new(RollupConfig::default()))
+            .origin(l1_origin_block())
+            .dap_source(TestDAP::default())
+            .builder(TestAttributesBuilder::default())
+            .chain_provider(TestChainProvider::default())
+            .l2_chain_provider(TestL2ChainProvider::default())
+            .build_polled();
+        let (_tx, rx) = mpsc::channel(1);
+        DerivationActor::new(MockDerivationEngineClient::new(), rx, pipeline, safe_db)
+    }
+
+    #[tokio::test]
+    async fn records_the_safe_head_against_the_pipeline_origin() {
+        let dir = TempDir::new().unwrap();
+        let db = Arc::new(SafeDatabase::new(dir.path()).unwrap());
+        let mut actor = actor(db.clone());
+
+        actor
+            .handle_derivation_actor_request(
+                DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(Box::new(safe_head())),
+            )
+            .await
+            .unwrap();
+
+        let record = db.last_entry().unwrap();
+        assert_eq!(
+            record.l1.number, PIPELINE_ORIGIN,
+            "must record the L1 block derivation reached, not the safe head's own origin"
+        );
+        assert_eq!(record.l1.hash, l1_origin_block().hash);
+        assert_eq!(record.safe_head, safe_head().block_info.id());
+    }
+
+    #[tokio::test]
+    async fn records_nothing_when_the_database_is_disabled() {
+        let mut actor = actor(Arc::new(kona_safedb::DisabledDatabase));
+
+        actor
+            .handle_derivation_actor_request(
+                DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(Box::new(safe_head())),
+            )
+            .await
+            .expect("a disabled database must not fail the request");
+    }
 }

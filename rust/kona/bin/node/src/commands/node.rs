@@ -10,7 +10,7 @@ use crate::{
 use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::JwtSecret;
 use alloy_transport_http::Http;
-use anyhow::{Result, bail};
+use anyhow::{Context as _, Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
@@ -19,6 +19,7 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
+use kona_safedb::{DisabledDatabase, SafeDatabase, SafeDb};
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
@@ -119,6 +120,10 @@ pub struct NodeCommand {
     /// silent state-divergence bug into a startup crash.
     #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
     pub interop_dependency_set: Option<PathBuf>,
+    /// Path at which to maintain a record of the L2 safe head reached as of each L1 block.
+    /// Mirrors op-node's `--safedb.path`. Recording is off when unset.
+    #[arg(long = "safedb.path", env = "KONA_NODE_SAFEDB_PATH")]
+    pub safedb_path: Option<PathBuf>,
     /// P2P CLI arguments.
     #[command(flatten)]
     pub p2p_flags: P2PArgs,
@@ -139,6 +144,7 @@ impl Default for NodeCommand {
             l2_config_file: None,
             l1_config_file: None,
             interop_dependency_set: None,
+            safedb_path: None,
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
             rpc_flags: RpcArgs::default(),
@@ -319,6 +325,7 @@ impl NodeCommand {
         };
 
         let dependency_set = self.load_dependency_set(&cfg)?;
+        let safe_db = self.open_safe_db()?;
 
         RollupNodeBuilder::new(
             cfg,
@@ -331,6 +338,7 @@ impl NodeCommand {
         .with_sequencer_config(self.sequencer_flags.config())
         .with_derivation_delegate_config(self.derivation_delegate_args.config())
         .with_dependency_set(dependency_set)
+        .with_safe_db(safe_db)
         .build()
         .start()
         .await
@@ -344,6 +352,17 @@ impl NodeCommand {
 
     /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
     ///
+    /// Opens the safe-head database, or returns the no-op one when no path was configured.
+    fn open_safe_db(&self) -> Result<Arc<dyn SafeDb>> {
+        let Some(path) = &self.safedb_path else {
+            return Ok(Arc::new(DisabledDatabase));
+        };
+        let db = SafeDatabase::new(path)
+            .with_context(|| format!("failed to open safe head db at {}", path.display()))?;
+        info!(target: "rollup_node", path = %path.display(), "Recording safe head history");
+        Ok(Arc::new(db))
+    }
+
     /// Enforces the invariant that when the rollup config schedules the
     /// Lagoon hardfork, the operator must supply a dependency-set JSON file.
     /// Errors rather than panicking so the operator sees a clear message.

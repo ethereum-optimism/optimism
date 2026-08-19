@@ -2,6 +2,7 @@
 
 use crate::error::SafeDbError;
 use alloy_eips::BlockNumHash;
+use core::fmt::Debug;
 use kona_protocol::L2BlockInfo;
 
 /// A recorded pairing of an L1 block and the L2 safe head derived as of that block.
@@ -18,9 +19,10 @@ pub struct SafeHeadRecord {
 /// Implementations record, per L1 block, the L2 safe head that derivation reached as of that
 /// block, and answer queries in both directions (L1 → safe head and safe head → L1).
 ///
-/// Methods are synchronous: the backing store is queried in-process, and a future actor is
-/// expected to own a single instance and serialize access to it.
-pub trait SafeDb {
+/// Methods are synchronous: the backing store is queried in-process. Implementations are shared
+/// between the derivation actor that records updates and the RPC handlers that read them, so they
+/// must be usable from several tasks at once.
+pub trait SafeDb: Debug + Send + Sync {
     /// Reports whether this database actively records and serves derivation data.
     fn enabled(&self) -> bool;
 
