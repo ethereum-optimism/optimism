@@ -24,6 +24,46 @@ macro_rules! build_info {
     };
 }
 
+/// Declare a binary's cached version accessors: a `BUILD_INFO` static resolved
+/// via [`build_info!`], plus `short_version()` and `long_version()` at the given
+/// visibility.
+///
+/// This has to be a macro rather than a shared function: the `option_env!` reads
+/// in [`build_info!`] only see a binary's injected build values if they expand
+/// inside that binary's own crate.
+///
+/// `BUILD_INFO` is declared in the invoking module so a binary that needs more
+/// than the two version strings can add its own accessors over it.
+///
+/// ```
+/// mod version {
+///     op_version::version_accessors!(pub(crate));
+/// }
+///
+/// assert!(version::long_version().starts_with("Version: "));
+/// ```
+#[macro_export]
+macro_rules! version_accessors {
+    ($vis:vis) => {
+        static BUILD_INFO: ::std::sync::LazyLock<$crate::BuildInfo> =
+            ::std::sync::LazyLock::new(|| $crate::build_info!());
+
+        /// The short version information, e.g. `1.2.3 (abc12345)`.
+        $vis fn short_version() -> &'static str {
+            static SHORT_VERSION: ::std::sync::LazyLock<::std::string::String> =
+                ::std::sync::LazyLock::new(|| BUILD_INFO.short_version());
+            &SHORT_VERSION
+        }
+
+        /// The long, multi-line version information.
+        $vis fn long_version() -> &'static str {
+            static LONG_VERSION: ::std::sync::LazyLock<::std::string::String> =
+                ::std::sync::LazyLock::new(|| BUILD_INFO.long_version());
+            &LONG_VERSION
+        }
+    };
+}
+
 /// Resolved, normalized build metadata for a binary.
 ///
 /// Construct it with the [`build_info!`] macro (the normal entry point), or with
