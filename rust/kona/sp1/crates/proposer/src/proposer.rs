@@ -41,8 +41,8 @@ use crate::{
     contract::{DisputeGameFactory::DisputeGameFactoryInstance, GameStatus, ProposalStatus},
     metrics::ProposerGauge,
     ports::{
-        ActionExecutor, ClaimPreflight, L1View, ProofEngine, ProofInputs, QueryTime,
-        SuperRootSource,
+        ActionExecutor, BondState, ClaimPreflight, GameLifecycle, L1View, ProofEngine, ProofInputs,
+        QueryTime, SuperRootSource,
     },
     prover::{ProofKeys, ProofProvider, setup_proof_keys},
     proving::{GameProofInputs, fetch_span_responses, is_unprovable, response_trusted},
@@ -131,7 +131,7 @@ impl Default for ProposerIdentity {
 /// Games form a directed acyclic graph where each game builds upon a parent game, extending the
 /// chain with a new proposed output root. The proposer tracks these games to determine when to
 /// propose new games, defend existing ones, resolve completed games and claim bonds.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Game {
     /// Index of the game in the `DisputeGameFactory`.
     pub index: U256,
@@ -394,6 +394,121 @@ fn classify_claim_preflight(preflight: &ClaimPreflight) -> ClaimPreflightDecisio
         return ClaimPreflightDecision::AlreadyClaimed;
     }
     ClaimPreflightDecision::AwaitMaturity { withdrawal_timestamp: withdrawal.timestamp }
+}
+
+struct GameDiscovery {
+    anchor_deadline: Option<u64>,
+    invalid_game_ids: Vec<U256>,
+    newly_pending: Vec<U256>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GameSyncTarget {
+    index: U256,
+    address: Address,
+    weth: Address,
+    anchor_state_registry: Address,
+    absolute_prestate: B256,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GameSyncFacts {
+    InProgress {
+        index: U256,
+        lifecycle: GameLifecycle,
+        parent_resolved: bool,
+        owned: bool,
+    },
+    DefenderWins {
+        index: U256,
+        game_address: Address,
+        lifecycle: GameLifecycle,
+        bond: BondState,
+        canonical_head_index: Option<U256>,
+    },
+    ChallengerWins {
+        index: U256,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GameSyncRetention {
+    CanonicalHead,
+    Anchor,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GameSyncAction {
+    Update {
+        index: U256,
+        lifecycle: GameLifecycle,
+        should_attempt_to_resolve: bool,
+        should_attempt_to_claim_bond: bool,
+        retention: Option<GameSyncRetention>,
+    },
+    Remove(U256),
+    RemoveSubtree(U256),
+}
+
+fn classify_game_sync(
+    facts: GameSyncFacts,
+    now_ts: u64,
+    anchor_address: Address,
+) -> Result<GameSyncAction> {
+    match facts {
+        GameSyncFacts::InProgress { index, lifecycle, parent_resolved, owned } => {
+            let is_game_over = match lifecycle.proposal_status {
+                ProposalStatus::Unchallenged => now_ts > lifecycle.deadline,
+                ProposalStatus::UnchallengedAndValidProofProvided |
+                ProposalStatus::ChallengedAndValidProofProvided => true,
+                ProposalStatus::Challenged | ProposalStatus::Resolved => false,
+            };
+            Ok(GameSyncAction::Update {
+                index,
+                lifecycle,
+                should_attempt_to_resolve: parent_resolved && is_game_over && owned,
+                should_attempt_to_claim_bond: false,
+                retention: None,
+            })
+        }
+        GameSyncFacts::DefenderWins {
+            index,
+            game_address,
+            lifecycle,
+            bond,
+            canonical_head_index,
+        } => {
+            let withdrawal_ts = bond.withdrawal_timestamp.try_into().unwrap_or(u64::MAX);
+            let weth_delay = bond.delay.try_into().context("DelayedWETH delay exceeds u64")?;
+            let bond_action = bond_claim_action(
+                lifecycle.is_finalized,
+                bond.credit,
+                bond.withdrawal_amount,
+                withdrawal_ts,
+                weth_delay,
+                now_ts,
+            );
+            let (should_attempt_to_claim_bond, retention) = match bond_action {
+                BondClaimAction::Unlock | BondClaimAction::Payout => (true, None),
+                BondClaimAction::Wait => (false, None),
+                BondClaimAction::Done if canonical_head_index == Some(index) => {
+                    (false, Some(GameSyncRetention::CanonicalHead))
+                }
+                BondClaimAction::Done if anchor_address == game_address => {
+                    (false, Some(GameSyncRetention::Anchor))
+                }
+                BondClaimAction::Done => return Ok(GameSyncAction::Remove(index)),
+            };
+            Ok(GameSyncAction::Update {
+                index,
+                lifecycle,
+                should_attempt_to_resolve: false,
+                should_attempt_to_claim_bond,
+                retention,
+            })
+        }
+        GameSyncFacts::ChallengerWins { index } => Ok(GameSyncAction::RemoveSubtree(index)),
+    }
 }
 
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
@@ -750,30 +865,66 @@ impl Proposer {
         ProposerGauge::FactoryLatestGameIndex
             .set(pinned_latest_index.map_or(-1.0, |i| i.to::<u64>() as f64));
 
-        // 1. Load new games.
-        let latest_index = if let Some(index) = pinned_latest_index {
-            Cursor::from(index)
-        } else {
-            // No games at the pinned block. Drop index-keyed caches so future
-            // cycles cannot reuse entries from a prior factory history.
-            {
-                let mut state = self.state.write().await;
-                state.reset_factory_cache();
-            }
+        let Some(latest_index) = pinned_latest_index else {
+            self.state.write().await.reset_factory_cache();
             self.pending_games.write().await.clear();
             ProposerGauge::SyncCursor.set(-1.0);
             return Ok(());
         };
-
+        let latest_index = Cursor::from(latest_index);
         let anchor_address = self.l1_view.registered_anchor_game(pinned_block).await?;
 
+        let discovery =
+            self.discover_new_games(latest_index.clone(), anchor_address, pinned_block).await?;
+        ProposerGauge::SyncCursor.set(latest_index.index().map_or(-1.0, |i| i.to::<u64>() as f64));
+
+        self.prune_invalid_games(discovery.invalid_game_ids).await;
+        self.revalidate_pending_games(
+            &discovery.newly_pending,
+            discovery.anchor_deadline,
+            pinned_block,
+        )
+        .await;
+
+        let (targets, known_prestates) = self.game_sync_targets().await;
+        if targets.is_empty() {
+            return Ok(());
+        }
+
+        let mut actions = Vec::with_capacity(targets.len());
+        for target in targets {
+            let index = target.index;
+            let action = self
+                .observe_game_sync(target, &known_prestates, pinned_block)
+                .await
+                .and_then(|facts| classify_game_sync(facts, pinned_timestamp, anchor_address));
+            match action {
+                Ok(action) => actions.push(action),
+                Err(error) => {
+                    tracing::warn!(
+                        game_index = %index,
+                        error = %error,
+                        "Game status sync failed; skipping this game for this cycle"
+                    );
+                    ProposerGauge::GameSyncError.increment(1.0);
+                }
+            }
+        }
+        self.apply_game_sync_actions(actions).await;
+
+        Ok(())
+    }
+
+    /// Walks new factory entries and advances the cursor only when no fetch fails.
+    async fn discover_new_games(
+        &self,
+        latest_index: Cursor,
+        anchor_address: Address,
+        pinned_block: BlockId,
+    ) -> Result<GameDiscovery> {
         let (cursor, factory_reset) = {
             let mut state = self.state.write().await;
             let current_cursor = state.cursor.clone();
-
-            // This should never/rarely happen but in a case where the factory is redeployed/reset
-            // while the proposer keeps running, the cursor is reset to zero to avoid skipping
-            // any games.
             if latest_index < current_cursor {
                 tracing::warn!(
                     latest_index = %latest_index,
@@ -786,48 +937,34 @@ impl Proposer {
                 (current_cursor, false)
             }
         };
-
         if factory_reset {
             self.pending_games.write().await.clear();
         }
 
         let mut index = latest_index.clone();
-        let mut anchor_deadline: Option<u64> = None;
+        let mut anchor_deadline = None;
         let mut invalid_game_ids = Vec::new();
-        let mut newly_pending: Vec<U256> = Vec::new();
-        loop {
-            if index == cursor {
-                break;
-            }
-
+        let mut newly_pending = Vec::new();
+        while index != cursor {
             let i = index.index().expect("must have an index here");
             let fetch_result = match self.fetch_game(i, pinned_block).await {
                 Ok(result) => result,
-                Err(e) => {
-                    // A failed fetch aborts the whole cycle: acting on a
-                    // partially discovered topology could select a parent
-                    // whose unfetched ancestry is invalid. The cursor stays
-                    // put so the range is re-walked next cycle; persistent
-                    // failure is visible via the warn, the game_sync_error
-                    // counter, and a flat sync cursor.
+                Err(error) => {
                     tracing::warn!(
                         game_index = %index,
-                        error = %e,
+                        error = %error,
                         "Game fetch failed; aborting the sync cycle"
                     );
                     ProposerGauge::GameSyncError.increment(1.0);
-                    return Err(e);
+                    return Err(error);
                 }
             };
 
             match fetch_result {
                 GameFetchResult::ValidGame { game_address, deadline } => {
-                    // First time we hit the anchor, record its deadline
                     if game_address == anchor_address {
                         anchor_deadline = Some(deadline);
                     }
-
-                    // Once we know the anchor deadline, enforce the lag constraint.
                     if let Some(anchor_d) = anchor_deadline &&
                         beyond_deadline_lag(anchor_d, deadline)
                     {
@@ -842,358 +979,231 @@ impl Proposer {
                     }
                 }
                 GameFetchResult::UnsupportedType { game_address } => {
-                    // Stop fetching once we find the anchor on an unsupported game.
                     if game_address == anchor_address {
                         break;
                     }
                 }
                 GameFetchResult::AlreadyExists => {}
-                GameFetchResult::InvalidGame { index } => {
-                    invalid_game_ids.push(index);
-                }
-                GameFetchResult::Pending { index, .. } => {
-                    newly_pending.push(index);
-                }
+                GameFetchResult::InvalidGame { index } => invalid_game_ids.push(index),
+                GameFetchResult::Pending { index, .. } => newly_pending.push(index),
             }
 
             index.step_back();
         }
 
-        // The loop only completes on a full walk (a fetch failure returns
-        // above), so the cursor advance is unconditional; re-walked
-        // processed games hit `AlreadyExists`, which is idempotent.
-        ProposerGauge::SyncCursor.set(latest_index.index().map_or(-1.0, |i| i.to::<u64>() as f64));
-        {
-            let mut state = self.state.write().await;
-            state.cursor = latest_index;
-        }
+        self.state.write().await.cursor = latest_index;
+        Ok(GameDiscovery { anchor_deadline, invalid_game_ids, newly_pending })
+    }
 
-        if !invalid_game_ids.is_empty() {
-            let mut state = self.state.write().await;
-            for idx in invalid_game_ids {
-                tracing::warn!(
-                    game_index = %idx,
-                    "Removing invalid game and its subtree from cache"
-                );
-                state.invalidate_subtree(idx);
-            }
+    async fn prune_invalid_games(&self, invalid_game_ids: Vec<U256>) {
+        if invalid_game_ids.is_empty() {
+            return;
         }
-
-        // Re-validate previously pending games and record new ones
-        // (FlowGaps #1): a pending game sits outside the DAG until its
-        // timestamp becomes safe from this node's view; the verdict must not
-        // be made permanent by the cursor.
-        {
-            let previously_pending: Vec<U256> = {
-                let pending = self.pending_games.read().await;
-                pending.iter().copied().filter(|idx| !newly_pending.contains(idx)).collect()
-            };
-            self.pending_games.write().await.extend(newly_pending.iter().copied());
-            // Anchor deadline for the eviction cutoff: prefer the walk's
-            // observation this cycle, fall back to the cached anchor game.
-            // Neither known -> skip eviction this cycle (it is an
-            // optimization; nothing is lost by waiting).
-            let anchor_deadline_for_eviction = match anchor_deadline {
-                Some(deadline) => Some(deadline),
-                None => self.state.read().await.anchor_game.as_ref().map(|g| g.deadline),
-            };
-            for idx in previously_pending {
-                match self.fetch_game(idx, pinned_block).await {
-                    Ok(GameFetchResult::Pending { deadline, prestate, .. }) => {
-                        // Owned games (prestate in the usable set) are
-                        // exempt from eviction: an evicted own game loses
-                        // defense, resolution, and bond tracking until a
-                        // restart after the supernode heals. The
-                        // ensure_loaded attempt is bounded by the
-                        // negative-cache window for unknown prestates.
-                        let owned = {
-                            let _ = self.prestates.ensure_loaded(prestate).await;
-                            self.prestates.known_prestates().await.contains(&prestate)
-                        };
-                        if owned {
-                            tracing::debug!(
-                                game_index = %idx,
-                                "Keeping pending owned game re-checkable (eviction exempt)"
-                            );
-                        } else if let Some(anchor_d) = anchor_deadline_for_eviction &&
-                            pending_evictable(anchor_d, deadline)
-                        {
-                            tracing::warn!(
-                                game_index = %idx,
-                                game_deadline = deadline,
-                                anchor_deadline = anchor_d,
-                                "Evicting pending game whose deadline fell behind the anchor beyond the lag cutoff"
-                            );
-                            self.pending_games.write().await.remove(&idx);
-                        }
-                    }
-                    Ok(GameFetchResult::InvalidGame { index }) => {
-                        self.pending_games.write().await.remove(&index);
-                        self.state.write().await.invalidate_subtree(index);
-                    }
-                    Ok(_) => {
-                        self.pending_games.write().await.remove(&idx);
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            game_index = %idx,
-                            error = %e,
-                            "Pending game re-validation failed; retrying next cycle"
-                        );
-                        ProposerGauge::GameSyncError.increment(1.0);
-                    }
-                }
-            }
+        let mut state = self.state.write().await;
+        for index in invalid_game_ids {
+            tracing::warn!(
+                game_index = %index,
+                "Removing invalid game and its subtree from cache"
+            );
+            state.invalidate_subtree(index);
         }
+    }
 
-        // 2. Synchronize the status of all cached games.
-        let games = {
-            let state = self.state.read().await;
-            state
-                .games
-                .values()
-                .map(|game| {
-                    (
-                        game.index,
-                        game.address,
-                        game.weth,
-                        game.anchor_state_registry,
-                        game.absolute_prestate,
-                    )
-                })
-                .collect::<Vec<_>>()
+    /// Rechecks prior pending games; games first seen this cycle wait until the next sync.
+    /// Loads each pending prestate before applying the eviction cutoff.
+    async fn revalidate_pending_games(
+        &self,
+        newly_pending: &[U256],
+        discovered_anchor_deadline: Option<u64>,
+        pinned_block: BlockId,
+    ) {
+        let previously_pending = {
+            let pending = self.pending_games.read().await;
+            pending.iter().copied().filter(|idx| !newly_pending.contains(idx)).collect::<Vec<_>>()
+        };
+        self.pending_games.write().await.extend(newly_pending.iter().copied());
+        let anchor_deadline = match discovered_anchor_deadline {
+            Some(deadline) => Some(deadline),
+            None => self.state.read().await.anchor_game.as_ref().map(|game| game.deadline),
         };
 
-        if !games.is_empty() {
-            // Load the prestate programs of every cached game, not just the
-            // registered one, so games created before a prestate rotation
-            // keep their ownership (prove = resolve = claim set). The
-            // negative cache bounds re-fetch attempts for unknown
-            // prestates.
-            let mut prestates: Vec<B256> =
-                games.iter().map(|(_, _, _, _, prestate)| *prestate).collect();
-            prestates.sort_unstable();
-            prestates.dedup();
-            for prestate in prestates {
-                let _ = self.prestates.ensure_loaded(prestate).await;
-            }
-            let known_prestates = self.prestates.known_prestates().await;
-
-            let now_ts = pinned_timestamp;
-            let proposer_address = self.proposer_address;
-
-            enum GameSyncAction {
-                Update {
-                    index: U256,
-                    status: GameStatus,
-                    proposal_status: ProposalStatus,
-                    deadline: u64,
-                    should_attempt_to_resolve: bool,
-                    should_attempt_to_claim_bond: bool,
-                },
-                Remove(U256),
-                RemoveSubtree(U256),
-            }
-
-            let mut actions = Vec::with_capacity(games.len());
-
-            for (index, game_address, game_weth, game_asr, absolute_prestate) in games {
-                let synced: Result<()> = async {
-                let lifecycle = self
-                    .l1_view
-                    .game_lifecycle(game_address, game_asr, pinned_block)
-                    .await?;
-                let proposal_status = lifecycle.proposal_status;
-                let status = lifecycle.status;
-                let deadline = lifecycle.deadline;
-                let parent_index = lifecycle.parent_index;
-                let is_finalized = lifecycle.is_finalized;
-
-                match status {
-                    GameStatus::InProgress => {
-                        let parent_resolved = if parent_index == u32::MAX {
-                            true
-                        } else {
-                            GameStatus::try_from(
-                                self.l1_view
-                                    .parent_game_status(parent_index, pinned_block)
-                                    .await?,
-                            )
-                            .context("invalid parent game status")? == GameStatus::DefenderWins
-                        };
-                        // Proof-provided statuses (whether set by us or by a
-                        // third party, since prove() is permissionless) make
-                        // the game "over" for resolution purposes.
-                        let is_game_over = match proposal_status {
-                            ProposalStatus::Unchallenged => now_ts > deadline,
-                            ProposalStatus::UnchallengedAndValidProofProvided |
-                            ProposalStatus::ChallengedAndValidProofProvided => true,
-                            _ => false,
-                        };
-
-                        // Cached games already passed game-type validation
-                        // in fetch_game. Ownership is prestate-based: the
-                        // resolve set equals the willing-to-prove set.
-                        let should_attempt_to_resolve = parent_resolved &&
-                            is_game_over &&
-                            known_prestates.contains(&absolute_prestate);
-
-                        actions.push(GameSyncAction::Update {
-                            index,
-                            status,
-                            proposal_status,
-                            deadline,
-                            should_attempt_to_resolve,
-                            should_attempt_to_claim_bond: false,
-                        });
-                    }
-                    GameStatus::DefenderWins => {
-                        let bond = self
-                            .l1_view
-                            .bond_state(
-                                game_address,
-                                game_weth,
-                                proposer_address,
-                                pinned_block,
-                            )
-                            .await?;
-                        let credit = bond.credit;
-                        let withdrawal_amount = bond.withdrawal_amount;
-                        let withdrawal_ts: u64 =
-                            bond.withdrawal_timestamp.try_into().unwrap_or(u64::MAX);
-                        let weth_delay: u64 = bond
-                            .delay
-                            .try_into()
-                            .context("DelayedWETH delay exceeds u64")?;
-
-                        let action = bond_claim_action(
-                            is_finalized,
-                            credit,
-                            withdrawal_amount,
-                            withdrawal_ts,
-                            weth_delay,
-                            now_ts,
+        for index in previously_pending {
+            match self.fetch_game(index, pinned_block).await {
+                Ok(GameFetchResult::Pending { deadline, prestate, .. }) => {
+                    let _ = self.prestates.ensure_loaded(prestate).await;
+                    let owned = self.prestates.known_prestates().await.contains(&prestate);
+                    if owned {
+                        tracing::debug!(
+                            game_index = %index,
+                            "Keeping pending owned game re-checkable (eviction exempt)"
                         );
-                        let done = action == BondClaimAction::Done;
-
-                        if done {
-                            // Game removal policy:
-                            // - Canonical head games are retained even with zero credit to maintain
-                            //   chain consistency.
-                            // - Anchor games are retained as they serve as the root of the dispute
-                            //   game tree.
-                            // - All other games with bonds already claimed are removed to free
-                            //   cache memory.
-                            let canonical_head_index = {
-                                let state = self.state.read().await;
-                                state.canonical_head_index
-                            };
-
-                            let should_remove = if canonical_head_index == Some(index) {
-                                tracing::debug!(game_index = %index, "Retaining game: canonical head");
-                                false
-                            } else if anchor_address == game_address {
-                                tracing::debug!(game_index = %index, "Retaining game: anchor game");
-                                false
-                            } else {
-                                true
-                            };
-
-                            if should_remove {
-                                actions.push(GameSyncAction::Remove(index));
-                            } else {
-                                actions.push(GameSyncAction::Update {
-                                    index,
-                                    status,
-                                    proposal_status,
-                                    deadline,
-                                    should_attempt_to_resolve: false,
-                                    should_attempt_to_claim_bond: false,
-                                });
-                            }
-                        } else {
-                            actions.push(GameSyncAction::Update {
-                                index,
-                                status,
-                                proposal_status,
-                                deadline,
-                                should_attempt_to_resolve: false,
-                                should_attempt_to_claim_bond: matches!(
-                                    action,
-                                    BondClaimAction::Unlock | BondClaimAction::Payout
-                                ),
-                            });
-                        }
-                    }
-                    GameStatus::ChallengerWins => {
-                        actions.push(GameSyncAction::RemoveSubtree(index));
+                    } else if let Some(anchor_deadline) = anchor_deadline &&
+                        pending_evictable(anchor_deadline, deadline)
+                    {
+                        tracing::warn!(
+                            game_index = %index,
+                            game_deadline = deadline,
+                            anchor_deadline,
+                            "Evicting pending game whose deadline fell behind the anchor beyond the lag cutoff"
+                        );
+                        self.pending_games.write().await.remove(&index);
                     }
                 }
-                Ok(())
+                Ok(GameFetchResult::InvalidGame { index }) => {
+                    self.pending_games.write().await.remove(&index);
+                    self.state.write().await.invalidate_subtree(index);
                 }
-                .await;
-                if let Err(e) = synced {
+                Ok(_) => {
+                    self.pending_games.write().await.remove(&index);
+                }
+                Err(error) => {
                     tracing::warn!(
                         game_index = %index,
-                        error = %e,
-                        "Game status sync failed; skipping this game for this cycle"
+                        error = %error,
+                        "Pending game re-validation failed; retrying next cycle"
                     );
                     ProposerGauge::GameSyncError.increment(1.0);
                 }
             }
+        }
+    }
 
-            let mut state = self.state.write().await;
-            for action in actions {
-                match action {
-                    GameSyncAction::Update {
-                        index,
-                        status,
-                        proposal_status,
-                        deadline,
-                        should_attempt_to_resolve,
-                        should_attempt_to_claim_bond,
-                    } => {
-                        if let Some(game) = state.games.get_mut(&index) {
-                            game.status = status;
-                            game.proposal_status = proposal_status;
-                            game.deadline = deadline;
-                            game.should_attempt_to_resolve = should_attempt_to_resolve;
-                            game.should_attempt_to_claim_bond = should_attempt_to_claim_bond;
+    async fn game_sync_targets(&self) -> (Vec<GameSyncTarget>, HashSet<B256>) {
+        let targets = {
+            let state = self.state.read().await;
+            state
+                .games
+                .values()
+                .map(|game| GameSyncTarget {
+                    index: game.index,
+                    address: game.address,
+                    weth: game.weth,
+                    anchor_state_registry: game.anchor_state_registry,
+                    absolute_prestate: game.absolute_prestate,
+                })
+                .collect::<Vec<_>>()
+        };
+        if targets.is_empty() {
+            return (targets, HashSet::new());
+        }
+
+        let mut prestates =
+            targets.iter().map(|target| target.absolute_prestate).collect::<Vec<_>>();
+        prestates.sort_unstable();
+        prestates.dedup();
+        for prestate in prestates {
+            let _ = self.prestates.ensure_loaded(prestate).await;
+        }
+        (targets, self.prestates.known_prestates().await)
+    }
+
+    /// Reads only the status-specific facts needed to classify one game.
+    async fn observe_game_sync(
+        &self,
+        target: GameSyncTarget,
+        known_prestates: &HashSet<B256>,
+        pinned_block: BlockId,
+    ) -> Result<GameSyncFacts> {
+        let lifecycle = self
+            .l1_view
+            .game_lifecycle(target.address, target.anchor_state_registry, pinned_block)
+            .await?;
+        match lifecycle.status {
+            GameStatus::InProgress => {
+                let parent_resolved = if lifecycle.parent_index == u32::MAX {
+                    true
+                } else {
+                    GameStatus::try_from(
+                        self.l1_view
+                            .parent_game_status(lifecycle.parent_index, pinned_block)
+                            .await?,
+                    )
+                    .context("invalid parent game status")? ==
+                        GameStatus::DefenderWins
+                };
+                Ok(GameSyncFacts::InProgress {
+                    index: target.index,
+                    lifecycle,
+                    parent_resolved,
+                    owned: known_prestates.contains(&target.absolute_prestate),
+                })
+            }
+            GameStatus::DefenderWins => {
+                let bond = self
+                    .l1_view
+                    .bond_state(target.address, target.weth, self.proposer_address, pinned_block)
+                    .await?;
+                let canonical_head_index = self.state.read().await.canonical_head_index;
+                Ok(GameSyncFacts::DefenderWins {
+                    index: target.index,
+                    game_address: target.address,
+                    lifecycle,
+                    bond,
+                    canonical_head_index,
+                })
+            }
+            GameStatus::ChallengerWins => Ok(GameSyncFacts::ChallengerWins { index: target.index }),
+        }
+    }
+
+    /// Applies the completed action batch under one state write lock.
+    async fn apply_game_sync_actions(&self, actions: Vec<GameSyncAction>) {
+        let mut state = self.state.write().await;
+        for action in actions {
+            match action {
+                GameSyncAction::Update {
+                    index,
+                    lifecycle,
+                    should_attempt_to_resolve,
+                    should_attempt_to_claim_bond,
+                    retention,
+                } => {
+                    match retention {
+                        Some(GameSyncRetention::CanonicalHead) => {
+                            tracing::debug!(game_index = %index, "Retaining game: canonical head");
+                        }
+                        Some(GameSyncRetention::Anchor) => {
+                            tracing::debug!(game_index = %index, "Retaining game: anchor game");
+                        }
+                        None => {}
+                    }
+                    if let Some(game) = state.games.get_mut(&index) {
+                        game.status = lifecycle.status;
+                        game.proposal_status = lifecycle.proposal_status;
+                        game.deadline = lifecycle.deadline;
+                        game.should_attempt_to_resolve = should_attempt_to_resolve;
+                        game.should_attempt_to_claim_bond = should_attempt_to_claim_bond;
+                    }
+                }
+                GameSyncAction::Remove(index) => {
+                    state.games.remove(&index);
+                    tracing::debug!(game_index = %index, "Removed game from cache");
+                }
+                GameSyncAction::RemoveSubtree(index) => {
+                    let guarded_addr = *self.last_created_game_address.lock().await;
+                    if guarded_addr != Address::ZERO {
+                        let subtree = state.descendants_of(index);
+                        let guard_in_subtree =
+                            std::iter::once(&index).chain(subtree.iter()).any(|idx| {
+                                state
+                                    .games
+                                    .get(idx)
+                                    .is_some_and(|game| game.address == guarded_addr)
+                            });
+                        if guard_in_subtree {
+                            self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
+                            *self.last_created_game_address.lock().await = Address::ZERO;
+                            tracing::info!(
+                                ?guarded_addr,
+                                root_index = %index,
+                                "Reset creation guard: tracked game removed by ChallengerWins"
+                            );
                         }
                     }
-                    GameSyncAction::Remove(index) => {
-                        state.games.remove(&index);
-                        tracing::debug!(game_index = %index, "Removed game from cache");
-                    }
-                    GameSyncAction::RemoveSubtree(index) => {
-                        // Reset the duplicate-creation guard if the subtree being
-                        // removed contains the exact game we created (matched by
-                        // address, which is globally unique and race-free).
-                        let guarded_addr = *self.last_created_game_address.lock().await;
-                        if guarded_addr != Address::ZERO {
-                            let subtree = state.descendants_of(index);
-                            let guard_in_subtree =
-                                std::iter::once(&index).chain(subtree.iter()).any(|idx| {
-                                    state.games.get(idx).is_some_and(|g| g.address == guarded_addr)
-                                });
-                            if guard_in_subtree {
-                                self.last_created_game_l2_sequence_number
-                                    .store(0, Ordering::Relaxed);
-                                *self.last_created_game_address.lock().await = Address::ZERO;
-                                tracing::info!(
-                                    ?guarded_addr,
-                                    root_index = %index,
-                                    "Reset creation guard: tracked game removed by ChallengerWins"
-                                );
-                            }
-                        }
-                        state.invalidate_subtree(index);
-                    }
+                    state.invalidate_subtree(index);
                 }
             }
         }
-
-        Ok(())
     }
 
     /// Synchronizes the anchor game from the registry.
@@ -3374,8 +3384,9 @@ mod tests {
 
     use super::{
         ClaimPreflightDecision, Cursor, DEADLINE_WARNING_DIVISOR, DeadlineStatus, Game,
-        GameFetchResult, PrestateCache, Proposer, ProposerState, TaskInfo, awaiting_proof,
-        check_deadline_status, classify_claim_preflight, next_proposal_timestamp,
+        GameFetchResult, GameSyncAction, GameSyncFacts, GameSyncRetention, MAX_GAME_DEADLINE_LAG,
+        PrestateCache, Proposer, ProposerState, TaskInfo, awaiting_proof, check_deadline_status,
+        classify_claim_preflight, classify_game_sync, next_proposal_timestamp,
     };
     use crate::{
         ZK_GAME_TYPE,
@@ -3924,6 +3935,18 @@ mod tests {
         }
     }
 
+    fn write_test_prestate_artifacts(name: &str, prestate: B256) -> std::path::PathBuf {
+        let dir = std::env::temp_dir()
+            .join(format!("kona-sp1-proposer-sync-test-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for suffix in [".agg.bin.gz", ".range.bin.gz"] {
+            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            std::io::Write::write_all(&mut gz, b"elf").unwrap();
+            std::fs::write(dir.join(format!("{prestate}{suffix}")), gz.finish().unwrap()).unwrap();
+        }
+        dir
+    }
+
     fn test_config() -> ProposerConfig {
         ProposerConfig {
             l1_rpc: "http://127.0.0.1:1".parse().unwrap(),
@@ -4061,6 +4084,46 @@ mod tests {
         assert_eq!(proposer.state.read().await.cursor, cursor);
         assert_eq!(view.calls(), vec!["latest_head", "latest_game_index"]);
     }
+    #[tokio::test]
+    async fn sync_factory_history_resets() {
+        for (latest_game_index, cursor, expected_cursor) in [
+            (None, Cursor::from(U256::from(7)), Cursor::none()),
+            (Some(U256::ZERO), Cursor::from(U256::from(7)), Cursor::from(U256::ZERO)),
+        ] {
+            let view = Arc::new(RecordingL1View {
+                latest_game_index,
+                factory_game: FactoryGame {
+                    address: Address::left_padding_from(&[0x44]),
+                    game_type: ZK_GAME_TYPE + 1,
+                },
+                ..Default::default()
+            });
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = view;
+            let cached = game_with(4, u32::MAX, 100);
+            {
+                let mut state = proposer.state.write().await;
+                state.anchor_game = Some(cached.clone());
+                state.canonical_head_index = Some(cached.index);
+                state.canonical_head_sequence_number = Some(123);
+                state.cursor = cursor;
+                state.games.insert(cached.index, cached);
+                state.invalid_games.insert(U256::from(3));
+            }
+            proposer.pending_games.write().await.insert(U256::from(9));
+
+            proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
+
+            let state = proposer.state.read().await;
+            assert!(state.anchor_game.is_none());
+            assert_eq!(state.canonical_head_index, None);
+            assert_eq!(state.canonical_head_sequence_number, Some(123));
+            assert_eq!(state.cursor, expected_cursor);
+            assert!(state.games.is_empty());
+            assert!(state.invalid_games.is_empty());
+            assert!(proposer.pending_games.read().await.is_empty());
+        }
+    }
 
     #[tokio::test]
     async fn sync_failure_boundaries_preserve_cursor_and_isolate_existing_games() {
@@ -4107,14 +4170,22 @@ mod tests {
         });
         let mut proposer = test_proposer().await;
         proposer.l1_view = lifecycle_failure.clone();
-        let game = game_with(0, u32::MAX, 100);
+        let game = Game {
+            status: GameStatus::DefenderWins,
+            proposal_status: ProposalStatus::Challenged,
+            deadline: 777,
+            should_attempt_to_resolve: true,
+            should_attempt_to_claim_bond: true,
+            ..game_with(0, u32::MAX, 100)
+        };
         {
             let mut state = proposer.state.write().await;
             state.cursor = Cursor::from(U256::ZERO);
             state.games.insert(game.index, game.clone());
         }
         proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
-        assert!(proposer.state.read().await.games.contains_key(&game.index));
+        let cached = proposer.state.read().await.games.get(&game.index).unwrap().clone();
+        assert_eq!(cached, game);
         assert_eq!(
             lifecycle_failure.calls(),
             vec!["latest_game_index", "registered_anchor_game", "game_lifecycle"]
@@ -4139,17 +4210,19 @@ mod tests {
 
     #[tokio::test]
     async fn lifecycle_refresh_only_reads_the_active_status_branch() {
-        for (status, expected_branch) in [
-            (GameStatus::InProgress, Some("parent_game_status")),
-            (GameStatus::DefenderWins, Some("bond_state")),
-            (GameStatus::ChallengerWins, None),
+        for (status, parent_index, expected_branch) in [
+            (GameStatus::InProgress, 0, Some("parent_game_status")),
+            (GameStatus::InProgress, u32::MAX, None),
+            (GameStatus::DefenderWins, 0, Some("bond_state")),
+            (GameStatus::ChallengerWins, 0, None),
         ] {
             let prestate = B256::left_padding_from(&[0x77]);
             let game = Game {
+                address: Address::left_padding_from(&[0x70]),
                 absolute_prestate: prestate,
                 anchor_state_registry: Address::left_padding_from(&[0xa1]),
                 weth: Address::left_padding_from(&[0xb1]),
-                ..game_with(0, 0, 100)
+                ..game_with(0, parent_index, 100)
             };
             let view = Arc::new(RecordingL1View {
                 latest_game_index: Some(U256::ZERO),
@@ -4157,7 +4230,7 @@ mod tests {
                 lifecycle: GameLifecycle {
                     proposal_status: ProposalStatus::Unchallenged,
                     deadline: 2_000,
-                    parent_index: 0,
+                    parent_index,
                     status,
                     is_finalized: false,
                 },
@@ -4176,6 +4249,10 @@ mod tests {
                     PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
                 )
                 .await;
+            if status == GameStatus::ChallengerWins {
+                proposer.last_created_game_l2_sequence_number.store(100, AtomicOrdering::Relaxed);
+                *proposer.last_created_game_address.lock().await = game.address;
+            }
             {
                 let mut state = proposer.state.write().await;
                 state.cursor = Cursor::from(U256::ZERO);
@@ -4192,16 +4269,364 @@ mod tests {
             assert_eq!(
                 view.block_calls(),
                 expected.iter().map(|call| (*call, BlockId::number(1))).collect::<Vec<_>>(),
-                "status {status:?}"
+                "status {status:?}, parent {parent_index}"
             );
             assert_eq!(
                 *view.lifecycle_targets.lock().unwrap(),
                 vec![expected_lifecycle_target],
-                "status {status:?}"
+                "status {status:?}, parent {parent_index}"
             );
             if status == GameStatus::DefenderWins {
                 assert_eq!(*view.bond_targets.lock().unwrap(), vec![expected_bond_target]);
             }
+
+            let state = proposer.state.read().await;
+            if status == GameStatus::ChallengerWins {
+                assert!(!state.games.contains_key(&U256::ZERO));
+                assert!(state.invalid_games.contains(&U256::ZERO));
+                assert_eq!(
+                    proposer.last_created_game_l2_sequence_number.load(AtomicOrdering::Relaxed),
+                    0
+                );
+                assert_eq!(*proposer.last_created_game_address.lock().await, Address::ZERO);
+            } else {
+                let cached = state.games.get(&U256::ZERO).unwrap();
+                assert_eq!(cached.status, status);
+                assert_eq!(cached.proposal_status, ProposalStatus::Unchallenged);
+                assert_eq!(cached.deadline, 2_000);
+                assert!(!cached.should_attempt_to_resolve);
+                assert!(!cached.should_attempt_to_claim_bond);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn lifecycle_refresh_loads_cached_prestates() {
+        let prestate = B256::left_padding_from(&[0x66]);
+        let dir = write_test_prestate_artifacts("lifecycle", prestate);
+        let mut config = test_config();
+        config.prestates_url =
+            alloy_transport_http::reqwest::Url::from_directory_path(&dir).unwrap();
+        let mut proposer = test_proposer_with(config).await;
+        let game = Game { absolute_prestate: prestate, ..game_with(0, u32::MAX, 100) };
+        proposer.l1_view = Arc::new(RecordingL1View {
+            latest_game_index: Some(U256::ZERO),
+            lifecycle: GameLifecycle {
+                proposal_status: ProposalStatus::Unchallenged,
+                deadline: 999,
+                parent_index: u32::MAX,
+                status: GameStatus::InProgress,
+                is_finalized: false,
+            },
+            ..Default::default()
+        });
+        {
+            let mut state = proposer.state.write().await;
+            state.cursor = Cursor::from(U256::ZERO);
+            state.games.insert(game.index, game);
+        }
+        assert!(proposer.prestates.known_prestates().await.is_empty());
+
+        proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
+
+        assert!(proposer.prestates.known_prestates().await.contains(&prestate));
+        assert!(
+            proposer.state.read().await.games.get(&U256::ZERO).unwrap().should_attempt_to_resolve
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[tokio::test]
+    async fn sync_games_applies_lifecycle_actions() {
+        let prestate = B256::left_padding_from(&[0x55]);
+        let retained = Game {
+            absolute_prestate: prestate,
+            should_attempt_to_resolve: true,
+            should_attempt_to_claim_bond: true,
+            ..game_with(0, u32::MAX, 100)
+        };
+        let completed = Game { absolute_prestate: prestate, ..game_with(1, 0, 101) };
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            latest_game_index: Some(U256::ZERO),
+            anchor_game: retained.address,
+            lifecycle: GameLifecycle {
+                proposal_status: ProposalStatus::Resolved,
+                deadline: 321,
+                parent_index: u32::MAX,
+                status: GameStatus::DefenderWins,
+                is_finalized: true,
+            },
+            bond_state: BondState {
+                credit: U256::ZERO,
+                withdrawal_amount: U256::ZERO,
+                withdrawal_timestamp: U256::ZERO,
+                delay: U256::ZERO,
+            },
+            ..Default::default()
+        });
+        proposer
+            .prestates
+            .insert_for_tests(
+                prestate,
+                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+            )
+            .await;
+        {
+            let mut state = proposer.state.write().await;
+            state.cursor = Cursor::from(U256::ZERO);
+            state.canonical_head_index = Some(retained.index);
+            state.games.insert(retained.index, retained);
+            state.games.insert(completed.index, completed);
+        }
+
+        proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
+
+        let state = proposer.state.read().await;
+        let cached = state.games.get(&U256::ZERO).unwrap();
+        assert_eq!(cached.status, GameStatus::DefenderWins);
+        assert_eq!(cached.proposal_status, ProposalStatus::Resolved);
+        assert_eq!(cached.deadline, 321);
+        assert!(!cached.should_attempt_to_resolve);
+        assert!(!cached.should_attempt_to_claim_bond);
+        assert!(!state.games.contains_key(&U256::ONE));
+    }
+
+    mod game_sync_classification {
+        use super::*;
+
+        fn lifecycle(status: GameStatus) -> GameLifecycle {
+            GameLifecycle {
+                proposal_status: ProposalStatus::Unchallenged,
+                deadline: 100,
+                parent_index: u32::MAX,
+                status,
+                is_finalized: false,
+            }
+        }
+
+        fn in_progress(
+            lifecycle: GameLifecycle,
+            parent_resolved: bool,
+            owned: bool,
+        ) -> GameSyncFacts {
+            GameSyncFacts::InProgress { index: U256::from(7), lifecycle, parent_resolved, owned }
+        }
+
+        fn defender_wins(
+            lifecycle: GameLifecycle,
+            bond: BondState,
+            canonical_head_index: Option<U256>,
+        ) -> GameSyncFacts {
+            GameSyncFacts::DefenderWins {
+                index: U256::from(7),
+                game_address: Address::left_padding_from(&[0x77]),
+                lifecycle,
+                bond,
+                canonical_head_index,
+            }
+        }
+
+        #[test]
+        fn classifies_in_progress_resolution_from_immutable_facts() {
+            let facts = in_progress(lifecycle(GameStatus::InProgress), true, true);
+            assert_eq!(
+                classify_game_sync(facts, 100, Address::ZERO).unwrap(),
+                GameSyncAction::Update {
+                    index: U256::from(7),
+                    lifecycle: lifecycle(GameStatus::InProgress),
+                    should_attempt_to_resolve: false,
+                    should_attempt_to_claim_bond: false,
+                    retention: None,
+                }
+            );
+            assert_eq!(
+                classify_game_sync(facts, 101, Address::ZERO).unwrap(),
+                GameSyncAction::Update {
+                    index: U256::from(7),
+                    lifecycle: lifecycle(GameStatus::InProgress),
+                    should_attempt_to_resolve: true,
+                    should_attempt_to_claim_bond: false,
+                    retention: None,
+                }
+            );
+
+            let proof_facts = in_progress(
+                GameLifecycle {
+                    proposal_status: ProposalStatus::ChallengedAndValidProofProvided,
+                    ..lifecycle(GameStatus::InProgress)
+                },
+                true,
+                true,
+            );
+            assert!(matches!(
+                classify_game_sync(proof_facts, 0, Address::ZERO).unwrap(),
+                GameSyncAction::Update { should_attempt_to_resolve: true, .. }
+            ));
+        }
+
+        #[test]
+        fn classifies_defender_wins_claims_and_retention() {
+            let index = U256::from(7);
+            let address = Address::left_padding_from(&[0x77]);
+            let finalized =
+                GameLifecycle { is_finalized: true, ..lifecycle(GameStatus::DefenderWins) };
+            let done = BondState {
+                credit: U256::ZERO,
+                withdrawal_amount: U256::ZERO,
+                withdrawal_timestamp: U256::ZERO,
+                delay: U256::ZERO,
+            };
+            assert!(matches!(
+                classify_game_sync(defender_wins(finalized, done, Some(index)), 100, address)
+                    .unwrap(),
+                GameSyncAction::Update { retention: Some(GameSyncRetention::CanonicalHead), .. }
+            ));
+            assert!(matches!(
+                classify_game_sync(defender_wins(finalized, done, None), 100, address).unwrap(),
+                GameSyncAction::Update { retention: Some(GameSyncRetention::Anchor), .. }
+            ));
+            assert_eq!(
+                classify_game_sync(defender_wins(finalized, done, None), 100, Address::ZERO)
+                    .unwrap(),
+                GameSyncAction::Remove(index)
+            );
+
+            let unlock = BondState { credit: U256::ONE, ..done };
+            assert!(matches!(
+                classify_game_sync(defender_wins(finalized, unlock, None), 100, Address::ZERO)
+                    .unwrap(),
+                GameSyncAction::Update { should_attempt_to_claim_bond: true, retention: None, .. }
+            ));
+            assert!(matches!(
+                classify_game_sync(
+                    defender_wins(lifecycle(GameStatus::DefenderWins), unlock, None,),
+                    100,
+                    Address::ZERO
+                )
+                .unwrap(),
+                GameSyncAction::Update { should_attempt_to_claim_bond: false, retention: None, .. }
+            ));
+        }
+
+        #[test]
+        fn preserves_bond_conversion_boundaries() {
+            let bond = BondState {
+                credit: U256::ZERO,
+                withdrawal_amount: U256::ONE,
+                withdrawal_timestamp: U256::MAX,
+                delay: U256::ZERO,
+            };
+            assert!(matches!(
+                classify_game_sync(
+                    defender_wins(lifecycle(GameStatus::DefenderWins), bond, None),
+                    u64::MAX,
+                    Address::ZERO
+                )
+                .unwrap(),
+                GameSyncAction::Update { should_attempt_to_claim_bond: true, .. }
+            ));
+
+            let error = classify_game_sync(
+                defender_wins(
+                    lifecycle(GameStatus::DefenderWins),
+                    BondState { delay: U256::from(u64::MAX) + U256::ONE, ..bond },
+                    None,
+                ),
+                u64::MAX,
+                Address::ZERO,
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("DelayedWETH delay exceeds u64"));
+        }
+
+        #[test]
+        fn challenger_wins_removes_the_subtree() {
+            assert_eq!(
+                classify_game_sync(
+                    GameSyncFacts::ChallengerWins { index: U256::from(7) },
+                    100,
+                    Address::ZERO,
+                )
+                .unwrap(),
+                GameSyncAction::RemoveSubtree(U256::from(7))
+            );
+        }
+    }
+
+    mod pending_revalidation_transitions {
+        use super::*;
+
+        fn pending_view(prestate: B256) -> RecordingL1View {
+            RecordingL1View {
+                factory_game: FactoryGame {
+                    address: Address::left_padding_from(&[0x44]),
+                    game_type: ZK_GAME_TYPE,
+                },
+                game_claim: GameClaim {
+                    status: ProposalStatus::Unchallenged as u8,
+                    deadline: 0,
+                    parent_index: u32::MAX,
+                },
+                game_identity: GameIdentity {
+                    sequence_number: U256::from(100),
+                    ..Default::default()
+                },
+                game_validity: GameValidity {
+                    root_claim: B256::ZERO,
+                    was_respected: true,
+                    status: GameStatus::InProgress,
+                    absolute_prestate: prestate,
+                },
+                ..Default::default()
+            }
+        }
+
+        #[tokio::test]
+        async fn loads_pending_prestate_before_eviction_check() {
+            let prestate = B256::left_padding_from(&[0x11]);
+            let dir = write_test_prestate_artifacts("pending-owned", prestate);
+            let mut config = test_config();
+            config.prestates_url =
+                alloy_transport_http::reqwest::Url::from_directory_path(&dir).unwrap();
+            let view = Arc::new(RecordingL1View {
+                latest_game_index: Some(U256::ZERO),
+                ..pending_view(prestate)
+            });
+            let mut proposer = test_proposer_with(config).await;
+            proposer.l1_view = view;
+            proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
+            let mut anchor = game_with(9, u32::MAX, 100);
+            anchor.deadline = MAX_GAME_DEADLINE_LAG + 10;
+            {
+                let mut state = proposer.state.write().await;
+                state.cursor = Cursor::from(U256::ZERO);
+                state.anchor_game = Some(anchor);
+            }
+            proposer.pending_games.write().await.insert(U256::ZERO);
+            assert!(proposer.prestates.known_prestates().await.is_empty());
+
+            proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
+
+            assert!(proposer.pending_games.read().await.contains(&U256::ZERO));
+            assert!(proposer.prestates.known_prestates().await.contains(&prestate));
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+
+        #[tokio::test]
+        async fn newly_discovered_pending_game_is_not_revalidated_same_cycle() {
+            let prestate = B256::left_padding_from(&[0x33]);
+            let view = Arc::new(RecordingL1View {
+                latest_game_index: Some(U256::ZERO),
+                ..pending_view(prestate)
+            });
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = view.clone();
+            proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
+
+            proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
+
+            assert!(proposer.pending_games.read().await.contains(&U256::ZERO));
+            assert_eq!(view.calls().into_iter().filter(|call| *call == "factory_game").count(), 1);
         }
     }
 
