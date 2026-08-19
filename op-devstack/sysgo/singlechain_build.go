@@ -370,7 +370,7 @@ func startL2CLNode(
 			L1RPCKind:        sources.RPCKindDebugGeth,
 			RateLimit:        0,
 			BatchSize:        20,
-			HttpPollInterval: 100,
+			HttpPollInterval: 100 * time.Millisecond,
 			MaxConcurrency:   10,
 			CacheSize:        0,
 		},
