@@ -102,11 +102,27 @@ impl Cli {
     /// Creates a new tokio multi-thread [Runtime](tokio::runtime::Runtime) with all features
     /// enabled.
     pub fn tokio_runtime() -> Result<tokio::runtime::Runtime, std::io::Error> {
-        // The deeply nested derivation pipeline can exhaust Tokio's default 2 MiB worker stack.
-        // Use the size validated against initial historical derivation, with enough headroom for
-        // native library calls made from the pipeline.
+        // Diagnostic-only override that lets the same binary reproduce with 2 MiB and serve as an
+        // 8 MiB control. This branch is not intended to merge.
+        let thread_stack_size = std::env::var("RUST_MIN_STACK")
+            .ok()
+            .map(|value| {
+                value.parse::<usize>().map_err(|err| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        format!("invalid RUST_MIN_STACK value {value:?}: {err}"),
+                    )
+                })
+            })
+            .transpose()?
+            .unwrap_or(2 * 1024 * 1024);
+
+        tracing::info!(target: "cli", thread_stack_size, "Configuring Tokio worker stack");
+
         tokio::runtime::Builder::new_multi_thread()
-            .thread_stack_size(8 * 1024 * 1024)
+            .thread_stack_size(thread_stack_size)
+            // Signal alternate stacks are thread-local and are not inherited from the main thread.
+            .on_thread_start(kona_cli::sigsegv_handler::install)
             .enable_all()
             .build()
     }
