@@ -28,7 +28,6 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	// assertions.go:387:             	Test:       	TestFollowL2_Safe_Finalized_CurrentL1
 	// assertions.go:387:             	Messages:   	single-chain test sequencer requires an op-node CL node
 	sysgo.SkipOnKonaNode(t, "not supported")
-	sysgo.FlakyOnOpReth(t, "timeouts in merge queue but not locally")
 	sys := newSingleChainTwoVerifiersFollowL2(t)
 	logger := t.Logger()
 

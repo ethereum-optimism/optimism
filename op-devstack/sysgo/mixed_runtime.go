@@ -85,12 +85,6 @@ func SkipOnKonaNode(t devtest.T, reason string) {
 	}
 }
 
-func FlakyOnOpReth(t devtest.T, reason string) {
-	if devstackL2ELKind() == MixedL2ELOpReth {
-		t.MarkFlaky(reason)
-	}
-}
-
 func FlakyOnKonaNode(t devtest.T, reason string) {
 	if devstackL2CLKind() == MixedL2CLKona {
 		t.MarkFlaky(reason)
