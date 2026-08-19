@@ -200,13 +200,12 @@ impl SafeDb for SafeDatabase {
     }
 
     fn close(&self) -> Result<(), SafeDbError> {
+        // C++ `DB::Close` returns a status, but the C API this binds to declares
+        // `rocksdb_close` as void, so dropping the handle is the only close available and no
+        // error can be reported. Records are already durable regardless: every write is synced
+        // to the WAL, which is replayed on open.
         let mut guard = self.write_guard();
-        let Some(db) = guard.take() else { return Ok(()) };
-        // rocksdb has no fallible close: dropping the handle discards any error it hit on the
-        // way out. Flushing first gives that error somewhere to surface. Records are already
-        // durable at this point, since every write is synced, so this only reports failures.
-        let flushed = db.flush();
-        drop(db);
-        flushed.map_err(SafeDbError::from)
+        *guard = None;
+        Ok(())
     }
 }
