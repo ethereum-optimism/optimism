@@ -576,10 +576,10 @@ tracing-loki = "0.2.6"
 tracing-subscriber = { version = "0.3.22", default-features = false }
 
 # ==================== OPENTELEMETRY ====================
-opentelemetry = { version = "0.31", features = ["logs", "trace"] }
-opentelemetry-appender-tracing = "0.31"
-opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "logs"] }
-opentelemetry_sdk = { version = "0.31", features = ["logs", "trace", "rt-tokio"] }
+opentelemetry = { version = "0.32", features = ["logs", "trace"] }
+opentelemetry-appender-tracing = "0.32"
+opentelemetry-otlp = { version = "0.32", features = ["grpc-tonic", "logs"] }
+opentelemetry_sdk = { version = "0.32.1", features = ["logs", "trace", "rt-tokio"] }
 
 # ==================== TESTING ====================
 arbitrary = { version = "1.4.2", features = ["derive"] }
@@ -666,7 +666,7 @@ jsonwebtoken = "10"
 lazy_static = { version = "1.5.0", default-features = false }
 libc = "0.2"
 linked_hash_set = "0.1"
-lru = "0.16.3"
+lru = "0.18.2"
 mini-moka = "0.10"
 modular-bitfield = "0.13.1"
 moka = "0.12"
