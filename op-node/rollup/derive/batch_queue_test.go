@@ -597,7 +597,7 @@ func testBatchStage_OverlappingSpanBatch(t *testing.T, batchType int, newBatchSt
 
 	t.Run("outdated origin", func(t *testing.T) {
 		invalidSpanSingulars := []*SingularBatch{
-			b(cfg.L2ChainID, 22, l1[0]), // same block number as safe head, will be skipped
+			safeBatch,                   // matches the safe head, so the overlap content checks pass
 			b(cfg.L2ChainID, 24, l1[0]), // first batch after safe head uses outdated origin 0
 			b(cfg.L2ChainID, 26, l1[1]),
 		}
