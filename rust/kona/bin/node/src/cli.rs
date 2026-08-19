@@ -99,10 +99,16 @@ impl Cli {
         })
     }
 
-    /// Creates a new default tokio multi-thread [Runtime](tokio::runtime::Runtime) with all
-    /// features enabled
+    /// Creates a new tokio multi-thread [Runtime](tokio::runtime::Runtime) with all features
+    /// enabled.
     pub fn tokio_runtime() -> Result<tokio::runtime::Runtime, std::io::Error> {
-        tokio::runtime::Builder::new_multi_thread().enable_all().build()
+        // The deeply nested derivation pipeline can exhaust Tokio's default 2 MiB worker stack.
+        // Use the size validated against initial historical derivation, with enough headroom for
+        // native library calls made from the pipeline.
+        tokio::runtime::Builder::new_multi_thread()
+            .thread_stack_size(8 * 1024 * 1024)
+            .enable_all()
+            .build()
     }
 }
 
