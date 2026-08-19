@@ -60,6 +60,13 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when a permissionless fault game config has a zero absolute prestate.
     error OPContractsManagerMigrator_InvalidAbsolutePrestate();
 
+    /// @notice Thrown when a dispute game config is for a game type that does not use super roots.
+    error OPContractsManagerMigrator_InvalidGameType();
+
+    /// @notice Thrown when a dispute game config is not enabled. Migration registers every config
+    ///         it is given, so a disabled config would be registered anyway.
+    error OPContractsManagerMigrator_DisputeGameNotEnabled();
+
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 

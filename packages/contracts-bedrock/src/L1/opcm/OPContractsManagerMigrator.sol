@@ -77,6 +77,13 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when a permissionless fault game config has a zero absolute prestate.
     error OPContractsManagerMigrator_InvalidAbsolutePrestate();
 
+    /// @notice Thrown when a dispute game config is for a game type that does not use super roots.
+    error OPContractsManagerMigrator_InvalidGameType();
+
+    /// @notice Thrown when a dispute game config is not enabled. Migration registers every config
+    ///         it is given, so a disabled config would be registered anyway.
+    error OPContractsManagerMigrator_DisputeGameNotEnabled();
+
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
@@ -131,6 +138,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // zero l2ChainId, that no two chains share the same l2ChainId, and that l2ChainIds are
         // provided in ascending order.
         _validateChainSystemConfigs(_input.chainSystemConfigs);
+
+        // Check that every supplied dispute game config is valid and that the starting respected
+        // game type is one of them.
+        _validateDisputeGameConfigs(_input.disputeGameConfigs, _input.startingRespectedGameType);
 
         // NOTE: Interop doesn't have a real chain ID, and the chain ID provided here is ONLY used
         // as a salt mixer, so we just use the block.timestamp instead. It really doesn't matter
@@ -238,17 +249,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             }
         }
 
-        // Set up the dispute games in the new DisputeGameFactory.
-        // NOTE: Migration applies the per-config checks from the deploy/upgrade path (see
-        // _assertValidDisputeGameConfig) but not its structural checks. This is intentional:
-        // 1. Migration is a privileged, one-off admin action by the ProxyAdmin owner
-        // 2. getGameImpl() rejects unrecognized game types
-        // 3. Only super game types are meaningful here — non-super types would have
-        //    l2ChainId=0, causing FaultDisputeGame to revert on chain ID mismatch
-        // 4. All supplied configs are registered regardless of the enabled flag —
-        //    callers must only include configs they want active
+        // Set up the dispute games in the new DisputeGameFactory. Configs are validated by
+        // _validateDisputeGameConfigs above.
         for (uint256 i = 0; i < _input.disputeGameConfigs.length; i++) {
-            _assertValidDisputeGameConfig(_input.disputeGameConfigs[i]);
             disputeGameFactory.setImplementation(
                 _input.disputeGameConfigs[i].gameType,
                 _getGameImpl(_input.disputeGameConfigs[i].gameType),
@@ -293,17 +296,55 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
     }
 
-    /// @notice Validates a single dispute game config supplied to migrate(). Applies the per-config
-    ///         checks that OPContractsManagerV2 applies on the deploy/upgrade path. The structural
-    ///         checks from that path do not carry over: migrate() takes a variable-length list of
-    ///         super game types rather than one config per valid game type, and it registers every
-    ///         supplied config regardless of the enabled flag.
+    /// @notice Validates the dispute game configs supplied to migrate(). Migration is a
+    ///         privileged, one-off admin action, so it does not repeat the structural checks that
+    ///         OPContractsManagerV2 applies on the deploy/upgrade path: it takes a variable-length
+    ///         list of super game types rather than one config per valid game type. It does apply
+    ///         the per-config checks from that path, and rejects configs that migration cannot
+    ///         act on: every config is registered as supplied, so a disabled config or a game type
+    ///         that does not use super roots is a caller mistake rather than a no-op.
+    /// @param _gameConfigs The dispute game configs to validate.
+    /// @param _startingRespectedGameType The game type the AnchorStateRegistry will respect.
+    function _validateDisputeGameConfigs(
+        IOPContractsManagerUtils.DisputeGameConfig[] calldata _gameConfigs,
+        GameType _startingRespectedGameType
+    )
+        internal
+        view
+    {
+        bool startingGameTypeFound;
+        for (uint256 i = 0; i < _gameConfigs.length; i++) {
+            _assertValidDisputeGameConfig(_gameConfigs[i]);
+            if (_gameConfigs[i].gameType.raw() == _startingRespectedGameType.raw()) {
+                startingGameTypeFound = true;
+            }
+        }
+
+        // The respected game type must have an implementation registered by this migration.
+        if (!startingGameTypeFound) {
+            revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
+        }
+    }
+
+    /// @notice Validates a single dispute game config supplied to migrate(). See
+    ///         _validateDisputeGameConfigs for which checks apply and why.
     /// @param _gameConfig The dispute game config to validate.
     function _assertValidDisputeGameConfig(IOPContractsManagerUtils.DisputeGameConfig calldata _gameConfig)
         internal
         view
     {
         uint32 rawGameType = _gameConfig.gameType.raw();
+
+        // Non-super game types would have l2ChainId=0, causing the game to revert on chain ID
+        // mismatch, and legacy fault game types are not validated by this path at all.
+        if (!GameTypes.isSuperGame(_gameConfig.gameType)) {
+            revert OPContractsManagerMigrator_InvalidGameType();
+        }
+
+        // Every supplied config is registered, so a disabled config is a caller mistake.
+        if (!_gameConfig.enabled) {
+            revert OPContractsManagerMigrator_DisputeGameNotEnabled();
+        }
 
         // SUPER_PERMISSIONED does not use bonds. Every other game type does.
         if (rawGameType == GameTypes.SUPER_PERMISSIONED.raw()) {
@@ -314,21 +355,27 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             revert OPContractsManagerMigrator_InvalidInitBond();
         }
 
-        // A permissionless fault game is unplayable without an absolute prestate.
-        if (rawGameType == GameTypes.SUPER_CANNON_KONA.raw()) {
-            IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
-                abi.decode(_gameConfig.gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
-            if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
-                revert OPContractsManagerMigrator_InvalidAbsolutePrestate();
-            }
-        }
-
         // ZK_DISPUTE_GAME can only be registered when the dev feature is on.
         if (
             rawGameType == GameTypes.ZK_DISPUTE_GAME.raw()
                 && !contractsContainer().isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
         ) {
             revert OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
+        }
+
+        // A permissionless game is unplayable without an absolute prestate.
+        if (rawGameType == GameTypes.SUPER_CANNON_KONA.raw()) {
+            IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
+                abi.decode(_gameConfig.gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
+            if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
+                revert OPContractsManagerMigrator_InvalidAbsolutePrestate();
+            }
+        } else if (rawGameType == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            IOPContractsManagerUtils.ZKDisputeGameConfig memory zkGameConfig =
+                abi.decode(_gameConfig.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+            if (zkGameConfig.absolutePrestate.raw() == bytes32(0)) {
+                revert OPContractsManagerMigrator_InvalidAbsolutePrestate();
+            }
         }
     }
 
