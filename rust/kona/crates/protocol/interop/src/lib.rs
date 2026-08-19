@@ -11,15 +11,6 @@ extern crate alloc;
 mod graph;
 pub use graph::MessageGraph;
 
-mod event;
-pub use event::ManagedEvent;
-
-mod control;
-pub use control::ControlEvent;
-
-mod replacement;
-pub use replacement::BlockReplacement;
-
 mod traits;
 pub use traits::InteropProvider;
 

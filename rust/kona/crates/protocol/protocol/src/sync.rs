@@ -40,8 +40,6 @@ pub struct SyncStatus {
     /// This is the absolute tip of the L2 chain, pointing to block data that has not been
     /// submitted to L1 yet. The sequencer is building this, and verifiers may also be ahead of
     /// the safe L2 block if they sync blocks via p2p or other offchain sources.
-    /// This is considered to only be local-unsafe post-interop, see `cross_unsafe_l2` for cross-L2
-    /// guarantees.
     pub unsafe_l2: L2BlockInfo,
     /// The safe L2 block ref.
     ///
@@ -55,13 +53,33 @@ pub struct SyncStatus {
     /// This points to the L2 block that was derived fully from finalized L1 information, thus
     /// irreversible.
     pub finalized_l2: L2BlockInfo,
-    /// Cross unsafe L2 block ref.
-    ///
-    /// This is an unsafe L2 block, that has been verified to match cross-L2 dependencies.
-    /// Pre-interop every unsafe L2 block is also cross-unsafe.
-    pub cross_unsafe_l2: L2BlockInfo,
     /// Local safe L2 block ref.
     ///
     /// This is an L2 block derived from L1, not yet verified to have valid cross-L2 dependencies.
     pub local_safe_l2: L2BlockInfo,
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use super::*;
+
+    /// There is a single unsafe head, so the sync status carries no cross-unsafe field.
+    #[test]
+    fn test_sync_status_serializes_without_cross_unsafe() {
+        let status = SyncStatus {
+            current_l1: BlockInfo::default(),
+            current_l1_finalized: BlockInfo::default(),
+            head_l1: BlockInfo::default(),
+            safe_l1: BlockInfo::default(),
+            finalized_l1: BlockInfo::default(),
+            unsafe_l2: L2BlockInfo::default(),
+            safe_l2: L2BlockInfo::default(),
+            finalized_l2: L2BlockInfo::default(),
+            local_safe_l2: L2BlockInfo::default(),
+        };
+
+        let json = serde_json::to_value(&status).unwrap();
+        assert!(json.get("unsafe_l2").is_some());
+        assert!(json.get("cross_unsafe_l2").is_none());
+    }
 }

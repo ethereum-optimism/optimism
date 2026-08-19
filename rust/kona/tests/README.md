@@ -30,7 +30,7 @@ just test-e2e-sysgo BINARY GO_PKG_NAME DEVNET FILTER
 ```
 
 Where:
-- `BINARY`: The binary to test (`node` or `supervisor`)
+- `BINARY`: The binary to test (`node`)
 - `GO_PKG_NAME`: The Go package name to test (e.g., `node/common`)
 - `DEVNET`: The devnet configuration (`simple-kona`, `simple-kona-sequencer`, `large-kona-sequencer`)
 - `FILTER`: Optional test filter
@@ -55,7 +55,7 @@ Where:
 
 ### Other Recipes
 
-- `just build-devnet BINARY`: Builds the Docker image for the specified binary (`node` or `supervisor`).
+- `just build-devnet BINARY`: Builds the Docker image for the specified binary (`node`).
 
 - `just build-kona`: Builds the kona-node binary.
 

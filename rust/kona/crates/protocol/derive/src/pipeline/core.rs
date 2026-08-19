@@ -153,9 +153,6 @@ where
             Signal::FlushChannel => {
                 self.attributes.flush_channel().await?;
             }
-            Signal::ProvideBlock(block) => {
-                self.attributes.provide_block(block).await?;
-            }
         }
         kona_macros::inc!(
             gauge,
