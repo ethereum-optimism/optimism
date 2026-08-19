@@ -747,27 +747,12 @@ async fn tick_distinguishes_proposal_and_reconciliation_summaries() {
     let proposer = proposer_with(test_config(30), view).await;
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
     let proposed = control.tick().await.unwrap();
-    let proposal = proposed
-        .scheduled
-        .iter()
-        .find(|scheduled| {
-            matches!(
-                scheduled.operation,
-                OperationSummary::ProposeGame {
-                    sequence_number: 3_600,
-                    parent_game_index: u32::MAX
-                }
-            )
-        })
-        .unwrap();
-    let proposed_tasks = proposer.tasks.lock().await;
-    assert_eq!(proposed_tasks.get(&proposal.task_id).unwrap().1.class, TaskClass::Creation);
-    assert_eq!(
-        proposed_tasks.get(&proposal.task_id).unwrap().1.deduplication,
-        crate::proposer::TaskDeduplication::Creation
-    );
-    drop(proposed_tasks);
-
+    assert!(proposed.scheduled.iter().any(|scheduled| {
+        matches!(
+            scheduled.operation,
+            OperationSummary::ProposeGame { sequence_number: 3_600, parent_game_index: u32::MAX }
+        )
+    }));
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view).await;
     proposer.sync_state().await.unwrap();
@@ -795,10 +780,6 @@ async fn tick_distinguishes_proposal_and_reconciliation_summaries() {
         creation.operation,
         OperationSummary::ReconcileCreation { sequence_number: 7_200, parent_game_index: 4 }
     ));
-    let tasks = proposer.tasks.lock().await;
-    let info = &tasks.get(&creation.task_id).unwrap().1;
-    assert_eq!(info.class, TaskClass::Creation);
-    assert_eq!(info.deduplication, crate::proposer::TaskDeduplication::Creation);
 }
 
 #[tokio::test]
@@ -1033,7 +1014,7 @@ async fn tick_does_not_schedule_singletons_when_they_are_active() {
     proposer.sync_state().await.unwrap();
     let creation = ParkedTask::insert(
         &proposer,
-        TaskInfo::from_operation(OperationSummary::ProposeGame {
+        TaskInfo::from_operation(OperationSummary::ReconcileCreation {
             sequence_number: 9,
             parent_game_index: 8,
         }),

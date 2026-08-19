@@ -89,7 +89,7 @@ pub(crate) enum OperationTarget {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum TaskDeduplication {
+enum TaskDeduplicationKey {
     Creation,
     Proving(Address),
     Resolution,
@@ -105,11 +105,23 @@ pub(crate) enum OperationSummary {
     ClaimSweep,
 }
 
+impl OperationSummary {
+    const fn deduplication_key(&self) -> TaskDeduplicationKey {
+        match self {
+            Self::ProposeGame { .. } | Self::ReconcileCreation { .. } => {
+                TaskDeduplicationKey::Creation
+            }
+            Self::ProveGame { address, .. } => TaskDeduplicationKey::Proving(*address),
+            Self::ResolutionSweep => TaskDeduplicationKey::Resolution,
+            Self::ClaimSweep => TaskDeduplicationKey::Claim,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct TaskInfo {
     class: TaskClass,
     target: OperationTarget,
-    deduplication: TaskDeduplication,
     operation: OperationSummary,
 }
 
@@ -120,27 +132,19 @@ impl TaskInfo {
             OperationSummary::ReconcileCreation { sequence_number, parent_game_index } => Self {
                 class: TaskClass::Creation,
                 target: OperationTarget::Creation { sequence_number, parent_game_index },
-                deduplication: TaskDeduplication::Creation,
                 operation,
             },
             OperationSummary::ProveGame { factory_index, address, .. } => Self {
                 class: TaskClass::Proving,
                 target: OperationTarget::Game { factory_index, address },
-                deduplication: TaskDeduplication::Proving(address),
                 operation,
             },
-            OperationSummary::ResolutionSweep => Self {
-                class: TaskClass::Resolution,
-                target: OperationTarget::AllGames,
-                deduplication: TaskDeduplication::Resolution,
-                operation,
-            },
-            OperationSummary::ClaimSweep => Self {
-                class: TaskClass::Claim,
-                target: OperationTarget::AllGames,
-                deduplication: TaskDeduplication::Claim,
-                operation,
-            },
+            OperationSummary::ResolutionSweep => {
+                Self { class: TaskClass::Resolution, target: OperationTarget::AllGames, operation }
+            }
+            OperationSummary::ClaimSweep => {
+                Self { class: TaskClass::Claim, target: OperationTarget::AllGames, operation }
+            }
         }
     }
 
@@ -2332,11 +2336,14 @@ impl Proposer {
     async fn determine_pending_operations(&self) -> Vec<OperationSummary> {
         let mut deduplicated = {
             let tasks = self.tasks.lock().await;
-            tasks.values().map(|(_, info)| info.deduplication).collect::<HashSet<_>>()
+            tasks
+                .values()
+                .map(|(_, info)| info.operation.deduplication_key())
+                .collect::<HashSet<_>>()
         };
         let mut planned = Vec::new();
 
-        if deduplicated.contains(&TaskDeduplication::Creation) {
+        if deduplicated.contains(&TaskDeduplicationKey::Creation) {
             tracing::info!("Game creation task already active");
         } else {
             match self.plan_game_creation(&mut planned, &mut deduplicated).await {
@@ -2354,12 +2361,12 @@ impl Proposer {
             Err(e) => tracing::warn!("Failed to plan game defense tasks: {:?}", e),
         }
 
-        if deduplicated.insert(TaskDeduplication::Resolution) {
+        if deduplicated.insert(TaskDeduplicationKey::Resolution) {
             planned.push(OperationSummary::ResolutionSweep);
             tracing::info!("Successfully planned game resolution task");
         }
 
-        if deduplicated.insert(TaskDeduplication::Claim) {
+        if deduplicated.insert(TaskDeduplicationKey::Claim) {
             planned.push(OperationSummary::ClaimSweep);
             tracing::info!("Successfully planned bond claim task");
         } else {
@@ -2447,7 +2454,7 @@ impl Proposer {
     async fn plan_game_creation(
         &self,
         planned: &mut Vec<OperationSummary>,
-        deduplicated: &mut HashSet<TaskDeduplication>,
+        deduplicated: &mut HashSet<TaskDeduplicationKey>,
     ) -> Result<bool> {
         // An unresolved create takes precedence over new proposals: hold
         // them until its uuid is adopted or provably dead, so a
@@ -2462,7 +2469,7 @@ impl Proposer {
         if let Some((sequence_number, parent_game_index)) = in_flight_sequence_number {
             planned
                 .push(OperationSummary::ReconcileCreation { sequence_number, parent_game_index });
-            deduplicated.insert(TaskDeduplication::Creation);
+            deduplicated.insert(TaskDeduplicationKey::Creation);
             return Ok(true);
         }
 
@@ -2542,7 +2549,7 @@ impl Proposer {
             sequence_number: next_sequence_number,
             parent_game_index,
         });
-        deduplicated.insert(TaskDeduplication::Creation);
+        deduplicated.insert(TaskDeduplicationKey::Creation);
         Ok(true)
     }
 
@@ -2561,12 +2568,12 @@ impl Proposer {
     async fn plan_game_creation_decision(
         &self,
         planned: &mut Vec<OperationSummary>,
-        deduplicated: &mut HashSet<TaskDeduplication>,
+        deduplicated: &mut HashSet<TaskDeduplicationKey>,
     ) -> Result<(bool, u64, u32)> {
         if self.config.fast_finality_mode {
             let mut active_proving = deduplicated
                 .iter()
-                .filter(|key| matches!(key, TaskDeduplication::Proving(_)))
+                .filter(|key| matches!(key, TaskDeduplicationKey::Proving(_)))
                 .count() as u64;
             if active_proving < self.config.fast_finality_proving_limit.get() {
                 let known_prestates = self.prestates.known_prestates().await;
@@ -2589,7 +2596,7 @@ impl Proposer {
                         );
                         continue;
                     }
-                    if deduplicated.contains(&TaskDeduplication::Proving(game_address)) {
+                    if deduplicated.contains(&TaskDeduplicationKey::Proving(game_address)) {
                         continue;
                     }
                     if !known_prestates.contains(&prestate) {
@@ -2622,7 +2629,7 @@ impl Proposer {
                         address: game_address,
                         purpose: ProvingPurpose::FastFinality,
                     });
-                    deduplicated.insert(TaskDeduplication::Proving(game_address));
+                    deduplicated.insert(TaskDeduplicationKey::Proving(game_address));
                     tracing::info!(
                         game_address = ?game_address,
                         game_index = %index,
@@ -2714,7 +2721,10 @@ impl Proposer {
         let mut planned = Vec::new();
         let mut deduplicated = {
             let tasks = self.tasks.lock().await;
-            tasks.values().map(|(_, info)| info.deduplication).collect::<HashSet<_>>()
+            tasks
+                .values()
+                .map(|(_, info)| info.operation.deduplication_key())
+                .collect::<HashSet<_>>()
         };
         let result = self.plan_game_creation_decision(&mut planned, &mut deduplicated).await;
         self.spawn_planned_operations(planned).await;
@@ -2828,9 +2838,9 @@ impl Proposer {
     #[cfg(test)]
     async fn has_active_proving_for_game(&self, game_address: Address) -> bool {
         let tasks = self.tasks.lock().await;
-        tasks
-            .values()
-            .any(|(_, info)| info.deduplication == TaskDeduplication::Proving(game_address))
+        tasks.values().any(|(_, info)| {
+            info.operation.deduplication_key() == TaskDeduplicationKey::Proving(game_address)
+        })
     }
 
     /// Selects owned challenged games by ascending deadline, up to the configured limit.
@@ -2838,7 +2848,7 @@ impl Proposer {
     async fn plan_game_defense_tasks(
         &self,
         planned: &mut Vec<OperationSummary>,
-        deduplicated: &mut HashSet<TaskDeduplication>,
+        deduplicated: &mut HashSet<TaskDeduplicationKey>,
     ) -> Result<bool> {
         let known_prestates = self.prestates.known_prestates().await;
         let candidates = self.state.read().await.challenged_candidates();
@@ -2875,7 +2885,7 @@ impl Proposer {
                 break;
             }
 
-            if deduplicated.contains(&TaskDeduplication::Proving(game_address)) {
+            if deduplicated.contains(&TaskDeduplicationKey::Proving(game_address)) {
                 continue;
             }
 
@@ -2912,7 +2922,7 @@ impl Proposer {
                 address: game_address,
                 purpose: ProvingPurpose::Defense,
             });
-            deduplicated.insert(TaskDeduplication::Proving(game_address));
+            deduplicated.insert(TaskDeduplicationKey::Proving(game_address));
             tracing::info!(
                 game_address = ?game_address,
                 game_index = %index,
@@ -2930,7 +2940,10 @@ impl Proposer {
         let mut planned = Vec::new();
         let mut deduplicated = {
             let tasks = self.tasks.lock().await;
-            tasks.values().map(|(_, info)| info.deduplication).collect::<HashSet<_>>()
+            tasks
+                .values()
+                .map(|(_, info)| info.operation.deduplication_key())
+                .collect::<HashSet<_>>()
         };
         let result = self.plan_game_defense_tasks(&mut planned, &mut deduplicated).await;
         self.spawn_planned_operations(planned).await;
