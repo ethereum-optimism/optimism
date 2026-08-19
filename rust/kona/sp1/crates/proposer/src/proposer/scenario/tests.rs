@@ -474,7 +474,7 @@ impl ParkedTask {
 async fn tick_does_not_wait_for_fetch_interval() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(86_400), view).await;
-    let mut control = ScenarioControl::new(proposer, Duration::from_secs(1));
+    let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
     let before = tokio::time::Instant::now();
 
     let result = control.tick().await.unwrap();
@@ -489,7 +489,13 @@ async fn tick_does_not_wait_for_fetch_interval() {
     assert!(matches!(result.scheduled[0].operation, OperationSummary::ProposeGame { .. }));
     assert!(matches!(result.scheduled[1].operation, OperationSummary::ResolutionSweep));
     assert!(matches!(result.scheduled[2].operation, OperationSummary::ClaimSweep));
-    assert!(result.scheduled.windows(2).all(|pair| pair[0].task_id < pair[1].task_id));
+    let tasks = proposer.tasks.lock().await;
+    for scheduled in result.scheduled {
+        assert_eq!(
+            tasks.get(&scheduled.task_id).map(|(_, operation)| operation),
+            Some(&scheduled.operation)
+        );
+    }
 }
 
 #[tokio::test(start_paused = true)]

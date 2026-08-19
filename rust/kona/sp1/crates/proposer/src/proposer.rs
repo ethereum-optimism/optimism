@@ -2699,26 +2699,10 @@ impl Proposer {
         &self,
         planned: Vec<OperationSummary>,
     ) -> Vec<ScheduledOperation> {
-        let mut scheduled = planned.clone();
-        scheduled.sort_unstable();
-        let scheduled = scheduled
-            .into_iter()
-            .map(|operation| ScheduledOperation {
-                task_id: self.next_task_id.fetch_add(1, Ordering::Relaxed),
-                operation,
-            })
-            .collect::<Vec<_>>();
-        let mut allocations = scheduled
-            .iter()
-            .map(|scheduled| (scheduled.task_id, scheduled.operation.clone()))
-            .collect::<Vec<_>>();
+        let mut scheduled = Vec::with_capacity(planned.len());
 
         for operation in planned {
-            let allocation = allocations
-                .iter()
-                .position(|(_, allocated)| *allocated == operation)
-                .expect("planned operations are allocated before spawning");
-            let task_id = allocations.remove(allocation).0;
+            let task_id = self.next_task_id.fetch_add(1, Ordering::Relaxed);
             let proposer = self.clone();
             let operation_for_task = operation.clone();
             let handle = tokio::spawn(async move {
@@ -2755,7 +2739,11 @@ impl Proposer {
                 }
             }
             tracing::info!(task_id, ?operation, "Spawned proposer task");
+            scheduled.push(ScheduledOperation { task_id, operation });
         }
+        scheduled.sort_unstable_by(|left, right| {
+            left.operation.cmp(&right.operation).then_with(|| left.task_id.cmp(&right.task_id))
+        });
         scheduled
     }
 
