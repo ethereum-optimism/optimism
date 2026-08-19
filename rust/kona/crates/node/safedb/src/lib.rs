@@ -24,6 +24,3 @@ pub use traits::{SafeDb, SafeHeadRecord};
 
 #[cfg(feature = "rocksdb")]
 pub use safe_db::SafeDatabase;
-
-#[cfg(test)]
-pub use traits::MockSafeDb;

@@ -201,7 +201,12 @@ impl SafeDb for SafeDatabase {
 
     fn close(&self) -> Result<(), SafeDbError> {
         let mut guard = self.write_guard();
-        *guard = None;
-        Ok(())
+        let Some(db) = guard.take() else { return Ok(()) };
+        // rocksdb has no fallible close: dropping the handle discards any error it hit on the
+        // way out. Flushing first gives that error somewhere to surface. Records are already
+        // durable at this point, since every write is synced, so this only reports failures.
+        let flushed = db.flush();
+        drop(db);
+        flushed.map_err(SafeDbError::from)
     }
 }

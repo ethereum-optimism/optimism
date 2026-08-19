@@ -31,7 +31,6 @@ tracing.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-mockall.workspace = true
 rstest.workspace = true
 tempfile.workspace = true
 

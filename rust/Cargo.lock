@@ -7663,7 +7663,6 @@ dependencies = [
  "alloy-eips 2.1.1",
  "alloy-primitives",
  "kona-protocol",
- "mockall",
  "rocksdb",
  "rstest",
  "tempfile",

@@ -20,7 +20,6 @@ pub struct SafeHeadRecord {
 ///
 /// Methods are synchronous: the backing store is queried in-process, and a future actor is
 /// expected to own a single instance and serialize access to it.
-#[cfg_attr(test, mockall::automock)]
 pub trait SafeDb {
     /// Reports whether this database actively records and serves derivation data.
     fn enabled(&self) -> bool;
