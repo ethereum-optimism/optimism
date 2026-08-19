@@ -314,6 +314,20 @@
       ],
       "smoke_test": "kona-sp1-proposer --version"
     },
+    "rust-supernode": {
+      "type": "rust",
+      "verify_version": true,
+      "needs_melange": [
+        "op-stack-rust"
+      ],
+      "paths": [
+        "rust/**"
+      ],
+      "nexus_paths": [
+        "apko/rust-supernode.yaml"
+      ],
+      "smoke_test": "rust-supernode --version"
+    },
     "op-reth": {
       "type": "rust",
       "verify_version": true,

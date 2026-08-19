@@ -24,6 +24,24 @@ Hello Rust Supernode
 [`op-version`](../op-version), so a release build reports the injected `GIT_VERSION`, `GIT_COMMIT`,
 `GIT_DATE`, and `BUILD_PROFILE`, and a local build reports `0.0.0-dev`.
 
+## Container image
+
+```bash
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/rust-supernode:develop
+```
+
+`build-images.apko` publishes the image for amd64 and arm64 on every `develop` push, and under the
+release version for a `rust-supernode/vX.Y.Z` tag. The build has two stages, the same as every other
+Rust image:
+
+- [`melange/op-stack-rust.yaml`](../../melange/op-stack-rust.yaml) compiles the workspace once and
+  packages this binary as the `rust-supernode` APK.
+- [`apko/rust-supernode.yaml`](../../apko/rust-supernode.yaml) assembles that APK on a Wolfi base
+  into the final image.
+
+The image runs as the unprivileged `nonroot` user and its entrypoint is
+`/usr/local/bin/rust-supernode`.
+
 ## Development
 
 The crate is a member of the unified `rust/` Cargo workspace, so the workspace-wide targets cover
