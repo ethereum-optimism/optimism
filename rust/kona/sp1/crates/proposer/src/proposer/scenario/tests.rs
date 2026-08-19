@@ -431,9 +431,22 @@ async fn insert_task(
     info: TaskInfo,
     handle: tokio::task::JoinHandle<anyhow::Result<TaskSuccess>>,
 ) -> u64 {
-    let task_id = proposer.next_task_id.fetch_add(1, Ordering::Relaxed);
-    proposer.tasks.lock().await.insert(task_id, (handle, info));
+    let task_id = allocate_task_id(proposer);
+    insert_allocated_task(proposer, task_id, info, handle).await;
     task_id
+}
+
+fn allocate_task_id(proposer: &Proposer) -> u64 {
+    proposer.next_task_id.fetch_add(1, Ordering::Relaxed)
+}
+
+async fn insert_allocated_task(
+    proposer: &Proposer,
+    task_id: u64,
+    info: TaskInfo,
+    handle: tokio::task::JoinHandle<anyhow::Result<TaskSuccess>>,
+) {
+    proposer.tasks.lock().await.insert(task_id, (handle, info));
 }
 
 fn pending_handle() -> tokio::task::JoinHandle<anyhow::Result<TaskSuccess>> {
@@ -513,12 +526,12 @@ async fn unchanged_head_reaps_before_replacement_and_sync_failure_is_a_hard_gate
         second.completions.iter().map(|completion| completion.task_id).collect::<Vec<_>>(),
         vec![completed]
     );
-    assert!(
-        second
-            .scheduled
-            .iter()
-            .all(|scheduled| { second.completions.last().unwrap().task_id < scheduled.task_id })
-    );
+    let replacement = second
+        .scheduled
+        .iter()
+        .find(|scheduled| matches!(scheduled.operation, OperationSummary::ResolutionSweep))
+        .expect("the reaped resolution sweep must be replaced in the same cycle");
+    assert!(completed < replacement.task_id);
 
     let tasks_before = proposer.tasks.lock().await.len();
     let next_id_before = proposer.next_task_id.load(Ordering::Relaxed);
@@ -536,6 +549,12 @@ async fn unchanged_head_reaps_before_replacement_and_sync_failure_is_a_hard_gate
 
     assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::ConfirmedBlockUnavailable);
     assert_eq!(*proposer.last_successful_pinned_l1.read().await, None);
+
+    let view = Arc::new(ScenarioL1View::new());
+    view.head_number.store(0, Ordering::Relaxed);
+    let proposer = proposer_with(test_config(30), view).await;
+    assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::Advanced);
+    assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::UnchangedConfirmedHead);
 }
 
 #[tokio::test]
@@ -798,13 +817,15 @@ async fn shared_finalizer_reports_outcomes_and_task_lifecycle() {
 
     let completed_before_timeout =
         insert_task(&proposer, info(), tokio::spawn(async { Ok(TaskSuccess::Completed) })).await;
+    let blocked = allocate_task_id(&proposer);
     let barrier = NamedBarrier::new("partial settlement barrier");
     let task_barrier = barrier.clone();
-    let blocked = insert_task(
+    insert_allocated_task(
         &proposer,
+        blocked,
         info(),
         tokio::spawn(async move {
-            task_barrier.park().await;
+            task_barrier.park(blocked).await;
             Ok(TaskSuccess::Completed)
         }),
     )
@@ -836,16 +857,18 @@ async fn task_finishing_during_tick_remains_explicitly_settleable() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view.clone()).await;
     proposer.sync_state().await.unwrap();
+    let task_id = allocate_task_id(&proposer);
     let barrier = NamedBarrier::new("completion barrier");
     let (done_tx, done_rx) = oneshot::channel();
     *view.release_barrier.lock().unwrap() = Some(barrier.clone());
     *view.task_finished.lock().unwrap() = Some(done_rx);
     let task_barrier = barrier.clone();
-    let task_id = insert_task(
+    insert_allocated_task(
         &proposer,
+        task_id,
         TaskInfo::from_operation(OperationSummary::ResolutionSweep),
         tokio::spawn(async move {
-            task_barrier.park().await;
+            task_barrier.park(task_id).await;
             let _ = done_tx.send(());
             Ok(TaskSuccess::Completed)
         }),
@@ -860,6 +883,25 @@ async fn task_finishing_during_tick_remains_explicitly_settleable() {
     assert!(result.completions.is_empty());
     assert!(proposer.tasks.lock().await.get(&task_id).unwrap().0.is_finished());
     assert_eq!(control.settle(&[task_id]).await.unwrap()[0].task_id, task_id);
+    let scheduled = result.scheduled.iter().map(|item| item.task_id).collect::<Vec<_>>();
+    control.settle(&scheduled).await.unwrap();
+
+    let (done_tx, done_rx) = oneshot::channel();
+    let reaped = insert_task(
+        &proposer,
+        TaskInfo::from_operation(OperationSummary::ResolutionSweep),
+        tokio::spawn(async move {
+            let _ = done_tx.send(());
+            Ok(TaskSuccess::Completed)
+        }),
+    )
+    .await;
+    let _ = done_rx.await;
+    assert!(control.tick().await.unwrap().completions.iter().any(|item| item.task_id == reaped));
+    assert_eq!(
+        control.settle(&[reaped]).await.unwrap_err(),
+        ScenarioError::AlreadyFinalized { task_id: reaped }
+    );
 }
 
 #[tokio::test]
@@ -962,15 +1004,17 @@ async fn proving_dedup_and_singleton_caps_are_preserved() {
 async fn tick_enforces_running_task_discipline_and_settlement_watchdog() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view).await;
+    let running = allocate_task_id(&proposer);
     let barrier = NamedBarrier::new("resolution barrier");
     let task_barrier = barrier.clone();
     let (barrier_released_tx, barrier_released_rx) = oneshot::channel();
     let (finish_tx, finish_rx) = oneshot::channel();
-    let running = insert_task(
+    insert_allocated_task(
         &proposer,
+        running,
         TaskInfo::from_operation(OperationSummary::ResolutionSweep),
         tokio::spawn(async move {
-            task_barrier.park().await;
+            task_barrier.park(running).await;
             let _ = barrier_released_tx.send(());
             let _ = finish_rx.await;
             Ok(TaskSuccess::Completed)
@@ -981,6 +1025,23 @@ async fn tick_enforces_running_task_discipline_and_settlement_watchdog() {
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_millis(10));
 
     assert_eq!(control.tick().await.unwrap_err(), ScenarioError::RunningTask { task_id: running });
+    let mismatched = NamedBarrier::new("different task barrier");
+    let mismatched_task = proposer.next_task_id.load(Ordering::Relaxed);
+    let mismatched_worker = {
+        let mismatched = mismatched.clone();
+        tokio::spawn(async move { mismatched.park(mismatched_task).await })
+    };
+    mismatched.wait_until_reached().await;
+    assert_eq!(
+        control.record_parked(running, &mismatched).await.unwrap_err(),
+        ScenarioError::BarrierTaskMismatch {
+            task_id: running,
+            barrier: "different task barrier".into(),
+            reached_by: mismatched_task,
+        }
+    );
+    mismatched.release();
+    mismatched_worker.await.unwrap();
     let unreached = NamedBarrier::new("not reached");
     assert_eq!(
         control.record_parked(running, &unreached).await.unwrap_err(),

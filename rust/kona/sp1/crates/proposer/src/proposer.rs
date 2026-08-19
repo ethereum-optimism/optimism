@@ -953,7 +953,8 @@ impl Proposer {
         // operators can detect unhealthy backends or L1 reorg; the equal case stays at DEBUG since
         // it's the normal "L1 hasn't ticked" path.
         let prev = self.last_synced_l1_block.load(Ordering::Relaxed);
-        if confirmed_number > 0 && confirmed_number <= prev {
+        let has_successful_pin = self.last_successful_pinned_l1.read().await.is_some();
+        if has_successful_pin && confirmed_number <= prev {
             if confirmed_number < prev {
                 tracing::warn!(
                     confirmed_number,
@@ -2265,10 +2266,11 @@ impl Proposer {
         selected.sort_unstable_by_key(|(task_id, _, _)| *task_id);
 
         let mut completions = Vec::with_capacity(selected.len());
+        let watchdog_deadline = watchdog.map(|duration| time::Instant::now() + duration);
         let mut selected = selected.into_iter();
         while let Some((task_id, mut handle, info)) = selected.next() {
-            let joined = if let Some(watchdog) = watchdog {
-                match time::timeout(watchdog, &mut handle).await {
+            let joined = if let Some(deadline) = watchdog_deadline {
+                match time::timeout_at(deadline, &mut handle).await {
                     Ok(joined) => joined,
                     Err(_) => {
                         let mut tasks = self.tasks.lock().await;
@@ -2626,7 +2628,6 @@ impl Proposer {
                         game_index = %index,
                         "Planned fast finality proving"
                     );
-                    ProposerGauge::GamesFastFinalitySpawned.increment(1.0);
                     active_proving += 1;
                 }
             }
@@ -2783,6 +2784,14 @@ impl Proposer {
             });
             let task_info = TaskInfo::from_operation(operation.clone());
             self.tasks.lock().await.insert(task_id, (handle, task_info));
+            if let OperationSummary::ProveGame { purpose, .. } = &operation {
+                match purpose {
+                    ProvingPurpose::Defense => ProposerGauge::GamesDefenseSpawned.increment(1.0),
+                    ProvingPurpose::FastFinality => {
+                        ProposerGauge::GamesFastFinalitySpawned.increment(1.0);
+                    }
+                }
+            }
             tracing::info!(task_id, ?operation, "Spawned proposer task");
         }
         scheduled
@@ -2909,7 +2918,6 @@ impl Proposer {
                 game_index = %index,
                 "Planned defense for challenged game"
             );
-            ProposerGauge::GamesDefenseSpawned.increment(1.0);
             active_defense_tasks += 1;
             tasks_planned = true;
         }
@@ -4392,6 +4400,8 @@ mod tests {
             });
             proposer.l1_view = view.clone();
             proposer.last_synced_l1_block.store(previous_pin, AtomicOrdering::Relaxed);
+            *proposer.last_successful_pinned_l1.write().await =
+                Some(L1BlockRef { number: previous_pin, timestamp: 1_000 });
             assert_eq!(proposer.sync_state().await.is_err(), expect_error);
             assert_eq!(proposer.last_synced_l1_block.load(AtomicOrdering::Relaxed), previous_pin);
             assert_eq!(view.calls(), expected_calls);

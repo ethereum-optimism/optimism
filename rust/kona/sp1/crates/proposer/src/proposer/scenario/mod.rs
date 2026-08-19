@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -18,12 +18,13 @@ pub(super) enum ScenarioError {
     UnknownTask { task_id: TaskId },
     AlreadyFinalized { task_id: TaskId },
     BarrierNotReached { task_id: TaskId, barrier: String },
+    BarrierTaskMismatch { task_id: TaskId, barrier: String, reached_by: TaskId },
     SettlementWatchdog { task_ids: Vec<TaskId>, completions: Vec<TaskCompletion> },
 }
 
 struct BarrierState {
     name: String,
-    reached: AtomicBool,
+    reached_by: AtomicU64,
     released: AtomicBool,
     reached_notify: Notify,
     release_notify: Notify,
@@ -38,15 +39,18 @@ impl NamedBarrier {
         assert!(!name.is_empty(), "barrier name must not be empty");
         Self(Arc::new(BarrierState {
             name,
-            reached: AtomicBool::new(false),
+            reached_by: AtomicU64::new(0),
             released: AtomicBool::new(false),
             reached_notify: Notify::new(),
             release_notify: Notify::new(),
         }))
     }
 
-    pub(super) async fn park(&self) {
-        self.0.reached.store(true, Ordering::Release);
+    pub(super) async fn park(&self, task_id: TaskId) {
+        assert_ne!(task_id, 0, "barriers cannot be reached by an unknown task");
+        let previous =
+            self.0.reached_by.compare_exchange(0, task_id, Ordering::AcqRel, Ordering::Acquire);
+        assert!(previous.is_ok(), "barrier '{}' cannot be reused", self.0.name);
         self.0.reached_notify.notify_waiters();
         loop {
             let released = self.0.release_notify.notified();
@@ -60,7 +64,7 @@ impl NamedBarrier {
     pub(super) async fn wait_until_reached(&self) {
         loop {
             let reached = self.0.reached_notify.notified();
-            if self.0.reached.load(Ordering::Acquire) {
+            if self.0.reached_by.load(Ordering::Acquire) != 0 {
                 return;
             }
             reached.await;
@@ -89,7 +93,7 @@ impl ScenarioControl {
             let tasks = self.proposer.tasks.lock().await;
             for (task_id, (handle, _)) in tasks.iter() {
                 let is_parked = self.parked.get(task_id).is_some_and(|barrier| {
-                    barrier.0.reached.load(Ordering::Acquire) &&
+                    barrier.0.reached_by.load(Ordering::Acquire) == *task_id &&
                         !barrier.0.released.load(Ordering::Acquire)
                 });
                 if !handle.is_finished() && !is_parked {
@@ -118,10 +122,18 @@ impl ScenarioControl {
             return Err(self.classify_missing(task_id));
         }
         drop(tasks);
-        if !barrier.0.reached.load(Ordering::Acquire) {
+        let reached_by = barrier.0.reached_by.load(Ordering::Acquire);
+        if reached_by == 0 {
             return Err(ScenarioError::BarrierNotReached {
                 task_id,
                 barrier: barrier.0.name.clone(),
+            });
+        }
+        if reached_by != task_id {
+            return Err(ScenarioError::BarrierTaskMismatch {
+                task_id,
+                barrier: barrier.0.name.clone(),
+                reached_by,
             });
         }
         self.parked.insert(task_id, barrier.clone());
