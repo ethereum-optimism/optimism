@@ -148,8 +148,8 @@ where
                 Batch::Span(b) => {
                     #[cfg(feature = "metrics")]
                     let start = std::time::Instant::now();
-                    let (mut validity, parent_block) = b
-                        .check_batch_prefix(
+                    let validity = b
+                        .check_batch_holocene(
                             self.config.as_ref(),
                             l1_origins,
                             parent,
@@ -162,26 +162,6 @@ where
                         crate::metrics::Metrics::PIPELINE_CHECK_BATCH_PREFIX,
                         start.elapsed().as_secs_f64()
                     );
-
-                    // The prefix checks do not validate overlap contents against the safe
-                    // chain. A span batch that disagrees with the safe chain — possible since
-                    // interop block replacement — must be dropped as a whole, so that the
-                    // remainder of an invalidated lineage cannot be spliced onto the canonical
-                    // chain. See [`SpanBatch::check_batch_overlap`] for details.
-                    if validity.is_accept() {
-                        let parent_block =
-                            parent_block.expect("accepted prefix checks return a parent block");
-                        if parent_block.block_info.number < parent.block_info.number {
-                            validity = b
-                                .check_batch_overlap(
-                                    self.config.as_ref(),
-                                    parent_block,
-                                    parent,
-                                    &mut self.fetcher,
-                                )
-                                .await;
-                        }
-                    }
 
                     kona_macros::inc!(
                         gauge,
@@ -221,8 +201,8 @@ where
             Ok(None) => Err(PipelineError::NotEnoughData.temp()),
             Err(e) => {
                 warn!(target: "batch_span", "Extracting singular batches from span batch failed: {}", e);
-                // If singular batch extraction fails, it should be handled the same as a
-                // dropped batch during span batch prefix checks.
+                // If singular batch extraction fails, handle it like a batch dropped during the
+                // Holocene span batch checks.
                 self.flush();
                 Err(PipelineError::NotEnoughData.temp())
             }

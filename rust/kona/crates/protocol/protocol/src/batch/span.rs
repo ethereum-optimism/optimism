@@ -609,11 +609,8 @@ impl SpanBatch {
         BatchValidity::Accept
     }
 
-    /// Checks the validity of the batch's prefix.
-    ///
-    /// This function is used for post-Holocene hardfork to perform batch validation
-    /// as each batch is being loaded in. Next to the validity, it also returns the parent L2
-    /// block as determined during the checks for further consumption.
+    /// Checks the span batch prefix rules shared by the legacy full checks and the Holocene
+    /// checks. It also returns the parent L2 block determined during validation.
     pub async fn check_batch_prefix<BF: BatchValidationProvider>(
         &self,
         cfg: &RollupConfig,
@@ -773,6 +770,29 @@ impl SpanBatch {
         }
 
         (BatchValidity::Accept, Some(parent_block))
+    }
+
+    /// Checks the Holocene span batch rules: prefix validity followed by overlap validity.
+    pub async fn check_batch_holocene<BV: BatchValidationProvider>(
+        &self,
+        cfg: &RollupConfig,
+        l1_origins: &[BlockInfo],
+        l2_safe_head: L2BlockInfo,
+        inclusion_block: &BlockInfo,
+        fetcher: &mut BV,
+    ) -> BatchValidity {
+        let (prefix_validity, parent_block) =
+            self.check_batch_prefix(cfg, l1_origins, l2_safe_head, inclusion_block, fetcher).await;
+        if !prefix_validity.is_accept() {
+            return prefix_validity;
+        }
+        self.check_batch_overlap(
+            cfg,
+            parent_block.expect("accepted prefix checks return a parent block"),
+            l2_safe_head,
+            fetcher,
+        )
+        .await
     }
 }
 
