@@ -82,10 +82,16 @@ where
         &mut self,
     ) -> Result<ExecResultAndState<Self::ExecutionResult, Self::State>, Self::Error> {
         let mut h = OpHandler::<_, _, EthFrame<EthInterpreter>>::new();
-        h.run(self).map(|result| {
-            let state = self.finalize();
-            ExecResultAndState::new(result, state)
-        })
+        h.run(self)
+            // finalize (clear) the journal on error; on success the `map`
+            // branch below finalizes it.
+            .inspect_err(|_| {
+                let _ = self.finalize();
+            })
+            .map(|result| {
+                let state = self.finalize();
+                ExecResultAndState::new(result, state)
+            })
     }
 }
 

@@ -49,7 +49,6 @@ alloy-eips.workspace = true
 alloy-hardforks.workspace = true
 alloy-json-rpc.workspace = true
 alloy-primitives.workspace = true
-alloy-rlp.workspace = true
 alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-rpc-types-debug.workspace = true
