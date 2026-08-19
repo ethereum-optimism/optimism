@@ -72,8 +72,4 @@ impl Stage for TestFrameQueueProvider {
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.reset(BlockNumHash::default(), SystemConfig::default()).await
     }
-
-    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
-        self.reset(BlockNumHash::default(), SystemConfig::default()).await
-    }
 }

@@ -1,8 +1,8 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{
-    EngineConfig, InteropMode, NetworkConfig, RollupNode, SequencerConfig,
-    actors::DerivationDelegateClient, service::node::L1Config,
+    EngineConfig, NetworkConfig, RollupNode, SequencerConfig, actors::DerivationDelegateClient,
+    service::node::L1Config,
 };
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
@@ -69,8 +69,6 @@ pub struct RollupNodeBuilder {
     pub rpc_config: Option<RpcBuilder>,
     /// The [`SequencerConfig`].
     pub sequencer_config: Option<SequencerConfig>,
-    /// Whether to run the node in interop mode.
-    pub interop_mode: InteropMode,
     /// Optional configuration for Derivation Delegate mode.
     /// When present, the node does not run derivation, instead trusting the configured delegate.
     pub derivation_delegate_config: Option<DerivationDelegateConfig>,
@@ -80,7 +78,7 @@ pub struct RollupNodeBuilder {
 
 impl RollupNodeBuilder {
     /// Creates a new [`RollupNodeBuilder`] with the given [`RollupConfig`].
-    pub fn new(
+    pub const fn new(
         config: RollupConfig,
         l1_config_builder: L1ConfigBuilder,
         l2_trust_rpc: bool,
@@ -95,7 +93,6 @@ impl RollupNodeBuilder {
             engine_config,
             p2p_config,
             rpc_config,
-            interop_mode: InteropMode::default(),
             sequencer_config: None,
             derivation_delegate_config: None,
             dependency_set: None,
@@ -184,7 +181,6 @@ impl RollupNodeBuilder {
         RollupNode {
             config: rollup_config,
             l1_config,
-            interop_mode: self.interop_mode,
             l2_provider,
             l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,

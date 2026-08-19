@@ -28,7 +28,7 @@ func TestSequencerRestart(gt *testing.T) {
 	// Let's ensure that all the nodes are properly advancing.
 	var preCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
-		preCheckFuns = append(preCheckFuns, node.LaggedFn(&sequencer, safety.CrossUnsafe, 20, true), node.AdvancedFn(safety.LocalSafe, 20, 40))
+		preCheckFuns = append(preCheckFuns, node.LaggedFn(&sequencer, safety.LocalUnsafe, 20, true), node.AdvancedFn(safety.LocalSafe, 20, 40))
 	}
 	dsl.CheckAll(t, preCheckFuns...)
 
