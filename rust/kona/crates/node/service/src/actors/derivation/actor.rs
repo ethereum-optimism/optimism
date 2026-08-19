@@ -13,9 +13,15 @@ use kona_derive::{
 use kona_engine::FinalizeBlockId;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use kona_safedb::{SafeDb, SafeDbError};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::sync::mpsc;
+
+/// Attempts made on a safe-head database write before it is treated as fatal.
+const SAFE_DB_WRITE_ATTEMPTS: u32 = 5;
+
+/// Delay before the first safe-head database write retry. Doubles on each further attempt.
+const SAFE_DB_RETRY_BACKOFF: Duration = Duration::from_millis(50);
 
 /// The [`NodeActor`] for the derivation sub-routine.
 ///
@@ -146,9 +152,13 @@ where
                                         DerivationError::Sender(Box::new(e))
                                     })?;
                                 }
-                                self.safe_db.safe_head_reset(
-                                    self.derivation_state_machine.last_confirmed_safe_head(),
-                                )?;
+                                let safe_db = self.safe_db.clone();
+                                let reset_head =
+                                    self.derivation_state_machine.last_confirmed_safe_head();
+                                Self::write_with_retries("safe head reset", || {
+                                    safe_db.safe_head_reset(reset_head)
+                                })
+                                .await?;
                                 self.derivation_state_machine
                                     .update(&DerivationStateUpdate::SignalNeeded)?;
                                 return Err(DerivationError::Yield);
@@ -200,7 +210,7 @@ where
             }
             DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
                 info!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
-                self.record_safe_head(*safe_head)?;
+                self.record_safe_head(*safe_head).await?;
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head))?;
 
@@ -210,7 +220,12 @@ where
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
                 // EL sync can land on a chain that diverges from what was recorded, so drop
                 // anything at or above the synced head and keep the contiguous history below it.
-                self.safe_db.safe_head_reset(*safe_head)?;
+                let safe_db = self.safe_db.clone();
+                let synced_head = *safe_head;
+                Self::write_with_retries("safe head reset after el sync", || {
+                    safe_db.safe_head_reset(synced_head)
+                })
+                .await?;
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::ELSyncCompleted(safe_head))?;
 
@@ -221,18 +236,60 @@ where
         Ok(())
     }
 
+    /// Runs a safe-head database write, retrying before giving up.
+    ///
+    /// When enabled the database is consensus-critical, and a gap does not surface as an error:
+    /// [`SafeDb::safe_head_at_l1`] answers with the highest entry at or below the requested L1
+    /// block, so a missing entry is served as an older safe head rather than reported. Consumers
+    /// such as op-challenger would act on that wrong answer. Retries absorb a transient disk
+    /// failure; once they are exhausted the error is returned, which stops the node rather than
+    /// leaving the gap behind.
+    async fn write_with_retries(
+        what: &'static str,
+        mut write: impl FnMut() -> Result<(), SafeDbError>,
+    ) -> Result<(), DerivationError> {
+        let mut backoff = SAFE_DB_RETRY_BACKOFF;
+        let mut attempt = 1;
+        loop {
+            match write() {
+                Ok(()) => return Ok(()),
+                Err(e) if attempt < SAFE_DB_WRITE_ATTEMPTS => {
+                    warn!(
+                        target: "derivation",
+                        %e, attempt, what,
+                        "Safe head db write failed, retrying"
+                    );
+                    tokio::time::sleep(backoff).await;
+                    backoff *= 2;
+                    attempt += 1;
+                }
+                Err(e) => {
+                    error!(
+                        target: "derivation",
+                        %e, attempts = attempt, what,
+                        "Safe head db write failed and cannot be retried further"
+                    );
+                    return Err(e.into());
+                }
+            }
+        }
+    }
+
     /// Records that `safe_head` became safe as of the pipeline's current L1 origin.
     ///
     /// The origin is read here rather than carried from where the attributes were derived
     /// because the state machine blocks derivation between `NewAttributesDerived` and this
     /// confirmation, so the pipeline cannot have advanced its origin in between.
-    fn record_safe_head(&self, safe_head: L2BlockInfo) -> Result<(), DerivationError> {
+    async fn record_safe_head(&self, safe_head: L2BlockInfo) -> Result<(), DerivationError> {
         if !self.safe_db.enabled() {
             return Ok(());
         }
         let origin = self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-        self.safe_db.safe_head_updated(safe_head, origin.id())?;
-        Ok(())
+        let safe_db = self.safe_db.clone();
+        Self::write_with_retries("safe head update", || {
+            safe_db.safe_head_updated(safe_head, origin.id())
+        })
+        .await
     }
 
     /// Attempts to process the next payload attributes.
@@ -309,8 +366,8 @@ pub enum DerivationError {
     /// An error originating from the broadcast sender.
     #[error("Failed to send event to broadcast sender: {0}")]
     Sender(Box<dyn std::error::Error>),
-    /// The safe-head database rejected an update. Derivation stops rather than continuing with
-    /// a recorded history that no longer matches the chain.
+    /// A safe-head database write still failed after every retry. Stops the node rather than
+    /// leaving a gap that would later be served as an incorrect safe head.
     #[error(transparent)]
     SafeDb(#[from] SafeDbError),
     /// Failed to receive inbound request
@@ -333,7 +390,11 @@ mod tests {
     };
     use kona_genesis::RollupConfig;
     use kona_protocol::BlockInfo;
-    use kona_safedb::SafeDatabase;
+    use kona_safedb::{SafeDatabase, SafeHeadRecord};
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicU32, Ordering},
+    };
     use tempfile::TempDir;
 
     const PIPELINE_ORIGIN: u64 = 100;
@@ -398,6 +459,95 @@ mod tests {
         );
         assert_eq!(record.l1.hash, l1_origin_block().hash);
         assert_eq!(record.safe_head, safe_head().block_info.id());
+    }
+
+    /// Fails the first `fail_first` writes, then behaves normally. Records what landed.
+    #[derive(Debug)]
+    struct FlakyDb {
+        fail_first: u32,
+        attempts: AtomicU32,
+        recorded: Mutex<Vec<(BlockNumHash, BlockNumHash)>>,
+    }
+
+    impl FlakyDb {
+        fn new(fail_first: u32) -> Self {
+            Self { fail_first, attempts: AtomicU32::new(0), recorded: Mutex::new(Vec::new()) }
+        }
+    }
+
+    impl SafeDb for FlakyDb {
+        fn enabled(&self) -> bool {
+            true
+        }
+        fn safe_head_updated(
+            &self,
+            safe_head: L2BlockInfo,
+            l1_head: BlockNumHash,
+        ) -> Result<(), SafeDbError> {
+            if self.attempts.fetch_add(1, Ordering::SeqCst) < self.fail_first {
+                return Err(SafeDbError::Closed);
+            }
+            self.recorded.lock().unwrap().push((l1_head, safe_head.block_info.id()));
+            Ok(())
+        }
+        fn safe_head_reset(&self, _safe_head: L2BlockInfo) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+        fn safe_head_at_l1(&self, _l1_block_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
+            unimplemented!("writes only")
+        }
+        fn first_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
+            unimplemented!("writes only")
+        }
+        fn last_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
+            unimplemented!("writes only")
+        }
+        fn l1_at_safe_head(&self, _target_l2_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
+            unimplemented!("writes only")
+        }
+        fn close(&self) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+    }
+
+    async fn send_safe_head_update(
+        actor: &mut DerivationActor<MockDerivationEngineClient, impl Pipeline + SignalReceiver>,
+    ) -> Result<(), DerivationError> {
+        actor
+            .handle_derivation_actor_request(
+                DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(Box::new(safe_head())),
+            )
+            .await
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retries_a_transient_write_failure() {
+        let db = Arc::new(FlakyDb::new(SAFE_DB_WRITE_ATTEMPTS - 1));
+        let mut actor = actor(db.clone());
+
+        send_safe_head_update(&mut actor).await.expect("should succeed on the final attempt");
+
+        let recorded = db.recorded.lock().unwrap();
+        assert_eq!(recorded.len(), 1, "the entry must land, not be skipped");
+        assert_eq!(recorded[0].0.number, PIPELINE_ORIGIN);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_permanent_write_failure_stops_the_actor() {
+        // A gap is served as an older safe head rather than an error, so the actor must fail
+        // instead of carrying on. Its error is fatal to the node by NodeActor's contract.
+        let db = Arc::new(FlakyDb::new(u32::MAX));
+        let mut actor = actor(db.clone());
+
+        let err =
+            send_safe_head_update(&mut actor).await.expect_err("must not continue past a gap");
+        assert!(matches!(err, DerivationError::SafeDb(_)));
+        assert_eq!(
+            db.attempts.load(Ordering::SeqCst),
+            SAFE_DB_WRITE_ATTEMPTS,
+            "every attempt should be used before giving up"
+        );
+        assert!(db.recorded.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

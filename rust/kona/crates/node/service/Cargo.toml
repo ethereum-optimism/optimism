@@ -69,6 +69,7 @@ http-body-util.workspace = true
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 kona-safedb = { workspace = true, features = ["rocksdb"] }
 tempfile.workspace = true
 rstest.workspace = true

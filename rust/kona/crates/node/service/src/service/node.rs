@@ -77,7 +77,7 @@ pub struct RollupNode {
     pub(crate) sequencer_config: SequencerConfig,
     /// Optional derivation delegate provider.
     pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
-    /// The safe-head database. [`DisabledDatabase`] unless a path was configured.
+    /// The safe-head database. [`kona_safedb::DisabledDatabase`] unless a path was configured.
     pub(crate) safe_db: Arc<dyn SafeDb>,
     /// The interop dependency set for this chain.
     /// Mirrors op-node's `--interop.dependency-set`.
