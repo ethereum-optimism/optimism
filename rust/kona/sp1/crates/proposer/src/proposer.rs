@@ -131,7 +131,7 @@ impl Default for ProposerIdentity {
 /// Games form a directed acyclic graph where each game builds upon a parent game, extending the
 /// chain with a new proposed output root. The proposer tracks these games to determine when to
 /// propose new games, defend existing ones, resolve completed games and claim bonds.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Game {
     /// Index of the game in the `DisputeGameFactory`.
     pub index: U256,
@@ -3934,21 +3934,6 @@ mod tests {
             anchor_state_registry: Address::ZERO,
         }
     }
-    fn assert_game_eq(actual: &Game, expected: &Game) {
-        assert_eq!(actual.index, expected.index);
-        assert_eq!(actual.address, expected.address);
-        assert_eq!(actual.parent_index, expected.parent_index);
-        assert_eq!(actual.l2_sequence_number, expected.l2_sequence_number);
-        assert_eq!(actual.status, expected.status);
-        assert_eq!(actual.proposal_status, expected.proposal_status);
-        assert_eq!(actual.deadline, expected.deadline);
-        assert_eq!(actual.should_attempt_to_resolve, expected.should_attempt_to_resolve);
-        assert_eq!(actual.should_attempt_to_claim_bond, expected.should_attempt_to_claim_bond);
-        assert_eq!(actual.absolute_prestate, expected.absolute_prestate);
-        assert_eq!(actual.creator, expected.creator);
-        assert_eq!(actual.weth, expected.weth);
-        assert_eq!(actual.anchor_state_registry, expected.anchor_state_registry);
-    }
 
     fn write_test_prestate_artifacts(name: &str, prestate: B256) -> std::path::PathBuf {
         let dir = std::env::temp_dir()
@@ -4200,7 +4185,7 @@ mod tests {
         }
         proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
         let cached = proposer.state.read().await.games.get(&game.index).unwrap().clone();
-        assert_game_eq(&cached, &game);
+        assert_eq!(cached, game);
         assert_eq!(
             lifecycle_failure.calls(),
             vec!["latest_game_index", "registered_anchor_game", "game_lifecycle"]
