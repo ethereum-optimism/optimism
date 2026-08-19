@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -51,14 +50,6 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 		require.True(added, "should have added trusted peer on "+side)
 	}
 	addTrustedPeer(initiator, targetInfo.Enode, "initiator")
-
-	// Skip P2P connection verification if SKIP_P2P_CONNECTION_CHECK is set
-	// FIXME(#18570): it seems we have some issues getting op-reth to connect to op-geth. This is a temporary workaround to ensure we can still run the
-	// devstack tests.
-	if os.Getenv("SKIP_P2P_CONNECTION_CHECK") != "" {
-		addTrustedPeer(acceptor, initiatorInfo.Enode, "acceptor")
-		return
-	}
 
 	waitCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
