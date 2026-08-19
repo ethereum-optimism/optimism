@@ -145,6 +145,60 @@ func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 	})
 }
 
+// TestZK_HonestChallenger_SourceRecovers_ChallengesInvalidProposal checks the live challenger's
+// recovery path when its super-root RPC is temporarily unresponsive. Two stalled requests prove the
+// first call timed out and the challenger retried; after the source resumes, the same challenger must
+// submit the on-chain challenge before the challenge window expires.
+func TestZK_HonestChallenger_SourceRecovers_ChallengesInvalidProposal(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := newOpNodeSystem(t)
+	proxy := sys.ZKChallengerSuperRootRPCProxy()
+	proxy.Stall()
+
+	factory := sys.DisputeGameFactory()
+	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
+	timestamp, outputRoots := factory.WaitForSafeSuperRootAfter(anchorSequence)
+	t.Require().NotEmpty(outputRoots)
+	outputRoots[0][0] ^= 0xff
+	game := factory.StartZKGame(proposer,
+		proofs.WithL2SequenceNumber(timestamp),
+		proofs.WithSuperRootFrom(outputRoots...),
+	)
+
+	proxy.WaitForStalledRequests(t, 2)
+	t.Require().Equal(proofs.ZKProposalUnchallenged, game.ProposalStatus())
+	proxy.Resume()
+	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
+}
+
+// TestZK_HonestChallenger_InvalidChainBProposal_ChallengesProposal checks that the challenger compares
+// every chain in a multi-chain super root. Existing invalid-proposal coverage corrupts the first
+// (Chain A) output; this corrupts only the second (Chain B) output and expects the same challenge.
+func TestZK_HonestChallenger_InvalidChainBProposal_ChallengesProposal(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	multiSys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestProposer(),
+	)
+	sys := &multiSys.SingleChainInterop
+	t.Require().Negative(multiSys.L2ChainA.ChainID().Cmp(multiSys.L2ChainB.ChainID()),
+		"super-root entries are sorted by chain ID, so Chain B must be the second entry")
+
+	factory := sys.DisputeGameFactory()
+	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
+	timestamp, outputRoots := factory.WaitForSafeSuperRootAfter(anchorSequence)
+	t.Require().Len(outputRoots, 2)
+	outputRoots[1][0] ^= 0xff
+	game := factory.StartZKGame(proposer,
+		proofs.WithL2SequenceNumber(timestamp),
+		proofs.WithSuperRootFrom(outputRoots...),
+	)
+
+	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
+}
+
 // TestZK_HonestChallenger_UnsafeProposal_ChallengerWins locks in the subtle rule that a proposal for
 // a timestamp the node has not yet made safe has no canonical super root (Data == nil), which the
 // honest challenger treats as invalid: it challenges and, with no proof submitted, resolves

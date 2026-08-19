@@ -248,9 +248,9 @@ reproducible-prestate:
   (cd rust && just build-kona-reproducible-prestate)
   (cd rust && just output-kona-prestate-hash)
 
-# Builds the kona prestates natively (hashes will not match release builds).
+# Builds the kona prestates, natively when the MIPS64 cross-linker is installed and via Docker otherwise.
 cannon-prestates:
-  cd rust && just build-kona-prestates
+  cd rust && just build-kona-prestates-auto
 
 # Verifies the reproducibility of released cannon prestates against the
 # superchain-registry standard prestates. Only kona-client/v* releases are
@@ -427,8 +427,10 @@ update-op-geth:
   ./ops/scripts/update-op-geth.py
 
 # Build all Rust binaries (release) for sysgo tests.
+# Every binary needs an explicit `-p`: a bare `--bin` only resolves against the
+# `default-members` of the workspace, and op-reth-sdm-fixture is a plain member.
 build-rust-release:
-  cd rust && cargo build --release --bin kona-node --bin kona-host --bin op-reth
+  cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth -p op-reth-sdm-fixture --bin op-reth-sdm-fixture
   cd rust/op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
   cd rust/rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 

@@ -70,7 +70,7 @@ func NewInvalidExecMsgSpammer(t devtest.T, l2 *L2, validInitMsg messages.Message
 
 func (ie *InvalidExecMsgSpammer) Spam(t devtest.T) error {
 	invalidInitMsg := ie.makeInvalidFns.Get()(ie.validInitMsg)
-	execMsg := planExecMsg(t, &invalidInitMsg, ie.l2.BlockTime, ie.l2.EL.Escape().EthClient())
+	execMsg := planExecMsg(t, &invalidInitMsg)
 	if _, err := ie.eoa.Include(t, execMsg); err == nil {
 		t.Require().Failf("included invalid executing message", "message: %v", invalidInitMsg)
 	} else if !strings.Contains(err.Error(), core.ErrTxFilteredOut.Error()) { // TODO(13408): we should be able to use errors.Is.

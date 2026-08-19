@@ -2,9 +2,9 @@
 # op-reth live in the same cargo workspace (rust/) with a single Cargo.lock,
 # so one melange run shares the whole common dependency graph (alloy,
 # op-alloy, revm, ...) across all five binaries instead of compiling it once
-# per CI leg. Subpackage builds run sequentially in one sandbox with a shared
-# target dir: the first build does the heavy lifting, the rest are
-# incremental.
+# per CI leg. The main pipeline builds all five binaries once into a shared
+# target dir, then the ordered subpackage pipelines install those outputs into
+# separate APKs.
 #
 # Each binary is its own subpackage/APK so images pull only what they run:
 # each Kona image pulls its matching binary, while op-challenger pulls just
@@ -45,76 +45,78 @@ environment:
     CARGO_HOME: /var/cache/melange/cargo
     CARGO_TARGET_DIR: /var/cache/melange/target
 
+# Melange runs the main pipeline before subpackage pipelines. Build all five
+# main-workspace binaries here so each subpackage below only packages an
+# existing output. Selecting one package at a time changes feature unification
+# and can make Cargo recompile and relink outputs from the combined command.
+pipeline:
+  - uses: cargo/build
+    with:
+      install-output: "false"
+      modroot: rust
+      profile: "${MELANGE_CARGO_PROFILE}"
+      opts: --locked --package op-reth --package kona-node --package kona-host --package kona-client --package kona-sp1-proposer
+
 subpackages:
-  # The first subpackage builds ALL five packages in one cargo invocation:
-  # one scheduler pass over the whole workspace graph keeps every core busy
-  # instead of serializing five builds. The shared target dir persists across
-  # subpackages, so the later four cargo runs are no-op fingerprint checks
-  # followed by an install.
   - name: op-reth
     description: op-reth — OP Stack Reth execution client
     pipeline:
-      - uses: cargo/build
-        with:
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          modroot: rust
-          output: op-reth
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package op-reth --package kona-node --package kona-host --package kona-client --package kona-sp1-proposer
+      - runs: |
+          profile="${MELANGE_CARGO_PROFILE:-release}"
+          install -Dm755 \
+            "${CARGO_TARGET_DIR}/rust/${profile}/op-reth" \
+            "${{targets.contextdir}}/usr/local/bin/op-reth"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: kona-node
     description: kona-node — OP Stack Kona rollup node
     pipeline:
-      - uses: cargo/build
-        with:
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          modroot: rust
-          output: kona-node
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package kona-node
+      - runs: |
+          profile="${MELANGE_CARGO_PROFILE:-release}"
+          install -Dm755 \
+            "${CARGO_TARGET_DIR}/rust/${profile}/kona-node" \
+            "${{targets.contextdir}}/usr/local/bin/kona-node"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: kona-host
     description: kona-host — OP Stack Kona fault proof host
     pipeline:
-      - uses: cargo/build
-        with:
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          modroot: rust
-          output: kona-host
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package kona-host
+      - runs: |
+          profile="${MELANGE_CARGO_PROFILE:-release}"
+          install -Dm755 \
+            "${CARGO_TARGET_DIR}/rust/${profile}/kona-host" \
+            "${{targets.contextdir}}/usr/local/bin/kona-host"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: kona-client
     description: kona-client — OP Stack Kona fault proof client
     pipeline:
-      - uses: cargo/build
-        with:
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          modroot: rust
-          output: kona-client
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package kona-client
+      - runs: |
+          profile="${MELANGE_CARGO_PROFILE:-release}"
+          install -Dm755 \
+            "${CARGO_TARGET_DIR}/rust/${profile}/kona-client" \
+            "${{targets.contextdir}}/usr/local/bin/kona-client"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: kona-sp1-proposer
     description: kona-sp1-proposer — OP Stack SP1 fault proof proposer
     pipeline:
-      - uses: cargo/build
-        with:
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          modroot: rust
-          output: kona-sp1-proposer
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package kona-sp1-proposer
+      - runs: |
+          profile="${MELANGE_CARGO_PROFILE:-release}"
+          install -Dm755 \
+            "${CARGO_TARGET_DIR}/rust/${profile}/kona-sp1-proposer" \
+            "${{targets.contextdir}}/usr/local/bin/kona-sp1-proposer"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   # The monorepo vendors op-rbuilder and rollup-boost as NESTED workspaces
   # (own Cargo.toml + Cargo.lock, not members of the main rust/ workspace), and
@@ -136,6 +138,8 @@ subpackages:
           mv "${{targets.contextdir}}/usr/local/bin/op-rbuilder" \
              "${{targets.contextdir}}/app/rbuilder"
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
 
   - name: rollup-boost
     description: rollup-boost — OP Stack block builder multiplexer (monorepo vendored copy)
@@ -148,3 +152,5 @@ subpackages:
           output: rollup-boost
           opts: --release --locked --package rollup-boost
       - uses: strip
+        with:
+          opts: -g --remove-section=.note.package

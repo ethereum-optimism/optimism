@@ -4,9 +4,7 @@ use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, block::BlockExecutor};
 use alloy_op_evm::{
     OpBlockExecutor, PreRefundGasUsed,
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
-    post_exec::{
-        PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutorExt, WarmingState,
-    },
+    post_exec::{PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutorExt},
 };
 use core::fmt::Debug;
 use op_alloy_consensus::OpTransaction as OpConsensusTransaction;
@@ -28,8 +26,7 @@ use crate::{OpBlockExecutorFactory, OpEvmConfig, OpEvmFactory, OpTx, PostExecMod
 #[allow(clippy::type_complexity)]
 pub trait ConfigurePostExecEvm: ConfigureEvm {
     /// Opaque block-scoped carry-forward state of the refund inspector the produced executors run.
-    /// Matches [`PostExecExecutorExt::Snapshot`] of those executors (it is [`WarmingState`] for the
-    /// default [`SDMWarmingInspector`](alloy_op_evm::post_exec::SDMWarmingInspector)).
+    /// Matches [`PostExecExecutorExt::Snapshot`] of those executors.
     type Snapshot: Clone;
 
     /// Returns a block executor for the given block with explicit post-exec entry access.
@@ -96,7 +93,7 @@ where
         + 'static,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
-    type Snapshot = WarmingState;
+    type Snapshot = ();
 
     fn post_exec_executor_for_block<'a, DB: Database>(
         &'a self,

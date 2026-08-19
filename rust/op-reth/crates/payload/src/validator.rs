@@ -2,9 +2,8 @@
 
 use alloc::sync::Arc;
 use alloy_consensus::Block;
-use alloy_rpc_types_engine::PayloadError;
 use derive_more::{Constructor, Deref};
-use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadError};
+use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadEnvelope, OpPayloadError};
 use reth_optimism_forks::OpHardforks;
 use reth_payload_validator::{cancun, prague, shanghai};
 use reth_primitives_traits::{Block as _, SealedBlock, SignedTransaction};
@@ -64,17 +63,11 @@ where
     ChainSpec: OpHardforks,
     T: SignedTransaction,
 {
-    let OpExecutionData { payload, sidecar } = payload;
+    let sidecar = payload.sidecar.clone();
+    let payload = OpExecutionPayloadEnvelope::try_from(payload)?;
 
-    let expected_hash = payload.block_hash();
-
-    // First parse the block
-    let sealed_block = payload.try_into_block_with_sidecar(&sidecar)?.seal_slow();
-
-    // Ensure the hash included in the payload matches the block hash
-    if expected_hash != sealed_block.hash() {
-        Err(PayloadError::BlockHash { execution: sealed_block.hash(), consensus: expected_hash })?;
-    }
+    // First parse the block and ensure its hash matches the payload's claim.
+    let sealed_block = payload.try_into_checked_block()?.seal_slow();
 
     shanghai::ensure_well_formed_fields(
         sealed_block.body(),

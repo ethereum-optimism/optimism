@@ -133,7 +133,7 @@ pub enum ProposerGauge {
     )]
     GamesDefenseSpawned,
     /// Total number of fast finality proving tasks spawned (games proven
-    /// while still unchallenged; see `FAST_FINALITY_MODE`).
+    /// while still unchallenged; see `KONA_SP1_PROPOSER_FAST_FINALITY_MODE`).
     #[strum(
         serialize = "kona_sp1_proposer_games_fast_finality_spawned",
         message = "Total number of fast finality proving tasks spawned"

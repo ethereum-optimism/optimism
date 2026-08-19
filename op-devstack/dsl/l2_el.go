@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -73,6 +74,47 @@ func (el *L2ELNode) BlockRefByHash(hash common.Hash) eth.L2BlockRef {
 	block, err := el.inner.L2EthClient().L2BlockRefByHash(ctx, hash)
 	el.require.NoError(err, "block not found using block hash")
 	return block
+}
+
+// WaitForGasUsed waits for the head at label to use at least minGasUsed gas.
+// Transient block-label lookup failures are retried until timeout.
+func (el *L2ELNode) WaitForGasUsed(label eth.BlockLabel, minGasUsed uint64, timeout time.Duration) eth.BlockInfo {
+	ctx, cancel := context.WithTimeout(el.ctx, timeout)
+	defer cancel()
+
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "label", label,
+		"minimum_gas_used", minGasUsed, "timeout", timeout)
+	logger.Info("Waiting for L2 block gas usage")
+
+	var lastBlock eth.BlockInfo
+	var lastLookupErr error
+	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
+		block, err := el.inner.EthClient().InfoByLabel(ctx, label)
+		if err != nil {
+			lastLookupErr = err
+			logger.Warn("Block-label lookup failed; will retry", "err", err)
+			return false, nil
+		}
+
+		lastBlock = block
+		lastLookupErr = nil
+		if block.GasUsed() >= minGasUsed {
+			logger.Info("L2 block gas usage reached", "block", eth.ToBlockID(block), "gas_used", block.GasUsed())
+			return true, nil
+		}
+		logger.Info("L2 block gas usage not reached", "block", eth.ToBlockID(block), "gas_used", block.GasUsed())
+		return false, nil
+	})
+	if err != nil {
+		lastObservation := "no block observed"
+		if lastBlock != nil {
+			lastObservation = fmt.Sprintf("block %s used %d gas", eth.ToBlockID(lastBlock), lastBlock.GasUsed())
+		}
+		el.require.NoError(err,
+			"expected %s block on chain %s to use at least %d gas within %s; last observation: %s; last lookup error: %v",
+			label, el.ChainID(), minGasUsed, timeout, lastObservation, lastLookupErr)
+	}
+	return lastBlock
 }
 
 // AdvancedOption configures an AdvancedFn call.

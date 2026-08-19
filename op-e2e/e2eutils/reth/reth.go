@@ -33,6 +33,9 @@ const (
 
 // Config carries the op-e2e-level EL knobs that translate onto the op-reth CLI.
 type Config struct {
+	// GenesisJSONPath identifies an existing genesis JSON file for op-reth.
+	// InitL2 does not decode or rewrite this file.
+	GenesisJSONPath string
 	// SequencerHTTP, when non-empty, wires op-reth to forward transactions to the
 	// sequencer via --rollup.sequencer-http (sentry tx-forwarding).
 	SequencerHTTP string
@@ -95,10 +98,14 @@ func (i *Instance) Close() error {
 	return errors.Join(errs...)
 }
 
-// InitL2 resolves the op-reth binary, initializes a chain + proof-history DB
-// from the given genesis, starts an op-reth node, and waits for its RPCs to come
-// up. cfg.DataDir must be created with t.TempDir() by the caller.
+// InitL2 initializes the op-reth databases, starts the node, and waits for its
+// RPC endpoints. Set exactly one genesis source: genesis or cfg.GenesisJSONPath.
+// The caller must create cfg.DataDir with t.TempDir().
 func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Genesis, jwtPath string, cfg Config) (*Instance, error) {
+	if (genesis == nil) == (cfg.GenesisJSONPath == "") {
+		return nil, errors.New("set exactly one of genesis or GenesisJSONPath")
+	}
+
 	proofsVersion := cfg.ProofsHistoryVersion
 	if proofsVersion == "" {
 		proofsVersion = defaultProofsHistoryVersion
@@ -121,7 +128,7 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 	dataDir := filepath.Join(baseDir, "data")
 	logDir := filepath.Join(baseDir, "logs")
 	proofHistoryDir := filepath.Join(baseDir, "proof-history")
-	chainConfigPath := filepath.Join(baseDir, "genesis.json")
+	chainConfigPath := cfg.GenesisJSONPath
 
 	for _, dir := range []string{dataDir, logDir} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -129,12 +136,15 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		}
 	}
 
-	genesisData, err := json.Marshal(genesis)
-	if err != nil {
-		return nil, fmt.Errorf("marshal genesis: %w", err)
-	}
-	if err := os.WriteFile(chainConfigPath, genesisData, 0o600); err != nil {
-		return nil, fmt.Errorf("write genesis: %w", err)
+	if chainConfigPath == "" {
+		chainConfigPath = filepath.Join(baseDir, "genesis.json")
+		genesisData, err := json.Marshal(genesis)
+		if err != nil {
+			return nil, fmt.Errorf("marshal genesis: %w", err)
+		}
+		if err := os.WriteFile(chainConfigPath, genesisData, 0o600); err != nil {
+			return nil, fmt.Errorf("write genesis: %w", err)
+		}
 	}
 
 	if err := runToCompletion(ctx, execPath,

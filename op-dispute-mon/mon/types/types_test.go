@@ -32,6 +32,12 @@ func TestBondGameDataRecipientAddresses(t *testing.T) {
 	}, data.RecipientAddresses())
 }
 
+func TestNewHonestActorsIgnoresZeroAddress(t *testing.T) {
+	actor := common.Address{0x01}
+	honest := NewHonestActors([]common.Address{{}, actor})
+	require.Equal(t, HonestActors{actor: true}, honest)
+}
+
 func TestCommonGameData_UsesOutputRoots(t *testing.T) {
 	for _, gameType := range outputRootGameTypes {
 		gameType := gameType
@@ -62,11 +68,12 @@ func TestCommonGameData_NodeEndpointErrorCountInitialization(t *testing.T) {
 
 func TestCommonGameData_HasMixedAvailability(t *testing.T) {
 	tests := []struct {
-		name                      string
-		nodeEndpointTotalCount    int
-		nodeEndpointErrorCount    int
-		nodeEndpointNotFoundCount int
-		expected                  bool
+		name                       string
+		nodeEndpointTotalCount     int
+		nodeEndpointErrorCount     int
+		nodeEndpointNotFoundCount  int
+		nodeEndpointOutOfSyncCount int
+		expected                   bool
 	}{
 		{
 			name:                      "no endpoints attempted",
@@ -124,14 +131,29 @@ func TestCommonGameData_HasMixedAvailability(t *testing.T) {
 			nodeEndpointNotFoundCount: 2,
 			expected:                  false,
 		},
+		{
+			name:                       "not found and out of sync is not mixed availability",
+			nodeEndpointTotalCount:     2,
+			nodeEndpointNotFoundCount:  1,
+			nodeEndpointOutOfSyncCount: 1,
+			expected:                   false,
+		},
+		{
+			name:                       "not found, out of sync, and successful is mixed availability",
+			nodeEndpointTotalCount:     3,
+			nodeEndpointNotFoundCount:  1,
+			nodeEndpointOutOfSyncCount: 1,
+			expected:                   true,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			data := CommonGameData{
-				NodeEndpointTotalCount:    test.nodeEndpointTotalCount,
-				NodeEndpointErrorCount:    test.nodeEndpointErrorCount,
-				NodeEndpointNotFoundCount: test.nodeEndpointNotFoundCount,
+				NodeEndpointTotalCount:     test.nodeEndpointTotalCount,
+				NodeEndpointErrorCount:     test.nodeEndpointErrorCount,
+				NodeEndpointNotFoundCount:  test.nodeEndpointNotFoundCount,
+				NodeEndpointOutOfSyncCount: test.nodeEndpointOutOfSyncCount,
 			}
 			result := data.HasMixedAvailability()
 			require.Equal(t, test.expected, result)

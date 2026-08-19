@@ -26,6 +26,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
+use op_alloy::consensus::POST_EXEC_TX_TYPE_ID;
 use op_revm::{
     L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction,
     constants::{BASE_FEE_RECIPIENT, L1_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT},
@@ -74,10 +75,9 @@ type OpEvmInner<DB, I, P, R> = op_revm::OpEvm<
 ///
 /// The `R` type parameter is the post-exec refund inspector embedded alongside the user inspector
 /// `I` (see [`post_exec::PostExecCompositeInspector`]). It is fixed by the EVM factory and defaults
-/// to [`SDMWarmingInspector`](post_exec::SDMWarmingInspector).
+/// to [`NullRefundPolicy`](post_exec::NullRefundPolicy).
 #[allow(missing_debug_implementations)] // missing revm::OpContext Debug impl
-pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::SDMWarmingInspector>
-{
+pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::NullRefundPolicy> {
     inner: OpEvmInner<DB, I, P, R>,
     inspect: bool,
     post_exec_tracking_active: bool,
@@ -239,13 +239,12 @@ where
     }
 }
 
-impl<Tx> post_exec::PostExecEvmFactoryHooks for OpEvmFactory<Tx>
+impl<Tx, R> post_exec::PostExecEvmFactoryHooks for OpEvmFactory<Tx, R>
 where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
+    R: Default + post_exec::PostExecRefundInspector,
 {
-    // The factory fixes the EVM's default refund inspector (`SDMWarmingInspector`), whose
-    // carry-forward state is `WarmingState`.
-    type Snapshot = post_exec::WarmingState;
+    type Snapshot = R::Snapshot;
 
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: post_exec::PostExecTxContext)
     where
@@ -304,7 +303,7 @@ where
     I: Inspector<OpEvmContext<DB>>,
     P: PrecompileProvider<OpEvmContext<DB>, Output = InterpreterResult>,
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>>,
-    R: Inspector<OpEvmContext<DB>> + post_exec::PostExecRefundInspector,
+    R: post_exec::PostExecRefundInspector,
 {
     type DB = DB;
     type Tx = Tx;
@@ -333,12 +332,42 @@ where
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
         self.last_tx_post_exec_result = post_exec::PostExecExecutedTx::default();
 
+        let tx = OpTx(tx.into());
+
+        // Post-exec transactions never execute: the block executor short-circuits them, and revm
+        // would reject their tx env outright. Replay paths (e.g. RPC tracing) transact each
+        // transaction directly, so synthesize the consensus-defined result here.
+        if tx.tx_type() == POST_EXEC_TX_TYPE_ID {
+            return Ok(post_exec::noop_post_exec_result());
+        }
+
+        // Deposits are force-included from L1 and are exempt from EIP-7825's per-transaction gas
+        // limit cap: https://specs.optimism.io/protocol/karst/overview.html#execution-layer
+        // Temporarily remove the cap so it cannot limit the deposit's execution, then restore it
+        // so non-deposit transactions remain subject to it. Changing the cap itself, rather than
+        // special-casing deposits at each place that reads it, means every reader sees the
+        // exemption, including any added upstream later.
+        //
+        // The cap feeds `initial_gas_and_reservoir`, which splits the gas limit between the first
+        // frame's budget and the EIP-8037 reservoir: removing it hands the frame the whole limit
+        // and leaves the reservoir empty, which is what the exemption means while no OP fork
+        // enables EIP-8037. The cap is shared across every transaction this EVM runs, and the RPC
+        // call, estimate and simulate paths raise it deliberately, so the previous value is put
+        // back rather than recomputed.
+        let saved_tx_gas_limit_cap = (tx.tx_type() ==
+            op_revm::transaction::deposit::DEPOSIT_TRANSACTION_TYPE)
+            .then(|| self.inner.0.ctx.cfg.tx_gas_limit_cap.replace(u64::MAX));
+
         let track_post_exec = self.post_exec_tracking_active;
         let result = if self.inspect || track_post_exec {
-            self.inner.inspect_tx(OpTx(tx.into()))
+            self.inner.inspect_tx(tx)
         } else {
-            self.inner.transact(OpTx(tx.into()))
+            self.inner.transact(tx)
         };
+
+        if let Some(cap) = saved_tx_gas_limit_cap {
+            self.inner.0.ctx.cfg.tx_gas_limit_cap = cap;
+        }
 
         if track_post_exec {
             if self.inner.0.ctx.tx.tx_type() !=
@@ -399,28 +428,33 @@ where
 /// The `Tx` type parameter controls the transaction type used by the created EVMs.
 /// By default it uses [`OpTx`] which wraps [`OpTransaction<TxEnv>`] and implements
 /// the necessary foreign traits.
+///
+/// The `R` type parameter fixes the post-exec refund inspector and its block-scoped snapshot.
+/// It defaults to [`NullRefundPolicy`](post_exec::NullRefundPolicy), so released public binaries
+/// cannot produce a non-empty post-exec payload.
 #[derive(Debug)]
-pub struct OpEvmFactory<Tx = OpTx>(PhantomData<Tx>);
+pub struct OpEvmFactory<Tx = OpTx, R = post_exec::NullRefundPolicy>(PhantomData<(Tx, R)>);
 
-impl<Tx> Clone for OpEvmFactory<Tx> {
+impl<Tx, R> Clone for OpEvmFactory<Tx, R> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<Tx> Copy for OpEvmFactory<Tx> {}
+impl<Tx, R> Copy for OpEvmFactory<Tx, R> {}
 
-impl<Tx> Default for OpEvmFactory<Tx> {
+impl<Tx, R> Default for OpEvmFactory<Tx, R> {
     fn default() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<Tx> EvmFactory for OpEvmFactory<Tx>
+impl<Tx, R> EvmFactory for OpEvmFactory<Tx, R>
 where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
+    R: Default + post_exec::PostExecRefundInspector,
 {
-    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = OpEvm<DB, I, Self::Precompiles, Tx>;
+    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = OpEvm<DB, I, Self::Precompiles, Tx, R>;
     type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = Tx;
     type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
@@ -448,242 +482,4 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-    use alloc::vec;
-    use alloy_consensus::{SignableTransaction, TxLegacy};
-    use alloy_evm::{
-        EvmInternals, FromRecoveredTx,
-        precompiles::{Precompile, PrecompileInput},
-    };
-    use alloy_primitives::{Signature, TxKind, U256};
-    use op_revm::precompiles::{bls12_381, bn254_pair};
-    use revm::{
-        context::CfgEnv,
-        database::{EmptyDB, InMemoryDB},
-        precompile::PrecompileHalt,
-        state::{AccountInfo, Bytecode},
-    };
-
-    use super::*;
-
-    /// Runtime of a contract that reads (warms) storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
-    const WARMING_CONTRACT_CODE: [u8; 5] = [0x60, 0x00, 0x54, 0x50, 0x00];
-
-    fn legacy_op_tx(nonce: u64, caller: Address, target: Address) -> OpTx {
-        let tx =
-            TxLegacy { nonce, gas_limit: 100_000, to: TxKind::Call(target), ..Default::default() }
-                .into_signed(Signature::new(
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                ));
-
-        OpTx::from_recovered_tx(&tx, caller)
-    }
-
-    // Verifies the raw OpEvm post-exec hook: this test enables SDM tracking directly with
-    // `begin_post_exec_tx` rather than via node config, and confirms it forces the inspector path
-    // even when normal tracing is disabled.
-    #[test]
-    fn op_evm_post_exec_tracking_runs_when_inspector_is_otherwise_disabled() {
-        let caller = Address::ZERO;
-        let target = Address::from([0x22; 20]);
-        let mut db = InMemoryDB::default();
-        db.insert_account_info(
-            caller,
-            AccountInfo { balance: U256::from(1_000_000_000u64), ..Default::default() },
-        );
-        // `target` is a contract that reads (warms) storage slot 0 (`WARMING_CONTRACT_CODE`).
-        // The second tx re-touches that slot cross-tx and earns a genuine warming rebate — a plain
-        // value transfer would touch only intrinsic accounts (sender/`to`) and earn nothing.
-        db.insert_account_info(
-            target,
-            AccountInfo {
-                code: Some(Bytecode::new_raw(alloy_primitives::Bytes::from_static(
-                    &WARMING_CONTRACT_CODE,
-                ))),
-                ..Default::default()
-            },
-        );
-        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
-            db,
-            EvmEnv::new(
-                CfgEnv::new_with_spec(OpSpecId::JOVIAN),
-                BlockEnv { gas_limit: 1_000_000, ..Default::default() },
-            ),
-        );
-        assert!(!evm.inspect, "factory-created EVM should start with user inspection disabled");
-
-        let mut tracked_refund = |tx_index| {
-            evm.begin_post_exec_tx(post_exec::PostExecTxContext {
-                tx_index,
-                kind: post_exec::PostExecTxKind::Normal,
-            });
-            // `transact_raw` does not commit state in this low-level test, so reuse nonce 0.
-            evm.transact_raw(legacy_op_tx(0, caller, target)).expect("tx executes");
-            evm.take_last_post_exec_tx_result().refund_total
-        };
-
-        assert_eq!(tracked_refund(0), 0);
-        assert!(tracked_refund(1) > 0, "second tx should observe block-warmed addresses");
-    }
-
-    #[test]
-    fn test_precompiles_jovian_fail() {
-        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
-            EmptyDB::default(),
-            EvmEnv::new(CfgEnv::new_with_spec(OpSpecId::JOVIAN), BlockEnv::default()),
-        );
-
-        let (precompiles, ctx) = (&mut evm.inner.0.precompiles, &mut evm.inner.0.ctx);
-
-        let jovian_precompile = precompiles.get(bn254_pair::JOVIAN.address()).unwrap();
-        let result = jovian_precompile
-            .call(PrecompileInput {
-                data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1],
-                gas: u64::MAX,
-                reservoir: 0,
-                caller: Address::ZERO,
-                value: U256::ZERO,
-                is_static: false,
-                target_address: Address::ZERO,
-                bytecode_address: Address::ZERO,
-                internals: EvmInternals::from_context(ctx),
-            })
-            .unwrap();
-
-        assert!(result.is_halt());
-        assert!(matches!(result.halt_reason(), Some(&PrecompileHalt::Bn254PairLength)));
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G1_MSM.address()).unwrap();
-        let result = jovian_precompile
-            .call(PrecompileInput {
-                data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE + 1],
-                gas: u64::MAX,
-                reservoir: 0,
-                caller: Address::ZERO,
-                value: U256::ZERO,
-                is_static: false,
-                target_address: Address::ZERO,
-                bytecode_address: Address::ZERO,
-                internals: EvmInternals::from_context(ctx),
-            })
-            .unwrap();
-
-        assert!(result.is_halt());
-        assert!(matches!(
-            result.halt_reason(),
-            Some(PrecompileHalt::Other(msg)) if msg.contains("G1MSM input length too long")
-        ));
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G2_MSM.address()).unwrap();
-        let result = jovian_precompile
-            .call(PrecompileInput {
-                data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE + 1],
-                gas: u64::MAX,
-                reservoir: 0,
-                caller: Address::ZERO,
-                value: U256::ZERO,
-                is_static: false,
-                target_address: Address::ZERO,
-                bytecode_address: Address::ZERO,
-                internals: EvmInternals::from_context(ctx),
-            })
-            .unwrap();
-
-        assert!(result.is_halt());
-        assert!(matches!(
-            result.halt_reason(),
-            Some(PrecompileHalt::Other(msg)) if msg.contains("G2MSM input length too long")
-        ));
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_PAIRING.address()).unwrap();
-        let result = jovian_precompile
-            .call(PrecompileInput {
-                data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE + 1],
-                gas: u64::MAX,
-                reservoir: 0,
-                caller: Address::ZERO,
-                value: U256::ZERO,
-                is_static: false,
-                target_address: Address::ZERO,
-                bytecode_address: Address::ZERO,
-                internals: EvmInternals::from_context(ctx),
-            })
-            .unwrap();
-
-        assert!(result.is_halt());
-        assert!(matches!(
-            result.halt_reason(),
-            Some(PrecompileHalt::Other(msg)) if msg.contains("Pairing input length too long")
-        ));
-    }
-
-    #[test]
-    fn test_precompiles_jovian() {
-        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
-            EmptyDB::default(),
-            EvmEnv::new(CfgEnv::new_with_spec(OpSpecId::JOVIAN), BlockEnv::default()),
-        );
-        let (precompiles, ctx) = (&mut evm.inner.0.precompiles, &mut evm.inner.0.ctx);
-        let jovian_precompile = precompiles.get(bn254_pair::JOVIAN.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE],
-            gas: u64::MAX,
-            reservoir: 0,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
-
-        assert!(result.is_ok());
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G1_MSM.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE],
-            gas: u64::MAX,
-            reservoir: 0,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
-
-        assert!(result.is_ok());
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G2_MSM.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE],
-            gas: u64::MAX,
-            reservoir: 0,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
-
-        assert!(result.is_ok());
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_PAIRING.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE],
-            gas: u64::MAX,
-            reservoir: 0,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
-
-        assert!(result.is_ok());
-    }
-}
+mod tests;

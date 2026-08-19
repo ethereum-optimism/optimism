@@ -145,14 +145,14 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
 # Runs every Test* in rust/kona/tests/proofs/. These tests run only here (under
 # kona-host); the runner sets KONA_HOST_PATH and the package is excluded from the
 # monorepo go-tests suite.
-action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name args)
+action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name "0" args)
 
 # Build action tests for host program
 action-tests-build:
   #!/bin/bash
 
   echo "Building host program for the native target"
-  just build-native --release --bin kona-host
+  just --justfile "{{SOURCE}}/../justfile" build-native --release --bin kona-host
 
 # Run action tests for the single-chain client program on the native target
 action-tests-single-run test_name='.*' parallel="0" *args='':
@@ -160,7 +160,7 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
   set -euo pipefail
 
   if [ -z "${KONA_HOST_PATH:-}" ]; then
-    export KONA_HOST_PATH="{{SOURCE}}/../target/release/kona-host"
+    export KONA_HOST_PATH="{{SOURCE}}/../../target/release/kona-host"
   fi
 
   echo "KONA_HOST_PATH: $KONA_HOST_PATH"

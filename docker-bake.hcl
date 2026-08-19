@@ -232,17 +232,6 @@ target "cannon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
 }
 
-target "holocene-deployer" {
-  dockerfile = "./packages/contracts-bedrock/scripts/upgrades/holocene/upgrade.dockerfile"
-  context = "./packages/contracts-bedrock/scripts/upgrades/holocene"
-  args = {
-    REV = "op-contracts/v1.8.0-rc.1"
-  }
-  target="holocene-deployer"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/holocene-deployer:${tag}"]
-}
-
 target "op-deployer" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
@@ -427,11 +416,4 @@ target "cannon-builder" {
   context = "rust/kona/docker/cannon"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon-builder:${tag}"]
-}
-
-target "ci-base-clang" {
-  dockerfile = "Dockerfile"
-  context = "ops/docker/ci-base-clang"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-base-clang:${tag}"]
 }

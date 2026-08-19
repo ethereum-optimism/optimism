@@ -2,7 +2,6 @@ package broadcaster
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -17,39 +16,39 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-)
-
-const (
-	GasPadFactor = 1.2
 )
 
 type KeyedBroadcaster struct {
 	lgr    log.Logger
 	mgr    txmgr.TxManager
 	bcasts []script.Broadcast
-	client *ethclient.Client
 	mtx    sync.Mutex
 }
 
 type KeyedBroadcasterOpts struct {
-	Logger  log.Logger
-	ChainID *big.Int
-	Client  *ethclient.Client
-	Signer  opcrypto.SignerFn
-	From    common.Address
+	Logger               log.Logger
+	ChainID              *big.Int
+	Client               *ethclient.Client
+	Signer               opcrypto.SignerFn
+	From                 common.Address
+	ReceiptQueryInterval time.Duration
 }
 
 func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
+	receiptQueryInterval := cfg.ReceiptQueryInterval
+	if receiptQueryInterval == 0 {
+		receiptQueryInterval = time.Second
+	}
+
 	mgrCfg := &txmgr.Config{
 		Backend:                   cfg.Client,
 		ChainID:                   cfg.ChainID,
 		TxSendTimeout:             5 * time.Minute,
 		TxNotInMempoolTimeout:     time.Minute,
 		NetworkTimeout:            10 * time.Second,
-		ReceiptQueryInterval:      time.Second,
+		ReceiptQueryInterval:      receiptQueryInterval,
 		NumConfirmations:          1,
 		SafeAbortNonceTooLowCount: 3,
 		Signer:                    cfg.Signer,
@@ -84,9 +83,8 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 	}
 
 	return &KeyedBroadcaster{
-		lgr:    cfg.Logger,
-		mgr:    mgr,
-		client: cfg.Client,
+		lgr: cfg.Logger,
+		mgr: mgr,
 	}, nil
 }
 
@@ -110,86 +108,58 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 		return nil, nil
 	}
 
-	results := make([]BroadcastResult, len(bcasts))
-	futures := make([]<-chan txmgr.SendResponse, len(bcasts))
-	ids := make([]common.Hash, len(bcasts))
-
-	latestBlock, err := t.client.BlockByNumber(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get latest block: %w", err)
-	}
-
+	results := make([]BroadcastResult, 0, len(bcasts))
 	for i, bcast := range bcasts {
-		futures[i], ids[i] = t.broadcast(ctx, bcast, latestBlock.GasLimit())
-		t.lgr.Info(
-			"transaction broadcasted",
-			"id", ids[i],
-			"nonce", bcast.Nonce,
-		)
-	}
-	var txErr error
-	var completed int
-	for i, fut := range futures {
-		bcastRes := <-fut
-		completed++
-		outRes := BroadcastResult{
-			Broadcast: bcasts[i],
-		}
+		id := bcast.ID()
+		t.lgr.Info("broadcasting transaction", "id", id, "nonce", bcast.Nonce)
 
-		if bcastRes.Err == nil {
-			outRes.Receipt = bcastRes.Receipt
-			outRes.TxHash = bcastRes.Receipt.TxHash
-
-			if bcastRes.Receipt.Status == 0 {
-				failErr := fmt.Errorf("transaction failed: %s", outRes.Receipt.TxHash.String())
-				txErr = errors.Join(txErr, failErr)
-				outRes.Err = failErr
-				t.lgr.Error(
-					"transaction failed on chain",
-					"id", ids[i],
-					"completed", completed,
-					"total", len(bcasts),
-					"hash", outRes.Receipt.TxHash.String(),
-					"nonce", outRes.Broadcast.Nonce,
-				)
-			} else {
-				t.lgr.Info(
-					"transaction confirmed",
-					"id", ids[i],
-					"completed", completed,
-					"total", len(bcasts),
-					"hash", outRes.Receipt.TxHash.String(),
-					"nonce", outRes.Broadcast.Nonce,
-					"creation", outRes.Receipt.ContractAddress,
-				)
-			}
-		} else {
-			txErr = errors.Join(txErr, bcastRes.Err)
-			outRes.Err = bcastRes.Err
+		// A zero gas limit makes txmgr estimate against the target chain. Waiting
+		// for confirmation ensures the next estimate sees this transaction's state.
+		receipt, err := t.mgr.Send(ctx, asTxCandidate(bcast, 0))
+		outRes := BroadcastResult{Broadcast: bcast, Receipt: receipt, Err: err}
+		if err != nil {
 			t.lgr.Error(
 				"transaction failed",
-				"id", ids[i],
-				"completed", completed,
+				"id", id,
+				"completed", i+1,
 				"total", len(bcasts),
-				"err", bcastRes.Err,
+				"err", err,
 			)
+			results = append(results, outRes)
+			return results, err
 		}
 
-		results[i] = outRes
+		outRes.TxHash = receipt.TxHash
+		if receipt.Status == 0 {
+			failErr := fmt.Errorf("transaction failed: %s", receipt.TxHash)
+			outRes.Err = failErr
+			t.lgr.Error(
+				"transaction failed on chain",
+				"id", id,
+				"completed", i+1,
+				"total", len(bcasts),
+				"hash", receipt.TxHash,
+				"nonce", bcast.Nonce,
+			)
+			results = append(results, outRes)
+			return results, failErr
+		}
+
+		t.lgr.Info(
+			"transaction confirmed",
+			"id", id,
+			"completed", i+1,
+			"total", len(bcasts),
+			"hash", receipt.TxHash,
+			"nonce", bcast.Nonce,
+			"creation", receipt.ContractAddress,
+		)
+		results = append(results, outRes)
 	}
-	return results, txErr
+	return results, nil
 }
 
-func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast, blockGasLimit uint64) (<-chan txmgr.SendResponse, common.Hash) {
-	ch := make(chan txmgr.SendResponse, 1)
-
-	id := bcast.ID()
-	candidate := asTxCandidate(bcast, blockGasLimit)
-	t.mgr.SendAsync(ctx, candidate, ch)
-	return ch, id
-}
-
-func asTxCandidate(bcast script.Broadcast, blockGasLimit uint64) txmgr.TxCandidate {
+func asTxCandidate(bcast script.Broadcast, gasLimit uint64) txmgr.TxCandidate {
 	value := ((*uint256.Int)(bcast.Value)).ToBig()
 	var candidate txmgr.TxCandidate
 	switch bcast.Type {
@@ -199,13 +169,13 @@ func asTxCandidate(bcast script.Broadcast, blockGasLimit uint64) txmgr.TxCandida
 			TxData:   bcast.Input,
 			To:       to,
 			Value:    value,
-			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, false, blockGasLimit),
+			GasLimit: gasLimit,
 		}
 	case script.BroadcastCreate:
 		candidate = txmgr.TxCandidate{
 			TxData:   bcast.Input,
 			To:       nil,
-			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, true, blockGasLimit),
+			GasLimit: gasLimit,
 		}
 	case script.BroadcastCreate2:
 		txData := make([]byte, len(bcast.Salt)+len(bcast.Input))
@@ -216,39 +186,10 @@ func asTxCandidate(bcast script.Broadcast, blockGasLimit uint64) txmgr.TxCandida
 			TxData:   txData,
 			To:       &script.DeterministicDeployerAddress,
 			Value:    value,
-			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, true, blockGasLimit),
+			GasLimit: gasLimit,
 		}
 	default:
 		panic(fmt.Sprintf("unrecognized broadcast type: '%s'", bcast.Type))
 	}
 	return candidate
-}
-
-// padGasLimit calculates the gas limit for a transaction based on the intrinsic gas and the gas used by
-// the underlying call. Values are multiplied by a pad factor to account for any discrepancies. The output
-// is clamped to the block gas limit since Geth will reject transactions that exceed it before letting them
-// into the mempool.
-func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint64) uint64 {
-	intrinsicGas, err := core.IntrinsicGas(data, nil, nil, creation, true, true, false)
-	// This method never errors - we should look into it if it does.
-	if err != nil {
-		panic(err)
-	}
-
-	floorDataGas, err := core.FloorDataGas(data)
-	// We should never cause an overflow here.
-	if err != nil {
-		panic(err)
-	}
-
-	gas := intrinsicGas + gasUsed
-	if floorDataGas > gas {
-		gas = floorDataGas
-	}
-
-	limit := uint64(float64(gas) * GasPadFactor)
-	if limit > blockGasLimit {
-		return blockGasLimit
-	}
-	return limit
 }

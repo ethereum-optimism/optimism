@@ -7,6 +7,7 @@
   "target-pointer-width": 64,
   "target-c-int-width": 32,
   "os": "none",
+  "abi": "abi64",
   "llvm-abiname": "n64",
   "features": "+soft-float,+mips64",
   "max-atomic-width": 64,

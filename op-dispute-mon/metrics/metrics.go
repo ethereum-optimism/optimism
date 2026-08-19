@@ -202,8 +202,11 @@ type Metricer interface {
 	RecordOldestGameUpdateTime(t time.Time)
 
 	RecordGameTypes(gameTypeCounts map[string]int)
+	RecordGamesWaitingForRootSource(gameTypeCounts map[string]int)
 
 	RecordAnchorStateL2SequenceNumber(anchorStateRegistry common.Address, l2SequenceNumber uint64)
+
+	RecordZKGamesPendingLifecycleActions(resolution, bondDistribution int)
 
 	caching.Metrics
 	contractMetrics.ContractMetricer
@@ -259,6 +262,8 @@ type Metrics struct {
 	mixedSafetyGames           prometheus.Gauge
 	differentRootGames         prometheus.Gauge
 	gameTypes                  prometheus.GaugeVec
+	gamesWaitingForRootSource  prometheus.GaugeVec
+	zkGamesPendingLifecycle    prometheus.GaugeVec
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -361,7 +366,7 @@ func NewMetrics() *Metrics {
 		withdrawalRequests: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "withdrawal_requests",
-			Help:      "Number of withdrawal requests categorised by the source DelayedWETH contract and whether the withdrawal request amount matches or diverges from its fault dispute game credits",
+			Help:      "Number of withdrawal requests categorised by the source DelayedWETH contract and whether the withdrawal request amount matches or diverges from its dispute game credits",
 		}, []string{
 			"delayedWETH",
 			"credits",
@@ -470,6 +475,20 @@ func NewMetrics() *Metrics {
 			Help:      "Number of games in the monitoring window broken down by game type",
 		}, []string{
 			"game_type",
+		}),
+		gamesWaitingForRootSource: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "games_waiting_for_root_source",
+			Help:      "Number of games whose extraction is deferred while root sources catch up, broken down by game type",
+		}, []string{
+			"game_type",
+		}),
+		zkGamesPendingLifecycle: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "zk_games_pending_lifecycle_action",
+			Help:      "Number of ZK dispute games awaiting an honest lifecycle action",
+		}, []string{
+			"action",
 		}),
 	}
 }
@@ -606,6 +625,11 @@ func (m *Metrics) RecordAnchorStateL2SequenceNumber(anchorStateRegistry common.A
 	m.anchorStateL2SequenceNumber.WithLabelValues(anchorStateRegistry.Hex()).Set(float64(l2SequenceNumber))
 }
 
+func (m *Metrics) RecordZKGamesPendingLifecycleActions(resolution, bondDistribution int) {
+	m.zkGamesPendingLifecycle.WithLabelValues("resolution").Set(float64(resolution))
+	m.zkGamesPendingLifecycle.WithLabelValues("bond_distribution").Set(float64(bondDistribution))
+}
+
 func (m *Metrics) RecordIgnoredGames(count int) {
 	m.ignoredGames.Set(float64(count))
 }
@@ -711,6 +735,13 @@ func labelValuesFor(status GameAgreementStatus) []string {
 func (m *Metrics) RecordGameTypes(gameTypeCounts map[string]int) {
 	for gameType, count := range gameTypeCounts {
 		m.gameTypes.WithLabelValues(gameType).Set(float64(count))
+	}
+}
+
+func (m *Metrics) RecordGamesWaitingForRootSource(gameTypeCounts map[string]int) {
+	m.gamesWaitingForRootSource.Reset()
+	for gameType, count := range gameTypeCounts {
+		m.gamesWaitingForRootSource.WithLabelValues(gameType).Set(float64(count))
 	}
 }
 

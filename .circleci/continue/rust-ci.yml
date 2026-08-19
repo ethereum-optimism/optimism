@@ -13,7 +13,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
   c-base_image:
     type: string
     default: default
@@ -646,10 +646,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - apt-install:
-          packages: "clang llvm-dev libclang-dev"
-          extra_flags: "--no-install-recommends"
       - rust-prepare-and-restore-cache:
+          needs_clang: false
           directory: rust
           features: "all"
       - run:
@@ -672,10 +670,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - apt-install:
-          packages: "clang llvm-dev libclang-dev"
-          extra_flags: "--no-install-recommends"
-      - rust-prepare
+      - rust-prepare:
+          needs_clang: false
       - run:
           name: Build <<parameters.target>>
           working_directory: rust/kona
@@ -768,15 +764,13 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - apt-install:
-          packages: "clang llvm-dev libclang-dev"
-          extra_flags: "--no-install-recommends"
       # No sccache here: the prestates are built reproducibly in Docker
       # (just build-kona-reproducible-prestate), so the host never compiles and
       # the job doesn't need the sccache-gcs-optimism context. That context also
       # defines GCP_SERVICE_ACCOUNT_EMAIL, which would otherwise shadow the
       # oplabs-network-data publisher SA used by the upload below.
       - rust-prepare-and-restore-cache:
+          needs_clang: false
           directory: rust
           profile: release
           enable_sccache: false
@@ -1008,8 +1002,8 @@ workflows:
       - rust-vendored-checks:
           name: op-rbuilder-checks
           directory: rust/op-rbuilder
-          # libsqlite3 (db), libtss2 (tdx-quote-provider); upstream installs both.
-          apt_packages: "libsqlite3-dev libtss2-dev"
+          # libsqlite3 (db) + libtss2 (tdx-quote-provider) are preinstalled in the
+          # Wolfi base image (sqlite-dev, tpm2-tss-dev); no apt-install needed.
           # Match upstream's pre-compile of the tester helper + main binary.
           pre_command: |
             make tester

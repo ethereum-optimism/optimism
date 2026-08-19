@@ -956,10 +956,10 @@ func runFaultProofTest(t devtest.T, sys *presets.SimpleInterop, runners ...Proof
 		chains, end, endNext, endTimestamp, l1HeadCurrent,
 		firstOptimisticNext, secondOptimisticNext)...)
 
-	runScenarioProofs(t, sys, &scenarioProofData{
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
 		fpvmTransitions:    tests,
 		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, sys, zkEndTimestamp, false, runners),
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, zkEndTimestamp, false, runners),
 	}, runners...)
 }
 
@@ -1112,10 +1112,10 @@ func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleIn
 		},
 	}
 
-	runScenarioProofs(t, sys, &scenarioProofData{
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
 		fpvmTransitions:    tests,
 		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, false, runners),
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, false, runners),
 	}, runners...)
 }
 
@@ -1267,10 +1267,10 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop, runners ...Pro
 		},
 	}
 
-	runScenarioProofs(t, sys, &scenarioProofData{
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
 		fpvmTransitions:    tests,
 		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, true, runners),
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, true, runners),
 	}, runners...)
 }
 
@@ -1399,10 +1399,10 @@ func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWind
 		},
 	}
 
-	runScenarioProofs(t, sys, &scenarioProofData{
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
 		fpvmTransitions:    tests,
 		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, true, runners),
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, true, runners),
 	}, runners...)
 }
 
@@ -1462,10 +1462,10 @@ func RunDepositMessageTest(t devtest.T, sys *presets.SimpleInterop, runners ...P
 		},
 	}
 
-	runScenarioProofs(t, sys, &scenarioProofData{
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
 		fpvmTransitions:    tests,
 		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, false, runners),
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, false, runners),
 	}, runners...)
 }
 
@@ -1543,9 +1543,9 @@ func RunDepositMessageInvalidExecutionTest(t devtest.T, sys *presets.SimpleInter
 		},
 	}
 
-	runScenarioProofs(t, sys, &scenarioProofData{
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
 		fpvmTransitions:    tests,
 		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, true, runners),
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, true, runners),
 	}, runners...)
 }

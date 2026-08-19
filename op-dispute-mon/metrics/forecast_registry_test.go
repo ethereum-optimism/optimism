@@ -18,6 +18,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMetricsExposeGamesWaitingForRootSource(t *testing.T) {
+	metricer := metrics.NewMetrics()
+	metricer.RecordGamesWaitingForRootSource(map[string]int{"zk": 2, "super-cannon-kona": 1})
+
+	family := gatherMetricFamily(t, metricer, "op_dispute_mon_games_waiting_for_root_source")
+	require.Len(t, family.Metric, 2)
+	expected := map[string]float64{"zk": 2, "super-cannon-kona": 1}
+	for _, sample := range family.Metric {
+		labels := metricLabels(sample)
+		require.Contains(t, expected, labels["game_type"])
+		require.Equal(t, expected[labels["game_type"]], sample.GetGauge().GetValue())
+	}
+
+	metricer.RecordGamesWaitingForRootSource(map[string]int{"zk": 0})
+	family = gatherMetricFamily(t, metricer, "op_dispute_mon_games_waiting_for_root_source")
+	require.Len(t, family.Metric, 1)
+	require.Equal(t, map[string]string{"game_type": "zk"}, metricLabels(family.Metric[0]))
+	require.Zero(t, family.Metric[0].GetGauge().GetValue())
+}
+
 func TestForecastRecordsCanonicalAgreementSeries(t *testing.T) {
 	// Mutation killed: omitting or relabeling one RecordGameAgreement call survives
 	// mock-metric unit tests but changes the real registry's public series.

@@ -34,18 +34,17 @@ var (
 )
 
 type SuperchainProofParams struct {
-	WithdrawalDelaySeconds          uint64         `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
-	MinProposalSizeBytes            uint64         `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
-	ChallengePeriodSeconds          uint64         `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
-	ProofMaturityDelaySeconds       uint64         `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
-	DisputeGameFinalityDelaySeconds uint64         `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
-	DisputeMaxGameDepth             uint64         `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
-	DisputeSplitDepth               uint64         `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
-	DisputeClockExtension           uint64         `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
-	DisputeMaxClockDuration         uint64         `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
-	MIPSVersion                     uint64         `json:"mipsVersion" toml:"mipsVersion"`
-	DevFeatureBitmap                common.Hash    `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
-	SP1Verifier                     common.Address `json:"sp1Verifier" toml:"sp1Verifier"`
+	WithdrawalDelaySeconds          uint64      `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
+	MinProposalSizeBytes            uint64      `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
+	ChallengePeriodSeconds          uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
+	ProofMaturityDelaySeconds       uint64      `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
+	DisputeGameFinalityDelaySeconds uint64      `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
+	DisputeMaxGameDepth             uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
+	DisputeSplitDepth               uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
+	DisputeClockExtension           uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
+	DisputeMaxClockDuration         uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
+	MIPSVersion                     uint64      `json:"mipsVersion" toml:"mipsVersion"`
+	DevFeatureBitmap                common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
 }
 
 type L1DevGenesisBlockParams struct {
@@ -76,6 +75,22 @@ type L1DevGenesisParams struct {
 	// BPO2TimeOffset configures the BPO2 fork to be activated at the given time after L1 dev
 	// genesis time.
 	BPO2TimeOffset *uint64 `json:"bpo2TimeOffset" toml:"bpo2TimeOffset"`
+
+	// BPO3TimeOffset configures the BPO3 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO3TimeOffset *uint64 `json:"bpo3TimeOffset" toml:"bpo3TimeOffset"`
+
+	// BPO4TimeOffset configures the BPO4 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO4TimeOffset *uint64 `json:"bpo4TimeOffset" toml:"bpo4TimeOffset"`
+
+	// BPO5TimeOffset configures the BPO5 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO5TimeOffset *uint64 `json:"bpo5TimeOffset" toml:"bpo5TimeOffset"`
+
+	// AmsterdamTimeOffset configures Amsterdam (the EL changes in the Glamsterdam Ethereum
+	// fork) to be activated at the given time after L1 dev genesis time.
+	AmsterdamTimeOffset *uint64 `json:"amsterdamTimeOffset" toml:"amsterdamTimeOffset"`
 
 	BlobSchedule *params.BlobScheduleConfig `json:"blobSchedule"`
 

@@ -21,6 +21,9 @@ contracts.
   L2 state. It executes blocks via `op-revm`/`op-alloy` through `kona-executor`, not op-reth.
 - **Dispute game**: an on-chain bisection game to resolve output root disputes.
 - **Preimage oracle**: the mechanism for the VM to load external data (L1 blocks, L2 state).
+- **Kona-SP1 acceptance boundary**: tests exercise the shipping super-root path through the
+  `super-range` and `super-aggregation` programs. A single chain is represented by a dependency
+  set of size one; the output-root-only programs are not acceptance targets.
 
 ## Invariants
 

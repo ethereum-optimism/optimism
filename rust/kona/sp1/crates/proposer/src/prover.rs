@@ -256,9 +256,10 @@ impl NetworkProofProvider {
                     "proving timeout exceeded"
                 );
                 ProposerGauge::ProvingTimeoutError.increment(1.0);
+                let range_split_count = crate::env_var("RANGE_SPLIT_COUNT");
                 bail!(
                     "Proving timeout: proof_id={}, elapsed={}s, timeout={}s \
-                    (consider increasing RANGE_SPLIT_COUNT to shrink per-proof workloads)",
+                    (consider increasing {range_split_count} to shrink per-proof workloads)",
                     proof_id,
                     elapsed_secs,
                     self.config.timeout
@@ -514,15 +515,23 @@ pub enum ProofStatus {
 
 /// Fulfillment takes precedence over terminal execution status.
 pub fn check_status(fulfillment_status: i32, execution_status: i32) -> ProofStatus {
-    if matches!(FulfillmentStatus::try_from(fulfillment_status), Ok(FulfillmentStatus::Fulfilled)) {
+    let fulfillment_status = FulfillmentStatus::try_from(fulfillment_status).ok();
+    let execution_status = ExecutionStatus::try_from(execution_status).ok();
+
+    if matches!(fulfillment_status, Some(FulfillmentStatus::Fulfilled)) {
         return ProofStatus::Ready;
     }
-    if matches!(ExecutionStatus::try_from(execution_status), Ok(ExecutionStatus::Unexecutable)) ||
-        matches!(
-            FulfillmentStatus::try_from(fulfillment_status),
-            Ok(FulfillmentStatus::Unfulfillable)
+    if matches!(
+        fulfillment_status,
+        Some(
+            FulfillmentStatus::Unfulfillable |
+                FulfillmentStatus::Reverted |
+                FulfillmentStatus::Expired
         )
-    {
+    ) || matches!(
+        execution_status,
+        Some(ExecutionStatus::Unexecutable | ExecutionStatus::ValidationFailed)
+    ) {
         return ProofStatus::Failed;
     }
     ProofStatus::Pending
@@ -585,29 +594,68 @@ mod tests {
 
     #[test]
     fn status_transitions() {
-        let cases = [
-            (
-                FulfillmentStatus::Fulfilled as i32,
-                ExecutionStatus::Unexecutable as i32,
-                ProofStatus::Ready,
-            ),
-            (
-                FulfillmentStatus::Unfulfillable as i32,
-                ExecutionStatus::Unexecuted as i32,
-                ProofStatus::Failed,
-            ),
-            (
-                FulfillmentStatus::Assigned as i32,
-                ExecutionStatus::Unexecuted as i32,
-                ProofStatus::Pending,
-            ),
-            (
-                FulfillmentStatus::Requested as i32,
-                ExecutionStatus::Unexecutable as i32,
-                ProofStatus::Failed,
-            ),
-            (999, ExecutionStatus::Unexecuted as i32, ProofStatus::Pending),
+        let fulfillment_statuses = [
+            FulfillmentStatus::UnspecifiedFulfillmentStatus,
+            FulfillmentStatus::Requested,
+            FulfillmentStatus::Assigned,
+            FulfillmentStatus::Fulfilled,
+            FulfillmentStatus::Unfulfillable,
+            FulfillmentStatus::Reverted,
+            FulfillmentStatus::Expired,
         ];
+        let execution_statuses = [
+            ExecutionStatus::UnspecifiedExecutionStatus,
+            ExecutionStatus::Unexecuted,
+            ExecutionStatus::Executed,
+            ExecutionStatus::Unexecutable,
+            ExecutionStatus::ValidationFailed,
+        ];
+
+        let mut cases = Vec::new();
+        for execution_status in execution_statuses {
+            cases.push((
+                FulfillmentStatus::Fulfilled as i32,
+                execution_status as i32,
+                ProofStatus::Ready,
+            ));
+        }
+        cases.push((FulfillmentStatus::Fulfilled as i32, 999, ProofStatus::Ready));
+
+        for fulfillment_status in [
+            FulfillmentStatus::Unfulfillable,
+            FulfillmentStatus::Reverted,
+            FulfillmentStatus::Expired,
+        ] {
+            cases.push((
+                fulfillment_status as i32,
+                ExecutionStatus::Unexecuted as i32,
+                ProofStatus::Failed,
+            ));
+            cases.push((fulfillment_status as i32, 999, ProofStatus::Failed));
+        }
+
+        for execution_status in [ExecutionStatus::Unexecutable, ExecutionStatus::ValidationFailed] {
+            cases.push((
+                FulfillmentStatus::Requested as i32,
+                execution_status as i32,
+                ProofStatus::Failed,
+            ));
+            cases.push((999, execution_status as i32, ProofStatus::Failed));
+        }
+
+        for fulfillment_status in &fulfillment_statuses[..3] {
+            for execution_status in &execution_statuses[..3] {
+                cases.push((
+                    *fulfillment_status as i32,
+                    *execution_status as i32,
+                    ProofStatus::Pending,
+                ));
+            }
+        }
+        cases.push((FulfillmentStatus::Requested as i32, 999, ProofStatus::Pending));
+        cases.push((999, ExecutionStatus::Unexecuted as i32, ProofStatus::Pending));
+        cases.push((999, 998, ProofStatus::Pending));
+
         for (fulfillment_status, execution_status, expected) in cases {
             assert_eq!(
                 check_status(fulfillment_status, execution_status),

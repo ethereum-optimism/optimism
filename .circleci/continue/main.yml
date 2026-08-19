@@ -6,7 +6,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
   c-base_image:
     type: string
     default: default
@@ -28,7 +28,7 @@ parameters:
     default: cimg/base:2026.03
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
   base_image:
     type: string
     default: default
@@ -197,7 +197,7 @@ commands:
       for every ref and develop overrides to the writer. The write/read split is
       enforced by GCP Workload Identity on the signed CircleCI OIDC vcs-ref
       claim, so a non-develop ref impersonating the writer is denied by GCP;
-      this only selects the SA. sccache is preinstalled in the ci-base-clang
+      this only selects the SA. sccache is preinstalled in the Rust base
       image.
 
       Not fail-open: if the sccache server can't start, the job fails so a
@@ -247,7 +247,7 @@ commands:
                 name: "Start sccache"
                 command: |
                   # Skip where sccache is not installed (machine-executor jobs like
-                  # the cannon builds run on a VM, not the ci-base-clang image). This
+                  # the cannon builds run on a VM, not the Rust base image). This
                   # is NOT fail-open for a broken cache: if sccache IS present, a
                   # failed server start below still fails the job.
                   if ! command -v sccache >/dev/null 2>&1; then
@@ -695,7 +695,7 @@ commands:
               # build alone would omit crates other workspace members need).
               cargo fetch --locked
             fi
-            # Use the mold linker (pinned via mise; also present in ci-base-clang)
+            # Use the mold linker (pinned via mise; also present in the Rust base image)
             # to cut final link time. `mold -run` intercepts the linker at exec
             # time, so it needs no RUSTFLAGS change and does not perturb the sccache
             # compile-cache key. The CI env is controlled, so a missing mold must
@@ -853,13 +853,13 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: op-reth
-          binary: op-reth
+          package: "op-reth op-reth-sdm-fixture"
           save_cache: false
       - persist_to_workspace:
           root: "."
           paths:
             - "rust/target/release/op-reth"
+            - "rust/target/release/op-reth-sdm-fixture"
 
   # Build a single Rust binary from a vendored (non-submodule) directory.
   rust-build-vendored:
@@ -2068,7 +2068,7 @@ jobs:
       l1_fork:
         description: "L1 fork active at genesis"
         type: string
-        default: "prague"
+        default: "fusaka"
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
@@ -2115,9 +2115,16 @@ jobs:
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE=$ROOT_DIR/rust/target/release/op-reth-sdm-fixture" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
+
+            # Fail here in seconds rather than ~25 minutes into the test run: a drift in the
+            # persist path or the build profile would otherwise surface as an opaque devstack
+            # error when a test first tries to launch one of these.
+            test -x "$ROOT_DIR/rust/target/release/op-reth"
+            test -x "$ROOT_DIR/rust/target/release/op-reth-sdm-fixture"
             # KONA_SP1_ELF_DIR deliberately not set: acceptance tests run with
             # stub prestate artifacts (the devstack deploys the mock verifier,
             # so nothing consumes real ELF bytes until the proving path). This
@@ -2768,7 +2775,7 @@ workflows:
           matrix:
             parameters:
               l1_fork: &acceptance_l1_forks
-                - prague
+                - fusaka
           l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
@@ -2820,8 +2827,8 @@ workflows:
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
             - go-tests: terminal
-            - memory-all-opn-op-reth-prague: terminal
-            - memory-all-kona-op-reth-prague: terminal
+            - memory-all-opn-op-reth-fusaka: terminal
+            - memory-all-kona-op-reth-fusaka: terminal
             - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
@@ -3044,6 +3051,7 @@ workflows:
       - circleci-schedule-trigger-check:
           context:
             - circleci-api-token
+            - circleci-repo-readonly-authenticated-github-token
 
   close-issue-workflow:
     when: << pipeline.parameters.c-run_close_issue >>

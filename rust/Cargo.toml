@@ -47,6 +47,7 @@ members = [
   "op-reth/crates/primitives/",
   "op-reth/crates/reth/",
   "op-reth/crates/rpc/",
+  "op-reth/crates/sdm-fixture-node/",
   "op-reth/crates/storage/",
   "op-reth/crates/exex/",
   "op-reth/crates/trie/",
@@ -495,7 +496,7 @@ op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-featu
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
-sp1-sdk = { version = "6.3.1", default-features = false, features = [
+sp1-sdk = { version = "6.4.0", default-features = false, features = [
   "network",
 ] }
 

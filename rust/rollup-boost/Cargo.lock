@@ -6084,7 +6084,6 @@ dependencies = [
  "op-alloy-consensus",
  "serde",
  "sha2",
- "snap",
  "thiserror 2.0.18",
 ]
 
@@ -6092,6 +6091,7 @@ dependencies = [
 name = "op-revm"
 version = "20.0.0"
 dependencies = [
+ "alloy-eips",
  "auto_impl",
  "op-alloy-consensus",
  "revm",

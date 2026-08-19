@@ -51,19 +51,20 @@ func singleChainInteropNoSupernodeFromRuntime(t devtest.T, runtime *sysgo.Single
 	l2CLDSL := dsl.NewL2CLNode(l2CL)
 
 	out := &SingleChainInterop{
-		Log:              t.Logger(),
-		T:                t,
-		timeTravel:       runtime.TimeTravel,
-		SuperRoots:       dsl.NewOpNodeSuperRoots(l2CLDSL),
-		L1Network:        dsl.NewL1Network(l1Network, l1ELDSL, l1CLDSL),
-		L1EL:             l1ELDSL,
-		L1CL:             l1CLDSL,
-		L2ChainA:         dsl.NewL2Network(l2Chain, l2ELDSL, l2CLDSL, l1ELDSL, nil, nil),
-		L2BatcherA:       dsl.NewL2Batcher(l2Batcher),
-		L2ELA:            l2ELDSL,
-		L2CLA:            l2CLDSL,
-		Wallet:           dsl.NewRandomHDWallet(t, 30),
-		challengerConfig: challengerCfg,
+		Log:                           t.Logger(),
+		T:                             t,
+		timeTravel:                    runtime.TimeTravel,
+		SuperRoots:                    dsl.NewOpNodeSuperRoots(l2CLDSL),
+		L1Network:                     dsl.NewL1Network(l1Network, l1ELDSL, l1CLDSL),
+		L1EL:                          l1ELDSL,
+		L1CL:                          l1CLDSL,
+		L2ChainA:                      dsl.NewL2Network(l2Chain, l2ELDSL, l2CLDSL, l1ELDSL, nil, nil),
+		L2BatcherA:                    dsl.NewL2Batcher(l2Batcher),
+		L2ELA:                         l2ELDSL,
+		L2CLA:                         l2CLDSL,
+		Wallet:                        dsl.NewRandomHDWallet(t, 30),
+		challengerConfig:              challengerCfg,
+		zkChallengerSuperRootRPCProxy: runtime.ZKChallengerSuperRootRPCProxy,
 	}
 	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)
 	out.FunderA = newFunderEOA(t, runtime.Keys, out.L2ELA, out.Wallet)
