@@ -5,7 +5,7 @@ use alloy_evm::{
     evm::EvmFactoryExt,
     precompiles::{Precompile, PrecompileInput},
 };
-use alloy_primitives::{Signature, TxKind, U256};
+use alloy_primitives::{B256, Signature, TxKind, U256};
 use core::convert::Infallible;
 use op_revm::{
     OpTransactionError,
@@ -236,6 +236,124 @@ fn non_deposit_above_tx_gas_limit_cap_is_rejected() {
         ),
         "expected TxGasLimitGreaterThanCap, got {err:?}",
     );
+}
+
+/// Runtime that reads 16 distinct cold storage slots (`PUSH1 n; SLOAD; POP` x16, then `STOP`),
+/// costing ~33.7k gas — comfortably more than the capped budget in the test below and
+/// comfortably less than the uncapped one.
+fn cold_sload_burner_runtime() -> Bytes {
+    let mut code = Vec::new();
+    for slot in 0u8..16 {
+        code.extend_from_slice(&[0x60, slot, 0x54, 0x50]);
+    }
+    code.push(0x00);
+    Bytes::from(code)
+}
+
+/// Deposits are force-included from L1 and must not be clamped by the EIP-7825 per-transaction
+/// gas cap, so `transact_raw` lifts the cap for the duration of a deposit.
+///
+/// The cap is not enforced by a rejection on this path — deposits skip `validate_env`, which is
+/// where `TxGasLimitGreaterThanCap` is raised — so the exemption is only observable in how much
+/// gas the first frame actually receives: `initial_gas_and_reservoir` splits the limit at
+/// `min(gas_limit, cap)`, and OP does not override the `validate_initial_tx_gas` path that feeds
+/// it. This test therefore measures execution, not the error type: the deposit runs a payload
+/// that costs more than the capped budget and must still complete.
+#[test]
+fn deposit_above_tx_gas_limit_cap_receives_the_full_gas_limit() {
+    let caller = Address::ZERO;
+    let target = Address::from([0x44; 20]);
+
+    // An explicit low cap keeps the burner payload cheap while reproducing the real shape:
+    // capped budget = 30_000 - 21_000 intrinsic = 9_000 gas, which the payload exceeds.
+    const CAP: u64 = 30_000;
+    const DEPOSIT_GAS_LIMIT: u64 = 200_000;
+
+    let mut db = InMemoryDB::default();
+    let runtime = cold_sload_burner_runtime();
+    db.insert_account_info(
+        target,
+        AccountInfo {
+            code_hash: alloy_primitives::keccak256(&runtime),
+            code: Some(revm::bytecode::Bytecode::new_raw(runtime)),
+            ..Default::default()
+        },
+    );
+
+    let mut cfg = CfgEnv::new_with_spec(OpSpecId::KARST);
+    cfg.tx_gas_limit_cap = Some(CAP);
+    let mut evm = OpEvmFactory::<OpTx>::default()
+        .create_evm(db, EvmEnv::new(cfg, BlockEnv { gas_limit: 60_000_000, ..Default::default() }));
+
+    let deposit = OpTx(OpTransaction {
+        base: TxEnv {
+            gas_limit: DEPOSIT_GAS_LIMIT,
+            kind: TxKind::Call(target),
+            caller,
+            ..Default::default()
+        },
+        enveloped_tx: None,
+        deposit: op_revm::transaction::deposit::DepositTransactionParts::new(
+            B256::from([0x11; 32]),
+            None,
+            false,
+        ),
+    });
+
+    let result = evm.transact_raw(deposit).expect("a deposit must not be rejected");
+    assert!(
+        result.result.is_success(),
+        "the deposit must receive its full gas limit, not the capped budget; got {:?}",
+        result.result,
+    );
+    assert!(
+        result.result.tx_gas_used() > CAP,
+        "the payload must actually exceed the cap or this test proves nothing; used {}",
+        result.result.tx_gas_used(),
+    );
+
+    // The exemption is scoped to the deposit: the previous cap must be back afterwards.
+    assert_eq!(evm.inner.0.ctx.cfg.tx_gas_limit_cap, Some(CAP));
+}
+
+/// The cap is saved and restored around a deposit as an `Option<Option<u64>>`, so it must
+/// round-trip whichever resting state the field is in — including `None`, which is the
+/// production shape (the env builder leaves the raw field unset and lets revm derive the
+/// effective cap from the spec).
+#[test]
+fn deposit_cap_exemption_round_trips_every_resting_state() {
+    let caller = Address::ZERO;
+    let target = Address::from([0x55; 20]);
+
+    for resting in [None, Some(TX_GAS_LIMIT_CAP), Some(u64::MAX)] {
+        let mut cfg = CfgEnv::new_with_spec(OpSpecId::KARST);
+        cfg.tx_gas_limit_cap = resting;
+        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
+            EmptyDB::default(),
+            EvmEnv::new(cfg, BlockEnv { gas_limit: 60_000_000, ..Default::default() }),
+        );
+
+        let deposit = OpTx(OpTransaction {
+            base: TxEnv {
+                gas_limit: 100_000,
+                kind: TxKind::Call(target),
+                caller,
+                ..Default::default()
+            },
+            enveloped_tx: None,
+            deposit: op_revm::transaction::deposit::DepositTransactionParts::new(
+                B256::from([0x22; 32]),
+                None,
+                false,
+            ),
+        });
+        evm.transact_raw(deposit).expect("deposit executes");
+
+        assert_eq!(
+            evm.inner.0.ctx.cfg.tx_gas_limit_cap, resting,
+            "cap must be restored to its resting state {resting:?}",
+        );
+    }
 }
 
 #[test]
