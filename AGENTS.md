@@ -17,6 +17,7 @@ When this happens, offer to submit the improvement to the relevant file in `docs
 
 - **Default branch**: `develop` (not `main`)
 - **Commit messages and PR titles**: use the [Scoped Commits](https://scopedcommits.com) format — `<scope>: <description>`, where the scope names the component or area changed (e.g. `op-node: handle unsafe head reorgs`). Do not use Conventional Commits type prefixes (`feat:`, `fix:`, `chore(scope):`, ...). See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages)
+- **Breaking changes**: append `!` to the scope list (`op-node!: remove the legacy sync mode`) so the change is flagged for release notes. In the PR description and commit body, add a `BREAKING CHANGE:` paragraph that identifies affected users, explains what breaks, and gives the migration path.
 - **Build system**: migrating from Make to [Just](https://github.com/casey/just) — shared justfile infra lives in `justfiles/`
 
 This repository contains multiple components spanning different technologies:
