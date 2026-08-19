@@ -50,6 +50,10 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
     Duration internal zkMaxChallengeDuration = Duration.wrap(uint64(12 hours));
     Duration internal zkMaxProveDuration = Duration.wrap(uint64(3 days));
 
+    /// @notice ZK circuit vkey injected via the OPCM upgrade. The verifier is mocked, so the value
+    ///         only has to be non-zero.
+    Claim internal zkAbsolutePrestate = Claim.wrap(keccak256("zkFlipPrestate"));
+
     /// @notice Storage-resident upgrade input (nested dynamic arrays must live in storage to push).
     IOPContractsManagerV2.UpgradeInput internal _zkUpgradeInput;
 
@@ -202,7 +206,7 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
                 gameType: GameTypes.ZK_DISPUTE_GAME,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(0)),
+                        absolutePrestate: zkAbsolutePrestate,
                         maxChallengeDuration: zkMaxChallengeDuration,
                         maxProveDuration: zkMaxProveDuration,
                         challengerBond: flipBond
