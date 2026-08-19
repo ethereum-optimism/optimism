@@ -1,11 +1,18 @@
 //! Crate-private proposer dependency capabilities.
 
+use std::sync::Arc;
+
 use alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, U256};
 use anyhow::Result;
 use async_trait::async_trait;
+use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
 
-use crate::contract::{GameStatus, ProposalStatus, ZKGameArgs};
+use crate::{
+    contract::{GameStatus, ProposalStatus, ZKGameArgs},
+    prover::ProofKeys,
+    superroot::SuperRootAt,
+};
 
 /// A compact L1 block observation used for proposer synchronization.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,6 +126,48 @@ pub(crate) struct ProofInputs {
     pub(crate) sequence_number: u64,
 }
 
+/// Super-root safety horizons used by proposal policy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ProposalHorizon {
+    pub(crate) safe_timestamp: u64,
+    pub(crate) finalized_timestamp: u64,
+}
+
+/// A `superroot_atTimestamp` response paired with its validated root material.
+#[derive(Clone, Debug)]
+pub(crate) struct SuperRootAtTimestamp {
+    pub(crate) response: SuperRootAtTimestampResponse,
+    pub(crate) root: Option<SuperRootAt>,
+}
+
+/// The on-chain facts and proposer identity bound into a game proof.
+#[derive(Clone, Debug)]
+pub struct GameProofInputs {
+    /// The game's pinned L1 head.
+    pub l1_head: B256,
+    /// Block number of the pinned L1 head.
+    pub l1_head_number: u64,
+    /// The agreed starting super root.
+    pub starting_root: B256,
+    /// Timestamp of the starting super root.
+    pub starting_ts: u64,
+    /// The claimed super root.
+    pub root_claim: B256,
+    /// Timestamp of the claim.
+    pub claim_ts: u64,
+    /// The game's absolute prestate.
+    pub prestate: B256,
+    /// The address bound into the proof's public values.
+    pub prover: Address,
+}
+
+/// Result of a confirmed game-creation action.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct GameCreationReceipt {
+    pub(crate) game_address: Address,
+    pub(crate) transaction_hash: B256,
+}
+
 /// Read-only L1 observations consumed by proposer policy.
 #[async_trait]
 pub(crate) trait L1View: Send + Sync {
@@ -165,6 +214,38 @@ pub(crate) trait L1View: Send + Sync {
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs>;
     async fn anchor_state_registry(&self, game: Address) -> Result<Address>;
     async fn latest_l1_timestamp(&self) -> Result<u64>;
+}
+
+/// Super-root observations consumed by proposal and proof policy.
+#[async_trait]
+pub(crate) trait SuperRootSource: Send + Sync {
+    async fn proposal_horizon(&self, timestamp: u64) -> Result<ProposalHorizon>;
+    async fn super_root_at_timestamp(&self, timestamp: u64) -> Result<SuperRootAtTimestamp>;
+}
+
+/// Expensive witness collection and SP1 proof execution.
+#[async_trait]
+pub(crate) trait ProofEngine: Send + Sync {
+    async fn prove(
+        &self,
+        keys: Option<Arc<ProofKeys>>,
+        game: GameProofInputs,
+        responses: Vec<SuperRootAtTimestampResponse>,
+    ) -> Result<Vec<u8>>;
+}
+
+/// Confirmed proposer transaction effects.
+#[async_trait]
+pub(crate) trait ActionExecutor: Send + Sync {
+    async fn create_game(
+        &self,
+        root_claim: B256,
+        extra_data: Vec<u8>,
+        init_bond: U256,
+    ) -> Result<GameCreationReceipt>;
+    async fn prove_game(&self, game: Address, proof: Vec<u8>) -> Result<B256>;
+    async fn resolve_game(&self, game: Address) -> Result<B256>;
+    async fn claim_credit(&self, game: Address, recipient: Address) -> Result<B256>;
 }
 
 /// Host query time used for current super-root observations.
