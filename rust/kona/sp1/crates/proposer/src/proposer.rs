@@ -3725,8 +3725,9 @@ mod tests {
         ClaimPreflightDecision, CompactGameSummary, Cursor, DEADLINE_WARNING_DIVISOR,
         DeadlineStatus, Game, GameFetchResult, GameSyncAction, GameSyncFacts, GameSyncRetention,
         MAX_GAME_DEADLINE_LAG, OperationSummary, PrestateCache, Proposer, ProposerState,
-        ProvingPurpose, TaskClass, TaskInfo, TaskSuccess, awaiting_proof, check_deadline_status,
-        classify_claim_preflight, classify_game_sync, next_proposal_timestamp,
+        ProvingPurpose, SyncDisposition, TaskClass, TaskInfo, TaskSuccess,
+        awaiting_proof, check_deadline_status, classify_claim_preflight, next_proposal_timestamp,
+        classify_game_sync,
     };
     use crate::{
         ZK_GAME_TYPE,
@@ -4383,13 +4384,20 @@ mod tests {
     #[tokio::test]
     async fn sync_head_failures_and_no_advance_outcomes_preserve_the_last_pin() {
         let cases = [
-            (Some("latest_head"), 1, 3, 0, true, &["latest_head"] as &[_]),
-            (None, 5, 5, 0, false, &["latest_head"]),
-            (None, 4, 5, 0, false, &["latest_head"]),
-            (None, 10, 3, 2, false, &["latest_head", "block_ref"]),
+            (Some("latest_head"), 1, 3, 0, None, &["latest_head"] as &[_]),
+            (None, 5, 5, 0, Some(SyncDisposition::UnchangedConfirmedHead), &["latest_head"]),
+            (None, 4, 5, 0, Some(SyncDisposition::UnchangedConfirmedHead), &["latest_head"]),
+            (
+                None,
+                10,
+                3,
+                2,
+                Some(SyncDisposition::ConfirmedBlockUnavailable),
+                &["latest_head", "block_ref"],
+            ),
         ];
 
-        for (fail_on, head, previous_pin, confirmations, expect_error, expected_calls) in cases {
+        for (fail_on, head, previous_pin, confirmations, expected, expected_calls) in cases {
             let mut config = test_config();
             config.sync_l1_confirmations = confirmations;
             let mut proposer = test_proposer_with(config).await;
@@ -4402,10 +4410,29 @@ mod tests {
             proposer.last_synced_l1_block.store(previous_pin, AtomicOrdering::Relaxed);
             *proposer.last_successful_pinned_l1.write().await =
                 Some(L1BlockRef { number: previous_pin, timestamp: 1_000 });
-            assert_eq!(proposer.sync_state().await.is_err(), expect_error);
+            match expected {
+                Some(expected) => assert_eq!(proposer.sync_state().await.unwrap(), expected),
+                None => assert!(proposer.sync_state().await.is_err()),
+            }
             assert_eq!(proposer.last_synced_l1_block.load(AtomicOrdering::Relaxed), previous_pin);
+            assert_eq!(
+                *proposer.last_successful_pinned_l1.read().await,
+                Some(L1BlockRef { number: previous_pin, timestamp: 1_000 })
+            );
             assert_eq!(view.calls(), expected_calls);
         }
+    }
+
+    #[tokio::test]
+    async fn sync_state_advances_only_once_when_head_is_block_zero() {
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            latest_head: Some(L1BlockRef { number: 0, timestamp: 1_000 }),
+            ..Default::default()
+        });
+
+        assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::Advanced);
+        assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::UnchangedConfirmedHead);
     }
 
     #[tokio::test]

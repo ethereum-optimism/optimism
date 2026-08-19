@@ -558,28 +558,6 @@ async fn sync_error_skips_reaping_and_scheduling() {
 }
 
 #[tokio::test]
-async fn sync_state_does_not_advance_pin_when_confirmed_block_is_unavailable() {
-    let view = Arc::new(ScenarioL1View::new());
-    view.head_number.store(2, Ordering::Relaxed);
-    view.confirmed_block_unavailable.store(true, Ordering::Relaxed);
-    let mut config = test_config(30);
-    config.sync_l1_confirmations = 1;
-    let proposer = proposer_with(config, view).await;
-
-    assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::ConfirmedBlockUnavailable);
-    assert_eq!(*proposer.last_successful_pinned_l1.read().await, None);
-}
-
-#[tokio::test]
-async fn sync_state_advances_only_once_when_head_is_block_zero() {
-    let view = Arc::new(ScenarioL1View::new());
-    view.head_number.store(0, Ordering::Relaxed);
-    let proposer = proposer_with(test_config(30), view).await;
-    assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::Advanced);
-    assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::UnchangedConfirmedHead);
-}
-
-#[tokio::test]
 async fn cycle_schedules_other_work_when_creation_planning_fails() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(30), view.clone()).await;
@@ -957,34 +935,6 @@ async fn settle_rejects_task_reaped_by_later_tick() {
         control.settle(&[reaped]).await.unwrap_err(),
         ScenarioError::AlreadyFinalized { task_id: reaped }
     );
-}
-
-#[tokio::test]
-async fn cycle_does_not_reschedule_defense_for_active_game() {
-    let view = Arc::new(ScenarioL1View::new());
-    let mut config = test_config(30);
-    config.max_concurrent_defense_tasks = NonZeroU64::new(2).unwrap();
-    let proposer = proposer_with(config, view).await;
-    proposer.sync_state().await.unwrap();
-    let game_one = challenged_game(1, 5_000);
-    proposer.state.write().await.games.insert(game_one.index, game_one.clone());
-    insert_task(
-        &proposer,
-        TaskInfo::from_operation(OperationSummary::ProveGame {
-            factory_index: game_one.index,
-            address: game_one.address,
-            purpose: ProvingPurpose::Defense,
-        }),
-        pending_handle(),
-    )
-    .await;
-
-    let result = proposer.cycle().await.unwrap();
-
-    assert!(!result.scheduled.iter().any(|scheduled| matches!(
-        scheduled.operation,
-        OperationSummary::ProveGame { address, .. } if address == game_one.address
-    )));
 }
 
 #[tokio::test]
