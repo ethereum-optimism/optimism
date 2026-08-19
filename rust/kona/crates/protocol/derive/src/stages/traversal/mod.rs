@@ -5,7 +5,6 @@
 //!
 //! ## Types
 //!
-//! - [`IndexedTraversal`]: A passive traversal stage that receives the next block through a signal.
 //! - [`PollingTraversal`]: An active traversal stage that polls for the next block through its
 //!   provider.
 
@@ -13,20 +12,8 @@ use alloy_consensus::Receipt;
 use alloy_primitives::Address;
 use kona_genesis::SystemConfig;
 
-mod indexed;
-pub use indexed::IndexedTraversal;
-
 mod polling;
 pub use polling::PollingTraversal;
-
-/// The type of traversal stage used in the derivation pipeline.
-#[derive(Debug, Clone)]
-pub enum TraversalStage {
-    /// A passive traversal stage that receives the next block through a signal.
-    Managed,
-    /// An active traversal stage that polls for the next block through its provider.
-    Polling,
-}
 
 /// Updates the system config with receipts, logging each applied update and any errors,
 /// and setting the appropriate metrics gauges.
