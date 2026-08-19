@@ -2635,7 +2635,9 @@ workflows:
           rule: "go-tests-ci"
           parallelism: 12
           no_output_timeout: 39m
-          test_timeout: 40m
+          # Must stay below no_output_timeout: Go's deadline panic then dumps
+          # goroutines before CircleCI's silent no-output kill.
+          test_timeout: 35m
           notify: true
           mentions: "<!subteam^S09D13R3HJ7>" # @protocol-oncall
           requires:
