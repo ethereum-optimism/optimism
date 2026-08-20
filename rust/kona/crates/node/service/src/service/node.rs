@@ -3,11 +3,11 @@ use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
     EngineActorRequest, EngineConfig, EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher,
-    L1OriginSelector, L1WatcherActor, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
-    NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedEngineRpcClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
-    QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient, RpcActor, RpcServerLauncher,
-    SequencerActor, SequencerConfig,
+    L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig,
+    NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
+    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
+    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
 };
 use alloy_eips::BlockNumberOrTag;
@@ -302,15 +302,20 @@ impl RollupNode {
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
         )?;
 
-        Ok(L1WatcherActor::new(
+        // A standalone kona-node is the N=1 case of the multi-chain watcher.
+        let chain = L1WatcherChain::new(
             self.config.clone(),
-            self.l1_config.engine_provider.clone(),
-            l1_query_rx,
-            l1_head_updates_tx,
             QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
             signer_tx,
+            l1_query_rx,
+        );
+
+        Ok(L1WatcherActor::new(
+            self.l1_config.engine_provider.clone(),
+            l1_head_updates_tx,
             head_stream,
             finalized_stream,
+            vec![chain],
         ))
     }
 

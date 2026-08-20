@@ -25,7 +25,7 @@ pub use actors::{
     EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
     EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher, L1OriginSelector,
     L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor, L1WatcherActorError,
-    L1WatcherDerivationClient, NetworkActor, NetworkActorError, NetworkBuilder,
+    L1WatcherChain, L1WatcherDerivationClient, NetworkActor, NetworkActorError, NetworkBuilder,
     NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient,
     NetworkHandler, NodeActor, OriginSelector, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
