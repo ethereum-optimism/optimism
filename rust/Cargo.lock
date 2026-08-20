@@ -13618,6 +13618,7 @@ dependencies = [
  "reth-revm",
  "reth-storage-api",
  "reth-transaction-pool",
+ "reth-trie-parallel",
  "revm",
  "serde",
  "sha2 0.10.9",
