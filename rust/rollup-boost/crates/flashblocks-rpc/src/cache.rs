@@ -1,11 +1,14 @@
 use alloy_consensus::{
-    BlockHeader, Transaction as _, TxReceipt,
+    BlockHeader, TxReceipt,
     transaction::{Recovered, SignerRecoverable, TransactionMeta},
 };
 use alloy_primitives::{Address, Sealable, TxHash, U256};
 use alloy_rpc_types::{BlockTransactions, Header, TransactionInfo, Withdrawals};
 use arc_swap::ArcSwap;
-use op_alloy_consensus::OpTxEnvelope;
+use op_alloy_consensus::{
+    OpTxEnvelope,
+    transaction::{OpDepositInfo, OpTransactionInfo},
+};
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types::{OpTransactionReceipt, Transaction};
 use reth_optimism_chainspec::OpChainSpec;
@@ -274,40 +277,9 @@ impl FlashblocksCacheInner {
 }
 
 fn transform_tx(tx: Recovered<OpTransactionSigned>, tx_info: TransactionInfo) -> Transaction {
-    let tx = tx.convert::<OpTxEnvelope>();
-
-    let TransactionInfo {
-        block_hash,
-        block_number,
-        index: transaction_index,
-        base_fee,
-        block_timestamp,
-        ..
-    } = tx_info;
-
-    let effective_gas_price = if tx.is_deposit() {
-        // For deposits, we must always set the `gasPrice` field to 0 in rpc
-        // deposit tx don't have a gas price field, but serde of `Transaction` will take care of
-        // it
-        0
-    } else {
-        base_fee
-            .map(|base_fee| {
-                tx.effective_tip_per_gas(base_fee).unwrap_or_default() + base_fee as u128
-            })
-            .unwrap_or_else(|| tx.max_fee_per_gas())
-    };
-
-    Transaction {
-        inner: alloy_rpc_types_eth::Transaction {
-            inner: tx,
-            block_hash,
-            block_number,
-            transaction_index,
-            effective_gas_price: Some(effective_gas_price),
-            block_timestamp,
-        },
-        deposit_nonce: None, // TODO
-        deposit_receipt_version: None,
-    }
+    Transaction::from_transaction(
+        tx.convert::<OpTxEnvelope>(),
+        // TODO: the flashblocks metadata does not carry the deposit nonce / receipt version yet.
+        OpTransactionInfo::new(tx_info, OpDepositInfo::default()),
+    )
 }
