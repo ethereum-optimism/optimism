@@ -1,14 +1,18 @@
 ---
 name: release-notes
-description: Turn a raw `just release-notes` draft into published, house-style release notes for an OP Stack component (op-node, op-batcher, op-supernode, kona-node, op-proposer, op-challenger, op-reth, op-deployer). Prunes PRs that never reach the component's binary and writes the operator-facing notices that go at the top. Use when asked to write, polish, tidy, or finalize release notes, to clean up a draft GitHub release, or to prepare notes before publishing a release.
+description: Turn a raw `just release-notes` draft into a published, house-style release note for an OP Stack component (op-node, op-batcher, op-supernode, kona-node, op-proposer, op-challenger, op-reth, op-deployer). Cuts PRs that never reach the component's binary, then replaces the raw PR list with a curated change list grouped by theme, under a standard Overview sentence giving the upgrade recommendation. Use when asked to write, polish, tidy, or finalize release notes, to clean up a draft GitHub release, or to prepare notes before publishing a release.
 ---
 
 # Release notes
 
 `just release-notes <component>` emits a git-cliff changelog: every PR whose diff hit the
-component's include paths, in one flat list. A published release note is a different
-artifact — it opens with a verdict an operator can act on, and it lists only the changes
-that actually reach the binary.
+component's include paths, in one flat list of PR titles. A published release note is a
+different artifact — a **curated change list**, grouped by theme, where each entry explains
+itself without relying on the PR title, and only changes that actually reach the binary
+appear at all.
+
+The raw list is replaced, not annotated. `op-challenger/v1.9.4` and
+`op-contracts/v8.0.0-rc.2` are the reference for what to aim at.
 
 This skill does that transformation. It does **not** create tags or finalize RCs; see the
 `op-challenger-release` / `op-proposer-release` skills for the tagging flow.
@@ -44,8 +48,8 @@ house style. Read them before writing anything:
 
 Also diff against your own previous output when a draft you produced has since been
 published or hand-edited — the delta is the correction, and it is the most valuable input
-you get. Look for: how the verdict callout is phrased, how aggressively the
-`### Breaking / behavior changes` section is trimmed, whether callouts were merged, and
+you get. Look for: how the Overview sentence is phrased, which headings the change list is
+grouped under, how much detail an entry carries, what was judged too minor to mention, and
 what the compare link's base is.
 
 **When recent releases disagree with `reference/house-style.md`, the releases win.** Say
@@ -88,30 +92,49 @@ in, not that the changed *function* is on the component's runtime path. See
 Drop `--` and non-security `DEPS` rows. For every `LINKED` row apply the judgment pass in
 `reference/triage.md`.
 
-**Comment dropped bullets out; do not delete them.** A commented bullet can be reinstated
-by a reviewer in one edit, and it shows what was considered. Keep the reason short and put
-it before the closing `-->`:
+Read the intent of every surviving PR — you cannot write a self-contained entry from a PR
+title. Batch the lookups rather than going one at a time; if there are more than ~15,
+delegate the reading and ask for a one-line "what an operator would notice" per PR.
 
-```markdown
-<!--* op-core/fees: add Jovian DA-footprint calculation by @claude[bot] in [#22163](...) doesn't affect the batcher-->
-```
+Keep the raw bullets for cut PRs as HTML comments at the bottom of the draft, each with a
+short reason, so a reviewer can see what was considered and reinstate one in a single edit.
 
-Batch the PR lookups — read intent for all the `LINKED` rows in parallel rather than one
-at a time. If there are more than ~15, delegate the reading to a sub-agent and ask for a
-one-line "what an operator would notice" per PR, so the diffs stay out of context.
+## 6. Curate the change list
 
-Never reword a surviving bullet.
+This is the substance of the job. Replace the PR titles with grouped, self-contained
+entries — see "Curating the change list" in `reference/house-style.md`:
 
-## 6. Pick the verdict
+- group by `### Features` / `### Bug fixes` / `### Other`, or by domain where that carries
+  more meaning; drop headings that would be empty, and use a flat list for a short release
+- fold PRs that are one logical change into one entry with all their numbers
+- write each entry so it stands alone, saying what changed and why an operator cares
+- reference PRs as bare `(#NNNNN)`; no `by @author`
+- mention each PR exactly once
 
-One callout, set by the most serious thing that survived triage:
-`[!CAUTION]` mandatory → `[!WARNING]` security or startup/config breakage → `[!NOTE]`
-optional. `reference/house-style.md` has the ladder and the phrasing.
+## 7. Write the Overview and check proportionality
 
-Write it in terms of the symptom an operator would notice, not the mechanism. If nothing
-functional survived, say exactly that — do not manufacture significance.
+Open `## Overview` with the standard recommendation sentence in a callout: release type,
+what it contains, and one of `optional` / `optional but recommended` / `recommended` /
+`required`. The block is always `> [!NOTE]`, except `required`, which uses `> [!CAUTION]` —
+severity is carried by the sentence's fixed vocabulary, not by the block type.
 
-## 7. Check the standing notices
+Then apply the proportionality checks from `reference/house-style.md` before highlighting
+anything:
+
+- **Is the feature live in production?** Interop/Lagoon, ZK dispute games and super dispute
+  games are not. Changes to dormant paths go under a `### <Feature> (not yet in production)`
+  heading with the standard Note paragraph in the Overview — they cannot affect operators
+  today, however alarming the description sounds.
+- **Would a reader shrug?** New metrics, wrong version strings and rare corner cases are
+  bullets, not callouts.
+
+Add a `## Breaking changes` section only when an operator must *do* something before
+upgrading. Go-API-only changes do not qualify.
+
+The Overview block is the **only** callout in the note. Anything reaching for a second one
+is an entry in the change list, or a breaking change.
+
+## 8. Check the standing notices
 
 Recurring boilerplate (the APKO migration block was one) is carried between releases and
 is **not** safe to copy forward blindly — the APKO text said "in this release (and only in
@@ -120,13 +143,13 @@ this release)". Step 2's output shows whether the previous release carried one.
 **[USER REVIEW]** If the previous release has a standing notice, show it and ask whether it
 still applies. If it does, copy it verbatim, along with whatever image lines it implies.
 
-## 8. Assemble
+## 9. Assemble
 
-Order: verdict callout → topic callouts → standing notices → optional
-`### Breaking / behavior changes` → `## What's Changed in <tag>` → `## New Contributors` →
-`**Full Changelog**` → image line(s). Write to `/tmp/<component>-notes.md`.
+Order: optional `[!CAUTION]` → `## Overview` → optional `## Breaking changes` →
+`## What's Changed` with its subheadings → `## New Contributors` → `**Full Changelog**` →
+image line(s) → commented-out working notes. Write to `/tmp/<component>-notes.md`.
 
-## 9. Retarget RC references when finalizing
+## 10. Retarget RC references when finalizing
 
 A draft generated against an RC carries `-rc.N` in its heading, its compare link and its
 image tag. A finalized release publishes those as the plain version — pointing operators
@@ -145,7 +168,14 @@ a different commit needs regenerating, not retagging.
 Then set the compare link's base to the previous **finalized** tag (see
 `reference/house-style.md`).
 
-## 10. Review before applying
+## 11. Review before applying
+
+Check that no PR is described twice — the curated style has no raw list to fall back on, so
+a double mention is a real defect. Only `## New Contributors` rows may repeat a number:
+
+```bash
+grep -oE '#2[0-9]{4}' /tmp/<component>-notes.md | sort | uniq -d
+```
 
 **[USER REVIEW]** Show the user both:
 
@@ -155,7 +185,7 @@ Then set the compare link's base to the previous **finalized** tag (see
 The drop list is the part that needs human eyes. A wrongly pruned PR is invisible in the
 rendered note, so present it as a list to check.
 
-## 11. Apply
+## 12. Apply
 
 Only after explicit approval:
 

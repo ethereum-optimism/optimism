@@ -76,8 +76,8 @@ there (#22101) is not batcher-facing. Ask what the component does, not just what
 - alters runtime behaviour — what gets built, submitted, derived, gossiped, or logged
 - changes a flag, env var, config key, default, metric, or RPC surface
 - fixes a bug, panic, race, or correctness issue reachable in production
-- changes a Go API that downstream importers use (call this out as importer-facing, not
-  operator-facing — see the `LoadOPStackRollupConfig` example in `house-style.md`)
+- changes a Go API that downstream importers use — these belong under `### Other` with a
+  note that no operator action is needed, never in `## Breaking changes`
 - is a security fix
 
 **Drop** when it is:
@@ -92,14 +92,19 @@ there (#22101) is not batcher-facing. Ask what the component does, not just what
 virtual op-nodes, so op-node's follow-source reorg metrics (#22106) belong in the supernode
 notes even though the PR touches no `op-supernode/` path.
 
+**Keep a change to a dormant feature**, but section it. Interop/Lagoon, ZK dispute games
+and super dispute games are not live anywhere, so those changes cannot affect operators
+today however alarming they sound. They belong under a
+`### <Feature> (not yet in production)` heading, not in the Overview.
+
 **Keep it anyway** in one case: if pruning would empty the list, keep the most substantial
-refactor and say plainly that nothing functional changed. `op-batcher/v1.16.12` published
-exactly one bullet — a shared-helper refactor — under an "Optional upgrade — no functional
-changes" note. An empty `What's Changed` is worse than an honest one.
+refactor and let the Overview say plainly that nothing functional changed —
+`op-batcher/v1.16.12` shipped exactly one entry, a shared-helper refactor. An empty change
+list is worse than an honest one.
 
 ## Fixes for bugs that never shipped
 
-Before promoting a scary-looking fix to the verdict callout, check whether the bug it
+Before letting a scary-looking fix set the upgrade recommendation, check whether the bug it
 fixes is inside the same release range. `op-node/v1.19.5-rc.2` contains #22360, which
 fixes a permanent block-production freeze — but the freeze was introduced by #22241, also
 in that range, so no published version was ever affected. Describing it as a fix operators
@@ -116,7 +121,7 @@ let it set the severity.
 
 `DEPS` rows are usually noise, but a bump that patches a CVE in a library the binary
 actually links is worth a line — and if it is the most serious thing in the release, it
-sets the verdict callout to `[!WARNING]`. Check whether the bumped module is really in the
+raises the upgrade recommendation. Check whether the bumped module is really in the
 binary before promoting it:
 
 ```bash
