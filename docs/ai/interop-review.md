@@ -24,7 +24,14 @@ Spec: `specs/interop/messaging.md` (Messaging Invariants), `specs/interop/deriva
   (`specs/interop/derivation.md`, Activation Block). Implementations enforce this as
   `timestamp >= activation + block_time` on *both* chains — `verifyExecutingMessage` in
   `op-supernode/supernode/activity/interop/algo.go` and `check_single_dependency` in
-  `rust/kona/crates/protocol/interop/src/graph.rs` must agree.
+  `rust/kona/crates/protocol/interop/src/graph.rs` must agree. The formulations differ:
+  Rust reads each chain's own config (`is_interop_active` plus `is_first_interop_block`,
+  `rust/kona/crates/protocol/genesis/src/rollup.rs`), while Go uses a single global
+  activation timestamp with per-chain block time (`algo.go`). They agree only while
+  (a) every chain's Lagoon timestamp is equal — op-supernode refuses to start otherwise
+  ("mismatched Lagoon activation timestamps", `supernode.go`) — and (b) activation is
+  block-aligned. Latent divergence: per-chain dependency-set activation timestamps
+  would silently diverge Go's global-field formulation.
 - **Message expiry invariant**: invalid iff
   `init.timestamp + EXPIRY_TIME < executing_block.timestamp`, `EXPIRY_TIME = 604800`
   (7 days). Constants: Go `MessageExpiryTimeSecondsInterop`
@@ -69,6 +76,21 @@ safety).
   filter's `minSafety` parameter (`safety.Level` in `op-service/eth/safety`,
   `SafetyLevel` in `rust/op-alloy/crates/consensus/src/interop.rs`) accepts
   `local-unsafe` and `cross-unsafe`. Never conflate the two when sweeping or renaming.
+- **Head-ordering invariant**: `unsafe >= local-safe >= cross-safe >= finalized`, and a
+  block must be cross-safe before it can be finalized. Enforcement splits by provenance,
+  all in `op-node/rollup/engine/engine_controller.go`: opinions from the outside
+  authority are *clamped* to local knowledge (`resolveVerifiedAsSafe` and
+  `resolveVerifiedAsFinalized` fall back to the local head with a warning;
+  `resolveAnchorAsSafe` clamps the same way, silently by design), internal out-of-order
+  writes are *rejected* (`promoteFinalized` refuses both finality rewinds and
+  finalizing a block past the safe head), and the cross-safe fallback *floors* at
+  finalized — never local-safe, never below finalized (`crossSafeFallback`). The
+  supernode's authority layer (`super_authority.go`) deliberately does not enforce
+  ordering: it supplies verifier heads and consults local-safe only for activation
+  gating. The Rust-side design intent is the same invariant by construction: cross-safe
+  moves only via promotion clamped `>= finalized`, and finalized is clamped
+  `<= cross-safe`. Both symmetric mistakes are findings: adding ordering enforcement to
+  the authority layer, or turning the reject path into a clamp.
 - **Crash-safety model** (design decision, Go verifier; binding for lokahi): decisions
   are written to a WAL before any side effect; everything the apply step needs is
   captured *while the affected block is still canonical*, so recovery never consults the
@@ -91,16 +113,26 @@ rules.
   themselves replaced (recursively) — `specs/interop/fault-proof.md`, Consolidation.
 - The invalidated block's output (state root, message-passer storage root) must remain
   reconstructable after replacement — the superroot's *optimistic* branch depends on it
-  (`specs/interop/superroot.md`).
+  (`specs/interop/superroot.md`). Implementation: the deny record in
+  `op-supernode/supernode/chain_container/invalidation.go` (`DenyRecord` carries payload
+  hash, decision timestamp, state root, message-passer storage root; served via
+  `LastDeniedOutputV0`/`GetOutputV0`). Failure mode to watch: a missing archive record
+  is indistinguishable from "never denied" — `OptimisticOutputAtTimestamp`
+  (`chain_container.go`) falls through with no error and no log and returns the
+  *replacement* block's output as the optimistic root. Changes near this path must not
+  widen that silent window.
 
 ### Superroot
 
 Spec: `specs/interop/superroot.md`. `SUPER_ROOT_VERSION = 1`; chain outputs ordered by
-chain ID. Implementations: Go `op-supernode/supernode/activity/superroot/` with wire
-types in `op-service/eth/superroot_at_timestamp.go`; Rust `SuperRoot` in
-`rust/kona/crates/protocol/interop/src/root.rs`; a Go/Rust wire-schema mirror pair also
-exists in `rust/kona/sp1/` (super-range-executor / proposer). Encoding and ordering must
-agree byte-for-byte — output roots feed fault proofs.
+chain ID. The canonical Go encoder is `op-service/eth/super_root.go`
+(`SuperRootVersionV1`, `SuperV1.Marshal`, `NewSuperV1` — which sorts by chain ID);
+`op-service/eth/superroot_at_timestamp.go` is only the JSON RPC response schema, not
+the encoding. Rust: `SuperRoot` in `rust/kona/crates/protocol/interop/src/root.rs`
+(constructor sorts by chain ID); a Go/Rust wire-schema mirror pair also exists in
+`rust/kona/sp1/` (super-range-executor / proposer). Serving side: Go
+`op-supernode/supernode/activity/superroot/`. Encoding and ordering must agree
+byte-for-byte — output roots feed fault proofs.
 
 ### Sequencer / tx-pool admission
 
@@ -126,7 +158,7 @@ lokahi phases land a Rust node-side counterpart.
 | Access-list entries / type-3 checksum | `op-core/interop/messages` (`ChecksumArgs`, `Access`) | parsing in `kona-interop` `access_list.rs`; checksum *computation* has no verified Rust counterpart — check at review time | n/a (validates via receipts) | consumes Go checksum path |
 | Deposits-only trimming | `WithDepositsOnly` (`op-node/rollup/derive/attributes_queue.go`) | `as_deposits_only` (`kona-protocol` `attributes.rs`) | proof-interop consolidation applies the same trim | n/a |
 | Replacement trigger / invalidation flow | op-node engine paths (`op-node/rollup/engine/payload_process.go`, `rollup/iface.go` SuperAuthority) driven by op-supernode | pending (lokahi invalidation protocol) | `proof-interop/src/consolidation.rs` | n/a |
-| Superroot encoding | `op-supernode/.../superroot/` + `op-service/eth` wire types | `kona-interop` `root.rs` (`SuperRoot`) | same Rust type | n/a |
+| Superroot encoding | `op-service/eth/super_root.go` (encoder; `superroot_at_timestamp.go` is the RPC schema only), served by `op-supernode/.../superroot/` | `kona-interop` `root.rs` (`SuperRoot`) | same Rust type | n/a |
 | Dependency set | `op-core/interop/depset` | `kona-genesis` `interop/depset.rs` | same | via config |
 
 ## Method
@@ -172,6 +204,10 @@ Verified against the tree; re-verify entries when reviewing changes to these fil
 
 - **Overloaded names**: "cross-unsafe" chain-head vs message-safety-level (see registry);
   a grep hit on a shared name is a question, not a finding.
+- **The `safe` wire alias**: `safety.CrossSafe` serialises as `"safe"` while local-safe
+  is `"local-safe"` (`op-service/eth/safety/safety.go`; mirrored by the serde rename in
+  `rust/op-alloy/crates/consensus/src/interop.rs`). A bare `"safe"` in a diff or wire
+  schema means **cross**-safe and must never be read as local-safe.
 - **Policy vs consensus**: stricter admission filtering is legitimate; a "parity fix"
   that loosens the filter to match consensus, or tightens a verifier to match the
   filter, changes the wrong side.
