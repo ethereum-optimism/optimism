@@ -1,12 +1,8 @@
 package zk
 
 import (
-	"bufio"
 	"context"
 	"math"
-	"net/http"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/zkproposer"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -147,30 +144,7 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 	)
 	game.Challenge(challenger)
 
-	holdCtx, cancelHold := context.WithTimeout(t.Ctx(), 2*time.Minute)
-	defer cancelHold()
-	pollTicker := time.NewTicker(2 * time.Second)
-	defer pollTicker.Stop()
-	holding := true
-	for holding {
-		select {
-		case <-holdCtx.Done():
-			t.Require().NoError(t.Ctx().Err(), "test context ended while checking invalid game")
-			holding = false
-		case <-pollTicker.C:
-			claim, err := game.WaitForClaimData(holdCtx)
-			if holdCtx.Err() != nil {
-				t.Require().NoError(t.Ctx().Err(), "test context ended while checking invalid game")
-				holding = false
-				continue
-			}
-			t.Require().NoError(err, "read claim data while checking invalid game")
-			t.Require().Equal(proofs.ZKProposalChallenged, proofs.ZKProposalStatus(claim.Status),
-				"proposer must not defend an invalid game")
-			t.Require().Equal(common.Address{}, claim.Prover,
-				"proposer must not prove an invalid game")
-		}
-	}
+	game.VerifyUnprovenFor(2 * time.Minute)
 
 	// With no proof by the deadline, the challenger wins by forfeit.
 	// Resolution is permissionless; the test resolves since the honest
@@ -212,66 +186,20 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	// defense scan sees both candidates.
 	gameA.Challenge(challenger)
 	gameB.Challenge(challenger)
-	sys.StartZKProposer()
-	metricsURL := sys.ZKProposerMetricsURL()
+	proposer := sys.StartZKProposer()
+	proposer.VerifyState(
+		zkproposer.DefenseTasksSpawned(2),
+		zkproposer.ProvingFailures(0),
+	)
+	gameA.VerifyUnproven()
+	gameB.VerifyUnproven()
 
-	const spawnedMetric = "kona_sp1_proposer_games_defense_spawned"
-	const provingErrorMetric = "kona_sp1_proposer_game_proving_error"
-	sawConcurrentDefense := false
-	var proverA, proverB common.Address
-	pollDeadline := time.Now().Add(10 * time.Minute)
-	for (proverA == common.Address{} || proverB == common.Address{}) && time.Now().Before(pollDeadline) {
-		if proverA == (common.Address{}) {
-			claim, err := gameA.WaitForClaimData(t.Ctx())
-			t.Require().NoError(err, "read game A claim data")
-			proverA = claim.Prover
-		}
-		if proverB == (common.Address{}) {
-			claim, err := gameB.WaitForClaimData(t.Ctx())
-			t.Require().NoError(err, "read game B claim data")
-			proverB = claim.Prover
-		}
-		// Two spawned tasks before either proof lands witnesses concurrency.
-		// Zero failures excludes one failed and respawned task.
-		if (proverA == common.Address{}) && (proverB == common.Address{}) &&
-			scrapeMetric(metricsURL, spawnedMetric) == 2 &&
-			scrapeMetric(metricsURL, provingErrorMetric) == 0 {
-			sawConcurrentDefense = true
-		}
-		time.Sleep(time.Second)
-	}
-	t.Require().Equal(proposerAddr, proverA, "game A was not proven by the proposer in time")
-	t.Require().Equal(proposerAddr, proverB, "game B was not proven by the proposer in time")
-	t.Require().True(sawConcurrentDefense,
-		"both defense tasks must be live before either proof lands (parallel proving)")
-}
-
-// scrapeMetric returns the first matching Prometheus sample, or 0 while the
-// endpoint or sample is unavailable.
-func scrapeMetric(url, name string) float64 {
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(url)
-	if err != nil {
-		return 0
-	}
-	defer resp.Body.Close()
-	scanner := bufio.NewScanner(resp.Body)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.HasPrefix(line, name) {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		value, err := strconv.ParseFloat(fields[len(fields)-1], 64)
-		if err != nil {
-			continue
-		}
-		return value
-	}
-	return 0
+	proofCtx, cancelProofs := context.WithTimeout(t.Ctx(), 10*time.Minute)
+	defer cancelProofs()
+	dsl.CheckAll(t,
+		gameA.ProvenByFn(proofCtx, proposerAddr),
+		gameB.ProvenByFn(proofCtx, proposerAddr),
+	)
 }
 
 func fundedActors(sys *presets.SimpleInterop) (*dsl.EOA, *dsl.EOA) {

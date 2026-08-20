@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -155,8 +156,8 @@ type MultiChainRuntime struct {
 	TimeTravel         *clock.AdvancingClock
 	TestSequencer      *TestSequencerRuntime
 	L2ChallengerConfig *challengerconfig.Config
-	startZKProposerFn  func() string
-	zkMetricsAddr      string
+	startZKProposerFn  func() *ZKProposerRuntime
+	zkProposer         *ZKProposerRuntime
 	DelaySeconds       uint64
 	InteropFilter      *InteropFilter // nil if not using interop filter
 	SyncTester         *SyncTesterRuntime
@@ -165,15 +166,38 @@ type MultiChainRuntime struct {
 // StartZKProposer starts the configured kona-sp1-proposer. It is intended for
 // tests that seed dispute games with WithoutHonestProposer before allowing the
 // proposer to observe them.
-func (r *MultiChainRuntime) StartZKProposer(t devtest.T) {
-	start := r.startZKProposerFn
-	t.Require().NotNil(start, "ZK proposer is not configured or already started")
-	r.startZKProposerFn = nil
-	r.zkMetricsAddr = start()
+func (r *MultiChainRuntime) StartZKProposer(t devtest.T) *ZKProposerRuntime {
+	proposer, err := r.startZKProposerRuntime()
+	t.Require().NoError(err)
+	return proposer
 }
 
-// ZKProposerMetricsAddr returns the running proposer's metrics address. It is
-// empty unless metrics are enabled and the proposer has started.
-func (r *MultiChainRuntime) ZKProposerMetricsAddr() string {
-	return r.zkMetricsAddr
+// ZKProposer returns the running kona-sp1-proposer.
+func (r *MultiChainRuntime) ZKProposer(t devtest.T) *ZKProposerRuntime {
+	proposer, err := r.zkProposerRuntime()
+	t.Require().NoError(err)
+	return proposer
+}
+
+func (r *MultiChainRuntime) startZKProposerRuntime() (*ZKProposerRuntime, error) {
+	if r.startZKProposerFn == nil {
+		if r.zkProposer != nil {
+			return nil, errors.New("ZK proposer is already started")
+		}
+		return nil, errors.New("ZK proposer is not configured")
+	}
+	start := r.startZKProposerFn
+	r.startZKProposerFn = nil
+	r.zkProposer = start()
+	return r.zkProposer, nil
+}
+
+func (r *MultiChainRuntime) zkProposerRuntime() (*ZKProposerRuntime, error) {
+	if r.zkProposer != nil {
+		return r.zkProposer, nil
+	}
+	if r.startZKProposerFn != nil {
+		return nil, errors.New("ZK proposer is configured but not started; call StartZKProposer")
+	}
+	return nil, errors.New("ZK proposer is not configured")
 }
