@@ -142,22 +142,9 @@ impl Metrics {
             }
         }
 
-        // Beacon client metrics.
-        //
-        // Deliberately unlabelled: `OnlineBeaconClient` is an L1 beacon-API client that the
-        // interop host shares across every L2 chain it serves, so there is no single chain ID
-        // to attribute these to. Keep the zeroed series identical to the runtime emits.
+        // Beacon client metrics. The method strings match the emits in `beacon_client.rs`.
         for metric in [Self::BEACON_CLIENT_REQUESTS, Self::BEACON_CLIENT_ERRORS] {
-            for method in ["spec", "genesis", "blob_sidecars"] {
-                kona_macros::set!(gauge, metric, 0, "method" => method);
-            }
-        }
-
-        // L2 chain provider metrics
-        for metric in [Self::L2_CHAIN_PROVIDER_REQUESTS, Self::L2_CHAIN_PROVIDER_ERRORS] {
-            for method in
-                ["l2_block_ref_by_label", "l2_block_ref_by_hash", "l2_block_ref_by_number"]
-            {
+            for method in ["spec", "genesis", "blobs"] {
                 kona_macros::set!(
                     gauge,
                     metric,
@@ -168,10 +155,23 @@ impl Metrics {
             }
         }
 
-        // Blob sidecar metrics. Unlabelled for the same reason as the beacon client metrics
-        // above: `OnlineBlobProvider` wraps a beacon client that is shared across chains.
+        // L2 chain provider metrics. The method strings match the emits in
+        // `l2_chain_provider.rs`.
+        for metric in [Self::L2_CHAIN_PROVIDER_REQUESTS, Self::L2_CHAIN_PROVIDER_ERRORS] {
+            for method in ["l2_block_by_hash", "l2_block_ref_by_number"] {
+                kona_macros::set!(
+                    gauge,
+                    metric,
+                    0,
+                    "method" => method,
+                    Self::CHAIN_ID_LABEL => chain_id.clone()
+                );
+            }
+        }
+
+        // Blob fetch metrics.
         for metric in [Self::BLOB_FETCHES, Self::BLOB_FETCH_ERRORS] {
-            kona_macros::set!(gauge, metric, 0);
+            kona_macros::set!(gauge, metric, 0, Self::CHAIN_ID_LABEL => chain_id.clone());
         }
 
         // Cache metrics

@@ -11,9 +11,6 @@ impl Metrics {
     /// Identifier for the gauge that tracks gossip events.
     pub const GOSSIP_EVENT: &str = "kona_node_gossip_events";
 
-    /// Identifier for the gauge that tracks libp2p gossipsub events.
-    pub const GOSSIPSUB_EVENT: &str = "kona_node_gossipsub_events";
-
     /// Identifier for the gauge that tracks libp2p gossipsub connections.
     pub const GOSSIPSUB_CONNECTION: &str = "kona_node_gossipsub_connection";
 
@@ -93,10 +90,6 @@ impl Metrics {
     #[cfg(feature = "metrics")]
     pub fn describe() {
         metrics::describe_gauge!(Self::RPC_CALLS, "Calls made to the Gossip RPC module");
-        metrics::describe_gauge!(
-            Self::GOSSIPSUB_EVENT,
-            "Events received by the libp2p gossipsub Swarm"
-        );
         metrics::describe_gauge!(Self::DIAL_PEER, "Number of peers dialed by the libp2p Swarm");
         metrics::describe_gauge!(
             Self::UNSAFE_BLOCK_PUBLISHED,
@@ -163,6 +156,7 @@ impl Metrics {
             "opp2p_peerStats",
             "opp2p_discoveryTable",
             "opp2p_blockPeer",
+            "opp2p_unblockPeer",
             "opp2p_listBlockedPeers",
             "opp2p_blockAddr",
             "opp2p_unblockAddr",
@@ -174,6 +168,7 @@ impl Metrics {
             "opp2p_unprotectPeer",
             "opp2p_connectPeer",
             "opp2p_disconnectPeer",
+            "admin_postUnsafePayload",
         ] {
             kona_macros::set!(
                 gauge,
@@ -184,8 +179,13 @@ impl Metrics {
             );
         }
 
-        // Gossip Events
-        for event in ["message", "subscribed", "unsubscribed", "slow_peer", "not_supported"] {
+        // Gossip Events.
+        //
+        // Only the two topic-less event types are pre-created. `message`, `subscribed` and
+        // `unsubscribed` additionally carry the `topic` they arrived on, and the swarm reports
+        // subscriptions for whatever topics a peer announces, so their value set is not known
+        // here. Pre-creating them without `topic` would only add series no emit ever touches.
+        for event in ["slow_peer", "not_supported"] {
             kona_macros::set!(
                 gauge,
                 Self::GOSSIP_EVENT,
@@ -231,23 +231,6 @@ impl Metrics {
                 Self::GOSSIPSUB_CONNECTION,
                 0,
                 "type" => kind,
-                Self::CHAIN_ID_LABEL => chain_id.clone()
-            );
-        }
-
-        // Gossipsub Events
-        for event in [
-            "subscribed",
-            "unsubscribed",
-            "gossipsub_not_supported",
-            "slow_peer",
-            "message_received",
-        ] {
-            kona_macros::set!(
-                gauge,
-                Self::GOSSIPSUB_EVENT,
-                0,
-                "type" => event,
                 Self::CHAIN_ID_LABEL => chain_id.clone()
             );
         }

@@ -201,7 +201,9 @@ impl RollupNode {
         OnlinePipeline::new_polled(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
-            OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
+            OnlineBlobProvider::init(self.l1_config.beacon_client.clone())
+                .await
+                .with_chain_id(self.config.l2_chain_id.id()),
             l1_derivation_provider,
             l2_derivation_provider,
             self.dependency_set.clone(),

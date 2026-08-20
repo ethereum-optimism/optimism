@@ -9,7 +9,7 @@ use alloy_rpc_types_beacon::sidecar::GetBlobsResponse;
 use async_trait::async_trait;
 use c_kzg::Blob;
 use reqwest::{self, Client};
-use std::{boxed::Box, collections::HashMap, format, string::String, vec::Vec};
+use std::{boxed::Box, collections::HashMap, format, string::String, sync::Arc, vec::Vec};
 use thiserror::Error;
 
 /// The config spec engine api method.
@@ -136,6 +136,11 @@ pub struct OnlineBeaconClient {
     /// The duration in seconds of an L1 slot. This can be used to override the CL slot
     /// duration if the l1-beacon's slot configuration endpoint is not available.
     pub l1_slot_duration: Option<u64>,
+    /// The `chain_id` label attached to this client's metrics.
+    ///
+    /// The node builds one client per chain and sets it. It is `None` only in the proof hosts,
+    /// which share one client across chains and do not compile the `metrics` feature at all.
+    pub chain_id_label: Option<Arc<str>>,
 }
 
 impl OnlineBeaconClient {
@@ -149,6 +154,7 @@ impl OnlineBeaconClient {
             base,
             inner: Client::builder().build().expect("Failed to create beacon client"),
             l1_slot_duration: None,
+            chain_id_label: None,
         }
     }
 
@@ -157,6 +163,26 @@ impl OnlineBeaconClient {
     pub const fn with_l1_slot_duration_override(mut self, l1_slot_duration: u64) -> Self {
         self.l1_slot_duration = Some(l1_slot_duration);
         self
+    }
+
+    /// Attributes this client's metrics to `chain_id`.
+    pub fn with_chain_id(mut self, chain_id: u64) -> Self {
+        self.chain_id_label = Some(kona_macros::chain_id_label(chain_id));
+        self
+    }
+
+    /// Increments `metric` for `method`, tagged with this client's chain when one is set.
+    #[cfg(feature = "metrics")]
+    fn record(&self, metric: &'static str, method: &'static str) {
+        match &self.chain_id_label {
+            Some(chain_id) => metrics::gauge!(
+                metric,
+                "method" => method,
+                Metrics::CHAIN_ID_LABEL => chain_id.clone()
+            )
+            .increment(1),
+            None => metrics::gauge!(metric, "method" => method).increment(1),
+        }
     }
 
     /// Fetches only the blobs corresponding to the provided (versioned) blob hashes
@@ -219,7 +245,8 @@ impl BeaconClient for OnlineBeaconClient {
     }
 
     async fn slot_interval(&self) -> Result<APIConfigResponse, Self::Error> {
-        kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_REQUESTS, "method" => "spec");
+        #[cfg(feature = "metrics")]
+        self.record(Metrics::BEACON_CLIENT_REQUESTS, "spec");
 
         // Use the l1 slot duration if provided
         if let Some(l1_slot_duration) = self.l1_slot_duration {
@@ -233,14 +260,16 @@ impl BeaconClient for OnlineBeaconClient {
         .await;
 
         if result.is_err() {
-            kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_ERRORS, "method" => "spec");
+            #[cfg(feature = "metrics")]
+            self.record(Metrics::BEACON_CLIENT_ERRORS, "spec");
         }
 
         Ok(result?)
     }
 
     async fn genesis_time(&self) -> Result<APIGenesisResponse, Self::Error> {
-        kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_REQUESTS, "method" => "genesis");
+        #[cfg(feature = "metrics")]
+        self.record(Metrics::BEACON_CLIENT_REQUESTS, "genesis");
 
         let result = async {
             let first = self.inner.get(format!("{}/{}", self.base, GENESIS_METHOD)).send().await?;
@@ -249,7 +278,8 @@ impl BeaconClient for OnlineBeaconClient {
         .await;
 
         if result.is_err() {
-            kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_ERRORS, "method" => "genesis");
+            #[cfg(feature = "metrics")]
+            self.record(Metrics::BEACON_CLIENT_ERRORS, "genesis");
         }
 
         Ok(result?)
@@ -260,13 +290,15 @@ impl BeaconClient for OnlineBeaconClient {
         slot: u64,
         blob_hashes: &[B256],
     ) -> Result<Vec<BoxedBlob>, BeaconClientError> {
-        kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_REQUESTS, "method" => "blobs");
+        #[cfg(feature = "metrics")]
+        self.record(Metrics::BEACON_CLIENT_REQUESTS, "blobs");
 
         // Try to get the blobs from the blobs endpoint.
         let result = self.filtered_beacon_blobs(slot, blob_hashes).await;
 
         if result.is_err() {
-            kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_ERRORS, "method" => "blobs");
+            #[cfg(feature = "metrics")]
+            self.record(Metrics::BEACON_CLIENT_ERRORS, "blobs");
         }
 
         result

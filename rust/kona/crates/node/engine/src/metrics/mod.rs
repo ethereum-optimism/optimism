@@ -118,7 +118,7 @@ impl Metrics {
     /// metrics.
     #[cfg(feature = "metrics")]
     pub fn zero(chain_id: u64) {
-        let chain_id = chain_id.to_string();
+        let chain_id = kona_macros::chain_id_label(chain_id);
 
         // Engine task counts
         for task in [

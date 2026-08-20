@@ -58,6 +58,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peer_stats(&self) -> RpcResult<PeerStats> {
+        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_peerStats", kona_macros::CHAIN_ID_LABEL => self.chain_id_label.clone());
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.sender
             .send(P2pRpcRequest::PeerStats(tx))
