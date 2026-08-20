@@ -67,15 +67,12 @@ impl TestEngineStateBuilder {
         let mut state = EngineState::default();
 
         // Set unsafe head (required)
-        state.sync_state = state.sync_state.apply_update(
-            state.chain_id,
-            EngineSyncStateUpdate {
-                unsafe_head: Some(self.unsafe_head),
-                local_safe_head: Some(self.local_safe_head.unwrap_or(self.unsafe_head)),
-                safe_head: Some(self.safe_head.unwrap_or(self.unsafe_head)),
-                finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
-            },
-        );
+        state.sync_state = state.apply_sync_update(EngineSyncStateUpdate {
+            unsafe_head: Some(self.unsafe_head),
+            local_safe_head: Some(self.local_safe_head.unwrap_or(self.unsafe_head)),
+            safe_head: Some(self.safe_head.unwrap_or(self.unsafe_head)),
+            finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
+        });
 
         state.el_sync_finished = self.el_sync_finished;
         state

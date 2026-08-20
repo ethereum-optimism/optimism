@@ -3,6 +3,9 @@
 //! Provides metric identifiers and labels for monitoring engine performance,
 //! task execution, and block progression through safety levels.
 
+#[cfg(feature = "metrics")]
+use crate::EngineTaskErrorSeverity;
+
 /// Metrics container with constants for Prometheus metric collection.
 ///
 /// Contains identifiers for gauges, counters, and histograms used to monitor
@@ -131,13 +134,24 @@ impl Metrics {
                 "type" => task,
                 Self::CHAIN_ID_LABEL => chain_id.clone()
             );
-            kona_macros::set!(
-                counter,
-                Self::ENGINE_TASK_FAILURE,
-                0,
-                "type" => task,
-                Self::CHAIN_ID_LABEL => chain_id.clone()
-            );
+            // The runtime failure emit carries a `severity` dimension too, so pre-create the
+            // full task x severity cross product. The severity strings come from the enum's
+            // own `Display` so the two sites cannot drift apart.
+            for severity in [
+                EngineTaskErrorSeverity::Temporary,
+                EngineTaskErrorSeverity::Critical,
+                EngineTaskErrorSeverity::Reset,
+                EngineTaskErrorSeverity::Flush,
+            ] {
+                kona_macros::set!(
+                    counter,
+                    Self::ENGINE_TASK_FAILURE,
+                    0,
+                    "type" => task,
+                    "severity" => severity.to_string(),
+                    Self::CHAIN_ID_LABEL => chain_id.clone()
+                );
+            }
         }
 
         // Engine reset count

@@ -219,7 +219,8 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
             kona_macros::inc!(
                 counter,
                 crate::Metrics::ENGINE_TASK_FAILURE,
-                self.task_metrics_label() => severity.to_string(),
+                "type" => self.task_metrics_label(),
+                "severity" => severity.to_string(),
                 crate::Metrics::CHAIN_ID_LABEL => state.chain_id.to_string()
             );
 

@@ -84,7 +84,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
 
     async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, SynchronizeTaskError> {
         // Apply the sync state update to the engine state.
-        let new_sync_state = state.sync_state.apply_update(state.chain_id, self.state_update);
+        let new_sync_state = state.apply_sync_update(self.state_update);
 
         // Check if a forkchoice update is not needed, return early.
         // A forkchoice update is not needed if...
