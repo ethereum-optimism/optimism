@@ -99,17 +99,17 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
     async fn reconcile_to_local_safe_head(
         &self,
         state: &mut EngineState,
-        safe_l2: &L2BlockInfo,
+        local_safe_l2: &L2BlockInfo,
     ) -> Result<(), ConsolidateTaskError> {
         warn!(
             target: "engine",
-            safe_l2 = %safe_l2,
+            local_safe_l2 = %local_safe_l2,
             "Apply local-safe head"
         );
 
         let fcu_start = Instant::now();
 
-        // We intentionally set the unsafe head to safe_l2 to ensure the engine observes a
+        // We intentionally set the unsafe head to local_safe_l2 to ensure the engine observes a
         // self-consistent head state. This is required to correctly handle reorgs (where unsafe
         // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
         // lags behind the local-safe head.
@@ -117,8 +117,8 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             Arc::clone(&self.client),
             self.cfg.clone(),
             EngineSyncStateUpdate {
-                unsafe_head: Some(*safe_l2),
-                local_safe_head: Some(*safe_l2),
+                unsafe_head: Some(*local_safe_l2),
+                local_safe_head: Some(*local_safe_l2),
                 ..Default::default()
             },
         )
@@ -133,8 +133,8 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
 
         info!(
             target: "engine",
-            hash = %safe_l2.block_info.hash,
-            number = safe_l2.block_info.number,
+            hash = %local_safe_l2.block_info.hash,
+            number = local_safe_l2.block_info.number,
             fcu_duration = ?fcu_duration,
             "Updated local-safe head via follow safe"
         );
@@ -151,8 +151,8 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             ConsolidateInput::Attributes(attributes) => {
                 self.execute_build_and_seal_tasks(state, attributes).await
             }
-            ConsolidateInput::BlockInfo(safe_l2) => {
-                self.reconcile_to_local_safe_head(state, safe_l2).await
+            ConsolidateInput::BlockInfo(local_safe_l2) => {
+                self.reconcile_to_local_safe_head(state, local_safe_l2).await
             }
         }
     }

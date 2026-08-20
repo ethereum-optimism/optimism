@@ -358,14 +358,14 @@ mod tests {
     }
 
     #[test]
-    fn test_state_machine_sync_completed_safe_head_update() {
+    fn test_state_machine_sync_completed_local_safe_head_update() {
         let mut machine = DerivationStateMachine::new();
-        let safe_head = dummy_l2_block_info();
+        let local_safe_head = dummy_l2_block_info();
 
-        machine.update(&ELSyncCompleted(Box::new(safe_head))).unwrap();
+        machine.update(&ELSyncCompleted(Box::new(local_safe_head))).unwrap();
 
         assert_eq!(machine.current_state(), Deriving);
-        assert_eq!(machine.last_confirmed_local_safe_head(), safe_head);
+        assert_eq!(machine.last_confirmed_local_safe_head(), local_safe_head);
     }
 
     #[test]
