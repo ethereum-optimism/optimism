@@ -13,17 +13,21 @@ use super::{CycleResult, Proposer, TaskCompletion, TaskId};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum ScenarioError {
+    Initialization(String),
     Cycle(String),
     RunningTask { task_id: TaskId },
     UnknownTask { task_id: TaskId },
     AlreadyFinalized { task_id: TaskId },
     BarrierNotReached { task_id: TaskId, barrier: String },
     BarrierTaskMismatch { task_id: TaskId, barrier: String, reached_by: TaskId },
+    BarrierOperationMismatch { task_id: TaskId, barrier: String },
+    UnknownBarrier { barrier: String },
     SettlementWatchdog { task_ids: Vec<TaskId>, completions: Vec<TaskCompletion> },
 }
 
 struct BarrierState {
     name: String,
+    reached: AtomicBool,
     reached_by: OnceLock<TaskId>,
     released: AtomicBool,
     reached_notify: Notify,
@@ -39,6 +43,7 @@ impl NamedBarrier {
         assert!(!name.is_empty(), "barrier name must not be empty");
         Self(Arc::new(BarrierState {
             name,
+            reached: AtomicBool::new(false),
             reached_by: OnceLock::new(),
             released: AtomicBool::new(false),
             reached_notify: Notify::new(),
@@ -47,8 +52,13 @@ impl NamedBarrier {
     }
 
     pub(super) async fn park(&self, task_id: TaskId) {
+        self.bind_task(task_id);
+        self.park_unassigned().await;
+    }
+
+    pub(super) async fn park_unassigned(&self) {
         assert!(
-            self.0.reached_by.set(task_id).is_ok(),
+            !self.0.reached.swap(true, Ordering::AcqRel),
             "barrier '{}' cannot be reused",
             self.0.name
         );
@@ -65,11 +75,23 @@ impl NamedBarrier {
     pub(super) async fn wait_until_reached(&self) {
         loop {
             let reached = self.0.reached_notify.notified();
-            if self.0.reached_by.get().is_some() {
+            if self.0.reached.load(Ordering::Acquire) {
                 return;
             }
             reached.await;
         }
+    }
+
+    pub(super) fn bind_task(&self, task_id: TaskId) {
+        if let Some(reached_by) = self.0.reached_by.get() {
+            assert_eq!(*reached_by, task_id, "barrier '{}' is bound to another task", self.0.name);
+            return;
+        }
+        assert!(
+            self.0.reached_by.set(task_id).is_ok(),
+            "barrier '{}' cannot be rebound",
+            self.0.name
+        );
     }
 
     pub(super) fn release(&self) {
@@ -173,6 +195,8 @@ impl ScenarioControl {
         }
     }
 }
+
+mod world;
 
 #[cfg(test)]
 mod tests;
