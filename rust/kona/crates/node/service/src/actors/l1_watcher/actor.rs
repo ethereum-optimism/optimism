@@ -204,12 +204,14 @@ where
                 // The chain just served goes to the back of the polling order.
                 self.next_chain = (chain_index + 1) % chain_count;
 
+                let chain_id = self.chains[chain_index].chain_id();
+
                 match query {
                     L1WatcherQueries::Config(sender) => {
                         if let Err(e) =
                             sender.send((*self.chains[chain_index].rollup_config).clone())
                         {
-                            warn!(target: "l1_watcher", error = ?e, "Failed to send L1 config to the query sender");
+                            warn!(target: "l1_watcher", chain_id, error = ?e, "Failed to send L1 config to the query sender");
                         }
                     }
                     L1WatcherQueries::L1State(sender) => {
@@ -217,15 +219,18 @@ where
                         if let Err(e) =
                             sender.send(Self::l1_state(&self.l1_provider, current_l1).await)
                         {
-                            warn!(target: "l1_watcher", error = ?e, "Failed to send L1 state to the query sender");
+                            warn!(target: "l1_watcher", chain_id, error = ?e, "Failed to send L1 state to the query sender");
                         }
                     }
                 }
 
                 Ok(())
             }
-            L1WatcherEvent::Query(_, None) => {
-                error!(target: "l1_watcher", "L1 watcher query channel closed unexpectedly, exiting query processor task.");
+            L1WatcherEvent::Query(chain_index, None) => {
+                // This stops the watcher for every chain, so name the chain that caused it. The
+                // index is in range by construction: it is taken modulo `chain_count`, and `new`
+                // rules out an empty `chains`.
+                error!(target: "l1_watcher", chain_id = self.chains[chain_index].chain_id(), "L1 watcher query channel closed unexpectedly, exiting query processor task.");
                 Err(L1WatcherActorError::StreamEnded)
             }
         }
