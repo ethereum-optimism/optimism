@@ -93,7 +93,14 @@ where
                     .address(filter_address)
                     .select(head_block_info.hash),
             )
-            .await?;
+            .await
+            .inspect_err(|e| {
+                error!(
+                    target: "l1_watcher",
+                    chain_id = self.chain_id(),
+                    "Error fetching system config logs: {e}"
+                );
+            })?;
         let ecotone_active = self.rollup_config.is_ecotone_active(head_block_info.timestamp);
         for log in logs {
             let sys_cfg_log = SystemConfigLog::new(log.into(), ecotone_active);
