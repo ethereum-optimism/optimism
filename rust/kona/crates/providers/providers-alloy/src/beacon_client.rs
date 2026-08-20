@@ -100,7 +100,7 @@ const BLOB_SIZE: usize = 131072;
 
 /// A beacon API blob decoded directly into its final heap allocation.
 ///
-/// [`alloy_rpc_types_beacon::sidecar::GetBlobsResponse`] stores blobs inline in a `Vec<Blob>`.
+/// `alloy_rpc_types_beacon::sidecar::GetBlobsResponse` stores blobs inline in a `Vec<Blob>`.
 /// Deserializing the 128 KiB fixed-size values through serde can exhaust a Tokio worker's stack.
 #[derive(Debug, serde::Deserialize)]
 struct BoxedBeaconBlob(#[serde(deserialize_with = "deserialize_blob")] Box<AlloyBlob>);
