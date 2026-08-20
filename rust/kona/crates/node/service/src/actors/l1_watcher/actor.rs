@@ -99,32 +99,29 @@ where
     /// satisfy, being `async_stream` blocks over alloy's `PollerStream`. Borrowing the provider
     /// alone is enough: `Provider` is itself `Sync`.
     async fn l1_state(l1_provider: &L1Provider, current_l1: Option<BlockInfo>) -> L1State {
-        let head_l1 = match l1_provider.get_block(BlockId::latest()).await {
-            Ok(block) => block,
-            Err(e) => {
-                warn!(target: "l1_watcher", error = ?e, "failed to query l1 provider for latest head block");
-                None
+        let read = move |tag: BlockId, what: &'static str| async move {
+            match l1_provider.get_block(tag).await {
+                Ok(block) => block,
+                Err(e) => {
+                    warn!(target: "l1_watcher", error = ?e, tag = what, "failed to query l1 provider for block");
+                    None
+                }
             }
-        }
-        .map(|block| block.into_consensus().into());
+            .map(|block| block.into_consensus().into())
+        };
 
-        let finalized_l1 = match l1_provider.get_block(BlockId::finalized()).await {
-            Ok(block) => block,
-            Err(e) => {
-                warn!(target: "l1_watcher", error = ?e, "failed to query l1 provider for latest finalized block");
-                None
-            }
-        }
-        .map(|block| block.into_consensus().into());
-
-        let safe_l1 = match l1_provider.get_block(BlockId::safe()).await {
-            Ok(block) => block,
-            Err(e) => {
-                warn!(target: "l1_watcher", error = ?e, "failed to query l1 provider for latest safe block");
-                None
-            }
-        }
-        .map(|block| block.into_consensus().into());
+        // Issued together: this runs inline in `step`, so three serial round-trips would park the
+        // watcher - and with it every chain's head and finalized fan-out - for the whole query.
+        // The arm is entered once per chain's RPC frontend, so the stall would grow with N.
+        //
+        // `join!` polls its futures in the order written on the first poll: its rotator starts at
+        // zero skips and only advances on later wakes, by which point all three requests are
+        // already in flight. So the requests are still issued latest, then finalized, then safe.
+        let (head_l1, finalized_l1, safe_l1) = tokio::join!(
+            read(BlockId::latest(), "latest"),
+            read(BlockId::finalized(), "finalized"),
+            read(BlockId::safe(), "safe"),
+        );
 
         L1State { current_l1, current_l1_finalized: finalized_l1, head_l1, safe_l1, finalized_l1 }
     }
@@ -584,9 +581,11 @@ mod tests {
     /// An `L1State` query is answered on the querying chain's oneshot, with the actor's current
     /// head and one block per provider read.
     ///
-    /// The three `get_block` calls are sequential, so unlike the head arm's log fan-out this puts
-    /// only one request in flight at a time and does not depend on [`Asserter`]'s FIFO answering
-    /// lining up with a set of concurrent requests.
+    /// The three `get_block` calls are issued concurrently, so like the head arm's log fan-out
+    /// this does depend on [`Asserter`]'s FIFO answering lining up with a set of concurrent
+    /// requests. `tokio::join!` polls its futures in the order written on the first poll - its
+    /// rotator starts at zero skips - so the reads are issued latest, finalized, safe and
+    /// response `i` still answers read `i`.
     ///
     /// What the distinct block numbers pin down is which response lands in which field, and the
     /// drained queue that exactly three reads are made. The tags themselves are *not* covered:
