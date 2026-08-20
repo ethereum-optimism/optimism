@@ -508,7 +508,7 @@ jobs:
             if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
               PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
             fi
-            just hack "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
+            just hack "$PARTITION_FLAG"
       # Check each crate's test targets in isolation with default features. The
       # lib-only `hack` step above never compiles test code, so a crate whose
       # tests rely on a feature only enabled via workspace feature unification
@@ -524,7 +524,7 @@ jobs:
             if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
               PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
             fi
-            just hack-tests-default "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
+            just hack-tests-default "$PARTITION_FLAG"
       - rust-save-build-cache: *hack-cache-args
 
   # --------------------------------------------------------------------------
@@ -927,7 +927,8 @@ workflows:
 
       - rust-ci-cargo-hack:
           name: rust-cargo-hack
-          # cargo-hack shards its --each-feature checks via --partition i/N.
+          # Nodes split the workspace by weighted bin-packing; see
+          # rust/scripts/hack-partition.sh and hack-weights.txt.
           parallelism: 10
           context: *rust-ci-context
 

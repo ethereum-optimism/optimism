@@ -445,53 +445,60 @@ check-udeps:
 
 # Run cargo hack feature checking, enabling each feature one at a time.
 # Cheaper than the full powerset (~n checks per crate vs ~2^n).
-# shuffle: "true" to shuffle package order before partitioning (spreads heavy/light crates more evenly)
-# seed: deterministic seed for shuffle (all partition nodes must use the same seed)
-hack partition="" shuffle="false" seed="default":
+# partition: "<index>/<total>" to run only this node's share of a weighted
+#   package split (see scripts/hack-partition.sh); empty checks the whole
+#   workspace
+hack partition="":
   #!/usr/bin/env bash
   set -euo pipefail
-  if [ "{{partition}}" != "" ]; then
-    echo "Running cargo hack with partition {{partition}}"
-  else
-    echo "Running cargo hack without partition"
+  if [ "{{partition}}" = "" ]; then
+    echo "Running cargo hack on the full workspace"
+    cargo hack check --each-feature --no-dev-deps
+    exit 0
   fi
 
-  PKG_FLAGS=""
-  if [ "{{shuffle}}" = "true" ]; then
-    PKGS=$(cargo metadata --no-deps --format-version 1 \
-      | jq -r '.packages[].name' \
-      | shuf --random-source=<(openssl enc -aes-256-ctr -pass "pass:{{seed}}" -nosalt </dev/zero 2>/dev/null))
-    PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
-    echo "Shuffled package order (seed={{seed}}): $PKGS"
+  ASSIGNMENT=$(scripts/hack-partition.sh "{{partition}}")
+  echo "Assignment for partition {{partition}}:"
+  echo "$ASSIGNMENT"
+
+  WHOLE_PKGS=$(awk 'NF == 1' <<<"$ASSIGNMENT")
+  if [ -n "$WHOLE_PKGS" ]; then
+    cargo hack check --each-feature --no-dev-deps $(sed 's/^/-p /' <<<"$WHOLE_PKGS" | tr '\n' ' ')
   fi
 
-  cargo hack check --each-feature --no-dev-deps $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+  while read -r PKG SHARD; do
+    [ -n "$PKG" ] || continue
+    cargo hack check --each-feature --no-dev-deps -p "$PKG" --partition "$SHARD"
+  done < <(awk 'NF == 2' <<<"$ASSIGNMENT")
 
 # Check each crate's test targets in isolation with default features only.
 # Catches tests that only compile via workspace feature unification: a crate
 # whose tests use a dependency's feature they never declare, or a non-default
 # feature of the crate itself (enable it for the test build via a self
 # dev-dependency).
-# seed: deterministic seed for shuffle (all partition nodes must use the same seed)
-hack-tests-default partition="" shuffle="false" seed="default":
+# partition: "<index>/<total>" to run only this node's share of a weighted
+#   package split (see scripts/hack-partition.sh); empty checks the whole
+#   workspace
+hack-tests-default partition="":
   #!/usr/bin/env bash
   set -euo pipefail
-  if [ "{{partition}}" != "" ]; then
-    echo "Running cargo hack (tests, default-features) with partition {{partition}}"
-  else
-    echo "Running cargo hack (tests, default-features) without partition"
+  if [ "{{partition}}" = "" ]; then
+    echo "Running cargo hack (tests, default-features) on the full workspace"
+    cargo hack check --tests
+    exit 0
   fi
 
-  PKG_FLAGS=""
-  if [ "{{shuffle}}" = "true" ]; then
-    PKGS=$(cargo metadata --no-deps --format-version 1 \
-      | jq -r '.packages[].name' \
-      | shuf --random-source=<(openssl enc -aes-256-ctr -pass "pass:{{seed}}" -nosalt </dev/zero 2>/dev/null))
-    PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
-    echo "Shuffled package order (seed={{seed}}): $PKGS"
+  # A package sharded across nodes in the lib step has a single test-targets
+  # run, so the node holding shard 1 checks its tests.
+  PKGS=$(scripts/hack-partition.sh "{{partition}}" | awk 'NF == 1 || $2 ~ /^1\// { print $1 }')
+  echo "Packages for partition {{partition}}:"
+  echo "$PKGS"
+  if [ -z "$PKGS" ]; then
+    echo "No packages assigned to this partition"
+    exit 0
   fi
 
-  cargo hack check --tests $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+  cargo hack check --tests $(sed 's/^/-p /' <<<"$PKGS" | tr '\n' ' ')
 
 ########################### Release #################################
 
