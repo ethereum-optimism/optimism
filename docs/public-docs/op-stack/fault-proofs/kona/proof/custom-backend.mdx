@@ -41,6 +41,7 @@ targeting zkVMs must constrain that the incoming data is indeed valid, whereas f
 let chain_provider = ...;
 let l2_chain_provider = ...;
 let blob_provider = ...;
+let l1_origin = ...;
 
 let cfg = Arc::new(RollupConfig::default());
 let l1_cfg = Arc::new(L1ChainConfig::default());
@@ -64,6 +65,7 @@ let pipeline = PipelineBuilder::new()
    .l2_chain_provider(l2_chain_provider)
    .chain_provider(chain_provider)
    .builder(attributes)
+   .origin(l1_origin)
    .build_polled();
 ```
 
