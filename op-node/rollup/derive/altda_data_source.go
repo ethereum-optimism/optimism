@@ -14,22 +14,24 @@ import (
 // AltDADataSource is a data source that fetches inputs from a AltDA provider given
 // their onchain commitments. Same as CalldataSource it will keep attempting to fetch.
 type AltDADataSource struct {
-	log     log.Logger
-	src     DataIter
-	fetcher AltDAInputFetcher
-	l1      L1Fetcher
-	id      eth.L1BlockRef
+	log          log.Logger
+	src          DataIter
+	fetcher      AltDAInputFetcher
+	l1           L1Fetcher
+	id           eth.L1BlockRef
+	maxInputSize uint64
 	// keep track of a pending commitment so we can keep trying to fetch the input.
 	comm altda.CommitmentData
 }
 
-func NewAltDADataSource(log log.Logger, src DataIter, l1 L1Fetcher, fetcher AltDAInputFetcher, id eth.L1BlockRef) *AltDADataSource {
+func NewAltDADataSource(log log.Logger, src DataIter, l1 L1Fetcher, fetcher AltDAInputFetcher, maxInputSize uint64, id eth.L1BlockRef) *AltDADataSource {
 	return &AltDADataSource{
-		log:     log,
-		src:     src,
-		fetcher: fetcher,
-		l1:      l1,
-		id:      id,
+		log:          log,
+		src:          src,
+		fetcher:      fetcher,
+		l1:           l1,
+		id:           id,
+		maxInputSize: maxInputSize,
 	}
 }
 
@@ -99,8 +101,8 @@ func (s *AltDADataSource) Next(ctx context.Context) (eth.Data, error) {
 		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %s from da service: %w", s.comm, err))
 	}
 	// inputs are limited to a max size to ensure they can be challenged in the DA contract.
-	if s.comm.CommitmentType() == altda.Keccak256CommitmentType && len(data) > altda.MaxInputSize {
-		s.log.Warn("input data exceeds max size", "size", len(data), "max", altda.MaxInputSize)
+	if s.comm.CommitmentType() == altda.Keccak256CommitmentType && uint64(len(data)) > s.maxInputSize {
+		s.log.Warn("input data exceeds max size", "size", len(data), "max", s.maxInputSize)
 		s.comm = nil
 		return s.Next(ctx)
 	}
