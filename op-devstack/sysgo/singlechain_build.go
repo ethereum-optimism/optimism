@@ -177,7 +177,6 @@ func startL2CLForKey(
 			Key:            clKey,
 			IsSequencer:    isSequencer,
 			NoDiscovery:    true,
-			EnableReqResp:  true,
 			L2FollowSource: followSource,
 			L2CLOptions:    l2CLOpts,
 		})
@@ -271,7 +270,6 @@ type l2CLNodeStartConfig struct {
 	Key            string
 	IsSequencer    bool
 	NoDiscovery    bool
-	EnableReqResp  bool
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
@@ -297,7 +295,6 @@ func startL2CLNode(
 	cfg := DefaultL2CLConfig()
 	cfg.IsSequencer = startCfg.IsSequencer
 	cfg.NoDiscovery = startCfg.NoDiscovery
-	cfg.EnableReqRespSync = startCfg.EnableReqResp
 	cfg.FollowSource = startCfg.L2FollowSource
 	if len(startCfg.L2CLOptions) > 0 {
 		l2CLTarget := NewComponentTarget(startCfg.Key, l2Net.ChainID())
@@ -354,7 +351,6 @@ func startL2CLNode(
 	p2pConfig, err := p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
 	require.NoError(err, "failed to load p2p config")
 	p2pConfig.NoDiscovery = cfg.NoDiscovery
-	p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
 	// Devstack chain timestamps are synthetic: genesis is set in the past and the
 	// chain may lag many seconds behind wallclock during startup (or many minutes
 	// during long tests like dispute games). The production-default 60s gossip

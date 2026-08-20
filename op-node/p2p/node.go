@@ -43,7 +43,6 @@ type NodeP2P struct {
 	dv5Udp   *discover.UDPv5  // p2p discovery service
 	gs       *pubsub.PubSub   // p2p gossip router
 	gsOut    GossipOut        // p2p gossip application interface for publishing
-	syncSrv  *ReqRespServer
 }
 
 // NewNodeP2P creates a new p2p node, and returns a reference to it. If the p2p is disabled, it returns nil.
@@ -54,7 +53,6 @@ func NewNodeP2P(
 	log log.Logger,
 	setup SetupP2P,
 	gossipIn GossipIn,
-	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
 	metrics metrics.Metricer,
 	clock clock.Clock,
@@ -66,7 +64,7 @@ func NewNodeP2P(
 		return nil, errors.New("SetupP2P.Disabled is true")
 	}
 	var n NodeP2P
-	if err := n.init(resourcesCtx, rollupCfg, log, setup, gossipIn, l2Chain, runCfg, metrics, clock); err != nil {
+	if err := n.init(resourcesCtx, rollupCfg, log, setup, gossipIn, runCfg, metrics, clock); err != nil {
 		closeErr := n.Close()
 		if closeErr != nil {
 			log.Error("failed to close p2p after starting with err", "closeErr", closeErr, "err", err)
@@ -87,7 +85,6 @@ func (n *NodeP2P) init(
 	log log.Logger,
 	setup SetupP2P,
 	gossipIn GossipIn,
-	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
 	metrics metrics.Metricer,
 	clk clock.Clock,
@@ -116,7 +113,7 @@ func (n *NodeP2P) init(
 	}
 	eps, ok := n.host.Peerstore().(store.ExtendedPeerstore)
 	if !ok {
-		return fmt.Errorf("cannot init without extended peerstore: %w", err)
+		return errors.New("cannot init without extended peerstore")
 	}
 	n.store = eps
 	scoreParams := setup.PeerScoringParams()
@@ -125,16 +122,6 @@ func (n *NodeP2P) init(
 		n.appScorer = NewPeerApplicationScorer(resourcesCtx, log, clock.SystemClock, &scoreParams.ApplicationScoring, eps, n.host.Network().Peers)
 	} else {
 		n.appScorer = &NoopApplicationScorer{}
-	}
-	// Activate the serving side of the P2P req-resp sync protocol if enabled by feature-flag.
-	// The client side has been removed; we only continue to serve payloads to peers that still
-	// request them (e.g. older nodes that have not yet upgraded). Only enable the serving side
-	// of req-resp sync if we have a data-source, to make minimal P2P testing easy.
-	if setup.ReqRespSyncEnabled() && l2Chain != nil {
-		n.syncSrv = NewReqRespServer(rollupCfg, l2Chain, metrics)
-		// register the sync protocol with libp2p host
-		payloadByNumber := MakeStreamHandler(resourcesCtx, log.New("serve", "payloads_by_number"), n.syncSrv.HandleSyncRequest)
-		n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
 	}
 	n.scorer = NewScorer(eps, metrics, n.appScorer, log)
 	// notify of any new connections/streams/etc.
