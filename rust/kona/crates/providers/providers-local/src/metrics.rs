@@ -27,9 +27,6 @@ impl Metrics {
     /// Identifier for the gauge that tracks active cache entries.
     pub const CACHE_ENTRIES: &str = "kona_providers_local_cache_entries";
 
-    /// Identifier for the gauge that tracks cache capacity.
-    pub const CACHE_CAPACITY: &str = "kona_providers_local_cache_capacity";
-
     /// Identifier for the gauge that tracks reorg depth.
     pub const REORG_DEPTH: &str = "kona_providers_local_reorg_depth";
 
@@ -65,7 +62,6 @@ impl Metrics {
         );
         metrics::describe_gauge!(Self::BLOCKS_ADDED, "Number of blocks added to cache");
         metrics::describe_gauge!(Self::CACHE_ENTRIES, "Number of active entries in cache");
-        metrics::describe_gauge!(Self::CACHE_CAPACITY, "Total capacity of cache");
         metrics::describe_gauge!(Self::REORG_DEPTH, "Maximum depth of reorganization observed");
         metrics::describe_gauge!(Self::CACHE_CLEARS, "Number of times cache was cleared");
     }
@@ -77,7 +73,7 @@ impl Metrics {
 
         // Cache hit/miss metrics
         for metric in [Self::BUFFERED_PROVIDER_CACHE_HITS, Self::BUFFERED_PROVIDER_CACHE_MISSES] {
-            for method in ["block_by_number", "block_by_hash", "l2_block_info", "system_config"] {
+            for method in ["block_by_number", "l2_block_info", "system_config"] {
                 kona_macros::set!(
                     gauge,
                     metric,
@@ -111,9 +107,7 @@ impl Metrics {
                 Self::CHAIN_ID_LABEL => chain_id.clone()
             );
         }
-        for metric in
-            [Self::BLOCKS_ADDED, Self::CACHE_CAPACITY, Self::REORG_DEPTH, Self::CACHE_CLEARS]
-        {
+        for metric in [Self::BLOCKS_ADDED, Self::REORG_DEPTH, Self::CACHE_CLEARS] {
             kona_macros::set!(gauge, metric, 0, Self::CHAIN_ID_LABEL => chain_id.clone());
         }
     }

@@ -1,7 +1,7 @@
 //! `CallData` Source
 
 use crate::{ChainProvider, DataAvailabilityProvider, PipelineError, PipelineResult};
-use alloc::{boxed::Box, collections::VecDeque};
+use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
 use alloy_consensus::{Transaction, TxEnvelope, transaction::SignerRecoverable};
 use alloy_primitives::{Address, Bytes};
 use async_trait::async_trait;
@@ -21,12 +21,20 @@ where
     pub calldata: VecDeque<Bytes>,
     /// Whether the calldata source is open.
     pub open: bool,
+    /// The `chain_id` label attached to this source's metrics.
+    pub chain_id_label: Arc<str>,
 }
 
 impl<CP: ChainProvider + Send> CalldataSource<CP> {
     /// Creates a new calldata source.
-    pub const fn new(chain_provider: CP, batch_inbox_address: Address) -> Self {
-        Self { chain_provider, batch_inbox_address, calldata: VecDeque::new(), open: false }
+    pub fn new(chain_provider: CP, batch_inbox_address: Address, chain_id: u64) -> Self {
+        Self {
+            chain_provider,
+            batch_inbox_address,
+            calldata: VecDeque::new(),
+            open: false,
+            chain_id_label: kona_macros::chain_id_label(chain_id),
+        }
     }
 
     /// Loads the calldata into the source if it is not open.
@@ -68,6 +76,7 @@ impl<CP: ChainProvider + Send> CalldataSource<CP> {
         metrics::gauge!(
             crate::metrics::Metrics::PIPELINE_DATA_AVAILABILITY_PROVIDER,
             "source" => "calldata",
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone(),
         )
         .increment(self.calldata.len() as f64);
 
@@ -141,7 +150,7 @@ mod tests {
     }
 
     pub(crate) fn default_test_calldata_source() -> CalldataSource<TestChainProvider> {
-        CalldataSource::new(TestChainProvider::default(), Default::default())
+        CalldataSource::new(TestChainProvider::default(), Default::default(), 10)
     }
 
     #[tokio::test]

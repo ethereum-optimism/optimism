@@ -45,9 +45,6 @@ impl Metrics {
     /// Identifier for the gauge that tracks active cache entries.
     pub const CACHE_ENTRIES: &str = "kona_providers_cache_entries";
 
-    /// Identifier for the gauge that tracks cache memory usage.
-    pub const CACHE_MEMORY_USAGE: &str = "kona_providers_cache_memory_bytes";
-
     /// Initializes metrics for the Alloy providers.
     ///
     /// This does two things:
@@ -104,10 +101,6 @@ impl Metrics {
             Self::CACHE_ENTRIES,
             "Number of active entries in provider caches"
         );
-        metrics::describe_gauge!(
-            Self::CACHE_MEMORY_USAGE,
-            "Memory usage of provider caches in bytes"
-        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
@@ -131,7 +124,13 @@ impl Metrics {
 
         // RPC call and error metrics
         for metric in [Self::CHAIN_PROVIDER_RPC_CALLS, Self::CHAIN_PROVIDER_RPC_ERRORS] {
-            for method in ["header_by_hash", "receipts_by_hash", "block_by_hash", "block_number"] {
+            for method in [
+                "header_by_hash",
+                "receipts_by_hash",
+                "block_by_hash",
+                "block_by_number",
+                "block_number",
+            ] {
                 kona_macros::set!(
                     gauge,
                     metric,
@@ -175,16 +174,14 @@ impl Metrics {
         }
 
         // Cache metrics
-        for metric in [Self::CACHE_ENTRIES, Self::CACHE_MEMORY_USAGE] {
-            for cache in ["header_by_hash", "receipts_by_hash", "block_info_and_tx"] {
-                kona_macros::set!(
-                    gauge,
-                    metric,
-                    0,
-                    "cache" => cache,
-                    Self::CHAIN_ID_LABEL => chain_id.clone()
-                );
-            }
+        for cache in ["header_by_hash", "receipts_by_hash", "block_info_and_tx"] {
+            kona_macros::set!(
+                gauge,
+                Self::CACHE_ENTRIES,
+                0,
+                "cache" => cache,
+                Self::CHAIN_ID_LABEL => chain_id.clone()
+            );
         }
     }
 }
