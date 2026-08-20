@@ -241,7 +241,7 @@ mod tests {
     use crate::DerivationClientResult;
     use alloy_primitives::{Address, B256, U256};
     use alloy_provider::{ProviderBuilder, mock::Asserter};
-    use alloy_rpc_types_eth::Log as RpcLog;
+    use alloy_rpc_types_eth::{Block as RpcBlock, Log as RpcLog};
     use futures::stream;
     use kona_genesis::{
         CONFIG_UPDATE_EVENT_VERSION_0, CONFIG_UPDATE_TOPIC, RollupConfig, SystemConfigUpdateKind,
@@ -298,6 +298,18 @@ mod tests {
             },
             ..Default::default()
         }
+    }
+
+    /// An `eth_getBlockByNumber` result whose header fields identify which tag it answered.
+    ///
+    /// [`BlockInfo`] takes its hash from `hash_slow()` rather than the RPC `hash` field, so the
+    /// number, parent hash and timestamp are what a test can pin a response to.
+    fn rpc_block(number: u64, parent: u8) -> RpcBlock {
+        let mut block: RpcBlock = RpcBlock::default();
+        block.header.inner.number = number;
+        block.header.inner.parent_hash = B256::repeat_byte(parent);
+        block.header.inner.timestamp = number * 12;
+        block
     }
 
     fn test_chain<Client>(index: u8, client: Client) -> (L1WatcherChain<Client>, ChainHandles) {
@@ -567,5 +579,78 @@ mod tests {
             actor.step().await.expect("step");
             assert_eq!(rx.await.unwrap().l1_system_config_address, chain_at(index));
         }
+    }
+
+    /// An `L1State` query is answered on the querying chain's oneshot, with the actor's current
+    /// head and one block per provider read.
+    ///
+    /// The three `get_block` calls are sequential, so unlike the head arm's log fan-out this puts
+    /// only one request in flight at a time and does not depend on [`Asserter`]'s FIFO answering
+    /// lining up with a set of concurrent requests.
+    ///
+    /// What the distinct block numbers pin down is which response lands in which field, and the
+    /// drained queue that exactly three reads are made. The tags themselves are *not* covered:
+    /// [`Asserter`] answers from its queue without looking at the request, so swapping
+    /// `BlockId::finalized()` for `BlockId::safe()` in the arm keeps every response in the same
+    /// position and this test still passes. Catching that needs a transport that routes on
+    /// params, which is more harness than this one query is worth.
+    #[tokio::test]
+    async fn l1_state_query_is_answered_with_the_head_and_every_tag() {
+        const CHAINS: u8 = 3;
+        const QUERIED: u8 = 1;
+
+        let block = head(7);
+        let asserter = Asserter::new();
+        let mut chains = Vec::new();
+        let mut handles = Vec::new();
+
+        for index in 0..CHAINS {
+            let mut client = MockL1WatcherDerivationClient::new();
+            client.expect_send_new_l1_head().times(1).returning(|_| Ok(()));
+
+            // No config updates: this test is about the query arm, not the log fan-out.
+            asserter.push_success(&Vec::<RpcLog>::new());
+
+            let (chain, handle) = test_chain(index, client);
+            chains.push(chain);
+            handles.push(handle);
+        }
+
+        let (mut actor, _latest_head_rx) = actor(asserter.clone(), vec![block], vec![], chains);
+
+        // Take the head first, so that the query below has a `current_l1` to report.
+        actor.step().await.expect("head step");
+
+        // Answered in the order the arm asks for them: latest, then finalized, then safe.
+        asserter.push_success(&rpc_block(100, 0xa1));
+        asserter.push_success(&rpc_block(200, 0xa2));
+        asserter.push_success(&rpc_block(300, 0xa3));
+
+        let (tx, rx) = oneshot::channel();
+        handles[QUERIED as usize].query_tx.send(L1WatcherQueries::L1State(tx)).await.unwrap();
+        actor.step().await.expect("query step");
+
+        let state = rx.await.expect("the queried chain's oneshot was never answered");
+
+        assert_eq!(state.current_l1, Some(block), "current_l1 is not the actor's latest head");
+
+        let head_l1 = state.head_l1.expect("head_l1");
+        assert_eq!((head_l1.number, head_l1.parent_hash), (100, B256::repeat_byte(0xa1)));
+
+        let finalized_l1 = state.finalized_l1.expect("finalized_l1");
+        assert_eq!((finalized_l1.number, finalized_l1.parent_hash), (200, B256::repeat_byte(0xa2)));
+
+        let safe_l1 = state.safe_l1.expect("safe_l1");
+        assert_eq!((safe_l1.number, safe_l1.parent_hash), (300, B256::repeat_byte(0xa3)));
+
+        assert_eq!(
+            state.current_l1_finalized, state.finalized_l1,
+            "current_l1_finalized is documented as matching finalized_l1"
+        );
+
+        assert!(
+            asserter.read_q().is_empty(),
+            "the arm made fewer provider reads than the three responses queued for it"
+        );
     }
 }
