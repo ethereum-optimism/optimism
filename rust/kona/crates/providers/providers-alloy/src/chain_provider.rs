@@ -2,9 +2,9 @@
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
-use alloy_consensus::{Header, Receipt, TxEnvelope};
-use alloy_eips::BlockId;
-use alloy_primitives::B256;
+use alloy_consensus::{Header, Receipt, ReceiptEnvelope, TxEnvelope};
+use alloy_eips::{BlockId, eip2718::Decodable2718};
+use alloy_primitives::{B256, Bytes};
 use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{RpcError, TransportErrorKind};
 use alloy_transport_http::reqwest;
@@ -78,6 +78,25 @@ impl AlloyChainProvider {
     /// Returns the chain ID.
     pub async fn chain_id(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
         self.inner.get_chain_id().await
+    }
+
+    /// Fetches raw consensus-encoded receipts and decodes their EIP-2718 envelopes.
+    async fn raw_receipts_by_hash(
+        &self,
+        hash: B256,
+    ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
+        let raw_receipts: Option<Vec<Bytes>> =
+            self.inner.client().request("debug_getRawReceipts", [hash]).await?;
+        raw_receipts
+            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?
+            .into_iter()
+            .map(|raw| {
+                ReceiptEnvelope::decode_2718_exact(raw.as_ref())
+                    .ok()
+                    .and_then(|envelope| envelope.as_receipt().cloned())
+                    .ok_or(AlloyChainProviderError::ReceiptsConversion(hash))
+            })
+            .collect()
     }
 
     /// Verifies that a header's hash matches the expected hash when `trust_rpc` is false.
@@ -214,25 +233,15 @@ impl ChainProvider for AlloyChainProvider {
 
         kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "receipts_by_hash");
 
-        let receipts = self
-            .inner
-            .get_block_receipts(hash.into())
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "receipts_by_hash");
-            })?
-            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
-        let consensus_receipts = receipts
-            .into_iter()
-            .map(|r| r.inner.into_primitives_receipt().as_receipt().cloned())
-            .collect::<Option<Vec<_>>>()
-            .ok_or(AlloyChainProviderError::ReceiptsConversion(hash))?;
+        let receipts = self.raw_receipts_by_hash(hash).await.inspect_err(|_e| {
+            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "receipts_by_hash");
+        })?;
 
-        self.receipts_by_hash_cache.put(hash, consensus_receipts.clone());
+        self.receipts_by_hash_cache.put(hash, receipts.clone());
 
         kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "receipts_by_hash");
 
-        Ok(consensus_receipts)
+        Ok(receipts)
     }
 
     async fn block_info_and_transactions_by_hash(
@@ -283,6 +292,10 @@ impl ChainProvider for AlloyChainProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::{Eip658Value, ReceiptWithBloom};
+    use alloy_eips::eip2718::Encodable2718;
+    use alloy_primitives::Bloom;
+    use httpmock::prelude::*;
 
     #[test]
     fn test_from_alloy_chain_provider_error() {
@@ -315,5 +328,49 @@ mod tests {
             matches!(kind, PipelineErrorKind::Temporary(_)),
             "number-based BlockNotFound must stay Temporary (block not yet produced)"
         );
+    }
+
+    #[tokio::test]
+    async fn receipts_by_hash_decodes_raw_receipts() {
+        let expected = Receipt {
+            status: Eip658Value::Eip658(true),
+            cumulative_gas_used: 21_000,
+            logs: Vec::new(),
+        };
+        let envelope =
+            ReceiptEnvelope::Eip1559(ReceiptWithBloom::new(expected.clone(), Bloom::ZERO));
+        let raw_receipt = Bytes::from(envelope.encoded_2718());
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": [raw_receipt],
+        });
+
+        let server = MockServer::start();
+        let raw_mock = server.mock(|when, then| {
+            when.method(POST).body_includes("debug_getRawReceipts");
+            then.status(200).header("content-type", "application/json").json_body(response);
+        });
+        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+
+        assert_eq!(provider.receipts_by_hash(B256::repeat_byte(0xaa)).await.unwrap(), [expected]);
+        raw_mock.assert();
+    }
+
+    #[tokio::test]
+    async fn raw_receipts_not_found_preserves_reorg_signal() {
+        let server = MockServer::start();
+        let raw_mock = server.mock(|when, then| {
+            when.method(POST).body_includes("debug_getRawReceipts");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": null }));
+        });
+        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let hash = B256::repeat_byte(0xcc);
+
+        let error = provider.receipts_by_hash(hash).await.unwrap_err();
+        assert!(matches!(error, AlloyChainProviderError::BlockNotFound(id) if id == hash.into()));
+        raw_mock.assert();
     }
 }
