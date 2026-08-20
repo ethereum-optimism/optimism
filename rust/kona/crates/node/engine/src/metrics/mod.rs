@@ -31,6 +31,9 @@
 pub struct Metrics;
 
 impl Metrics {
+    /// Label key carrying the L2 chain ID, present on every metric emitted by the engine.
+    pub const CHAIN_ID_LABEL: &str = "chain_id";
+
     /// Identifier for the gauge that tracks block labels.
     pub const BLOCK_LABELS: &str = "kona_node_block_labels";
     /// Unsafe block label.
@@ -78,9 +81,9 @@ impl Metrics {
     /// * Describes various metrics.
     /// * Initializes metrics to 0 so they can be queried immediately.
     #[cfg(feature = "metrics")]
-    pub fn init() {
+    pub fn init(chain_id: u64) {
         Self::describe();
-        Self::zero();
+        Self::zero(chain_id);
     }
 
     /// Describes metrics used in [`kona_engine`][crate].
@@ -111,19 +114,33 @@ impl Metrics {
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
     #[cfg(feature = "metrics")]
-    pub fn zero() {
-        // Engine task counts
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::INSERT_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::CONSOLIDATE_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::BUILD_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::FINALIZE_TASK_LABEL, 0);
+    pub fn zero(chain_id: u64) {
+        let chain_id = chain_id.to_string();
 
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::INSERT_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::CONSOLIDATE_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::BUILD_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::FINALIZE_TASK_LABEL, 0);
+        // Engine task counts
+        for task in [
+            Self::INSERT_TASK_LABEL,
+            Self::CONSOLIDATE_TASK_LABEL,
+            Self::BUILD_TASK_LABEL,
+            Self::FINALIZE_TASK_LABEL,
+        ] {
+            kona_macros::set!(
+                counter,
+                Self::ENGINE_TASK_SUCCESS,
+                0,
+                "type" => task,
+                Self::CHAIN_ID_LABEL => chain_id.clone()
+            );
+            kona_macros::set!(
+                counter,
+                Self::ENGINE_TASK_FAILURE,
+                0,
+                "type" => task,
+                Self::CHAIN_ID_LABEL => chain_id.clone()
+            );
+        }
 
         // Engine reset count
-        kona_macros::set!(counter, Self::ENGINE_RESET_COUNT, 0);
+        kona_macros::set!(counter, Self::ENGINE_RESET_COUNT, 0, Self::CHAIN_ID_LABEL => chain_id);
     }
 }

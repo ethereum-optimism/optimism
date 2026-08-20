@@ -219,7 +219,8 @@ impl RollupNode {
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
     ) -> (ConfiguredEngineActor, ConfiguredEngineRpcActor) {
         // Engine-internal watches; not visible outside this helper.
-        let engine_state = EngineState::default();
+        let engine_state =
+            EngineState { chain_id: self.config.l2_chain_id.id(), ..Default::default() };
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
         let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
         let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);

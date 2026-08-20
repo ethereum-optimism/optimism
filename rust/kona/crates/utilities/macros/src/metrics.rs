@@ -27,6 +27,16 @@ macro_rules! set {
         #[cfg(feature = "metrics")]
         metrics::$instrument!($metric).set($value);
     };
+    // Multi-label arms take the value first: a trailing `$value` after a repetition would be
+    // ambiguous to the macro matcher.
+    (counter, $metric:path, $value:expr, $($label_key:expr => $label_value:expr),+ $(,)?) => {
+        #[cfg(feature = "metrics")]
+        metrics::counter!($metric, $($label_key => $label_value),+).absolute($value);
+    };
+    ($instrument:ident, $metric:path, $value:expr, $($label_key:expr => $label_value:expr),+ $(,)?) => {
+        #[cfg(feature = "metrics")]
+        metrics::$instrument!($metric, $($label_key => $label_value),+).set($value);
+    };
 }
 
 /// Increments a metric value, optionally with a specified label.
@@ -56,5 +66,11 @@ macro_rules! record {
     ($instrument:ident, $metric:path, $amount:expr) => {
         #[cfg(feature = "metrics")]
         metrics::$instrument!($metric).record($amount);
+    };
+    // Multi-label arm takes the amount first: a trailing `$amount` after a repetition would be
+    // ambiguous to the macro matcher.
+    ($instrument:ident, $metric:path, $amount:expr, $($label_key:expr => $label_value:expr),+ $(,)?) => {
+        #[cfg(feature = "metrics")]
+        metrics::$instrument!($metric, $($label_key => $label_value),+).record($amount);
     };
 }

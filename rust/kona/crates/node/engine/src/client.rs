@@ -245,7 +245,7 @@ where
             payload,
         );
 
-        record_call_time(call, Metrics::NEW_PAYLOAD_METHOD).await
+        record_call_time(call, Metrics::NEW_PAYLOAD_METHOD, self.cfg.l2_chain_id.id()).await
     }
 
     async fn new_payload_v3(
@@ -259,7 +259,7 @@ where
             parent_beacon_block_root,
         );
 
-        record_call_time(call, Metrics::NEW_PAYLOAD_METHOD).await
+        record_call_time(call, Metrics::NEW_PAYLOAD_METHOD, self.cfg.l2_chain_id.id()).await
     }
 
     async fn new_payload_v4(
@@ -273,7 +273,7 @@ where
             parent_beacon_block_root,
         );
 
-        record_call_time(call, Metrics::NEW_PAYLOAD_METHOD).await
+        record_call_time(call, Metrics::NEW_PAYLOAD_METHOD, self.cfg.l2_chain_id.id()).await
     }
 
     async fn fork_choice_updated_v2(
@@ -288,7 +288,7 @@ where
                 payload_attributes,
             );
 
-        record_call_time(call, Metrics::FORKCHOICE_UPDATE_METHOD).await
+        record_call_time(call, Metrics::FORKCHOICE_UPDATE_METHOD, self.cfg.l2_chain_id.id()).await
     }
 
     async fn fork_choice_updated_v3(
@@ -303,7 +303,7 @@ where
                 payload_attributes,
             );
 
-        record_call_time(call, Metrics::FORKCHOICE_UPDATE_METHOD).await
+        record_call_time(call, Metrics::FORKCHOICE_UPDATE_METHOD, self.cfg.l2_chain_id.id()).await
     }
 
     async fn get_payload_v2(
@@ -315,7 +315,7 @@ where
             payload_id,
         );
 
-        record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
+        record_call_time(call, Metrics::GET_PAYLOAD_METHOD, self.cfg.l2_chain_id.id()).await
     }
 
     async fn get_payload_v3(
@@ -327,7 +327,7 @@ where
             payload_id,
         );
 
-        record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
+        record_call_time(call, Metrics::GET_PAYLOAD_METHOD, self.cfg.l2_chain_id.id()).await
     }
 
     async fn get_payload_v4(
@@ -339,7 +339,7 @@ where
             payload_id,
         );
 
-        record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
+        record_call_time(call, Metrics::GET_PAYLOAD_METHOD, self.cfg.l2_chain_id.id()).await
     }
 
     async fn get_payload_v5(
@@ -351,7 +351,7 @@ where
             payload_id,
         );
 
-        record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
+        record_call_time(call, Metrics::GET_PAYLOAD_METHOD, self.cfg.l2_chain_id.id()).await
     }
 
     async fn get_payload_bodies_by_hash_v1(
@@ -403,6 +403,7 @@ where
 async fn record_call_time<T, Err>(
     f: impl Future<Output = Result<T, Err>>,
     metric_label: &'static str,
+    chain_id: u64,
 ) -> Result<T, Err> {
     // Await on the future and track its duration.
     let start = Instant::now();
@@ -413,9 +414,9 @@ async fn record_call_time<T, Err>(
     kona_macros::record!(
         histogram,
         Metrics::ENGINE_METHOD_REQUEST_DURATION,
-        "method",
-        metric_label,
-        duration.as_secs_f64()
+        duration.as_secs_f64(),
+        "method" => metric_label,
+        Metrics::CHAIN_ID_LABEL => chain_id.to_string()
     );
     Ok(result)
 }

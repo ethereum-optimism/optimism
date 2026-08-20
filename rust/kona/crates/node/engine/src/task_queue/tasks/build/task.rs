@@ -105,10 +105,13 @@ impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
         // head to build on top of.
         let new_forkchoice = state
             .sync_state
-            .apply_update(EngineSyncStateUpdate {
-                unsafe_head: Some(attributes_envelope.parent),
-                ..Default::default()
-            })
+            .apply_update(
+                state.chain_id,
+                EngineSyncStateUpdate {
+                    unsafe_head: Some(attributes_envelope.parent),
+                    ..Default::default()
+                },
+            )
             .create_forkchoice_state();
 
         let forkchoice_version = EngineForkchoiceVersion::from_cfg(
