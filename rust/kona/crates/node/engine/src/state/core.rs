@@ -98,8 +98,8 @@ impl EngineSyncState {
     /// local-safe == cross-safe in a single call.
     ///
     /// A local-safe *rewind* is the one case where this moves the cross-safe head without a
-    /// promotion: it is held at the rewound head by [`Self::hold_cross_safe_at`], since cross-safe
-    /// cannot outrank the local-safe head it is derived from.
+    /// promotion: it is held at the rewound head, since cross-safe cannot outrank the local-safe
+    /// head it is derived from. See the private `hold_cross_safe_at` helper below.
     pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
         if let Some(unsafe_head) = sync_state_update.unsafe_head {
             Self::update_block_label_metric(
