@@ -45,11 +45,11 @@ Verifier operators need no policy opt-in.
 
 ## Stock `op-reth` production behavior
 
-Released public `op-reth` and the vendored public `op-rbuilder` use a null refund policy. They never
-create a non-empty refund payload or append a PostExec transaction, even when Lagoon is active and
+Released public `op-reth` uses a null refund policy. It never creates a non-empty refund payload and
+never appends a PostExec transaction, even when Lagoon is active and
 `admin_setOperatorSdmOptIn(true)` has been called. The admin surface remains available for protocol
-compatibility and downstream producer integrations; it is not a policy-selection interface in the
-stock public binaries.
+compatibility and downstream producer integrations; it is not a policy-selection interface in
+stock `op-reth`.
 
 The `op-reth-sdm-fixture` binary in the source tree is only a deterministic acceptance-test fixture.
 It is excluded from release packaging, images, and deployment manifests.

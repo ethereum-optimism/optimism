@@ -60,13 +60,21 @@ where
 {
     async fn latest_head(&self) -> Result<Option<L1BlockRef>> {
         Ok(self.provider.get_block_by_number(BlockNumberOrTag::Latest).await?.map(|block| {
-            L1BlockRef { number: block.header.number, timestamp: block.header.timestamp }
+            L1BlockRef {
+                hash: block.header.hash,
+                number: block.header.number,
+                timestamp: block.header.timestamp,
+            }
         }))
     }
 
     async fn block_ref(&self, number: u64) -> Result<Option<L1BlockRef>> {
         Ok(self.provider.get_block_by_number(BlockNumberOrTag::Number(number)).await?.map(
-            |block| L1BlockRef { number: block.header.number, timestamp: block.header.timestamp },
+            |block| L1BlockRef {
+                hash: block.header.hash,
+                number: block.header.number,
+                timestamp: block.header.timestamp,
+            },
         ))
     }
 
