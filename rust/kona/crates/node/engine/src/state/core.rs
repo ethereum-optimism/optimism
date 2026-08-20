@@ -123,13 +123,10 @@ impl EngineSyncState {
             cross_safe_source: self.cross_safe_source,
         };
 
-        match sync_state_update
+        sync_state_update
             .local_safe_head
             .and_then(|head| updated.cross_safe_source.trivial_promotion(head))
-        {
-            Some(promotion) => updated.apply_cross_safe_promotion(promotion),
-            None => updated,
-        }
+            .map_or(updated, |promotion| updated.apply_cross_safe_promotion(promotion))
     }
 
     /// Applies a cross-safe promotion. This is the single entry point through which the cross-safe
