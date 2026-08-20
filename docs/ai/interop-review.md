@@ -30,6 +30,11 @@ Spec: `specs/interop/messaging.md` (Messaging Invariants), `specs/interop/deriva
   (7 days). Constants: Go `MessageExpiryTimeSecondsInterop`
   (`op-core/interop/depset/static_depset.go`), Rust `MESSAGE_EXPIRY_WINDOW`
   (`rust/kona/crates/protocol/genesis/src/interop/constants.rs`). These must stay equal.
+  Known spec drift at this boundary: the invariants bullet in
+  `specs/interop/derivation.md` states `t > execution_timestamp - expiry_window`, one
+  second stricter than the normative Message Expiry Invariant in
+  `specs/interop/messaging.md`. messaging.md is normative; both Go and Rust implement
+  its boundary, accepting `executing_timestamp == init.timestamp + EXPIRY_TIME`.
 - **ChainID invariant**: the initiating chain must be in the executing chain's
   dependency set (`specs/interop/dependency-set.md`).
 - **Existence matching**: the executing message must match an actual initiating log.
