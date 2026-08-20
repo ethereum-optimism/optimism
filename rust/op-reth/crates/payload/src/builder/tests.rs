@@ -1,6 +1,7 @@
 use super::{
     CommittedTxGas, ExecutionInfo, OpPayloadBuilderCtx, PayloadTransactionsWithCommitHook,
-    RethPayloadTransactions, build_post_exec_recovered_tx, try_include_post_exec_tx,
+    RethPayloadTransactions, await_sparse_trie_state_root, build_post_exec_recovered_tx,
+    try_include_post_exec_tx,
 };
 use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
 use alloy_consensus::{
@@ -36,7 +37,17 @@ use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
 use reth_transaction_pool::PoolTransaction;
-use std::{borrow::Cow, cell::Cell, sync::Arc};
+use reth_trie_parallel::{
+    error::StateRootTaskError,
+    state_root_task::{PayloadStateRootHandle, StateRootComputeOutcome},
+};
+use std::{
+    borrow::Cow,
+    cell::Cell,
+    sync::{Arc, mpsc},
+    thread,
+    time::Duration,
+};
 
 fn entries(specs: &[(u64, u64)]) -> Vec<SDMGasEntry> {
     specs.iter().map(|&(index, gas_refund)| SDMGasEntry { index, gas_refund }).collect()
@@ -977,4 +988,72 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     // build's `mark_invalid` did not permanently exclude it.
     failsafe.set(false);
     assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
+}
+
+/// Builds a [`PayloadStateRootHandle`] backed by a live channel, plus the sender the trie task
+/// would answer on. Dropping that sender is how a task that died reports itself.
+fn fake_trie_task()
+-> (PayloadStateRootHandle, mpsc::Sender<Result<StateRootComputeOutcome, StateRootTaskError>>) {
+    let (root_tx, root_rx) = mpsc::channel();
+    (PayloadStateRootHandle::new("test", None, root_rx, None), root_tx)
+}
+
+fn root_outcome(state_root: B256) -> StateRootComputeOutcome {
+    StateRootComputeOutcome {
+        state_root,
+        trie_updates: Arc::new(Default::default()),
+        hashed_state: Arc::new(Default::default()),
+        changed_paths: None,
+    }
+}
+
+#[test]
+fn bounded_wait_takes_the_root_the_trie_task_produced() {
+    let (mut handle, root_tx) = fake_trie_task();
+    let root = B256::repeat_byte(0x42);
+    root_tx.send(Ok(root_outcome(root))).unwrap();
+
+    let result = await_sparse_trie_state_root(&mut handle, Some(Duration::from_secs(10)));
+
+    assert_eq!(result.unwrap().state_root, root);
+}
+
+#[test]
+fn bounded_wait_gives_up_instead_of_parking_the_build() {
+    // The failure this guards against: a trie task that never answers used to park the payload
+    // job forever, so it never spawned another attempt and `getPayload` never resolved.
+    let (mut handle, _root_tx) = fake_trie_task();
+
+    let started = std::time::Instant::now();
+    let result = await_sparse_trie_state_root(&mut handle, Some(Duration::from_millis(50)));
+
+    assert!(started.elapsed() < Duration::from_secs(5), "wait was not bounded");
+    let err = result.expect_err("a silent trie task must not produce a root");
+    assert!(err.to_string().contains("did not produce a state root"), "unexpected error: {err}");
+}
+
+#[test]
+fn bounded_wait_reports_a_dropped_trie_task() {
+    let (mut handle, root_tx) = fake_trie_task();
+    drop(root_tx);
+
+    let err = await_sparse_trie_state_root(&mut handle, Some(Duration::from_secs(10)))
+        .expect_err("a dropped trie task must not produce a root");
+
+    assert!(err.to_string().contains("dropped"), "unexpected error: {err}");
+}
+
+#[test]
+fn unbounded_wait_still_waits_for_a_late_root() {
+    // `None` is the opt-out, and must keep the pre-existing behaviour of waiting indefinitely.
+    let (mut handle, root_tx) = fake_trie_task();
+    let root = B256::repeat_byte(0x7);
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(100));
+        let _ = root_tx.send(Ok(root_outcome(root)));
+    });
+
+    let result = await_sparse_trie_state_root(&mut handle, None);
+
+    assert_eq!(result.unwrap().state_root, root);
 }

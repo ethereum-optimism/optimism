@@ -1,13 +1,24 @@
 //! Additional configuration for the OP builder
 
 use reth_optimism_txpool::interop::InteropFailsafe;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
+    time::Duration,
 };
 
+/// Default bound on waiting for the engine's shared sparse trie to produce a state root.
+///
+/// Matches `TreeConfig`'s own `DEFAULT_STATE_ROOT_TASK_TIMEOUT`, which bounds the same computation
+/// on the `newPayload` path. Kept short deliberately: unlike the engine, the builder cannot race
+/// the fallback against the trie task, so a build that times out pays the wait *and* the
+/// synchronous trie walk, and on a one-second chain a longer bound costs whole slots.
+pub const DEFAULT_STATE_ROOT_WAIT: Duration = Duration::from_secs(1);
+
 /// Settings for the OP builder.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct OpBuilderConfig {
     /// Data availability configuration for the OP builder.
     pub da_config: OpDAConfig,
@@ -27,6 +38,25 @@ pub struct OpBuilderConfig {
     /// clients (e.g. the common 10 MiB JSON payload cap). op-geth enforces an equivalent but
     /// non-configurable cap via `params.MaxBlockSize`.
     pub max_uncompressed_block_size: Option<u64>,
+    /// How long to wait for the engine's shared sparse trie to return a state root before
+    /// falling back to the synchronous trie walk.
+    ///
+    /// `None` waits indefinitely. Only consulted when the engine shares a trie handle with the
+    /// builder, which it does under `--engine.share-sparse-trie-with-payload-builder`.
+    pub state_root_wait: Option<Duration>,
+}
+
+impl Default for OpBuilderConfig {
+    fn default() -> Self {
+        Self {
+            da_config: OpDAConfig::default(),
+            gas_limit_config: OpGasLimitConfig::default(),
+            operator_sdm_opt_in: OperatorSdmOptIn::default(),
+            interop_failsafe: InteropFailsafe::default(),
+            max_uncompressed_block_size: None,
+            state_root_wait: Some(DEFAULT_STATE_ROOT_WAIT),
+        }
+    }
 }
 
 impl OpBuilderConfig {
@@ -38,6 +68,7 @@ impl OpBuilderConfig {
             operator_sdm_opt_in: OperatorSdmOptIn::default(),
             interop_failsafe: InteropFailsafe::default(),
             max_uncompressed_block_size: None,
+            state_root_wait: Some(DEFAULT_STATE_ROOT_WAIT),
         }
     }
 

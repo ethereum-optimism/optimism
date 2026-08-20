@@ -49,12 +49,19 @@ use reth_revm::{
 };
 use reth_storage_api::{StateProvider, StateProviderFactory, errors::ProviderError};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
-use reth_trie_parallel::state_root_task::PayloadStateRootHandle;
+use reth_trie_parallel::{
+    error::StateRootTaskError,
+    state_root_task::{PayloadStateRootHandle, StateRootComputeOutcome},
+};
 use revm::context::{Block, BlockEnv};
-use std::{marker::PhantomData, sync::Arc};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, mpsc::RecvTimeoutError},
+    time::Duration,
+};
 use tracing::{debug, trace, warn};
 
-/// SDM/PostExec payload-builder metrics.
+/// Payload-builder metrics.
 #[derive(Metrics, Clone)]
 #[metrics(scope = "optimism_payload_builder")]
 struct OpPayloadBuilderMetrics {
@@ -62,12 +69,43 @@ struct OpPayloadBuilderMetrics {
     sdm_refund_gas_total: Counter,
     /// SDM gas refunded by the latest produced block.
     sdm_refund_gas_per_block: Gauge,
+    /// Builds whose state root came from the engine's shared sparse trie.
+    state_root_from_shared_trie_total: Counter,
+    /// Builds that fell back to the synchronous trie walk after the shared sparse trie failed to
+    /// produce a state root.
+    state_root_fallback_total: Counter,
 }
 
 impl OpPayloadBuilderMetrics {
     fn record_sdm_refund_gas(&self, gas_refund: u64) {
         self.sdm_refund_gas_total.increment(gas_refund);
         self.sdm_refund_gas_per_block.set(gas_refund as f64);
+    }
+}
+
+/// Waits for the engine's shared sparse trie to produce a state root, bounded by `wait`.
+///
+/// `None` waits indefinitely, which is what reth's `newPayload` path does when
+/// `--engine.state-root-task-timeout` is disabled. A timeout is reported as an error so the caller
+/// takes the same fallback it already takes when the pipeline fails.
+///
+/// Unlike the engine, the builder cannot race the fallback against the trie task:
+/// `BlockBuilder::finish` consumes the builder, so the synchronous walk can only start once we
+/// have given up on the task. A build that times out therefore pays both.
+fn await_sparse_trie_state_root(
+    handle: &mut PayloadStateRootHandle,
+    wait: Option<Duration>,
+) -> Result<StateRootComputeOutcome, StateRootTaskError> {
+    let Some(wait) = wait else { return handle.state_root() };
+
+    match handle.take_state_root_rx().recv_timeout(wait) {
+        Ok(result) => result,
+        Err(RecvTimeoutError::Timeout) => Err(StateRootTaskError::Other(format!(
+            "sparse trie task did not produce a state root within {wait:?}"
+        ))),
+        Err(RecvTimeoutError::Disconnected) => {
+            Err(StateRootTaskError::Other("sparse trie task dropped".to_string()))
+        }
     }
 }
 
@@ -558,6 +596,8 @@ impl<Txs> OpBuilder<'_, Txs> {
             0
         };
 
+        let metrics = OpPayloadBuilderMetrics::default();
+
         let BlockBuilderOutcome {
             execution_result,
             hashed_state,
@@ -569,11 +609,13 @@ impl<Txs> OpBuilder<'_, Txs> {
             // finalize.
             builder.evm_mut().db_mut().set_state_hook(None);
 
-            // The sparse trie has been computing incrementally alongside tx execution.
-            // This waits for the final root hash — most work is already done.
-            // Fall back to sync state root if the trie pipeline fails.
-            match task.state_root() {
+            // The sparse trie has been computing incrementally alongside tx execution, so the
+            // final root is usually immediate. Bound the wait anyway: a trie task that never
+            // answers would otherwise park this build forever, and with it the payload job, which
+            // never spawns another attempt and never resolves `getPayload`.
+            match await_sparse_trie_state_root(&mut task, ctx.builder_config.state_root_wait) {
                 Ok(outcome) => {
+                    metrics.state_root_from_shared_trie_total.increment(1);
                     debug!(target: "payload_builder", id=%ctx.payload_id(), state_root=?outcome.state_root, job=task.name(), "received state root from sparse trie");
                     builder.finish(
                         state_provider,
@@ -581,7 +623,11 @@ impl<Txs> OpBuilder<'_, Txs> {
                     )?
                 }
                 Err(err) => {
+                    metrics.state_root_fallback_total.increment(1);
                     warn!(target: "payload_builder", id=%ctx.payload_id(), %err, "sparse trie failed, falling back to sync state root");
+                    // Cancel the abandoned task rather than let it compete with the walk we are
+                    // about to pay for.
+                    drop(task);
                     builder.finish(state_provider, None)?
                 }
             }
@@ -589,7 +635,7 @@ impl<Txs> OpBuilder<'_, Txs> {
             builder.finish(state_provider, None)?
         };
 
-        OpPayloadBuilderMetrics::default().record_sdm_refund_gas(sdm_refund_gas);
+        metrics.record_sdm_refund_gas(sdm_refund_gas);
 
         let sealed_block = Arc::new(block.sealed_block().clone());
         debug!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");
