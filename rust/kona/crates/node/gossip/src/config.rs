@@ -79,7 +79,7 @@ lazy_static! {
 pub fn default_config_builder(chain_id: u64) -> ConfigBuilder {
     // `message_id_fn` takes a `'static` callable, so the label is rendered once here and moved
     // into the closure rather than re-allocated on every inbound frame.
-    let chain_id_label: Arc<str> = Arc::from(chain_id.to_string());
+    let chain_id_label = kona_macros::chain_id_label(chain_id);
     let mut builder = ConfigBuilder::default();
     builder
         .mesh_n(DEFAULT_MESH_D)

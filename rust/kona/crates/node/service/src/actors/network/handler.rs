@@ -47,7 +47,7 @@ impl NetworkHandler {
                     histogram,
                     kona_gossip::Metrics::PEER_SCORES,
                     score,
-                    kona_gossip::Metrics::CHAIN_ID_LABEL => self.gossip.handler.chain_id_label.clone()
+                    kona_macros::CHAIN_ID_LABEL => self.gossip.handler.chain_id_label.clone()
                 );
 
                 if score < ban_peers.ban_threshold {
@@ -76,7 +76,7 @@ impl NetworkHandler {
                                 histogram,
                                 kona_gossip::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS,
                                 peer_duration.as_secs_f64(),
-                                kona_gossip::Metrics::CHAIN_ID_LABEL => self.gossip.handler.chain_id_label.clone()
+                                kona_macros::CHAIN_ID_LABEL => self.gossip.handler.chain_id_label.clone()
                             );
                         }
 
@@ -89,7 +89,7 @@ impl NetworkHandler {
                         kona_gossip::Metrics::BANNED_PEERS,
                         "peer_id" => peer_to_remove.to_string(),
                         "score" => score.to_string(),
-                        kona_gossip::Metrics::CHAIN_ID_LABEL => self.gossip.handler.chain_id_label.clone()
+                        kona_macros::CHAIN_ID_LABEL => self.gossip.handler.chain_id_label.clone()
                     );
                     return Some(info.listen_addrs);
                 }

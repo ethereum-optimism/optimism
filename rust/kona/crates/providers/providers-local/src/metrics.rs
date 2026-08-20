@@ -7,7 +7,7 @@ pub struct Metrics;
 impl Metrics {
     /// Label key carrying the L2 chain ID, present on every metric emitted by the buffered
     /// provider.
-    pub const CHAIN_ID_LABEL: &str = "chain_id";
+    pub const CHAIN_ID_LABEL: &str = kona_macros::CHAIN_ID_LABEL;
 
     /// Identifier for the gauge that tracks buffered provider cache hits.
     pub const BUFFERED_PROVIDER_CACHE_HITS: &str = "kona_providers_local_cache_hits";
@@ -73,7 +73,7 @@ impl Metrics {
     /// Initializes metrics to `0` so they can be queried immediately.
     #[cfg(feature = "metrics")]
     pub fn zero(chain_id: u64) {
-        let chain_id: std::sync::Arc<str> = std::sync::Arc::from(chain_id.to_string());
+        let chain_id = kona_macros::chain_id_label(chain_id);
 
         // Cache hit/miss metrics
         for metric in [Self::BUFFERED_PROVIDER_CACHE_HITS, Self::BUFFERED_PROVIDER_CACHE_MISSES] {

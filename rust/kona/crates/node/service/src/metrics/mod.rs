@@ -6,7 +6,7 @@ pub struct Metrics;
 
 impl Metrics {
     /// Label key carrying the L2 chain ID, present on every metric emitted by the node service.
-    pub const CHAIN_ID_LABEL: &str = "chain_id";
+    pub const CHAIN_ID_LABEL: &str = kona_macros::CHAIN_ID_LABEL;
 
     /// Identifier for the counter that tracks the number of times the L1 has reorganized.
     pub const L1_REORG_COUNT: &str = "kona_node_l1_reorg_count";
@@ -105,7 +105,7 @@ impl Metrics {
     /// metrics.
     #[cfg(feature = "metrics")]
     pub fn zero(chain_id: u64) {
-        let chain_id: std::sync::Arc<str> = std::sync::Arc::from(chain_id.to_string());
+        let chain_id = kona_macros::chain_id_label(chain_id);
 
         for metric in [
             // L1 reorg reset count

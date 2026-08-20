@@ -62,7 +62,7 @@ impl BufferedL2Provider {
             current_head: RwLock::new(None),
             rollup_config,
             genesis,
-            chain_id_label: Arc::from(chain_id.to_string()),
+            chain_id_label: kona_macros::chain_id_label(chain_id),
         }
     }
 

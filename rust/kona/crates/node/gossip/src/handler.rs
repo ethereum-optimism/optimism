@@ -133,7 +133,7 @@ impl BlockHandler {
         Self {
             rollup_config,
             signer_recv,
-            chain_id_label: Arc::from(chain_id.to_string()),
+            chain_id_label: kona_macros::chain_id_label(chain_id),
             blocks_v1_topic: IdentTopic::new(format!("/optimism/{chain_id}/0/blocks")),
             blocks_v2_topic: IdentTopic::new(format!("/optimism/{chain_id}/1/blocks")),
             blocks_v3_topic: IdentTopic::new(format!("/optimism/{chain_id}/2/blocks")),

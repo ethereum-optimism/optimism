@@ -44,7 +44,7 @@ where
 {
     /// Creates a new instance of the [`DerivationPipeline`].
     pub fn new(attributes: S, rollup_config: Arc<RollupConfig>, l2_chain_provider: P) -> Self {
-        let chain_id_label = Arc::from(alloc::format!("{}", rollup_config.l2_chain_id.id()));
+        let chain_id_label = kona_macros::chain_id_label(rollup_config.l2_chain_id.id());
         Self {
             attributes,
             prepared: VecDeque::new(),

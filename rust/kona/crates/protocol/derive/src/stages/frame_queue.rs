@@ -53,7 +53,7 @@ where
     ///
     /// [`L1Retrieval`]: crate::stages::L1Retrieval
     pub fn new(prev: P, cfg: Arc<RollupConfig>) -> Self {
-        let chain_id_label = Arc::from(alloc::format!("{}", cfg.l2_chain_id.id()));
+        let chain_id_label = kona_macros::chain_id_label(cfg.l2_chain_id.id());
         Self { prev, queue: VecDeque::new(), rollup_config: cfg, chain_id_label }
     }
 

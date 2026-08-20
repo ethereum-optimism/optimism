@@ -57,7 +57,7 @@ where
 {
     /// Create a new [`ChannelReader`] stage.
     pub fn new(prev: P, cfg: Arc<RollupConfig>) -> Self {
-        let chain_id_label = Arc::from(alloc::format!("{}", cfg.l2_chain_id.id()));
+        let chain_id_label = kona_macros::chain_id_label(cfg.l2_chain_id.id());
         Self { prev, next_batch: None, cfg, chain_id_label }
     }
 

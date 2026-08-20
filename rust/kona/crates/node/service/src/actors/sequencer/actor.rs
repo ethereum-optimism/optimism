@@ -132,7 +132,7 @@ where
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
     ) -> Self {
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
-        let chain_id_label = Arc::from(rollup_config.l2_chain_id.id().to_string());
+        let chain_id_label = kona_macros::chain_id_label(rollup_config.l2_chain_id.id());
         Self {
             admin_api_rx,
             attributes_builder,

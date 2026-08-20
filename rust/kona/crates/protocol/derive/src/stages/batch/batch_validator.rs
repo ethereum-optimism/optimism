@@ -49,7 +49,7 @@ where
 {
     /// Create a new [`BatchValidator`] stage.
     pub fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
-        let chain_id_label = Arc::from(alloc::format!("{}", cfg.l2_chain_id.id()));
+        let chain_id_label = kona_macros::chain_id_label(cfg.l2_chain_id.id());
         Self { cfg, prev, origin: None, l1_blocks: Vec::new(), chain_id_label }
     }
 

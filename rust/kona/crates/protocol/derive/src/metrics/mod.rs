@@ -7,7 +7,7 @@ pub struct Metrics;
 impl Metrics {
     /// Label key carrying the L2 chain ID, present on every metric emitted by the derivation
     /// pipeline.
-    pub const CHAIN_ID_LABEL: &str = "chain_id";
+    pub const CHAIN_ID_LABEL: &str = kona_macros::CHAIN_ID_LABEL;
 
     /// Identifier for the pipeline origin gauge.
     pub const PIPELINE_ORIGIN: &str = "kona_derive_pipeline_origin";
@@ -235,7 +235,7 @@ impl Metrics {
     /// Initializes metrics to 0 so they can be queried immediately.
     #[cfg(feature = "metrics")]
     pub fn zero(chain_id: u64) {
-        let chain_id: alloc::sync::Arc<str> = alloc::sync::Arc::from(alloc::format!("{chain_id}"));
+        let chain_id = kona_macros::chain_id_label(chain_id);
 
         // The batch reader is by default not set.
         kona_macros::set!(

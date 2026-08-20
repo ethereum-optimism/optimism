@@ -57,7 +57,7 @@ where
         Self {
             sequencer_admin_client,
             network_sender,
-            chain_id_label: std::sync::Arc::from(chain_id.to_string()),
+            chain_id_label: kona_macros::chain_id_label(chain_id),
         }
     }
 }
@@ -71,7 +71,7 @@ where
         &self,
         payload: OpExecutionPayloadEnvelope,
     ) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload", kona_gossip::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
+        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload", kona_macros::CHAIN_ID_LABEL => self.chain_id_label.clone());
         self.network_sender
             .send(NetworkAdminQuery::PostUnsafePayload { payload })
             .await

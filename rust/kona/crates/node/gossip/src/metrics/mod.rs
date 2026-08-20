@@ -6,7 +6,7 @@ pub struct Metrics;
 
 impl Metrics {
     /// Label key carrying the L2 chain ID, present on every metric emitted by the gossip stack.
-    pub const CHAIN_ID_LABEL: &str = "chain_id";
+    pub const CHAIN_ID_LABEL: &str = kona_macros::CHAIN_ID_LABEL;
 
     /// Identifier for the gauge that tracks gossip events.
     pub const GOSSIP_EVENT: &str = "kona_node_gossip_events";
@@ -153,7 +153,7 @@ impl Metrics {
     /// metrics.
     #[cfg(feature = "metrics")]
     pub fn zero(chain_id: u64) {
-        let chain_id: std::sync::Arc<str> = std::sync::Arc::from(chain_id.to_string());
+        let chain_id = kona_macros::chain_id_label(chain_id);
 
         // RPC Calls
         for method in [
@@ -195,15 +195,33 @@ impl Metrics {
             );
         }
 
-        // Unlabelled gauges: peer dials, unsafe blocks, peer counts, banned peers
-        for metric in [
-            Self::DIAL_PEER,
-            Self::DIAL_PEER_ERROR,
-            Self::UNSAFE_BLOCK_PUBLISHED,
-            Self::GOSSIP_PEER_COUNT,
-            Self::BANNED_PEERS,
-        ] {
+        // Unlabelled gauges: peer dials, unsafe blocks, peer counts.
+        //
+        // `BANNED_PEERS` is deliberately absent: its emit carries a `peer_id`, so there is no
+        // finite set of series to pre-create.
+        for metric in [Self::DIAL_PEER, Self::UNSAFE_BLOCK_PUBLISHED, Self::GOSSIP_PEER_COUNT] {
             kona_macros::set!(gauge, metric, 0, Self::CHAIN_ID_LABEL => chain_id.clone());
+        }
+
+        // Dial failures, by the reason recorded at each emit site in `driver.rs` and `gater.rs`.
+        for reason in [
+            "invalid_enr",
+            "invalid_multiaddr",
+            "already_connected",
+            "already_dialing",
+            "connection_error",
+            "threshold_reached",
+            "blocked_peer",
+            "blocked_address",
+            "blocked_subnet",
+        ] {
+            kona_macros::set!(
+                gauge,
+                Self::DIAL_PEER_ERROR,
+                0,
+                "type" => reason,
+                Self::CHAIN_ID_LABEL => chain_id.clone()
+            );
         }
 
         // Connection

@@ -151,7 +151,7 @@ impl Discv5Driver {
         let chain_id = self.chain_id;
         // Cached once so the per-event metric emits below are a refcount bump, not an allocation.
         #[cfg(feature = "metrics")]
-        let chain_id_label: std::sync::Arc<str> = std::sync::Arc::from(chain_id.to_string());
+        let chain_id_label = kona_macros::chain_id_label(chain_id);
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<Enr>(1024);
 

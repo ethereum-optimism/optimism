@@ -54,7 +54,7 @@ where
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
     ) -> Self {
-        let chain_id_label = Arc::from(pipeline.rollup_config().l2_chain_id.id().to_string());
+        let chain_id_label = kona_macros::chain_id_label(pipeline.rollup_config().l2_chain_id.id());
         Self {
             pipeline,
             inbound_request_rx,

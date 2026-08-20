@@ -58,7 +58,7 @@ impl AlloyChainProvider {
         Self {
             inner,
             trust_rpc,
-            chain_id_label: Arc::from(chain_id.to_string()),
+            chain_id_label: kona_macros::chain_id_label(chain_id),
             header_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
             receipts_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
             block_info_and_transactions_by_hash_cache: LruCache::new(

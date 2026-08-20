@@ -64,7 +64,7 @@ where
 {
     /// Create a new [`BatchStream`] stage.
     pub fn new(prev: P, config: Arc<RollupConfig>, fetcher: BF) -> Self {
-        let chain_id_label = Arc::from(alloc::format!("{}", config.l2_chain_id.id()));
+        let chain_id_label = kona_macros::chain_id_label(config.l2_chain_id.id());
         Self { prev, span: None, buffer: VecDeque::new(), config, fetcher, chain_id_label }
     }
 

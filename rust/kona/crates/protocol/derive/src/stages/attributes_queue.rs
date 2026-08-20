@@ -59,7 +59,7 @@ where
 {
     /// Create a new [`AttributesQueue`] stage.
     pub fn new(cfg: Arc<RollupConfig>, prev: P, builder: AB) -> Self {
-        let chain_id_label = Arc::from(alloc::format!("{}", cfg.l2_chain_id.id()));
+        let chain_id_label = kona_macros::chain_id_label(cfg.l2_chain_id.id());
         Self { cfg, prev, is_last_in_span: false, batch: None, builder, chain_id_label }
     }
 

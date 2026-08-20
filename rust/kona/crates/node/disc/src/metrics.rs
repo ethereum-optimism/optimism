@@ -7,7 +7,7 @@ pub struct Metrics;
 impl Metrics {
     /// Label key carrying the L2 chain ID, present on every metric emitted by the discovery
     /// service.
-    pub const CHAIN_ID_LABEL: &str = "chain_id";
+    pub const CHAIN_ID_LABEL: &str = kona_macros::CHAIN_ID_LABEL;
 
     /// Identifier for discv5 events.
     pub const DISCOVERY_EVENT: &str = "kona_node_discovery_events";
@@ -54,7 +54,7 @@ impl Metrics {
     /// metrics.
     #[cfg(feature = "metrics")]
     pub fn zero(chain_id: u64) {
-        let chain_id: std::sync::Arc<str> = std::sync::Arc::from(chain_id.to_string());
+        let chain_id = kona_macros::chain_id_label(chain_id);
 
         // Discovery Event
         for event in ["discovered", "session_established", "unverifiable_enr"] {
@@ -74,10 +74,13 @@ impl Metrics {
             0,
             Self::CHAIN_ID_LABEL => chain_id.clone()
         );
+        // The emit site in `driver.rs` tags this gauge with a constant `find_node` label, so the
+        // pre-created series has to carry it too or it is never the one incremented.
         kona_macros::set!(
             gauge,
             Self::FIND_NODE_REQUEST,
             0,
+            "find_node" => "find_node",
             Self::CHAIN_ID_LABEL => chain_id
         );
     }

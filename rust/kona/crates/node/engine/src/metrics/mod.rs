@@ -35,7 +35,7 @@ pub struct Metrics;
 
 impl Metrics {
     /// Label key carrying the L2 chain ID, present on every metric emitted by the engine.
-    pub const CHAIN_ID_LABEL: &str = "chain_id";
+    pub const CHAIN_ID_LABEL: &str = kona_macros::CHAIN_ID_LABEL;
 
     /// Identifier for the gauge that tracks block labels.
     pub const BLOCK_LABELS: &str = "kona_node_block_labels";

@@ -66,7 +66,7 @@ impl AlloyL2ChainProvider {
         cache_size: usize,
         trust_rpc: bool,
     ) -> Self {
-        let chain_id_label = Arc::from(rollup_config.l2_chain_id.id().to_string());
+        let chain_id_label = kona_macros::chain_id_label(rollup_config.l2_chain_id.id());
         Self {
             inner,
             trust_rpc,

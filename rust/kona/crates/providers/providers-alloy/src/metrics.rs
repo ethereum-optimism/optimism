@@ -7,7 +7,7 @@ pub struct Metrics;
 impl Metrics {
     /// Label key carrying the L2 chain ID, present on every metric emitted by the alloy
     /// providers.
-    pub const CHAIN_ID_LABEL: &str = "chain_id";
+    pub const CHAIN_ID_LABEL: &str = kona_macros::CHAIN_ID_LABEL;
 
     /// Identifier for the gauge that tracks chain provider cache hits.
     pub const CHAIN_PROVIDER_CACHE_HITS: &str = "kona_providers_chain_cache_hits";
@@ -114,7 +114,7 @@ impl Metrics {
     /// metrics.
     #[cfg(feature = "metrics")]
     pub fn zero(chain_id: u64) {
-        let chain_id: std::sync::Arc<str> = std::sync::Arc::from(chain_id.to_string());
+        let chain_id = kona_macros::chain_id_label(chain_id);
 
         // Chain provider cache metrics
         for metric in [Self::CHAIN_PROVIDER_CACHE_HITS, Self::CHAIN_PROVIDER_CACHE_MISSES] {

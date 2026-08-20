@@ -20,6 +20,6 @@ pub struct P2pRpc {
 impl P2pRpc {
     /// Constructs a new [`P2pRpc`] given a sender channel and the L2 chain ID.
     pub fn new(sender: P2pReqSender, chain_id: u64) -> Self {
-        Self { sender, chain_id_label: Arc::from(chain_id.to_string()) }
+        Self { sender, chain_id_label: kona_macros::chain_id_label(chain_id) }
     }
 }

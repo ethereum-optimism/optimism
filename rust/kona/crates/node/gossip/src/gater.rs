@@ -94,7 +94,7 @@ impl ConnectionGater {
     pub fn new(config: GaterConfig, chain_id: u64) -> Self {
         Self {
             config,
-            chain_id_label: Arc::from(chain_id.to_string()),
+            chain_id_label: kona_macros::chain_id_label(chain_id),
             current_dials: HashSet::new(),
             dialed_peers: HashMap::new(),
             connectedness: HashMap::new(),
