@@ -674,10 +674,6 @@ impl ScenarioWorld {
         self.lock().action_scripts.script_exact(target, attempt, ActionScript::immediate(outcome));
     }
 
-    pub(super) fn script_next_action(&self, target: ActionTarget, outcome: ActionOutcome) {
-        self.lock().action_scripts.script_next(target, ActionScript::immediate(outcome));
-    }
-
     pub(super) fn script_action_fallback(&self, outcome: ActionOutcome) {
         self.lock().action_scripts.script_fallback(ActionScript::immediate(outcome));
     }

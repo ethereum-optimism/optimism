@@ -1588,61 +1588,83 @@ async fn proof_faults_and_fallbacks_are_scoped_to_target_and_attempt() {
 }
 
 #[tokio::test]
-async fn action_failures_do_not_hide_other_targets_or_claim_effects() {
+async fn failed_resolution_does_not_stop_other_games() {
     let world = ScenarioWorld::new();
-    let resolve_failed_game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate())
+    let failed_game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate())
         .provable_for_resolution();
-    let resolve_succeeded_game =
-        ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate())
-            .provable_for_resolution();
-    let claim_failed_game =
-        ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate()).claimable(10);
-    let claim_succeeded_game =
-        ScenarioGame::new(3, u32::MAX, 4, ScenarioWorld::default_prestate()).claimable(20);
-    let resolve_failed = ActionTarget::Resolve(resolve_failed_game.target());
-    let resolve_succeeded = ActionTarget::Resolve(resolve_succeeded_game.target());
-    let claim_failed = ActionTarget::ClaimCredit(claim_failed_game.target());
-    let claim_succeeded = ActionTarget::ClaimCredit(claim_succeeded_game.target());
-    for game in
-        [resolve_failed_game, resolve_succeeded_game, claim_failed_game, claim_succeeded_game]
-    {
-        world.add_game(game);
-    }
-    world.set_horizons(4, 4);
-    world.script_next_action(resolve_failed.clone(), ActionOutcome::PreSubmitFailure);
-    world.script_next_action(claim_failed.clone(), ActionOutcome::PreSubmitFailure);
+    let succeeded_game = ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate())
+        .provable_for_resolution();
+    let failed = ActionTarget::Resolve(failed_game.target());
+    let succeeded = ActionTarget::Resolve(succeeded_game.target());
+    let succeeded_address = succeeded_game.address;
+    world.add_game(failed_game);
+    world.add_game(succeeded_game);
+    world.set_horizons(2, 2);
+    world.script_action(failed.clone(), 1, ActionOutcome::PreSubmitFailure);
     world.script_action_fallback(ActionOutcome::Success);
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
-    let first = scenario.tick().await.unwrap();
+    let result = scenario.tick().await.unwrap();
     scenario
-        .settle(&first.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
+        .settle(&result.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
         .await
         .unwrap();
     assert_eq!(
-        world.action_record(&resolve_failed, 1).unwrap().lifecycle,
+        world.action_record(&failed, 1).unwrap().lifecycle,
         ActionLifecycle::PreSubmitFailed
     );
     assert_eq!(
-        world.action_record(&resolve_succeeded, 1).unwrap().effect,
-        CommittedEffect::Resolved {
-            game: match &resolve_succeeded {
-                ActionTarget::Resolve(target) => target.address,
-                _ => unreachable!(),
-            }
-        }
+        world.action_record(&succeeded, 1).unwrap().effect,
+        CommittedEffect::Resolved { game: succeeded_address }
     );
+}
+
+#[tokio::test]
+async fn failed_claim_does_not_stop_other_games() {
+    let world = ScenarioWorld::new();
+    let failed_game =
+        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(10);
+    let succeeded_game =
+        ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate()).claimable(20);
+    let failed = ActionTarget::ClaimCredit(failed_game.target());
+    let succeeded = ActionTarget::ClaimCredit(succeeded_game.target());
+    world.add_game(failed_game);
+    world.add_game(succeeded_game);
+    world.set_horizons(2, 2);
+    world.script_action(failed.clone(), 1, ActionOutcome::PreSubmitFailure);
+    world.script_action_fallback(ActionOutcome::Success);
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let result = scenario.tick().await.unwrap();
+    scenario
+        .settle(&result.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
+        .await
+        .unwrap();
     assert_eq!(
-        world.action_record(&claim_failed, 1).unwrap().lifecycle,
+        world.action_record(&failed, 1).unwrap().lifecycle,
         ActionLifecycle::PreSubmitFailed
     );
-    let claim_address = match &claim_succeeded {
-        ActionTarget::ClaimCredit(target) => target.address,
-        _ => unreachable!(),
-    };
+    assert_eq!(world.action_record(&succeeded, 1).unwrap().lifecycle, ActionLifecycle::Confirmed);
+}
+
+#[tokio::test]
+async fn claim_success_unlocks_then_pays_out() {
+    let world = ScenarioWorld::new();
+    let game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(20);
+    let target = ActionTarget::ClaimCredit(game.target());
+    let address = game.address;
+    world.add_game(game);
+    world.set_horizons(1, 1);
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let unlock = scenario.tick().await.unwrap();
+    scenario
+        .settle(&unlock.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
+        .await
+        .unwrap();
     assert_eq!(
-        world.action_record(&claim_succeeded, 1).unwrap().effect,
-        CommittedEffect::ClaimUnlocked { game: claim_address, amount: U256::from(20) }
+        world.action_record(&target, 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: address, amount: U256::from(20) }
     );
 
     world.set_latest_l1_time(world.observation().latest_l1.timestamp + 20);
@@ -1652,8 +1674,8 @@ async fn action_failures_do_not_hide_other_targets_or_claim_effects() {
         .await
         .unwrap();
     assert_eq!(
-        world.action_record(&claim_succeeded, 2).unwrap().effect,
-        CommittedEffect::ClaimPaid { game: claim_address, amount: U256::from(20) }
+        world.action_record(&target, 2).unwrap().effect,
+        CommittedEffect::ClaimPaid { game: address, amount: U256::from(20) }
     );
 }
 
