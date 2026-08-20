@@ -50,10 +50,20 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
     .execute(state)
     .await?;
 
-    // Execute the seal task with the payload ID from the build
-    SealTask::new(engine, cfg, payload_id, attributes, is_attributes_derived, None)
-        .execute(state)
-        .await?;
+    // Execute the seal task with the payload ID from the build. The seal is atomic with the
+    // build above: both run inside the same engine task, so the unsafe head cannot move in
+    // between.
+    SealTask::new(
+        engine,
+        cfg,
+        payload_id,
+        attributes,
+        is_attributes_derived,
+        /* is_atomic_with_build */ true,
+        None,
+    )
+    .execute(state)
+    .await?;
 
     Ok(())
 }

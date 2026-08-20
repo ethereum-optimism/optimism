@@ -39,6 +39,12 @@ pub struct SealTask<EngineClient_: EngineClient> {
     pub attributes: OpAttributesWithParent,
     /// Whether or not the payload was derived, or created by the sequencer.
     pub is_attributes_derived: bool,
+    /// Whether this seal runs in the same engine task as the build that produced `payload_id`.
+    ///
+    /// When true, no other task can have advanced the unsafe head since the build started, so
+    /// the unsafe-head staleness check is skipped: a derivation-driven reorg legitimately seals
+    /// a payload whose parent differs from the current unsafe head.
+    pub is_atomic_with_build: bool,
     /// An optional sender to convey success/failure result of the built
     /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
     /// or the [`SealTaskError`] that occurred during processing.
@@ -266,9 +272,14 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
         let unsafe_block_info = state.sync_state.unsafe_head().block_info;
         let parent_block_info = self.attributes.parent.block_info;
 
-        let res = if unsafe_block_info.hash != parent_block_info.hash ||
-            unsafe_block_info.number != parent_block_info.number
-        {
+        // A seal detached from its build (enqueued as a separate task) may observe an unsafe
+        // head that moved past the build parent, invalidating the built payload. A seal atomic
+        // with its build cannot race, so the mismatch there is an expected reorg, not staleness.
+        let build_is_stale = !self.is_atomic_with_build &&
+            (unsafe_block_info.hash != parent_block_info.hash ||
+                unsafe_block_info.number != parent_block_info.number);
+
+        let res = if build_is_stale {
             info!(
                 target: "engine",
                 unsafe_block_info = ?unsafe_block_info,

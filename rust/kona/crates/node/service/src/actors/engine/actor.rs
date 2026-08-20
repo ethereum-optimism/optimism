@@ -293,6 +293,9 @@ where
                     attributes,
                     // The payload is not derived in this case.
                     false,
+                    // The build ran as a separate task, so the unsafe head may have moved
+                    // since it started.
+                    false,
                     Some(result_tx),
                 )));
                 self.engine.enqueue(task);
