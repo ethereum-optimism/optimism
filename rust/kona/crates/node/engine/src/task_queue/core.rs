@@ -22,7 +22,7 @@ use tokio::sync::watch::Sender;
 /// forkchoice update. A small ceiling still absorbs a transient execution-layer hiccup, and then
 /// returns the error to the caller — the only party that can supply different heads or fall back
 /// to the walkback.
-const RESET_TO_MAX_ATTEMPTS: usize = 3;
+pub(super) const RESET_TO_MAX_ATTEMPTS: usize = 3;
 
 /// The [`Engine`] task queue.
 ///
@@ -158,11 +158,16 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// pick a *different* block than the one the caller means. `reset_to` therefore applies
     /// `target` verbatim.
     ///
-    /// The cross-safe head is not part of [`L2ForkchoiceState`] and no promotion is minted here,
-    /// so a reset never moves the cross-safe head forward. A *rewinding* target is held in order
-    /// by the state transition itself — [`EngineSyncState::apply_update`] holds the cross-safe
-    /// head down to a rewound local-safe head — so there is deliberately no clamp here; a second
-    /// one would just be another opinion about the same invariant.
+    /// The cross-safe head is not part of [`L2ForkchoiceState`] and this method mints no
+    /// promotion, so under [`CrossSafeSource::Promoted`] — the interop engine, where cross-safe is
+    /// a head in its own right — a reset cannot move it forward. Under
+    /// [`CrossSafeSource::LocalSafe`] cross-safe *is* local-safe, so it follows the reset through
+    /// the trivial promotion [`EngineSyncState::apply_update`] mints; there is no separate head to
+    /// hold back.
+    ///
+    /// A *rewinding* target is held in order by that same state transition, which holds the
+    /// cross-safe head down to a rewound local-safe head, so there is deliberately no clamp here;
+    /// a second one would just be another opinion about the same invariant.
     ///
     /// [`EngineSyncState::apply_update`]: crate::EngineSyncState::apply_update
     ///

@@ -4,6 +4,7 @@
 //! tests are about proving that difference is real: that `reset_to` never reaches for the RPC
 //! walkback, and that `reset` still does.
 
+use super::core::RESET_TO_MAX_ATTEMPTS;
 use crate::{
     Engine, EngineResetError, EngineState, L2ForkchoiceState,
     test_utils::{MockEngineClient, TestEngineStateBuilder, test_engine_client_builder},
@@ -98,8 +99,9 @@ async fn reset_to_skips_the_walkback_and_applies_the_given_heads() {
     assert_eq!(fcu.finalized_block_hash, genesis.block_info.hash);
 }
 
-/// A reset carries no cross-safe promotion, so it cannot move the cross-safe head forward — even
-/// when the heads it installs run well ahead of where cross-safe sits.
+/// A reset mints no cross-safe promotion, so on an interop engine — where cross-safe is a head in
+/// its own right — it cannot move that head forward, even when the heads it installs run well
+/// ahead of where cross-safe sits. (Standalone, cross-safe *is* local-safe and follows it.)
 #[tokio::test]
 async fn reset_to_does_not_move_the_cross_safe_head_forward() {
     let cfg = Arc::new(RollupConfig::default());
@@ -185,6 +187,43 @@ async fn rewinding_reset_leaves_the_heads_ordered() {
     assert_eq!(
         fcu.safe_block_hash, b1.block_info.hash,
         "the forkchoice safe label must name a block at or behind the rewound head"
+    );
+}
+
+/// The retry ceiling is the deliberate difference from [`Engine::reset`]'s unbounded loop: with
+/// the heads fixed, every attempt puts the identical forkchoice update on the wire, so retrying
+/// past the ceiling could only spin.
+#[tokio::test]
+async fn reset_to_gives_up_after_a_bounded_number_of_attempts() {
+    let cfg = Arc::new(RollupConfig::default());
+    // Every forkchoice update comes back with a status the engine treats as a temporary failure,
+    // so the retry path is taken on each attempt and never succeeds.
+    let client = Arc::new(
+        test_engine_client_builder()
+            .with_config(cfg.clone())
+            .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(PayloadStatus::new(
+                PayloadStatusEnum::Invalid { validation_error: String::new() },
+                None,
+            )))
+            .build(),
+    );
+    let (genesis, b1, b2) = (block(0), block(1), block(2));
+
+    let mut targeted = engine(TestEngineStateBuilder::new().build());
+    let target = L2ForkchoiceState { un_safe: b2, local_safe: b1, finalized: genesis };
+    let err = targeted
+        .reset_to(client.clone(), cfg, target)
+        .await
+        .expect_err("a forkchoice update that never succeeds must surface as an error");
+
+    assert!(
+        matches!(err, EngineResetError::Forkchoice(_)),
+        "the caller needs the forkchoice error back, not a sync-start error: {err:?}"
+    );
+    assert_eq!(
+        client.fork_choice_states().await.len(),
+        RESET_TO_MAX_ATTEMPTS,
+        "reset_to must stop at its ceiling rather than resend the same heads forever"
     );
 }
 
