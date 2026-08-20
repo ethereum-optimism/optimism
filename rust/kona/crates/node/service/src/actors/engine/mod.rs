@@ -3,6 +3,9 @@
 mod actor;
 pub use actor::{EngineActor, EngineActorRequest};
 
+#[cfg(test)]
+mod actor_test;
+
 mod client;
 pub use client::{EngineDerivationClient, QueuedEngineDerivationClient};
 

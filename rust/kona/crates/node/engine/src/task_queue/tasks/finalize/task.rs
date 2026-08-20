@@ -32,9 +32,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for FinalizeTask<EngineClient_> 
     async fn execute(&self, state: &mut EngineState) -> Result<(), FinalizeTaskError> {
         let block_number = self.block_id.number();
 
-        // Sanity check that the block that is being finalized is at least safe.
-        if state.sync_state.safe_head().block_info.number < block_number {
-            return Err(FinalizeTaskError::BlockNotSafe);
+        // Sanity check that the block that is being finalized is at least cross-safe: finality is
+        // clamped at or below the cross-safe head.
+        if state.sync_state.cross_safe_head().block_info.number < block_number {
+            return Err(FinalizeTaskError::BlockNotCrossSafe);
         }
 
         // Look up by hash when the caller pinned a specific hash (delegated polling supplies

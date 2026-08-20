@@ -82,7 +82,10 @@ where
         // first attributes are produced. All batches at and before the safe head will be
         // dropped, so the first payload will always be the disputed one.
         loop {
-            match self.pipeline.step(self.derivation_state_machine.last_confirmed_safe_head()).await
+            match self
+                .pipeline
+                .step(self.derivation_state_machine.last_confirmed_local_safe_head())
+                .await
             {
                 StepResult::PreparedAttributes => { /* continue; attributes will be sent off. */ }
                 StepResult::AdvancedOrigin => {
@@ -115,7 +118,7 @@ where
                                     .signal(Signal::Activation(ActivationSignal {
                                         l2_safe_head: self
                                             .derivation_state_machine
-                                            .last_confirmed_safe_head(),
+                                            .last_confirmed_local_safe_head(),
                                     }))
                                     .await?;
                             } else {
@@ -180,17 +183,17 @@ where
 
                 self.attempt_derivation().await?;
             }
-            DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
-                info!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
+            DerivationActorRequest::ProcessEngineLocalSafeHeadUpdateRequest(local_safe_head) => {
+                info!(target: "derivation", local_safe_head = ?*local_safe_head, "Received local-safe head from engine.");
                 self.derivation_state_machine
-                    .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head))?;
+                    .update(&DerivationStateUpdate::NewAttributesConfirmed(local_safe_head))?;
 
                 self.attempt_derivation().await?;
             }
-            DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
+            DerivationActorRequest::ProcessEngineSyncCompletionRequest(local_safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
                 self.derivation_state_machine
-                    .update(&DerivationStateUpdate::ELSyncCompleted(safe_head))?;
+                    .update(&DerivationStateUpdate::ELSyncCompleted(local_safe_head))?;
 
                 self.attempt_derivation().await?;
             }
@@ -232,7 +235,7 @@ where
 
         // Send payload attributes out for processing.
         self.engine_client
-            .send_safe_l2_signal(payload_attributes.into())
+            .send_local_safe_l2_signal(payload_attributes.into())
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 

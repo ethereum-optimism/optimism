@@ -63,7 +63,7 @@ The engine uses a priority-based task queue (a binary heap ordered by the `Engin
 1. **Seal** - Seals blocks that have finished building (sequencer mode)
 2. **Build** - Builds new blocks (sequencer mode)
 3. **Insert** - Inserts unsafe blocks from gossip
-4. **Consolidate** - Advances safe chain via derivation
+4. **Consolidate** - Advances the local-safe chain via derivation
 5. **Finalize** - Finalizes L2 blocks
 
 Forkchoice updates are not a standalone queue entry: the `SynchronizeTask` runs as part of the other tasks whenever the forkchoice state needs to move.
@@ -143,14 +143,14 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     rollup_config: Arc<RollupConfig>,
     /// The network payload envelope.
     envelope: OpExecutionPayloadEnvelope,
-    /// If the payload is safe this is true.
-    is_payload_safe: bool,
+    /// If the payload is local-safe this is true.
+    is_payload_local_safe: bool,
 }
 ```
 
 #### ConsolidateTask
 
-Advances the safe chain through derivation:
+Advances the local-safe chain through derivation:
 
 ```rust
 pub struct ConsolidateTask<EngineClient_: EngineClient> {
@@ -197,7 +197,7 @@ pub struct EngineState {
 }
 ```
 
-The unsafe, safe, and finalized heads live in the nested `EngineSyncState`. State updates are communicated through watch channels, enabling reactive programming patterns across the system.
+The unsafe, local-safe, cross-safe, and finalized heads live in the nested `EngineSyncState`. The forkchoice `safeBlockHash` is the cross-safe head, and it moves only through `EngineSyncState::apply_cross_safe_promotion`: every other head writer (insert, consolidation, engine reset) advances local-safe only. Standalone kona-node has no cross-chain verifier, so its engine mints the trivial promotion from each local-safe advance and local-safe and cross-safe are always equal. State updates are communicated through watch channels, enabling reactive programming patterns across the system.
 
 ## Integration with kona-node
 

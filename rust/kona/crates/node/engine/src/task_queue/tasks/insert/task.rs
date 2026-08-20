@@ -21,9 +21,9 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     rollup_config: Arc<RollupConfig>,
     /// The complete execution payload envelope.
     payload: OpExecutionPayloadEnvelope,
-    /// If the payload is safe this is true.
-    /// A payload is safe if it is derived from a safe block.
-    is_payload_safe: bool,
+    /// If the payload is local-safe this is true.
+    /// A payload is local-safe if it was derived from L1, rather than received over gossip.
+    is_payload_local_safe: bool,
 }
 
 impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
@@ -34,7 +34,7 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
         payload: OpExecutionPayloadEnvelope,
         is_attributes_derived: bool,
     ) -> Self {
-        Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived }
+        Self { client, rollup_config, payload, is_payload_local_safe: is_attributes_derived }
     }
 
     /// Checks the response of the `engine_newPayload` call.
@@ -97,8 +97,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
             self.rollup_config.clone(),
             EngineSyncStateUpdate {
                 unsafe_head: Some(new_unsafe_ref),
-                local_safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
-                safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
+                local_safe_head: self.is_payload_local_safe.then_some(new_unsafe_ref),
                 ..Default::default()
             },
         )

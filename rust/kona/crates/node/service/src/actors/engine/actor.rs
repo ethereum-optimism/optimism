@@ -19,8 +19,9 @@ use tokio::sync::{mpsc, watch};
 pub enum EngineActorRequest {
     /// Request to start building a block.
     Build(Box<BuildRequest>),
-    /// Request to process a Safe signal, which can be derived attributes or delegated block info.
-    ProcessSafeL2Signal(ConsolidateInput),
+    /// Request to process a local-safe signal, which can be derived attributes or delegated block
+    /// info.
+    ProcessLocalSafeL2Signal(ConsolidateInput),
     /// Request to process the finalized L2 block identified by the provided [`FinalizeBlockId`].
     ProcessFinalizedL2Block(Box<FinalizeBlockId>),
     /// Request to process a received unsafe L2 block.
@@ -44,8 +45,8 @@ where
     derivation_client: DerivationClient,
     /// Whether the EL sync is complete. This should only ever go from false to true.
     el_sync_complete: bool,
-    /// The last safe head update sent.
-    last_safe_head_sent: L2BlockInfo,
+    /// The last local-safe head update sent to the derivation actor.
+    last_local_safe_head_sent: L2BlockInfo,
     /// A channel to use to relay the current unsafe head.
     /// ## Note
     /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
@@ -81,7 +82,7 @@ where
             derivation_client,
             el_sync_complete: false,
             engine,
-            last_safe_head_sent: L2BlockInfo::default(),
+            last_local_safe_head_sent: L2BlockInfo::default(),
             rollup: config,
             unsafe_head_tx,
             inbound_request_rx,
@@ -90,7 +91,8 @@ where
 
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
     async fn reset(&mut self) -> Result<(), EngineError> {
-        // Reset the engine.
+        // Reset the engine. Resets re-derive local safety only; the cross-safe head is not
+        // touched.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
 
         // Signal the derivation actor to reset.
@@ -103,7 +105,7 @@ where
             }
         }
 
-        self.send_derivation_actor_safe_head_if_updated().await?;
+        self.send_derivation_actor_local_safe_head_if_updated().await?;
 
         Ok(())
     }
@@ -147,7 +149,7 @@ where
             }
         }
 
-        self.send_derivation_actor_safe_head_if_updated().await?;
+        self.send_derivation_actor_local_safe_head_if_updated().await?;
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
             self.mark_el_sync_complete_and_notify_derivation_actor().await?;
@@ -171,7 +173,7 @@ where
         }
 
         self.derivation_client
-            .notify_sync_completed(self.engine.state().sync_state.safe_head())
+            .notify_sync_completed(self.engine.state().sync_state.local_safe_head())
             .await
             .map(|_| Ok(()))
             .map_err(|e| {
@@ -180,22 +182,31 @@ where
             })?
     }
 
-    /// Attempts to send the [`crate::DerivationActor`] the safe head if updated.
-    async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
-        let engine_safe_head = self.engine.state().sync_state.safe_head();
-        if engine_safe_head == self.last_safe_head_sent {
-            info!(target: "engine", safe_head = ?engine_safe_head, "Safe head unchanged");
+    /// Attempts to send the [`crate::DerivationActor`] the local-safe head if updated.
+    ///
+    /// This is the depth-1 lockstep confirmation that unblocks derivation's next set of payload
+    /// attributes, so it must be driven by local-safe. Driving it from cross-safe deadlocks under
+    /// interop: derivation would wait on a promotion that waits on every chain's derivation.
+    async fn send_derivation_actor_local_safe_head_if_updated(
+        &mut self,
+    ) -> Result<(), EngineError> {
+        let engine_local_safe_head = self.engine.state().sync_state.local_safe_head();
+        if engine_local_safe_head == self.last_local_safe_head_sent {
+            info!(target: "engine", local_safe_head = ?engine_local_safe_head, "Local-safe head unchanged");
             // This was already sent, so do not send it.
             return Ok(());
         }
 
-        self.derivation_client.send_new_engine_safe_head(engine_safe_head).await.map_err(|e| {
-            error!(target: "engine", ?e, "Failed to send new engine safe head");
-            EngineError::ChannelClosed
-        })?;
+        self.derivation_client
+            .send_new_engine_local_safe_head(engine_local_safe_head)
+            .await
+            .map_err(|e| {
+                error!(target: "engine", ?e, "Failed to send new engine local-safe head");
+                EngineError::ChannelClosed
+            })?;
 
-        info!(target: "engine", safe_head = ?engine_safe_head, "Attempted L2 Safe Head Update");
-        self.last_safe_head_sent = engine_safe_head;
+        info!(target: "engine", local_safe_head = ?engine_local_safe_head, "Attempted L2 local-safe head update");
+        self.last_local_safe_head_sent = engine_local_safe_head;
 
         Ok(())
     }
@@ -240,11 +251,11 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::ProcessSafeL2Signal(safe_signal) => {
+            EngineActorRequest::ProcessLocalSafeL2Signal(local_safe_signal) => {
                 let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
-                    safe_signal,
+                    local_safe_signal,
                 )));
                 self.engine.enqueue(task);
             }

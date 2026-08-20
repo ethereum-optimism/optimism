@@ -23,7 +23,7 @@ pub trait DerivationEngineClient: Debug + Send + Sync {
     /// by [`ConsolidateInput`].
     ///
     /// Note: This does not wait for the engine to process it.
-    async fn send_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()>;
+    async fn send_local_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()>;
 }
 
 /// Client to use to send messages to the Engine Actor's inbound channel.
@@ -64,10 +64,10 @@ impl DerivationEngineClient for QueuedDerivationEngineClient {
         Ok(())
     }
 
-    async fn send_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()> {
+    async fn send_local_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()> {
         trace!(target: "derivation", ?signal, "Sending safe L2 signal info to engine.");
         self.engine_actor_request_tx
-            .send(EngineActorRequest::ProcessSafeL2Signal(signal))
+            .send(EngineActorRequest::ProcessLocalSafeL2Signal(signal))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 

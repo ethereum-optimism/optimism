@@ -37,7 +37,7 @@ where
     l1_provider: L1Provider,
 
     /// The engine's L2 safe head, according to updates from the Engine.
-    engine_l2_safe_head: L2BlockInfo,
+    engine_l2_local_safe_head: L2BlockInfo,
     /// Whether the engine sync has completed. This will only ever go from false -> true.
     has_engine_sync_completed: bool,
     /// Ticker driving periodic polls of the derivation delegate provider.
@@ -66,7 +66,7 @@ where
             engine_client,
             derivation_delegate_provider,
             l1_provider,
-            engine_l2_safe_head: L2BlockInfo::default(),
+            engine_l2_local_safe_head: L2BlockInfo::default(),
             has_engine_sync_completed: false,
             delegated_derivation_ticker,
         }
@@ -185,7 +185,7 @@ where
         }
 
         self.engine_client
-            .send_safe_l2_signal(sync_status.safe_l2.into())
+            .send_local_safe_l2_signal(sync_status.safe_l2.into())
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 
@@ -214,13 +214,13 @@ where
         request_type: DerivationActorRequest,
     ) -> Result<(), DerivationError> {
         match request_type {
-            DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
-                debug!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
-                self.engine_l2_safe_head = *safe_head;
+            DerivationActorRequest::ProcessEngineLocalSafeHeadUpdateRequest(local_safe_head) => {
+                debug!(target: "derivation", local_safe_head = ?*local_safe_head, "Received local-safe head from engine.");
+                self.engine_l2_local_safe_head = *local_safe_head;
             }
             DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
-                self.engine_l2_safe_head = *safe_head;
+                self.engine_l2_local_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }
             DerivationActorRequest::ProcessEngineSignalRequest(_) |

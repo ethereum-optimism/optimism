@@ -2,10 +2,10 @@
 //!
 //! [`Engine`]: crate::Engine
 
-use super::{BuildTask, ConsolidateTask, FinalizeTask, InsertTask};
+use super::{BuildTask, ConsolidateTask, FinalizeTask, InsertTask, PromoteCrossSafeTask};
 use crate::{
     BuildTaskError, ConsolidateTaskError, EngineClient, EngineState, FinalizeTaskError,
-    InsertTaskError,
+    InsertTaskError, PromoteCrossSafeTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -74,6 +74,9 @@ pub enum EngineTaskErrors {
     /// An error that occurred while finalizing an L2 block.
     #[error(transparent)]
     Finalize(#[from] FinalizeTaskError),
+    /// An error that occurred while promoting the cross-safe head.
+    #[error(transparent)]
+    PromoteCrossSafe(#[from] PromoteCrossSafeTaskError),
 }
 
 impl EngineTaskError for EngineTaskErrors {
@@ -84,6 +87,7 @@ impl EngineTaskError for EngineTaskErrors {
             Self::Seal(inner) => inner.severity(),
             Self::Consolidate(inner) => inner.severity(),
             Self::Finalize(inner) => inner.severity(),
+            Self::PromoteCrossSafe(inner) => inner.severity(),
         }
     }
 }
@@ -105,6 +109,8 @@ pub enum EngineTask<EngineClient_: EngineClient> {
     Consolidate(Box<ConsolidateTask<EngineClient_>>),
     /// Finalizes an L2 block
     Finalize(Box<FinalizeTask<EngineClient_>>),
+    /// Promotes the cross-safe head, moving the forkchoice `safeBlockHash`.
+    PromoteCrossSafe(Box<PromoteCrossSafeTask<EngineClient_>>),
 }
 
 impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
@@ -125,6 +131,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
             Self::Seal(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
+            Self::PromoteCrossSafe(task) => task.execute(state).await?,
             Self::Build(task) => {
                 task.execute(state).await?;
             }
@@ -140,6 +147,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
             Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
             Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
             Self::Finalize(_) => crate::Metrics::FINALIZE_TASK_LABEL,
+            Self::PromoteCrossSafe(_) => crate::Metrics::PROMOTE_CROSS_SAFE_TASK_LABEL,
         }
     }
 }
@@ -152,7 +160,8 @@ impl<EngineClient_: EngineClient> PartialEq for EngineTask<EngineClient_> {
                 (Self::Build(_), Self::Build(_)) |
                 (Self::Seal(_), Self::Seal(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
-                (Self::Finalize(_), Self::Finalize(_))
+                (Self::Finalize(_), Self::Finalize(_)) |
+                (Self::PromoteCrossSafe(_), Self::PromoteCrossSafe(_))
         )
     }
 }
@@ -167,7 +176,8 @@ impl<EngineClient_: EngineClient> PartialOrd for EngineTask<EngineClient_> {
 
 impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Order (descending): BuildBlock -> InsertUnsafe -> Consolidate -> Finalize
+        // Order (descending): BuildBlock -> InsertUnsafe -> Consolidate -> PromoteCrossSafe ->
+        // Finalize
         //
         // https://specs.optimism.io/protocol/derivation.html#forkchoice-synchronization
         //
@@ -175,8 +185,8 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
         //   sequencer. BuildTask handles forkchoice updates automatically.
         // - InsertUnsafe tasks are prioritized over Consolidate tasks, to ensure that unsafe block
         //   gossip is imported promptly.
-        // - Consolidate tasks are prioritized over Finalize tasks, as they advance the safe chain
-        //   via derivation.
+        // - Consolidate tasks are prioritized over PromoteCrossSafe tasks, as they advance the
+        //   local-safe chain via derivation, which is what a promotion is about to ratify.
         // - Finalize tasks have the lowest priority, as they only update finalized status.
         match (self, other) {
             // Same variant cases
@@ -184,6 +194,7 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
             (Self::Consolidate(_), Self::Consolidate(_)) |
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
+            (Self::PromoteCrossSafe(_), Self::PromoteCrossSafe(_)) |
             (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
 
             // SealBlock tasks are prioritized over all others
@@ -198,9 +209,13 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
             (Self::Insert(_), _) => Ordering::Greater,
             (_, Self::Insert(_)) => Ordering::Less,
 
-            // Consolidate tasks are prioritized over Finalize tasks
+            // Consolidate tasks are prioritized over PromoteCrossSafe and Finalize tasks
             (Self::Consolidate(_), _) => Ordering::Greater,
             (_, Self::Consolidate(_)) => Ordering::Less,
+
+            // PromoteCrossSafe tasks are prioritized over Finalize tasks
+            (Self::PromoteCrossSafe(_), _) => Ordering::Greater,
+            (_, Self::PromoteCrossSafe(_)) => Ordering::Less,
         }
     }
 }

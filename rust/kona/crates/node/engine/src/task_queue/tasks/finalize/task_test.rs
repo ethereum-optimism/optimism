@@ -55,9 +55,10 @@ async fn finalize_task_by_hash_errors_when_engine_lacks_hash() {
         .with_l2_block(BlockId::Number(N.into()), block)
         .build();
 
-    // Place the safe head at N so the sanity check (`safe_head.number >= block_id.number`) passes
-    // and `execute()` reaches the lookup we care about.
-    let safe_head = L2BlockInfo {
+    // Place the cross-safe head at N so the sanity check
+    // (`cross_safe_head.number >= block_id.number`) passes and `execute()` reaches the lookup we
+    // care about.
+    let cross_safe_head = L2BlockInfo {
         block_info: BlockInfo {
             number: N,
             hash: hash_a,
@@ -67,8 +68,10 @@ async fn finalize_task_by_hash_errors_when_engine_lacks_hash() {
         l1_origin: BlockNumHash::default(),
         seq_num: 0,
     };
-    let mut state =
-        TestEngineStateBuilder::new().with_unsafe_head(safe_head).with_safe_head(safe_head).build();
+    let mut state = TestEngineStateBuilder::new()
+        .with_unsafe_head(cross_safe_head)
+        .with_cross_safe_head(cross_safe_head)
+        .build();
 
     let task = FinalizeTask::new(
         Arc::new(engine_client),
