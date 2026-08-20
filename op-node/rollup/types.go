@@ -444,6 +444,9 @@ func (cfg *Config) ProbablyMissingPectraBlobSchedule() bool {
 // If the legacy values are set, they are copied to the new location. If both are set, they are check for consistency.
 func validateAltDAConfig(cfg *Config) error {
 	if cfg.AltDAConfig != nil {
+		if cfg.AltDAConfig.CommitmentType == altda.GenericCommitmentString && cfg.AltDAConfig.MaxInputSize != nil {
+			return errors.New("altDA max input size must be omitted for generic commitments")
+		}
 		if cfg.AltDAConfig.MaxInputSize != nil && *cfg.AltDAConfig.MaxInputSize == 0 {
 			return errors.New("altDA max input size must be greater than zero")
 		}

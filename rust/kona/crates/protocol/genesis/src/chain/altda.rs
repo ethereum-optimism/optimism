@@ -21,6 +21,7 @@ pub struct AltDAConfig {
     /// `AltDA` commitment type
     pub da_commitment_type: Option<String>,
     /// Maximum input size for Keccak commitments.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub da_max_input_size: Option<u64>,
 }
 
@@ -69,5 +70,11 @@ mod tests {
 
         let err = serde_json::from_str::<AltDAConfig>(raw).unwrap_err();
         assert_eq!(err.classify(), serde_json::error::Category::Data);
+    }
+
+    #[test]
+    fn test_altda_serialize_omits_unset_max_input_size() {
+        let serialized = serde_json::to_value(AltDAConfig::default()).unwrap();
+        assert!(serialized.get("da_max_input_size").is_none());
     }
 }

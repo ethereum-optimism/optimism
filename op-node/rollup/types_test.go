@@ -84,13 +84,21 @@ func TestAltDAConfigMaxInputSize(t *testing.T) {
 	require.Equal(t, custom, (&AltDAConfig{MaxInputSize: &custom}).MaxInputSizeOrDefault())
 
 	cfg := randConfig()
-	zero := uint64(0)
 	cfg.AltDAConfig = &AltDAConfig{
 		DAChallengeAddress: common.Address{1},
 		CommitmentType:     altda.KeccakCommitmentString,
-		MaxInputSize:       &zero,
+		MaxInputSize:       ptr.Zero64,
 	}
 	require.EqualError(t, cfg.Check(), "altDA max input size must be greater than zero")
+
+	cfg.AltDAConfig = &AltDAConfig{
+		CommitmentType: altda.GenericCommitmentString,
+		MaxInputSize:   &custom,
+	}
+	require.EqualError(t, cfg.Check(), "altDA max input size must be omitted for generic commitments")
+
+	cfg.AltDAConfig.MaxInputSize = nil
+	require.NoError(t, cfg.Check())
 }
 
 // TestConfigChainOpConfigJSONWireFormat pins the on-the-wire serialization of the
