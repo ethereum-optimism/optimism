@@ -161,6 +161,12 @@ func (cl *L2CLNode) headBlockRef(lvl safety.Level) (eth.L2BlockRef, error) {
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
+	return syncStatusHead(syncStatus, lvl)
+}
+
+// syncStatusHead picks the chain head of the given safety level out of a sync status.
+// Levels that do not label a chain head are rejected.
+func syncStatusHead(syncStatus *eth.SyncStatus, lvl safety.Level) (eth.L2BlockRef, error) {
 	switch lvl {
 	case safety.Finalized:
 		return syncStatus.FinalizedL2, nil
@@ -168,8 +174,6 @@ func (cl *L2CLNode) headBlockRef(lvl safety.Level) (eth.L2BlockRef, error) {
 		return syncStatus.SafeL2, nil
 	case safety.LocalSafe:
 		return syncStatus.LocalSafeL2, nil
-	case safety.CrossUnsafe:
-		return syncStatus.CrossUnsafeL2, nil
 	case safety.LocalUnsafe:
 		return syncStatus.UnsafeL2, nil
 	default:
