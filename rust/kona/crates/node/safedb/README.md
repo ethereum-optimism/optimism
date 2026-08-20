@@ -14,6 +14,9 @@ key   (9 bytes):  0x00 | L1 block number (big-endian u64)
 value (72 bytes): L1 block hash (32) | L2 block hash (32) | L2 block number (big-endian u64)
 ```
 
+Correctness depends on the caller: updates must arrive in ascending L1 order and none may be
+missed. See [`SafeDb::safe_head_updated`].
+
 The layout carries no compatibility guarantee with any other implementation and is free to change.
 
 The crate exposes:
@@ -25,5 +28,6 @@ The crate exposes:
   trait avoid the rocksdb/libclang build dependency).
 
 [`SafeDb`]: crate::SafeDb
+[`SafeDb::safe_head_updated`]: crate::SafeDb::safe_head_updated
 [`DisabledDatabase`]: crate::DisabledDatabase
 [`rocksdb`]: https://docs.rs/rocksdb

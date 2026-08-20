@@ -27,6 +27,11 @@ pub trait SafeDb {
     /// Records that `safe_head` became safe as of `l1_head`.
     ///
     /// `l1_head` is the first L1 block containing all data required to derive `safe_head`.
+    ///
+    /// Callers must deliver updates in ascending L1 order and must not miss any update. Only
+    /// observed advances are stored, so a missed update leaves a gap that queries cannot detect:
+    /// [`SafeDb::safe_head_at_l1`] then answers with the last safe head before the gap. Derivation
+    /// must therefore resume from the L1 block of [`SafeDb::last_entry`].
     fn safe_head_updated(
         &self,
         safe_head: L2BlockInfo,
