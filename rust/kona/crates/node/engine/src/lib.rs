@@ -28,8 +28,10 @@
 //! - **Task Queue** - Core engine task queue and execution logic via [`Engine`]
 //! - **Client** - HTTP client for Engine API communication via [`EngineClient`]
 //! - **State** - Engine state management and synchronization via [`EngineState`]. The cross-safe
-//!   head is the forkchoice `safeBlockHash` and moves only through [`CrossSafePromotion`]s minted
-//!   by an engine's unique [`CrossSafePromoter`]; every other head writer is local-safe-only.
+//!   head is the forkchoice `safeBlockHash` and advances only through [`CrossSafePromotion`]s
+//!   minted by an engine's unique [`CrossSafePromoter`]; every other head writer is
+//!   local-safe-only, and can move the cross-safe head only downwards, by rewinding the local-safe
+//!   head it is held at.
 //! - **Versions** - Engine API version selection via [`EngineForkchoiceVersion`],
 //!   [`EngineNewPayloadVersion`], [`EngineGetPayloadVersion`]
 //! - **Attributes** - Payload attribute validation via [`AttributesMatch`]

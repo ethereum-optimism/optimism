@@ -256,3 +256,48 @@ async fn an_externally_promoted_engine_still_emits_its_initial_forkchoice_update
     );
     assert!(state.forkchoice_emitted, "the initial emission must be recorded");
 }
+
+#[tokio::test]
+async fn a_reset_below_the_cross_safe_head_holds_cross_safe_at_the_walkback_point() {
+    let cfg = Arc::new(RollupConfig::default());
+    let client = client(cfg.clone());
+    let (genesis, b2, b5) = (block(0), block(2), block(5));
+    let (mut state, promoter) = externally_promoted(genesis);
+
+    advance_local_safe(client.clone(), cfg.clone(), &mut state, b5).await;
+    PromoteCrossSafeTask::new(client.clone(), cfg.clone(), promoter.promote(b5))
+        .execute(&mut state)
+        .await
+        .unwrap();
+    assert_eq!(state.sync_state.cross_safe_head(), b5);
+
+    // The update `Engine::reset` applies: `find_starting_forkchoice` walks the local-safe head
+    // back to the last block a full sequencing window behind the unsafe head, so it lands below
+    // the cross-safe head an external verifier had already promoted. No promotion accompanies the
+    // reset, so nothing but `apply_update` itself can hold the cross-safe head down.
+    SynchronizeTask::new(
+        client.clone(),
+        cfg.clone(),
+        EngineSyncStateUpdate {
+            unsafe_head: Some(b2),
+            local_safe_head: Some(b2),
+            finalized_head: Some(genesis),
+        },
+    )
+    .execute(&mut state)
+    .await
+    .unwrap();
+
+    assert_eq!(
+        state.sync_state.cross_safe_head(),
+        b2,
+        "a rewind below the cross-safe head must hold it at the rewound local-safe head"
+    );
+
+    let fcu = last_fcu(&client.fork_choice_states().await);
+    assert_eq!(fcu.head_block_hash, b2.block_info.hash);
+    assert_eq!(
+        fcu.safe_block_hash, b2.block_info.hash,
+        "the forkchoice update must never report safe ahead of head"
+    );
+}

@@ -22,8 +22,9 @@ use serde::{Deserialize, Serialize};
 ///    here: a single unsafe head.
 /// 2. **Local-safe** - Derived from this chain's L1 data, completed span-batch.
 /// 3. **Cross-safe** - Local-safe *and* cross-verified against the other chains' safe dependencies.
-///    This is the head reported as `safeBlockHash` in the forkchoice update, and it moves only
-///    through [`EngineSyncState::apply_cross_safe_promotion`].
+///    This is the head reported as `safeBlockHash` in the forkchoice update. It *advances* only
+///    through [`EngineSyncState::apply_cross_safe_promotion`]; the only other move it makes is
+///    downwards, when [`EngineSyncState::apply_update`] rewinds the local-safe head below it.
 /// 4. **Finalized** - Derived from finalized L1 data only.
 ///
 /// See the [OP Stack specifications](https://specs.optimism.io) for detailed safety definitions.
@@ -95,6 +96,10 @@ impl EngineSyncState {
     /// head is fed from local-safe (standalone kona-node), a local-safe advance mints the
     /// corresponding trivial promotion here, so the resulting forkchoice update still carries
     /// local-safe == cross-safe in a single call.
+    ///
+    /// A local-safe *rewind* is the one case where this moves the cross-safe head without a
+    /// promotion: it is held at the rewound head by [`Self::hold_cross_safe_at`], since cross-safe
+    /// cannot outrank the local-safe head it is derived from.
     pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
         if let Some(unsafe_head) = sync_state_update.unsafe_head {
             Self::update_block_label_metric(
@@ -115,10 +120,12 @@ impl EngineSyncState {
             );
         }
 
+        let local_safe_head = sync_state_update.local_safe_head.unwrap_or(self.local_safe_head);
+
         let updated = Self {
             unsafe_head: sync_state_update.unsafe_head.unwrap_or(self.unsafe_head),
-            local_safe_head: sync_state_update.local_safe_head.unwrap_or(self.local_safe_head),
-            cross_safe_head: self.cross_safe_head,
+            local_safe_head,
+            cross_safe_head: self.hold_cross_safe_at(local_safe_head),
             finalized_head: sync_state_update.finalized_head.unwrap_or(self.finalized_head),
             cross_safe_source: self.cross_safe_source,
         };
@@ -127,6 +134,56 @@ impl EngineSyncState {
             .local_safe_head
             .and_then(|head| updated.cross_safe_source.trivial_promotion(head))
             .map_or(updated, |promotion| updated.apply_cross_safe_promotion(promotion))
+    }
+
+    /// Returns the cross-safe head held at `local_safe_head`, which the caller is about to install.
+    ///
+    /// [`EngineSyncStateUpdate`] cannot express a cross-safe move, so
+    /// [`Self::apply_update`] carries the cross-safe head through — but the local-safe head it is
+    /// carried past can move *backwards*, and cross-safe is local-safe *and* cross-verified, so it
+    /// cannot outrank it. Two writers rewind local-safe:
+    ///
+    /// - [`Engine::reset`] installs the [`find_starting_forkchoice`] walkback point, deliberately
+    ///   at least a sequencing window behind the unsafe head.
+    /// - `ConsolidateTask::reconcile_to_local_safe_head` installs the injected local-safe block as
+    ///   both the local-safe and the unsafe head.
+    ///
+    /// Neither carries a promotion, and under [`CrossSafeSource::Promoted`] no trivial promotion is
+    /// minted either, so this is the only thing that can hold the cross-safe head down. Left alone
+    /// it would sit above both new heads and [`Self::create_forkchoice_state`] would report
+    /// `safeBlockHash` ahead of `headBlockHash` — the `INVALID_FORK_CHOICE_STATE` rejection that
+    /// costs a full engine reset.
+    ///
+    /// Only the local-safe head is compared. The unsafe head is the local-safe head's own upper
+    /// bound, so a state where it alone drops below cross-safe already violates
+    /// `unsafe >= local-safe`, which no writer produces; guarding it here would clamp at the point
+    /// of damage rather than maintain the invariant at its source.
+    ///
+    /// [`Engine::reset`]: crate::Engine::reset
+    /// [`find_starting_forkchoice`]: crate::find_starting_forkchoice
+    fn hold_cross_safe_at(&self, local_safe_head: L2BlockInfo) -> L2BlockInfo {
+        if self.cross_safe_head.block_info.number <= local_safe_head.block_info.number {
+            return self.cross_safe_head;
+        }
+
+        // Reported rather than warned about: unlike the clamps in
+        // `Self::apply_cross_safe_promotion`, this is not a disagreement with the promotion source.
+        // A reset walkback or a consolidation rewind is ordinary node operation and would fire this
+        // on every interop reset, so a `warn!` here would be noise that devalues the promotion
+        // clamp's warnings — but the cross-safe head moving backwards is a real safety-level
+        // regression, so it belongs in the log at default verbosity rather than behind `debug!`.
+        info!(
+            target: "engine",
+            cross_safe = self.cross_safe_head.block_info.number,
+            local_safe = local_safe_head.block_info.number,
+            "Local-safe head rewound below the cross-safe head; holding cross-safe at local-safe"
+        );
+        Self::update_block_label_metric(
+            Metrics::CROSS_SAFE_BLOCK_LABEL,
+            local_safe_head.block_info.number,
+        );
+
+        local_safe_head
     }
 
     /// Applies a cross-safe promotion. This is the single entry point through which the cross-safe
@@ -194,8 +251,10 @@ impl EngineSyncState {
 
 /// Specifies how to update the sync state of the engine.
 ///
-/// There is deliberately no cross-safe field: the cross-safe head moves only through
+/// There is deliberately no cross-safe field: the cross-safe head advances only through
 /// [`EngineSyncState::apply_cross_safe_promotion`], so an ordinary head writer cannot advance it.
+/// A writer that rewinds the local-safe head does drag it down, because cross-safe cannot outrank
+/// local-safe — see [`EngineSyncState::apply_update`].
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EngineSyncStateUpdate {
     /// Most recent block found on the p2p network

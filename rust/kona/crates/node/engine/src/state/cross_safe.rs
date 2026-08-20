@@ -7,9 +7,10 @@ use kona_protocol::L2BlockInfo;
 /// The cross-safe head is what the engine reports as `safeBlockHash` in every forkchoice update.
 /// It is deliberately *not* a field of [`EngineSyncStateUpdate`]: the ordinary head writers
 /// (payload insert, consolidation, engine reset) advance the local-safe head and cannot express a
-/// cross-safe move at all. The only way to move it is
+/// cross-safe move at all. The only way to *advance* it is
 /// [`EngineSyncState::apply_cross_safe_promotion`], which requires a [`CrossSafePromotion`] — and
-/// that has no public constructor. Outside this crate it can only be minted by the holder of an
+/// that has no public constructor. Those writers can only drag it downwards, by rewinding the
+/// local-safe head it is held at. Outside this crate it can only be minted by the holder of an
 /// engine's unique [`CrossSafePromoter`], so an unverified promotion does not compile.
 ///
 /// [`EngineSyncStateUpdate`]: crate::EngineSyncStateUpdate
