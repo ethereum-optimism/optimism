@@ -169,6 +169,16 @@ func startL2CLForKey(
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
 		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
+	case MixedL2CLKind(SupernodeLokahi):
+		// lokahi is a supernode, not a per-chain CL: it is selected for the multi-chain and
+		// interop presets via DEVSTACK_SUPERNODE_KIND (see ResolveSupernodeKind). Naming it
+		// here would otherwise fall through to op-node and report the run as a lokahi one.
+		t.Require().FailNowf("lokahi is not a single-chain CL",
+			"%s=%s selects the supernode implementation, not the per-chain CL; set %s=%s instead "+
+				"(and %s=%s if this run also wants the Rust single-chain CL)",
+			devstackL2CLKindEnv, SupernodeLokahi, devstackSupernodeKindEnv, SupernodeLokahi,
+			devstackL2CLKindEnv, MixedL2CLKona)
+		return nil // unreachable
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
