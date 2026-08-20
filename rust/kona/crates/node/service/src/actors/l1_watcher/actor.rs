@@ -90,6 +90,44 @@ where
             next_chain: 0,
         }
     }
+
+    /// Reads the L1 view answered by [`L1WatcherQueries::L1State`] from the L1 provider.
+    ///
+    /// Takes the provider rather than `&self` deliberately. `step` is behind `#[async_trait]`, so
+    /// its future must be `Send`, and holding `&Self` across an await would additionally require
+    /// `Self: Sync` and so `BlockStream: Sync` — which the head and finalized streams cannot
+    /// satisfy, being `async_stream` blocks over alloy's `PollerStream`. Borrowing the provider
+    /// alone is enough: `Provider` is itself `Sync`.
+    async fn l1_state(l1_provider: &L1Provider, current_l1: Option<BlockInfo>) -> L1State {
+        let head_l1 = match l1_provider.get_block(BlockId::latest()).await {
+            Ok(block) => block,
+            Err(e) => {
+                warn!(target: "l1_watcher", error = ?e, "failed to query l1 provider for latest head block");
+                None
+            }
+        }
+        .map(|block| block.into_consensus().into());
+
+        let finalized_l1 = match l1_provider.get_block(BlockId::finalized()).await {
+            Ok(block) => block,
+            Err(e) => {
+                warn!(target: "l1_watcher", error = ?e, "failed to query l1 provider for latest finalized block");
+                None
+            }
+        }
+        .map(|block| block.into_consensus().into());
+
+        let safe_l1 = match l1_provider.get_block(BlockId::safe()).await {
+            Ok(block) => block,
+            Err(e) => {
+                warn!(target: "l1_watcher", error = ?e, "failed to query l1 provider for latest safe block");
+                None
+            }
+        }
+        .map(|block| block.into_consensus().into());
+
+        L1State { current_l1, current_l1_finalized: finalized_l1, head_l1, safe_l1, finalized_l1 }
+    }
 }
 
 #[async_trait]
@@ -179,7 +217,9 @@ where
                     }
                     L1WatcherQueries::L1State(sender) => {
                         let current_l1 = *self.latest_head.borrow();
-                        if let Err(e) = sender.send(l1_state(&self.l1_provider, current_l1).await) {
+                        if let Err(e) =
+                            sender.send(Self::l1_state(&self.l1_provider, current_l1).await)
+                        {
                             warn!(target: "l1_watcher", error = ?e, "Failed to send L1 state to the query sender");
                         }
                     }
@@ -193,32 +233,6 @@ where
             }
         }
     }
-}
-
-/// Reads the L1 view answered by [`L1WatcherQueries::L1State`] from the L1 provider.
-async fn l1_state(l1_provider: &impl Provider, current_l1: Option<BlockInfo>) -> L1State {
-    let head_l1 = match l1_provider.get_block(BlockId::latest()).await {
-            Ok(block) => block,
-            Err(e) => {
-                warn!(target: "l1_watcher", error = ?e, "failed to query l1 provider for latest head block");
-                None
-            }}.map(|block| block.into_consensus().into());
-
-    let finalized_l1 = match l1_provider.get_block(BlockId::finalized()).await {
-            Ok(block) => block,
-            Err(e) => {
-                warn!(target: "l1_watcher", error = ?e, "failed to query l1 provider for latest finalized block");
-                None
-            }}.map(|block| block.into_consensus().into());
-
-    let safe_l1 = match l1_provider.get_block(BlockId::safe()).await {
-            Ok(block) => block,
-            Err(e) => {
-                warn!(target: "l1_watcher", error = ?e, "failed to query l1 provider for latest safe block");
-                None
-            }}.map(|block| block.into_consensus().into());
-
-    L1State { current_l1, current_l1_finalized: finalized_l1, head_l1, safe_l1, finalized_l1 }
 }
 
 #[cfg(test)]
