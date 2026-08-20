@@ -92,10 +92,10 @@ there (#22101) is not batcher-facing. Ask what the component does, not just what
 virtual op-nodes, so op-node's follow-source reorg metrics (#22106) belong in the supernode
 notes even though the PR touches no `op-supernode/` path.
 
-**Keep a change to a dormant feature**, but section it. Interop/Lagoon, ZK dispute games
-and super dispute games are not live anywhere, so those changes cannot affect operators
-today however alarming they sound. They belong under a
-`### <Feature> (not yet in production)` heading, not in the Overview.
+**A change to a dormant feature** — interop/Lagoon, ZK dispute games, super dispute games —
+gets one line under a `### <Feature> (not yet in production)` heading if it affects this
+component once the feature activates, and is **cut entirely** if it is a no-op for this
+component and only matters to another consumer of the shared code.
 
 **Keep it anyway** in one case: if pruning would empty the list, keep the most substantial
 refactor and let the Overview say plainly that nothing functional changed —
@@ -115,7 +115,9 @@ git tag --contains <sha-that-introduced-the-bug> | grep '<component>/v'
 ```
 
 Empty output means the bug never reached a release: keep the PR in the list, but do not
-let it set the severity.
+let it set the recommendation — and do not mention it in the note. "Both land in this
+release, so no published version is affected" is a triage conclusion, not something the
+reader needs; it was cut from op-node v1.19.5 on review.
 
 ## Dependency and security bumps
 

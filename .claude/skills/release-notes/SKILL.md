@@ -108,6 +108,11 @@ entries — see "Curating the change list" in `reference/house-style.md`:
   more meaning; drop headings that would be empty, and use a flat list for a short release
 - fold PRs that are one logical change into one entry with all their numbers
 - write each entry so it stands alone, saying what changed and why an operator cares
+- **write impact, never implementation** — the symptom that appears or disappears, the
+  flag/metric/config names, what the reader must do. Not goroutines, event loops, call
+  paths, internal type names, or which PR was stacked on which. Read "Impact, not
+  implementation" in `reference/house-style.md`; it is the correction made most often, and
+  the PR descriptions you just read will pull you the wrong way
 - reference PRs as bare `(#NNNNN)`; no `by @author`
 - mention each PR exactly once
 
@@ -122,9 +127,10 @@ Then apply the proportionality checks from `reference/house-style.md` before hig
 anything:
 
 - **Is the feature live in production?** Interop/Lagoon, ZK dispute games and super dispute
-  games are not. Changes to dormant paths go under a `### <Feature> (not yet in production)`
-  heading with the standard Note paragraph in the Overview — they cannot affect operators
-  today, however alarming the description sounds.
+  games are not. A dormant-path change that is a no-op for this component gets cut; one
+  that will matter when the feature activates gets a line under a
+  `### <Feature> (not yet in production)` heading, with the standard Note paragraph in the
+  Overview. Either way, do not describe an attack the live system cannot suffer.
 - **Would a reader shrug?** New metrics, wrong version strings and rare corner cases are
   bullets, not callouts.
 
