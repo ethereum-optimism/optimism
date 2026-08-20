@@ -77,6 +77,19 @@ This list is a floor, not a ceiling: also run the review agents and review skill
 
 For the remaining pre-PR steps (broad tests, rebase on `develop`, PR guidelines) see [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md#before-every-pr).
 
+## After Pushing to a PR
+
+Pushing is not the end of the task. Watch CI to a terminal state after **every** push — the PR's first one and each follow-up — and fix what your change broke. A red check on your own PR is your work, not the reviewer's.
+
+```bash
+gh pr checks <pr> --watch --fail-fast   # both CircleCI and the GitHub Actions checks
+gh pr checks <pr> --required            # only the checks that gate merge
+```
+
+Merge is gated by the checks the `develop` branch ruleset requires, so individual green jobs do not mean the PR is mergeable — `gh pr checks <pr> --required` enumerates them. `gh pr view <pr> --json mergeable,mergeStateStatus` answers mergeability, not check state: a `BLOCKED` PR with every required check green is usually waiting on the review requirement. If the harness provides a CI-watching skill or agent, use it instead of a bare polling loop.
+
+Before debugging a failure, rule out one your branch inherited from `develop` and check whether the test is a known flake — see [docs/ai/ci-ops.md](docs/ai/ci-ops.md#watching-ci-after-a-push). Never report a PR as green while checks are pending, and never present a flake as a pass: state which checks failed and why.
+
 ## Subdirectory Instructions
 
 Some subdirectories have their own CLAUDE.md with domain-specific conventions. Read the relevant file before working in that area — do not read them all upfront.
