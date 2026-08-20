@@ -29,7 +29,7 @@ pub fn rollup_config_for<E: Debug>(
 
 /// Returns `true` if interop has been active on `config`'s chain for at least one full block at
 /// `timestamp`, i.e. interop is active and `timestamp` is not the activation block.
-pub fn interop_active_for_full_block(config: &RollupConfig, timestamp: u64) -> bool {
+pub(crate) fn interop_active_for_full_block(config: &RollupConfig, timestamp: u64) -> bool {
     config.is_interop_active(timestamp) && !config.is_first_interop_block(timestamp)
 }
 
@@ -87,8 +87,8 @@ pub fn check_message_expiry<E: Debug>(
         .ok_or(MessageGraphError::MessageExpired { initiating_timestamp, executing_timestamp })
 }
 
-/// Same-timestamp cycle check over a whole set of executing messages: runs [`detect_cycles`] once
-/// per distinct executing timestamp present in `messages`.
+/// Same-timestamp cycle check over a whole set of executing messages: runs the crate-private
+/// `detect_cycles` helper once per distinct executing timestamp present in `messages`.
 pub fn check_no_cycles<E: Debug>(
     messages: &[EnrichedExecutingMessage],
 ) -> Result<(), MessageGraphError<E>> {
@@ -190,7 +190,7 @@ fn check_cycles(depends_on: &[Vec<usize>], depended_on_by: &mut [Vec<usize>]) ->
 ///   cross-chain dependency, and must not participate in the same-timestamp cycle graph.
 /// - Intra-chain edges: each EM depends on the previous EM on the same chain.
 /// - Cross-chain edges: each EM depends on `executingMessageBefore(targetChain, targetLogIdx)`.
-pub fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u64) -> Vec<u64> {
+pub(crate) fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u64) -> Vec<u64> {
     // Filter to same-timestamp messages and create nodes.
     let mut nodes = Vec::new();
     // BTreeMap for deterministic iteration order.

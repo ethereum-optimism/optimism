@@ -14,8 +14,7 @@ pub use graph::MessageGraph;
 mod rules;
 pub use rules::{
     check_executing_activation, check_initiating_activation, check_message_expiry,
-    check_message_ordering, check_no_cycles, detect_cycles, interop_active_for_full_block,
-    rollup_config_for,
+    check_message_ordering, check_no_cycles, rollup_config_for,
 };
 
 mod traits;
