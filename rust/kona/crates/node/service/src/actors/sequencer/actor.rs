@@ -93,6 +93,8 @@ pub struct SequencerActor<
     last_seal_duration: Duration,
     /// Whether the one-shot startup work (metrics + initial engine reset) has run.
     started: bool,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    pub(super) chain_id_label: Arc<str>,
 }
 
 impl<
@@ -130,6 +132,7 @@ where
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
     ) -> Self {
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
+        let chain_id_label = Arc::from(rollup_config.l2_chain_id.id().to_string());
         Self {
             admin_api_rx,
             attributes_builder,
@@ -144,6 +147,7 @@ where
             next_payload_to_seal: None,
             last_seal_duration: Duration::from_secs(0),
             started: false,
+            chain_id_label,
         }
     }
 
@@ -187,11 +191,11 @@ where
             )
             .await?;
 
-        update_seal_duration_metrics(seal_request_start.elapsed());
+        update_seal_duration_metrics(seal_request_start.elapsed(), &self.chain_id_label);
 
         let payload_transaction_count =
             unsealed_payload_handle.attributes_with_parent.count_transactions();
-        update_total_transactions_sequenced(payload_transaction_count);
+        update_total_transactions_sequenced(payload_transaction_count, &self.chain_id_label);
 
         // If the conductor is available, commit the payload to it.
         if let Some(conductor) = &self.conductor {
@@ -200,7 +204,10 @@ where
                 error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor");
             }
 
-            update_conductor_commitment_duration_metrics(_conductor_commitment_start.elapsed());
+            update_conductor_commitment_duration_metrics(
+                _conductor_commitment_start.elapsed(),
+                &self.chain_id_label,
+            );
         }
 
         self.unsafe_payload_gossip_client
@@ -237,7 +244,10 @@ where
             return Ok(None);
         };
 
-        update_attributes_build_duration_metrics(attributes_build_start.elapsed());
+        update_attributes_build_duration_metrics(
+            attributes_build_start.elapsed(),
+            &self.chain_id_label,
+        );
 
         // Send the built attributes to the engine to be built.
         let build_request_start = Instant::now();
@@ -245,7 +255,7 @@ where
         let payload_id =
             self.engine_client.start_build_block(attributes_with_parent.clone()).await?;
 
-        update_block_build_duration_metrics(build_request_start.elapsed());
+        update_block_build_duration_metrics(build_request_start.elapsed(), &self.chain_id_label);
 
         Ok(Some(UnsealedPayloadHandle { payload_id, attributes_with_parent }))
     }

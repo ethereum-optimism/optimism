@@ -9,7 +9,10 @@ use alloy_primitives::{Address, B256, Signature};
 use kona_genesis::RollupConfig;
 use libp2p::gossipsub::{IdentTopic, Message, MessageAcceptance, TopicHash};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 use tokio::sync::watch::Receiver;
 
 /// This trait defines the functionality required to process incoming messages
@@ -44,6 +47,11 @@ pub struct BlockHandler {
     /// A map of seen block height to block hash set.
     /// This map is pruned when it contains more than [`Self::SEEN_HASH_CACHE_SIZE`] entries.
     pub seen_hashes: BTreeMap<u64, HashSet<B256>>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached as an [`Arc<str>`] so the gossip hot paths clone a refcount rather than
+    /// re-allocating the label on every emit.
+    pub chain_id_label: Arc<str>,
 }
 
 impl Handler for BlockHandler {
@@ -53,14 +61,14 @@ impl Handler for BlockHandler {
         // before decoding. The decoder would otherwise pre-allocate the declared length (up to
         // roughly 4 GiB) from a tiny frame. This mirrors op-node's gossip topic validator.
         if snappy_decompressed_len_within_bound(&msg.data).is_none() {
-            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "invalid_snappy_length");
+            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "invalid_snappy_length", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             debug!(target: "gossip", len = msg.data.len(), "Rejecting Snappy frame with invalid declared length before decode");
             return (MessageAcceptance::Reject, None);
         }
 
         let Some(version) = self.payload_version(&msg.topic) else {
             // Unreachable in practice because the driver dispatches only known block topics.
-            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "unknown_topic");
+            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "unknown_topic", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             debug!(target: "gossip", topic = ?msg.topic, "Received block with unknown topic");
             return (MessageAcceptance::Reject, None);
         };
@@ -68,14 +76,14 @@ impl Handler for BlockHandler {
         let signed = match SignedGossipPayload::decode_snappy(&msg.data) {
             Ok(signed) => signed,
             Err(err) => {
-                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error");
+                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
                 debug!(target: "gossip", ?err, "Failed to decode signed gossip payload");
                 return (MessageAcceptance::Reject, None);
             }
         };
         let payload_hash = signed.payload_hash();
         #[cfg(feature = "metrics")]
-        kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_TOTAL);
+        kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_TOTAL, crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
 
         // Authenticate the exact envelope bytes before decoding the SSZ payload and transactions.
         if let Err(err) = self.validate_signature(&signed) {
@@ -86,9 +94,9 @@ impl Handler for BlockHandler {
         let envelope = match signed.into_envelope(version) {
             Ok(envelope) => envelope,
             Err(err) => {
-                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error");
+                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
                 #[cfg(feature = "metrics")]
-                kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_block");
+                kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_block", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
                 debug!(target: "gossip", ?err, hash = ?payload_hash, "Failed to decode authenticated execution payload");
                 return (MessageAcceptance::Reject, None);
             }
@@ -125,6 +133,7 @@ impl BlockHandler {
         Self {
             rollup_config,
             signer_recv,
+            chain_id_label: Arc::from(chain_id.to_string()),
             blocks_v1_topic: IdentTopic::new(format!("/optimism/{chain_id}/0/blocks")),
             blocks_v2_topic: IdentTopic::new(format!("/optimism/{chain_id}/1/blocks")),
             blocks_v3_topic: IdentTopic::new(format!("/optimism/{chain_id}/2/blocks")),

@@ -27,18 +27,25 @@ pub struct RollupRpc<EngineRpcClient_> {
     pub engine_client: EngineRpcClient_,
     /// The channel to send [`crate::L1WatcherQueries`]s.
     pub l1_watcher_sender: L1WatcherQuerySender,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    pub chain_id_label: std::sync::Arc<str>,
 }
 
 impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
     /// The identifier for the Metric that tracks rollup RPC calls.
     pub const RPC_IDENT: &'static str = "rollup_rpc";
 
-    /// Constructs a new [`RollupRpc`] given a sender channel.
-    pub const fn new(
+    /// Constructs a new [`RollupRpc`] given a sender channel and the L2 chain ID.
+    pub fn new(
         engine_client: EngineRpcClient_,
         l1_watcher_sender: L1WatcherQuerySender,
+        chain_id: u64,
     ) -> Self {
-        Self { engine_client, l1_watcher_sender }
+        Self {
+            engine_client,
+            l1_watcher_sender,
+            chain_id_label: std::sync::Arc::from(chain_id.to_string()),
+        }
     }
 
     // Important note: we zero-out the fields that can't be derived yet to follow op-node's
@@ -66,7 +73,7 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
     for RollupRpc<EngineRpcClient_>
 {
     async fn op_output_at_block(&self, block_num: BlockNumberOrTag) -> RpcResult<OutputResponse> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_outputAtBlock");
+        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_outputAtBlock", kona_gossip::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
 
         let (l1_sync_status_send, l1_sync_status_recv) = tokio::sync::oneshot::channel();
 
@@ -91,12 +98,12 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
         &self,
         _block_num: BlockNumberOrTag,
     ) -> RpcResult<SafeHeadResponse> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_safeHeadAtL1Block");
+        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_safeHeadAtL1Block", kona_gossip::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
         return Err(ErrorObject::from(ErrorCode::MethodNotFound));
     }
 
     async fn op_sync_status(&self) -> RpcResult<SyncStatus> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_syncStatus");
+        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_syncStatus", kona_gossip::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
 
         let (l1_sync_status_send, l1_sync_status_recv) = tokio::sync::oneshot::channel();
 
@@ -116,13 +123,13 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
     }
 
     async fn op_rollup_config(&self) -> RpcResult<RollupConfig> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_rollupConfig");
+        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_rollupConfig", kona_gossip::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
 
         self.engine_client.get_config().await
     }
 
     async fn op_version(&self) -> RpcResult<String> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_version");
+        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_version", kona_gossip::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
 
         const RPC_VERSION: &str = env!("CARGO_PKG_VERSION");
 

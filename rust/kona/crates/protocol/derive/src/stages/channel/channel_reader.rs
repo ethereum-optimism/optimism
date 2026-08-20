@@ -44,6 +44,11 @@ where
     pub next_batch: Option<BatchReader>,
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the pipeline's per-frame and per-batch emits clone a refcount rather than
+    /// re-allocating the label.
+    pub chain_id_label: Arc<str>,
 }
 
 impl<P> ChannelReader<P>
@@ -51,8 +56,9 @@ where
     P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Create a new [`ChannelReader`] stage.
-    pub const fn new(prev: P, cfg: Arc<RollupConfig>) -> Self {
-        Self { prev, next_batch: None, cfg }
+    pub fn new(prev: P, cfg: Arc<RollupConfig>) -> Self {
+        let chain_id_label = Arc::from(alloc::format!("{}", cfg.l2_chain_id.id()));
+        Self { prev, next_batch: None, cfg, chain_id_label }
     }
 
     /// Creates the batch reader from available channel data.
@@ -73,7 +79,12 @@ where
                 max_rlp_bytes_per_channel as usize,
                 origin.timestamp,
             ));
-            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_READER_SET, 1);
+            kona_macros::set!(
+                gauge,
+                crate::metrics::Metrics::PIPELINE_BATCH_READER_SET,
+                1,
+                crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
         }
         Ok(())
     }
@@ -82,7 +93,12 @@ where
     /// decoding / decompression state to a fresh start.
     pub fn next_channel(&mut self) {
         self.next_batch = None;
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_READER_SET, 0);
+        kona_macros::set!(
+            gauge,
+            crate::metrics::Metrics::PIPELINE_BATCH_READER_SET,
+            0,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+        );
     }
 }
 
@@ -133,12 +149,14 @@ where
                 kona_macros::set!(
                     gauge,
                     crate::metrics::Metrics::PIPELINE_LATEST_DECOMPRESSED_BATCH_SIZE,
-                    _size
+                    _size,
+                    crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                 );
                 kona_macros::set!(
                     gauge,
                     crate::metrics::Metrics::PIPELINE_LATEST_DECOMPRESSED_BATCH_TYPE,
-                    _ty as f64
+                    _ty as f64,
+                    crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                 );
             }
             Err(err) => {
@@ -155,6 +173,7 @@ where
                     gauge,
                     crate::metrics::Metrics::PIPELINE_READ_BATCHES,
                     "type" => batch.to_string(),
+                    crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                 );
                 Ok(batch)
             }
@@ -199,7 +218,12 @@ where
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         warn!(target: "channel_reader", "Flushed channel");
         self.next_batch = None;
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_READER_SET, 0);
+        kona_macros::set!(
+            gauge,
+            crate::metrics::Metrics::PIPELINE_BATCH_READER_SET,
+            0,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+        );
         Ok(())
     }
 }

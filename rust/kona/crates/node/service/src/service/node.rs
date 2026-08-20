@@ -165,6 +165,7 @@ impl RollupNode {
             self.l1_config.engine_provider.clone(),
             DERIVATION_PROVIDER_CACHE_SIZE,
             self.l1_config.trust_rpc,
+            self.config.l2_chain_id.id(),
         );
         let l2_derivation_provider = AlloyL2ChainProvider::new_with_trust(
             self.l2_provider.clone(),
@@ -188,6 +189,7 @@ impl RollupNode {
             self.l1_config.engine_provider.clone(),
             DERIVATION_PROVIDER_CACHE_SIZE,
             self.l1_config.trust_rpc,
+            self.config.l2_chain_id.id(),
         );
         let l2_derivation_provider = AlloyL2ChainProvider::new_with_trust(
             self.l2_provider.clone(),
@@ -262,6 +264,7 @@ impl RollupNode {
             let l1_provider = AlloyChainProvider::new(
                 self.l1_config.engine_provider.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
+                self.config.l2_chain_id.id(),
             );
             ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
@@ -378,16 +381,24 @@ impl RollupNode {
             .merge(HealthzApiServer::into_rpc(HealthzRpc {}))
             .map_err(|e| format!("Failed to register healthz module: {e:?}"))?;
         modules
-            .merge(P2pRpc::new(p2p_rpc_tx).into_rpc())
+            .merge(P2pRpc::new(p2p_rpc_tx, self.config.l2_chain_id.id()).into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
         merge_admin_module(
             &mut modules,
             config.enable_admin(),
             sequencer_admin_client,
             network_admin_tx,
+            self.config.l2_chain_id.id(),
         )?;
         modules
-            .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
+            .merge(
+                RollupRpc::new(
+                    engine_rpc_client.clone(),
+                    l1_watcher_queries_tx,
+                    self.config.l2_chain_id.id(),
+                )
+                .into_rpc(),
+            )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
         if config.dev_enabled() {
             modules
@@ -543,10 +554,11 @@ fn merge_admin_module(
     enable_admin: bool,
     sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
     network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
+    chain_id: u64,
 ) -> Result<(), String> {
     if enable_admin {
         modules
-            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
+            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx, chain_id).into_rpc())
             .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
     }
     Ok(())
@@ -559,7 +571,7 @@ mod tests {
     fn admin_method_names(enable_admin: bool) -> Vec<String> {
         let mut modules = RpcModule::new(());
         let (network_admin_tx, _rx) = mpsc::channel(1);
-        merge_admin_module(&mut modules, enable_admin, None, network_admin_tx)
+        merge_admin_module(&mut modules, enable_admin, None, network_admin_tx, 10)
             .expect("admin module registration");
         modules.method_names().map(ToString::to_string).collect()
     }

@@ -28,6 +28,11 @@ where
 {
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the pipeline's per-frame and per-batch emits clone a refcount rather than
+    /// re-allocating the label.
+    pub chain_id_label: Arc<str>,
     /// The previous stage of the derivation pipeline.
     pub prev: P,
     /// The current [`OrderedChannel`] being assembled.
@@ -39,8 +44,9 @@ where
     P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Creates a new [`ChannelAssembler`] stage with the given configuration and previous stage.
-    pub const fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
-        Self { cfg, prev, channel: None }
+    pub fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
+        let chain_id_label = Arc::from(alloc::format!("{}", cfg.l2_chain_id.id()));
+        Self { cfg, prev, channel: None, chain_id_label }
     }
 
     /// Returns whether or not the channel currently being assembled has timed out.
@@ -93,13 +99,23 @@ where
         }
 
         let _count = if self.channel.is_some() { 1 } else { 0 };
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_BUFFER, _count);
+        kona_macros::set!(
+            gauge,
+            crate::metrics::Metrics::PIPELINE_CHANNEL_BUFFER,
+            _count,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+        );
 
         if let Some(channel) = self.channel.as_mut() {
             // Track the number of blocks until the channel times out.
             let timeout = channel.open_block_number() + self.cfg.channel_timeout(origin.timestamp);
             let _margin = timeout.saturating_sub(origin.number) as f64;
-            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_TIMEOUT, _margin);
+            kona_macros::set!(
+                gauge,
+                crate::metrics::Metrics::PIPELINE_CHANNEL_TIMEOUT,
+                _margin,
+                crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
 
             // Add the frame to the channel. If this fails, return NotEnoughData and discard the
             // frame.
@@ -121,7 +137,12 @@ where
             }
 
             let _size = channel.size() as f64;
-            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_MEM, _size);
+            kona_macros::set!(
+                gauge,
+                crate::metrics::Metrics::PIPELINE_CHANNEL_MEM,
+                _size,
+                crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
 
             let max_rlp_bytes_per_channel = if self.cfg.is_fjord_active(origin.timestamp) {
                 MAX_RLP_BYTES_PER_CHANNEL_FJORD
@@ -131,7 +152,8 @@ where
             kona_macros::set!(
                 gauge,
                 crate::metrics::Metrics::PIPELINE_MAX_RLP_BYTES,
-                max_rlp_bytes_per_channel as f64
+                max_rlp_bytes_per_channel as f64,
+                crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
             );
             if channel.size() > max_rlp_bytes_per_channel as usize {
                 warn!(
@@ -161,7 +183,12 @@ where
             }
         }
 
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_MEM, 0);
+        kona_macros::set!(
+            gauge,
+            crate::metrics::Metrics::PIPELINE_CHANNEL_MEM,
+            0,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+        );
 
         Err(PipelineError::NotEnoughData.temp())
     }

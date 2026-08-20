@@ -37,6 +37,11 @@ where
 {
     /// The rollup config.
     pub cfg: Arc<RollupConfig>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the pipeline's per-frame and per-batch emits clone a refcount rather than
+    /// re-allocating the label.
+    pub chain_id_label: Arc<str>,
     /// The previous stage of the derivation pipeline.
     pub prev: P,
     /// Whether the current batch is the last in its span.
@@ -53,8 +58,9 @@ where
     AB: AttributesBuilder + Debug,
 {
     /// Create a new [`AttributesQueue`] stage.
-    pub const fn new(cfg: Arc<RollupConfig>, prev: P, builder: AB) -> Self {
-        Self { cfg, prev, is_last_in_span: false, batch: None, builder }
+    pub fn new(cfg: Arc<RollupConfig>, prev: P, builder: AB) -> Self {
+        let chain_id_label = Arc::from(alloc::format!("{}", cfg.l2_chain_id.id()));
+        Self { cfg, prev, is_last_in_span: false, batch: None, builder, chain_id_label }
     }
 
     /// Loads a [`SingleBatch`] from the [`AttributesProvider`] if needed.
@@ -94,7 +100,8 @@ where
         kona_macros::record!(
             histogram,
             crate::metrics::Metrics::PIPELINE_ATTRIBUTES_BUILD_DURATION,
-            start.elapsed().as_secs_f64()
+            start.elapsed().as_secs_f64(),
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
         );
 
         // Clear out the local state once payload attributes are prepared.

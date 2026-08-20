@@ -30,6 +30,11 @@ pub struct PollingTraversal<Provider: ChainProvider> {
     pub system_config: SystemConfig,
     /// A reference to the rollup config.
     pub rollup_config: Arc<RollupConfig>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the pipeline's per-frame and per-batch emits clone a refcount rather than
+    /// re-allocating the label.
+    pub chain_id_label: Arc<str>,
 }
 
 #[async_trait]
@@ -56,6 +61,7 @@ impl<F: ChainProvider> PollingTraversal<F> {
             data_source,
             done: false,
             system_config: SystemConfig::default(),
+            chain_id_label: Arc::from(alloc::format!("{}", cfg.l2_chain_id.id())),
             rollup_config: cfg,
         }
     }
@@ -64,7 +70,12 @@ impl<F: ChainProvider> PollingTraversal<F> {
     fn update_origin(&mut self, block: BlockInfo) {
         self.done = false;
         self.block = Some(block);
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_ORIGIN, block.number as f64);
+        kona_macros::set!(
+            gauge,
+            crate::metrics::Metrics::PIPELINE_ORIGIN,
+            block.number as f64,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+        );
     }
 }
 
@@ -105,6 +116,7 @@ impl<F: ChainProvider + Send> OriginAdvancer for PollingTraversal<F> {
             self.rollup_config.l1_system_config_address,
             self.rollup_config.is_ecotone_active(next_l1_origin.timestamp),
             next_l1_origin.number,
+            &self.chain_id_label,
         );
 
         let prev_block_holocene = self.rollup_config.is_holocene_active(block.timestamp);
@@ -120,7 +132,8 @@ impl<F: ChainProvider + Send> OriginAdvancer for PollingTraversal<F> {
             kona_macros::record!(
                 histogram,
                 crate::metrics::Metrics::PIPELINE_ORIGIN_ADVANCE,
-                duration.as_secs_f64()
+                duration.as_secs_f64(),
+                crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
             );
         }
 

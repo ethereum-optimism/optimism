@@ -327,7 +327,8 @@ impl P2PArgs {
             const UNSAFE_BLOCK_SIGNER_ADDRESS_STORAGE_SLOT: B256 =
                 b256!("0x65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
 
-            let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
+            let mut provider =
+                AlloyChainProvider::new_http(l1_eth_rpc, 1024, rollup_config.l2_chain_id.id());
             let latest_block_num = provider.latest_block_number().await?;
             let block_info = provider.block_info_by_number(latest_block_num).await?;
 
@@ -406,7 +407,7 @@ impl P2PArgs {
 
         let discovery_address =
             LocalNode::new(local_node_key, advertise_ip, advertise_tcp_port, advertise_udp_port);
-        let gossip_config = kona_gossip::default_config_builder()
+        let gossip_config = kona_gossip::default_config_builder(config.l2_chain_id.id())
             .mesh_n(self.gossip_mesh_d)
             .mesh_n_low(self.gossip_mesh_dlo)
             .mesh_n_high(self.gossip_mesh_dhi)

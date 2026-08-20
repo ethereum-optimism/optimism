@@ -5,6 +5,10 @@
 pub struct Metrics;
 
 impl Metrics {
+    /// Label key carrying the L2 chain ID, present on every metric emitted by the buffered
+    /// provider.
+    pub const CHAIN_ID_LABEL: &str = "chain_id";
+
     /// Identifier for the gauge that tracks buffered provider cache hits.
     pub const BUFFERED_PROVIDER_CACHE_HITS: &str = "kona_providers_local_cache_hits";
 
@@ -38,9 +42,9 @@ impl Metrics {
     /// * Describes various metrics.
     /// * Initializes metrics to 0 so they can be queried immediately.
     #[cfg(feature = "metrics")]
-    pub fn init() {
+    pub fn init(chain_id: u64) {
         Self::describe();
-        Self::zero();
+        Self::zero(chain_id);
     }
 
     /// Describes metrics used in [`kona_providers_local`][crate].
@@ -68,63 +72,49 @@ impl Metrics {
 
     /// Initializes metrics to `0` so they can be queried immediately.
     #[cfg(feature = "metrics")]
-    pub fn zero() {
-        // Cache hit/miss metrics
-        kona_macros::set!(
-            gauge,
-            Self::BUFFERED_PROVIDER_CACHE_HITS,
-            "method",
-            "block_by_number",
-            0
-        );
-        kona_macros::set!(gauge, Self::BUFFERED_PROVIDER_CACHE_HITS, "method", "block_by_hash", 0);
-        kona_macros::set!(gauge, Self::BUFFERED_PROVIDER_CACHE_HITS, "method", "l2_block_info", 0);
-        kona_macros::set!(gauge, Self::BUFFERED_PROVIDER_CACHE_HITS, "method", "system_config", 0);
+    pub fn zero(chain_id: u64) {
+        let chain_id: std::sync::Arc<str> = std::sync::Arc::from(chain_id.to_string());
 
-        kona_macros::set!(
-            gauge,
-            Self::BUFFERED_PROVIDER_CACHE_MISSES,
-            "method",
-            "block_by_number",
-            0
-        );
-        kona_macros::set!(
-            gauge,
-            Self::BUFFERED_PROVIDER_CACHE_MISSES,
-            "method",
-            "block_by_hash",
-            0
-        );
-        kona_macros::set!(
-            gauge,
-            Self::BUFFERED_PROVIDER_CACHE_MISSES,
-            "method",
-            "l2_block_info",
-            0
-        );
-        kona_macros::set!(
-            gauge,
-            Self::BUFFERED_PROVIDER_CACHE_MISSES,
-            "method",
-            "system_config",
-            0
-        );
+        // Cache hit/miss metrics
+        for metric in [Self::BUFFERED_PROVIDER_CACHE_HITS, Self::BUFFERED_PROVIDER_CACHE_MISSES] {
+            for method in ["block_by_number", "block_by_hash", "l2_block_info", "system_config"] {
+                kona_macros::set!(
+                    gauge,
+                    metric,
+                    0,
+                    "method" => method,
+                    Self::CHAIN_ID_LABEL => chain_id.clone()
+                );
+            }
+        }
 
         // Chain event metrics
-        kona_macros::set!(gauge, Self::CHAIN_EVENTS_PROCESSED, "event", "committed", 0);
-        kona_macros::set!(gauge, Self::CHAIN_EVENTS_PROCESSED, "event", "reorged", 0);
-        kona_macros::set!(gauge, Self::CHAIN_EVENTS_PROCESSED, "event", "reverted", 0);
-
-        kona_macros::set!(gauge, Self::CHAIN_EVENT_ERRORS, "event", "committed", 0);
-        kona_macros::set!(gauge, Self::CHAIN_EVENT_ERRORS, "event", "reorged", 0);
-        kona_macros::set!(gauge, Self::CHAIN_EVENT_ERRORS, "event", "reverted", 0);
+        for metric in [Self::CHAIN_EVENTS_PROCESSED, Self::CHAIN_EVENT_ERRORS] {
+            for event in ["committed", "reorged", "reverted"] {
+                kona_macros::set!(
+                    gauge,
+                    metric,
+                    0,
+                    "event" => event,
+                    Self::CHAIN_ID_LABEL => chain_id.clone()
+                );
+            }
+        }
 
         // General metrics
-        kona_macros::set!(gauge, Self::BLOCKS_ADDED, 0);
-        kona_macros::set!(gauge, Self::CACHE_ENTRIES, "cache", "blocks_by_hash", 0);
-        kona_macros::set!(gauge, Self::CACHE_ENTRIES, "cache", "blocks_by_number", 0);
-        kona_macros::set!(gauge, Self::CACHE_CAPACITY, 0);
-        kona_macros::set!(gauge, Self::REORG_DEPTH, 0);
-        kona_macros::set!(gauge, Self::CACHE_CLEARS, 0);
+        for cache in ["blocks_by_hash", "blocks_by_number"] {
+            kona_macros::set!(
+                gauge,
+                Self::CACHE_ENTRIES,
+                0,
+                "cache" => cache,
+                Self::CHAIN_ID_LABEL => chain_id.clone()
+            );
+        }
+        for metric in
+            [Self::BLOCKS_ADDED, Self::CACHE_CAPACITY, Self::REORG_DEPTH, Self::CACHE_CLEARS]
+        {
+            kona_macros::set!(gauge, metric, 0, Self::CHAIN_ID_LABEL => chain_id.clone());
+        }
     }
 }

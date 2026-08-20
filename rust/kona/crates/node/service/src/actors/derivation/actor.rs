@@ -12,6 +12,7 @@ use kona_derive::{
 };
 use kona_engine::FinalizeBlockId;
 use kona_protocol::OpAttributesWithParent;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::mpsc;
 
@@ -37,6 +38,8 @@ where
     derivation_state_machine: DerivationStateMachine,
     /// The [`L2Finalizer`] tracks derived L2 blocks awaiting finalization.
     pub(crate) finalizer: L2Finalizer,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    chain_id_label: Arc<str>,
 }
 
 impl<DerivationEngineClient_, PipelineSignalReceiver>
@@ -51,12 +54,14 @@ where
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
     ) -> Self {
+        let chain_id_label = Arc::from(pipeline.rollup_config().l2_chain_id.id().to_string());
         Self {
             pipeline,
             inbound_request_rx,
             engine_client,
             derivation_state_machine: DerivationStateMachine::default(),
             finalizer: L2Finalizer::default(),
+            chain_id_label,
         }
     }
 
@@ -89,7 +94,12 @@ where
                     let origin =
                         self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?.number;
 
-                    kona_macros::set!(counter, Metrics::DERIVATION_L1_ORIGIN, origin);
+                    kona_macros::set!(
+                        counter,
+                        Metrics::DERIVATION_L1_ORIGIN,
+                        origin,
+                        Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                    );
                     debug!(target: "derivation", l1_block = origin, "Advanced L1 origin");
                 }
                 StepResult::OriginAdvanceErr(e) | StepResult::StepFailed(e) => {
@@ -125,7 +135,11 @@ where
                                         "L1 reorg detected! Expected: {expected} | New: {new}"
                                     );
 
-                                    kona_macros::inc!(counter, Metrics::L1_REORG_COUNT);
+                                    kona_macros::inc!(
+                                        counter,
+                                        Metrics::L1_REORG_COUNT,
+                                        Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                                    );
                                 }
                                 self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
                                     error!(target: "derivation", ?e, "Failed to send reset request");
@@ -138,7 +152,11 @@ where
                         }
                         PipelineErrorKind::Critical(_) => {
                             error!(target: "derivation", "Critical derivation error: {e}");
-                            kona_macros::inc!(counter, Metrics::DERIVATION_CRITICAL_ERROR);
+                            kona_macros::inc!(
+                                counter,
+                                Metrics::DERIVATION_CRITICAL_ERROR,
+                                Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                            );
                             return Err(e.into());
                         }
                     }

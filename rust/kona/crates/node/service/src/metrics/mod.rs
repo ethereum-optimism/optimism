@@ -5,6 +5,9 @@
 pub struct Metrics;
 
 impl Metrics {
+    /// Label key carrying the L2 chain ID, present on every metric emitted by the node service.
+    pub const CHAIN_ID_LABEL: &str = "chain_id";
+
     /// Identifier for the counter that tracks the number of times the L1 has reorganized.
     pub const L1_REORG_COUNT: &str = "kona_node_l1_reorg_count";
 
@@ -43,9 +46,9 @@ impl Metrics {
     /// * Describes various metrics.
     /// * Initializes metrics to 0 so they can be queried immediately.
     #[cfg(feature = "metrics")]
-    pub fn init() {
+    pub fn init(chain_id: u64) {
         Self::describe();
-        Self::zero();
+        Self::zero(chain_id);
     }
 
     /// Describes metrics used in [`kona-node-service`][crate].
@@ -101,14 +104,18 @@ impl Metrics {
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
     #[cfg(feature = "metrics")]
-    pub fn zero() {
-        // L1 reorg reset count
-        kona_macros::set!(counter, Self::L1_REORG_COUNT, 0);
+    pub fn zero(chain_id: u64) {
+        let chain_id: std::sync::Arc<str> = std::sync::Arc::from(chain_id.to_string());
 
-        // Derivation critical error
-        kona_macros::set!(counter, Self::DERIVATION_CRITICAL_ERROR, 0);
-
-        // Sequencer: reset total transactions sequenced
-        kona_macros::set!(counter, Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED, 0);
+        for metric in [
+            // L1 reorg reset count
+            Self::L1_REORG_COUNT,
+            // Derivation critical error
+            Self::DERIVATION_CRITICAL_ERROR,
+            // Sequencer: reset total transactions sequenced
+            Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED,
+        ] {
+            kona_macros::set!(counter, metric, 0, Self::CHAIN_ID_LABEL => chain_id.clone());
+        }
     }
 }

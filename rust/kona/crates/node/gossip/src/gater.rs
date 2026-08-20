@@ -6,6 +6,7 @@ use libp2p::{Multiaddr, PeerId};
 use std::{
     collections::{HashMap, HashSet},
     net::{IpAddr, ToSocketAddrs},
+    sync::Arc,
     time::Duration,
 };
 use tokio::time::Instant;
@@ -81,13 +82,19 @@ pub struct ConnectionGater {
     pub blocked_addrs: HashSet<IpAddr>,
     /// A set of blocked subnets that cannot be connected to.
     pub blocked_subnets: HashSet<IpNet>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached as an [`Arc<str>`] so the dial-gating hot path clones a refcount rather than
+    /// re-allocating the label on every emit.
+    chain_id_label: Arc<str>,
 }
 
 impl ConnectionGater {
     /// Creates a new instance of the `ConnectionGater`.
-    pub fn new(config: GaterConfig) -> Self {
+    pub fn new(config: GaterConfig, chain_id: u64) -> Self {
         Self {
             config,
+            chain_id_label: Arc::from(chain_id.to_string()),
             current_dials: HashSet::new(),
             dialed_peers: HashMap::new(),
             connectedness: HashMap::new(),
@@ -211,14 +218,14 @@ impl ConnectionGate for ConnectionGater {
         // Get the peer id from the given multiaddr.
         let peer_id = Self::peer_id_from_addr(addr).ok_or_else(|| {
             warn!(target: "p2p", peer=?addr, "Failed to extract PeerId from Multiaddr");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr");
+            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             DialError::InvalidMultiaddr { addr: addr.clone() }
         })?;
 
         // Cannot dial a peer that is already being dialed.
         if self.current_dials.contains(&peer_id) {
             debug!(target: "gossip", peer=?addr, "Already dialing peer, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "already_dialing");
+            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "already_dialing", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             return Err(DialError::AlreadyDialing { peer_id });
         }
 
@@ -230,14 +237,14 @@ impl ConnectionGate for ConnectionGater {
         if !protected && self.dial_threshold_reached(addr) && !self.dial_period_expired(addr) {
             debug!(target: "gossip", peer=?addr, "Dial threshold reached, not dialing");
             self.connectedness.insert(peer_id, Connectedness::CannotConnect);
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "threshold_reached");
+            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "threshold_reached", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             return Err(DialError::ThresholdReached { addr: addr.clone() });
         }
 
         // If the peer is blocked, do not dial.
         if self.blocked_peers.contains(&peer_id) {
             debug!(target: "gossip", peer=?addr, "Peer is blocked, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_peer");
+            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_peer", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             return Err(DialError::PeerBlocked { peer_id });
         }
 
@@ -262,14 +269,14 @@ impl ConnectionGate for ConnectionGater {
         if self.blocked_addrs.contains(&ip_addr) {
             debug!(target: "gossip", peer=?addr, "Address is blocked, not dialing");
             self.connectedness.insert(peer_id, Connectedness::CannotConnect);
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_address");
+            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_address", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             return Err(DialError::AddressBlocked { ip: ip_addr });
         }
 
         // If address lies in any blocked subnets, do not dial.
         if self.check_ip_in_blocked_subnets(&ip_addr) {
             debug!(target: "gossip", ip=?ip_addr, "IP address is in a blocked subnet, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_subnet");
+            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_subnet", crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             return Err(DialError::SubnetBlocked { ip: ip_addr });
         }
 
@@ -386,10 +393,10 @@ impl ConnectionGate for ConnectionGater {
 fn test_check_ip_in_blocked_subnets_ipv4() {
     use std::str::FromStr;
 
-    let mut gater = ConnectionGater::new(GaterConfig {
-        peer_redialing: None,
-        dial_period: Duration::from_secs(60 * 60),
-    });
+    let mut gater = ConnectionGater::new(
+        GaterConfig { peer_redialing: None, dial_period: Duration::from_secs(60 * 60) },
+        10,
+    );
     gater.blocked_subnets.insert("192.168.1.0/24".parse::<IpNet>().unwrap());
     gater.blocked_subnets.insert("10.0.0.0/8".parse::<IpNet>().unwrap());
     gater.blocked_subnets.insert("172.16.0.0/16".parse::<IpNet>().unwrap());
@@ -410,7 +417,7 @@ fn test_dial_error_handling() {
     use crate::{ConnectionGate, DialError};
     use std::str::FromStr;
 
-    let mut gater = ConnectionGater::new(GaterConfig::default());
+    let mut gater = ConnectionGater::new(GaterConfig::default(), 10);
 
     // Test invalid multiaddr (missing peer ID)
     let invalid_addr = Multiaddr::from_str("/ip4/127.0.0.1/tcp/8080").unwrap();
@@ -486,7 +493,7 @@ fn test_dns_multiaddr_can_dial() {
     use crate::ConnectionGate;
     use std::str::FromStr;
 
-    let mut gater = ConnectionGater::new(GaterConfig::default());
+    let mut gater = ConnectionGater::new(GaterConfig::default(), 10);
 
     // DNS4 multiaddr should be allowed to dial (IP checks skipped)
     let dns4_addr = Multiaddr::from_str(
@@ -513,7 +520,7 @@ fn test_dns_multiaddr_blocked_by_resolved_ip() {
     use crate::{ConnectionGate, DialError};
     use std::{net::IpAddr, str::FromStr};
 
-    let mut gater = ConnectionGater::new(GaterConfig::default());
+    let mut gater = ConnectionGater::new(GaterConfig::default(), 10);
 
     // localhost resolves to 127.0.0.1
     let dns_localhost = Multiaddr::from_str(
@@ -537,7 +544,7 @@ fn test_dns_multiaddr_blocked_by_subnet() {
     use crate::{ConnectionGate, DialError};
     use std::str::FromStr;
 
-    let mut gater = ConnectionGater::new(GaterConfig::default());
+    let mut gater = ConnectionGater::new(GaterConfig::default(), 10);
 
     // localhost resolves to 127.0.0.1
     let dns_localhost = Multiaddr::from_str(

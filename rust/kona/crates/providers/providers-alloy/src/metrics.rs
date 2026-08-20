@@ -5,6 +5,10 @@
 pub struct Metrics;
 
 impl Metrics {
+    /// Label key carrying the L2 chain ID, present on every metric emitted by the alloy
+    /// providers.
+    pub const CHAIN_ID_LABEL: &str = "chain_id";
+
     /// Identifier for the gauge that tracks chain provider cache hits.
     pub const CHAIN_PROVIDER_CACHE_HITS: &str = "kona_providers_chain_cache_hits";
 
@@ -50,9 +54,9 @@ impl Metrics {
     /// * Describes various metrics.
     /// * Initializes metrics to 0 so they can be queried immediately.
     #[cfg(feature = "metrics")]
-    pub fn init() {
+    pub fn init(chain_id: u64) {
         Self::describe();
-        Self::zero();
+        Self::zero(chain_id);
     }
 
     /// Describes metrics used in [`kona_providers_alloy`][crate].
@@ -109,99 +113,78 @@ impl Metrics {
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
     #[cfg(feature = "metrics")]
-    pub fn zero() {
+    pub fn zero(chain_id: u64) {
+        let chain_id: std::sync::Arc<str> = std::sync::Arc::from(chain_id.to_string());
+
         // Chain provider cache metrics
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_HITS, "cache", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_HITS, "cache", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_HITS, "cache", "block_info_and_tx", 0);
+        for metric in [Self::CHAIN_PROVIDER_CACHE_HITS, Self::CHAIN_PROVIDER_CACHE_MISSES] {
+            for cache in ["header_by_hash", "receipts_by_hash", "block_info_and_tx"] {
+                kona_macros::set!(
+                    gauge,
+                    metric,
+                    0,
+                    "cache" => cache,
+                    Self::CHAIN_ID_LABEL => chain_id.clone()
+                );
+            }
+        }
 
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_MISSES, "cache", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_MISSES, "cache", "receipts_by_hash", 0);
-        kona_macros::set!(
-            gauge,
-            Self::CHAIN_PROVIDER_CACHE_MISSES,
-            "cache",
-            "block_info_and_tx",
-            0
-        );
+        // RPC call and error metrics
+        for metric in [Self::CHAIN_PROVIDER_RPC_CALLS, Self::CHAIN_PROVIDER_RPC_ERRORS] {
+            for method in ["header_by_hash", "receipts_by_hash", "block_by_hash", "block_number"] {
+                kona_macros::set!(
+                    gauge,
+                    metric,
+                    0,
+                    "method" => method,
+                    Self::CHAIN_ID_LABEL => chain_id.clone()
+                );
+            }
+        }
 
-        // RPC call metrics
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "block_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "block_number", 0);
-
-        // RPC error metrics
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "block_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "block_number", 0);
-
-        // Beacon client metrics
-        kona_macros::set!(gauge, Self::BEACON_CLIENT_REQUESTS, "method", "spec", 0);
-        kona_macros::set!(gauge, Self::BEACON_CLIENT_REQUESTS, "method", "genesis", 0);
-        kona_macros::set!(gauge, Self::BEACON_CLIENT_REQUESTS, "method", "blob_sidecars", 0);
-
-        kona_macros::set!(gauge, Self::BEACON_CLIENT_ERRORS, "method", "spec", 0);
-        kona_macros::set!(gauge, Self::BEACON_CLIENT_ERRORS, "method", "genesis", 0);
-        kona_macros::set!(gauge, Self::BEACON_CLIENT_ERRORS, "method", "blob_sidecars", 0);
+        // Beacon client metrics.
+        //
+        // Deliberately unlabelled: `OnlineBeaconClient` is an L1 beacon-API client that the
+        // interop host shares across every L2 chain it serves, so there is no single chain ID
+        // to attribute these to. Keep the zeroed series identical to the runtime emits.
+        for metric in [Self::BEACON_CLIENT_REQUESTS, Self::BEACON_CLIENT_ERRORS] {
+            for method in ["spec", "genesis", "blob_sidecars"] {
+                kona_macros::set!(gauge, metric, 0, "method" => method);
+            }
+        }
 
         // L2 chain provider metrics
-        kona_macros::set!(
-            gauge,
-            Self::L2_CHAIN_PROVIDER_REQUESTS,
-            "method",
-            "l2_block_ref_by_label",
-            0
-        );
-        kona_macros::set!(
-            gauge,
-            Self::L2_CHAIN_PROVIDER_REQUESTS,
-            "method",
-            "l2_block_ref_by_hash",
-            0
-        );
-        kona_macros::set!(
-            gauge,
-            Self::L2_CHAIN_PROVIDER_REQUESTS,
-            "method",
-            "l2_block_ref_by_number",
-            0
-        );
+        for metric in [Self::L2_CHAIN_PROVIDER_REQUESTS, Self::L2_CHAIN_PROVIDER_ERRORS] {
+            for method in
+                ["l2_block_ref_by_label", "l2_block_ref_by_hash", "l2_block_ref_by_number"]
+            {
+                kona_macros::set!(
+                    gauge,
+                    metric,
+                    0,
+                    "method" => method,
+                    Self::CHAIN_ID_LABEL => chain_id.clone()
+                );
+            }
+        }
 
-        kona_macros::set!(
-            gauge,
-            Self::L2_CHAIN_PROVIDER_ERRORS,
-            "method",
-            "l2_block_ref_by_label",
-            0
-        );
-        kona_macros::set!(
-            gauge,
-            Self::L2_CHAIN_PROVIDER_ERRORS,
-            "method",
-            "l2_block_ref_by_hash",
-            0
-        );
-        kona_macros::set!(
-            gauge,
-            Self::L2_CHAIN_PROVIDER_ERRORS,
-            "method",
-            "l2_block_ref_by_number",
-            0
-        );
-
-        // Blob sidecar metrics
-        kona_macros::set!(gauge, Self::BLOB_FETCHES, 0);
-        kona_macros::set!(gauge, Self::BLOB_FETCH_ERRORS, 0);
+        // Blob sidecar metrics. Unlabelled for the same reason as the beacon client metrics
+        // above: `OnlineBlobProvider` wraps a beacon client that is shared across chains.
+        for metric in [Self::BLOB_FETCHES, Self::BLOB_FETCH_ERRORS] {
+            kona_macros::set!(gauge, metric, 0);
+        }
 
         // Cache metrics
-        kona_macros::set!(gauge, Self::CACHE_ENTRIES, "cache", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CACHE_ENTRIES, "cache", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CACHE_ENTRIES, "cache", "block_info_and_tx", 0);
-
-        kona_macros::set!(gauge, Self::CACHE_MEMORY_USAGE, "cache", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CACHE_MEMORY_USAGE, "cache", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CACHE_MEMORY_USAGE, "cache", "block_info_and_tx", 0);
+        for metric in [Self::CACHE_ENTRIES, Self::CACHE_MEMORY_USAGE] {
+            for cache in ["header_by_hash", "receipts_by_hash", "block_info_and_tx"] {
+                kona_macros::set!(
+                    gauge,
+                    metric,
+                    0,
+                    "cache" => cache,
+                    Self::CHAIN_ID_LABEL => chain_id.clone()
+                );
+            }
+        }
     }
 }

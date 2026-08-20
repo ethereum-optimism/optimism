@@ -29,6 +29,8 @@ pub struct AdminRpc<SequencerAdminAPIClient> {
     pub sequencer_admin_client: Option<SequencerAdminAPIClient>,
     /// The sender to the network actor.
     pub network_sender: NetworkAdminQuerySender,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    pub chain_id_label: std::sync::Arc<str>,
 }
 
 impl<SequencerAdminAPIClient_> AdminRpc<SequencerAdminAPIClient_>
@@ -42,15 +44,21 @@ where
     /// - `sequencer_sender`: The [`SequencerAdminAPIClient`] used to fulfill sequencer admin
     ///   queries.
     /// - `network_sender`: The sender to the network actor.
+    /// - `chain_id`: The L2 chain ID, attached as the `chain_id` metric label.
     ///
     /// # Returns
     ///
     /// A new [`AdminRpc`] instance.
-    pub const fn new(
+    pub fn new(
         sequencer_admin_client: Option<SequencerAdminAPIClient_>,
         network_sender: NetworkAdminQuerySender,
+        chain_id: u64,
     ) -> Self {
-        Self { sequencer_admin_client, network_sender }
+        Self {
+            sequencer_admin_client,
+            network_sender,
+            chain_id_label: std::sync::Arc::from(chain_id.to_string()),
+        }
     }
 }
 
@@ -63,7 +71,7 @@ where
         &self,
         payload: OpExecutionPayloadEnvelope,
     ) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload");
+        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload", kona_gossip::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
         self.network_sender
             .send(NetworkAdminQuery::PostUnsafePayload { payload })
             .await

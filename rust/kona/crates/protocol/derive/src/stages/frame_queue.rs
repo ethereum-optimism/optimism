@@ -38,6 +38,11 @@ where
     pub queue: VecDeque<Frame>,
     /// The rollup config.
     pub rollup_config: Arc<RollupConfig>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the pipeline's per-frame and per-batch emits clone a refcount rather than
+    /// re-allocating the label.
+    pub chain_id_label: Arc<str>,
 }
 
 impl<P> FrameQueue<P>
@@ -47,8 +52,9 @@ where
     /// Create a new [`FrameQueue`] stage with the given previous [`L1Retrieval`] stage.
     ///
     /// [`L1Retrieval`]: crate::stages::L1Retrieval
-    pub const fn new(prev: P, cfg: Arc<RollupConfig>) -> Self {
-        Self { prev, queue: VecDeque::new(), rollup_config: cfg }
+    pub fn new(prev: P, cfg: Arc<RollupConfig>) -> Self {
+        let chain_id_label = Arc::from(alloc::format!("{}", cfg.l2_chain_id.id()));
+        Self { prev, queue: VecDeque::new(), rollup_config: cfg, chain_id_label }
     }
 
     /// Returns if holocene is active.
@@ -135,10 +141,16 @@ where
         kona_macros::set!(
             gauge,
             crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_BUFFER,
-            self.queue.len() as f64
+            self.queue.len() as f64,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
         );
         let _queue_size = self.queue.iter().map(|f| f.size()).sum::<usize>() as f64;
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_MEM, _queue_size);
+        kona_macros::set!(
+            gauge,
+            crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_MEM,
+            _queue_size,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+        );
 
         // Prune frames if Holocene is active.
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;

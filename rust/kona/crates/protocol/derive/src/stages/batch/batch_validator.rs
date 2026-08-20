@@ -25,6 +25,11 @@ where
 {
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the pipeline's per-frame and per-batch emits clone a refcount rather than
+    /// re-allocating the label.
+    pub chain_id_label: Arc<str>,
     /// The previous stage of the derivation pipeline.
     pub prev: P,
     /// The L1 origin of the batch sequencer.
@@ -43,8 +48,9 @@ where
     P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Create a new [`BatchValidator`] stage.
-    pub const fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
-        Self { cfg, prev, origin: None, l1_blocks: Vec::new() }
+    pub fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
+        let chain_id_label = Arc::from(alloc::format!("{}", cfg.l2_chain_id.id()));
+        Self { cfg, prev, origin: None, l1_blocks: Vec::new(), chain_id_label }
     }
 
     /// Returns `true` if the pipeline origin is behind the parent origin.
@@ -118,13 +124,15 @@ where
                 kona_macros::set!(
                     gauge,
                     crate::metrics::Metrics::PIPELINE_L1_BLOCKS_START,
-                    origin.number as f64
+                    origin.number as f64,
+                    crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                 );
                 let last = self.l1_blocks.last().unwrap_or(origin);
                 kona_macros::set!(
                     gauge,
                     crate::metrics::Metrics::PIPELINE_L1_BLOCKS_END,
-                    last.number as f64
+                    last.number as f64,
+                    crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                 );
             }
         }
