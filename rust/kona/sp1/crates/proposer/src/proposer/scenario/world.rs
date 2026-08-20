@@ -15,7 +15,7 @@ use std::{
 use alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, U256};
 use alloy_transport_http::reqwest::Url;
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use flate2::{Compression, write::GzEncoder};
 use kona_sp1_host_utils::metrics::MetricsListen;
@@ -51,66 +51,6 @@ const DEFAULT_PRESTATE_BYTE: u8 = 0x11;
 pub(super) const DEFAULT_MAX_DURATION: u64 = 3_600;
 
 static ARTIFACT_DIR_ID: AtomicU64 = AtomicU64::new(1);
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(super) enum ReadTarget {
-    Global,
-    Block(u64),
-    FactoryIndex(U256),
-    Game(Address),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(super) enum ReadBoundary {
-    LatestHead,
-    BlockRef,
-    RegisteredGameArgs,
-    AnchorRoot,
-    LatestGameIndex,
-    RegisteredAnchorGame,
-    FactoryGame,
-    GameClaim,
-    GameIdentity,
-    GameValidity,
-    GameLifecycle,
-    ParentGameStatus,
-    BondState,
-    InitBond,
-    GameStatus,
-    ClaimCredit,
-    ClaimWithdrawal,
-    WethDelay,
-    GameByUuid,
-    GameCreator,
-    NonceState,
-    RespectedGameType,
-    ParentStanding,
-    GameStanding,
-    ProofStatus,
-    ProofInputs,
-    AnchorStateRegistry,
-    LatestL1Timestamp,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(super) struct ReadKey {
-    pub(super) boundary: ReadBoundary,
-    pub(super) target: ReadTarget,
-}
-
-impl ReadKey {
-    pub(super) const fn global(boundary: ReadBoundary) -> Self {
-        Self { boundary, target: ReadTarget::Global }
-    }
-
-    pub(super) const fn game(boundary: ReadBoundary, game: Address) -> Self {
-        Self { boundary, target: ReadTarget::Game(game) }
-    }
-
-    pub(super) const fn factory(boundary: ReadBoundary, index: U256) -> Self {
-        Self { boundary, target: ReadTarget::FactoryIndex(index) }
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(super) struct GameTarget {
@@ -233,10 +173,6 @@ where
             .or_else(|| self.fallback.clone());
         (current, value)
     }
-
-    fn attempts(&self, key: &K) -> u64 {
-        self.attempts.get(key).copied().unwrap_or_default()
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -323,35 +259,6 @@ impl ScenarioGame {
     pub(super) fn target(&self) -> GameTarget {
         GameTarget { factory_index: self.factory_index, address: self.address }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum SuperRootSetting {
-    Available { root: B256, proof: Vec<u8>, current_l1: u64, required_l1: u64 },
-    Absent { current_l1: u64, local_safe: u64, finalized: u64 },
-    Failure(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum SuperRootQueryRecord {
-    Horizon {
-        request_time: u64,
-        safe: u64,
-        finalized: u64,
-    },
-    AtTimestamp {
-        timestamp: u64,
-        current_l1: u64,
-        required_l1: Option<u64>,
-        safe: u64,
-        local_safe: u64,
-        finalized: u64,
-        available: bool,
-    },
-    FailedAtTimestamp {
-        timestamp: u64,
-        error: String,
-    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -483,12 +390,9 @@ struct WorldData {
     finalized_time: u64,
     sync_confirmations: u64,
     pending_nonce: u64,
-    superroots: HashMap<u64, SuperRootSetting>,
-    read_scripts: Scripts<ReadKey, String>,
     action_scripts: Scripts<ActionTarget, ActionScript>,
     proof_scripts: Scripts<GameTarget, ProofScript>,
     barriers: HashMap<BarrierKey, NamedBarrier>,
-    superroot_journal: Vec<SuperRootQueryRecord>,
     action_records: HashMap<(ActionTarget, u64), ActionRecord>,
     proof_records: HashMap<(GameTarget, u64), ProofRecord>,
     pending_transactions: HashMap<(ActionTarget, u64), PendingTransaction>,
@@ -537,12 +441,9 @@ impl ScenarioWorld {
                 finalized_time: 4,
                 sync_confirmations: 0,
                 pending_nonce: 0,
-                superroots: HashMap::new(),
-                read_scripts: Scripts::default(),
                 action_scripts: Scripts::default(),
                 proof_scripts: Scripts::default(),
                 barriers: HashMap::new(),
-                superroot_journal: Vec::new(),
                 action_records: HashMap::new(),
                 proof_records: HashMap::new(),
                 pending_transactions: HashMap::new(),
@@ -620,6 +521,10 @@ impl ScenarioWorld {
         })
     }
 
+    pub(super) fn clear_anchor_root(&self) -> L1BlockRef {
+        self.append_block(|state| state.anchor_root.root = B256::ZERO)
+    }
+
     pub(super) fn set_latest_l1_time(&self, timestamp: u64) -> L1BlockRef {
         self.append_block(|state| state.block.timestamp = timestamp)
     }
@@ -648,26 +553,6 @@ impl ScenarioWorld {
 
     pub(super) fn set_sync_confirmations(&self, confirmations: u64) {
         self.lock().sync_confirmations = confirmations;
-    }
-
-    pub(super) fn set_superroot(&self, timestamp: u64, setting: SuperRootSetting) {
-        self.lock().superroots.insert(timestamp, setting);
-    }
-
-    pub(super) fn script_read_failure(&self, key: ReadKey, attempt: u64, error: &str) {
-        self.lock().read_scripts.script_exact(key, attempt, error.to_string());
-    }
-
-    pub(super) fn script_next_read_failure(&self, key: ReadKey, error: &str) {
-        self.lock().read_scripts.script_next(key, error.to_string());
-    }
-
-    pub(super) fn script_read_fallback(&self, error: &str) {
-        self.lock().read_scripts.script_fallback(error.to_string());
-    }
-
-    pub(super) fn read_attempts(&self, key: &ReadKey) -> u64 {
-        self.lock().read_scripts.attempts(key)
     }
 
     pub(super) fn script_action(&self, target: ActionTarget, attempt: u64, outcome: ActionOutcome) {
@@ -749,10 +634,6 @@ impl ScenarioWorld {
 
     pub(super) fn proof_record(&self, target: &GameTarget, attempt: u64) -> Option<ProofRecord> {
         self.lock().proof_records.get(&(target.clone(), attempt)).cloned()
-    }
-
-    pub(super) fn superroot_journal(&self) -> Vec<SuperRootQueryRecord> {
-        self.lock().superroot_journal.clone()
     }
 
     pub(super) fn observation(&self) -> WorldObservation {
@@ -844,14 +725,6 @@ impl ScenarioWorld {
 
     fn barrier(&self, key: &BarrierKey) -> Option<NamedBarrier> {
         self.lock().barriers.get(key).cloned()
-    }
-
-    fn fail_read(&self, key: ReadKey) -> Result<()> {
-        let (_, failure) = self.lock().read_scripts.next(&key);
-        if let Some(failure) = failure {
-            bail!(failure)
-        }
-        Ok(())
     }
 }
 
@@ -1093,66 +966,49 @@ fn publish_prestate_at(directory: &Path, prestate: B256) {
 struct FakeL1View(ScenarioWorld);
 
 impl FakeL1View {
-    fn state(&self, boundary: ReadBoundary, block: BlockId) -> Result<Arc<L1State>> {
-        let number = {
-            let data = self.0.lock();
-            if block.is_latest() {
-                data.latest_block
-            } else {
-                block.as_u64().context("scenario L1 read requires a block number")?
-            }
-        };
-        self.0.fail_read(ReadKey { boundary, target: ReadTarget::Block(number) })?;
+    fn state(&self, block: BlockId) -> Result<Arc<L1State>> {
         self.0.lock().state_at(block)
     }
 
-    fn latest_state(&self, boundary: ReadBoundary, target: ReadTarget) -> Result<Arc<L1State>> {
-        self.0.fail_read(ReadKey { boundary, target })?;
-        Ok(self.0.lock().latest_state())
+    fn latest_state(&self) -> Arc<L1State> {
+        self.0.lock().latest_state()
     }
 }
 
 #[async_trait]
 impl L1View for FakeL1View {
     async fn latest_head(&self) -> Result<Option<L1BlockRef>> {
-        self.0.fail_read(ReadKey::global(ReadBoundary::LatestHead))?;
         Ok(Some(self.0.lock().latest_state().block))
     }
 
     async fn block_ref(&self, number: u64) -> Result<Option<L1BlockRef>> {
-        self.0.fail_read(ReadKey {
-            boundary: ReadBoundary::BlockRef,
-            target: ReadTarget::Block(number),
-        })?;
         Ok(self.0.lock().states.get(&number).map(|state| state.block))
     }
 
     async fn registered_game_args(&self, block: BlockId) -> Result<ZKGameArgs> {
-        Ok(self.state(ReadBoundary::RegisteredGameArgs, block)?.registered_args.clone())
+        Ok(self.state(block)?.registered_args.clone())
     }
 
     async fn anchor_root(&self, _registry: Address, block: BlockId) -> Result<AnchorRoot> {
-        Ok(self.state(ReadBoundary::AnchorRoot, block)?.anchor_root)
+        Ok(self.state(block)?.anchor_root)
     }
 
     async fn latest_game_index(&self, block: BlockId) -> Result<Option<U256>> {
-        Ok(self.state(ReadBoundary::LatestGameIndex, block)?.games.keys().next_back().copied())
+        Ok(self.state(block)?.games.keys().next_back().copied())
     }
 
     async fn registered_anchor_game(&self, block: BlockId) -> Result<Address> {
-        Ok(self.state(ReadBoundary::RegisteredAnchorGame, block)?.registered_anchor_game)
+        Ok(self.state(block)?.registered_anchor_game)
     }
 
     async fn factory_game(&self, index: U256, block: BlockId) -> Result<FactoryGame> {
-        self.0.fail_read(ReadKey::factory(ReadBoundary::FactoryGame, index))?;
-        let state = self.0.lock().state_at(block)?;
+        let state = self.state(block)?;
         let game = state.games.get(&index).context("factory game missing")?;
         Ok(FactoryGame { address: game.address, game_type: game.game_type })
     }
 
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim> {
-        self.0.fail_read(ReadKey::game(ReadBoundary::GameClaim, game))?;
-        let state = self.0.lock().state_at(block)?;
+        let state = self.state(block)?;
         let game = game_by_address(&state, game)?;
         Ok(GameClaim {
             status: game.proposal_status as u8,
@@ -1162,8 +1018,7 @@ impl L1View for FakeL1View {
     }
 
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity> {
-        self.0.fail_read(ReadKey::game(ReadBoundary::GameIdentity, game))?;
-        let state = self.0.lock().state_at(block)?;
+        let state = self.state(block)?;
         let game = game_by_address(&state, game)?;
         Ok(GameIdentity {
             anchor_state_registry: game.anchor_state_registry,
@@ -1174,8 +1029,7 @@ impl L1View for FakeL1View {
     }
 
     async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity> {
-        self.0.fail_read(ReadKey::game(ReadBoundary::GameValidity, game))?;
-        let state = self.0.lock().state_at(block)?;
+        let state = self.state(block)?;
         let game = game_by_address(&state, game)?;
         Ok(GameValidity {
             root_claim: game.root_claim,
@@ -1191,8 +1045,7 @@ impl L1View for FakeL1View {
         _registry: Address,
         block: BlockId,
     ) -> Result<GameLifecycle> {
-        self.0.fail_read(ReadKey::game(ReadBoundary::GameLifecycle, game))?;
-        let state = self.0.lock().state_at(block)?;
+        let state = self.state(block)?;
         let game = game_by_address(&state, game)?;
         Ok(GameLifecycle {
             proposal_status: game.proposal_status,
@@ -1204,11 +1057,7 @@ impl L1View for FakeL1View {
     }
 
     async fn parent_game_status(&self, parent_index: u32, block: BlockId) -> Result<u8> {
-        self.0.fail_read(ReadKey::factory(
-            ReadBoundary::ParentGameStatus,
-            U256::from(parent_index),
-        ))?;
-        let state = self.0.lock().state_at(block)?;
+        let state = self.state(block)?;
         Ok(state.games.get(&U256::from(parent_index)).context("parent game missing")?.status as u8)
     }
 
@@ -1219,17 +1068,16 @@ impl L1View for FakeL1View {
         _proposer: Address,
         block: BlockId,
     ) -> Result<BondState> {
-        self.0.fail_read(ReadKey::game(ReadBoundary::BondState, game))?;
-        let state = self.0.lock().state_at(block)?;
+        let state = self.state(block)?;
         Ok(game_by_address(&state, game)?.bond)
     }
 
     async fn init_bond(&self) -> Result<U256> {
-        Ok(self.latest_state(ReadBoundary::InitBond, ReadTarget::Global)?.init_bond)
+        Ok(self.latest_state().init_bond)
     }
 
     async fn game_status(&self, game: Address) -> Result<u8> {
-        let state = self.latest_state(ReadBoundary::GameStatus, ReadTarget::Game(game))?;
+        let state = self.latest_state();
         Ok(game_by_address(&state, game)?.status as u8)
     }
 
@@ -1239,23 +1087,17 @@ impl L1View for FakeL1View {
         _weth: Address,
         _proposer: Address,
     ) -> ClaimPreflight {
-        let state = self.0.lock().latest_state();
-        let credit = self
-            .0
-            .fail_read(ReadKey::game(ReadBoundary::ClaimCredit, game))
-            .and_then(|()| game_by_address(&state, game).map(|game| game.bond.credit));
-        let withdrawal =
-            self.0.fail_read(ReadKey::game(ReadBoundary::ClaimWithdrawal, game)).and_then(|()| {
-                game_by_address(&state, game).map(|game| WithdrawalState {
-                    amount: game.bond.withdrawal_amount,
-                    timestamp: game.bond.withdrawal_timestamp,
-                })
-            });
+        let state = self.latest_state();
+        let credit = game_by_address(&state, game).map(|game| game.bond.credit);
+        let withdrawal = game_by_address(&state, game).map(|game| WithdrawalState {
+            amount: game.bond.withdrawal_amount,
+            timestamp: game.bond.withdrawal_timestamp,
+        });
         ClaimPreflight { credit, withdrawal }
     }
 
     async fn weth_delay(&self, weth: Address) -> Result<U256> {
-        let state = self.latest_state(ReadBoundary::WethDelay, ReadTarget::Global)?;
+        let state = self.latest_state();
         Ok(state
             .games
             .values()
@@ -1264,7 +1106,7 @@ impl L1View for FakeL1View {
     }
 
     async fn game_by_uuid(&self, root_claim: B256, extra_data: Vec<u8>) -> Result<Address> {
-        let state = self.latest_state(ReadBoundary::GameByUuid, ReadTarget::Global)?;
+        let state = self.latest_state();
         Ok(state
             .games
             .values()
@@ -1273,47 +1115,46 @@ impl L1View for FakeL1View {
     }
 
     async fn game_creator(&self, game: Address) -> Result<Address> {
-        let state = self.latest_state(ReadBoundary::GameCreator, ReadTarget::Game(game))?;
+        let state = self.latest_state();
         Ok(game_by_address(&state, game)?.creator)
     }
 
     async fn nonce_state(&self, _proposer: Address) -> Result<NonceState> {
-        self.0.fail_read(ReadKey::global(ReadBoundary::NonceState))?;
         let data = self.0.lock();
         Ok(NonceState { pending: data.pending_nonce, latest: data.latest_state().latest_nonce })
     }
 
     async fn respected_game_type(&self, block: BlockId) -> Result<u32> {
-        Ok(self.state(ReadBoundary::RespectedGameType, block)?.respected_game_type)
+        Ok(self.state(block)?.respected_game_type)
     }
 
     async fn parent_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
-        let state = self.latest_state(ReadBoundary::ParentStanding, ReadTarget::Game(game))?;
+        let state = self.latest_state();
         Ok(game_by_address(&state, game)?.standing)
     }
 
     async fn game_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
-        let state = self.latest_state(ReadBoundary::GameStanding, ReadTarget::Game(game))?;
+        let state = self.latest_state();
         Ok(game_by_address(&state, game)?.standing)
     }
 
     async fn proof_status(&self, game: Address) -> Result<u8> {
-        let state = self.latest_state(ReadBoundary::ProofStatus, ReadTarget::Game(game))?;
+        let state = self.latest_state();
         Ok(game_by_address(&state, game)?.proposal_status as u8)
     }
 
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs> {
-        let state = self.latest_state(ReadBoundary::ProofInputs, ReadTarget::Game(game))?;
+        let state = self.latest_state();
         Ok(game_by_address(&state, game)?.proof_inputs)
     }
 
     async fn anchor_state_registry(&self, game: Address) -> Result<Address> {
-        let state = self.latest_state(ReadBoundary::AnchorStateRegistry, ReadTarget::Game(game))?;
+        let state = self.latest_state();
         Ok(game_by_address(&state, game)?.anchor_state_registry)
     }
 
     async fn latest_l1_timestamp(&self) -> Result<u64> {
-        Ok(self.latest_state(ReadBoundary::LatestL1Timestamp, ReadTarget::Global)?.block.timestamp)
+        Ok(self.latest_state().block.timestamp)
     }
 }
 
@@ -1339,83 +1180,29 @@ struct FakeSuperRootSource(ScenarioWorld);
 
 #[async_trait]
 impl SuperRootSource for FakeSuperRootSource {
-    async fn proposal_horizon(&self, timestamp: u64) -> Result<ProposalHorizon> {
-        let mut data = self.0.lock();
-        let horizon = ProposalHorizon {
+    async fn proposal_horizon(&self, _timestamp: u64) -> Result<ProposalHorizon> {
+        let data = self.0.lock();
+        Ok(ProposalHorizon {
             safe_timestamp: data.safe_time,
             finalized_timestamp: data.finalized_time,
-        };
-        data.superroot_journal.push(SuperRootQueryRecord::Horizon {
-            request_time: timestamp,
-            safe: horizon.safe_timestamp,
-            finalized: horizon.finalized_timestamp,
-        });
-        Ok(horizon)
+        })
     }
 
     async fn super_root_at_timestamp(&self, timestamp: u64) -> Result<SuperRootAtTimestamp> {
-        let mut data = self.0.lock();
+        let data = self.0.lock();
         let safe = data.safe_time;
         let finalized = data.finalized_time;
-        let setting = data.superroots.get(&timestamp).cloned().unwrap_or_else(|| {
-            if timestamp <= safe {
-                SuperRootSetting::Available {
-                    root: canonical_super_root(timestamp),
-                    proof: vec![0x01],
-                    current_l1: 2,
-                    required_l1: 1,
-                }
-            } else {
-                SuperRootSetting::Absent { current_l1: 2, local_safe: safe, finalized }
-            }
-        });
-        let response = match setting {
-            SuperRootSetting::Available { root, proof, current_l1, required_l1 } => {
-                let response = superroot_response(
-                    timestamp,
-                    safe,
-                    safe,
-                    finalized,
-                    current_l1,
-                    Some((required_l1, root)),
-                );
-                data.superroot_journal.push(SuperRootQueryRecord::AtTimestamp {
-                    timestamp,
-                    current_l1,
-                    required_l1: Some(required_l1),
-                    safe,
-                    local_safe: safe,
-                    finalized,
-                    available: true,
-                });
-                SuperRootAtTimestamp {
-                    response,
-                    root: Some(SuperRootAt { proof_bytes: proof, super_root: root }),
-                }
-            }
-            SuperRootSetting::Absent { current_l1, local_safe, finalized } => {
-                let response =
-                    superroot_response(timestamp, safe, local_safe, finalized, current_l1, None);
-                data.superroot_journal.push(SuperRootQueryRecord::AtTimestamp {
-                    timestamp,
-                    current_l1,
-                    required_l1: None,
-                    safe,
-                    local_safe,
-                    finalized,
-                    available: false,
-                });
-                SuperRootAtTimestamp { response, root: None }
-            }
-            SuperRootSetting::Failure(error) => {
-                data.superroot_journal.push(SuperRootQueryRecord::FailedAtTimestamp {
-                    timestamp,
-                    error: error.clone(),
-                });
-                return Err(anyhow!(error));
-            }
-        };
-        Ok(response)
+        if timestamp > safe {
+            let response = superroot_response(timestamp, safe, safe, finalized, 2, None);
+            return Ok(SuperRootAtTimestamp { response, root: None });
+        }
+
+        let root = canonical_super_root(timestamp);
+        let response = superroot_response(timestamp, safe, safe, finalized, 2, Some((1, root)));
+        Ok(SuperRootAtTimestamp {
+            response,
+            root: Some(SuperRootAt { proof_bytes: vec![0x01], super_root: root }),
+        })
     }
 }
 
@@ -1708,13 +1495,6 @@ impl ScenarioHarness {
             .map_err(|error| ScenarioError::Initialization(error.to_string()))?;
         let control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
         Ok(Self { world, proposer, control, config })
-    }
-
-    pub(super) async fn uninitialized(
-        world: &ScenarioWorld,
-        config: &ProposerConfig,
-    ) -> Result<Arc<Proposer>> {
-        build_proposer(world, config).await
     }
 
     pub(super) async fn restart(&mut self) -> Result<(), ScenarioError> {
