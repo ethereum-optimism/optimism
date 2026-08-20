@@ -19,8 +19,6 @@ type L2CLNode interface {
 	// ELs returns the engine(s) that this L2CLNode is connected to.
 	// This may be empty, if the L2CL is not connected to any.
 	ELs() []L2ELNode
-	RollupBoostNodes() []RollupBoostNode
-	OPRBuilderNodes() []OPRBuilderNode
 
 	ELClient() apis.EthClient
 }

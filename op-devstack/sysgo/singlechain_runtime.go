@@ -39,9 +39,8 @@ type singleChainRuntimeWorld struct {
 }
 
 type singleChainPrimaryRuntime struct {
-	EL          L2ELNode
-	CL          L2CLNode
-	Flashblocks *FlashblocksRuntimeSupport
+	EL L2ELNode
+	CL L2CLNode
 }
 
 type singleChainRuntimeSpec struct {
@@ -178,14 +177,13 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 		Nodes: map[string]*SingleChainNodeRuntime{
 			primaryNode.Name: primaryNode,
 		},
-		Flashblocks: primary.Flashblocks,
-		Interop:     world.Interop,
+		Interop: world.Interop,
 	}
 }
 
 // SingleChainRuntime is the shared DAG runtime for single-chain preset topologies.
-// It is the root for minimal, flashblocks, follower-node, sync-tester, conductor,
-// and no-supernode interop variants.
+// It is the root for minimal, follower-node, sync-tester, conductor, and no-supernode interop
+// variants.
 func NewMinimalRuntime(t devtest.T) *SingleChainRuntime {
 	return NewMinimalRuntimeWithConfig(t, PresetConfig{})
 }

@@ -431,8 +431,6 @@ update-op-geth:
 # `default-members` of the workspace, and op-reth-sdm-fixture is a plain member.
 build-rust-release:
   cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth -p op-reth-sdm-fixture --bin op-reth-sdm-fixture
-  cd rust/op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
-  cd rust/rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 
 # Checks that locked NUT bundles have not been modified.
 check-nut-locks:

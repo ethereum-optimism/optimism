@@ -5,7 +5,6 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
@@ -41,7 +40,6 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		require.Zero(t, WithGlobalSyncTesterELOption(nil).optionKinds())
 		require.Zero(t, WithProposerOption(nil).optionKinds())
 		require.Zero(t, WithZKProposerOption(nil).optionKinds())
-		require.Zero(t, WithOPRBuilderOption(nil).optionKinds())
 		require.Zero(t, WithPreGenesisSuperGame().optionKinds())
 		require.Zero(t, AfterBuild(nil).optionKinds())
 	})
@@ -84,8 +82,6 @@ func TestWithZKProposerOption(t *testing.T) {
 }
 
 func TestUnsupportedPresetOptionKinds(t *testing.T) {
-	builderOpt := sysgo.OPRBuilderNodeOptionFn(func(devtest.CommonT, sysgo.ComponentTarget, *sysgo.OPRBuilderNodeConfig) {})
-
 	tests := []struct {
 		name      string
 		supported optionKinds
@@ -118,16 +114,6 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			supported: minimalWithConductorsPresetSupportedOptionKinds,
 			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-superset")),
 			want:      0,
-		},
-		{
-			name:      "flashblocks allows builder and deployer adapters",
-			supported: singleChainWithFlashblocksPresetSupportedOptionKinds,
-			opts: Combine(
-				WithLocalContractSourcesAt("/tmp/contracts-bedrock"),
-				WithOPRBuilderOption(builderOpt),
-				WithTimeTravelEnabled(),
-			),
-			want: optionKindTimeTravel,
 		},
 		{
 			name:      "shared supernode proofs reject pre-genesis super game",
