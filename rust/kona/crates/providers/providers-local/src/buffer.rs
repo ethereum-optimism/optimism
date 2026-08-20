@@ -8,7 +8,7 @@ use alloy_primitives::B256;
 use kona_protocol::L2BlockInfo;
 use lru::LruCache;
 use op_alloy_consensus::OpBlock;
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, sync::Arc};
 use tokio::sync::RwLock;
 
 /// Events that can affect chain state
