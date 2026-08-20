@@ -250,7 +250,6 @@ impl Metrics {
             "too_many_blocks",
             "block_seen",
             "invalid_block",
-            "parent_beacon_root",
             "blob_gas_used",
             "excess_blob_gas",
             "withdrawals_root",

@@ -121,10 +121,13 @@ impl Metrics {
         let chain_id = kona_macros::chain_id_label(chain_id);
 
         // Engine task counts
+        // Every arm of `EngineTask::task_metrics_label`, so the pre-created set matches the
+        // emit exactly.
         for task in [
             Self::INSERT_TASK_LABEL,
             Self::CONSOLIDATE_TASK_LABEL,
             Self::BUILD_TASK_LABEL,
+            Self::SEAL_TASK_LABEL,
             Self::FINALIZE_TASK_LABEL,
         ] {
             kona_macros::set!(
