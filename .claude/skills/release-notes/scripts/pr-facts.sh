@@ -106,6 +106,9 @@ if [ ! -s "$workdir/work" ]; then
     exit 1
 fi
 
+# $0 and $1 are the positional parameters xargs passes to each `bash -c`, so they must
+# reach the child unexpanded.
+# shellcheck disable=SC2016
 xargs -P "$JOBS" -n 2 bash -c 'fetch "$0" "$1"' < "$workdir/work"
 
 for f in "$workdir"/pr-*; do
