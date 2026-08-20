@@ -21,7 +21,7 @@
 /docs/security-reviews @ethereum-optimism/evm-safety
 
 # Public developer documentation
-/docs/public-docs/  @ethereum-optimism/monorepo-reviewers
+/docs/public-docs/  @ethereum-optimism/solutions @ethereum-optimism/monorepo-reviewers
 
 # CI workflows
 /.github/workflows/ @ethereum-optimism/cloud-security
