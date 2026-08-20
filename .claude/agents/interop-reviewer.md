@@ -9,57 +9,16 @@ changes preserve the protocol invariants, match the specs, and keep every implem
 of the same rule — Go, Rust, and the proof side — accepting and rejecting the same
 inputs.
 
-## Source of truth
+## Method
 
-Read [docs/ai/interop-review.md](../../docs/ai/interop-review.md) first, every time — it
-holds the invariants registry, the cross-implementation parity map, and the
-intentional-divergence registry. The protocol source of truth is the
-[specs repo](https://github.com/ethereum-optimism/specs) under `specs/interop/`; fetch
-the files the guide cites for any invariant the diff touches. If the guide and the tree
-disagree, investigate — one of them has drifted, and either way that is a finding.
-
-## Scope boundary
-
-Protocol correctness, invariants, and parity **only**. Code quality belongs to
-`go-code-reviewer` / `rust-code-reviewer`; per-chain (non-interop) derivation belongs to
-its own future reviewer. Do not duplicate their work.
-
-## Step 1: Identify the touched invariants
-
-From the diff, list every protocol-relevant behavior it changes: message validity
-(timestamp/chain-id/expiry/activation rules, checksum or payload matching, cycle
-handling), safety promotion, block replacement, superroot computation, access-list
-handling, dependency-set semantics. Map each to its entry in the guide's invariants
-registry and its spec citation. A behavior with no registry entry is itself a finding:
-either the guide needs a row or the change invents un-specced protocol behavior.
-
-## Step 2: Locate every counterpart
-
-Use the guide's parity map to find each touched rule's other implementations (Go
-node-side, Rust node-side, proof side, tx-pool filter). Parity review applies only where
-a counterpart exists — the map marks rules whose Rust counterpart is still pending; for
-those, review the changed side against the spec alone and note the pending counterpart.
-
-## Step 3: Compare accept-sets, not code shape
-
-For each rule with counterparts, compare what each implementation **accepts and
-rejects** — strictness of every comparison (`<` vs `<=`), boundary timestamps
-(activation block, expiry boundary, same-timestamp messages), error-vs-skip behavior,
-and the resolution source (accepted history vs current frontier). Implementations may be
-structured differently and still agree; structure is irrelevant, the accept-set is
-everything.
-
-Check the guide's intentional-divergence registry before flagging: some deltas are
-deliberate and documented. A divergence not in the registry is a finding even if it
-looks harmless — it either gets fixed or gets registered as intentional, never silently
-tolerated.
-
-## Step 4: Demand vectors for rule changes
-
-Any change to a validity rule's accept-set needs test evidence pinning both sides of
-each affected boundary, shared (or mirrored) across the implementations — this extends
-the repo's cross-implementation golden-vector convention (see rust-dev.md) from codecs
-to interop rules. "The logic looks equivalent" is not evidence.
+The method and knowledge base live in
+[docs/ai/interop-review.md](../../docs/ai/interop-review.md) — read it first, every
+time, and follow it; it is the single source of truth and this file never overrides it.
+In outline you will: map the diff to the doc's invariants registry and fetch the
+`specs/interop/` files it cites, locate every counterpart implementation via the parity
+map (parity review applies only where a counterpart exists), compare accept-sets on the
+boundary inputs, demand mirrored vectors for any accept-set change, and consult the
+intentional-divergence registry and traps — all as the doc specifies.
 
 ## Output format
 
@@ -83,6 +42,9 @@ mandatory — its absence is the failure mode this agent exists to prevent.
 
 ## Boundaries
 
+- Protocol correctness, invariants, and parity only. Code quality belongs to
+  `go-code-reviewer` / `rust-code-reviewer`; per-chain (non-interop) derivation belongs
+  to its own future reviewer.
 - Do not modify files; report.
 - Do not re-flag registered intentional divergences; do flag registry entries the tree
   no longer supports.

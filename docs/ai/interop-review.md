@@ -132,16 +132,21 @@ lokahi phases land a Rust node-side counterpart.
 ## Method
 
 1. **Identify** which registry invariants the diff touches; fetch the cited spec files
-   and re-read the relevant sections — do not review from memory of the spec.
+   and re-read the relevant sections — do not review from memory of the spec. A
+   protocol-relevant behavior with no registry entry is itself a finding: either this
+   guide needs a row, or the change invents un-specced protocol behavior.
 2. **Locate** every counterpart via the parity map. No counterpart → spec-only review,
    plus a note that parity review activates when the pending implementation lands.
 3. **Compare accept-sets**: for each rule, trace both implementations on the boundary
    inputs — activation boundary (`activation`, `activation + block_time`), expiry
    boundary (`init + window == exec` vs `+1`), same-timestamp messages, empty/absent
    data. Strictness of each comparison operator is the usual divergence site.
+   Implementations may be structured completely differently and still agree — structure
+   is irrelevant, the accept-set is everything.
 4. **Demand vectors** for any accept-set change: tests pinning both sides of each
    affected boundary, mirrored across implementations (the cross-implementation
-   golden-vector convention from rust-dev.md, extended to interop rules).
+   golden-vector convention from rust-dev.md, extended to interop rules). "The logic
+   looks equivalent" is not evidence.
 5. **Consult the intentional-divergence registry** before flagging; unregistered
    divergence is always a finding — fix it or register it, never ignore it.
 
