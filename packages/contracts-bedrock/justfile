@@ -76,6 +76,7 @@ clean:
 # Runs standard contract tests.
 test *ARGS: build-go-ffi
   #!/bin/bash
+  forge --version
   if [ -n "$JUNIT_TEST_PATH" ]; then
     forge test {{ARGS}} --junit > "$JUNIT_TEST_PATH"
   else
@@ -85,6 +86,35 @@ test *ARGS: build-go-ffi
 # Runs standard contract tests (developer mode).
 test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
+
+# Runs the full test suite against the Amsterdam EVM version.
+#
+# The pinned forge does not know the `amsterdam` target, so AMSTERDAM_FORGE must point at a
+# newer forge binary; its directory is prepended to PATH so `test` resolves that one.
+test-amsterdam *ARGS:
+  #!/bin/bash
+  set -euo pipefail
+
+  if [ -z "${AMSTERDAM_FORGE:-}" ]; then
+    echo "error: AMSTERDAM_FORGE is unset" >&2
+    echo "  point it at a forge binary supporting --evm-version amsterdam, e.g." >&2
+    echo "  AMSTERDAM_FORGE=\$HOME/.foundry/bin/forge just test-amsterdam" >&2
+    exit 1
+  fi
+
+  if [ ! -x "$AMSTERDAM_FORGE" ]; then
+    echo "error: AMSTERDAM_FORGE is not an executable file: $AMSTERDAM_FORGE" >&2
+    exit 1
+  fi
+
+  if ! "$AMSTERDAM_FORGE" config --evm-version amsterdam >/dev/null 2>&1; then
+    echo "error: $AMSTERDAM_FORGE rejects --evm-version amsterdam" >&2
+    "$AMSTERDAM_FORGE" --version >&2
+    exit 1
+  fi
+
+  export PATH="$(cd "$(dirname "$AMSTERDAM_FORGE")" && pwd):$PATH"
+  just test --evm-version amsterdam {{ARGS}}
 
 # Default block number for the forked upgrade path.
 # Block numbers are calculated deterministically based on the current day.
