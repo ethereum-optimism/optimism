@@ -78,7 +78,7 @@ func (eq *AttributesHandler) forceResetLocked() {
 	eq.attributes = nil
 }
 
-func (eq *AttributesHandler) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+func (eq *AttributesHandler) ForceReset() {
 	eq.mu.Lock()
 	defer eq.mu.Unlock()
 	eq.forceResetLocked()
