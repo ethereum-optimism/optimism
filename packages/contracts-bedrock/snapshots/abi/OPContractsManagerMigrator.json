@@ -117,12 +117,32 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_DisputeGameNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_DuplicateL2ChainId",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_InteropNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidAbsolutePrestate",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidInitBond",
     "type": "error"
   },
   {
@@ -148,6 +168,11 @@
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_SystemPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_ZKDisputeGameNotEnabled",
     "type": "error"
   },
   {

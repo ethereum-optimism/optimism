@@ -1,0 +1,41 @@
+[package]
+name = "kona-safedb"
+version = "0.1.0"
+description = "Derivation safe-head database for the OP Stack rollup node"
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Kona
+kona-protocol.workspace = true
+
+# Alloy
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+
+# Storage
+rocksdb = { workspace = true, features = ["snappy"], optional = true }
+
+# Misc
+tracing.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true
+tempfile.workspace = true
+
+[features]
+default = []
+# Enables the on-disk [`SafeDatabase`] backend. Off by default so that consumers needing only the
+# `SafeDb` trait (or `DisabledDatabase`) avoid the rocksdb/libclang build dependency.
+rocksdb = ["dep:rocksdb"]

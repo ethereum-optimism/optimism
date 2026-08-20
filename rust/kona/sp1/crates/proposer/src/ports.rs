@@ -17,6 +17,7 @@ use crate::{
 /// A compact L1 block observation used for proposer synchronization.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct L1BlockRef {
+    pub(crate) hash: B256,
     pub(crate) number: u64,
     pub(crate) timestamp: u64,
 }

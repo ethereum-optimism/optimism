@@ -18,8 +18,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-/// Status snapshot returned by `admin_sdmStatus`. Shape matches op-rbuilder and op-node so a
-/// single client view can render any participant's state.
+/// Status snapshot returned by `admin_sdmStatus`. Shape matches op-node so a single client view
+/// can render either participant's state.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SdmStatus {

@@ -510,7 +510,6 @@ fn classify_game_sync(
         GameSyncFacts::ChallengerWins { index } => Ok(GameSyncAction::RemoveSubtree(index)),
     }
 }
-
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
 /// resolves finished ones, and claims bonds.
 #[derive(Clone)]
@@ -779,9 +778,9 @@ impl Proposer {
     /// 2. `sync_anchor_game` aligns the cached anchor pointer with the registry contract.
     /// 3. `compute_canonical_head` recomputes the head game used for proposal selection.
     pub async fn sync_state(&self) -> Result<()> {
-        // Pin L1 block for the entire sync cycle so all state reads see a consistent
-        // snapshot. Without this, load-balanced RPCs can return data from different block
-        // heights, breaking atomicity between related reads (e.g. credit vs anchorGame).
+        // Pin one L1 block for the entire sync cycle so every state read sees a consistent
+        // snapshot. Without this, load-balanced RPCs or a reorg can make related reads resolve
+        // against different L1 states (e.g. credit vs anchorGame).
         // Ref: https://github.com/celo-org/op-succinct/issues/132
         let latest_block =
             self.l1_view.latest_head().await?.context("Failed to fetch latest L1 block")?;
@@ -816,10 +815,10 @@ impl Proposer {
         // When offset > 0, fetch the confirmed block separately; if the backend hasn't
         // caught up, skip this cycle rather than pinning forward.
         let (pinned_block, pinned_timestamp) = if self.config.sync_l1_confirmations == 0 {
-            (BlockId::number(latest_block.number), latest_block.timestamp)
+            (BlockId::hash(latest_block.hash), latest_block.timestamp)
         } else {
             match self.l1_view.block_ref(confirmed_number).await? {
-                Some(block) => (BlockId::number(block.number), block.timestamp),
+                Some(block) => (BlockId::hash(block.hash), block.timestamp),
                 None => {
                     tracing::warn!(
                         confirmed_number,
@@ -3587,7 +3586,7 @@ mod tests {
                 bond_targets: StdMutex::new(Vec::new()),
                 lifecycle_targets: StdMutex::new(Vec::new()),
                 fail_on: None,
-                latest_head: Some(L1BlockRef { number: 1, timestamp: 1_000 }),
+                latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 1, timestamp: 1_000 }),
                 block_ref: None,
                 latest_game_index: None,
                 anchor_game: Address::ZERO,
@@ -4041,6 +4040,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn sync_state_pins_reads_to_selected_l1_hash() {
+        let latest_hash = B256::repeat_byte(0x11);
+        let confirmed_hash = B256::repeat_byte(0x22);
+        let cases = [
+            (0, L1BlockRef { hash: latest_hash, number: 5, timestamp: 1_000 }, None, latest_hash),
+            (
+                2,
+                L1BlockRef { hash: latest_hash, number: 7, timestamp: 1_000 },
+                Some(L1BlockRef { hash: confirmed_hash, number: 5, timestamp: 998 }),
+                confirmed_hash,
+            ),
+        ];
+
+        for (confirmations, latest_head, block_ref, expected_hash) in cases {
+            let mut config = test_config();
+            config.sync_l1_confirmations = confirmations;
+            let mut proposer = test_proposer_with(config).await;
+            let view = Arc::new(RecordingL1View {
+                fail_on: Some("latest_game_index"),
+                latest_head: Some(latest_head),
+                block_ref,
+                ..Default::default()
+            });
+            proposer.l1_view = view.clone();
+
+            assert!(proposer.sync_state().await.is_err());
+            assert_eq!(
+                view.block_calls(),
+                vec![("latest_game_index", BlockId::hash(expected_hash))]
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn sync_head_failures_and_no_advance_outcomes_preserve_the_last_pin() {
         let cases = [
             (Some("latest_head"), 1, 3, 0, true, &["latest_head"] as &[_]),
@@ -4055,7 +4088,7 @@ mod tests {
             let mut proposer = test_proposer_with(config).await;
             let view = Arc::new(RecordingL1View {
                 fail_on,
-                latest_head: Some(L1BlockRef { number: head, timestamp: 1_000 }),
+                latest_head: Some(L1BlockRef { hash: B256::ZERO, number: head, timestamp: 1_000 }),
                 ..Default::default()
             });
             proposer.l1_view = view.clone();
@@ -4069,7 +4102,7 @@ mod tests {
     #[tokio::test]
     async fn factory_failure_does_not_advance_the_successful_pin() {
         let view = Arc::new(RecordingL1View {
-            latest_head: Some(L1BlockRef { number: 5, timestamp: 1_000 }),
+            latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 5, timestamp: 1_000 }),
             fail_on: Some("latest_game_index"),
             ..Default::default()
         });
@@ -4128,7 +4161,7 @@ mod tests {
     #[tokio::test]
     async fn sync_failure_boundaries_preserve_cursor_and_isolate_existing_games() {
         let anchor_failure = Arc::new(RecordingL1View {
-            latest_head: Some(L1BlockRef { number: 5, timestamp: 1_000 }),
+            latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 5, timestamp: 1_000 }),
             latest_game_index: Some(U256::ZERO),
             fail_on: Some("registered_anchor_game"),
             ..Default::default()
@@ -4147,7 +4180,7 @@ mod tests {
         );
 
         let discovery_failure = Arc::new(RecordingL1View {
-            latest_head: Some(L1BlockRef { number: 5, timestamp: 1_000 }),
+            latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 5, timestamp: 1_000 }),
             latest_game_index: Some(U256::ZERO),
             fail_on: Some("factory_game"),
             ..Default::default()

@@ -213,16 +213,14 @@ func (r *l2ELFrontend) Running() bool {
 
 type l2CLFrontend struct {
 	presetCommon
-	chainID          eth.ChainID
-	client           opclient.RPC
-	rollupClient     apis.RollupClient
-	p2pClient        apis.P2PClient
-	els              locks.RWMap[string, *l2ELFrontend]
-	rollupBoostNodes locks.RWMap[string, *rollupBoostFrontend]
-	oprBuilderNodes  locks.RWMap[string, *oprBuilderFrontend]
-	userRPC          string
-	lifecycle        stack.Lifecycle
-	control          stack.ControlledLifecycle
+	chainID      eth.ChainID
+	client       opclient.RPC
+	rollupClient apis.RollupClient
+	p2pClient    apis.P2PClient
+	els          locks.RWMap[string, *l2ELFrontend]
+	userRPC      string
+	lifecycle    stack.Lifecycle
+	control      stack.ControlledLifecycle
 }
 
 var _ stack.L2CLNode = (*l2CLFrontend)(nil)
@@ -263,35 +261,13 @@ func (r *l2CLFrontend) attachEL(el *l2ELFrontend) {
 	r.els.Set(el.Name(), el)
 }
 
-func (r *l2CLFrontend) attachRollupBoostNode(node *rollupBoostFrontend) {
-	r.rollupBoostNodes.Set(node.Name(), node)
-}
-
-func (r *l2CLFrontend) attachOPRBuilderNode(node *oprBuilderFrontend) {
-	r.oprBuilderNodes.Set(node.Name(), node)
-}
-
 func (r *l2CLFrontend) ELs() []stack.L2ELNode {
 	return mapSlice(sortByNameFunc(r.els.Values()), func(v *l2ELFrontend) stack.L2ELNode { return v })
-}
-
-func (r *l2CLFrontend) RollupBoostNodes() []stack.RollupBoostNode {
-	return mapSlice(sortByNameFunc(r.rollupBoostNodes.Values()), func(v *rollupBoostFrontend) stack.RollupBoostNode { return v })
-}
-
-func (r *l2CLFrontend) OPRBuilderNodes() []stack.OPRBuilderNode {
-	return mapSlice(sortByNameFunc(r.oprBuilderNodes.Values()), func(v *oprBuilderFrontend) stack.OPRBuilderNode { return v })
 }
 
 func (r *l2CLFrontend) ELClient() apis.EthClient {
 	if els := sortByNameFunc(r.els.Values()); len(els) > 0 {
 		return els[0].EthClient()
-	}
-	if nodes := sortByNameFunc(r.rollupBoostNodes.Values()); len(nodes) > 0 {
-		return nodes[0].EthClient()
-	}
-	if nodes := sortByNameFunc(r.oprBuilderNodes.Values()); len(nodes) > 0 {
-		return nodes[0].EthClient()
 	}
 	return nil
 }
@@ -383,94 +359,6 @@ func (r *l2ChallengerFrontend) ChainID() eth.ChainID {
 
 func (r *l2ChallengerFrontend) Config() *challengerConfig.Config {
 	return r.config
-}
-
-type oprBuilderFrontend struct {
-	rpcELNode
-	engineClient      *sources.EngineClient
-	flashblocksClient *opclient.WSClient
-	lifecycle         stack.Lifecycle
-	updateRuleSet     func(rulesYaml string) error
-}
-
-var _ stack.OPRBuilderNode = (*oprBuilderFrontend)(nil)
-
-func newPresetOPRBuilderNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient, updateRuleSet func(string) error) *oprBuilderFrontend {
-	engineClient, err := sources.NewEngineClient(rpcCl, t.Logger(), nil, sources.EngineClientDefaultConfig(rollupCfg))
-	t.Require().NoError(err)
-	return &oprBuilderFrontend{
-		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, userRPC, 0),
-		engineClient:      engineClient,
-		flashblocksClient: flashblocksCl,
-		updateRuleSet:     updateRuleSet,
-	}
-}
-
-func (r *oprBuilderFrontend) L2EthClient() apis.L2EthClient {
-	return r.engineClient.L2Client
-}
-
-func (r *oprBuilderFrontend) L2EngineClient() apis.EngineClient {
-	return r.engineClient.EngineAPIClient
-}
-
-func (r *oprBuilderFrontend) FlashblocksClient() *opclient.WSClient {
-	return r.flashblocksClient
-}
-
-func (r *oprBuilderFrontend) UpdateRuleSet(rulesYaml string) error {
-	return r.updateRuleSet(rulesYaml)
-}
-
-func (r *oprBuilderFrontend) Start() {
-	r.require().NotNil(r.lifecycle, "OPR builder node %s is not lifecycle-controllable", r.Name())
-	r.lifecycle.Start()
-}
-
-func (r *oprBuilderFrontend) Stop() {
-	r.require().NotNil(r.lifecycle, "OPR builder node %s is not lifecycle-controllable", r.Name())
-	r.lifecycle.Stop()
-}
-
-type rollupBoostFrontend struct {
-	rpcELNode
-	engineClient      *sources.EngineClient
-	flashblocksClient *opclient.WSClient
-	lifecycle         stack.Lifecycle
-}
-
-var _ stack.RollupBoostNode = (*rollupBoostFrontend)(nil)
-
-func newPresetRollupBoostNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient) *rollupBoostFrontend {
-	engineClient, err := sources.NewEngineClient(rpcCl, t.Logger(), nil, sources.EngineClientDefaultConfig(rollupCfg))
-	t.Require().NoError(err)
-	return &rollupBoostFrontend{
-		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, userRPC, 0),
-		engineClient:      engineClient,
-		flashblocksClient: flashblocksCl,
-	}
-}
-
-func (r *rollupBoostFrontend) L2EthClient() apis.L2EthClient {
-	return r.engineClient.L2Client
-}
-
-func (r *rollupBoostFrontend) L2EngineClient() apis.EngineClient {
-	return r.engineClient.EngineAPIClient
-}
-
-func (r *rollupBoostFrontend) FlashblocksClient() *opclient.WSClient {
-	return r.flashblocksClient
-}
-
-func (r *rollupBoostFrontend) Start() {
-	r.require().NotNil(r.lifecycle, "rollup boost node %s is not lifecycle-controllable", r.Name())
-	r.lifecycle.Start()
-}
-
-func (r *rollupBoostFrontend) Stop() {
-	r.require().NotNil(r.lifecycle, "rollup boost node %s is not lifecycle-controllable", r.Name())
-	r.lifecycle.Stop()
 }
 
 type supernodeFrontend struct {

@@ -65,12 +65,23 @@ type AltDAConfig struct {
 	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
 	// CommitmentType specifies which commitment type can be used. Defaults to Keccak (type 0) if not present
 	CommitmentType string `json:"da_commitment_type"`
+	// MaxInputSize is the maximum byte size accepted for Keccak commitments.
+	// It defaults to the protocol limit when omitted.
+	MaxInputSize *uint64 `json:"da_max_input_size,omitempty"`
 	// DA challenge window value set on the DAC contract. Used in alt-da mode
 	// to compute when a commitment can no longer be challenged.
 	DAChallengeWindow uint64 `json:"da_challenge_window"`
 	// DA resolve window value set on the DAC contract. Used in alt-da mode
 	// to compute when a challenge expires and trigger a reorg if needed.
 	DAResolveWindow uint64 `json:"da_resolve_window"`
+}
+
+// MaxInputSizeOrDefault returns the configured maximum input size or the protocol default.
+func (c *AltDAConfig) MaxInputSizeOrDefault() uint64 {
+	if c == nil || c.MaxInputSize == nil {
+		return altda.MaxInputSize
+	}
+	return *c.MaxInputSize
 }
 
 type Config struct {
@@ -433,6 +444,12 @@ func (cfg *Config) ProbablyMissingPectraBlobSchedule() bool {
 // If the legacy values are set, they are copied to the new location. If both are set, they are check for consistency.
 func validateAltDAConfig(cfg *Config) error {
 	if cfg.AltDAConfig != nil {
+		if cfg.AltDAConfig.CommitmentType == altda.GenericCommitmentString && cfg.AltDAConfig.MaxInputSize != nil {
+			return errors.New("altDA max input size must be omitted for generic commitments")
+		}
+		if cfg.AltDAConfig.MaxInputSize != nil && *cfg.AltDAConfig.MaxInputSize == 0 {
+			return errors.New("altDA max input size must be greater than zero")
+		}
 		if !(cfg.AltDAConfig.CommitmentType == altda.KeccakCommitmentString || cfg.AltDAConfig.CommitmentType == altda.GenericCommitmentString) {
 			return fmt.Errorf("invalid commitment type: %v", cfg.AltDAConfig.CommitmentType)
 		}

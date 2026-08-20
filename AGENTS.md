@@ -57,6 +57,26 @@ The OP Stack includes significant Rust implementations:
 - **op-e2e**: End-to-end testing framework
 - **op-acceptance-tests**: Acceptance test suite
 
+## Before Opening a PR
+
+Run the relevant review agents locally and address their findings **before** the PR is posted — not after, and not in response to CI or a human reviewer. A finding is "addressed" when it is either fixed in the branch or dismissed; record every dismissal and its reason in the PR description, and confirm dismissals with the PR author rather than deciding them unilaterally.
+
+Under Claude Code, the repo-local review agents live in `.claude/agents/`; under another harness, run its equivalent reviewer or work through the paired guide in `docs/ai/` directly. Invoke every agent whose trigger the diff matches:
+
+| Agent | Run it when the diff… | Review guide |
+| --- | --- | --- |
+| [`go-code-reviewer`](.claude/agents/go-code-reviewer.md) | touches any Go code | [docs/ai/go-dev.md](docs/ai/go-dev.md) |
+| [`rust-code-reviewer`](.claude/agents/rust-code-reviewer.md) | touches any Rust code (everything under `rust/`) | [docs/ai/rust-dev.md](docs/ai/rust-dev.md) |
+| [`ci-config-reviewer`](.claude/agents/ci-config-reviewer.md) | touches `.circleci/` or `.github/` | [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md) |
+| [`reth-update-reviewer`](.claude/agents/reth-update-reviewer.md) | bumps the `reth`/`revm`/`alloy` pins or synced versions | [docs/ai/reth-update-review.md](docs/ai/reth-update-review.md) |
+| [`standard-validator-reviewer`](.claude/agents/standard-validator-reviewer.md) | touches `StandardValidator` or a contract it walks | [docs/ai/standard-validator-review.md](docs/ai/standard-validator-review.md) |
+
+`go-code-reviewer` and `rust-code-reviewer` are `proactive` agents — invoke them after finishing an implementation task, not only at PR time. `go-code-reviewer` runs the repo lint itself before reviewing. `dispute-game-investigator` is an investigation agent, not a PR gate.
+
+This list is a floor, not a ceiling: also run the review agents and review skills supplied by the active harness, plugins, or global config (e.g. general-purpose code review, security review, test-coverage and comment/doc reviewers). If several agents apply, dispatch them in parallel. If a matching review is skipped, say so explicitly in the PR description rather than skipping it silently.
+
+For the remaining pre-PR steps (broad tests, rebase on `develop`, PR guidelines) see [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md#before-every-pr).
+
 ## Subdirectory Instructions
 
 Some subdirectories have their own CLAUDE.md with domain-specific conventions. Read the relevant file before working in that area — do not read them all upfront.

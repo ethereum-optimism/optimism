@@ -7657,6 +7657,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-safedb"
+version = "0.1.0"
+dependencies = [
+ "alloy-eips 2.1.1",
+ "alloy-primitives",
+ "kona-protocol",
+ "rocksdb",
+ "rstest",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "kona-serde"
 version = "0.2.2"
 dependencies = [

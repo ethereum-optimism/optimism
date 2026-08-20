@@ -17,14 +17,14 @@ import (
 
 // Spec describes a Rust binary to be built and located.
 type Spec struct {
-	SrcDir  string // directory name relative to monorepo root, e.g. "rollup-boost"
-	Package string // cargo package name, e.g. "rollup-boost"
-	Binary  string // binary name, e.g. "rollup-boost"
+	SrcDir  string // directory name relative to monorepo root, e.g. "rust/kona"
+	Package string // cargo package name, e.g. "kona-node"
+	Binary  string // binary name, e.g. "kona-node"
 }
 
 // EnsureExists locates or builds a Rust binary as needed.
 //
-// Env var overrides (suffix derived from binary name, e.g. "rollup-boost" -> "ROLLUP_BOOST"):
+// Env var overrides (suffix derived from binary name, e.g. "kona-node" -> "KONA_NODE"):
 //   - RUST_BINARY_PATH_<BINARY>: absolute path to pre-built binary (skips build, must exist)
 //   - RUST_SRC_DIR_<BINARY>: overrides SrcDir (absolute path to cargo project root)
 //
@@ -84,7 +84,7 @@ func resolveSrcRoot(defaultSrcDir, envSuffix string) (string, error) {
 }
 
 // toEnvVarSuffix converts a binary name to an env var suffix.
-// e.g. "rollup-boost" -> "ROLLUP_BOOST"
+// e.g. "kona-node" -> "KONA_NODE"
 func toEnvVarSuffix(binary string) string {
 	return strings.ToUpper(strings.ReplaceAll(binary, "-", "_"))
 }
