@@ -116,7 +116,7 @@ impl<'a> MessageRules<'a> {
     }
 
     /// Same-timestamp cycle check over a whole set of executing messages: runs the crate-private
-    /// [`detect_cycles`] helper once per distinct executing timestamp present in `messages`.
+    /// `detect_cycles` helper once per distinct executing timestamp present in `messages`.
     pub fn check_no_cycles<E: Debug>(
         messages: &[EnrichedExecutingMessage],
     ) -> Result<(), MessageGraphError<E>> {
