@@ -43,6 +43,7 @@ op-alloy-network.workspace = true
 # Misc
 lru.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 tower.workspace = true
@@ -62,4 +63,3 @@ metrics = [ "dep:metrics", "kona-derive/metrics" ]
 tokio.workspace = true
 alloy-rpc-types-eth.workspace = true
 httpmock.workspace = true
-serde_json.workspace = true
