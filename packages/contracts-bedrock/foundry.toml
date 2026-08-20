@@ -89,6 +89,10 @@ gas_limit = 9223372036854775807
 [fuzz]
 runs = 64
 
+# The built-in solidity linter is not part of our CI gate; `just lint` and semgrep are.
+[lint]
+lint_on_build = false
+
 [fmt]
 line_length=120
 multiline_func_header='all'
