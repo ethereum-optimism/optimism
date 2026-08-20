@@ -222,7 +222,8 @@ commands:
                     echo "export SCCACHE_ERROR_LOG=/tmp/sccache.log"
                     echo "export SCCACHE_LOG=warn"
                     echo "export SCCACHE_IDLE_TIMEOUT=0"
-                    # Required for sccache to cache rustc output.
+                    # Required for sccache to cache rustc output. rust-setup-env
+                    # also sets this; keep it here so direct callers remain correct.
                     echo "export CARGO_INCREMENTAL=0"
                   } >> "$BASH_ENV"
             # develop overrides to the writer identity. This selects the SA only;
