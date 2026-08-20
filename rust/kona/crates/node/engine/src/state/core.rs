@@ -132,12 +132,46 @@ impl EngineSyncState {
     /// Applies a cross-safe promotion. This is the single entry point through which the cross-safe
     /// head — and therefore the forkchoice `safeBlockHash` — moves.
     ///
-    /// Promotions may move the cross-safe head backwards, which is how an interop rewind unwinds a
-    /// decision, but never below the finalized head: finalization is irreversible, so a promotion
-    /// targeting a lower block is clamped to the finalized head.
+    /// The target is clamped into the band the safety definition allows:
+    ///
+    /// - **At or below local-safe.** Cross-safe is local-safe *and* cross-verified, so a promotion
+    ///   naming a block this engine has not derived locally yet is held at the local-safe head.
+    ///   Unclamped, [`Self::create_forkchoice_state`] would report `safeBlockHash` ahead of
+    ///   `headBlockHash`; the EL rejects that with `INVALID_FORK_CHOICE_STATE`, which arrives as
+    ///   [`SynchronizeTaskError::InvalidForkchoiceState`] and costs a full engine reset.
+    /// - **At or above finalized.** Promotions may move the cross-safe head backwards, which is how
+    ///   an interop rewind unwinds a decision, but finalization is irreversible, so a target below
+    ///   the finalized head is held there.
+    ///
+    /// Both clamps warn rather than absorbing the disagreement silently: either one means the
+    /// promotion source and this engine disagree about the chain, which is a verifier bug worth
+    /// diagnosing. Clamping keeps the invariant without a fatal error — the same treatment
+    /// `EngineController.resolveVerifiedAsSafe` gives a super-authority head that runs ahead of
+    /// local-safe in op-node.
+    ///
+    /// [`SynchronizeTaskError::InvalidForkchoiceState`]: crate::SynchronizeTaskError::InvalidForkchoiceState
     pub fn apply_cross_safe_promotion(self, promotion: CrossSafePromotion) -> Self {
         let target = promotion.target();
+
+        let target = if target.block_info.number > self.local_safe_head.block_info.number {
+            warn!(
+                target: "engine",
+                promotion = target.block_info.number,
+                local_safe = self.local_safe_head.block_info.number,
+                "Cross-safe promotion is ahead of the local-safe head; holding at local-safe"
+            );
+            self.local_safe_head
+        } else {
+            target
+        };
+
         let cross_safe_head = if target.block_info.number < self.finalized_head.block_info.number {
+            warn!(
+                target: "engine",
+                promotion = target.block_info.number,
+                finalized = self.finalized_head.block_info.number,
+                "Cross-safe promotion is below the finalized head; holding at finalized"
+            );
             self.finalized_head
         } else {
             target
@@ -188,6 +222,21 @@ pub struct EngineState {
     /// Whether or not the EL has finished syncing.
     pub el_sync_finished: bool,
 
+    /// Whether a forkchoice update has been dispatched to the execution layer yet.
+    ///
+    /// The initial forkchoice update has to be emitted even when it carries no change, so
+    /// [`crate::SynchronizeTask`] only skips a no-op update once this is set.
+    ///
+    /// It is tracked explicitly rather than inferred from the sync state differing from its
+    /// default, because that inference is defeated by any non-head field: an engine built by
+    /// [`Engine::with_external_cross_safe`] carries [`CrossSafeSource::Promoted`] from birth, so
+    /// its sync state is unequal to the default before anything has happened, and it would
+    /// silently skip the very first forkchoice update.
+    ///
+    /// [`Engine::with_external_cross_safe`]: crate::Engine::with_external_cross_safe
+    /// [`CrossSafeSource::Promoted`]: crate::CrossSafeSource::Promoted
+    pub forkchoice_emitted: bool,
+
     /// Track when the rollup node changes the forkchoice to restore previous
     /// known unsafe chain. e.g. Unsafe Reorg caused by Invalid span batch.
     /// This update does not retry except engine returns non-input error
@@ -235,8 +284,17 @@ mod test {
         }
 
         /// Promote the cross-safe head.
+        ///
+        /// A promotion is held at the local-safe head, so the target has to be local-safe first —
+        /// cross-safe is local-safe *and* cross-verified. Unlike the other setters here, this one
+        /// has to keep the resulting state, because the clamp reads `local_safe_head` back.
         pub fn set_cross_safe_head(&mut self, cross_safe_head: L2BlockInfo) {
-            self.sync_state
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
+                local_safe_head: Some(cross_safe_head),
+                ..Default::default()
+            });
+            self.sync_state = self
+                .sync_state
                 .apply_cross_safe_promotion(CrossSafePromoter::new().promote(cross_safe_head));
         }
 

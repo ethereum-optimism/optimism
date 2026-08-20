@@ -10,9 +10,6 @@ use thiserror::Error;
 /// An error that occurs when running the [`crate::FinalizeTask`].
 #[derive(Debug, Error)]
 pub enum FinalizeTaskError {
-    /// The block is not cross-safe, and therefore cannot be finalized.
-    #[error("Attempted to finalize a block that is not yet cross-safe")]
-    BlockNotCrossSafe,
     /// The block to finalize was not found.
     #[error("The block to finalize was not found: Number {0}")]
     BlockNotFound(u64),
@@ -32,9 +29,7 @@ pub enum FinalizeTaskError {
 impl EngineTaskError for FinalizeTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
-            Self::BlockNotCrossSafe | Self::BlockNotFound(_) | Self::FromBlock(_) => {
-                EngineTaskErrorSeverity::Critical
-            }
+            Self::BlockNotFound(_) | Self::FromBlock(_) => EngineTaskErrorSeverity::Critical,
             Self::TransportError(_) => EngineTaskErrorSeverity::Temporary,
             Self::ForkchoiceUpdateFailed(inner) => inner.severity(),
         }

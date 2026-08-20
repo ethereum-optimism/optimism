@@ -189,3 +189,70 @@ async fn standalone_advances_cross_safe_with_local_safe_in_a_single_fcu() {
     assert_eq!(fcus[0].head_block_hash, b1.block_info.hash);
     assert_eq!(fcus[0].safe_block_hash, b1.block_info.hash);
 }
+
+#[tokio::test]
+async fn promotion_ahead_of_local_safe_is_held_at_local_safe() {
+    let cfg = Arc::new(RollupConfig::default());
+    let client = client(cfg.clone());
+    let (genesis, b1, b3) = (block(0), block(1), block(3));
+    let (mut state, promoter) = externally_promoted(genesis);
+
+    advance_local_safe(client.clone(), cfg.clone(), &mut state, b1).await;
+
+    // The verifier names a block this engine has not derived locally yet. Cross-safe is local-safe
+    // *and* cross-verified, so the promotion is held at local-safe. Unclamped, the cross-safe head
+    // would move to b3 and the forkchoice update would carry `safeBlockHash` ahead of
+    // `headBlockHash`, which the EL rejects with `INVALID_FORK_CHOICE_STATE` — a `Reset` severity
+    // that costs a full engine reset.
+    PromoteCrossSafeTask::new(client.clone(), cfg.clone(), promoter.promote(b3))
+        .execute(&mut state)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        state.sync_state.cross_safe_head(),
+        b1,
+        "a promotion ahead of local-safe must be held at the local-safe head"
+    );
+
+    let fcu = last_fcu(&client.fork_choice_states().await);
+    assert_eq!(fcu.head_block_hash, b1.block_info.hash);
+    assert_eq!(
+        fcu.safe_block_hash, b1.block_info.hash,
+        "the forkchoice update must never report safe ahead of head"
+    );
+}
+
+#[tokio::test]
+async fn an_externally_promoted_engine_still_emits_its_initial_forkchoice_update() {
+    let cfg = Arc::new(RollupConfig::default());
+    let client = client(cfg.clone());
+
+    // A freshly built interop engine: nothing has happened yet, so a synchronize task carries no
+    // change. The initial forkchoice update still has to go out.
+    let (state_tx, _state_rx) = watch::channel(EngineState::default());
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let (engine, _promoter) = Engine::<MockEngineClient>::with_external_cross_safe(
+        EngineState::default(),
+        state_tx,
+        len_tx,
+    );
+    let mut state = *engine.state();
+
+    SynchronizeTask::new(client.clone(), cfg.clone(), EngineSyncStateUpdate::NONE)
+        .execute(&mut state)
+        .await
+        .unwrap();
+
+    // The skip-if-unchanged guard used to read `state.sync_state != Default::default()` as "the
+    // initial forkchoice state has been emitted". `with_external_cross_safe` sets
+    // `cross_safe_source` to `Promoted`, which makes that comparison true from birth, so the guard
+    // took the early return on the very first task and the initial forkchoice update was never
+    // emitted for exactly the interop configuration that needs it.
+    assert_eq!(
+        client.fork_choice_states().await.len(),
+        1,
+        "the initial forkchoice update must be emitted even though the update carries no change"
+    );
+    assert!(state.forkchoice_emitted, "the initial emission must be recorded");
+}

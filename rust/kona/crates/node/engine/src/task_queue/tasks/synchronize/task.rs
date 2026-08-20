@@ -118,15 +118,22 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
 
         // Check if a forkchoice update is not needed, return early.
         // A forkchoice update is not needed if...
-        // 1. The engine state is not default (initial forkchoice state has been emitted), and
+        // 1. The initial forkchoice state has already been emitted, and
         // 2. The new sync state is the same as the current sync state (no changes to the sync
         //    state).
+        //
+        // Condition 1 reads an explicit flag rather than `state.sync_state != Default::default()`.
+        // That comparison stood in for "the initial forkchoice state has been emitted", but it is
+        // true for any sync state that differs from the default in *any* field — including
+        // `cross_safe_source`, which `Engine::with_external_cross_safe` sets before the engine has
+        // done anything. Under that comparison an interop engine would take this early return on
+        // its first task and never emit an initial forkchoice update at all.
         //
         // NOTE:
         // We shouldn't retry the synchronize task there. Since the `sync_state` is only updated
         // inside the `SynchronizeTask` (except inside the ConsolidateTask, when the block is not
         // the last in the batch) - the engine will get stuck retrying the `SynchronizeTask`
-        if state.sync_state != Default::default() && state.sync_state == new_sync_state {
+        if state.forkchoice_emitted && state.sync_state == new_sync_state {
             debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
             return Ok(());
         }
@@ -169,8 +176,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
 
         self.check_forkchoice_updated_status(state, &valid_response.payload_status.status)?;
 
-        // Apply the new sync state to the engine state.
+        // Apply the new sync state to the engine state. The forkchoice update has been dispatched
+        // and accepted, so subsequent no-op updates may be skipped.
         state.sync_state = new_sync_state;
+        state.forkchoice_emitted = true;
 
         let fcu_duration = fcu_time_start.elapsed();
         debug!(
