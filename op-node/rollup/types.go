@@ -258,9 +258,10 @@ func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
 func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, logger log.Logger, client L1Client) error {
 	l1GenesisBlockRef, err := client.L1BlockRefByNumber(ctx, cfg.Genesis.L1.Number)
 	if err != nil {
-		if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
-			// Genesis block isn't available to check, so just accept it and hope for the best
-			logger.Warn("L1 genesis block not found, skipping validity check")
+		if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) || isHistoryPrunedErr(err) {
+			// Genesis block isn't available to check, either because it was never found or
+			// because history expiry has pruned it, so just accept it and hope for the best
+			logger.Warn("L1 genesis block not available, skipping validity check", "err", err)
 			return nil
 		}
 		return fmt.Errorf("failed to get L1 genesis blockhash: %w", err)
