@@ -104,6 +104,17 @@ Returns the output root at a specific block number, including the L2 block refer
         },
         "sequenceNumber": 37
       },
+      "cross_unsafe_l2": {
+        "hash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "number": 12350,
+        "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "timestamp": 1699123500,
+        "l1Origin": {
+          "hash": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "number": 18123460
+        },
+        "sequenceNumber": 47
+      },
       "local_safe_l2": {
         "hash": "0x0000000000000000000000000000000000000000000000000000000000000003",
         "number": 12345,
@@ -139,6 +150,7 @@ Returns the current synchronization status of the rollup node, including informa
 - `unsafe_l2` (`L2BlockInfo`): The unsafe L2 block reference (absolute tip)
 - `safe_l2` (`L2BlockInfo`): The safe L2 block reference (derived from L1)
 - `finalized_l2` (`L2BlockInfo`): The finalized L2 block reference
+- `cross_unsafe_l2` (`L2BlockInfo`): Cross-unsafe L2 block with verified cross-L2 dependencies
 - `local_safe_l2` (`L2BlockInfo`): Local safe L2 block derived from L1, not yet cross-verified
 
 ### Example
@@ -201,6 +213,17 @@ Returns the current synchronization status of the rollup node, including informa
         "number": 18123400
       },
       "sequenceNumber": 37
+    },
+    "cross_unsafe_l2": {
+      "hash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "number": 12350,
+      "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "timestamp": 1699123500,
+      "l1Origin": {
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "number": 18123460
+      },
+      "sequenceNumber": 47
     },
     "local_safe_l2": {
       "hash": "0x0000000000000000000000000000000000000000000000000000000000000003",

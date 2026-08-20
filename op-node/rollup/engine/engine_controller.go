@@ -78,7 +78,7 @@ type SyncDeriver interface {
 }
 
 type AttributesForceResetter interface {
-	ForceReset(ctx context.Context, localUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef)
+	ForceReset()
 }
 
 type PipelineForceResetter interface {
@@ -1251,7 +1251,7 @@ func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, localSaf
 func (e *EngineController) forceReset(ctx context.Context, localUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef, signalOnlySeq bool) {
 	// Reset other components before resetting the engine
 	if e.attributesResetter != nil {
-		e.attributesResetter.ForceReset(ctx, localUnsafe, localSafe, crossSafe, finalized)
+		e.attributesResetter.ForceReset()
 	}
 	if e.pipelineResetter != nil {
 		e.pipelineResetter.ResetPipeline()

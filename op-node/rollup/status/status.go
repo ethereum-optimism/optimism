@@ -57,6 +57,11 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 			st.data.LocalSafeL2 = x.SafeL2Head
 		}
 		st.data.FinalizedL2 = x.FinalizedL2Head
+	case engine.UnsafeUpdateEvent:
+		// Not redundant with ForkchoiceUpdateEvent: during EL sync the engine answers the
+		// forkchoice update with SYNCING, so no ForkchoiceUpdateEvent is emitted and this
+		// is the only event tracking the unsafe head.
+		st.data.UnsafeL2 = x.Ref
 	case engine.PendingSafeUpdateEvent:
 		st.data.UnsafeL2 = x.Unsafe
 		st.data.PendingSafeL2 = x.PendingSafe

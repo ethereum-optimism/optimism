@@ -606,7 +606,7 @@ func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.B
 	case safety.LocalUnsafe:
 		blockRef = el.BlockRefByLabel(eth.Unsafe)
 	default:
-		el.require.NoError(fmt.Errorf("invalid safety level: %v", lvl))
+		el.require.NoError(fmt.Errorf("%w: %v", errNoChainHeadForLevel, lvl))
 	}
 	return blockRef.ID()
 }

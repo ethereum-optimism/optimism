@@ -296,7 +296,6 @@ func logInterop(ctx context.Context, stderr io.Writer, sys *presets.TwoL2Superno
 			for chainID, cs := range status.Chains {
 				id := chainID.String()
 
-				// Unsafe progression
 				if cs.UnsafeL2.Number != lastUnsafe[id] && cs.UnsafeL2.Number > 0 {
 					fmt.Fprintf(stderr, "[interop] Chain %s unsafe: #%d\n", id, cs.UnsafeL2.Number)
 					lastUnsafe[id] = cs.UnsafeL2.Number

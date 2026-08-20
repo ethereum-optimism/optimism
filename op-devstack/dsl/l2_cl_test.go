@@ -36,6 +36,6 @@ func TestSyncStatusHead(t *testing.T) {
 	// CrossUnsafe is a message-safety level only; there is no cross-unsafe chain head.
 	t.Run("cross-unsafe", func(t *testing.T) {
 		_, err := syncStatusHead(syncStatus, safety.CrossUnsafe)
-		require.ErrorContains(t, err, "invalid safety level")
+		require.ErrorIs(t, err, errNoChainHeadForLevel)
 	})
 }
