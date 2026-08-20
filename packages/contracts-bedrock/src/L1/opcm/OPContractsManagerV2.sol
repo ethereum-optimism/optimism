@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.2
+    /// @custom:semver 8.0.3
     function version() public pure returns (string memory) {
-        return "8.0.2";
+        return "8.0.3";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -776,6 +776,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
                     abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
                 if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
+                    revert OPContractsManagerV2_InvalidGameConfigs();
+                }
+            }
+
+            // The ZK game is permissionless too, and its absolute prestate is the verification key
+            // the proof is checked against, so an empty prestate makes the game unplayable.
+            if (_cfg.disputeGameConfigs[i].enabled && isZkDisputeGame) {
+                IOPContractsManagerUtils.ZKDisputeGameConfig memory zkGameConfig =
+                    abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+                if (zkGameConfig.absolutePrestate.raw() == bytes32(0)) {
                     revert OPContractsManagerV2_InvalidGameConfigs();
                 }
             }
