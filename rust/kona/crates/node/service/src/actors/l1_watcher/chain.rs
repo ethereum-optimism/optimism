@@ -36,6 +36,14 @@ impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_> {
     ) -> Self {
         Self { rollup_config, derivation_client, block_signer_sender, inbound_queries }
     }
+
+    /// The id of the L2 chain this instance serves.
+    ///
+    /// Recorded on this chain's log lines and errors, so that with N chains an operator can tell
+    /// which chain a message came from.
+    pub(super) fn chain_id(&self) -> u64 {
+        self.rollup_config.l2_chain_id.id()
+    }
 }
 
 impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_>
@@ -48,8 +56,8 @@ where
         block: BlockInfo,
     ) -> Result<(), L1WatcherActorError<BlockInfo>> {
         self.derivation_client.send_new_l1_head(block).await.map_err(|e| {
-            warn!(target: "l1_watcher", "Error sending l1 head update to derivation actor: {e}");
-            L1WatcherActorError::DerivationClientError(e)
+            warn!(target: "l1_watcher", chain_id = self.chain_id(), "Error sending l1 head update to derivation actor: {e}");
+            L1WatcherActorError::DerivationClientError { chain_id: self.chain_id(), source: e }
         })
     }
 
@@ -59,8 +67,8 @@ where
         block: BlockInfo,
     ) -> Result<(), L1WatcherActorError<BlockInfo>> {
         self.derivation_client.send_finalized_l1_block(block).await.map_err(|e| {
-            warn!(target: "l1_watcher", "Error sending finalized l1 block update to derivation actor: {e}");
-            L1WatcherActorError::DerivationClientError(e)
+            warn!(target: "l1_watcher", chain_id = self.chain_id(), "Error sending finalized l1 block update to derivation actor: {e}");
+            L1WatcherActorError::DerivationClientError { chain_id: self.chain_id(), source: e }
         })
     }
 
@@ -95,11 +103,13 @@ where
             {
                 info!(
                     target: "l1_watcher",
+                    chain_id = self.chain_id(),
                     "Unsafe block signer update: {unsafe_block_signer}"
                 );
                 if let Err(e) = self.block_signer_sender.send(unsafe_block_signer).await {
                     error!(
                         target: "l1_watcher",
+                        chain_id = self.chain_id(),
                         "Error sending unsafe block signer update: {e}"
                     );
                 }

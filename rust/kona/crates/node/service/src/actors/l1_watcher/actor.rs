@@ -5,7 +5,10 @@ use crate::{NodeActor, actors::l1_watcher::error::L1WatcherActorError};
 use alloy_eips::BlockId;
 use alloy_provider::Provider;
 use async_trait::async_trait;
-use futures::{Stream, StreamExt, future::select_all};
+use futures::{
+    Stream, StreamExt,
+    future::{select_all, try_join_all},
+};
 use kona_protocol::BlockInfo;
 use kona_rpc::{L1State, L1WatcherQueries};
 use tokio::{select, sync::watch};
@@ -108,9 +111,14 @@ where
                 for chain in &self.chains {
                     chain.send_new_l1_head(head_block_info).await?;
                 }
-                for chain in &self.chains {
-                    chain.process_system_config_logs(&self.l1_provider, head_block_info).await?;
-                }
+                // Fetch every chain's system config logs together, so that the round-trip
+                // latency is one request rather than N and one chain's failing request does not
+                // stop the others' from being made. The first error still aborts the round, and
+                // the signer updates already delivered stay delivered.
+                try_join_all(self.chains.iter().map(|chain| {
+                    chain.process_system_config_logs(&self.l1_provider, head_block_info)
+                }))
+                .await?;
 
                 Ok(())
             }
@@ -273,6 +281,11 @@ mod tests {
 
     /// A new L1 head reaches every chain's derivation actor, and each chain's system config logs
     /// are routed to that chain's unsafe block signer channel.
+    ///
+    /// The chains' log requests are issued concurrently, and [`Asserter`] answers them from one
+    /// FIFO queue with no per-request routing. `try_join_all` polls its futures in the order it
+    /// was given them, so response `i` still answers chain `i`'s request: a chain that read
+    /// another chain's response would receive the wrong signer and fail the assertions below.
     #[tokio::test]
     async fn new_head_fans_out_to_every_chain() {
         const CHAINS: u8 = 3;
