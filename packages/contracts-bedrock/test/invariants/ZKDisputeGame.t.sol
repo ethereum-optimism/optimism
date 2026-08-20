@@ -16,9 +16,13 @@ import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
 contract ZKDisputeGame_Solvency_Invariant is ZKDisputeGame_TestInit {
     RandomZKActor internal actor;
 
+    /// @notice The bond the proposer paid to create the game, read from the factory
+    uint256 internal initBond;
+
     function setUp() public override {
         super.setUp();
 
+        initBond = disputeGameFactory.initBonds(gameType);
         actor = new RandomZKActor(game, vm, proposer);
 
         targetContract(address(actor));
@@ -36,7 +40,10 @@ contract ZKDisputeGame_Solvency_Invariant is ZKDisputeGame_TestInit {
         // what the game pays back out.
         uint256 proposerBalanceBefore = proposer.balance;
         uint256 actorBalanceBefore = address(actor).balance;
-        uint256 totalBonds = game.totalBonds();
+
+        // Total bonded is the factory's init bond plus whatever the actor registered as bonded.
+        // Not `game.totalBonds()` to avoid relying on the game's accounting under test.
+        uint256 expectedTotal = initBond + actor.totalBonded();
 
         // Push past every deadline so the game is over no matter what the actor did.
         vm.warp(block.timestamp + maxChallengeDuration.raw() + maxProveDuration.raw() + 1 seconds);
@@ -65,7 +72,7 @@ contract ZKDisputeGame_Solvency_Invariant is ZKDisputeGame_TestInit {
         // resolved DEFENDER_WINS, so no credit is burned to address(0) and the sum must be exact.
         uint256 totalReturned =
             (proposer.balance - proposerBalanceBefore) + (address(actor).balance - actorBalanceBefore);
-        assertEq(totalReturned, totalBonds, "all bonded ETH must be returned to participants");
+        assertEq(totalReturned, expectedTotal, "all bonded ETH must be returned to participants");
     }
 
     /// @notice Runs the unlock phase of a two-phase claim, skipping recipients owed nothing. A
