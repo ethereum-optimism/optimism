@@ -3,8 +3,8 @@
 //! This module is the single home of the rules that decide whether an interop message is valid:
 //! the activation invariant, timestamp ordering, the message expiry window and the same-timestamp
 //! cycle check. Both the fault-proof consolidation path ([`MessageGraph`](crate::MessageGraph))
-//! and the node-side verifier apply these functions so that the two never drift — a divergence
-//! here is a prestate divergence.
+//! and the node-side verifier apply these rules via [`MessageRules`] so that the two never
+//! drift — a divergence here is a prestate divergence.
 //!
 //! Rules reference: <https://specs.optimism.io/interop/messaging.html#invalid-messages>
 
@@ -15,106 +15,135 @@ use kona_genesis::RollupConfig;
 use kona_registry::{HashMap, ROLLUP_CONFIGS};
 use tracing::warn;
 
-/// Resolves the [`RollupConfig`] for `chain_id`, preferring the superchain registry and falling
-/// back to the locally supplied configs.
-pub fn rollup_config_for<E: Debug>(
-    chain_id: u64,
-    local_configs: &HashMap<u64, RollupConfig>,
-) -> Result<&RollupConfig, MessageGraphError<E>> {
-    ROLLUP_CONFIGS
-        .get(&chain_id)
-        .or_else(|| local_configs.get(&chain_id))
-        .ok_or(MessageGraphError::MissingRollupConfig(chain_id))
-}
-
-/// Returns `true` if interop has been active on `config`'s chain for at least one full block at
-/// `timestamp`, i.e. interop is active and `timestamp` is not the activation block.
-pub(crate) fn interop_active_for_full_block(config: &RollupConfig, timestamp: u64) -> bool {
-    config.is_interop_active(timestamp) && !config.is_first_interop_block(timestamp)
-}
-
-/// Activation invariant, executing side: interop must have been active on the executing chain for
-/// at least one full block at `executing_timestamp`.
-pub fn check_executing_activation<E: Debug>(
-    executing_config: &RollupConfig,
-    executing_timestamp: u64,
-) -> Result<(), MessageGraphError<E>> {
-    interop_active_for_full_block(executing_config, executing_timestamp).then_some(()).ok_or(
-        MessageGraphError::ExecutedTooEarly {
-            activation_time: executing_config.hardforks.lagoon_time.unwrap_or_default(),
-            executing_message_time: executing_timestamp,
-        },
-    )
-}
-
-/// Activation invariant, initiating side: interop must have been active on the initiating chain
-/// for at least one full block at `initiating_timestamp`.
-pub fn check_initiating_activation<E: Debug>(
-    initiating_config: &RollupConfig,
-    initiating_timestamp: u64,
-) -> Result<(), MessageGraphError<E>> {
-    interop_active_for_full_block(initiating_config, initiating_timestamp).then_some(()).ok_or(
-        MessageGraphError::InitiatedTooEarly {
-            activation_time: initiating_config.hardforks.lagoon_time.unwrap_or_default(),
-            initiating_message_time: initiating_timestamp,
-        },
-    )
-}
-
-/// Timestamp ordering invariant: the initiating message must not be in the future relative to the
-/// executing message.
-pub fn check_message_ordering<E: Debug>(
-    initiating_timestamp: u64,
-    executing_timestamp: u64,
-) -> Result<(), MessageGraphError<E>> {
-    (initiating_timestamp <= executing_timestamp).then_some(()).ok_or(
-        MessageGraphError::MessageInFuture {
-            max: executing_timestamp,
-            actual: initiating_timestamp,
-        },
-    )
-}
-
-/// Message expiry invariant: the initiating message must be no more than `message_expiry_window`
-/// seconds in the past, relative to the executing message.
-pub fn check_message_expiry<E: Debug>(
-    initiating_timestamp: u64,
-    executing_timestamp: u64,
+/// The interop message-validity rules, bound to the configuration they need.
+///
+/// Constructed once per validation pass — by [`MessageGraph`](crate::MessageGraph) on the
+/// fault-proof consolidation path, and by the node-side verifier — so that call sites pass only
+/// the per-message timestamps. Grouping the rules onto a single type keeps them discoverable and
+/// gives both callers one place to reach for, so the two can never drift.
+///
+/// Only [`Self::rollup_config_for`] and [`Self::check_message_expiry`] read from `self`; the
+/// remaining rules operate purely on their arguments and are associated functions.
+#[derive(Debug, Clone, Copy)]
+pub struct MessageRules<'a> {
+    /// Backup rollup configs for each chain, consulted when the superchain registry has no entry
+    /// for the chain.
+    rollup_configs: &'a HashMap<u64, RollupConfig>,
+    /// The message expiry window (in seconds) for validating initiating message timestamps.
     message_expiry_window: u64,
-) -> Result<(), MessageGraphError<E>> {
-    (initiating_timestamp >= executing_timestamp.saturating_sub(message_expiry_window))
-        .then_some(())
-        .ok_or(MessageGraphError::MessageExpired { initiating_timestamp, executing_timestamp })
 }
 
-/// Same-timestamp cycle check over a whole set of executing messages: runs the crate-private
-/// `detect_cycles` helper once per distinct executing timestamp present in `messages`.
-pub fn check_no_cycles<E: Debug>(
-    messages: &[EnrichedExecutingMessage],
-) -> Result<(), MessageGraphError<E>> {
-    // Collect distinct timestamps present in the message set.
-    let mut timestamps: Vec<u64> = messages.iter().map(|m| m.executing_timestamp).collect();
-    timestamps.sort_unstable();
-    timestamps.dedup();
-
-    for ts in timestamps {
-        let cycle_chains = detect_cycles(messages, ts);
-        if !cycle_chains.is_empty() {
-            warn!(
-                target: "message_graph",
-                cycle_chains = %cycle_chains
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                timestamp = ts,
-                "Cyclic dependency detected among same-timestamp executing messages",
-            );
-            return Err(MessageGraphError::CyclicDependency { chain_ids: cycle_chains });
-        }
+impl<'a> MessageRules<'a> {
+    /// Creates a new [`MessageRules`] from the backup rollup configs and the message expiry
+    /// window.
+    pub const fn new(
+        rollup_configs: &'a HashMap<u64, RollupConfig>,
+        message_expiry_window: u64,
+    ) -> Self {
+        Self { rollup_configs, message_expiry_window }
     }
 
-    Ok(())
+    /// Resolves the [`RollupConfig`] for `chain_id`, preferring the superchain registry and
+    /// falling back to the locally supplied configs.
+    pub fn rollup_config_for<E: Debug>(
+        &self,
+        chain_id: u64,
+    ) -> Result<&'a RollupConfig, MessageGraphError<E>> {
+        ROLLUP_CONFIGS
+            .get(&chain_id)
+            .or_else(|| self.rollup_configs.get(&chain_id))
+            .ok_or(MessageGraphError::MissingRollupConfig(chain_id))
+    }
+
+    /// Returns `true` if interop has been active on `config`'s chain for at least one full block
+    /// at `timestamp`, i.e. interop is active and `timestamp` is not the activation block.
+    fn interop_active_for_full_block(config: &RollupConfig, timestamp: u64) -> bool {
+        config.is_interop_active(timestamp) && !config.is_first_interop_block(timestamp)
+    }
+
+    /// Activation invariant, executing side: interop must have been active on the executing chain
+    /// for at least one full block at `executing_timestamp`.
+    pub fn check_executing_activation<E: Debug>(
+        executing_config: &RollupConfig,
+        executing_timestamp: u64,
+    ) -> Result<(), MessageGraphError<E>> {
+        Self::interop_active_for_full_block(executing_config, executing_timestamp)
+            .then_some(())
+            .ok_or(MessageGraphError::ExecutedTooEarly {
+                activation_time: executing_config.hardforks.lagoon_time.unwrap_or_default(),
+                executing_message_time: executing_timestamp,
+            })
+    }
+
+    /// Activation invariant, initiating side: interop must have been active on the initiating
+    /// chain for at least one full block at `initiating_timestamp`.
+    pub fn check_initiating_activation<E: Debug>(
+        initiating_config: &RollupConfig,
+        initiating_timestamp: u64,
+    ) -> Result<(), MessageGraphError<E>> {
+        Self::interop_active_for_full_block(initiating_config, initiating_timestamp)
+            .then_some(())
+            .ok_or(MessageGraphError::InitiatedTooEarly {
+                activation_time: initiating_config.hardforks.lagoon_time.unwrap_or_default(),
+                initiating_message_time: initiating_timestamp,
+            })
+    }
+
+    /// Timestamp ordering invariant: the initiating message must not be in the future relative to
+    /// the executing message.
+    pub fn check_message_ordering<E: Debug>(
+        initiating_timestamp: u64,
+        executing_timestamp: u64,
+    ) -> Result<(), MessageGraphError<E>> {
+        (initiating_timestamp <= executing_timestamp).then_some(()).ok_or(
+            MessageGraphError::MessageInFuture {
+                max: executing_timestamp,
+                actual: initiating_timestamp,
+            },
+        )
+    }
+
+    /// Message expiry invariant: the initiating message must be no more than the configured
+    /// message expiry window (in seconds) in the past, relative to the executing message.
+    pub fn check_message_expiry<E: Debug>(
+        &self,
+        initiating_timestamp: u64,
+        executing_timestamp: u64,
+    ) -> Result<(), MessageGraphError<E>> {
+        (initiating_timestamp >= executing_timestamp.saturating_sub(self.message_expiry_window))
+            .then_some(())
+            .ok_or(MessageGraphError::MessageExpired { initiating_timestamp, executing_timestamp })
+    }
+
+    /// Same-timestamp cycle check over a whole set of executing messages: runs the crate-private
+    /// [`detect_cycles`] helper once per distinct executing timestamp present in `messages`.
+    pub fn check_no_cycles<E: Debug>(
+        messages: &[EnrichedExecutingMessage],
+    ) -> Result<(), MessageGraphError<E>> {
+        // Collect distinct timestamps present in the message set.
+        let mut timestamps: Vec<u64> = messages.iter().map(|m| m.executing_timestamp).collect();
+        timestamps.sort_unstable();
+        timestamps.dedup();
+
+        for ts in timestamps {
+            let cycle_chains = detect_cycles(messages, ts);
+            if !cycle_chains.is_empty() {
+                warn!(
+                    target: "message_graph",
+                    cycle_chains = %cycle_chains
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    timestamp = ts,
+                    "Cyclic dependency detected among same-timestamp executing messages",
+                );
+                return Err(MessageGraphError::CyclicDependency { chain_ids: cycle_chains });
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// Static graph node representing an executing message in the cycle detection dependency graph.

@@ -4,7 +4,7 @@ use crate::{
     RawMessagePayload,
     errors::{MessageGraphError, MessageGraphResult},
     message::{EnrichedExecutingMessage, parse_log_to_executing_message},
-    rules,
+    rules::MessageRules,
     traits::InteropProvider,
 };
 use alloc::{string::ToString, vec::Vec};
@@ -35,12 +35,11 @@ pub struct MessageGraph<'a, P> {
     /// The data provider for the graph. Required for fetching headers, receipts and remote
     /// messages within history during resolution.
     provider: &'a P,
-    /// Backup rollup configs for each chain.
-    rollup_configs: &'a HashMap<u64, RollupConfig>,
+    /// The message-validity rules, bound to the backup rollup configs and the message expiry
+    /// window.
+    rules: MessageRules<'a>,
     /// The dependency set for the cluster being validated.
     dependency_set: &'a DependencySet,
-    /// The message expiry window (in seconds) for validating initiating message timestamps.
-    message_expiry_window: u64,
 }
 
 impl<'a, P> MessageGraph<'a, P>
@@ -92,7 +91,12 @@ where
             num_messages = messages.len(),
             "Derived message graph successfully",
         );
-        Ok(Self { messages, provider, rollup_configs, dependency_set, message_expiry_window })
+        Ok(Self {
+            messages,
+            provider,
+            rules: MessageRules::new(rollup_configs, message_expiry_window),
+            dependency_set,
+        })
     }
 
     /// Checks the validity of all messages within the graph.
@@ -119,7 +123,7 @@ where
         // Check for cyclic dependencies among same-timestamp executing messages before
         // validating individual messages. Cycles are a structural property of the graph
         // that cannot be detected by per-message validation.
-        rules::check_no_cycles(&self.messages)?;
+        MessageRules::check_no_cycles(&self.messages)?;
 
         // Create a new vector to store invalid edges
         let mut invalid_messages = HashMap::default();
@@ -182,18 +186,13 @@ where
             return Err(MessageGraphError::ChainNotInDependencySet(initiating_chain_id));
         }
 
-        let exec_rollup_config =
-            rules::rollup_config_for(message.executing_chain_id, self.rollup_configs)?;
-        rules::check_executing_activation(exec_rollup_config, message.executing_timestamp)?;
+        let exec_rollup_config = self.rules.rollup_config_for(message.executing_chain_id)?;
+        MessageRules::check_executing_activation(exec_rollup_config, message.executing_timestamp)?;
 
-        let rollup_config = rules::rollup_config_for(initiating_chain_id, self.rollup_configs)?;
-        rules::check_message_ordering(initiating_timestamp, message.executing_timestamp)?;
-        rules::check_initiating_activation(rollup_config, initiating_timestamp)?;
-        rules::check_message_expiry(
-            initiating_timestamp,
-            message.executing_timestamp,
-            self.message_expiry_window,
-        )?;
+        let rollup_config = self.rules.rollup_config_for(initiating_chain_id)?;
+        MessageRules::check_message_ordering(initiating_timestamp, message.executing_timestamp)?;
+        MessageRules::check_initiating_activation(rollup_config, initiating_timestamp)?;
+        self.rules.check_message_expiry(initiating_timestamp, message.executing_timestamp)?;
 
         // Fetch the header & receipts for the message's claimed origin block on the remote chain.
         let remote_header = self
