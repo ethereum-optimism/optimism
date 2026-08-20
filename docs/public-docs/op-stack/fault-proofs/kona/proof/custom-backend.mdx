@@ -57,8 +57,7 @@ let dap = EthereumDataSource::new_from_parts(
    cfg.as_ref()
 );
 
-// Construct a new derivation pipeline. `build_indexed` selects the
-// indexed traversal stage; `build_polled` selects polling traversal.
+// Construct a new derivation pipeline.
 let pipeline = PipelineBuilder::new()
    .rollup_config(cfg)
    .dap_source(dap)
