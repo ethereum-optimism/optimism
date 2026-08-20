@@ -485,21 +485,6 @@ impl ScenarioWorld {
         })
     }
 
-    pub(super) fn update_game(
-        &self,
-        address: Address,
-        update: impl FnOnce(&mut ScenarioGame),
-    ) -> L1BlockRef {
-        self.append_block(|state| {
-            let game = state
-                .games
-                .values_mut()
-                .find(|game| game.address == address)
-                .expect("scenario game must exist");
-            update(game);
-        })
-    }
-
     pub(super) fn rotate_registered_prestate(
         &self,
         prestate: B256,
@@ -508,16 +493,6 @@ impl ScenarioWorld {
         self.append_block(|state| {
             state.registered_args.absolute_prestate = prestate;
             state.registered_args.max_prove_duration = max_prove_duration;
-        })
-    }
-
-    pub(super) fn set_anchor(&self, game: Address, sequence_number: u64) -> L1BlockRef {
-        self.append_block(|state| {
-            state.registered_anchor_game = game;
-            state.anchor_root = AnchorRoot {
-                root: canonical_super_root(sequence_number),
-                sequence_number: U256::from(sequence_number),
-            };
         })
     }
 
@@ -1478,7 +1453,6 @@ pub(super) struct ScenarioHarness {
     pub(super) world: ScenarioWorld,
     pub(super) proposer: Arc<Proposer>,
     control: ScenarioControl,
-    config: ProposerConfig,
 }
 
 impl ScenarioHarness {
@@ -1494,25 +1468,7 @@ impl ScenarioHarness {
             .await
             .map_err(|error| ScenarioError::Initialization(error.to_string()))?;
         let control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
-        Ok(Self { world, proposer, control, config })
-    }
-
-    pub(super) async fn restart(&mut self) -> Result<(), ScenarioError> {
-        let tasks = self.proposer.tasks.lock().await;
-        if let Some(task_id) = tasks.keys().min().copied() {
-            return Err(ScenarioError::RunningTask { task_id });
-        }
-        drop(tasks);
-        let proposer = build_proposer(&self.world, &self.config)
-            .await
-            .map_err(|error| ScenarioError::Initialization(error.to_string()))?;
-        proposer
-            .validate_and_init()
-            .await
-            .map_err(|error| ScenarioError::Initialization(error.to_string()))?;
-        self.control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
-        self.proposer = proposer;
-        Ok(())
+        Ok(Self { world, proposer, control })
     }
 
     pub(super) async fn tick(&mut self) -> Result<CycleResult, ScenarioError> {
