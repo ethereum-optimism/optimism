@@ -25,12 +25,34 @@ awaiting notes are usually the answer:
 gh release list --limit 20        # 'Draft' rows are the candidates
 ```
 
-Handle each component as a separate pass — the notices differ per component even when
-they share a release train.
+**Check for both an RC and a finalized draft of the same version.** Release automation
+creates a fresh draft when an RC is finalized, and that finalized draft is the one that
+gets published. Writing to the RC draft instead is wasted work. If both exist, target the
+finalized one and say so.
 
-## 2. Get the draft
+Handle each component as a separate pass — the notices differ per component even when they
+share a release train.
 
-Prefer the existing draft on GitHub, which is what the release manager will publish:
+## 2. Learn from recent releases first
+
+Release managers edit these notes after the skill drafts them, and those edits *are* the
+house style. Read them before writing anything:
+
+```bash
+.claude/skills/release-notes/scripts/recent-style.sh <component> 4
+```
+
+Also diff against your own previous output when a draft you produced has since been
+published or hand-edited — the delta is the correction, and it is the most valuable input
+you get. Look for: how the verdict callout is phrased, how aggressively the
+`### Breaking / behavior changes` section is trimmed, whether callouts were merged, and
+what the compare link's base is.
+
+**When recent releases disagree with `reference/house-style.md`, the releases win.** Say
+what drifted and offer to update the reference doc, so the next run starts from the
+corrected convention instead of rediscovering it.
+
+## 3. Get the draft
 
 ```bash
 gh release view <tag> --json body -q .body > /tmp/<component>-draft.md
@@ -47,64 +69,83 @@ If the draft contains more than one `## What's Changed in ...` section, earlier 
 never published. Merge them into one section under the final tag and dedupe by PR number
 (see `reference/triage.md`).
 
-## 3. Find out what each PR actually touched
+## 4. Find out what each PR actually touched
 
 ```bash
 .claude/skills/release-notes/scripts/pr-facts.sh /tmp/<component>-draft.md <component>
 ```
 
 Each PR is tagged `LINKED` (changed a package compiled into the binary, and which ones),
-`DEPS` (go.mod/go.sum only), `--` (nothing the binary compiles), or `?` (non-Go component
-— judge by hand). The tags come from `go list -deps`, so linkage is exact, not guessed.
+`DEPS` (manifests only), `--` (nothing the binary compiles), or `?` (unresolvable — judge
+by hand). The tags come from `go list -deps` and `cargo tree`, so linkage is exact.
 
-## 4. Triage
+Linkage is a necessary condition, not a sufficient one: it proves the package is compiled
+in, not that the changed *function* is on the component's runtime path. See
+`reference/triage.md`.
+
+## 5. Triage
 
 Drop `--` and non-security `DEPS` rows. For every `LINKED` row apply the judgment pass in
-`reference/triage.md`: read the PR's intent and keep it only if the change to the linked
-package alters behaviour, configuration, an exported API, or fixes a bug or vulnerability.
+`reference/triage.md`.
+
+**Comment dropped bullets out; do not delete them.** A commented bullet can be reinstated
+by a reviewer in one edit, and it shows what was considered. Keep the reason short and put
+it before the closing `-->`:
+
+```markdown
+<!--* op-core/fees: add Jovian DA-footprint calculation by @claude[bot] in [#22163](...) doesn't affect the batcher-->
+```
 
 Batch the PR lookups — read intent for all the `LINKED` rows in parallel rather than one
 at a time. If there are more than ~15, delegate the reading to a sub-agent and ask for a
 one-line "what an operator would notice" per PR, so the diffs stay out of context.
 
-Never reword a surviving bullet. Prune whole lines only.
+Never reword a surviving bullet.
 
-## 5. Pick the verdict
+## 6. Pick the verdict
 
 One callout, set by the most serious thing that survived triage:
 `[!CAUTION]` mandatory → `[!WARNING]` security or startup/config breakage → `[!NOTE]`
 optional. `reference/house-style.md` has the ladder and the phrasing.
 
-If nothing functional survived, say exactly that — do not manufacture significance.
+Write it in terms of the symptom an operator would notice, not the mechanism. If nothing
+functional survived, say exactly that — do not manufacture significance.
 
-## 6. Check the standing notices
+## 7. Check the standing notices
 
-Recurring boilerplate (currently the APKO migration block) is carried between releases and
-is **not** safe to copy forward blindly — the APKO text says "in this release (and only in
-this release)". Pull the previous release's notice and ask:
+Recurring boilerplate (the APKO migration block was one) is carried between releases and
+is **not** safe to copy forward blindly — the APKO text said "in this release (and only in
+this release)". Step 2's output shows whether the previous release carried one.
 
-```bash
-gh release view <previous-published-tag> --json body -q .body
-```
+**[USER REVIEW]** If the previous release has a standing notice, show it and ask whether it
+still applies. If it does, copy it verbatim, along with whatever image lines it implies.
 
-**[USER REVIEW]** Show the notice and ask whether it still applies to this release. If it
-does, copy it verbatim and use the dual Docker/Apko image lines. If not, drop it and leave
-git-cliff's single image line alone.
-
-## 7. Assemble
+## 8. Assemble
 
 Order: verdict callout → topic callouts → standing notices → optional
-`### Breaking / behavior changes` → `## What's Changed in <tag>` → `## New Contributors`
-(bots removed) → `**Full Changelog**` → image line(s). Leave the changelog link, the
-bullet format, and the `<!-- generated by git-cliff -->` marker untouched.
+`### Breaking / behavior changes` → `## What's Changed in <tag>` → `## New Contributors` →
+`**Full Changelog**` → image line(s). Write to `/tmp/<component>-notes.md`.
 
-Write to a file so it can be applied without re-typing:
+## 9. Retarget RC references when finalizing
+
+A draft generated against an RC carries `-rc.N` in its heading, its compare link and its
+image tag. A finalized release publishes those as the plain version — pointing operators
+at an RC image is a real defect, not a cosmetic one.
 
 ```bash
-/tmp/<component>-notes.md
+.claude/skills/release-notes/scripts/retarget-tag.sh /tmp/<component>-notes.md <component>
 ```
 
-## 8. Review before applying
+The script rewrites the heading, the compare link's right side and the image tag, and
+**refuses** — leaving the file untouched and exiting non-zero — if the finalized tag does
+not exist or points at a different commit than the RC. If it refuses, surface the warning
+to the release manager rather than editing by hand; a note whose PR list was generated for
+a different commit needs regenerating, not retagging.
+
+Then set the compare link's base to the previous **finalized** tag (see
+`reference/house-style.md`).
+
+## 10. Review before applying
 
 **[USER REVIEW]** Show the user both:
 
@@ -112,10 +153,9 @@ Write to a file so it can be applied without re-typing:
 2. **the drop list** — every pruned PR with its tag and a few words on why.
 
 The drop list is the part that needs human eyes. A wrongly pruned PR is invisible in the
-final notes, so present it as a list to check, not as a summary. Iterate on freeform
-feedback.
+rendered note, so present it as a list to check.
 
-## 9. Apply
+## 11. Apply
 
 Only after explicit approval:
 
@@ -128,9 +168,10 @@ Confirm with `gh release view <tag>` and report what changed.
 
 ## Notes
 
-- The `**Full Changelog**` link points at the previous *RC* tag. That is git-cliff's
-  output and published notes leave it alone — do not "fix" it.
 - A change under `op-service/` or `op-core/` can absolutely change a component's
-  behaviour. Never prune on directory name alone; that is what step 3 is for.
+  behaviour. Never prune on directory name alone; that is what step 4 is for.
 - Verify a judgment call against history by regenerating a published release's raw draft:
   `GITHUB_TOKEN=$(gh auth token) just release-notes op-node v1.19.3 v1.19.4`.
+- Never overwrite a draft a human has already curated. If the body carries hand-written
+  prose or commented-out bullets, treat it as the authority: propose specific edits
+  instead of replacing it.

@@ -55,6 +55,22 @@ gh pr diff <N>                        # when the intent is unclear
 a linked package is tagged `--`. Rust test code lives behind `#[cfg(test)]` inside the
 crate and cannot be excluded by path, so `LINKED` Rust rows still need this check by hand.
 
+**Linkage proves the package is compiled in, not that the changed function is on the
+component's runtime path.** This is the trap that survives the mechanical pass.
+`op-core/fees` is genuinely linked into op-batcher, but the Jovian DA-footprint work
+(#22163, #22219) is reached from the `op-chain-ops/cmd/check-*` tools, not from anything
+the batcher runs — the release manager cut both from op-batcher v1.16.13 with the note
+"doesn't affect the batcher". When a linked change is in shared code, check that the
+component actually calls it:
+
+```bash
+# Does anything the component compiles reach the changed symbol?
+grep -rn "<ChangedSymbol>" <component>/ --include='*.go' | grep -v _test.go
+```
+
+Similarly, `op-node/rollup/derive` is linked into op-batcher, but a derivation-only change
+there (#22101) is not batcher-facing. Ask what the component does, not just what it links.
+
 **Keep** when the change to the linked package:
 
 - alters runtime behaviour — what gets built, submitted, derived, gossiped, or logged
@@ -71,6 +87,10 @@ crate and cannot be excluded by path, so `LINKED` Rust rows still need this chec
 - a dev-feature toggle removal for a feature that was never on in production
 - comment, TODO, or docs cleanup
 - another component's work that merely brushed a shared package
+
+**Keep a cross-component PR** when the component embeds the other one. op-supernode runs
+virtual op-nodes, so op-node's follow-source reorg metrics (#22106) belong in the supernode
+notes even though the PR touches no `op-supernode/` path.
 
 **Keep it anyway** in one case: if pruning would empty the list, keep the most substantial
 refactor and say plainly that nothing functional changed. `op-batcher/v1.16.12` published
@@ -125,6 +145,10 @@ Note that these two were pruned harder than the rule above strictly implies — 
 dropped shared-code changes that were genuinely linked. Treat them as the floor for how
 aggressive pruning can be, not as a target. When a linked change really does alter
 behaviour, keep it.
+
+The v1.19.5 train is the closest reference for current practice, since its notes were
+drafted by this skill and then corrected by the release manager. Surviving PR counts:
+op-node 10 of 30, op-batcher 6 of 21, op-supernode 8 of 24, kona-node 6 of 17.
 
 ## Drafts with more than one section
 
