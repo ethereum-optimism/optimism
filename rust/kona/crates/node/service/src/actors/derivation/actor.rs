@@ -261,12 +261,32 @@ where
     }
 }
 
+/// An error from the [`DerivationActor`].
+#[derive(Error, Debug)]
+pub enum DerivationError {
+    /// An error originating from the derivation pipeline.
+    #[error(transparent)]
+    Pipeline(#[from] PipelineErrorKind),
+    /// Waiting for more data to be available.
+    #[error("Waiting for more data to be available")]
+    Yield,
+    /// An error originating from the broadcast sender.
+    #[error("Failed to send event to broadcast sender: {0}")]
+    Sender(Box<dyn std::error::Error>),
+    /// Failed to receive inbound request
+    #[error("Failed to receive inbound request")]
+    RequestReceiveFailed,
+    /// An invalid state transition occurred.
+    #[error(transparent)]
+    StateTransitionError(#[from] DerivationStateTransitionError),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DerivationState, actors::derivation::engine_client::MockDerivationEngineClient};
+    use crate::actors::derivation::engine_client::MockDerivationEngineClient;
     use alloy_primitives::B256;
-    use kona_derive::{PipelineResult, StepResult};
+    use kona_derive::PipelineResult;
     use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
     use kona_protocol::{BlockInfo, L2BlockInfo};
     use rstest::rstest;
@@ -357,24 +377,4 @@ mod tests {
 
         assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingSignal);
     }
-}
-
-/// An error from the [`DerivationActor`].
-#[derive(Error, Debug)]
-pub enum DerivationError {
-    /// An error originating from the derivation pipeline.
-    #[error(transparent)]
-    Pipeline(#[from] PipelineErrorKind),
-    /// Waiting for more data to be available.
-    #[error("Waiting for more data to be available")]
-    Yield,
-    /// An error originating from the broadcast sender.
-    #[error("Failed to send event to broadcast sender: {0}")]
-    Sender(Box<dyn std::error::Error>),
-    /// Failed to receive inbound request
-    #[error("Failed to receive inbound request")]
-    RequestReceiveFailed,
-    /// An invalid state transition occurred.
-    #[error(transparent)]
-    StateTransitionError(#[from] DerivationStateTransitionError),
 }
