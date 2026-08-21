@@ -29,6 +29,7 @@ use crate::{
         ChainFrontier, Decision, RoundObservation, StepOutput, check_preconditions,
         decide_verified_result,
     },
+    error::StoreError,
     kv::Kv,
     logs::LogsDb,
     verified::{InvalidHead, PendingTransition, RoundResult, VerifiedResult, VerifiedStore},
@@ -135,7 +136,11 @@ impl<K: Kv> Verifier<K> {
     ///
     /// Resumes rather than cold-starts when the verified store already holds a frontier: the next
     /// timestamp is one past the last committed one, and backfill is skipped, because the log
-    /// stores were filled when that frontier was committed.
+    /// stores were filled when that frontier was committed. That last part is checked rather than
+    /// assumed, because the log stores are separate databases from the verified store: a resumed
+    /// verifier whose stores lost the window would read a valid executing message as a protocol
+    /// violation. A store that cannot cover the window halts the verifier here, before its first
+    /// round.
     pub fn new(
         chains: Vec<Arc<dyn InteropChain>>,
         l1: Arc<dyn L1Canonical>,
@@ -170,6 +175,21 @@ impl<K: Kv> Verifier<K> {
             );
         }
 
+        // Resuming skips backfill, so this is the only place the stores' coverage is established.
+        let halted = match start {
+            Some(start) => Self::log_history_gap(&chains, &stores, &config, start)?,
+            None => None,
+        };
+        if let Some(reason) = &halted {
+            error!(
+                target: "lokahi_interop",
+                reason,
+                remediation = "reseed the interop data directory, or advance the activation \
+                               timestamp past the gap and rederive",
+                "Interop verification halted at startup"
+            );
+        }
+
         Ok(Self {
             chains,
             rollup_configs,
@@ -179,7 +199,7 @@ impl<K: Kv> Verifier<K> {
             config,
             start,
             current_l1: None,
-            halted: None,
+            halted,
         })
     }
 
@@ -560,5 +580,57 @@ impl<K: Kv> Verifier<K> {
         self.stores
             .get(&chain_id)
             .ok_or_else(|| RoundError::Invariant(format!("chain {chain_id} has no log store")))
+    }
+
+    /// Returns why the log stores cannot answer what rounds from `start` will ask them, if they
+    /// cannot.
+    ///
+    /// A round at timestamp `t` answers an existence question about `t` itself from its own view,
+    /// and every earlier timestamp from the chain's log store. The log stores are separate
+    /// databases from the verified store, and resuming does not backfill, so a store that was
+    /// truncated, reseeded or lost leaves the round loop unable to answer a question the
+    /// protocol says has an answer. Naming that here halts the verifier once, at startup, with
+    /// the cause attached — the alternative is discovering it mid-round, where a missing block
+    /// is indistinguishable from an invalid one.
+    ///
+    /// The bound is the earliest timestamp a round from `start` can be asked about, which is the
+    /// latest of three: the expiry window behind `start`, because no older initiating message
+    /// can be executed; the interop activation time, because no earlier message can be
+    /// initiated; and the chain's own genesis, because no earlier block of it exists. The last
+    /// two are the bounds [`backfill_window`] and [`chain_backfill_range`] already apply when
+    /// filling the stores.
+    fn log_history_gap(
+        chains: &BTreeMap<ChainId, Arc<dyn InteropChain>>,
+        stores: &LogStores,
+        config: &VerifierConfig,
+        start: u64,
+    ) -> Result<Option<String>, RoundError> {
+        for (&chain_id, chain) in chains {
+            // Checked by the caller before this runs; skipping is the caller's error to report.
+            let Some(store) = stores.get(&chain_id) else { continue };
+
+            let earliest = start
+                .saturating_sub(config.message_expiry_window)
+                .max(config.activation_timestamp)
+                .max(chain.rollup_config().genesis.l2_time);
+            // Nothing below `start` can be referenced, so holding no history at all is correct.
+            if earliest >= start {
+                continue;
+            }
+
+            let held = match store.first_sealed_block() {
+                Ok(first) if first.timestamp <= earliest => continue,
+                Ok(first) => format!("starts at timestamp {}", first.timestamp),
+                // A store with nothing sealed reports its first block as still to come.
+                Err(StoreError::Future) => "is empty".to_string(),
+                Err(err) => return Err(RoundError::Store(err)),
+            };
+            return Ok(Some(format!(
+                "chain {chain_id}: the log store {held}, but verification resumes at timestamp \
+                 {start}, where an executing message may reference back to {earliest}; the store \
+                 is missing history the round loop needs and must be refilled to continue"
+            )));
+        }
+        Ok(None)
     }
 }

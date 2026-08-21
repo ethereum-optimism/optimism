@@ -259,11 +259,14 @@ impl World {
         &self.stores[&chain_id]
     }
 
+    /// Backfill is as deep as the expiry window, as the real default is: a shallower store could
+    /// not answer every message a round is allowed to reference, which the verifier now refuses to
+    /// resume on.
     const fn config(&self) -> VerifierConfig {
         VerifierConfig {
             activation_timestamp: ACTIVATION,
             message_expiry_window: 20,
-            log_backfill_depth: 5,
+            log_backfill_depth: 20,
         }
     }
 
@@ -272,6 +275,18 @@ impl World {
     }
 
     fn verifier_with(&self, verified: VerifiedStore<MemoryKv>) -> Verifier<MemoryKv> {
+        self.verifier_of(verified, self.config())
+    }
+
+    fn verifier_with_config(&self, config: VerifierConfig) -> Verifier<MemoryKv> {
+        self.verifier_of(VerifiedStore::new(MemoryKv::new()).unwrap(), config)
+    }
+
+    fn verifier_of(
+        &self,
+        verified: VerifiedStore<MemoryKv>,
+        config: VerifierConfig,
+    ) -> Verifier<MemoryKv> {
         Verifier::new(
             vec![
                 self.chain_a.clone() as Arc<dyn InteropChain>,
@@ -280,7 +295,7 @@ impl World {
             self.l1.clone(),
             verified,
             self.log_stores(),
-            self.config(),
+            config,
         )
         .unwrap()
     }
@@ -316,7 +331,9 @@ async fn cold_start_waits_for_every_chain_to_record_a_safe_head() {
 #[tokio::test]
 async fn cold_start_backfills_the_window_behind_the_first_timestamp() {
     let world = World::new();
-    let mut verifier = world.verifier();
+    // A depth shallower than the expiry window, to pin the depth rather than the activation clamp.
+    let mut verifier =
+        world.verifier_with_config(VerifierConfig { log_backfill_depth: 5, ..world.config() });
 
     verifier.step().await.unwrap();
 
@@ -622,6 +639,14 @@ async fn replaying_an_already_applied_entry_changes_nothing() {
 async fn a_restart_resumes_from_the_verified_store_without_backfilling() {
     let world = World::new();
     let verified = VerifiedStore::new(MemoryKv::new()).unwrap();
+
+    // The log stores must hold what the run being resumed sealed: backfill behind its start, plus
+    // the round at 110 it committed. Resuming onto empty stores is not a restart any run can
+    // produce, and is refused — see `a_restart_onto_a_lost_log_store_halts_the_verifier`.
+    {
+        let mut previous = world.verifier_with(VerifiedStore::new(MemoryKv::new()).unwrap());
+        run(&mut previous, 2).await;
+    }
     verified
         .commit(&VerifiedResult {
             timestamp: START,
@@ -639,10 +664,83 @@ async fn a_restart_resumes_from_the_verified_store_without_backfilling() {
     assert_eq!(verifier.first_verifiable_timestamp(), Some(START));
 
     // The next round is the one after the committed frontier, and the log stores were not
-    // backfilled — the resume path trusts what the previous run sealed.
+    // backfilled — the resume path trusts what the previous run sealed and only adds its own
+    // round's blocks on top.
     assert_eq!(verifier.step().await.unwrap(), Pace::Immediate);
     assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
-    assert_eq!(world.store(CHAIN_A).first_sealed_block().unwrap().number, START + 1);
+    assert_eq!(world.store(CHAIN_A).first_sealed_block().unwrap().number, ACTIVATION);
+    assert_eq!(world.store(CHAIN_A).latest_sealed_block().unwrap().number, START + 1);
+}
+
+/// Part two of the missing-history fix: the resume path checks that the log stores still cover the
+/// window rounds will ask about, instead of assuming it.
+#[tokio::test]
+async fn a_restart_onto_a_lost_log_store_halts_the_verifier() {
+    let world = World::new();
+    let verified = VerifiedStore::new(MemoryKv::new()).unwrap();
+    // A committed frontier at 110, but log stores holding nothing: the verified store survived and
+    // the per-chain log databases did not.
+    verified
+        .commit(&VerifiedResult {
+            timestamp: START,
+            l1_inclusion: l1_at(START),
+            l2_heads: BTreeMap::from([
+                (CHAIN_A, BlockNumHash { number: START, hash: block_hash(CHAIN_A, START) }),
+                (CHAIN_B, BlockNumHash { number: START, hash: block_hash(CHAIN_B, START) }),
+            ]),
+        })
+        .unwrap();
+
+    let mut verifier = world.verifier_with(verified);
+
+    // Halted before the first round, with the chain and the window named — not `Running`, which is
+    // what an unchecked resume would report while never verifying anything again.
+    assert_eq!(verifier.state(), VerifierState::Halted);
+    let halted = verifier.step().await.expect_err("a lost log store is not recoverable");
+    assert!(halted.reason.contains("the log store is empty"), "{}", halted.reason);
+    assert!(
+        halted.reason.contains(&format!("resumes at timestamp {}", START + 1)),
+        "{}",
+        halted.reason
+    );
+    // Nothing was verified, and it stays halted.
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+    assert!(verifier.step().await.is_err());
+}
+
+/// Part one of the missing-history fix: a store whose history starts *above* a referenced
+/// timestamp that the rules allow. The message is valid as far as the protocol is concerned, so the
+/// verifier must halt rather than charge the block with a violation it cannot substantiate.
+#[tokio::test]
+async fn a_message_the_log_store_lost_its_history_for_halts_the_verifier() {
+    let world = World::new();
+    let initiating = initiating_log(8);
+    // Chain A's block at 102 holds the initiating message. It is inside the 20-second expiry
+    // window of the executing block at 111 and past activation, so every rule above the store
+    // lookup passes — but a depth-5 backfill only reaches back to 104, so the store cannot answer.
+    world.chain_a.set_block(FakeBlock::with_logs(102, vec![initiating.clone()]));
+    world.chain_b.set_block(FakeBlock::with_logs(
+        START + 1,
+        vec![executing_log(CHAIN_A, &initiating, 102, 0, 102)],
+    ));
+    let mut verifier =
+        world.verifier_with_config(VerifierConfig { log_backfill_depth: 5, ..world.config() });
+
+    // Cold start, then the round at 110 advances.
+    assert_eq!(run(&mut verifier, 2).await, vec![Pace::Immediate; 2]);
+    assert_eq!(world.store(CHAIN_A).first_sealed_block().unwrap().number, 104);
+
+    let halted = verifier.step().await.expect_err("a hole in local history is not recoverable");
+    assert!(
+        halted.reason.contains("local log history does not cover timestamp 102"),
+        "{}",
+        halted.reason
+    );
+    assert_eq!(verifier.state(), VerifierState::Halted);
+    // The frontier held where it was rather than invalidating a block the node cannot judge, and
+    // no write-ahead entry was left behind.
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+    assert_eq!(verifier.verified().pending().unwrap(), None);
 }
 
 #[tokio::test]
