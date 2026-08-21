@@ -220,11 +220,18 @@ impl OnlineBeaconClient {
         slot: u64,
         blob_hashes: &[B256],
     ) -> Result<Vec<BoxedBlob>, BeaconClientError> {
-        let params = blob_hashes.iter().map(|hash| hash.to_string()).collect::<Vec<_>>();
+        // The Beacon API defines `versioned_hashes` as a query array:
+        // https://github.com/ethereum/beacon-APIs/blob/e20dfabd6230a3e0de8a8964fee7a4f276e480d6/apis/beacon/blobs/blobs.yaml#L20-L28
+        // Encode its default exploded form with one query parameter per hash. Some clients reject
+        // a single comma-separated value.
+        let params = blob_hashes
+            .iter()
+            .map(|hash| ("versioned_hashes", hash.to_string()))
+            .collect::<Vec<_>>();
         let response = self
             .inner
             .get(format!("{}/{}/{}", self.base, BLOBS_METHOD_PREFIX, slot))
-            .query(&[("versioned_hashes", &params.join(","))])
+            .query(&params)
             .send()
             .await?;
 
@@ -346,17 +353,18 @@ mod tests {
 
     impl BlobResponseTest {
         async fn run(self) -> Result<Vec<BoxedBlob>, BeaconClientError> {
-            let required_query_param = self
-                .requested_blob_hashes
-                .iter()
-                .map(B256::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
             let server = MockServer::start();
             let blobs_mock = server.mock(|when, then| {
-                when.method(GET)
-                    .path(format!("/eth/v1/beacon/blobs/{TEST_SLOT}"))
-                    .query_param("versioned_hashes", required_query_param);
+                self.requested_blob_hashes.iter().fold(
+                    when.method(GET)
+                        .path(format!("/eth/v1/beacon/blobs/{TEST_SLOT}"))
+                        .query_param_count(
+                            "^versioned_hashes$",
+                            ".*",
+                            self.requested_blob_hashes.len(),
+                        ),
+                    |when, hash| when.query_param("versioned_hashes", hash.to_string()),
+                );
                 then.status(200).json_body(json!({
                     "execution_optimistic": false,
                     "finalized": false,
