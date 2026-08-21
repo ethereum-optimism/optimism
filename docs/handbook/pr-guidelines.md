@@ -44,6 +44,7 @@ This is organized by current state of PR, so it can be easily referenced frequen
 
 ### Opening PRs
 
+- **Open as a draft unless the change is ready for review.**
 - **Use the Scoped Commits title format**: `<scope>: <description>`. For the rules, see [CONTRIBUTING.md](../../CONTRIBUTING.md#commit-messages). CI checks the title, because we squash-merge each PR and use the title as the commit subject.
 - **Review Your Own Code**: Reviewing the diff yourself *in a different context*, can be very useful for discovering issues, typos, and bugs before opening the PR. For example, write code in your IDE, then review it in the GitHub diff view. The perspective change forces you to slow down and helps reveal issues you may have missed.
 - **Guide PR reviewers:** Let them know about areas of concern, under-tested areas, or vague requirements that should be ironed out.
