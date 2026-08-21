@@ -34,21 +34,13 @@ This is organized by current state of PR, so it can be easily referenced frequen
 
 ### Before Opening PRs
 
-- **Run the review agents**: Run them before you post the PR. Do not wait for CI or for a reviewer. Fix each finding, or dismiss it. Record each dismissal and its reason in the PR description. Ask the PR author to confirm a dismissal — do not decide alone. Run each agent that applies to the diff:
+- **Run the review agents**: Run them before you post the PR. Do not wait for CI or for a reviewer. Fix each finding, or dismiss it. Record each dismissal and its reason in the PR description. Ask the PR author to confirm a dismissal — do not decide alone.
 
-  | Agent | Run it when the diff… | Review guide |
-  | --- | --- | --- |
-  | [`go-code-reviewer`](../../.claude/agents/go-code-reviewer.md) | touches any Go code | [go-dev.md](../ai/go-dev.md) |
-  | [`rust-code-reviewer`](../../.claude/agents/rust-code-reviewer.md) | touches any Rust code (all code in `rust/`) | [rust-dev.md](../ai/rust-dev.md) |
-  | [`ci-config-reviewer`](../../.claude/agents/ci-config-reviewer.md) | touches `.circleci/` or `.github/` | [ci-config-review.md](../ai/ci-config-review.md) |
-  | [`reth-update-reviewer`](../../.claude/agents/reth-update-reviewer.md) | changes the `reth`/`revm`/`alloy` pins or synced versions | [reth-update-review.md](../ai/reth-update-review.md) |
-  | [`standard-validator-reviewer`](../../.claude/agents/standard-validator-reviewer.md) | touches `StandardValidator` or a contract it reads | [standard-validator-review.md](../ai/standard-validator-review.md) |
+  Run each agent whose trigger the diff matches. In Claude Code the agents live in [`.claude/agents/`](../../.claude/agents/) — each one states its trigger and links to its review guide in [`docs/ai/`](../ai/). With a different tool, run its equivalent reviewer, or use the review guide directly. Run `go-code-reviewer` and `rust-code-reviewer` when you complete an implementation task, not only at PR time.
 
-  These agent definitions are for Claude Code. With a different tool, run its equivalent reviewer, or use the review guide directly. Run `go-code-reviewer` and `rust-code-reviewer` when you complete an implementation task, not only at PR time. `go-code-reviewer` runs the repo lint first. `dispute-game-investigator` is an investigation agent, not a PR gate.
-
-  The table is the minimum. Also run the review agents and skills that your tool, its plugins, or your global config supply — for example general code review, security review, test coverage, and comment or doc review. Run the applicable agents in parallel. If you skip an applicable review, say so in the PR description.
+  The agents are the minimum. Also run the review agents and skills that your tool, its plugins, or your global config supply — for example general code review, security review, test coverage, and comment or doc review. Run the applicable agents in parallel. If you skip an applicable review, say so in the PR description.
 - **Test more than the code you changed**: Also test the packages that depend on it. For the language-specific checks, see [go-dev.md](../ai/go-dev.md#before-every-commit), [rust-dev.md](../ai/rust-dev.md#before-every-commit) and [contract-dev.md](../ai/contract-dev.md).
-- **Rebase on `develop`**: `develop` is the default branch, not `main`. Run `git fetch origin develop && git rebase origin/develop`.
+- **Rebase before you open the PR**: bring your branch up to date with the default branch.
 
 ### Opening PRs
 
