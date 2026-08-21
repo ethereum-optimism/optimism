@@ -5,8 +5,9 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, InsertTask, SealTask,
+    BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
+    InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -293,9 +294,7 @@ where
                     attributes,
                     // The payload is not derived in this case.
                     false,
-                    // The build ran as a separate task, so the unsafe head may have moved
-                    // since it started.
-                    false,
+                    BuildSealCoupling::Detached,
                     Some(result_tx),
                 )));
                 self.engine.enqueue(task);
