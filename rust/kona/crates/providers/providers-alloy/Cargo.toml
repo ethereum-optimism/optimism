@@ -35,6 +35,8 @@ alloy-rpc-types-engine.workspace = true
 alloy-rpc-client.workspace = true
 alloy-provider = { workspace = true, features = ["ipc", "ws", "reqwest"] }
 alloy-primitives = { workspace = true, features = ["map"] }
+# Alloy's `ws` feature enables embedded WebPKI roots. Also load platform roots so private CAs work.
+tokio-tungstenite = { workspace = true, features = ["rustls-tls-native-roots"] }
 
 # Op Alloy
 op-alloy-consensus.workspace = true
@@ -54,6 +56,9 @@ tracing.workspace = true
 
 # `metrics` feature
 metrics = { workspace = true, optional = true }
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["tokio-tungstenite"]
 
 [features]
 default = []

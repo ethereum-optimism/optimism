@@ -7583,6 +7583,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-tungstenite",
  "tower 0.5.3",
  "tracing",
 ]
