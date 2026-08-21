@@ -59,8 +59,8 @@ fn a_configuration_without_chains_is_rejected() {
     assert!(stderr.contains("no chains configured"), "unexpected error: {stderr}");
 }
 
-/// Two chains inheriting one port from `[defaults]` fails at startup, naming both chains, rather
-/// than as an address-in-use once one chain's RPC server is already up.
+/// Two chains inheriting one P2P port from `[defaults]` fails at startup, naming both chains,
+/// rather than as an address-in-use once one chain's gossip is already listening.
 #[test]
 fn two_chains_sharing_a_port_are_rejected() {
     let output = run_node_with_config(
@@ -72,7 +72,6 @@ fn two_chains_sharing_a_port_are_rejected() {
         [defaults]
         engine-rpc = "http://localhost:9551"
         jwt-secret = "/etc/lokahi/jwt.hex"
-        rpc-port = 9545
         p2p-tcp-port = 9222
         p2p-udp-port = 9222
 
@@ -102,7 +101,6 @@ fn a_sequencing_chain_without_a_key_is_rejected() {
         [defaults]
         engine-rpc = "http://localhost:9551"
         jwt-secret = "/etc/lokahi/jwt.hex"
-        rpc-port = 9545
         p2p-tcp-port = 9222
         p2p-udp-port = 9222
 
@@ -129,7 +127,6 @@ fn a_validating_chain_with_sequencer_settings_is_rejected() {
         [defaults]
         engine-rpc = "http://localhost:9551"
         jwt-secret = "/etc/lokahi/jwt.hex"
-        rpc-port = 9545
         p2p-tcp-port = 9222
         p2p-udp-port = 9222
 

@@ -1,8 +1,8 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{
-    EngineConfig, NetworkConfig, RollupNode, SequencerConfig, actors::DerivationDelegateClient,
-    service::node::L1Config,
+    EngineConfig, NetworkConfig, RollupNode, SequencerConfig, SharedRpcServerLauncher,
+    actors::DerivationDelegateClient, service::node::L1Config,
 };
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
@@ -68,6 +68,8 @@ pub struct RollupNodeBuilder {
     pub p2p_config: NetworkConfig,
     /// An RPC Configuration.
     pub rpc_config: Option<RpcBuilder>,
+    /// The launcher this chain's RPC module set is handed to, when the host supplies one.
+    pub rpc_launcher: Option<SharedRpcServerLauncher>,
     /// The [`SequencerConfig`].
     pub sequencer_config: Option<SequencerConfig>,
     /// Optional configuration for Derivation Delegate mode.
@@ -98,6 +100,7 @@ impl RollupNodeBuilder {
             engine_config,
             p2p_config,
             rpc_config,
+            rpc_launcher: None,
             sequencer_config: None,
             derivation_delegate_config: None,
             dependency_set: None,
@@ -143,6 +146,22 @@ impl RollupNodeBuilder {
     /// Sets the [`RpcBuilder`] on the [`RollupNodeBuilder`].
     pub fn with_rpc_config(self, rpc_config: Option<RpcBuilder>) -> Self {
         Self { rpc_config, ..self }
+    }
+
+    /// Hands this chain's RPC module set to `rpc_launcher` instead of binding it to
+    /// [`RpcBuilder::socket`].
+    ///
+    /// Set by a multi-chain host, which serves every chain's module set from one socket and routes
+    /// to them by chain id: N chains each binding their own socket is N addresses for one process,
+    /// and there is only one address for a caller to have been told about. The
+    /// [`RpcBuilder`](kona_rpc::RpcBuilder) still decides *whether* an RPC is built and which
+    /// namespaces it carries; only where it is served changes.
+    ///
+    /// Left unset, the module set is bound to its own socket by
+    /// [`JsonrpseeServerLauncher`](crate::JsonrpseeServerLauncher), which is standalone
+    /// kona-node's behaviour and stays byte-identical.
+    pub fn with_rpc_launcher(self, rpc_launcher: SharedRpcServerLauncher) -> Self {
+        Self { rpc_launcher: Some(rpc_launcher), ..self }
     }
 
     /// Appends the [`SequencerConfig`] to the builder.
@@ -213,6 +232,7 @@ impl RollupNodeBuilder {
             l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,
+            rpc_launcher: self.rpc_launcher,
             p2p_config,
             sequencer_config,
             derivation_delegate_provider,
