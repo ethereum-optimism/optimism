@@ -240,7 +240,9 @@ impl InteropReader {
         &self,
         chain_id: ChainId,
     ) -> Result<SealedBlocks, InteropQueryError> {
-        self.ask(|sender| InteropQuery::SealedBlocks { chain_id, sender }).await?.map_err(Into::into)
+        self.ask(|sender| InteropQuery::SealedBlocks { chain_id, sender })
+            .await?
+            .map_err(Into::into)
     }
 
     /// Stops the round loop at `timestamp`, or clears an existing stop with [`None`].
@@ -331,7 +333,10 @@ impl InteropActor {
             backfill_completed: start.is_some(),
             activation_timestamp: self.verifier.activation_timestamp(),
             verification_start_timestamp: start.unwrap_or_default(),
-            first_verifiable_timestamp: self.verifier.first_verifiable_timestamp().unwrap_or_default(),
+            first_verifiable_timestamp: self
+                .verifier
+                .first_verifiable_timestamp()
+                .unwrap_or_default(),
         }
     }
 
@@ -341,10 +346,8 @@ impl InteropActor {
     /// the same split op-supernode's `InteropSealedBlocks` makes. The latest block is looked up
     /// first, because it is the one read that distinguishes the two cases without failing.
     fn sealed_blocks(&self, chain_id: ChainId) -> Result<SealedBlocks, SealedBlocksError> {
-        let store = self
-            .verifier
-            .logs(chain_id)
-            .ok_or(SealedBlocksError::UnknownChain(chain_id))?;
+        let store =
+            self.verifier.logs(chain_id).ok_or(SealedBlocksError::UnknownChain(chain_id))?;
         let store_err = |source| SealedBlocksError::Store { chain_id, source };
 
         let Some(latest) = store.latest_sealed_block() else {

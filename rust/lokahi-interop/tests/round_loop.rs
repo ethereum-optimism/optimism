@@ -836,3 +836,150 @@ async fn two_same_timestamp_messages_that_do_not_depend_on_each_other_advance() 
     assert_eq!(run(&mut verifier, 3).await, vec![Pace::Immediate; 3]);
     assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
 }
+
+// ---------------------------------------------------------------------------
+// Test control
+//
+// The pause and the cold-start attempt counter exist for the acceptance suites, which drive them
+// over RPC through a supernode's test-control API. They are asserted here, against the real round
+// loop, because what the suites depend on is the loop's behaviour rather than the plumbing: a
+// pause the loop checked in the wrong place would still be a pause the RPC set successfully.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_pause_stops_the_loop_at_the_timestamp_it_names() {
+    let world = World::new();
+    let mut verifier = world.verifier();
+
+    // Cold start, then two rounds: START and START + 1 commit.
+    run(&mut verifier, 3).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+
+    verifier.set_pause(Some(START + 2));
+
+    // Every further round is a no-op. The pause is checked where the loop picks its timestamp, so
+    // nothing is observed and nothing is committed.
+    assert_eq!(run(&mut verifier, 3).await, vec![Pace::Idle, Pace::Idle, Pace::Idle]);
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+}
+
+#[tokio::test]
+async fn a_pause_the_loop_is_already_past_stops_it_too() {
+    let world = World::new();
+    let mut verifier = world.verifier();
+
+    run(&mut verifier, 3).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+
+    // Behind where the loop has reached. The check is inclusive and forward-looking — as
+    // op-supernode's is — so a test that asks late is not silently given a running verifier.
+    verifier.set_pause(Some(START));
+
+    assert_eq!(run(&mut verifier, 2).await, vec![Pace::Idle, Pace::Idle]);
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+}
+
+#[tokio::test]
+async fn clearing_a_pause_lets_the_loop_carry_on_where_it_stopped() {
+    let world = World::new();
+    let mut verifier = world.verifier();
+
+    run(&mut verifier, 2).await;
+    let paused_at = verifier.verified().last_timestamp().expect("a frontier was committed");
+
+    verifier.set_pause(Some(paused_at + 1));
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(paused_at));
+
+    verifier.set_pause(None);
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(paused_at + 2));
+}
+
+#[tokio::test]
+async fn a_pause_during_cold_start_does_not_hold_up_choosing_a_start() {
+    let world = World::new();
+    let mut verifier = world.verifier();
+
+    // Cold start picks the starting timestamp from the chains' first safe heads; there is no
+    // timestamp being attempted yet for a pause to be about. Holding it back here would leave a
+    // paused verifier reporting `backfill_completed` false forever, and every acceptance test
+    // gates on that flag before it does anything else.
+    verifier.set_pause(Some(START));
+    assert_eq!(verifier.step().await.unwrap(), Pace::Immediate);
+    assert_eq!(verifier.state(), VerifierState::Running);
+    assert_eq!(verifier.verification_start(), Some(START));
+
+    // The pause then holds the first round, as it was asked to.
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+    assert_eq!(verifier.verified().last_timestamp(), None);
+}
+
+#[tokio::test]
+async fn cold_start_attempts_are_counted_per_try() {
+    let world = World::new();
+    // No safe head on one chain, so cold start cannot choose a start and retries.
+    world.chain_b.set_first_safe_head(None);
+    let mut verifier = world.verifier();
+
+    assert_eq!(verifier.backfill_attempts(), 0);
+    run(&mut verifier, 3).await;
+    // Three tries, none of which finished: this is the signal an acceptance test waits on to know
+    // the retry loop has engaged rather than the verifier never having been stepped.
+    assert_eq!(verifier.backfill_attempts(), 3);
+    assert_eq!(verifier.verification_start(), None);
+
+    world.chain_b.set_first_safe_head(Some(START));
+    verifier.step().await.unwrap();
+    assert_eq!(verifier.backfill_attempts(), 4);
+    assert_eq!(verifier.verification_start(), Some(START));
+
+    // Cold start is over, so rounds do not count as attempts.
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.backfill_attempts(), 4);
+}
+
+#[tokio::test]
+async fn a_resumed_verifier_reports_a_start_without_ever_attempting_cold_start() {
+    let world = World::new();
+    // A previous run over these log stores, so the resume path finds the history it checks for.
+    {
+        let mut previous = world.verifier();
+        run(&mut previous, 2).await;
+    }
+    let verified = VerifiedStore::new(MemoryKv::new()).unwrap();
+    verified
+        .commit(&VerifiedResult {
+            timestamp: START,
+            l1_inclusion: l1_at(START),
+            l2_heads: BTreeMap::from([
+                (CHAIN_A, BlockNumHash { number: START, hash: block_hash(CHAIN_A, START) }),
+                (CHAIN_B, BlockNumHash { number: START, hash: block_hash(CHAIN_B, START) }),
+            ]),
+        })
+        .unwrap();
+
+    // Resuming reads the start out of the verified store, so the verifier is `Running` before its
+    // first step and has made no attempt. Test control reports that as cold start having
+    // completed, which is what op-supernode reports for a resume too.
+    let resumed = world.verifier_with(verified);
+    assert_eq!(resumed.state(), VerifierState::Running);
+    assert_eq!(resumed.verification_start(), Some(START + 1));
+    assert_eq!(resumed.backfill_attempts(), 0);
+}
+
+#[tokio::test]
+async fn the_activation_timestamp_and_the_log_stores_are_readable() {
+    let world = World::new();
+    let mut verifier = world.verifier();
+    run(&mut verifier, 2).await;
+
+    assert_eq!(verifier.activation_timestamp(), ACTIVATION);
+    // The store handed out is the one the loop seals into, not a copy, so what a reader reports
+    // cannot lag what the loop has written.
+    let logs = verifier.logs(CHAIN_A).expect("chain A is followed");
+    assert_eq!(logs.latest_sealed_block().unwrap().number, START);
+    // A chain id neither fake chain has: an unfollowed chain has no store, which is how the
+    // test-control surface tells "nothing sealed yet" from "not a chain I verify".
+    assert!(verifier.logs(CHAIN_A + CHAIN_B).is_none(), "an unfollowed chain has no store");
+}

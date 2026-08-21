@@ -170,6 +170,10 @@ func (c *lokahiChainCL) ChainID() eth.ChainID { return c.chainID }
 
 // AdminRPC is the process-wide admin/test RPC of the supernode: one stable address across
 // restarts, whatever port the process is on behind it.
+//
+// Read without the mutex, as QueryRPC below is, because the address is written exactly once —
+// startLokahiSupernode starts the process before it hands the supernode out, and the proxy it
+// names is created on that first start and never replaced.
 func (n *LokahiSupernode) AdminRPC() string { return n.adminUserRPC }
 
 // QueryRPC is the endpoint the supernode query API answers on.

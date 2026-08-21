@@ -286,11 +286,8 @@ impl<K: Kv> Verifier<K> {
     }
 
     /// Returns whether a pause holds the round loop back from `next_timestamp`.
-    const fn paused_at(&self, next_timestamp: u64) -> bool {
-        match self.pause_at {
-            Some(pause) => next_timestamp >= pause,
-            None => false,
-        }
+    fn paused_at(&self, next_timestamp: u64) -> bool {
+        self.pause_at.is_some_and(|pause| next_timestamp >= pause)
     }
 
     /// Returns the L1 block the verifier has considered up to, or [`None`] before the first

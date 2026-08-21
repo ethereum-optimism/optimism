@@ -196,11 +196,21 @@ impl InteropTestHandle {
     /// Returns the verifier, or says why there is none to control.
     fn reader(&self) -> RpcResult<&InteropReader> {
         self.0.get().ok_or_else(|| {
-            error(
+            Self::error(
                 "this supernode has no interop verifier to control: either it is still starting, \
                  or its chain set schedules no interop",
             )
         })
+    }
+
+    /// Renders a query failure as this surface's JSON-RPC error.
+    fn query_error(err: InteropQueryError) -> ErrorObjectOwned {
+        Self::error(err.to_string())
+    }
+
+    /// Builds this surface's JSON-RPC error from a message.
+    fn error(message: impl Into<String>) -> ErrorObjectOwned {
+        ErrorObject::owned(TEST_CONTROL_ERROR, message.into(), None::<()>)
     }
 }
 
@@ -210,30 +220,20 @@ impl LokahiInteropTestApiServer for InteropTestHandle {
         // Zero is "clear", as it is on the Go surface. Expressed as `None` past this point so the
         // verifier cannot confuse a clear with a pause at timestamp zero.
         let pause = (timestamp != 0).then_some(timestamp);
-        self.reader()?.set_pause(pause).await.map_err(query_error)
+        self.reader()?.set_pause(pause).await.map_err(Self::query_error)
     }
 
     async fn resume_interop(&self) -> RpcResult<()> {
-        self.reader()?.set_pause(None).await.map_err(query_error)
+        self.reader()?.set_pause(None).await.map_err(Self::query_error)
     }
 
     async fn interop_status(&self) -> RpcResult<WireInteropStatus> {
-        Ok(self.reader()?.status().await.map_err(query_error)?.into())
+        Ok(self.reader()?.status().await.map_err(Self::query_error)?.into())
     }
 
     async fn interop_sealed_blocks(&self, chain_id: u64) -> RpcResult<WireSealedBlocks> {
-        Ok(self.reader()?.sealed_blocks(ChainId::from(chain_id)).await.map_err(query_error)?.into())
+        Ok(self.reader()?.sealed_blocks(ChainId::from(chain_id)).await.map_err(Self::query_error)?.into())
     }
-}
-
-/// Renders a query failure as a JSON-RPC error.
-fn query_error(err: InteropQueryError) -> ErrorObjectOwned {
-    error(err.to_string())
-}
-
-/// Builds this surface's JSON-RPC error from a message.
-fn error(message: impl Into<String>) -> ErrorObjectOwned {
-    ErrorObject::owned(TEST_CONTROL_ERROR, message.into(), None::<()>)
 }
 
 #[cfg(test)]

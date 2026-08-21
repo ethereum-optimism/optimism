@@ -2628,21 +2628,24 @@ workflows:
       # presets run kona-node as their per-chain CL; the multi-chain/interop presets have
       # no per-chain CL to swap and select their supernode implementation separately.
       #
-      # supernode_kind stays op-supernode for now, and this is no longer about lokahi being
-      # unable to host a chain: it can, and the two-chain lokahi test in
-      # op-acceptance-tests/tests/supernode/lokahi runs it in every variant. What blocks
-      # these presets is stack.SupernodeTestControl, whose InteropActivity() hands tests an
-      # in-process *interop.Interop pointer that no out-of-process supernode can provide.
-      # Flip this one line to "lokahi" once that has an RPC-shaped replacement. Until then
-      # the interop presets in this variant are identical to the op-node variant's, which is
-      # what the rename makes visible rather than hides.
+      # supernode_kind is lokahi, so this variant is now what its name says: every preset in
+      # it runs a Rust client. The multi-chain and interop presets bring up the lokahi
+      # process and drive its interop verifier over RPC — which is what they could not do
+      # while stack.SupernodeTestControl handed tests an in-process *interop.Interop
+      # pointer, and while MultiChainRuntime.Supernode was the concrete Go supernode that
+      # left a kind with nothing to select.
+      #
+      # The job name is deliberately unchanged, so its entry in ci-gate's requires: still
+      # matches it. What changed is what the job exercises: a failure here is now a
+      # statement about lokahi, rather than a second run of the op-node variant's
+      # assertions.
       - op-acceptance-tests:
           name: memory-all-kona-lokahi-op-reth-<<matrix.l1_fork>>
           matrix:
             parameters:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
-          supernode_kind: op-supernode
+          supernode_kind: lokahi
           l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
