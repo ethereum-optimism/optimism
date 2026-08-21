@@ -318,6 +318,12 @@ contract MessageExpiryRelay_RecordSentMessage_Test is MessageExpiryRelay_TestIni
         public
     {
         vm.assume(_sender != address(0));
+        assumeNotPrecompile(_sender);
+        assumeNotForgeAddress(_sender);
+        vm.assume(_sender != Predeploys.MESSAGE_EXPIRY_RELAY);
+        vm.assume(_sender != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        // A handler must be a contract (see `recordSentMessage`), so give the fuzzed sender code.
+        vm.etch(_sender, hex"01");
 
         bytes32 expectedHash = _messageHash(_destination, _nonce, _sender, _target, _message);
 
@@ -367,6 +373,9 @@ contract MessageExpiryRelay_RecordSentMessage_Test is MessageExpiryRelay_TestIni
         address target = makeAddr("target");
         bytes memory message = hex"deadbeef";
         address thief = makeAddr("thief");
+        // The thief is a contract (a different one than the real sender), so it passes the handler
+        // code check and reaches the sender-bound hash check.
+        vm.etch(thief, hex"01");
 
         // The real sender records the message, which also mocks the messenger's `sentMessages`.
         _recordSentMessage(address(app), DESTINATION, nonce, target, message);
@@ -374,6 +383,16 @@ contract MessageExpiryRelay_RecordSentMessage_Test is MessageExpiryRelay_TestIni
         vm.expectRevert(IMessageExpiryRelay.MessageExpiryRelay_MessageNotSent.selector);
         vm.prank(thief);
         messageExpiryRelay.recordSentMessage(DESTINATION, nonce, target, message);
+    }
+
+    /// @notice Tests that an EOA cannot register itself as a handler: an EOA handler would make the
+    ///         expiry callback revert forever, so recording from a codeless caller is rejected.
+    function test_recordSentMessage_eoaHandler_reverts() public {
+        address eoa = makeAddr("eoa");
+
+        vm.expectRevert(IMessageExpiryRelay.MessageExpiryRelay_HandlerNotContract.selector);
+        vm.prank(eoa);
+        messageExpiryRelay.recordSentMessage(DESTINATION, 7, makeAddr("target"), hex"deadbeef");
     }
 
     /// @notice Tests that a message cannot be recorded twice.
@@ -647,5 +666,145 @@ contract MessageExpiryRelay_ReceiveExpiry_ZeroWindow_Test is MessageExpiryRelay_
         vm.expectRevert(IMessageExpiryRelay.MessageExpiryRelay_NotInitialized.selector);
         vm.prank(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         messageExpiryRelay.receiveExpiry(msgHash, DESTINATION, block.timestamp + 1);
+    }
+}
+
+/// @title MessageExpiryRelay_SetExpiryWindow_Test
+/// @notice Tests the `setExpiryWindow` function of the `MessageExpiryRelay` contract.
+contract MessageExpiryRelay_SetExpiryWindow_Test is MessageExpiryRelay_TestInit {
+    event ExpiryWindowSet(uint256 oldWindow, uint256 newWindow);
+
+    /// @notice Test setup. Initializes the relay with a hub and a nonzero expiry window.
+    function setUp() public virtual override {
+        super.setUp();
+        _initializeRelay(hub, EXPIRY_WINDOW);
+    }
+
+    /// @notice Tests that the ProxyAdmin owner can raise the expiry window and that the event is
+    ///         emitted.
+    function test_setExpiryWindow_increase_succeeds() public {
+        uint256 newWindow = EXPIRY_WINDOW + 1 days;
+
+        vm.expectEmit(address(messageExpiryRelay));
+        emit ExpiryWindowSet(EXPIRY_WINDOW, newWindow);
+
+        vm.prank(proxyAdminOwner);
+        messageExpiryRelay.setExpiryWindow(newWindow);
+
+        assertEq(messageExpiryRelay.expiryWindow(), newWindow);
+    }
+
+    /// @notice Tests that the ProxyAdmin itself can raise the expiry window.
+    function test_setExpiryWindow_proxyAdmin_succeeds() public {
+        uint256 newWindow = EXPIRY_WINDOW + 1;
+
+        vm.prank(address(proxyAdmin));
+        messageExpiryRelay.setExpiryWindow(newWindow);
+
+        assertEq(messageExpiryRelay.expiryWindow(), newWindow);
+    }
+
+    /// @notice Tests that the window can be raised up to the largest value that fits in a uint64.
+    function test_setExpiryWindow_maxExpiryWindow_succeeds() public {
+        vm.prank(proxyAdminOwner);
+        messageExpiryRelay.setExpiryWindow(type(uint64).max);
+
+        assertEq(messageExpiryRelay.expiryWindow(), type(uint64).max);
+    }
+
+    /// @notice Tests that setting the window to its current value is rejected: the window may only
+    ///         increase.
+    function test_setExpiryWindow_equal_reverts() public {
+        vm.expectRevert(IMessageExpiryRelay.MessageExpiryRelay_ExpiryWindowNotIncreased.selector);
+        vm.prank(proxyAdminOwner);
+        messageExpiryRelay.setExpiryWindow(EXPIRY_WINDOW);
+    }
+
+    /// @notice Tests that lowering the window (or leaving it equal) is rejected.
+    /// @param _expiryWindow New expiry window to attempt.
+    function testFuzz_setExpiryWindow_decreaseOrEqual_reverts(uint256 _expiryWindow) public {
+        _expiryWindow = bound(_expiryWindow, 0, EXPIRY_WINDOW);
+
+        vm.expectRevert(IMessageExpiryRelay.MessageExpiryRelay_ExpiryWindowNotIncreased.selector);
+        vm.prank(proxyAdminOwner);
+        messageExpiryRelay.setExpiryWindow(_expiryWindow);
+    }
+
+    /// @notice Tests that a window beyond `type(uint64).max` is rejected, since `recordedAt +
+    ///         expiryWindow` could then overflow.
+    /// @param _expiryWindow New expiry window to attempt.
+    function testFuzz_setExpiryWindow_tooLarge_reverts(uint256 _expiryWindow) public {
+        _expiryWindow = bound(_expiryWindow, uint256(type(uint64).max) + 1, type(uint256).max);
+
+        vm.expectRevert(IMessageExpiryRelay.MessageExpiryRelay_InvalidExpiryWindow.selector);
+        vm.prank(proxyAdminOwner);
+        messageExpiryRelay.setExpiryWindow(_expiryWindow);
+    }
+
+    /// @notice Tests that the window cannot be changed by anyone other than the ProxyAdmin or the
+    ///         ProxyAdmin owner.
+    /// @param _caller Address attempting the change.
+    function testFuzz_setExpiryWindow_notProxyAdminOrOwner_reverts(address _caller) public {
+        vm.assume(_caller != address(proxyAdmin));
+        vm.assume(_caller != proxyAdminOwner);
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+        vm.prank(_caller);
+        messageExpiryRelay.setExpiryWindow(EXPIRY_WINDOW + 1);
+    }
+}
+
+/// @title MessageExpiryRelay_SetHub_Test
+/// @notice Tests the `setHub` function of the `MessageExpiryRelay` contract.
+contract MessageExpiryRelay_SetHub_Test is MessageExpiryRelay_TestInit {
+    event HubSet(address oldHub, address newHub);
+
+    /// @notice Test setup. Initializes the relay with a hub and a nonzero expiry window.
+    function setUp() public virtual override {
+        super.setUp();
+        _initializeRelay(hub, EXPIRY_WINDOW);
+    }
+
+    /// @notice Tests that the ProxyAdmin owner can re-point the hub and that the event is emitted.
+    function test_setHub_succeeds() public {
+        address newHub = makeAddr("newHub");
+
+        vm.expectEmit(address(messageExpiryRelay));
+        emit HubSet(hub, newHub);
+
+        vm.prank(proxyAdminOwner);
+        messageExpiryRelay.setHub(newHub);
+
+        assertEq(messageExpiryRelay.hub(), newHub);
+    }
+
+    /// @notice Tests that the ProxyAdmin itself can re-point the hub.
+    function test_setHub_proxyAdmin_succeeds() public {
+        address newHub = makeAddr("newHub");
+
+        vm.prank(address(proxyAdmin));
+        messageExpiryRelay.setHub(newHub);
+
+        assertEq(messageExpiryRelay.hub(), newHub);
+    }
+
+    /// @notice Tests that the hub cannot be set to the zero address, which would disable
+    ///         attestation.
+    function test_setHub_zeroAddress_reverts() public {
+        vm.expectRevert(IMessageExpiryRelay.MessageExpiryRelay_InvalidHub.selector);
+        vm.prank(proxyAdminOwner);
+        messageExpiryRelay.setHub(address(0));
+    }
+
+    /// @notice Tests that the hub cannot be changed by anyone other than the ProxyAdmin or the
+    ///         ProxyAdmin owner.
+    /// @param _caller Address attempting the change.
+    function testFuzz_setHub_notProxyAdminOrOwner_reverts(address _caller) public {
+        vm.assume(_caller != address(proxyAdmin));
+        vm.assume(_caller != proxyAdminOwner);
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+        vm.prank(_caller);
+        messageExpiryRelay.setHub(makeAddr("newHub"));
     }
 }

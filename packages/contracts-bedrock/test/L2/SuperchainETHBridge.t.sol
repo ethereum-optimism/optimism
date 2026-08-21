@@ -222,6 +222,27 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
         assertEq(_app, address(superchainETHBridge));
         assertEq(_destination, _chainId);
     }
+
+    /// @notice Tests that `sendETH` still succeeds and stores the pending send even when the
+    ///         `MessageExpiryRelay` predeploy has no code, e.g. on a chain not running the interop
+    ///         message-expiry feature or mid-migration. Recording is skipped rather than bricking
+    ///         the send; without the code-size guard, the high-level call to the codeless predeploy
+    ///         would revert on Solidity's existence check.
+    function test_sendETH_noRelayCode_skipsRecording_succeeds() public {
+        uint256 amount = 1 ether;
+        uint256 chainId = 902;
+
+        // Remove the relay predeploy's code so the bridge must skip recording.
+        vm.etch(Predeploys.MESSAGE_EXPIRY_RELAY, hex"");
+        assertEq(Predeploys.MESSAGE_EXPIRY_RELAY.code.length, 0);
+
+        bytes32 msgHash = _sendETH(alice, bob, amount, chainId);
+
+        // The send did not brick and the pending send is stored under the message hash.
+        (address from, uint256 pendingAmount) = superchainETHBridge.pendingETHSends(msgHash);
+        assertEq(from, alice);
+        assertEq(pendingAmount, amount);
+    }
 }
 
 /// @title SuperchainETHBridge_RelayETH_Test

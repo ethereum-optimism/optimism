@@ -4,7 +4,7 @@
     "label": "notices",
     "offset": 0,
     "slot": "0",
-    "type": "mapping(address => mapping(uint256 => mapping(bytes32 => struct MessageExpiryHub.ExpiryNotice)))"
+    "type": "mapping(address => mapping(uint256 => mapping(uint256 => mapping(bytes32 => struct MessageExpiryHub.ExpiryNotice))))"
   },
   {
     "bytes": "32",

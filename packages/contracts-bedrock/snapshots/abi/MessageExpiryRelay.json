@@ -184,6 +184,32 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_expiryWindow",
+        "type": "uint256"
+      }
+    ],
+    "name": "setExpiryWindow",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_hub",
+        "type": "address"
+      }
+    ],
+    "name": "setHub",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "version",
     "outputs": [
@@ -225,6 +251,44 @@
       }
     ],
     "name": "ExpiredMessageRelayed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldWindow",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newWindow",
+        "type": "uint256"
+      }
+    ],
+    "name": "ExpiryWindowSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "oldHub",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "newHub",
+        "type": "address"
+      }
+    ],
+    "name": "HubSet",
     "type": "event"
   },
   {
@@ -303,12 +367,27 @@
   },
   {
     "inputs": [],
+    "name": "MessageExpiryRelay_ExpiryWindowNotIncreased",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_HandlerNotContract",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "MessageExpiryRelay_InvalidExpirySender",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "MessageExpiryRelay_InvalidExpiryWindow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_InvalidHub",
     "type": "error"
   },
   {

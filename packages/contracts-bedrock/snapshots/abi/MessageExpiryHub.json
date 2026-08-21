@@ -12,6 +12,11 @@
         "type": "uint256"
       },
       {
+        "internalType": "uint256",
+        "name": "_sourceChainId",
+        "type": "uint256"
+      },
+      {
         "internalType": "bytes32",
         "name": "_msgHash",
         "type": "bytes32"
@@ -40,6 +45,11 @@
         "type": "uint256"
       },
       {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
@@ -47,11 +57,6 @@
     ],
     "name": "notices",
     "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "sourceChainId",
-        "type": "uint256"
-      },
       {
         "internalType": "address",
         "name": "anchorStateRegistry",
@@ -231,6 +236,11 @@
     ],
     "name": "ExpiryNoticeReceived",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_AlreadyRegistered",
+    "type": "error"
   },
   {
     "inputs": [],

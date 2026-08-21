@@ -16,6 +16,7 @@ interface IMessageExpiryHub {
     error MessageExpiryHub_NoticeNotFound();
     error MessageExpiryHub_ChainNotRegistered();
     error MessageExpiryHub_ClusterMismatch();
+    error MessageExpiryHub_AlreadyRegistered();
 
     event ChainRegistered(address indexed ethLockbox, uint256 indexed chainId, address systemConfig);
     event ExpiryNoticeReceived(
@@ -33,17 +34,19 @@ interface IMessageExpiryHub {
     function notices(
         address,
         uint256,
+        uint256,
         bytes32
     )
         external
         view
-        returns (uint256 sourceChainId, address anchorStateRegistry, uint64 attestedAt);
+        returns (address anchorStateRegistry, uint64 attestedAt);
     function registeredChains(address, uint256) external view returns (ISystemConfig);
     function registerChain(ISystemConfig _systemConfig) external;
     function receiveExpiryNotice(bytes32 _msgHash, uint256 _sourceChainId, uint256 _attestedAt) external;
     function forwardExpiryNotice(
         address _ethLockbox,
         uint256 _attestorChainId,
+        uint256 _sourceChainId,
         bytes32 _msgHash,
         uint32 _minGasLimit
     )

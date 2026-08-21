@@ -80,12 +80,21 @@ contract SuperchainETHBridge is ISemver {
         });
 
         pendingETHSends[msgHash_] = PendingETHSend({ from: msg.sender, amount: msg.value });
-        IMessageExpiryRelay(Predeploys.MESSAGE_EXPIRY_RELAY).recordSentMessage({
-            _destination: _chainId,
-            _nonce: nonce,
-            _target: address(this),
-            _message: message
-        });
+        // Record the send with the MessageExpiryRelay so it can be refunded if it expires
+        // undelivered. On interop chains the relay predeploy is always present and recording MUST
+        // happen. On a chain not running the interop message-expiry feature (or mid-migration,
+        // before the predeploy is etched) the relay has no code; a high-level call to a codeless
+        // address reverts on Solidity's existence check and would brick sendETH. Skip recording
+        // only in that no-code case; whenever the predeploy exists, record and let any genuine
+        // revert propagate so refund protection is never silently lost.
+        if (Predeploys.MESSAGE_EXPIRY_RELAY.code.length > 0) {
+            IMessageExpiryRelay(Predeploys.MESSAGE_EXPIRY_RELAY).recordSentMessage({
+                _destination: _chainId,
+                _nonce: nonce,
+                _target: address(this),
+                _message: message
+            });
+        }
 
         emit SendETH(msg.sender, _to, msg.value, _chainId);
     }

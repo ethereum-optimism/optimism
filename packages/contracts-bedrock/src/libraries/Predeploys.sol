@@ -462,7 +462,7 @@ library Predeploys {
         });
         records_[19] = PredeployRecord({
             proxy: MESSAGE_EXPIRY_RELAY,
-            variants: _variants("MessageExpiryRelay", "MessageExpiryRelay.sol:MessageExpiryRelay", 1_830_000),
+            variants: _variants("MessageExpiryRelay", "MessageExpiryRelay.sol:MessageExpiryRelay", 2_100_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,

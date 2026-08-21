@@ -48,8 +48,21 @@ contract MessageExpiryRelay is ProxyAdminOwnedBase, Initializable, ISemver {
         uint256 destination;
     }
 
-    /// @notice Thrown when initializing with an expiry window that does not fit in a uint64.
+    /// @notice Thrown when initializing or updating the expiry window with a value that does not fit
+    ///         in a uint64.
     error MessageExpiryRelay_InvalidExpiryWindow();
+
+    /// @notice Thrown when updating the expiry window to a value that does not strictly increase it.
+    ///         The window may only be raised: raising it is always safe for the delivery/expiry
+    ///         mutual exclusion, lowering it could break it.
+    error MessageExpiryRelay_ExpiryWindowNotIncreased();
+
+    /// @notice Thrown when updating the hub to the zero address, which would disable attestation.
+    error MessageExpiryRelay_InvalidHub();
+
+    /// @notice Thrown when the caller recording a message is not a contract, which would make the
+    ///         expiry callback permanently revert.
+    error MessageExpiryRelay_HandlerNotContract();
 
     /// @notice Thrown when the message being recorded does not match a message sent by the caller.
     error MessageExpiryRelay_MessageNotSent();
@@ -81,6 +94,16 @@ contract MessageExpiryRelay is ProxyAdminOwnedBase, Initializable, ISemver {
     ///         expiry window, meaning delivery may still be possible.
     error MessageExpiryRelay_MessageNotExpired();
 
+    /// @notice Emitted when the expiry window is raised.
+    /// @param oldWindow Previous expiry window in seconds.
+    /// @param newWindow New expiry window in seconds.
+    event ExpiryWindowSet(uint256 oldWindow, uint256 newWindow);
+
+    /// @notice Emitted when the hub address is updated.
+    /// @param oldHub Previous hub address.
+    /// @param newHub New hub address.
+    event HubSet(address oldHub, address newHub);
+
     /// @notice Emitted when a sent message is recorded for expiry handling.
     /// @param msgHash     Hash of the recorded message.
     /// @param app         Application that sent the message.
@@ -104,8 +127,8 @@ contract MessageExpiryRelay is ProxyAdminOwnedBase, Initializable, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Mapping of message hashes to their sent message records.
     mapping(bytes32 => SentMessageRecord) public sentMessageRecords;
@@ -118,6 +141,13 @@ contract MessageExpiryRelay is ProxyAdminOwnedBase, Initializable, ISemver {
     ///         dependency set this chain belongs to. If it were smaller, an expiry could be
     ///         consumed while delivery on the destination chain is still possible, breaking the
     ///         mutual exclusion between delivery and expiry handling.
+    ///
+    ///         This is trusted configuration owned by the ProxyAdmin owner. There is no on-chain
+    ///         source of truth for the dependency set's window (it lives in the protocol config and
+    ///         may be raised by governance), so the owner is responsible for setting a value that is
+    ///         at least the current window. Devnets and custom dependency sets legitimately run
+    ///         second-scale windows, so no static floor is enforced. If governance raises the
+    ///         protocol window, the owner raises this via `setExpiryWindow` (increase only).
     uint256 public expiryWindow;
 
     /// @notice Constructs the MessageExpiryRelay contract.
@@ -125,9 +155,14 @@ contract MessageExpiryRelay is ProxyAdminOwnedBase, Initializable, ISemver {
         _disableInitializers();
     }
 
-    /// @notice Initializer. Zero values are permitted so that etched genesis implementations can be
+    /// @notice Initializer. Trusted configuration set by the ProxyAdmin or ProxyAdmin owner. Zero
+    ///         values are permitted so that etched genesis implementations can be
     ///         initialization-locked; the contract fails closed until both values are set on the
-    ///         proxy (`attestUndelivered` requires a hub, `receiveExpiry` requires a window).
+    ///         proxy (`attestUndelivered` requires a hub, `receiveExpiry` requires a window). Any
+    ///         window that fits in a uint64 is accepted, including small devnet/custom-depset values
+    ///         and zero; the owner is trusted to set it at least as large as the dependency set's
+    ///         message-expiry window (see `expiryWindow`), and may later raise it via
+    ///         `setExpiryWindow`.
     /// @param _hub          Address of the MessageExpiryHub on L1.
     /// @param _expiryWindow Expiry window in seconds. Must be >= the protocol's interop message
     ///                      expiry window (see `expiryWindow`).
@@ -138,6 +173,42 @@ contract MessageExpiryRelay is ProxyAdminOwnedBase, Initializable, ISemver {
         if (_expiryWindow > type(uint64).max) revert MessageExpiryRelay_InvalidExpiryWindow();
         hub = _hub;
         expiryWindow = _expiryWindow;
+    }
+
+    /// @notice Raises the expiry window. Trusted configuration, callable only by the ProxyAdmin or
+    ///         the ProxyAdmin owner. Provides an on-chain path to keep the window at least as large
+    ///         as the dependency set's message-expiry window (which governance may raise) without
+    ///         upgrading the implementation. The window may only INCREASE: raising it is always safe
+    ///         for the delivery/expiry mutual exclusion, whereas lowering it could let an expiry be
+    ///         consumed while delivery on the destination chain is still possible.
+    /// @param _expiryWindow New expiry window in seconds. Must be strictly greater than the current
+    ///                      window and fit in a uint64.
+    function setExpiryWindow(uint256 _expiryWindow) external {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+        // Same overflow bound as initialize: `recordedAt + expiryWindow` must never overflow.
+        if (_expiryWindow > type(uint64).max) revert MessageExpiryRelay_InvalidExpiryWindow();
+        // Increase only. Lowering the window could break the delivery/expiry mutual exclusion.
+        if (_expiryWindow <= expiryWindow) revert MessageExpiryRelay_ExpiryWindowNotIncreased();
+
+        uint256 oldWindow = expiryWindow;
+        expiryWindow = _expiryWindow;
+
+        emit ExpiryWindowSet(oldWindow, _expiryWindow);
+    }
+
+    /// @notice Updates the hub address. Trusted configuration, callable only by the ProxyAdmin or the
+    ///         ProxyAdmin owner. Provides a remediation path to re-point this chain's relay at a
+    ///         fixed hub without upgrading the implementation. The hub may not be set to the zero
+    ///         address, which would disable attestation.
+    /// @param _hub New hub address.
+    function setHub(address _hub) external {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+        if (_hub == address(0)) revert MessageExpiryRelay_InvalidHub();
+
+        address oldHub = hub;
+        hub = _hub;
+
+        emit HubSet(oldHub, _hub);
     }
 
     /// @notice Records a message previously sent by the caller through the
@@ -160,6 +231,11 @@ contract MessageExpiryRelay is ProxyAdminOwnedBase, Initializable, ISemver {
         external
         returns (bytes32 msgHash_)
     {
+        // The handler is called back by `receiveExpiry` via `onMessageExpired`. A high-level call to
+        // an address with no code reverts on Solidity's existence check, which would permanently
+        // brick expiry consumption for this message. Only a contract can be a handler.
+        if (msg.sender.code.length == 0) revert MessageExpiryRelay_HandlerNotContract();
+
         msgHash_ = Hashing.hashL2toL2CrossDomainMessage({
             _destination: _destination,
             _source: block.chainid,

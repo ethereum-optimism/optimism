@@ -77,6 +77,10 @@ abstract contract MessageExpiryHub_TestInit is Test, MockHelper {
 
     /// @notice Test setup.
     function setUp() public virtual {
+        // Move to a realistic L1 timestamp so that the fixed attestation timestamps used across
+        // these tests are in the past, satisfying the hub's `attestedAt <= block.timestamp` bound.
+        vm.warp(1_000_000_000);
+
         messageExpiryHub = new MessageExpiryHub();
 
         systemConfig = _makeMockContract("systemConfig");
@@ -104,7 +108,8 @@ abstract contract MessageExpiryHub_TestInit is Test, MockHelper {
         vm.etch(addr_, hex"01");
     }
 
-    /// @notice Mocks the identity of a chain: a `SystemConfig` bound to its messenger and portal.
+    /// @notice Mocks the identity of a chain: a `SystemConfig` bound to its messenger and portal,
+    ///         with the portal bound back to the `SystemConfig`.
     /// @param _systemConfig `SystemConfig` of the chain.
     /// @param _messenger    `L1CrossDomainMessenger` of the chain.
     /// @param _portal       `OptimismPortal2` of the chain.
@@ -113,6 +118,7 @@ abstract contract MessageExpiryHub_TestInit is Test, MockHelper {
         vm.mockCall(_systemConfig, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(_messenger));
         vm.mockCall(_messenger, abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()), abi.encode(_systemConfig));
         vm.mockCall(_systemConfig, abi.encodeCall(ISystemConfig.optimismPortal, ()), abi.encode(_portal));
+        vm.mockCall(_portal, abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(_systemConfig));
         vm.mockCall(_systemConfig, abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(_chainId));
     }
 
@@ -195,6 +201,36 @@ contract MessageExpiryHub_RegisterChain_Test is MessageExpiryHub_TestInit {
         messageExpiryHub.registerChain(ISystemConfig(systemConfig));
     }
 
+    /// @notice Tests that registering reverts when the chain's portal is not bound back to the
+    ///         `SystemConfig` that named it, i.e. the reverse portal binding fails.
+    function test_registerChain_portalNotBound_reverts() public {
+        vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(makeAddr("otherConfig")));
+
+        vm.expectRevert(MessageExpiryHub.MessageExpiryHub_UnauthorizedPortal.selector);
+        messageExpiryHub.registerChain(ISystemConfig(systemConfig));
+    }
+
+    /// @notice Tests that a forged `SystemConfig` cannot register by borrowing another chain's real,
+    ///         cluster-authorized portal: the reverse portal binding rejects it because the real
+    ///         portal points back at its own `SystemConfig`, not the forgery.
+    function test_registerChain_borrowedPortal_reverts() public {
+        address fakeSystemConfig = _makeMockContract("fakeSystemConfig");
+        address fakeMessenger = _makeMockContract("fakeMessenger");
+
+        vm.mockCall(
+            fakeSystemConfig, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(fakeMessenger)
+        );
+        vm.mockCall(
+            fakeMessenger, abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()), abi.encode(fakeSystemConfig)
+        );
+        // Borrow the attestor chain's real portal, which is authorized by the real lockbox.
+        vm.mockCall(fakeSystemConfig, abi.encodeCall(ISystemConfig.optimismPortal, ()), abi.encode(portal));
+        vm.mockCall(fakeSystemConfig, abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(uint256(66_666)));
+
+        vm.expectRevert(MessageExpiryHub.MessageExpiryHub_UnauthorizedPortal.selector);
+        messageExpiryHub.registerChain(ISystemConfig(fakeSystemConfig));
+    }
+
     /// @notice Tests that registering reverts when the chain's portal has no lockbox.
     function test_registerChain_zeroLockbox_reverts() public {
         vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(address(0)));
@@ -222,6 +258,29 @@ contract MessageExpiryHub_RegisterChain_Test is MessageExpiryHub_TestInit {
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_InvalidChainId.selector);
         messageExpiryHub.registerChain(ISystemConfig(systemConfig));
     }
+
+    /// @notice Tests that an existing registration cannot be overwritten with a different
+    ///         `SystemConfig` for the same cluster and chain ID, while re-registering the original
+    ///         stays idempotent.
+    function test_registerChain_overwriteDifferentSystemConfig_reverts() public {
+        messageExpiryHub.registerChain(ISystemConfig(systemConfig));
+
+        // A different, independently valid `SystemConfig` in the same cluster that reports the same
+        // chain ID.
+        address systemConfigDup = _makeMockContract("systemConfigDup");
+        address messengerDup = _makeMockContract("messengerDup");
+        address portalDup = _makeMockContract("portalDup");
+        _mockChain(systemConfigDup, messengerDup, portalDup, ATTESTOR_CHAIN_ID);
+        _mockCluster(portalDup, lockbox, asr);
+
+        vm.expectRevert(MessageExpiryHub.MessageExpiryHub_AlreadyRegistered.selector);
+        messageExpiryHub.registerChain(ISystemConfig(systemConfigDup));
+
+        // The original registration is intact and re-registering it still succeeds.
+        assertEq(address(messageExpiryHub.registeredChains(lockbox, ATTESTOR_CHAIN_ID)), systemConfig);
+        messageExpiryHub.registerChain(ISystemConfig(systemConfig));
+        assertEq(address(messageExpiryHub.registeredChains(lockbox, ATTESTOR_CHAIN_ID)), systemConfig);
+    }
 }
 
 /// @title MessageExpiryHub_ReceiveExpiryNotice_Test
@@ -234,16 +293,15 @@ contract MessageExpiryHub_ReceiveExpiryNotice_Test is MessageExpiryHub_TestInit 
     uint256 internal constant ATTESTED_AT = 1000;
 
     /// @notice Tests that a notice relayed by a cluster chain's messenger is recorded under that
-    ///         cluster's lockbox.
+    ///         cluster's lockbox and the message's source chain.
     function test_receiveExpiryNotice_succeeds() public {
         vm.expectEmit(address(messageExpiryHub));
         emit ExpiryNoticeReceived(lockbox, ATTESTOR_CHAIN_ID, msgHash, SOURCE_CHAIN_ID, ATTESTED_AT);
 
         _receiveNotice(msgHash, SOURCE_CHAIN_ID, ATTESTED_AT);
 
-        (uint256 sourceChainId, address anchorStateRegistry, uint64 attestedAt) =
-            messageExpiryHub.notices(lockbox, ATTESTOR_CHAIN_ID, msgHash);
-        assertEq(sourceChainId, SOURCE_CHAIN_ID);
+        (address anchorStateRegistry, uint64 attestedAt) =
+            messageExpiryHub.notices(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash);
         assertEq(anchorStateRegistry, asr);
         assertEq(uint256(attestedAt), ATTESTED_AT);
     }
@@ -279,6 +337,46 @@ contract MessageExpiryHub_ReceiveExpiryNotice_Test is MessageExpiryHub_TestInit 
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_UnauthorizedPortal.selector);
         vm.prank(messenger);
         messageExpiryHub.receiveExpiryNotice(msgHash, SOURCE_CHAIN_ID, ATTESTED_AT);
+    }
+
+    /// @notice Tests that a notice is rejected when the attestor's portal is not bound back to its
+    ///         `SystemConfig`, i.e. the reverse portal binding fails.
+    function test_receiveExpiryNotice_portalNotBound_reverts() public {
+        vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(makeAddr("otherConfig")));
+
+        vm.expectRevert(MessageExpiryHub.MessageExpiryHub_UnauthorizedPortal.selector);
+        vm.prank(messenger);
+        messageExpiryHub.receiveExpiryNotice(msgHash, SOURCE_CHAIN_ID, ATTESTED_AT);
+    }
+
+    /// @notice Tests that a forged `SystemConfig` cannot forge a notice by borrowing another chain's
+    ///         real, cluster-authorized portal. This is the core C1 attestation-forgery regression:
+    ///         the fake `SystemConfig` returns the real attestor portal and an attacker chain ID,
+    ///         but the reverse portal binding rejects it because the real portal points back at its
+    ///         own `SystemConfig`, so no forged notice is ever recorded under the real lockbox key.
+    function test_receiveExpiryNotice_borrowedPortal_reverts() public {
+        address fakeSystemConfig = _makeMockContract("fakeSystemConfig");
+        address fakeMessenger = _makeMockContract("fakeMessenger");
+        uint256 attackerChainId = 66_666;
+
+        vm.mockCall(
+            fakeSystemConfig, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(fakeMessenger)
+        );
+        vm.mockCall(
+            fakeMessenger, abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()), abi.encode(fakeSystemConfig)
+        );
+        // Borrow the attestor chain's real, cluster-authorized portal.
+        vm.mockCall(fakeSystemConfig, abi.encodeCall(ISystemConfig.optimismPortal, ()), abi.encode(portal));
+        vm.mockCall(fakeSystemConfig, abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(attackerChainId));
+        _mockXDomainMessageSender(fakeMessenger, MESSAGE_EXPIRY_RELAY);
+
+        vm.expectRevert(MessageExpiryHub.MessageExpiryHub_UnauthorizedPortal.selector);
+        vm.prank(fakeMessenger);
+        messageExpiryHub.receiveExpiryNotice(msgHash, SOURCE_CHAIN_ID, ATTESTED_AT);
+
+        // Nothing was recorded under the real cluster's lockbox key for the attacker chain ID.
+        (, uint64 attestedAt) = messageExpiryHub.notices(lockbox, attackerChainId, SOURCE_CHAIN_ID, msgHash);
+        assertEq(uint256(attestedAt), 0);
     }
 
     /// @notice Tests that a notice is rejected when the attestor's portal has no lockbox.
@@ -320,8 +418,8 @@ contract MessageExpiryHub_ReceiveExpiryNotice_Test is MessageExpiryHub_TestInit 
         messageExpiryHub.receiveExpiryNotice(msgHash, ATTESTOR_CHAIN_ID, ATTESTED_AT);
     }
 
-    /// @notice Tests that a notice whose attestation timestamp does not fit in a `uint64` is
-    ///         rejected.
+    /// @notice Tests that a notice whose attestation timestamp does not fit in a `uint64`, which is
+    ///         necessarily in the future, is rejected.
     /// @param _attestedAt Timestamp of the attestation.
     function testFuzz_receiveExpiryNotice_invalidTimestamp_reverts(uint256 _attestedAt) public {
         _attestedAt = bound(_attestedAt, uint256(type(uint64).max) + 1, type(uint256).max);
@@ -329,6 +427,22 @@ contract MessageExpiryHub_ReceiveExpiryNotice_Test is MessageExpiryHub_TestInit 
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_InvalidTimestamp.selector);
         vm.prank(messenger);
         messageExpiryHub.receiveExpiryNotice(msgHash, SOURCE_CHAIN_ID, _attestedAt);
+    }
+
+    /// @notice Tests that a future-dated attestation (after the current L1 timestamp) is rejected,
+    ///         removing the unbounded-future-timestamp lever.
+    function test_receiveExpiryNotice_futureTimestamp_reverts() public {
+        vm.expectRevert(MessageExpiryHub.MessageExpiryHub_InvalidTimestamp.selector);
+        vm.prank(messenger);
+        messageExpiryHub.receiveExpiryNotice(msgHash, SOURCE_CHAIN_ID, block.timestamp + 1);
+    }
+
+    /// @notice Tests that an attestation taken exactly at the current L1 timestamp is accepted.
+    function test_receiveExpiryNotice_currentTimestamp_succeeds() public {
+        _receiveNotice(msgHash, SOURCE_CHAIN_ID, block.timestamp);
+
+        (, uint64 attestedAt) = messageExpiryHub.notices(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash);
+        assertEq(uint256(attestedAt), block.timestamp);
     }
 
     /// @notice Tests that a notice with the same attestation timestamp as the stored one is
@@ -350,25 +464,48 @@ contract MessageExpiryHub_ReceiveExpiryNotice_Test is MessageExpiryHub_TestInit 
         messageExpiryHub.receiveExpiryNotice(msgHash, SOURCE_CHAIN_ID, ATTESTED_AT - 1);
     }
 
-    /// @notice Tests that a strictly newer notice supersedes the stored one.
+    /// @notice Tests that a strictly newer notice for the same key supersedes the stored one.
     function test_receiveExpiryNotice_newerNotice_succeeds() public {
         _receiveNotice(msgHash, SOURCE_CHAIN_ID, ATTESTED_AT);
 
-        // The attestor keeps its lockbox, i.e. the notice key, but moves to a different registry
-        // before the second attestation, so the overwrite is observable across every field.
+        // The attestor keeps its lockbox and source chain, i.e. the notice key, but moves to a
+        // different registry before the second attestation, so the overwrite is observable.
         address newAsr = makeAddr("newAsr");
         _mockCluster(portal, lockbox, newAsr);
 
         vm.expectEmit(address(messageExpiryHub));
-        emit ExpiryNoticeReceived(lockbox, ATTESTOR_CHAIN_ID, msgHash, SOURCE_CHAIN_ID + 1, ATTESTED_AT + 1);
+        emit ExpiryNoticeReceived(lockbox, ATTESTOR_CHAIN_ID, msgHash, SOURCE_CHAIN_ID, ATTESTED_AT + 1);
 
-        _receiveNotice(msgHash, SOURCE_CHAIN_ID + 1, ATTESTED_AT + 1);
+        _receiveNotice(msgHash, SOURCE_CHAIN_ID, ATTESTED_AT + 1);
 
-        (uint256 sourceChainId, address anchorStateRegistry, uint64 attestedAt) =
-            messageExpiryHub.notices(lockbox, ATTESTOR_CHAIN_ID, msgHash);
-        assertEq(sourceChainId, SOURCE_CHAIN_ID + 1);
+        (address anchorStateRegistry, uint64 attestedAt) =
+            messageExpiryHub.notices(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash);
         assertEq(anchorStateRegistry, newAsr);
         assertEq(uint256(attestedAt), ATTESTED_AT + 1);
+    }
+
+    /// @notice Tests that two attestations for the same (lockbox, attestor, message) but different
+    ///         source chains coexist under distinct keys: an attestation naming a bogus source chain
+    ///         (even with a newer timestamp) cannot displace a pending legitimate notice.
+    function test_receiveExpiryNotice_differentSourceChainId_coexist_succeeds() public {
+        // A legitimate notice naming the message's true source chain.
+        _receiveNotice(msgHash, SOURCE_CHAIN_ID, ATTESTED_AT);
+
+        // A later attestation for the same message but a different (bogus) source chain, with a
+        // newer timestamp. It is stored under its own source-chain key and does not touch the
+        // legitimate notice, since staleness is scoped per source chain.
+        uint256 bogusSource = SOURCE_CHAIN_ID + 12_345;
+        _receiveNotice(msgHash, bogusSource, ATTESTED_AT + 100);
+
+        (address asrLegit, uint64 attestedAtLegit) =
+            messageExpiryHub.notices(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash);
+        assertEq(asrLegit, asr);
+        assertEq(uint256(attestedAtLegit), ATTESTED_AT);
+
+        (address asrBogus, uint64 attestedAtBogus) =
+            messageExpiryHub.notices(lockbox, ATTESTOR_CHAIN_ID, bogusSource, msgHash);
+        assertEq(asrBogus, asr);
+        assertEq(uint256(attestedAtBogus), ATTESTED_AT + 100);
     }
 
     /// @notice Tests that a chain of a different cluster with a colliding chain ID cannot clobber
@@ -387,30 +524,24 @@ contract MessageExpiryHub_ReceiveExpiryNotice_Test is MessageExpiryHub_TestInit 
         _mockCluster(portalB, lockboxB, asrB);
         _mockXDomainMessageSender(messengerB, MESSAGE_EXPIRY_RELAY);
 
-        // An older attestation from the other cluster is not stale: staleness is compared against
-        // that cluster's own (empty) slot.
+        // An older attestation from the other cluster, for the same message and source chain, is
+        // not stale: staleness is compared against that cluster's own (empty) slot.
         vm.expectEmit(address(messageExpiryHub));
         emit ExpiryNoticeReceived(lockboxB, ATTESTOR_CHAIN_ID, msgHash, SOURCE_CHAIN_ID, ATTESTED_AT - 1);
         vm.prank(messengerB);
         messageExpiryHub.receiveExpiryNotice(msgHash, SOURCE_CHAIN_ID, ATTESTED_AT - 1);
 
-        // And a newer one does not overwrite the first cluster's notice either.
-        vm.prank(messengerB);
-        messageExpiryHub.receiveExpiryNotice(msgHash, SOURCE_CHAIN_ID + 1, ATTESTED_AT + 1);
-
-        // The first cluster's notice is untouched.
-        (uint256 sourceChainIdA, address anchorStateRegistryA, uint64 attestedAtA) =
-            messageExpiryHub.notices(lockbox, ATTESTOR_CHAIN_ID, msgHash);
-        assertEq(sourceChainIdA, SOURCE_CHAIN_ID);
+        // The first cluster's notice is untouched under its own lockbox key.
+        (address anchorStateRegistryA, uint64 attestedAtA) =
+            messageExpiryHub.notices(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash);
         assertEq(anchorStateRegistryA, asr);
         assertEq(uint256(attestedAtA), ATTESTED_AT);
 
         // The second cluster's notice lives under its own lockbox key.
-        (uint256 sourceChainIdB, address anchorStateRegistryB, uint64 attestedAtB) =
-            messageExpiryHub.notices(lockboxB, ATTESTOR_CHAIN_ID, msgHash);
-        assertEq(sourceChainIdB, SOURCE_CHAIN_ID + 1);
+        (address anchorStateRegistryB, uint64 attestedAtB) =
+            messageExpiryHub.notices(lockboxB, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash);
         assertEq(anchorStateRegistryB, asrB);
-        assertEq(uint256(attestedAtB), ATTESTED_AT + 1);
+        assertEq(uint256(attestedAtB), ATTESTED_AT - 1);
     }
 }
 
@@ -451,30 +582,38 @@ contract MessageExpiryHub_ForwardExpiryNotice_Test is MessageExpiryHub_TestInit 
         vm.expectEmit(address(messageExpiryHub));
         emit ExpiryNoticeForwarded(lockbox, ATTESTOR_CHAIN_ID, msgHash, SOURCE_CHAIN_ID);
 
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
     }
 
     /// @notice Tests that forwarding is repeatable.
     function test_forwardExpiryNotice_repeated_succeeds() public {
         vm.mockCall(messenger2, _expectedForward(), abi.encode());
 
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
 
         vm.expectCall(messenger2, _expectedForward());
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
     }
 
     /// @notice Tests that forwarding a notice that was never recorded is rejected.
     function test_forwardExpiryNotice_noticeNotFound_reverts() public {
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_NoticeNotFound.selector);
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, keccak256("unknown"), MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(
+            lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, keccak256("unknown"), MIN_GAS_LIMIT
+        );
+    }
+
+    /// @notice Tests that a notice cannot be reached through the wrong source chain key.
+    function test_forwardExpiryNotice_wrongSourceChain_reverts() public {
+        vm.expectRevert(MessageExpiryHub.MessageExpiryHub_NoticeNotFound.selector);
+        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID + 1, msgHash, MIN_GAS_LIMIT);
     }
 
     /// @notice Tests that a notice cannot be reached through another cluster's lockbox key.
     function test_forwardExpiryNotice_otherLockbox_reverts() public {
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_NoticeNotFound.selector);
         messageExpiryHub.forwardExpiryNotice(
-            _makeMockContract("otherLockbox"), ATTESTOR_CHAIN_ID, msgHash, MIN_GAS_LIMIT
+            _makeMockContract("otherLockbox"), ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash, MIN_GAS_LIMIT
         );
     }
 
@@ -484,7 +623,9 @@ contract MessageExpiryHub_ForwardExpiryNotice_Test is MessageExpiryHub_TestInit 
         _receiveNotice(otherHash, SOURCE_CHAIN_ID + 100, ATTESTED_AT);
 
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_ChainNotRegistered.selector);
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, otherHash, MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(
+            lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID + 100, otherHash, MIN_GAS_LIMIT
+        );
     }
 
     /// @notice Tests that forwarding is rejected when the source chain's messenger binding broke
@@ -495,7 +636,7 @@ contract MessageExpiryHub_ForwardExpiryNotice_Test is MessageExpiryHub_TestInit 
         );
 
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_InvalidMessenger.selector);
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
     }
 
     /// @notice Tests that forwarding is rejected when the source chain's messenger was unset after
@@ -504,7 +645,7 @@ contract MessageExpiryHub_ForwardExpiryNotice_Test is MessageExpiryHub_TestInit 
         vm.mockCall(systemConfig2, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(address(0)));
 
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_InvalidMessenger.selector);
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
     }
 
     /// @notice Tests that forwarding is rejected when the source chain's portal moved to a
@@ -513,7 +654,7 @@ contract MessageExpiryHub_ForwardExpiryNotice_Test is MessageExpiryHub_TestInit 
         _mockCluster(portal2, _makeMockContract("otherLockbox"), asr);
 
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_ClusterMismatch.selector);
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
     }
 
     /// @notice Tests that forwarding is rejected when the source chain no longer shares the
@@ -522,7 +663,7 @@ contract MessageExpiryHub_ForwardExpiryNotice_Test is MessageExpiryHub_TestInit 
         _mockCluster(portal2, lockbox, makeAddr("otherAsr"));
 
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_ClusterMismatch.selector);
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
     }
 
     /// @notice Tests that forwarding is rejected when the source chain's portal lost its lockbox
@@ -535,6 +676,6 @@ contract MessageExpiryHub_ForwardExpiryNotice_Test is MessageExpiryHub_TestInit 
         );
 
         vm.expectRevert(MessageExpiryHub.MessageExpiryHub_UnauthorizedPortal.selector);
-        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
+        messageExpiryHub.forwardExpiryNotice(lockbox, ATTESTOR_CHAIN_ID, SOURCE_CHAIN_ID, msgHash, MIN_GAS_LIMIT);
     }
 }
