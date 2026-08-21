@@ -219,6 +219,17 @@ func (n *LokahiSupernode) InteropTestAPI() apis.SupernodeInteropTestAPI {
 // ChainCL returns the L2CLNode addressing the chain at index i, in configuration order.
 func (n *LokahiSupernode) ChainCL(i int) L2CLNode { return n.chains[i] }
 
+// chainRouteURL is where one hosted chain is reached: the supernode's own address, plus the route
+// its chain id names.
+//
+// One socket, so every chain shares a host and a port and is told apart only by the path. Two
+// chains must therefore never render to the same string -- a collapse there would leave callers
+// addressing one chain twice while every host-and-port check still agreed -- which is what
+// TestLokahiChainRoutesShareASocketAndDifferByChain pins.
+func chainRouteURL(supernodeURL string, chainID eth.ChainID) string {
+	return supernodeURL + "/" + chainID.String()
+}
+
 // startLokahiSupernode runs lokahi as the shared multi-chain consensus layer.
 //
 // This is the out-of-process counterpart of startMixedKonaNode (mixed_runtime.go): the
@@ -314,7 +325,7 @@ func (n *LokahiSupernode) startLocked() {
 		n.p.Cleanup(func() { _ = n.adminProxy.Close() })
 		n.adminUserRPC = "http://" + n.adminProxy.Addr()
 		for _, chain := range n.chains {
-			chain.userRPC = n.adminUserRPC + "/" + chain.chainID.String()
+			chain.userRPC = chainRouteURL(n.adminUserRPC, chain.chainID)
 		}
 	}
 
@@ -395,10 +406,27 @@ func (n *LokahiSupernode) clearProxyUpstream() {
 	}
 }
 
+// Running reports whether the lokahi process is alive.
+//
+// The process, not the intent: n.sub is only cleared by a Stop this side asked for, so a lokahi
+// that died on its own -- panicked, was killed, exited on a config it could not parse -- leaves it
+// set. Reading only that field, this returned true for a process that was no longer there, which
+// is the wrong answer for the one question a caller asks it: a test asserting the supernode
+// survived some insult could not fail, because the field records that nobody stopped it rather
+// than that it is still running. SubProcess closes Exited once cmd.Wait returns, so that is the
+// liveness the answer is drawn from.
 func (n *LokahiSupernode) Running() bool {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.sub != nil
+	if n.sub == nil {
+		return false
+	}
+	select {
+	case <-n.sub.Exited():
+		return false
+	default:
+		return true
+	}
 }
 
 func (n *LokahiSupernode) StartControlled(ctx context.Context) error {
