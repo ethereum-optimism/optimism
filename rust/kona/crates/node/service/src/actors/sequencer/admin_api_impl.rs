@@ -10,8 +10,8 @@ use tokio::sync::oneshot;
 pub enum SequencerAdminQuery {
     /// A query to check if the sequencer is active.
     SequencerActive(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
-    /// A query to start the sequencer.
-    StartSequencer(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    /// A query to start the sequencer from the expected unsafe head.
+    StartSequencer(B256, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
     /// A query to stop the sequencer.
     StopSequencer(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
     /// A query to check if the conductor is enabled.
@@ -57,8 +57,8 @@ where
                     warn!(target: "sequencer", "Failed to send response for is_sequencer_active query");
                 }
             }
-            SequencerAdminQuery::StartSequencer(tx) => {
-                if tx.send(self.start_sequencer().await).is_err() {
+            SequencerAdminQuery::StartSequencer(head, tx) => {
+                if tx.send(self.start_sequencer(head).await).is_err() {
                     warn!(target: "sequencer", "Failed to send response for start_sequencer query");
                 }
             }
@@ -110,11 +110,38 @@ where
         Ok(self.in_recovery_mode)
     }
 
-    /// Starts the sequencer in an idempotent fashion.
-    pub(super) async fn start_sequencer(&mut self) -> Result<(), SequencerAdminAPIError> {
+    /// Starts the sequencer in an idempotent fashion after validating conductor leadership and
+    /// the expected unsafe head.
+    pub(super) async fn start_sequencer(
+        &mut self,
+        head: B256,
+    ) -> Result<(), SequencerAdminAPIError> {
         if self.is_active {
             info!(target: "sequencer", "received request to start sequencer, but it is already started");
             return Ok(());
+        }
+
+        if let Some(conductor) = &self.conductor {
+            let is_leader = conductor.leader().await.map_err(|err| {
+                SequencerAdminAPIError::RequestError(format!(
+                    "sequencer leader check failed: {err}"
+                ))
+            })?;
+            if !is_leader {
+                return Err(SequencerAdminAPIError::RequestError(
+                    "sequencer is not the leader, aborting".to_string(),
+                ));
+            }
+        }
+
+        let unsafe_head = self.engine_client.get_unsafe_head().await.map_err(|err| {
+            SequencerAdminAPIError::RequestError(format!("failed to get unsafe head: {err}"))
+        })?;
+        if unsafe_head.hash() != head {
+            return Err(SequencerAdminAPIError::RequestError(format!(
+                "block hash does not match: head {}, received {head}",
+                unsafe_head.hash()
+            )));
         }
 
         info!(target: "sequencer", "Starting sequencer");
