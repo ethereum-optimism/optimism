@@ -25,9 +25,9 @@ pub use actors::{
     DerivationActor, DerivationActorRequest, DerivationClientError, DerivationClientResult,
     DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
     DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
-    DerivationStateTransitionError, DerivationStateUpdate, EngineConfig, JsonrpseeServerLauncher,
-    L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor,
-    L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient, NetworkActor,
+    DerivationStateTransitionError, DerivationStateUpdate, DynRpcServerLauncher, EngineConfig,
+    JsonrpseeServerLauncher, L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider,
+    L1WatcherActor, L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient, NetworkActor,
     NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig, NetworkDriver,
     NetworkDriverError, NetworkEngineClient, NetworkHandler, NodeActor, OriginSelector,
     QueuedChainControllerDerivationClient, QueuedDerivationEngineClient, QueuedEngineRpcClient,
@@ -35,7 +35,7 @@ pub use actors::{
     QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor,
     RpcActorError, RpcServerHandle, RpcServerLauncher, SealRequest, SequencerActor,
     SequencerActorError, SequencerAdminQuery, SequencerConfig, SequencerEngineClient,
-    UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
+    SharedRpcServerLauncher, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod metrics;

@@ -10,14 +10,14 @@ use jsonrpsee::{
     server::{Server, ServerHandle, middleware::http::ProxyGetRequestLayer},
 };
 use kona_rpc::RpcBuilder;
-use std::time::Duration;
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 /// A handle to a running RPC server.
 ///
 /// The actor awaits [`Self::stopped`] to detect that the server has terminated, and calls
 /// [`Self::stop`] from its `Drop` impl to request graceful termination on shutdown.
 #[async_trait]
-pub trait RpcServerHandle: Send + Sync + 'static {
+pub trait RpcServerHandle: Debug + Send + Sync + 'static {
     /// Resolves when the server has stopped.
     async fn stopped(&self);
 
@@ -25,14 +25,69 @@ pub trait RpcServerHandle: Send + Sync + 'static {
     fn stop(&self);
 }
 
+#[async_trait]
+impl RpcServerHandle for Box<dyn RpcServerHandle> {
+    async fn stopped(&self) {
+        (**self).stopped().await;
+    }
+
+    fn stop(&self) {
+        (**self).stop();
+    }
+}
+
 /// Launches an RPC server bound to the configuration carried by the implementor.
 #[async_trait]
-pub trait RpcServerLauncher: Send + Sync + 'static {
+pub trait RpcServerLauncher: Debug + Send + Sync + 'static {
     /// The handle type produced by a successful [`Self::launch`].
     type Handle: RpcServerHandle;
 
     /// Launches a new server instance bound to `modules`.
     async fn launch(&self, modules: RpcModule<()>) -> Result<Self::Handle, std::io::Error>;
+}
+
+/// The object-safe form of [`RpcServerLauncher`], so a host can supply its own launcher without
+/// the node's actor types becoming generic over it.
+///
+/// Every [`RpcServerLauncher`] is one of these, and [`SharedRpcServerLauncher`] is in turn an
+/// [`RpcServerLauncher`] again, so a host hands in `Arc::new(its_launcher)` and the node keeps a
+/// single concrete actor type either way.
+#[async_trait]
+pub trait DynRpcServerLauncher: Debug + Send + Sync + 'static {
+    /// Launches a new server instance bound to `modules`, behind a boxed handle.
+    async fn launch_boxed(
+        &self,
+        modules: RpcModule<()>,
+    ) -> Result<Box<dyn RpcServerHandle>, std::io::Error>;
+}
+
+#[async_trait]
+impl<L> DynRpcServerLauncher for L
+where
+    L: RpcServerLauncher,
+{
+    async fn launch_boxed(
+        &self,
+        modules: RpcModule<()>,
+    ) -> Result<Box<dyn RpcServerHandle>, std::io::Error> {
+        let handle = self.launch(modules).await?;
+        Ok(Box::new(handle))
+    }
+}
+
+/// The launcher a composed chain's [`crate::RpcActor`] holds.
+///
+/// Shared rather than owned because a multi-chain host's launcher is one object that knows about
+/// every chain — it routes to them — so each chain's actor holds a handle to the same one.
+pub type SharedRpcServerLauncher = Arc<dyn DynRpcServerLauncher>;
+
+#[async_trait]
+impl RpcServerLauncher for SharedRpcServerLauncher {
+    type Handle = Box<dyn RpcServerHandle>;
+
+    async fn launch(&self, modules: RpcModule<()>) -> Result<Self::Handle, std::io::Error> {
+        (**self).launch_boxed(modules).await
+    }
 }
 
 #[async_trait]

@@ -31,19 +31,38 @@ share, and each `[[chains]]` entry states only what is specific to that chain. S
 what the code accepts.
 
 A chain's own value always wins over `[defaults]`. What a chain must end up with, from either layer:
-`l2-chain-id`, `engine-rpc`, `jwt-secret`, `rpc-port`, `p2p-tcp-port` and `p2p-udp-port`. The rollup
-config, the L1 chain config and the unsafe block signer come from the superchain registry unless the
-file names them — a devnet chain is not in the registry, so it names all three.
+`l2-chain-id`, `engine-rpc`, `jwt-secret`, `p2p-tcp-port` and `p2p-udp-port`. The rollup config, the
+L1 chain config and the unsafe block signer come from the superchain registry unless the file names
+them — a devnet chain is not in the registry, so it names all three.
 
 Each chain gets its own state: `<datadir>/<l2-chain-id>` holds its P2P identity, its bootstore and
-its persisted admin-API state, and each chain answers RPC on its own socket with the method names a
-single-chain node has. A shared `datadir` in `[defaults]` is split per chain automatically; a chain
-that names its own `datadir` gets exactly that directory.
+its persisted admin-API state. A shared `datadir` in `[defaults]` is split per chain automatically; a
+chain that names its own `datadir` gets exactly that directory.
 
 The chain set is fixed at startup — there is no path that adds a chain to a running supernode — and
 the configuration is checked before any actor exists. The same chain listed twice, two chains
-sharing a port, two chains sharing a data directory, or chains on different L1s are startup errors
-naming the chains involved.
+sharing a P2P port, two chains sharing a data directory, or chains on different L1s are startup
+errors naming the chains involved.
+
+## Addressing
+
+One process, one socket. `[admin] rpc-port` is the whole address of the supernode: the process-wide
+namespaces answer at `/`, and each hosted chain's node RPC answers at `/<l2-chain-id>` with the
+method names a single-chain node has. So a caller that knows where the supernode is can reach any
+chain it hosts, and `lokahi_chains` lists the routes.
+
+```
+http://host:9500/          supernode_syncStatus, superroot_atTimestamp, lokahi_chains
+http://host:9500/901       optimism_syncStatus, optimism_rollupConfig, opp2p_*, admin_* …
+http://host:9500/902       the same, for chain 902
+http://host:9500/901/healthz
+```
+
+This is `op-supernode`'s addressing, segment for segment
+([`resources/rpc_router.go`](../../op-supernode/supernode/resources/rpc_router.go)), so a client is
+pointed at either implementation with the same URL and no branch — including the refusals: a chain
+id this process does not host is a `404`, and a chain it hosts but has not composed yet is waited
+for and then a `503`.
 
 ## Failure behaviour
 

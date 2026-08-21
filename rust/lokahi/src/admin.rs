@@ -1,10 +1,10 @@
-//! The supernode-level admin/test RPC.
+//! The supernode-level admin/test RPC: the namespaces served at `/`.
 //!
-//! Each chain answers on its own socket with the method set a single-chain node has; this server
-//! answers for the *process*. It is the seam a test harness drives the supernode through, and the
-//! only endpoint whose address a harness can learn without knowing the configuration: it may bind
-//! port 0 and logs the address it got, which is what makes an out-of-process launch a single
-//! handshake rather than N of them.
+//! Each chain answers under its own route with the method set a single-chain node has; these
+//! methods answer for the *process*, so they are the ones served at the root of the supernode's
+//! socket. It is the seam a test harness drives the supernode through, and the surface a harness
+//! reaches first: the socket may be port 0 and the address it got is logged, which is what makes
+//! an out-of-process launch a single handshake rather than N of them.
 //!
 //! The surface is deliberately small. It reports what the supernode was configured to run; it does
 //! not report liveness, because a chain's own RPC answering is the liveness signal a caller
@@ -13,36 +13,31 @@
 //! the same reason: they are not questions about one chain. See
 //! [`crate::interop::InteropTestHandle`].
 //!
-//! The supernode *query* API — `supernode_syncStatus` and `superroot_atTimestamp` — is served on
-//! this same socket, in its own two namespaces. It belongs here for the same reason as everything
-//! else on this server: both methods are statements about the whole chain set, and neither has a
-//! per-chain answer to be served from a chain's own socket. It is also what makes lokahi reachable
+//! The supernode *query* API — `supernode_syncStatus` and `superroot_atTimestamp` — is served at
+//! the same root, in its own two namespaces. It belongs here for the same reason as everything
+//! else at the root: both methods are statements about the whole chain set, and neither has a
+//! per-chain answer to be served from a chain's own route. It is also what makes lokahi reachable
 //! by the existing consumers, which dial one supernode endpoint and call two methods on it.
 
 use crate::{config::ResolvedChain, interop::InteropTestHandle, query::QueryHandle, version};
 use anyhow::{Context, Result};
-use jsonrpsee::{
-    core::RpcResult,
-    proc_macros::rpc,
-    server::{Server, ServerHandle},
-};
+use jsonrpsee::{RpcModule, core::RpcResult, proc_macros::rpc};
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
-use tracing::info;
+use std::{path::PathBuf, sync::Arc};
 
 /// One chain the supernode was configured to host.
 ///
-/// `rpc_addr` is the socket from the configuration rather than one the RPC server reported back:
-/// kona binds each chain's server itself and does not hand the address up, so a chain configured
-/// on port 0 would be unaddressable. Requiring a concrete port per chain is what keeps this field
-/// honest, and [`crate::config`] already rejects two chains sharing one.
+/// `rpc_path` rather than an address: every chain is served on the one socket the caller is
+/// already talking to, and what distinguishes them is the path. So the answer to *where is chain
+/// N* is a path to append, and a caller that has this list needs nothing else to reach any chain
+/// in it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct HostedChain {
     /// The L2 chain id.
     pub(crate) chain_id: u64,
-    /// The socket this chain's own RPC server listens on.
-    pub(crate) rpc_addr: SocketAddr,
+    /// The path on the supernode's socket this chain's own RPC answers under.
+    pub(crate) rpc_path: String,
     /// Whether this chain is sequenced or validated by this supernode.
     pub(crate) mode: String,
     /// The directory this chain's state lives under.
@@ -53,7 +48,7 @@ impl From<&ResolvedChain> for HostedChain {
     fn from(chain: &ResolvedChain) -> Self {
         Self {
             chain_id: chain.l2_chain_id,
-            rpc_addr: chain.rpc_socket,
+            rpc_path: format!("/{}", chain.l2_chain_id),
             mode: chain.mode().to_string(),
             datadir: chain.datadir.clone(),
         }
@@ -90,33 +85,24 @@ impl LokahiAdminApiServer for AdminRpc {
     }
 }
 
-/// Binds the supernode-level RPC and logs the address it got.
+/// Builds the module set the supernode's own namespaces are served from.
 ///
-/// Returning the handle rather than spawning and forgetting is what lets the caller stop the
-/// server when the chains stop: a process that has torn its chains down should not still be
-/// answering questions about them.
+/// Built rather than bound: the socket is the supernode's one socket, opened by
+/// [`crate::rpc::SupernodeRpc`], and these methods are mounted at its root. That is also why this
+/// can be called — and the address logged — before any chain exists.
 ///
-/// `queries` is bound empty and filled once the chains are composed, which is why this can be
-/// called — and logged — before any chain exists. A query arriving in that window is answered with
-/// an error saying the supernode is starting.
-pub(crate) async fn serve(
-    socket: SocketAddr,
+/// `queries` is handed over empty and filled once the chains are composed. A query arriving in
+/// that window is answered with an error saying the supernode is starting.
+pub(crate) fn module(
     chains: &[ResolvedChain],
     queries: QueryHandle,
     interop_test: InteropTestHandle,
-) -> Result<ServerHandle> {
-    let server = Server::builder()
-        .build(socket)
-        .await
-        .with_context(|| format!("failed to bind the admin rpc to {socket}"))?;
-
-    // The bound address, not the requested one: a harness that asked for port 0 learns its port
-    // from this line, and this is the line an out-of-process launch waits for.
-    let addr = server.local_addr().context("the admin rpc server has no local address")?;
-    info!(target: "lokahi", %addr, "Admin RPC server bound to address");
-
+) -> Result<RpcModule<()>> {
     let chains: Arc<[HostedChain]> = chains.iter().map(HostedChain::from).collect();
-    let mut module = AdminRpc { chains }.into_rpc();
+    let mut module = RpcModule::new(());
+    module
+        .merge(AdminRpc { chains }.into_rpc())
+        .context("failed to register the supernode admin API")?;
     module
         .merge(queries.into_rpc_module().context("failed to build the supernode query API")?)
         .context("failed to register the supernode query API")?;
@@ -127,5 +113,5 @@ pub(crate) async fn serve(
                 .context("failed to build the interop test-control API")?,
         )
         .context("failed to register the interop test-control API")?;
-    Ok(server.start(module))
+    Ok(module)
 }

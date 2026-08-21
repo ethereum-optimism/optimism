@@ -15,8 +15,9 @@ pub use chain_controller::{
 
 pub(crate) mod rpc;
 pub use rpc::{
-    JsonrpseeServerLauncher, QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor,
-    RpcActorError, RpcServerHandle, RpcServerLauncher,
+    DynRpcServerLauncher, JsonrpseeServerLauncher, QueuedEngineRpcClient,
+    QueuedSequencerAdminAPIClient, RpcActor, RpcActorError, RpcServerHandle, RpcServerLauncher,
+    SharedRpcServerLauncher,
 };
 
 mod derivation;

@@ -75,10 +75,10 @@ type lokahiSupernodeConfig struct {
 
 // LokahiSupernode is a running lokahi process hosting one or more chains.
 //
-// Unlike the Go op-supernode, which serves every chain from one RPC under a /<chainID>
-// route, lokahi gives each chain its own socket and keeps the method names a single-chain
-// node has. Each of those sockets is fronted by a proxy so callers keep a stable URL, and
-// ChainCL hands out an L2CLNode per chain addressing it.
+// Like the Go op-supernode, lokahi serves every chain from one RPC under a /<chainID> route,
+// keeping the method names a single-chain node has. That one socket is fronted by a proxy so
+// callers keep a stable URL across a restart, and ChainCL hands out an L2CLNode per chain
+// whose address is that proxy plus the chain's route.
 type LokahiSupernode struct {
 	mu sync.Mutex
 
@@ -98,15 +98,15 @@ type LokahiSupernode struct {
 	adminRPC string
 	// adminProxy fronts adminRPC, and adminUserRPC is its stable address.
 	//
-	// The indirection is what makes the process-wide RPC survive a restart, exactly as the
-	// per-chain proxies make each chain's socket survive one. Without it every holder of this
+	// The indirection is what makes the RPC survive a restart. Without it every holder of this
 	// address would be dialling a dead port after a Stop/Start: the preset frontend builds its
 	// query-API client once, at construction, and the acceptance tests that wipe the data
 	// directory or take the execution layers away mid-test go on to read through it.
 	//
-	// It is also where the supernode query API answers: supernode_syncStatus and
-	// superroot_atTimestamp are statements about the whole chain set, so they are served by
-	// the process rather than by any one chain's socket.
+	// One proxy for the whole process, because there is one socket to front: the chains are
+	// routes on it, so a chain's stable address is this one plus /<chainID>. It is also where
+	// the supernode query API answers, at the root: supernode_syncStatus and
+	// superroot_atTimestamp are statements about the whole chain set rather than about a chain.
 	adminProxy   *tcpproxy.Proxy
 	adminUserRPC string
 	// chains keeps the hosted chains in configuration order.
@@ -136,10 +136,8 @@ var _ interface {
 // that defer to the supernode as a whole.
 type lokahiChainCL struct {
 	chainID eth.ChainID
-	// rpcPort is the port lokahi was configured to serve this chain on.
-	rpcPort int
-	// proxy fronts that port so callers keep one URL across a supernode restart.
-	proxy   *tcpproxy.Proxy
+	// userRPC is the supernode's stable address with this chain's route appended, so it moves
+	// only when the supernode's proxy address does — which is never.
 	userRPC string
 }
 
@@ -237,15 +235,16 @@ func startLokahiSupernode(t devtest.T, cfg lokahiSupernodeConfig) *LokahiSuperno
 
 	// Every listener the process needs is reserved at once and only then released:
 	// allocating them one at a time would hand out the same port twice, because each is
-	// free again before the next is asked for.
-	ports := reservePorts(t, 3*len(cfg.chains))
+	// free again before the next is asked for. Two per chain, both P2P: a chain has no RPC
+	// port of its own any more, it is a route on the supernode's one socket.
+	ports := reservePorts(t, 2*len(cfg.chains))
 
 	chains := make([]*lokahiChainCL, len(cfg.chains))
 	entries := make([]string, len(cfg.chains))
 	for i, chain := range cfg.chains {
-		rpcPort, tcpPort, udpPort := ports[3*i], ports[3*i+1], ports[3*i+2]
-		chains[i] = &lokahiChainCL{chainID: chain.net.ChainID(), rpcPort: rpcPort}
-		entries[i] = lokahiChainEntry(t, dir, chain, cfg, rpcPort, tcpPort, udpPort)
+		tcpPort, udpPort := ports[2*i], ports[2*i+1]
+		chains[i] = &lokahiChainCL{chainID: chain.net.ChainID()}
+		entries[i] = lokahiChainEntry(t, dir, chain, cfg, tcpPort, udpPort)
 	}
 
 	configPath := filepath.Join(dir, "lokahi.toml")
@@ -293,32 +292,29 @@ func (n *LokahiSupernode) Start() {
 	n.startLocked()
 }
 
-// startLocked launches the process, waits for its admin RPC to be listening, and repoints the
-// per-chain proxies at the ports it was configured to serve. Caller must hold n.mu.
+// startLocked launches the process, waits for its RPC to be listening, and repoints the proxy at
+// the port it bound. Caller must hold n.mu.
 func (n *LokahiSupernode) startLocked() {
 	if n.sub != nil {
 		n.logger.Warn("lokahi already started")
 		return
 	}
 
-	// The process-wide proxy, like the per-chain ones below: created once and repointed on a
-	// restart, so every holder of the supernode's address keeps one URL for the life of the
-	// test even though the process binds a new port each time.
+	// One proxy for the whole process: created once and repointed on a restart, so every
+	// holder of the supernode's address keeps one URL for the life of the test even though the
+	// process binds a new port each time.
+	//
+	// The chains ride on it. A chain's address is this proxy plus its route, so there is one
+	// proxy to keep pointed at a live port instead of one per chain — and every chain's
+	// endpoint shares a host and port, which is what a caller of a supernode expects and what
+	// TestTwoChainProgress asserts.
 	if n.adminProxy == nil {
 		n.adminProxy = tcpproxy.New(n.logger.New("proxy", "lokahi-admin"))
 		n.p.Require().NoError(n.adminProxy.Start(), "lokahi admin proxy failed to start")
 		n.p.Cleanup(func() { _ = n.adminProxy.Close() })
 		n.adminUserRPC = "http://" + n.adminProxy.Addr()
-	}
-
-	// The per-chain proxies are created once and repointed on a restart, so components
-	// wired to a chain keep one URL for the life of the test.
-	for _, chain := range n.chains {
-		if chain.proxy == nil {
-			chain.proxy = tcpproxy.New(n.logger.New("proxy", "lokahi-"+chain.chainID.String()))
-			n.p.Require().NoError(chain.proxy.Start(), "lokahi chain proxy failed to start")
-			n.p.Cleanup(func() { _ = chain.proxy.Close() })
-			chain.userRPC = "http://" + chain.proxy.Addr()
+		for _, chain := range n.chains {
+			chain.userRPC = n.adminUserRPC + "/" + chain.chainID.String()
 		}
 	}
 
@@ -366,43 +362,36 @@ func (n *LokahiSupernode) startLocked() {
 		n.p.Require().NoError(n.p.Ctx().Err(), "need the lokahi admin RPC")
 	}
 
+	// One upstream to repoint: the chains are routes behind it, so they follow automatically.
 	n.adminProxy.SetUpstream(strings.TrimPrefix(n.adminRPC, "http://"))
-	for _, chain := range n.chains {
-		chain.proxy.SetUpstream(net.JoinHostPort("127.0.0.1", fmt.Sprintf("%d", chain.rpcPort)))
-	}
 }
 
-// Stop terminates the process, leaving the per-chain proxies in place so a later Start can
-// repoint them.
+// Stop terminates the process, leaving the proxy in place so a later Start can repoint it.
 func (n *LokahiSupernode) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.stopLocked()
 }
 
-// stopLocked terminates the process, leaving the per-chain proxies in place so a later
-// startLocked can repoint them. Caller must hold n.mu.
+// stopLocked terminates the process, leaving the proxy in place so a later startLocked can
+// repoint it. Caller must hold n.mu.
 func (n *LokahiSupernode) stopLocked() {
 	if n.sub == nil {
 		n.logger.Warn("lokahi already stopped")
 		return
 	}
-	n.clearProxyUpstreams()
+	n.clearProxyUpstream()
 	n.p.Require().NoError(n.sub.Stop(true), "must stop lokahi")
 	n.sub = nil
 }
 
-// clearProxyUpstreams points every proxy at nothing, so a caller reaching the supernode while it
-// is down is refused rather than left hanging on a connection to a port the process no longer
-// holds. Caller must hold n.mu.
-func (n *LokahiSupernode) clearProxyUpstreams() {
+// clearProxyUpstream points the proxy at nothing, so a caller reaching the supernode while it is
+// down is refused rather than left hanging on a connection to a port the process no longer holds.
+// Clearing the one proxy covers the chains too, since their addresses are routes on it. Caller
+// must hold n.mu.
+func (n *LokahiSupernode) clearProxyUpstream() {
 	if n.adminProxy != nil {
 		n.adminProxy.ClearUpstream()
-	}
-	for _, chain := range n.chains {
-		if chain.proxy != nil {
-			chain.proxy.ClearUpstream()
-		}
 	}
 }
 
@@ -422,7 +411,7 @@ func (n *LokahiSupernode) StopControlled(ctx context.Context) error {
 	if n.sub == nil {
 		return nil
 	}
-	n.clearProxyUpstreams()
+	n.clearProxyUpstream()
 	if err := n.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
 		return err
 	}
@@ -453,7 +442,8 @@ func (n *LokahiSupernode) RestartWithFreshDataDir() error {
 	if err := os.RemoveAll(n.dataDir); err != nil {
 		return fmt.Errorf("sysgo: wipe lokahi data dir %s: %w", n.dataDir, err)
 	}
-	if err := os.MkdirAll(n.dataDir, 0o755); err != nil {
+	// 0o750, matching the 0o640 the config files beside it use: the node is the only reader.
+	if err := os.MkdirAll(n.dataDir, 0o750); err != nil {
 		return fmt.Errorf("sysgo: recreate lokahi data dir %s: %w", n.dataDir, err)
 	}
 	n.startLocked()
@@ -469,8 +459,8 @@ func (n *LokahiSupernode) RestartWithFreshDataDir() error {
 	return nil
 }
 
-// requireHostedChains asserts that lokahi hosts exactly the chains it was configured with,
-// on the ports it was given.
+// requireHostedChains asserts that lokahi hosts exactly the chains it was configured with, each
+// under the route its chain id names.
 func (n *LokahiSupernode) requireHostedChains(cfg lokahiSupernodeConfig) {
 	require := n.p.Require()
 
@@ -480,7 +470,7 @@ func (n *LokahiSupernode) requireHostedChains(cfg lokahiSupernodeConfig) {
 
 	var hosted []struct {
 		ChainID uint64 `json:"chainId"`
-		RPCAddr string `json:"rpcAddr"`
+		RPCPath string `json:"rpcPath"`
 	}
 	require.NoError(rpcCl.CallContext(n.p.Ctx(), &hosted, "lokahi_chains"), "call lokahi_chains")
 	require.Len(hosted, len(cfg.chains), "lokahi hosts a different number of chains than configured")
@@ -488,8 +478,8 @@ func (n *LokahiSupernode) requireHostedChains(cfg lokahiSupernodeConfig) {
 	for i, chain := range n.chains {
 		require.Equal(eth.EvilChainIDToUInt64(chain.chainID), hosted[i].ChainID,
 			"lokahi hosts chain %s at index %d", chain.chainID, i)
-		require.Equal(fmt.Sprintf("127.0.0.1:%d", chain.rpcPort), hosted[i].RPCAddr,
-			"lokahi serves chain %s on another port", chain.chainID)
+		require.Equal("/"+chain.chainID.String(), hosted[i].RPCPath,
+			"lokahi serves chain %s under another route", chain.chainID)
 	}
 }
 
@@ -501,9 +491,8 @@ func lokahiDataDir(dir string) string { return filepath.Join(dir, "data") }
 
 // lokahiConfigFile renders the global layer of the configuration plus the chain entries.
 //
-// The admin RPC asks for port 0 and the chains name concrete ports: only the admin RPC
-// reports the address it bound, so it is the one that can be discovered and the chains are
-// the ones that have to be told.
+// The RPC asks for port 0 and is discovered from the startup log, which is the only address that
+// has to be discovered: the chains are routes on it, so knowing it is knowing where they all are.
 func lokahiConfigFile(t devtest.T, dir string, cfg lokahiSupernodeConfig, entries []string) string {
 	l1CfgPath := filepath.Join(dir, "l1-chain-config.json")
 	l1CfgData, err := json.Marshal(cfg.l1Net.genesis.Config)
@@ -526,7 +515,7 @@ func lokahiConfigFile(t devtest.T, dir string, cfg lokahiSupernodeConfig, entrie
 	// Acceptance tests drive a node through its admin API, which kona only registers when
 	// admin is enabled; op-node's devstack node enables it too.
 	fmt.Fprintf(&b, "[defaults]\ndatadir = %q\nmode = \"validator\"\n"+
-		"rpc-addr = \"127.0.0.1\"\nrpc-enable-admin = true\np2p-listen-ip = \"127.0.0.1\"\n\n",
+		"rpc-enable-admin = true\np2p-listen-ip = \"127.0.0.1\"\n\n",
 		lokahiDataDir(dir))
 	b.WriteString(strings.Join(entries, "\n"))
 	return b.String()
@@ -538,7 +527,7 @@ func lokahiChainEntry(
 	dir string,
 	chain lokahiSupernodeChain,
 	cfg lokahiSupernodeConfig,
-	rpcPort, tcpPort, udpPort int,
+	tcpPort, udpPort int,
 ) string {
 	require := t.Require()
 	chainID := eth.EvilChainIDToUInt64(chain.net.ChainID())
@@ -554,7 +543,7 @@ func lokahiChainEntry(
 	// kona speaks the engine API over HTTP; the devstack EL advertises a websocket URL for it.
 	fmt.Fprintf(&b, "engine-rpc = %q\njwt-secret = %q\n",
 		strings.ReplaceAll(chain.el.EngineRPC(), "ws://", "http://"), chain.el.JWTPath())
-	fmt.Fprintf(&b, "rpc-port = %d\np2p-tcp-port = %d\np2p-udp-port = %d\n", rpcPort, tcpPort, udpPort)
+	fmt.Fprintf(&b, "p2p-tcp-port = %d\np2p-udp-port = %d\n", tcpPort, udpPort)
 	// Stated rather than read from L1. kona-node resolves the unsafe block signer from the
 	// chain's SystemConfig contract when it is not given one; lokahi's configuration has no
 	// such path, and a devnet chain is not in the superchain registry either, so the devstack
