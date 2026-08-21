@@ -5,34 +5,16 @@ description: Open a pull request in the Optimism monorepo after you commit the c
 
 # Create a PR
 
-The rules are in [docs/handbook/pr-guidelines.md](../../../docs/handbook/pr-guidelines.md).
-Read it before step 1. This file gives only the sequence. It applies after you commit the
-change on a feature branch.
+[docs/handbook/pr-guidelines.md](../../../docs/handbook/pr-guidelines.md) is the source of
+truth for the steps — review agents, tests, rebase, title, description, and CI. Read it and
+follow it in order. This file adds only what is specific to opening the PR under Claude Code,
+and applies after you commit the change on a feature branch.
 
-## Steps
+- **Run the review agents as parallel subagents** so their output stays out of your context.
+- **Get the user's approval before you create the PR.** Show the proposed title and
+  description first. Open a draft PR unless the user says the change is ready for review.
 
-1. **Run the review agents** that apply to the diff. Fix each finding, or record the dismissal
-   in the PR description. See
-   [Before Opening PRs](../../../docs/handbook/pr-guidelines.md#before-opening-prs).
-
-2. **Test, then rebase on `origin/develop`.** Report a failure correctly. Do not say that a
-   test passed if you did not run it.
-
-3. **Write the title** in the Scoped Commits format. See
-   [CONTRIBUTING.md](../../../CONTRIBUTING.md#commit-messages).
-
-4. **Write the description**: why the change is necessary, and its effect on users. Keep it
-   succinct. Do not repeat the diff. See
-   [Writing the Description](../../../docs/handbook/pr-guidelines.md#writing-the-description).
-
-5. **[USER REVIEW]** Show the title and the description. Get approval before you create the
-   PR. Create a draft PR, unless the user says that the change is ready for review.
-
-   ```bash
-   git push -u origin <branch>
-   gh pr create --base develop --title '<title>' --body-file /tmp/pr-body.md [--draft]
-   ```
-
-6. **Watch CI until all checks are complete.** Correct the failures that the change caused.
-   Do this after this push and after each subsequent push. See
-   [ci-ops.md](../../../docs/ai/ci-ops.md#watching-ci-after-a-push).
+  ```bash
+  git push -u origin <branch>
+  gh pr create --base develop --title '<title>' --body-file /tmp/pr-body.md [--draft]
+  ```
