@@ -37,12 +37,31 @@ type RethSystem struct {
 // VerifySDMFixture checks the running process, so this fails if fixture selection stops at preset
 // option validation or is applied to the wrong target.
 func NewFixtureSingleChainFaultProofSystem(t devtest.T) *presets.SingleChainInterop {
-	sysgo.SkipOnOpGeth(t, "SDM PostExec is op-reth only")
-
-	sys := presets.NewSingleChainInteropNoSupernode(t,
-		presets.WithOpRethOption(sysgo.OpRethWithBinary("op-reth-sdm-fixture")),
-	)
+	sys := NewSingleChainFaultProofSystemWithProducer(t, "op-reth-sdm-fixture")
 	VerifySDMFixture(t, sys.L2ELA)
+	return sys
+}
+
+// NewSingleChainFaultProofSystemWithProducer creates the SDM proof topology with an external
+// op-reth-compatible block producer. This lets a producer-owning repository run the public proof
+// harness against its own binary without moving private block-building policy into this repo.
+func NewSingleChainFaultProofSystemWithProducer(
+	t devtest.T,
+	producerBinary string,
+	producerArgs ...string,
+) *presets.SingleChainInterop {
+	sysgo.SkipOnOpGeth(t, "SDM PostExec is op-reth only")
+	t.Require().NotEmpty(producerBinary, "SDM producer binary is required")
+
+	opts := sysgo.OpRethOptionBundle{
+		sysgo.OpRethWithBinary(producerBinary),
+		sysgo.OpRethWithoutProofsHistory(),
+	}
+	if len(producerArgs) > 0 {
+		opts = append(opts, sysgo.OpRethWithExtraArgs(producerArgs...))
+	}
+	sys := presets.NewSingleChainInteropNoSupernode(t, presets.WithOpRethOption(opts))
+	VerifyOpReth(t, sys.L2ELA)
 	SetSDMEnabled(t, sys.L2ELA, true)
 	return sys
 }

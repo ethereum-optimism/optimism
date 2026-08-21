@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,9 +22,10 @@ type ProofRunner interface {
 }
 
 type scenarioProofData struct {
-	fpvmTransitions    []*transitionTest
-	fpvmStartTimestamp uint64
-	zkCheckpoint       *zkCheckpoint
+	fpvmTransitions       []*transitionTest
+	fpvmStartTimestamp    uint64
+	cannonTargetTimestamp uint64
+	zkCheckpoint          *zkCheckpoint
 }
 
 type zkCheckpoint struct {
@@ -34,6 +36,8 @@ type zkCheckpoint struct {
 
 type konaProofRunner struct{}
 
+type cannonKonaSuperProofRunner struct{}
+
 type sp1ProofRunner struct {
 	executorPath string
 	nativeCore   bool
@@ -42,6 +46,12 @@ type sp1ProofRunner struct {
 // NewKonaProofRunner constructs the existing Kona FPVM and challenger runner.
 func NewKonaProofRunner() ProofRunner {
 	return konaProofRunner{}
+}
+
+// NewCannonKonaSuperProofRunner constructs a full super-cannon-kona dispute-game runner.
+// Unlike NewKonaProofRunner, this executes the kona-client ELF through Cannon MIPS.
+func NewCannonKonaSuperProofRunner() ProofRunner {
+	return cannonKonaSuperProofRunner{}
 }
 
 // NewSP1NativeProofRunner constructs the fast runner that replays witnesses through the shared
@@ -88,6 +98,32 @@ func (konaProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, _ []*ch
 				data.fpvmStartTimestamp, test.ClaimTimestamp, test)
 		})
 	}
+}
+
+func (cannonKonaSuperProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, _ []*chain, data *scenarioProofData) {
+	t.Require().NotZero(data.cannonTargetTimestamp, "Cannon runner requires a target timestamp")
+	t.Run("CannonKonaSuperGame", func(t devtest.T) {
+		attacker := sys.FunderL1.NewFundedEOA(eth.ThousandEther)
+		game := sys.DisputeGameFactory().StartSuperCannonKonaGame(
+			attacker,
+			proofs.WithL2SequenceNumber(data.cannonTargetTimestamp),
+		)
+
+		// The root is the canonical super root. Dispute the target timestamp with an invalid
+		// claim, wait for the honest challenger to counter it, and then descend into the
+		// Cannon trace. Reaching the bottom step requires the kona-client MIPS ELF to execute
+		// the target transition.
+		claim := game.DisputeL2SequenceNumber(
+			attacker,
+			game.RootClaim(),
+			data.cannonTargetTimestamp,
+		)
+		game.LogGameData()
+		claim = claim.WaitForCounterClaim()
+		claim = game.DisputeToStep(attacker, claim, 1000)
+		game.LogGameData()
+		claim.WaitForCountered()
+	})
 }
 
 func (r sp1ProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData) {

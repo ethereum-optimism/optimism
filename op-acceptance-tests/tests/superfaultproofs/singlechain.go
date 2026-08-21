@@ -35,8 +35,8 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 }
 
 // RunSingleChainSuperFaultProofSDMSmokeTest verifies the same single-chain super-root transition
-// while the disputed block contains an SDM PostExec tx. This proves kona-host super --native can
-// derive interop batches whose L2 payload includes SDM's synthetic post-exec transaction.
+// while the disputed block contains an SDM PostExec tx. The supplied runners determine whether the
+// transition executes natively, through Cannon MIPS, or through another proof backend.
 func RunSingleChainSuperFaultProofSDMSmokeTest(t devtest.T, sys *presets.SingleChainInterop, runners ...ProofRunner) {
 	runSingleChainSuperFaultProofSmokeTest(t, sys, prepareSDMSingleChainTarget, runners...)
 }
@@ -158,9 +158,10 @@ func runSingleChainSuperFaultProofSmokeTest(
 	}
 
 	runScenarioProofs(t, sys, chains, &scenarioProofData{
-		fpvmTransitions:    tests,
-		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, false, runners),
+		fpvmTransitions:       tests,
+		fpvmStartTimestamp:    startTimestamp,
+		cannonTargetTimestamp: endTimestamp,
+		zkCheckpoint:          newZKCheckpointForRunners(t, sys, endTimestamp, false, runners),
 	}, runners...)
 }
 
