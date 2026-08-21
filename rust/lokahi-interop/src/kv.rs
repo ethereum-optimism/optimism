@@ -1,11 +1,10 @@
 //! The key/value backend seam the interop stores are written against.
 //!
 //! Every store here is a record layout plus an append cursor over an ordered byte-keyed map.
-//! Naming that map explicitly keeps the choice of storage engine a contained one: [`RocksKv`] is
-//! the on-disk backend, [`MemoryKv`] is the one tests and callers that want no files use, and a
-//! third backend is a new implementation of this trait rather than a rewrite of the stores.
-//!
-//! [`RocksKv`]: crate::RocksKv
+//! Naming that map explicitly keeps the choice of storage engine a contained one: `RocksKv` is
+//! the on-disk backend (behind the `rocksdb` feature), [`MemoryKv`] is the one tests and callers
+//! that want no files use, and a third backend is a new implementation of this trait rather than
+//! a rewrite of the stores.
 
 use crate::error::StoreError;
 use std::{
@@ -56,7 +55,7 @@ impl WriteBatch {
     }
 
     /// Returns whether the batch has no mutations queued.
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.ops.is_empty()
     }
 
@@ -75,6 +74,9 @@ impl WriteBatch {
     }
 }
 
+/// One key/value pair, as the range queries return it.
+pub type Entry = (Vec<u8>, Vec<u8>);
+
 /// An ordered, byte-keyed store with atomic, durable batch writes.
 ///
 /// Keys are compared lexicographically, so the stores encode their ordering fields as
@@ -87,20 +89,16 @@ pub trait Kv: Debug + Send + Sync + 'static {
     fn write(&self, batch: WriteBatch) -> Result<(), StoreError>;
 
     /// Returns the first entry with a key in `[start, end)`, in ascending key order.
-    fn first_in(
-        &self,
-        start: &[u8],
-        end: &[u8],
-    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, StoreError>;
+    fn first_in(&self, start: &[u8], end: &[u8]) -> Result<Option<Entry>, StoreError>;
 
     /// Returns the last entry with a key in `[start, end)`, in ascending key order.
-    fn last_in(&self, start: &[u8], end: &[u8]) -> Result<Option<(Vec<u8>, Vec<u8>)>, StoreError>;
+    fn last_in(&self, start: &[u8], end: &[u8]) -> Result<Option<Entry>, StoreError>;
 
     /// Returns every entry with a key in `[start, end)`, in ascending key order.
     ///
     /// Callers materialise the whole range, so this is only for scans over a store that is
     /// small by construction.
-    fn range(&self, start: &[u8], end: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StoreError>;
+    fn range(&self, start: &[u8], end: &[u8]) -> Result<Vec<Entry>, StoreError>;
 }
 
 /// An in-memory [`Kv`].
@@ -136,7 +134,8 @@ impl Kv for MemoryKv {
                     entries.remove(&key);
                 }
                 Op::DeleteRange(start, end) => {
-                    let doomed: Vec<_> = entries.range(start..end).map(|(k, _)| k.clone()).collect();
+                    let doomed: Vec<_> =
+                        entries.range(start..end).map(|(k, _)| k.clone()).collect();
                     for key in doomed {
                         entries.remove(&key);
                     }
@@ -146,16 +145,12 @@ impl Kv for MemoryKv {
         Ok(())
     }
 
-    fn first_in(
-        &self,
-        start: &[u8],
-        end: &[u8],
-    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, StoreError> {
+    fn first_in(&self, start: &[u8], end: &[u8]) -> Result<Option<Entry>, StoreError> {
         let entries = self.entries.read().unwrap_or_else(PoisonError::into_inner);
         Ok(entries.range(start.to_vec()..end.to_vec()).next().map(|(k, v)| (k.clone(), v.clone())))
     }
 
-    fn last_in(&self, start: &[u8], end: &[u8]) -> Result<Option<(Vec<u8>, Vec<u8>)>, StoreError> {
+    fn last_in(&self, start: &[u8], end: &[u8]) -> Result<Option<Entry>, StoreError> {
         let entries = self.entries.read().unwrap_or_else(PoisonError::into_inner);
         Ok(entries
             .range(start.to_vec()..end.to_vec())
@@ -163,7 +158,7 @@ impl Kv for MemoryKv {
             .map(|(k, v)| (k.clone(), v.clone())))
     }
 
-    fn range(&self, start: &[u8], end: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StoreError> {
+    fn range(&self, start: &[u8], end: &[u8]) -> Result<Vec<Entry>, StoreError> {
         let entries = self.entries.read().unwrap_or_else(PoisonError::into_inner);
         Ok(entries
             .range(start.to_vec()..end.to_vec())

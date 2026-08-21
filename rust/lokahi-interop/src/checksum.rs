@@ -138,10 +138,7 @@ mod tests {
     fn log_hash_matches_go_golden_vector() {
         // Go: `messages.PayloadHashToLogHash(0x11..11, 0x4200..23)`.
         assert_eq!(
-            log_hash(
-                address!("4200000000000000000000000000000000000023"),
-                B256::repeat_byte(0x11),
-            ),
+            log_hash(address!("4200000000000000000000000000000000000023"), B256::repeat_byte(0x11)),
             b256!("bf556a7286807fba9667ab92fa18118440066530c7c2521d649e91c078bc3891")
         );
     }

@@ -219,8 +219,7 @@ impl<K: Kv> VerifiedStore<K> {
 
     /// Returns the verified result at `timestamp`.
     pub fn get(&self, timestamp: u64) -> Result<VerifiedResult, StoreError> {
-        let raw =
-            self.kv.get(&column::verified_key(timestamp))?.ok_or(StoreError::NotFound)?;
+        let raw = self.kv.get(&column::verified_key(timestamp))?.ok_or(StoreError::NotFound)?;
         decode_verified_result(&raw)
     }
 
@@ -258,10 +257,7 @@ impl<K: Kv> VerifiedStore<K> {
 
     /// Returns the WAL slot's contents, or [`None`] if no transition is in flight.
     pub fn pending(&self) -> Result<Option<PendingTransition>, StoreError> {
-        match self.kv.get(&column::pending_key())? {
-            Some(raw) => decode_pending(&raw).map(Some),
-            None => Ok(None),
-        }
+        self.kv.get(&column::pending_key())?.map_or(Ok(None), |raw| decode_pending(&raw).map(Some))
     }
 
     /// Clears the WAL slot. Callers must do this only after the transition's last durable side
@@ -328,8 +324,7 @@ fn decode_verified_result(raw: &[u8]) -> Result<VerifiedResult, StoreError> {
 
 fn take_verified_body(cursor: &mut Cursor<'_>) -> Result<VerifiedResult, StoreError> {
     let timestamp = cursor.take_u64()?;
-    let l1_inclusion =
-        BlockNumHash { number: cursor.take_u64()?, hash: cursor.take_b256()? };
+    let l1_inclusion = BlockNumHash { number: cursor.take_u64()?, hash: cursor.take_b256()? };
     let head_count = cursor.take_u32()?;
     let mut l2_heads = BTreeMap::new();
     for _ in 0..head_count {
@@ -472,10 +467,7 @@ mod tests {
         store.commit(&result_at(100)).unwrap();
         let mut different = result_at(100);
         different.l2_heads.insert(903, head(7));
-        assert!(matches!(
-            store.commit(&different).unwrap_err(),
-            StoreError::AlreadyCommitted(100)
-        ));
+        assert!(matches!(store.commit(&different).unwrap_err(), StoreError::AlreadyCommitted(100)));
     }
 
     #[test]

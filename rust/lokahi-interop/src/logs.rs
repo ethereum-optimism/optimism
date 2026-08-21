@@ -412,11 +412,7 @@ impl<K: Kv> LogsDb for LogStore<K> {
         if expected != query.checksum {
             return Err(StoreError::Conflict("initiating message checksum mismatch"));
         }
-        Ok(BlockSeal {
-            hash: record.hash,
-            number: query.block_number,
-            timestamp: record.timestamp,
-        })
+        Ok(BlockSeal { hash: record.hash, number: query.block_number, timestamp: record.timestamp })
     }
 
     fn add_log(
@@ -433,8 +429,8 @@ impl<K: Kv> LogsDb for LogStore<K> {
         if parent_block == BlockNumHash::default() {
             return Err(StoreError::OutOfOrder("genesis has no logs"));
         }
-        if let Some(latest) = cursors.latest
-            && parent_block != latest.id()
+        if let Some(latest) = cursors.latest &&
+            parent_block != latest.id()
         {
             return Err(StoreError::OutOfOrder("log's parent is not the latest sealed block"));
         }
@@ -555,8 +551,11 @@ impl<K: Kv> LogsDb for LogStore<K> {
             self.kv.write(batch)?;
         }
 
-        cursors.latest =
-            Some(BlockSeal { hash: new_head.hash, number: new_head.number, timestamp: record.timestamp });
+        cursors.latest = Some(BlockSeal {
+            hash: new_head.hash,
+            number: new_head.number,
+            timestamp: record.timestamp,
+        });
         cursors.pending_logs.clear();
         cursors.pending_parent = None;
         Ok(())

@@ -1,6 +1,9 @@
 //! The [`rocksdb`]-backed [`Kv`] implementation.
 
-use crate::{error::StoreError, kv::Kv};
+use crate::{
+    error::StoreError,
+    kv::{Entry, Kv, WriteBatch},
+};
 use rocksdb::{DB, Options, ReadOptions, WriteOptions};
 use std::{
     path::Path,
@@ -66,18 +69,14 @@ impl Kv for RocksKv {
         Ok(db.get(key)?)
     }
 
-    fn write(&self, batch: crate::kv::WriteBatch) -> Result<(), StoreError> {
+    fn write(&self, batch: WriteBatch) -> Result<(), StoreError> {
         let guard = self.write_guard();
         let db = guard.as_ref().ok_or(StoreError::Closed)?;
         db.write_opt(batch.into_rocksdb(), &Self::sync_write_options())?;
         Ok(())
     }
 
-    fn first_in(
-        &self,
-        start: &[u8],
-        end: &[u8],
-    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, StoreError> {
+    fn first_in(&self, start: &[u8], end: &[u8]) -> Result<Option<(Vec<u8>, Vec<u8>)>, StoreError> {
         let guard = self.read_guard();
         let db = guard.as_ref().ok_or(StoreError::Closed)?;
         let mut iter = db.raw_iterator_opt(Self::bounded_read_options(start, end));
@@ -86,10 +85,13 @@ impl Kv for RocksKv {
             iter.status()?;
             return Ok(None);
         }
-        Ok(Some((iter.key().unwrap_or_default().to_vec(), iter.value().unwrap_or_default().to_vec())))
+        Ok(Some((
+            iter.key().unwrap_or_default().to_vec(),
+            iter.value().unwrap_or_default().to_vec(),
+        )))
     }
 
-    fn last_in(&self, start: &[u8], end: &[u8]) -> Result<Option<(Vec<u8>, Vec<u8>)>, StoreError> {
+    fn last_in(&self, start: &[u8], end: &[u8]) -> Result<Option<Entry>, StoreError> {
         let guard = self.read_guard();
         let db = guard.as_ref().ok_or(StoreError::Closed)?;
         let mut iter = db.raw_iterator_opt(Self::bounded_read_options(start, end));
@@ -98,10 +100,13 @@ impl Kv for RocksKv {
             iter.status()?;
             return Ok(None);
         }
-        Ok(Some((iter.key().unwrap_or_default().to_vec(), iter.value().unwrap_or_default().to_vec())))
+        Ok(Some((
+            iter.key().unwrap_or_default().to_vec(),
+            iter.value().unwrap_or_default().to_vec(),
+        )))
     }
 
-    fn range(&self, start: &[u8], end: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StoreError> {
+    fn range(&self, start: &[u8], end: &[u8]) -> Result<Vec<Entry>, StoreError> {
         let guard = self.read_guard();
         let db = guard.as_ref().ok_or(StoreError::Closed)?;
         let mut iter = db.raw_iterator_opt(Self::bounded_read_options(start, end));

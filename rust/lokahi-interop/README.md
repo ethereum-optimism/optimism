@@ -11,7 +11,6 @@ Three stores, one per kind of state the timestamp-lockstep verifier keeps on dis
 - [`OutputArchive`] — the output preimages of blocks that were invalidated and replaced. Its
   own database, because it is the only store here whose loss is unrecoverable.
 
-Every store is written against the [`Kv`] backend seam. The on-disk backend is
-[`RocksKv`](crate::RocksKv), behind the off-by-default `rocksdb` feature so consumers that only
-need the traits, the record encodings or [`MemoryKv`] avoid the rocksdb/libclang build
-dependency.
+Every store is written against the [`Kv`] backend seam. The on-disk backend is `RocksKv`, behind
+the off-by-default `rocksdb` feature so consumers that only need the traits, the record encodings
+or [`MemoryKv`] avoid the rocksdb/libclang build dependency.

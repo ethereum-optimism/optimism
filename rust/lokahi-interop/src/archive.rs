@@ -98,10 +98,9 @@ impl<K: Kv> OutputArchive<K> {
 
     /// Returns every output archived at `height`, in the order they were recorded.
     pub fn at(&self, height: u64) -> Result<Vec<ArchivedOutput>, StoreError> {
-        match self.kv.get(&column::key(height))? {
-            Some(raw) => decode_outputs(&raw),
-            None => Ok(Vec::new()),
-        }
+        self.kv
+            .get(&column::key(height))?
+            .map_or_else(|| Ok(Vec::new()), |raw| decode_outputs(&raw))
     }
 
     /// Returns the most recently archived output at `height`, if any.

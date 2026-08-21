@@ -20,13 +20,9 @@ mod rocks;
 pub use archive::{ArchivedOutput, OutputArchive};
 pub use checksum::{ChecksumArgs, MessageChecksum, log_hash, log_to_log_hash};
 pub use error::StoreError;
-pub use kv::{Kv, MemoryKv, WriteBatch};
-pub use logs::{
-    BlockSeal, ContainsQuery, LogStore, LogsDb, OpenedBlock, StoredExecutingMessage,
-};
-pub use verified::{
-    InvalidHead, PendingTransition, RoundResult, VerifiedResult, VerifiedStore,
-};
+pub use kv::{Entry, Kv, MemoryKv, WriteBatch};
+pub use logs::{BlockSeal, ContainsQuery, LogStore, LogsDb, OpenedBlock, StoredExecutingMessage};
+pub use verified::{InvalidHead, PendingTransition, RoundResult, VerifiedResult, VerifiedStore};
 
 #[cfg(feature = "rocksdb")]
 pub use rocks::RocksKv;
@@ -55,7 +51,9 @@ mod on_disk {
     pub const ARCHIVE_DIR: &str = "invalidated-outputs";
 
     /// Opens the verified store under `data_dir`.
-    pub fn open_verified_store(data_dir: impl AsRef<Path>) -> Result<RocksVerifiedStore, StoreError> {
+    pub fn open_verified_store(
+        data_dir: impl AsRef<Path>,
+    ) -> Result<RocksVerifiedStore, StoreError> {
         VerifiedStore::new(RocksKv::open(data_dir.as_ref().join(VERIFIED_DIR))?)
     }
 

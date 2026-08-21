@@ -61,7 +61,8 @@ impl<'a> Cursor<'a> {
 
     fn take(&mut self, len: usize) -> Result<&'a [u8], StoreError> {
         let end = self.offset.checked_add(len).ok_or(StoreError::DataCorruption(self.record))?;
-        let slice = self.buf.get(self.offset..end).ok_or(StoreError::DataCorruption(self.record))?;
+        let slice =
+            self.buf.get(self.offset..end).ok_or(StoreError::DataCorruption(self.record))?;
         self.offset = end;
         Ok(slice)
     }
@@ -92,7 +93,7 @@ impl<'a> Cursor<'a> {
 
     /// Asserts the record was consumed exactly. Trailing bytes mean the declared field counts
     /// disagree with the stored length, which is corruption, not a longer record.
-    pub(crate) fn finish(self) -> Result<(), StoreError> {
+    pub(crate) const fn finish(self) -> Result<(), StoreError> {
         if self.offset == self.buf.len() {
             Ok(())
         } else {
