@@ -107,27 +107,33 @@ type LokahiSupernode struct {
 	// node's state without taking away what it was configured with.
 	dataDir string
 
-	// adminRPC is the process-wide admin/test RPC, discovered from the startup log line.
+	// adminRPC is the address lokahi actually bound its process-wide RPC to, discovered from
+	// the startup log line. It moves on every restart, because the configuration asks for
+	// port 0 — only the bound address is reported, so only a port lokahi chose can be
+	// discovered.
+	adminRPC string
+	// adminProxy fronts adminRPC, and adminUserRPC is its stable address.
+	//
+	// The indirection is what makes the process-wide RPC survive a restart, exactly as the
+	// per-chain proxies make each chain's socket survive one. Without it every holder of this
+	// address would be dialling a dead port after a Stop/Start: the preset frontend builds its
+	// query-API client once, at construction, and the acceptance tests that wipe the data
+	// directory or take the execution layers away mid-test go on to read through it.
+	//
 	// It is also where the supernode query API answers: supernode_syncStatus and
 	// superroot_atTimestamp are statements about the whole chain set, so they are served by
 	// the process rather than by any one chain's socket.
-	adminRPC string
+	adminProxy   *tcpproxy.Proxy
+	adminUserRPC string
 	// chains keeps the hosted chains in configuration order.
 	chains []*lokahiChainCL
 
-	// queryAPI is the client for the supernode query API, built on first use, and
-	// queryAPIAddr is the address it was built for. Both are needed rather than just the
-	// client: lokahi asks for port 0 for its process-wide RPC, so a restart hands out a new
-	// port, and a client held across one would keep dialling a dead one. The chains avoid
-	// this with a proxy per chain; this endpoint is discovered from a log line instead, so
-	// the address is compared and the client is rebuilt when it moves.
-	queryAPI     *sources.SuperNodeClient
-	queryAPIAddr string
-
-	// interopTestAPI is the client for the interop test-control API, cached the same way and
-	// for the same reason as queryAPI: it answers on the same rediscovered address.
-	interopTestAPI     *sources.SupernodeInteropTestClient
-	interopTestAPIAddr string
+	// queryAPI and interopTestAPI are the clients for the two surfaces the process-wide RPC
+	// serves, each built on first use. One client for the life of the supernode is enough
+	// because both dial adminProxy, whose address does not move; before that proxy existed
+	// they had to be rebuilt whenever lokahi came back on a new port.
+	queryAPI       *sources.SuperNodeClient
+	interopTestAPI *sources.SupernodeInteropTestClient
 
 	sub *SubProcess
 }
@@ -162,8 +168,9 @@ func (c *lokahiChainCL) UserRPC() string { return c.userRPC }
 // ChainID reports which chain this endpoint answers for.
 func (c *lokahiChainCL) ChainID() eth.ChainID { return c.chainID }
 
-// AdminRPC is the process-wide admin/test RPC of the supernode.
-func (n *LokahiSupernode) AdminRPC() string { return n.adminRPC }
+// AdminRPC is the process-wide admin/test RPC of the supernode: one stable address across
+// restarts, whatever port the process is on behind it.
+func (n *LokahiSupernode) AdminRPC() string { return n.adminUserRPC }
 
 // QueryRPC is the endpoint the supernode query API answers on.
 //
@@ -171,7 +178,7 @@ func (n *LokahiSupernode) AdminRPC() string { return n.adminRPC }
 // admin namespace is lokahi's own and may change with lokahi, while the query API is the
 // wire op-supernode defines and its consumers depend on. A preset wiring lokahi in as a
 // stack.Supernode hands this to the frontend, not AdminRPC.
-func (n *LokahiSupernode) QueryRPC() string { return n.adminRPC }
+func (n *LokahiSupernode) QueryRPC() string { return n.adminUserRPC }
 
 // QueryAPI returns the supernode query API of the running process.
 //
@@ -179,17 +186,16 @@ func (n *LokahiSupernode) QueryRPC() string { return n.adminRPC }
 // supernode is read through — so nothing about these two RPCs is reimplemented for lokahi
 // on the Go side. Whether the answers match is a question about what lokahi serves, which
 // is where it belongs, rather than about two Go clients agreeing.
-// It is safe to call across a Stop/Start: the returned client is rebuilt whenever the
-// process-wide RPC comes back on a different port.
+// It is safe to hold across a Stop/Start: the address it dials is the process-wide proxy's,
+// which does not move even though the process behind it binds a new port each time.
 func (n *LokahiSupernode) QueryAPI() apis.SupernodeQueryAPI {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.p.Require().NotEmpty(n.adminRPC, "lokahi has no query RPC address yet")
-	if n.queryAPI == nil || n.queryAPIAddr != n.adminRPC {
-		rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminRPC, client.WithLazyDial())
+	n.p.Require().NotEmpty(n.adminUserRPC, "lokahi has no query RPC address yet")
+	if n.queryAPI == nil {
+		rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminUserRPC, client.WithLazyDial())
 		n.p.Require().NoError(err, "dial the lokahi supernode query API")
-		n.queryAPI, n.queryAPIAddr = sources.NewSuperNodeClient(rpcCl), n.adminRPC
-		// Bound to this client, so a client replaced after a restart is still closed once.
+		n.queryAPI = sources.NewSuperNodeClient(rpcCl)
 		n.p.Cleanup(n.queryAPI.Close)
 	}
 	return n.queryAPI
@@ -206,20 +212,19 @@ func (n *LokahiSupernode) QueryAPI() apis.SupernodeQueryAPI {
 // test_api.rs). Interop being off is not distinguished here: lokahi answers those calls with an
 // error saying it has no verifier, which is the honest answer and reaches the test as one.
 //
-// Rebuilt whenever the process-wide RPC comes back on a different port, for the same reason
-// QueryAPI is.
+// Reached through the process-wide proxy, so the returned surface stays valid across a
+// Stop/Start — unlike the in-process supernode's, which is bound to the instance. The DSL
+// re-fetches it per operation either way.
 func (n *LokahiSupernode) InteropTestAPI() apis.SupernodeInteropTestAPI {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.sub == nil {
 		return nil
 	}
-	if n.interopTestAPI == nil || n.interopTestAPIAddr != n.adminRPC {
-		rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminRPC, client.WithLazyDial())
+	if n.interopTestAPI == nil {
+		rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminUserRPC, client.WithLazyDial())
 		n.p.Require().NoError(err, "dial the lokahi interop test-control API")
 		n.interopTestAPI = sources.NewSupernodeInteropTestClient(rpcCl)
-		n.interopTestAPIAddr = n.adminRPC
-		// Bound to this client, so a client replaced after a restart is still closed once.
 		n.p.Cleanup(n.interopTestAPI.Close)
 	}
 	return n.interopTestAPI
@@ -328,7 +333,7 @@ func startLokahiSupernode(t devtest.T, cfg lokahiSupernodeConfig) *LokahiSuperno
 	for _, chain := range n.chains {
 		waitForSupernodeRoute(t, logger.New("chain_id", chain.chainID.String()), chain.userRPC)
 	}
-	logger.Info("lokahi is up", "admin", n.adminRPC)
+	logger.Info("lokahi is up", "admin", n.adminUserRPC, "admin_upstream", n.adminRPC)
 
 	return n
 }
@@ -346,6 +351,16 @@ func (n *LokahiSupernode) startLocked() {
 	if n.sub != nil {
 		n.logger.Warn("lokahi already started")
 		return
+	}
+
+	// The process-wide proxy, like the per-chain ones below: created once and repointed on a
+	// restart, so every holder of the supernode's address keeps one URL for the life of the
+	// test even though the process binds a new port each time.
+	if n.adminProxy == nil {
+		n.adminProxy = tcpproxy.New(n.logger.New("proxy", "lokahi-admin"))
+		n.p.Require().NoError(n.adminProxy.Start(), "lokahi admin proxy failed to start")
+		n.p.Cleanup(func() { _ = n.adminProxy.Close() })
+		n.adminUserRPC = "http://" + n.adminProxy.Addr()
 	}
 
 	// The per-chain proxies are created once and repointed on a restart, so components
@@ -403,6 +418,7 @@ func (n *LokahiSupernode) startLocked() {
 		n.p.Require().NoError(n.p.Ctx().Err(), "need the lokahi admin RPC")
 	}
 
+	n.adminProxy.SetUpstream(strings.TrimPrefix(n.adminRPC, "http://"))
 	for _, chain := range n.chains {
 		chain.proxy.SetUpstream(net.JoinHostPort("127.0.0.1", fmt.Sprintf("%d", chain.rpcPort)))
 	}
@@ -423,13 +439,23 @@ func (n *LokahiSupernode) stopLocked() {
 		n.logger.Warn("lokahi already stopped")
 		return
 	}
+	n.clearProxyUpstreams()
+	n.p.Require().NoError(n.sub.Stop(true), "must stop lokahi")
+	n.sub = nil
+}
+
+// clearProxyUpstreams points every proxy at nothing, so a caller reaching the supernode while it
+// is down is refused rather than left hanging on a connection to a port the process no longer
+// holds. Caller must hold n.mu.
+func (n *LokahiSupernode) clearProxyUpstreams() {
+	if n.adminProxy != nil {
+		n.adminProxy.ClearUpstream()
+	}
 	for _, chain := range n.chains {
 		if chain.proxy != nil {
 			chain.proxy.ClearUpstream()
 		}
 	}
-	n.p.Require().NoError(n.sub.Stop(true), "must stop lokahi")
-	n.sub = nil
 }
 
 func (n *LokahiSupernode) Running() bool {
@@ -448,11 +474,7 @@ func (n *LokahiSupernode) StopControlled(ctx context.Context) error {
 	if n.sub == nil {
 		return nil
 	}
-	for _, chain := range n.chains {
-		if chain.proxy != nil {
-			chain.proxy.ClearUpstream()
-		}
-	}
+	n.clearProxyUpstreams()
 	if err := n.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
 		return err
 	}
@@ -466,8 +488,9 @@ func (n *LokahiSupernode) StopControlled(ctx context.Context) error {
 //
 // The out-of-process counterpart of (*SuperNode).RestartWithFreshDataDir, with the same
 // semantics: what is discarded is the node's own state, not what it was configured with. The
-// per-chain proxies survive, so components wired to a chain keep their URL across the restart;
-// only the admin RPC moves, and startLocked rediscovers it from the startup log.
+// Every proxy survives, so nothing wired to this supernode — a chain's socket or the
+// process-wide RPC — changes address across the restart, even though the process binds new
+// ports for the latter and startLocked has to rediscover it from the startup log.
 func (n *LokahiSupernode) RestartWithFreshDataDir() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -503,7 +526,7 @@ func (n *LokahiSupernode) RestartWithFreshDataDir() error {
 func (n *LokahiSupernode) requireHostedChains(cfg lokahiSupernodeConfig) {
 	require := n.p.Require()
 
-	rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminRPC, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminUserRPC, client.WithLazyDial())
 	require.NoError(err, "dial the lokahi admin RPC")
 	defer rpcCl.Close()
 
