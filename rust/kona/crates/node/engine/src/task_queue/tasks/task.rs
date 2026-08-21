@@ -280,7 +280,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin, test_utils::MockEngineClient};
+    use crate::{
+        EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin, test_utils::MockEngineClient,
+    };
     use alloy_consensus::Block;
     use alloy_primitives::{B256, Bytes};
     use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};

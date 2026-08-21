@@ -53,7 +53,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
     /// Derived attributes name their own L1 origin, so the sealed block's L1 key travels with the
     /// attributes rather than being looked up afterwards. The Holocene deposits-only retry below
     /// preserves it: [`OpAttributesWithParent::as_deposits_only`] copies `derived_from`.
-    fn local_safe_origin(&self) -> Option<LocalSafeOrigin> {
+    pub(super) fn local_safe_origin(&self) -> Option<LocalSafeOrigin> {
         self.is_attributes_derived.then(|| LocalSafeOrigin::from(self.attributes.derived_from))
     }
 

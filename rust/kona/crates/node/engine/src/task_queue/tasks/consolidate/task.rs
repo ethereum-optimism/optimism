@@ -39,7 +39,7 @@ impl ConsolidateInput {
     /// The delegation path carries a bare [`L2BlockInfo`] injected by the delegating derivation
     /// actor, with no attributes and so no L1 origin to pair with — explicitly unpaired rather than
     /// inheriting whatever origin the previous head had.
-    const fn local_safe_origin(&self) -> LocalSafeOrigin {
+    pub(super) const fn local_safe_origin(&self) -> LocalSafeOrigin {
         match self {
             Self::Attributes(attributes) => match attributes.derived_from {
                 Some(l1) => LocalSafeOrigin::DerivedFrom(l1),
@@ -238,9 +238,9 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                         self.cfg.clone(),
                         EngineSyncStateUpdate {
                             local_safe_head: Some(LocalSafeHead::new(
-                            block_info,
-                            self.input.local_safe_origin(),
-                        )),
+                                block_info,
+                                self.input.local_safe_origin(),
+                            )),
                             ..Default::default()
                         },
                     )

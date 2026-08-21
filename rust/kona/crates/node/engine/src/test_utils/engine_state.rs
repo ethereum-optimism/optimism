@@ -1,4 +1,6 @@
-use crate::{CrossSafePromoter, EngineState, EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin};
+use crate::{
+    CrossSafePromoter, EngineState, EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin,
+};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, b256};
 use kona_protocol::{BlockInfo, L2BlockInfo};

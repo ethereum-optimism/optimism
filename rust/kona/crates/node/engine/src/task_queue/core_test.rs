@@ -6,7 +6,7 @@
 
 use super::core::RESET_TO_MAX_ATTEMPTS;
 use crate::{
-    Engine, EngineResetError, EngineState, L2ForkchoiceState,
+    Engine, EngineResetError, EngineState, L2ForkchoiceState, LocalSafeOrigin,
     test_utils::{MockEngineClient, TestEngineStateBuilder, test_engine_client_builder},
 };
 use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
@@ -298,4 +298,42 @@ async fn reset_still_discovers_its_start_point_by_walkback() {
         genesis_hash,
         "the forkchoice update must name the discovered head"
     );
+}
+
+/// A reset installs a walkback point found by traversing the L2 chain, not one derived from L1, so
+/// it has no L1 key to pair with the head it writes — and the pairing it supersedes describes a
+/// head the engine is no longer on. Recording the new head as unpaired is what invalidates it: a
+/// consumer asking "which L1 block was the chain safe at?" gets the absent answer rather than a
+/// stale one that reads like a real origin.
+#[tokio::test]
+async fn reset_to_invalidates_the_local_safe_pairing() {
+    let cfg = Arc::new(RollupConfig::default());
+    let client = walkback_blind_client(cfg.clone());
+    let (genesis, b1, b2) = (block(0), block(1), block(2));
+
+    let mut targeted = engine(
+        TestEngineStateBuilder::new()
+            .with_unsafe_head(b2)
+            .with_local_safe_head(b2)
+            .with_local_safe_origin(LocalSafeOrigin::DerivedFrom(BlockInfo {
+                number: 9,
+                ..Default::default()
+            }))
+            .build(),
+    );
+    assert!(
+        targeted.state().sync_state.local_safe_origin().is_paired(),
+        "test setup: the engine starts with a pairing to invalidate"
+    );
+
+    let target = L2ForkchoiceState { un_safe: b1, local_safe: b1, finalized: genesis };
+    targeted.reset_to(client, cfg, target).await.expect("targeted reset");
+
+    assert_eq!(targeted.state().sync_state.local_safe_head(), b1);
+    assert_eq!(
+        targeted.state().sync_state.local_safe_origin(),
+        LocalSafeOrigin::Unpaired,
+        "the reset must not leave behind an L1 origin for a head it walked back from"
+    );
+    assert_eq!(targeted.state().sync_state.local_safe().derived_from_l1(), None);
 }

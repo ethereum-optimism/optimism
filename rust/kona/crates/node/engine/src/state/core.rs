@@ -357,6 +357,7 @@ impl EngineState {
 mod test {
     use super::*;
     use crate::{Metrics, state::CrossSafePromoter};
+    use alloy_primitives::B256;
     use kona_protocol::BlockInfo;
     use metrics_exporter_prometheus::PrometheusBuilder;
     use rstest::rstest;
@@ -400,6 +401,121 @@ mod test {
                 ..Default::default()
             });
         }
+    }
+
+    fn l1(number: u64) -> BlockInfo {
+        BlockInfo { number, hash: B256::repeat_byte(number as u8), ..Default::default() }
+    }
+
+    fn l2(number: u64) -> L2BlockInfo {
+        L2BlockInfo {
+            block_info: BlockInfo {
+                number,
+                hash: B256::repeat_byte(number as u8),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    /// The read the interop query needs: one call, both halves, from one snapshot.
+    #[test]
+    fn local_safe_reads_the_head_and_its_origin_together() {
+        let state = EngineSyncState::default().apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+            ..EngineSyncStateUpdate::NONE
+        });
+
+        assert_eq!(state.local_safe(), LocalSafeHead::derived_from(l2(4), l1(2)));
+        assert_eq!(state.local_safe().head, state.local_safe_head());
+        assert_eq!(state.local_safe().origin, state.local_safe_origin());
+        assert_eq!(state.local_safe().derived_from_l1(), Some(l1(2)));
+    }
+
+    /// A fresh state has a local-safe head and no origin for it, and says so.
+    #[test]
+    fn a_default_state_is_unpaired() {
+        let state = EngineSyncState::default();
+
+        assert_eq!(state.local_safe_origin(), LocalSafeOrigin::Unpaired);
+        assert_eq!(state.local_safe().derived_from_l1(), None);
+    }
+
+    /// The origin belongs to the head it was written with. An update that does not touch the head
+    /// must not disturb it either.
+    #[test]
+    fn an_update_that_leaves_the_head_alone_carries_the_origin_through() {
+        let paired = EngineSyncState::default().apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+            ..EngineSyncStateUpdate::NONE
+        });
+
+        let after = paired.apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(l2(9)),
+            finalized_head: Some(l2(1)),
+            ..EngineSyncStateUpdate::NONE
+        });
+
+        assert_eq!(after.local_safe(), paired.local_safe());
+    }
+
+    /// Moving the head rewrites the pairing, so an origin can never describe a head that has since
+    /// moved on.
+    #[test]
+    fn moving_the_head_rewrites_the_origin() {
+        let state = EngineSyncState::default()
+            .apply_update(EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                ..EngineSyncStateUpdate::NONE
+            })
+            .apply_update(EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::derived_from(l2(5), l1(3))),
+                ..EngineSyncStateUpdate::NONE
+            });
+
+        assert_eq!(state.local_safe(), LocalSafeHead::derived_from(l2(5), l1(3)));
+    }
+
+    /// An unpaired write is not a no-op: it *invalidates* the pairing it replaces. This is what
+    /// keeps a reset, or the derivation-delegation path, from leaving an L1 key behind that
+    /// describes a head the engine is no longer on.
+    #[test]
+    fn an_unpaired_write_invalidates_the_previous_pairing() {
+        let state = EngineSyncState::default()
+            .apply_update(EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                ..EngineSyncStateUpdate::NONE
+            })
+            .apply_update(EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::unpaired(l2(2))),
+                ..EngineSyncStateUpdate::NONE
+            });
+
+        assert_eq!(state.local_safe_head(), l2(2));
+        assert_eq!(
+            state.local_safe_origin(),
+            LocalSafeOrigin::Unpaired,
+            "a rewind to a head with no known origin must not keep the old one"
+        );
+        assert_eq!(state.local_safe().derived_from_l1(), None);
+    }
+
+    /// A local-safe rewind drags the cross-safe head down with it. The pairing has to survive that
+    /// path intact, since it runs through a different branch of `apply_update`.
+    #[test]
+    fn a_rewind_that_holds_cross_safe_still_records_the_origin() {
+        let state = EngineSyncState::default()
+            .apply_update(EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::derived_from(l2(9), l1(4))),
+                ..EngineSyncStateUpdate::NONE
+            })
+            .apply_update(EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::derived_from(l2(3), l1(1))),
+                ..EngineSyncStateUpdate::NONE
+            });
+
+        assert_eq!(state.cross_safe_head(), l2(3), "cross-safe cannot outrank local-safe");
+        assert_eq!(state.local_safe(), LocalSafeHead::derived_from(l2(3), l1(1)));
     }
 
     #[rstest]
