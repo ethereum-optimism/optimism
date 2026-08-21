@@ -166,14 +166,12 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// promotion, so under [`CrossSafeSource::Promoted`] — the interop engine, where cross-safe is
     /// a head in its own right — a reset cannot move it forward. Under
     /// [`CrossSafeSource::LocalSafe`] cross-safe *is* local-safe, so it follows the reset through
-    /// the trivial promotion [`EngineSyncState::apply_update`] mints; there is no separate head to
+    /// the trivial promotion [`EngineState::apply_sync_update`] mints; there is no separate head to
     /// hold back.
     ///
     /// A *rewinding* target is held in order by that same state transition, which holds the
     /// cross-safe head down to a rewound local-safe head, so there is deliberately no clamp here;
     /// a second one would just be another opinion about the same invariant.
-    ///
-    /// [`EngineSyncState::apply_update`]: crate::EngineSyncState::apply_update
     ///
     /// Returns the local-safe head the engine reset to.
     pub async fn reset_to(
