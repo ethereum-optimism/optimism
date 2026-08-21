@@ -10,6 +10,24 @@ constructed through the [`RollupNodeBuilder`][builder], and its
 of the node, running each in a spawned task. As such, each node
 component is considered an actor.
 
+`start` is two steps. [`compose`][compose] connects one chain's
+components to each other and returns them, still inert; [`run_actors`]
+[run] then spawns each of them in a task and steps it in a loop. The
+split exists so that a host running several chains in one process can
+compose each chain through the same code path a single-chain
+`kona-node` uses, rather than keeping a second copy of the wiring that
+could drift from it. Such a host also runs one L1 watcher for all of
+its chains, so `compose` is the one actor it does not build: composition
+returns the chain's `L1WatcherPorts` and leaves attaching a watcher to
+the host.
+
+`run_actors` owns a single cancellation token for every actor it is
+given. Whichever actor exits first — on a fatal error, or because the
+process received `SIGTERM` or `SIGINT` — cancels that token, and the
+rest observe the cancellation on their next step. Shutdown is therefore
+unordered, and a fatal error takes down the whole process rather than
+leaving it running with a dead actor.
+
 The `RollupNode` abstracts individual actors through the
 [`NodeActor` trait][actor], a minimal interface with a single `step`
 method that the service drives in a loop until the actor reports a
@@ -67,5 +85,7 @@ The [`RollupNode`][node] builds and starts the following actors.
 [actors]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/service/src/actors
 [actor]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/actors/traits.rs
 [start]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
+[compose]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
+[run]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/spawn.rs
 [node]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
 [builder]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/builder.rs
