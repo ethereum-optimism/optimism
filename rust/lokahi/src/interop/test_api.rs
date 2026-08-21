@@ -10,7 +10,7 @@
 //! the in-process Go op-supernode implements by calling itself and lokahi implements by serving
 //! these four methods. The wire types below are therefore not free: they are
 //! `eth.SupernodeInteropStatus` and `eth.SupernodeSealedBlocks`
-//! (`op-service/eth/supernode_interop_test_status.go`) field for field, snake_case tags included,
+//! (`op-service/eth/supernode_interop_test_status.go`) field for field, `snake_case` tags included,
 //! because the client on the other side decodes exactly those.
 //!
 //! # Test-only
@@ -48,8 +48,8 @@ const TEST_CONTROL_ERROR: i32 = -32000;
 
 /// `eth.SupernodeInteropStatus`.
 ///
-/// The tags are snake_case because the Go struct's are: it is one of the few wire types in the
-/// tree that is not camelCase, and matching it is the whole point of this type existing.
+/// The tags are `snake_case` because the Go struct's are: it is one of the few wire types in the
+/// tree that is not `camelCase`, and matching it is the whole point of this type existing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct WireInteropStatus {
     /// Cold-start attempts since this verifier started.
@@ -245,9 +245,9 @@ impl LokahiInteropTestApiServer for InteropTestHandle {
 mod tests {
     use super::*;
 
-    /// The Go client decodes `eth.SupernodeInteropStatus`, whose tags are snake_case rather than
-    /// this tree's usual camelCase. A rename here is invisible in Rust and lands on the other side
-    /// as every field reading zero, so the spelling is asserted rather than assumed.
+    /// The Go client decodes `eth.SupernodeInteropStatus`, whose tags are `snake_case` rather than
+    /// this tree's usual `camelCase`. A rename here is invisible in Rust and lands on the other
+    /// side as every field reading zero, so the spelling is asserted rather than assumed.
     #[test]
     fn the_status_wire_spelling_is_the_go_struct_tags() {
         let json = serde_json::to_value(WireInteropStatus::from(InteropStatus {
