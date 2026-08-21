@@ -23,7 +23,7 @@ pub enum EngineTaskErrorSeverity {
     /// The error is temporary and the task is retried.
     #[display("temporary")]
     Temporary,
-    /// The error is critical and is propagated to the engine actor.
+    /// The error is critical and is propagated to the chain controller.
     #[display("critical")]
     Critical,
     /// The error indicates that the engine should be reset.

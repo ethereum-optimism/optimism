@@ -1,8 +1,8 @@
-//! Tests for the [`EngineActor`]'s derivation-bound signals.
+//! Tests for the [`ChainController`]'s derivation-bound signals.
 
 use crate::{
-    EngineActor, EngineActorRequest, EngineError, NodeActor,
-    actors::engine::client::MockEngineDerivationClient,
+    ChainController, ChainControllerError, ChainControllerRequest, NodeActor,
+    actors::chain_controller::derivation_client::MockChainControllerDerivationClient,
 };
 use alloy_primitives::B256;
 use kona_engine::{Engine, EngineState, EngineSyncStateUpdate, test_utils::MockEngineClient};
@@ -59,7 +59,7 @@ async fn lockstep_confirmation_carries_local_safe_not_cross_safe() {
     let engine = lagging_cross_engine(local_safe, cross_safe);
     assert_eq!(engine.state().sync_state.cross_safe_head(), cross_safe);
 
-    let mut derivation_client = MockEngineDerivationClient::new();
+    let mut derivation_client = MockChainControllerDerivationClient::new();
     derivation_client
         .expect_send_new_engine_local_safe_head()
         .withf(move |head: &L2BlockInfo| *head == local_safe)
@@ -67,8 +67,8 @@ async fn lockstep_confirmation_carries_local_safe_not_cross_safe() {
         .returning(|_| Ok(()));
 
     let cfg = Arc::new(RollupConfig::default());
-    let (request_tx, request_rx) = mpsc::channel::<EngineActorRequest>(1);
-    let mut actor = EngineActor::new(
+    let (request_tx, request_rx) = mpsc::channel::<ChainControllerRequest>(1);
+    let mut actor = ChainController::new(
         Arc::new(MockEngineClient::builder().with_config(cfg.clone()).build()),
         cfg,
         derivation_client,
@@ -80,5 +80,5 @@ async fn lockstep_confirmation_carries_local_safe_not_cross_safe() {
     // The actor drains, pushes the confirmation, then waits for a request; closing the channel
     // ends the step.
     drop(request_tx);
-    assert!(matches!(actor.step().await, Err(EngineError::ChannelClosed)));
+    assert!(matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)));
 }

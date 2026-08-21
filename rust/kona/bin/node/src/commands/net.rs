@@ -7,7 +7,7 @@ use jsonrpsee::{RpcModule, core::async_trait, server::Server};
 use kona_cli::LogConfig;
 use kona_gossip::P2pRpcRequest;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
+    ChainControllerClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
 };
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
@@ -165,7 +165,10 @@ struct ForwardingNetworkEngineClient {
 
 #[async_trait]
 impl NetworkEngineClient for ForwardingNetworkEngineClient {
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
+    async fn send_unsafe_block(
+        &self,
+        block: OpExecutionPayloadEnvelope,
+    ) -> ChainControllerClientResult<()> {
         let _ = self
             .block_tx
             .send(block)

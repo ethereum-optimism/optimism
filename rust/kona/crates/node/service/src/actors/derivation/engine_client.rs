@@ -1,4 +1,6 @@
-use crate::{EngineActorRequest, EngineClientError, EngineClientResult, ResetRequest};
+use crate::{
+    ChainControllerClientError, ChainControllerClientResult, ChainControllerRequest, ResetRequest,
+};
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_engine::{ConsolidateInput, FinalizeBlockId};
@@ -10,11 +12,14 @@ use tokio::sync::mpsc;
 #[async_trait]
 pub trait DerivationEngineClient: Debug + Send + Sync {
     /// Resets the engine's forkchoice.
-    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()>;
+    async fn reset_engine_forkchoice(&self) -> ChainControllerClientResult<()>;
 
     /// Sends a request to finalize the L2 block identified by the provided [`FinalizeBlockId`].
     /// Note: This does not wait for the engine to process it.
-    async fn send_finalized_l2_block(&self, block_id: FinalizeBlockId) -> EngineClientResult<()>;
+    async fn send_finalized_l2_block(
+        &self,
+        block_id: FinalizeBlockId,
+    ) -> ChainControllerClientResult<()>;
 
     /// Sends a consolidation signal to the engine.
     ///
@@ -23,26 +28,31 @@ pub trait DerivationEngineClient: Debug + Send + Sync {
     /// by [`ConsolidateInput`].
     ///
     /// Note: This does not wait for the engine to process it.
-    async fn send_local_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()>;
+    async fn send_local_safe_l2_signal(
+        &self,
+        signal: ConsolidateInput,
+    ) -> ChainControllerClientResult<()>;
 }
 
-/// Client to use to send messages to the Engine Actor's inbound channel.
+/// Client to use to send messages to the [`crate::ChainController`]'s inbound channel.
 #[derive(Constructor, Debug)]
 pub struct QueuedDerivationEngineClient {
-    /// A channel to use to send the [`EngineActorRequest`]s to the `EngineActor`.
-    pub engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
+    /// A channel to use to send the [`ChainControllerRequest`]s to the `ChainController`.
+    pub controller_request_tx: mpsc::Sender<ChainControllerRequest>,
 }
 
 #[async_trait]
 impl DerivationEngineClient for QueuedDerivationEngineClient {
-    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
+    async fn reset_engine_forkchoice(&self) -> ChainControllerClientResult<()> {
         let (result_tx, mut result_rx) = mpsc::channel(1);
 
         info!(target: "derivation", "Sending reset request to engine.");
-        self.engine_actor_request_tx
-            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
+        self.controller_request_tx
+            .send(ChainControllerRequest::Reset(Box::new(ResetRequest { result_tx })))
             .await
-            .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
+            .map_err(|_| {
+                ChainControllerClientError::RequestError("request channel closed.".to_string())
+            })?;
 
         result_rx
             .recv()
@@ -50,26 +60,36 @@ impl DerivationEngineClient for QueuedDerivationEngineClient {
             .inspect(|_| info!(target: "derivation", "Engine reset successfully."))
             .ok_or_else(|| {
                 error!(target: "derivation_engine_client", "Failed to receive built payload");
-                EngineClientError::ResponseError("response channel closed.".to_string())
+                ChainControllerClientError::ResponseError("response channel closed.".to_string())
             })?
     }
 
-    async fn send_finalized_l2_block(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
+    async fn send_finalized_l2_block(
+        &self,
+        block_id: FinalizeBlockId,
+    ) -> ChainControllerClientResult<()> {
         trace!(target: "derivation", ?block_id, "Sending finalized L2 block id to engine.");
-        self.engine_actor_request_tx
-            .send(EngineActorRequest::ProcessFinalizedL2Block(Box::new(block_id)))
+        self.controller_request_tx
+            .send(ChainControllerRequest::ProcessFinalizedL2Block(Box::new(block_id)))
             .await
-            .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
+            .map_err(|_| {
+                ChainControllerClientError::RequestError("request channel closed.".to_string())
+            })?;
 
         Ok(())
     }
 
-    async fn send_local_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()> {
+    async fn send_local_safe_l2_signal(
+        &self,
+        signal: ConsolidateInput,
+    ) -> ChainControllerClientResult<()> {
         trace!(target: "derivation", ?signal, "Sending safe L2 signal info to engine.");
-        self.engine_actor_request_tx
-            .send(EngineActorRequest::ProcessLocalSafeL2Signal(signal))
+        self.controller_request_tx
+            .send(ChainControllerRequest::ProcessLocalSafeL2Signal(signal))
             .await
-            .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
+            .map_err(|_| {
+                ChainControllerClientError::RequestError("request channel closed.".to_string())
+            })?;
 
         Ok(())
     }

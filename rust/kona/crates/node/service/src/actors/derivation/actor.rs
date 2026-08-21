@@ -348,7 +348,7 @@ mod tests {
         }
     }
 
-    /// A pipeline-driven reset must always reach the engine actor. The engine's reset is what
+    /// A pipeline-driven reset must always reach the chain controller. The engine's reset is what
     /// sends the pipeline its [`Signal`] back; without it the actor parks in
     /// [`DerivationState::AwaitingSignal`] forever.
     #[rstest]

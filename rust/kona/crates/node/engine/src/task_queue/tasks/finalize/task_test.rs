@@ -95,7 +95,7 @@ async fn finalize_task_by_hash_errors_when_engine_lacks_hash() {
 /// Under interop the cross-safe head legitimately lags local-safe, so this is an ordinary state
 /// rather than a fault. Before the fix the task returned `FinalizeTaskError::BlockNotCrossSafe`,
 /// classified `EngineTaskErrorSeverity::Critical`, which `EngineActor::drain` propagates as a fatal
-/// `EngineError` — a normal interop state would kill the engine actor.
+/// `ChainControllerError` — a normal interop state would kill the chain controller.
 ///
 /// The engine client here has no block registered and no forkchoice response configured, so the
 /// three outcomes are distinguishable: dropping returns `Ok` without touching the client, the old
@@ -141,7 +141,7 @@ async fn finalize_task_drops_a_signal_for_a_block_that_is_not_yet_cross_safe() {
     assert!(
         result.is_ok(),
         "a finality signal for a local-safe-but-not-cross-safe block must be dropped, not \
-         reported as an error that kills the engine actor — got {result:?}"
+         reported as an error that kills the chain controller — got {result:?}"
     );
     assert_eq!(
         state.sync_state.finalized_head(),

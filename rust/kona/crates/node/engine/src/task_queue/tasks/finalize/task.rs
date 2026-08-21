@@ -40,9 +40,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for FinalizeTask<EngineClient_> 
         // returns without moving the finalized head.
         //
         // Dropping is the only non-fatal option available here. Reporting an error would abort the
-        // task, and no severity expresses "skip this one": `Critical` kills the engine actor, while
-        // `Temporary` spins the retry loop in `EngineTask::execute` forever — that loop holds the
-        // drain, so the promotion that would let finality proceed could never run.
+        // task, and no severity expresses "skip this one": `Critical` kills the chain controller,
+        // while `Temporary` spins the retry loop in `EngineTask::execute` forever — that
+        // loop holds the drain, so the promotion that would let finality proceed could
+        // never run.
         let cross_safe_head = state.sync_state.cross_safe_head();
         if cross_safe_head.block_info.number < block_number {
             warn!(

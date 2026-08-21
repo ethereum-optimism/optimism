@@ -6,11 +6,11 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 
 /// The result of an Engine client call.
-pub type EngineClientResult<T> = Result<T, EngineClientError>;
+pub type ChainControllerClientResult<T> = Result<T, ChainControllerClientError>;
 
 /// Error making requests to the `BlockEngine`.
 #[derive(Debug, Error)]
-pub enum EngineClientError {
+pub enum ChainControllerClientError {
     /// Error making a request to the engine. The request never made it there.
     #[error("Error making a request to the engine: {0}.")]
     RequestError(String),
@@ -35,7 +35,7 @@ pub enum EngineClientError {
 
 /// RPC Request for the engine to handle.
 #[derive(Debug)]
-pub struct EngineRpcRequest(pub Box<EngineQueries>);
+pub struct ChainControllerRpcRequest(pub Box<EngineQueries>);
 
 /// A request to build a payload.
 /// Contains the attributes to build and a channel to send back the resulting `PayloadId`.
@@ -53,7 +53,7 @@ pub struct BuildRequest {
 #[derive(Debug)]
 pub struct ResetRequest {
     /// response will be sent to this channel, if `Some`.
-    pub result_tx: mpsc::Sender<EngineClientResult<()>>,
+    pub result_tx: mpsc::Sender<ChainControllerClientResult<()>>,
 }
 
 /// A request to seal and canonicalize a payload.

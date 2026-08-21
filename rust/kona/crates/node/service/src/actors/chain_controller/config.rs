@@ -7,7 +7,11 @@ use op_alloy_network::Optimism;
 use std::sync::Arc;
 use url::Url;
 
-/// Configuration for the Engine Actor.
+/// Configuration for the engine client the [`ChainController`] drives.
+///
+/// This names the real Engine API connection, not the actor, so it keeps the `Engine` prefix.
+///
+/// [`ChainController`]: crate::ChainController
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
     /// The [`RollupConfig`].
@@ -22,7 +26,8 @@ pub struct EngineConfig {
     pub l1_url: Url,
 
     /// The mode of operation for the node.
-    /// When the node is in sequencer mode, the engine actor will receive requests to build blocks
+    /// When the node is in sequencer mode, the chain controller will receive requests to build
+    /// blocks
     /// from the sequencer actor.
     pub mode: NodeMode,
 }

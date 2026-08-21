@@ -1,14 +1,14 @@
-//! Error type for the [`EngineActor`].
+//! Error type for the [`ChainController`].
 //!
-//! [`EngineActor`]: super::EngineActor
+//! [`ChainController`]: super::ChainController
 
 use kona_engine::{EngineResetError, EngineTaskErrors};
 
-/// An error from the [`EngineActor`].
+/// An error from the [`ChainController`].
 ///
-/// [`EngineActor`]: super::EngineActor
+/// [`ChainController`]: super::ChainController
 #[derive(thiserror::Error, Debug)]
-pub enum EngineError {
+pub enum ChainControllerError {
     /// Closed channel error.
     #[error("a channel has been closed unexpectedly")]
     ChannelClosed,

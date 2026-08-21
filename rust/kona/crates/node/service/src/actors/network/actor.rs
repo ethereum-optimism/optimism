@@ -33,7 +33,7 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
     /// A channel to receive unsafe blocks and send them through the gossip layer.
     publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
-    /// A client to use to interact with the engine actor.
+    /// A client to use to interact with the chain controller.
     engine_client: NetworkEngineClient_,
     // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
     // never crosses an actor boundary, so it lives here rather than being injected.

@@ -1,6 +1,6 @@
 use crate::{
-    BuildRequest, EngineClientError, EngineDerivationClient, EngineError, NodeActor, ResetRequest,
-    SealRequest,
+    BuildRequest, ChainControllerClientError, ChainControllerDerivationClient,
+    ChainControllerError, NodeActor, ResetRequest, SealRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
@@ -14,9 +14,9 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
-/// A request handled by the [`EngineActor`].
+/// A request handled by the [`ChainController`].
 #[derive(Debug)]
-pub enum EngineActorRequest {
+pub enum ChainControllerRequest {
     /// Request to start building a block.
     Build(Box<BuildRequest>),
     /// Request to process a local-safe signal, which can be derived attributes or delegated block
@@ -32,14 +32,25 @@ pub enum EngineActorRequest {
     Seal(Box<SealRequest>),
 }
 
-/// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
-/// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
-/// the [`Ord`] implementation of [`EngineTask`].
+/// Owns this chain's head state: the sole writer of the [`Engine`]'s heads and the only actor that
+/// drives the execution layer's Engine API.
+///
+/// Every state-mutating input — derived attributes from derivation, unsafe payloads from gossip,
+/// finalization, resets, and sequencer block building — arrives on one inbound request channel as a
+/// [`ChainControllerRequest`] and is ordered through the [`Engine`] task queue by the [`Ord`]
+/// implementation of [`EngineTask`]. In the other direction the controller mediates every
+/// derivation-bound signal (reset, channel flush, sync-completed, and the local-safe lockstep
+/// confirmation) and owns reset initiation, so derivation never reaches the execution layer itself.
+///
+/// Read-only queries are served by its peer [`ChainControllerRpcActor`], which shares a watch over
+/// the engine state and queue length but holds a read-only client.
+///
+/// [`ChainControllerRpcActor`]: crate::ChainControllerRpcActor
 #[derive(Debug)]
-pub struct EngineActor<EngineClient_, DerivationClient>
+pub struct ChainController<EngineClient_, DerivationClient>
 where
     EngineClient_: EngineClient,
-    DerivationClient: EngineDerivationClient,
+    DerivationClient: ChainControllerDerivationClient,
 {
     /// The client used to send messages to the [`crate::DerivationActor`].
     derivation_client: DerivationClient,
@@ -60,22 +71,22 @@ where
     /// The [`Engine`] task queue.
     engine: Engine<EngineClient_>,
     /// The inbound request channel.
-    inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
+    inbound_request_rx: mpsc::Receiver<ChainControllerRequest>,
 }
 
-impl<EngineClient_, DerivationClient> EngineActor<EngineClient_, DerivationClient>
+impl<EngineClient_, DerivationClient> ChainController<EngineClient_, DerivationClient>
 where
     EngineClient_: EngineClient + 'static,
-    DerivationClient: EngineDerivationClient + 'static,
+    DerivationClient: ChainControllerDerivationClient + 'static,
 {
-    /// Constructs a new [`EngineActor`] from the params.
+    /// Constructs a new [`ChainController`] from the params.
     pub fn new(
         client: Arc<EngineClient_>,
         config: Arc<RollupConfig>,
         derivation_client: DerivationClient,
         engine: Engine<EngineClient_>,
         unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
-        inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
+        inbound_request_rx: mpsc::Receiver<ChainControllerRequest>,
     ) -> Self {
         Self {
             client,
@@ -90,7 +101,7 @@ where
     }
 
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
-    async fn reset(&mut self) -> Result<(), EngineError> {
+    async fn reset(&mut self) -> Result<(), ChainControllerError> {
         // Reset the engine. Resets re-derive local safety only; the cross-safe head is not
         // touched.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
@@ -101,7 +112,7 @@ where
             Ok(_) => info!(target: "engine", "Sent reset signal to derivation actor"),
             Err(err) => {
                 error!(target: "engine", ?err, "Failed to send reset signal to the derivation actor");
-                return Err(EngineError::ChannelClosed);
+                return Err(ChainControllerError::ChannelClosed);
             }
         }
 
@@ -111,7 +122,7 @@ where
     }
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
-    async fn drain(&mut self) -> Result<(), EngineError> {
+    async fn drain(&mut self) -> Result<(), ChainControllerError> {
         match self.engine.drain().await {
             Ok(_) => {
                 trace!(target: "engine", "[ENGINE] tasks drained");
@@ -138,7 +149,7 @@ where
                             }
                             Err(err) => {
                                 error!(target: "engine", ?err, "Failed to send flush signal to the derivation actor.");
-                                return Err(EngineError::ChannelClosed);
+                                return Err(ChainControllerError::ChannelClosed);
                             }
                         }
                     }
@@ -160,7 +171,7 @@ where
 
     async fn mark_el_sync_complete_and_notify_derivation_actor(
         &mut self,
-    ) -> Result<(), EngineError> {
+    ) -> Result<(), ChainControllerError> {
         self.el_sync_complete = true;
 
         // Reset the engine if the sync state does not already know about a finalized block.
@@ -178,7 +189,7 @@ where
             .map(|_| Ok(()))
             .map_err(|e| {
                 error!(target: "engine", ?e, "Failed to notify sync completed");
-                EngineError::ChannelClosed
+                ChainControllerError::ChannelClosed
             })?
     }
 
@@ -189,7 +200,7 @@ where
     /// interop: derivation would wait on a promotion that waits on every chain's derivation.
     async fn send_derivation_actor_local_safe_head_if_updated(
         &mut self,
-    ) -> Result<(), EngineError> {
+    ) -> Result<(), ChainControllerError> {
         let engine_local_safe_head = self.engine.state().sync_state.local_safe_head();
         if engine_local_safe_head == self.last_local_safe_head_sent {
             info!(target: "engine", local_safe_head = ?engine_local_safe_head, "Local-safe head unchanged");
@@ -202,7 +213,7 @@ where
             .await
             .map_err(|e| {
                 error!(target: "engine", ?e, "Failed to send new engine local-safe head");
-                EngineError::ChannelClosed
+                ChainControllerError::ChannelClosed
             })?;
 
         info!(target: "engine", local_safe_head = ?engine_local_safe_head, "Attempted L2 local-safe head update");
@@ -213,12 +224,12 @@ where
 }
 
 #[async_trait]
-impl<EngineClient_, DerivationClient> NodeActor for EngineActor<EngineClient_, DerivationClient>
+impl<EngineClient_, DerivationClient> NodeActor for ChainController<EngineClient_, DerivationClient>
 where
     EngineClient_: EngineClient + 'static,
-    DerivationClient: EngineDerivationClient + 'static,
+    DerivationClient: ChainControllerDerivationClient + 'static,
 {
-    type Error = EngineError;
+    type Error = ChainControllerError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
         // Attempt to drain all outstanding tasks from the engine queue before adding new ones.
@@ -237,11 +248,11 @@ where
         // Wait for the next processing request.
         let request = self.inbound_request_rx.recv().await.ok_or_else(|| {
             error!(target: "engine", "Engine processing request receiver closed unexpectedly");
-            EngineError::ChannelClosed
+            ChainControllerError::ChannelClosed
         })?;
 
         match request {
-            EngineActorRequest::Build(build_request) => {
+            ChainControllerRequest::Build(build_request) => {
                 let BuildRequest { attributes, result_tx } = *build_request;
                 let task = EngineTask::Build(Box::new(BuildTask::new(
                     self.client.clone(),
@@ -251,7 +262,7 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::ProcessLocalSafeL2Signal(local_safe_signal) => {
+            ChainControllerRequest::ProcessLocalSafeL2Signal(local_safe_signal) => {
                 let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
@@ -259,7 +270,7 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::ProcessFinalizedL2Block(finalized_l2_block_id) => {
+            ChainControllerRequest::ProcessFinalizedL2Block(finalized_l2_block_id) => {
                 // Finalize the L2 block identified by the provided [`FinalizeBlockId`].
                 let task = EngineTask::Finalize(Box::new(FinalizeTask::new(
                     self.client.clone(),
@@ -268,7 +279,7 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::ProcessUnsafeL2Block(envelope) => {
+            ChainControllerRequest::ProcessUnsafeL2Block(envelope) => {
                 let task = EngineTask::Insert(Box::new(InsertTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
@@ -278,7 +289,7 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::Reset(reset_request) => {
+            ChainControllerRequest::Reset(reset_request) => {
                 warn!(target: "engine", "Received reset request");
 
                 let reset_res = self.reset().await;
@@ -287,7 +298,7 @@ where
                 let response_payload = reset_res
                     .as_ref()
                     .map(|_| ())
-                    .map_err(|e| EngineClientError::ResetForkchoiceError(e.to_string()));
+                    .map_err(|e| ChainControllerClientError::ResetForkchoiceError(e.to_string()));
                 if reset_request.result_tx.send(response_payload).await.is_err() {
                     warn!(target: "engine", "Sending reset response failed");
                     // If there was an error and we couldn't notify the caller to handle it,
@@ -295,7 +306,7 @@ where
                     reset_res?;
                 }
             }
-            EngineActorRequest::Seal(seal_request) => {
+            ChainControllerRequest::Seal(seal_request) => {
                 let SealRequest { payload_id, attributes, result_tx } = *seal_request;
                 let task = EngineTask::Seal(Box::new(SealTask::new(
                     self.client.clone(),
