@@ -94,8 +94,8 @@ async fn finalize_task_by_hash_errors_when_engine_lacks_hash() {
 ///
 /// Under interop the cross-safe head legitimately lags local-safe, so this is an ordinary state
 /// rather than a fault. Before the fix the task returned `FinalizeTaskError::BlockNotCrossSafe`,
-/// classified `EngineTaskErrorSeverity::Critical`, which `EngineActor::drain` propagates as a fatal
-/// `ChainControllerError` — a normal interop state would kill the chain controller.
+/// classified `EngineTaskErrorSeverity::Critical`, which `ChainController::drain` propagates as a
+/// fatal `ChainControllerError` — a normal interop state would kill the chain controller.
 ///
 /// The engine client here has no block registered and no forkchoice response configured, so the
 /// three outcomes are distinguishable: dropping returns `Ok` without touching the client, the old
