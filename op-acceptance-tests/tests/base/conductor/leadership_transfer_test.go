@@ -23,9 +23,13 @@ func TestLeadershipTransferMovesActiveSequencer(gt *testing.T) {
 	leader := initialLeader
 	for _, target := range sys.Conductors.Without(initialLeader) {
 		leader.TransferLeadershipTo(target)
+		t.Require().Same(target, sys.Conductors.AwaitOneActiveSequencer(),
+			"target must be the cluster's only active sequencer after leadership transfer")
 		leader = target
 	}
 	leader.TransferLeadershipTo(initialLeader)
+	t.Require().Same(initialLeader, sys.Conductors.AwaitOneActiveSequencer(),
+		"initial leader must be the cluster's only active sequencer after leadership transfers complete")
 }
 
 // TestLeadershipTransferSelectsAnotherActiveSequencer verifies an untargeted

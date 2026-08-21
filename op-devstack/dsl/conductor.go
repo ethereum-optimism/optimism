@@ -336,31 +336,47 @@ func (c *Conductor) AwaitNotLeader() {
 	c.waitForLeadership(false)
 }
 
-// sequencerHealthy reports this conductor's view of its sequencer's health and
-// returns the RPC error, if any, so polling callers can retry on transient
-// failures.
-func (c *Conductor) sequencerHealthy() (bool, error) {
+// checkSequencerHealth verifies both the conductor's health state and the live
+// node conditions the preset's health monitor relies on. The conductor health
+// bit initializes to true and may be cached for a long interval, so it alone is
+// not evidence that a health check has actually reached the sequencer.
+func (c *Conductor) checkSequencerHealth() error {
 	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
 	defer cancel()
-	return c.inner.RpcAPI().SequencerHealthy(ctx)
+
+	healthy, err := c.inner.RpcAPI().SequencerHealthy(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch conductor health state: %w", err)
+	}
+	if !healthy {
+		return fmt.Errorf("conductor %s reports unhealthy sequencer", c)
+	}
+	sequencer := c.Sequencer()
+	if _, err := sequencer.inner.RollupAPI().SyncStatus(ctx); err != nil {
+		return fmt.Errorf("sequencer %s is not serving rollup RPC: %w", sequencer, err)
+	}
+	peers, err := sequencer.inner.P2PAPI().PeerStats(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch sequencer %s peer stats: %w", sequencer, err)
+	}
+	if peers.Connected == 0 {
+		return fmt.Errorf("sequencer %s has no connected peers", sequencer)
+	}
+	return nil
 }
 
 // AwaitSequencerHealthy waits until this conductor reports its sequencer as
-// healthy. Leadership changes may cause brief unhealthiness; this rides those
-// out.
+// healthy and a fresh liveness and peer check succeeds. Leadership changes may
+// cause brief unhealthiness; this rides those out.
 func (c *Conductor) AwaitSequencerHealthy() {
 	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
-		healthy, err := c.sequencerHealthy()
-		if err != nil {
+		if err := c.checkSequencerHealth(); err != nil {
+			c.log.Info("Waiting for sequencer to become healthy", "conductor", c, "err", err)
 			return err
-		}
-		if !healthy {
-			c.log.Info("Waiting for sequencer to become healthy", "conductor", c)
-			return fmt.Errorf("conductor %s reports unhealthy sequencer", c)
 		}
 		return nil
 	})
-	c.require.NoErrorf(err, "conductor %s never reported a healthy sequencer", c)
+	c.require.NoErrorf(err, "conductor %s never reached fresh sequencer health", c)
 	c.log.Info("Sequencer is healthy", "conductor", c)
 }
 
@@ -376,7 +392,6 @@ func (c *Conductor) TransferLeadership(cluster ConductorSet) *Conductor {
 	err := c.inner.RpcAPI().TransferLeader(ctx)
 	c.require.NoErrorf(err, "failed to transfer leadership from %s", c)
 
-	var next *Conductor
 	err = retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
 		leader, _, err := cluster.leaderAndFollowers()
 		if err != nil {
@@ -385,11 +400,12 @@ func (c *Conductor) TransferLeadership(cluster ConductorSet) *Conductor {
 		if leader == c {
 			return fmt.Errorf("conductor %s is still the leader", c)
 		}
-		next = leader
 		return nil
 	})
 	c.require.NoErrorf(err, "conductor %s never transferred leadership", c)
-	cluster.AwaitOneActiveSequencer()
+
+	next := cluster.AwaitOneActiveSequencer()
+	c.require.NotSame(c, next, "untargeted transfer returned sequencing to its source")
 	c.AwaitSequencerHealthy()
 	next.AwaitSequencerHealthy()
 	return next

@@ -513,9 +513,19 @@ func startConductorCluster(
 	// https://github.com/ethereum-optimism/core-team/issues/2938.
 	seedHash, err := rollupClient.StopSequencer(ctx)
 	require.NoError(err, "failed to stop bootstrap sequencer after seeding")
-	seedStatus, err := rollupClient.SyncStatus(ctx)
-	require.NoError(err, "failed to fetch seeded bootstrap sequencer sync status")
-	require.Equal(seedHash, seedStatus.UnsafeL2.Hash, "bootstrap sequencer stopped at an unexpected unsafe head")
+	var seedStatus *eth.SyncStatus
+	err = retry.Do0(ctx, 90, retry.Fixed(500*time.Millisecond), func() error {
+		status, err := rollupClient.SyncStatus(ctx)
+		if err != nil {
+			return err
+		}
+		if status.UnsafeL2.Hash != seedHash {
+			return fmt.Errorf("bootstrap sync status unsafe head is %s, want stopped seed head %s", status.UnsafeL2.Hash, seedHash)
+		}
+		seedStatus = status
+		return nil
+	})
+	require.NoError(err, "bootstrap sync status never reflected the stopped seed head")
 	for i, node := range memberNodes {
 		memberClient, err := dial.DialRollupClientWithTimeout(ctx, t.Logger(), node.UserRPC())
 		require.NoErrorf(err, "failed to dial sequencer node %s", members[i].ServerID())
