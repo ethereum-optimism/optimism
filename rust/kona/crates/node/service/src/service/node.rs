@@ -142,7 +142,7 @@ pub struct RollupNode {
     /// [`JsonrpseeServerLauncher`], which is a single-chain node's whole RPC. A multi-chain host
     /// supplies its own launcher instead, so that N chains' module sets reach one socket rather
     /// than N of them; [`RpcBuilder::socket`] is then unused, and whether an RPC is built at all
-    /// still follows [`Self::rpc_builder`].
+    /// still follows the [`RpcBuilder`] above being present.
     pub(crate) rpc_launcher: Option<SharedRpcServerLauncher>,
     /// The P2P [`NetworkConfig`] for the node.
     pub(crate) p2p_config: NetworkConfig,

@@ -163,11 +163,11 @@ beacon = "{stub}"
 datadir = "{datadir}"
 jwt-secret = "{jwt}"
 mode = "validator"
-rpc-addr = "127.0.0.1"
 rpc-enable-admin = true
 p2p-listen-ip = "127.0.0.1"
 
 [admin]
+rpc-addr = "127.0.0.1"
 rpc-port = 0
 
 [[chains]]
@@ -337,7 +337,10 @@ impl Node {
             .args(["node", "--config", path.to_str().expect("utf-8 path")])
             .env("KONA_LOG_STDOUT_FORMAT", "json")
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            // Inherited rather than dropped: a node that fails before it logs anything — a config
+            // the deserializer rejects, say — explains itself on stderr, and that explanation is
+            // the whole diagnosis. Dropping it leaves only "did not log its admin RPC address".
+            .stderr(Stdio::inherit())
             .spawn()
             .expect("start lokahi");
 

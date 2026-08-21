@@ -154,7 +154,7 @@ impl RollupNodeBuilder {
     /// Set by a multi-chain host, which serves every chain's module set from one socket and routes
     /// to them by chain id: N chains each binding their own socket is N addresses for one process,
     /// and there is only one address for a caller to have been told about. The
-    /// [`RpcBuilder`](kona_rpc::RpcBuilder) still decides *whether* an RPC is built and which
+    /// [`RpcBuilder`] still decides *whether* an RPC is built and which
     /// namespaces it carries; only where it is served changes.
     ///
     /// Left unset, the module set is bound to its own socket by
