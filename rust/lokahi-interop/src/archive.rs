@@ -26,7 +26,10 @@ use crate::{
 };
 use alloy_primitives::B256;
 use kona_protocol::OutputRoot;
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::{PoisonError, RwLock},
+};
 
 /// One archived output: the output root of an invalidated block, and the verification timestamp
 /// whose decision archived it.
@@ -68,12 +71,20 @@ mod column {
 #[derive(Debug)]
 pub struct OutputArchive<K> {
     kv: K,
+    /// Serialises the read-modify-write in [`OutputArchive::record`] and
+    /// [`OutputArchive::prune_at_or_after`]. Both read a height's outputs, edit the vector and
+    /// write it back, so without this two concurrent calls at one height can both read the same
+    /// vector and the later write silently drops the earlier one. Losing an output root here is
+    /// unrecoverable and raises nothing — see the module documentation — so the whole
+    /// read-modify-write is held, not just the write. An [`RwLock`] rather than a `Mutex` to match
+    /// the guards the other two stores hold across the same shape of update.
+    write_lock: RwLock<()>,
 }
 
 impl<K: Kv> OutputArchive<K> {
     /// Opens the archive over `kv`.
     pub const fn new(kv: K) -> Self {
-        Self { kv }
+        Self { kv, write_lock: RwLock::new(()) }
     }
 
     /// Returns the underlying backend.
@@ -86,13 +97,14 @@ impl<K: Kv> OutputArchive<K> {
     /// Repeating a call for a block hash already archived at that height is a no-op, so the
     /// interop actor can drive this from its write-ahead log entry on every replay.
     pub fn record(&self, height: u64, output: ArchivedOutput) -> Result<(), StoreError> {
+        let _guard = self.write_lock.write().unwrap_or_else(PoisonError::into_inner);
         let mut outputs = self.at(height)?;
         if outputs.iter().any(|existing| existing.block_hash() == output.block_hash()) {
             return Ok(());
         }
         outputs.push(output);
         let mut batch = WriteBatch::new();
-        batch.put(column::key(height), encode_outputs(&outputs));
+        batch.put(column::key(height), encode_outputs(&outputs)?);
         self.kv.write(batch)
     }
 
@@ -150,6 +162,7 @@ impl<K: Kv> OutputArchive<K> {
         &self,
         decision_timestamp: u64,
     ) -> Result<BTreeMap<u64, Vec<B256>>, StoreError> {
+        let _guard = self.write_lock.write().unwrap_or_else(PoisonError::into_inner);
         let (start, end) = column::bounds();
         let mut removed = BTreeMap::new();
         let mut batch = WriteBatch::new();
@@ -167,7 +180,7 @@ impl<K: Kv> OutputArchive<K> {
             if kept.is_empty() {
                 batch.delete(key);
             } else {
-                batch.put(key, encode_outputs(&kept));
+                batch.put(key, encode_outputs(&kept)?);
             }
         }
 
@@ -192,24 +205,27 @@ const FORMAT_VERSION: u8 = 1;
 /// version (1) | count (4) | count * ( decision timestamp (8) | block hash (32)
 ///                                     | state root (32) | message passer storage root (32) )
 /// ```
-fn encode_outputs(outputs: &[ArchivedOutput]) -> Vec<u8> {
+fn encode_outputs(outputs: &[ArchivedOutput]) -> Result<Vec<u8>, StoreError> {
+    let count = u32::try_from(outputs.len())
+        .map_err(|_| StoreError::Conflict("too many archived outputs at one height"))?;
     let mut sink = Sink::with_capacity(5 + outputs.len() * 104);
     sink.put_u8(FORMAT_VERSION);
-    sink.put_u32(outputs.len() as u32);
+    sink.put_u32(count);
     for output in outputs {
         sink.put_u64(output.decision_timestamp);
         sink.put_b256(output.output_root.block_hash);
         sink.put_b256(output.output_root.state_root);
         sink.put_b256(output.output_root.bridge_storage_root);
     }
-    sink.into_vec()
+    Ok(sink.into_vec())
 }
 
 /// Decodes the outputs written by [`encode_outputs`].
 fn decode_outputs(raw: &[u8]) -> Result<Vec<ArchivedOutput>, StoreError> {
     let mut cursor = Cursor::new(raw, "archived outputs");
-    if cursor.take_u8()? != FORMAT_VERSION {
-        return Err(StoreError::DataCorruption("archived outputs: unknown format version"));
+    let version = cursor.take_u8()?;
+    if version != FORMAT_VERSION {
+        return Err(StoreError::UnsupportedVersion { expected: FORMAT_VERSION, actual: version });
     }
     let count = cursor.take_u32()?;
     let mut outputs = Vec::with_capacity(count as usize);
@@ -355,14 +371,22 @@ mod tests {
     }
 
     #[test]
-    fn truncated_and_mislabelled_records_are_corruption() {
-        let encoded = encode_outputs(&[output(1, 1000), output(2, 1001)]);
+    fn truncated_records_are_corruption() {
+        let encoded = encode_outputs(&[output(1, 1000), output(2, 1001)]).unwrap();
         assert!(matches!(
             decode_outputs(&encoded[..encoded.len() - 1]),
             Err(StoreError::DataCorruption(_))
         ));
-        let mut wrong_version = encoded;
+    }
+
+    #[test]
+    fn a_record_from_another_format_version_is_not_reported_as_damage() {
+        let mut wrong_version = encode_outputs(&[output(1, 1000)]).unwrap();
         wrong_version[0] = FORMAT_VERSION + 1;
-        assert!(matches!(decode_outputs(&wrong_version), Err(StoreError::DataCorruption(_))));
+        assert!(matches!(
+            decode_outputs(&wrong_version),
+            Err(StoreError::UnsupportedVersion { expected: FORMAT_VERSION, actual })
+                if actual == FORMAT_VERSION + 1
+        ));
     }
 }

@@ -35,6 +35,16 @@ pub enum StoreError {
     /// A timestamp was re-committed with a different result than the one already stored.
     #[error("timestamp {0} already committed with a different result")]
     AlreadyCommitted(u64),
+    /// A stored record carries a format version this build does not know. The store was written
+    /// by a different build of this crate; it is not damaged, so a downgrade is the first thing
+    /// to rule out.
+    #[error("unsupported format version: expected {expected}, got {actual}")]
+    UnsupportedVersion {
+        /// The format version this build reads and writes.
+        expected: u8,
+        /// The format version found in the record.
+        actual: u8,
+    },
     /// The store has been closed.
     #[error("store closed")]
     Closed,

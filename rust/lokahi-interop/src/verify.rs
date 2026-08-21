@@ -10,10 +10,14 @@
 //!
 //! 1. the [`FrontierView`] — the blocks of the round's own timestamp, which are not in a log store
 //!    yet because a round's blocks are only persisted once it decides to advance; and
-//! 2. the per-chain log stores, which hold every earlier timestamp.
+//! 2. the per-chain log stores, which are meant to hold every earlier timestamp.
 //!
-//! Between them they cover every timestamp an initiating message may legally carry, so an
-//! existence question that neither can answer is a claim about a block that cannot exist.
+//! Between them they *should* cover every timestamp an initiating message may legally carry. The
+//! log stores are separate databases from the verified store, though, and nothing proves one was
+//! not truncated, reseeded or lost, so "neither can answer" has two very different causes: a claim
+//! about a block that cannot exist, which is a rule violation, and a hole in this node's own
+//! history, which is not. Only the first is charged against the message; the second halts the
+//! verifier, because a missing database is no evidence against a block.
 
 use crate::{
     chain::{BlockLogs, RoundError},
@@ -462,16 +466,30 @@ fn verify_executing_message(
 
     match store.contains(&query) {
         Ok(_) => Ok(None),
-        // Every store holds every timestamp below this round's, and the view holds this round's,
-        // so none of these is a "come back later": the claim is about a position that no block
-        // occupies or will occupy.
-        Err(StoreError::Conflict(reason)) => Ok(Some(RuleViolation::NoSuchMessage(reason))),
-        Err(StoreError::Future) => {
+        // No store holds this round's own timestamp yet: a round's blocks are sealed only once it
+        // decides to advance. So for a reference to this timestamp the view checked just above was
+        // the whole answer, and `Future` here means the round's own blocks do not hold the claimed
+        // position — a real claim about a block that does not exist.
+        Err(StoreError::Future) if referenced.timestamp == executing_timestamp => {
             Ok(Some(RuleViolation::NoSuchMessage("claims a block beyond the sealed history")))
         }
-        Err(StoreError::Skipped) => {
-            Ok(Some(RuleViolation::NoSuchMessage("claims a block below the sealed history")))
+        // Below the round's timestamp the store is *supposed* to hold the block: the rules above
+        // already established that the reference is inside the expiry window and past interop
+        // activation, so the protocol says a block is there. Its absence therefore says nothing
+        // about the message and everything about this node — a log store that was truncated,
+        // reseeded or lost looks exactly like this. Halt with the cause named rather than decide
+        // `Invalidate`, which would condemn a valid block on the strength of a missing database.
+        Err(err @ (StoreError::Future | StoreError::Skipped)) => {
+            Err(RoundError::Permanent(format!(
+                "chain {initiating_chain}: local log history does not cover timestamp {} ({err}), \
+                 which an executing message at {executing_timestamp} references; the log store \
+                 must be refilled over the message expiry window before verification can continue",
+                referenced.timestamp
+            )))
         }
+        // The store does cover the position and disagrees about what is there, so the claim is
+        // about a block that cannot exist.
+        Err(StoreError::Conflict(reason)) => Ok(Some(RuleViolation::NoSuchMessage(reason))),
         Err(StoreError::NotFound) => {
             Ok(Some(RuleViolation::NoSuchMessage("no block is sealed at that height")))
         }
