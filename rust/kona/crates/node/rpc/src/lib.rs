@@ -24,7 +24,7 @@ pub use net::P2pRpc;
 mod p2p;
 
 mod response;
-pub use response::SafeHeadResponse;
+pub use response::{DependencySetResponse, SafeHeadResponse};
 
 mod output;
 pub use output::OutputResponse;

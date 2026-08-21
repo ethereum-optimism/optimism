@@ -63,6 +63,8 @@ metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json.workspace = true
+# `macros` and `rt` are test-only: the crate itself needs no runtime, only `tokio::sync`.
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 
 [features]
 default = []
