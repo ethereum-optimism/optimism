@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 
 const CHAIN: ChainId = 901;
 
-fn head(n: u64) -> BlockNumHash {
+const fn head(n: u64) -> BlockNumHash {
     BlockNumHash { number: n, hash: B256::repeat_byte(n as u8) }
 }
 
