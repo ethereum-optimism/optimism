@@ -339,7 +339,7 @@ impl Chain {
         let jwt_secret = load_jwt_secret(&settings.jwt_secret)?;
 
         // A sequencing chain's key is read here rather than while the configuration is resolved:
-        // resolution touches no files, so a key that is missing or unparseable is a startup error
+        // resolution touches no files, so a key that is missing or malformed is a startup error
         // raised where the JWT secret and the rollup config are read.
         let sequencer = settings
             .sequencer

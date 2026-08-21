@@ -240,7 +240,7 @@ pub(crate) struct SequencerSettings {
     /// The file holding the key this chain signs the blocks it gossips with.
     ///
     /// Still a path at this point: resolution reads no files, so whether the key is present and
-    /// parseable is a startup error raised where the signer is built.
+    /// well-formed is a startup error raised where the signer is built.
     pub(crate) key_path: PathBuf,
     /// Whether the sequencer starts stopped, to be started over the admin API.
     pub(crate) stopped: bool,
