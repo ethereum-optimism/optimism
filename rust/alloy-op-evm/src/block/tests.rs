@@ -860,4 +860,5 @@ fn declined_candidate_restores_refund_policy_snapshot() {
     );
 }
 
+mod proptests;
 mod structural_tests;
