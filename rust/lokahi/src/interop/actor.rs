@@ -103,7 +103,7 @@ impl InteropActor {
     ///
     /// The routes are keyed by chain id here rather than by the caller, so the key can only ever
     /// be the id the route's own chain reports.
-    fn new(verifier: Verifier<RocksKv>, routes: Vec<ChainRoute>) -> Self {
+    pub(super) fn new(verifier: Verifier<RocksKv>, routes: Vec<ChainRoute>) -> Self {
         let routes = routes.into_iter().map(|route| (route.chain.chain_id(), route)).collect();
         Self { verifier, routes, promoted: BTreeMap::new() }
     }

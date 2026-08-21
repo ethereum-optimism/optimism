@@ -9,7 +9,6 @@
 //! one permanent "never" ([`ChainAt::HistoryUnavailable`]) is reserved for the single condition
 //! that really is unrecoverable: a pairing this node did not keep.
 
-use alloy_consensus::TxReceipt;
 use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::{B256, ChainId, Log};
 use alloy_provider::{Provider, RootProvider};
@@ -252,12 +251,12 @@ impl InteropChain for NodeChain {
         let genesis = &self.rollup_config.genesis;
         let Some(elapsed) = timestamp.checked_sub(genesis.l2_time) else {
             // Before genesis there is no earlier block to floor onto, so genesis is the answer.
-            return Ok(genesis.l2_number);
+            return Ok(genesis.l2.number);
         };
         // Blocks are spaced exactly `block_time` apart from genesis onwards, so the arithmetic is
         // the whole answer and asking the execution layer would only be a slower way to compute
         // it. Integer division is the flooring the trait asks for.
-        Ok(genesis.l2_number + elapsed / self.rollup_config.block_time.max(1))
+        Ok(genesis.l2.number + elapsed / self.rollup_config.block_time.max(1))
     }
 }
 
@@ -269,7 +268,7 @@ impl NodeChain {
     fn timestamp_at_block_number(&self, number: u64) -> u64 {
         let genesis = &self.rollup_config.genesis;
         genesis.l2_time +
-            number.saturating_sub(genesis.l2_number) * self.rollup_config.block_time.max(1)
+            number.saturating_sub(genesis.l2.number) * self.rollup_config.block_time.max(1)
     }
 }
 
@@ -311,6 +310,7 @@ mod tests {
     use super::*;
     use kona_genesis::ChainGenesis;
     use kona_safedb::{SafeDb, SafeHeadRecord};
+    use std::sync::Arc;
     use url::Url;
 
     /// A safe-head database that answers every read with one chosen error.
