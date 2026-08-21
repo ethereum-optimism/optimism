@@ -4,167 +4,15 @@ use crate::{
     RawMessagePayload,
     errors::{MessageGraphError, MessageGraphResult},
     message::{EnrichedExecutingMessage, parse_log_to_executing_message},
+    rules::MessageRules,
     traits::InteropProvider,
 };
-use alloc::{collections::BTreeMap, string::ToString, vec, vec::Vec};
+use alloc::{string::ToString, vec::Vec};
 use alloy_consensus::{Header, Sealed};
 use alloy_primitives::keccak256;
 use kona_genesis::{DependencySet, RollupConfig};
-use kona_registry::{HashMap, ROLLUP_CONFIGS};
+use kona_registry::HashMap;
 use tracing::{info, warn};
-
-/// Static graph node representing an executing message in the cycle detection dependency graph.
-#[derive(Debug)]
-struct GraphNode {
-    /// The chain ID this executing message belongs to.
-    chain_id: u64,
-    /// The log index of the executing message within its block.
-    log_index: u32,
-    /// The chain ID of the initiating message this EM references.
-    target_chain_id: u64,
-    /// The log index of the initiating message this EM references.
-    target_log_index: u32,
-}
-
-/// Finds the index of the latest node in `chain_node_indices` with `log_index <= target_log_idx`.
-/// `chain_node_indices` must be sorted by `log_index` ascending.
-fn executing_message_before(
-    nodes: &[GraphNode],
-    chain_node_indices: &[usize],
-    target_log_idx: u32,
-) -> Option<usize> {
-    // partition_point returns the first index where the predicate is false, i.e. the first
-    // node with log_index > target. So pp - 1 is the last node with log_index <= target.
-    // If pp == 0, every node is past the target and there's no match.
-    let pp = chain_node_indices.partition_point(|&i| nodes[i].log_index <= target_log_idx);
-    (pp > 0).then(|| chain_node_indices[pp - 1])
-}
-
-/// Runs Kahn's topological sort algorithm to detect cycles.
-///
-/// Operates on algorithm state (parallel vecs) separately from the immutable graph nodes.
-/// Returns the indices of nodes participating in cycles, or an empty vec if acyclic.
-fn check_cycles(depends_on: &[Vec<usize>], depended_on_by: &mut [Vec<usize>]) -> Vec<usize> {
-    let n = depends_on.len();
-    if n == 0 {
-        return vec![];
-    }
-
-    let mut resolved = vec![false; n];
-
-    loop {
-        // Find nodes with no depended_on_by and mark them resolved.
-        let mut remove_set = Vec::new();
-        for (i, deps) in depended_on_by.iter().enumerate() {
-            if !resolved[i] && deps.is_empty() {
-                resolved[i] = true;
-                remove_set.push(i);
-            }
-        }
-
-        if remove_set.is_empty() {
-            // No progress, so we collect unresolved nodes (cycle participants).
-            return (0..n).filter(|&i| !resolved[i]).collect();
-        }
-
-        // Remove resolved nodes from depended_on_by of their dependencies.
-        for &removed_idx in &remove_set {
-            for &dep_idx in &depends_on[removed_idx] {
-                depended_on_by[dep_idx].retain(|&x| x != removed_idx);
-            }
-        }
-    }
-}
-
-/// Builds a dependency graph from executing messages and checks for cycles.
-/// Returns the chain IDs of cycle participants, or an empty vec if acyclic.
-///
-/// Matches the semantics of op-supernode's `buildCycleGraph`:
-/// - Only executing messages whose *executing* block timestamp *and* referenced *initiating*
-///   message timestamp both equal `timestamp` are included as nodes. An EM that references a
-///   historical initiating message is a dependency on finalized past state, not a concurrent
-///   cross-chain dependency, and must not participate in the same-timestamp cycle graph.
-/// - Intra-chain edges: each EM depends on the previous EM on the same chain.
-/// - Cross-chain edges: each EM depends on `executingMessageBefore(targetChain, targetLogIdx)`.
-fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u64) -> Vec<u64> {
-    // Filter to same-timestamp messages and create nodes.
-    let mut nodes = Vec::new();
-    // BTreeMap for deterministic iteration order.
-    let mut chain_nodes: BTreeMap<u64, Vec<usize>> = BTreeMap::new();
-
-    for msg in messages {
-        // Two filters, mirroring op-supernode (`verifyCycleMessages` + `buildCycleGraph`):
-        //   1. The EM's executing block must be at `timestamp`.
-        //   2. The EM's referenced initiating message must also be at `timestamp`.
-        // An EM that passes (1) but fails (2) references historical state and must not be
-        // admitted into the same-timestamp cycle graph.
-        if msg.executing_timestamp != timestamp ||
-            msg.inner.identifier.timestamp.saturating_to::<u64>() != timestamp
-        {
-            continue;
-        }
-
-        let initiating_chain_id: u64 = msg.inner.identifier.chainId.saturating_to();
-        let initiating_log_index: u32 = msg.inner.identifier.logIndex.saturating_to();
-
-        let idx = nodes.len();
-        nodes.push(GraphNode {
-            chain_id: msg.executing_chain_id,
-            log_index: msg.executing_log_index,
-            target_chain_id: initiating_chain_id,
-            target_log_index: initiating_log_index,
-        });
-        chain_nodes.entry(msg.executing_chain_id).or_default().push(idx);
-    }
-
-    if nodes.is_empty() {
-        return vec![];
-    }
-
-    // Sort each chain's node indices by log_index.
-    for indices in chain_nodes.values_mut() {
-        indices.sort_by_key(|&idx| nodes[idx].log_index);
-    }
-
-    // Build algorithm state: parallel vecs for depends_on / depended_on_by.
-    let mut depends_on: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
-    let mut depended_on_by: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
-
-    // Add edges.
-    for chain_indices in chain_nodes.values() {
-        for (i, &node_idx) in chain_indices.iter().enumerate() {
-            // Intra-chain: depends on previous EM on the same chain.
-            if i > 0 {
-                let prev_idx = chain_indices[i - 1];
-                depends_on[node_idx].push(prev_idx);
-                depended_on_by[prev_idx].push(node_idx);
-            }
-
-            // Cross-chain: depends on executingMessageBefore(targetChain, targetLogIdx).
-            let target_chain = nodes[node_idx].target_chain_id;
-            let target_log_idx = nodes[node_idx].target_log_index;
-            if let Some(target_indices) = chain_nodes.get(&target_chain) &&
-                let Some(dep_idx) =
-                    executing_message_before(&nodes, target_indices, target_log_idx)
-            {
-                depends_on[node_idx].push(dep_idx);
-                depended_on_by[dep_idx].push(node_idx);
-            }
-        }
-    }
-
-    // Run Kahn's algorithm.
-    let cycle_indices = check_cycles(&depends_on, &mut depended_on_by);
-    if cycle_indices.is_empty() {
-        return vec![];
-    }
-
-    // Collect unique chain IDs of cycle participants.
-    let mut cycle_chains: Vec<u64> = cycle_indices.iter().map(|&i| nodes[i].chain_id).collect();
-    cycle_chains.sort();
-    cycle_chains.dedup();
-    cycle_chains
-}
 
 /// The [`MessageGraph`] represents a set of blocks — possibly at different timestamps, one per
 /// chain — and the interop dependencies between them.
@@ -187,12 +35,11 @@ pub struct MessageGraph<'a, P> {
     /// The data provider for the graph. Required for fetching headers, receipts and remote
     /// messages within history during resolution.
     provider: &'a P,
-    /// Backup rollup configs for each chain.
-    rollup_configs: &'a HashMap<u64, RollupConfig>,
+    /// The message-validity rules, bound to the backup rollup configs and the message expiry
+    /// window.
+    rules: MessageRules<'a>,
     /// The dependency set for the cluster being validated.
     dependency_set: &'a DependencySet,
-    /// The message expiry window (in seconds) for validating initiating message timestamps.
-    message_expiry_window: u64,
 }
 
 impl<'a, P> MessageGraph<'a, P>
@@ -244,7 +91,12 @@ where
             num_messages = messages.len(),
             "Derived message graph successfully",
         );
-        Ok(Self { messages, provider, rollup_configs, dependency_set, message_expiry_window })
+        Ok(Self {
+            messages,
+            provider,
+            rules: MessageRules::new(rollup_configs, message_expiry_window),
+            dependency_set,
+        })
     }
 
     /// Checks the validity of all messages within the graph.
@@ -271,30 +123,7 @@ where
         // Check for cyclic dependencies among same-timestamp executing messages before
         // validating individual messages. Cycles are a structural property of the graph
         // that cannot be detected by per-message validation.
-        if !self.messages.is_empty() {
-            // Collect distinct timestamps present in the message set.
-            let mut timestamps: Vec<u64> =
-                self.messages.iter().map(|m| m.executing_timestamp).collect();
-            timestamps.sort_unstable();
-            timestamps.dedup();
-
-            for ts in timestamps {
-                let cycle_chains = detect_cycles(&self.messages, ts);
-                if !cycle_chains.is_empty() {
-                    warn!(
-                        target: "message_graph",
-                        cycle_chains = %cycle_chains
-                            .iter()
-                            .map(ToString::to_string)
-                            .collect::<Vec<_>>()
-                            .join(", "),
-                        timestamp = ts,
-                        "Cyclic dependency detected among same-timestamp executing messages",
-                    );
-                    return Err(MessageGraphError::CyclicDependency { chain_ids: cycle_chains });
-                }
-            }
-        }
+        MessageRules::check_no_cycles(&self.messages)?;
 
         // Create a new vector to store invalid edges
         let mut invalid_messages = HashMap::default();
@@ -357,59 +186,13 @@ where
             return Err(MessageGraphError::ChainNotInDependencySet(initiating_chain_id));
         }
 
-        // Attempt to fetch the rollup config for the executing chain from the registry. If the
-        // rollup config is not found, fall back to the local rollup configs.
-        let exec_rollup_config = ROLLUP_CONFIGS
-            .get(&message.executing_chain_id)
-            .or_else(|| self.rollup_configs.get(&message.executing_chain_id))
-            .ok_or(MessageGraphError::MissingRollupConfig(message.executing_chain_id))?;
+        let exec_rollup_config = self.rules.rollup_config_for(message.executing_chain_id)?;
+        MessageRules::check_executing_activation(exec_rollup_config, message.executing_timestamp)?;
 
-        // Activation invariant: Interop must be active on the executing chain AND the executing
-        // block must not be the activation block.
-        if !exec_rollup_config.is_interop_active(message.executing_timestamp) ||
-            exec_rollup_config.is_first_interop_block(message.executing_timestamp)
-        {
-            return Err(MessageGraphError::ExecutedTooEarly {
-                activation_time: exec_rollup_config.hardforks.lagoon_time.unwrap_or_default(),
-                executing_message_time: message.executing_timestamp,
-            });
-        }
-
-        // Attempt to fetch the rollup config for the initiating chain from the registry. If the
-        // rollup config is not found, fall back to the local rollup configs.
-        let rollup_config = ROLLUP_CONFIGS
-            .get(&initiating_chain_id)
-            .or_else(|| self.rollup_configs.get(&initiating_chain_id))
-            .ok_or(MessageGraphError::MissingRollupConfig(initiating_chain_id))?;
-
-        // Timestamp invariant: The timestamp at the time of inclusion of the initiating message
-        // MUST be less than or equal to the timestamp of the executing message as well as greater
-        // than the interop activation block's timestamp.
-        if initiating_timestamp > message.executing_timestamp {
-            return Err(MessageGraphError::MessageInFuture {
-                max: message.executing_timestamp,
-                actual: initiating_timestamp,
-            });
-        } else if !rollup_config.is_interop_active(initiating_timestamp) ||
-            rollup_config.is_first_interop_block(initiating_timestamp)
-        {
-            return Err(MessageGraphError::InitiatedTooEarly {
-                activation_time: rollup_config.hardforks.lagoon_time.unwrap_or_default(),
-                initiating_message_time: initiating_timestamp,
-            });
-        }
-
-        // Message expiry invariant: The timestamp of the initiating message must be no more than
-        // `MESSAGE_EXPIRY_WINDOW` seconds in the past, relative to the timestamp of the executing
-        // message.
-        if initiating_timestamp <
-            message.executing_timestamp.saturating_sub(self.message_expiry_window)
-        {
-            return Err(MessageGraphError::MessageExpired {
-                initiating_timestamp,
-                executing_timestamp: message.executing_timestamp,
-            });
-        }
+        let rollup_config = self.rules.rollup_config_for(initiating_chain_id)?;
+        MessageRules::check_message_ordering(initiating_timestamp, message.executing_timestamp)?;
+        MessageRules::check_initiating_activation(rollup_config, initiating_timestamp)?;
+        self.rules.check_message_expiry(initiating_timestamp, message.executing_timestamp)?;
 
         // Fetch the header & receipts for the message's claimed origin block on the remote chain.
         let remote_header = self
@@ -472,10 +255,11 @@ where
 #[cfg(test)]
 #[allow(clippy::zero_sized_map_values)]
 mod test {
-    use super::{MessageGraph, detect_cycles};
+    use super::MessageGraph;
     use crate::{
         MESSAGE_EXPIRY_WINDOW, MessageGraphError,
         message::EnrichedExecutingMessage,
+        rules::detect_cycles,
         test_util::{ExecutingMessageBuilder, SuperchainBuilder},
     };
     use alloc::collections::BTreeMap;
