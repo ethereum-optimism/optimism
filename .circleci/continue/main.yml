@@ -2628,24 +2628,39 @@ workflows:
       # presets run kona-node as their per-chain CL; the multi-chain/interop presets have
       # no per-chain CL to swap and select their supernode implementation separately.
       #
-      # supernode_kind is lokahi, so this variant is now what its name says: every preset in
-      # it runs a Rust client. The multi-chain and interop presets bring up the lokahi
-      # process and drive its interop verifier over RPC — which is what they could not do
-      # while stack.SupernodeTestControl handed tests an in-process *interop.Interop
-      # pointer, and while MultiChainRuntime.Supernode was the concrete Go supernode that
-      # left a kind with nothing to select.
+      # supernode_kind stays op-supernode, but the reason is now specific and measured rather
+      # than "the presets refuse lokahi". The presets no longer refuse it: the runtime
+      # dispatches on kind, and lokahi serves the interop test-control API. Setting
+      # DEVSTACK_SUPERNODE_KIND=lokahi brings the suites up and runs them.
       #
-      # The job name is deliberately unchanged, so its entry in ci-gate's requires: still
-      # matches it. What changed is what the job exercises: a failure here is now a
-      # statement about lokahi, rather than a second run of the op-node variant's
-      # assertions.
+      # What is left is four gaps this PR does not close, measured by flipping this line and
+      # reading the run (CircleCI 5504740, 202 passed / 138 failed):
+      #
+      #   * lokahi does not serve optimism_dependencySet, which the test-sequencer's standard
+      #     builder fetches from the per-chain CL whenever LagoonTime is set. 7 tests, e.g.
+      #     TestPostInteropUpgradeComprehensive.
+      #   * Presets built on NewSimpleInterop hand lokahi rollup configs with no Lagoon time
+      #     while asking op-supernode to activate interop at a timestamp. op-supernode takes
+      #     that as a parameter; lokahi can only read the fork. 22 tests, e.g.
+      #     TestZKDisputeMonitorSkipsLaggedGameUntilRootSourceCatchesUp.
+      #   * The preinterop presets' proposer gets "Method not found" for
+      #     superroot_atTimestamp, so lokahi does not expose the super-root query API when no
+      #     interop is scheduled, where op-supernode answers from pre-interop consensus.
+      #     3 tests, e.g. preinterop TestProposer.
+      #   * supernode/advance_multiple asserts both chains' CL RPCs share one host:port,
+      #     which is op-supernode's one-socket-with-/chainID-routes shape written as an
+      #     invariant. lokahi gives each chain its own socket. 1 test,
+      #     TestTwoChainProgress.
+      #
+      # Flipping this line is the last step, not the first: it is a one-line change once
+      # those are closed, and it is the only thing between this variant and running lokahi.
       - op-acceptance-tests:
           name: memory-all-kona-lokahi-op-reth-<<matrix.l1_fork>>
           matrix:
             parameters:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
-          supernode_kind: lokahi
+          supernode_kind: op-supernode
           l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
