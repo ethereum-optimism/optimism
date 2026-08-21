@@ -1,6 +1,9 @@
 //! End-to-end specification for the `lokahi` binary.
 
-use std::process::{Command, Output};
+use std::{
+    io::Write,
+    process::{Command, Output},
+};
 
 /// Runs the binary under test with `args` and returns its output.
 fn run(args: &[&str]) -> Output {
@@ -21,10 +24,69 @@ fn stdout_of(output: &Output) -> &str {
     std::str::from_utf8(&output.stdout).expect("stdout is not utf-8")
 }
 
+/// Asserts the command failed and returns its stderr.
+fn stderr_of(output: &Output) -> &str {
+    assert!(!output.status.success(), "expected a failing exit status");
+    std::str::from_utf8(&output.stderr).expect("stderr is not utf-8")
+}
+
+/// Writes `toml` to a temporary file and runs the node subcommand over it.
+fn run_node_with_config(toml: &str) -> Output {
+    let mut file = tempfile::NamedTempFile::new().expect("temp file");
+    file.write_all(toml.as_bytes()).expect("write config");
+    run(&["node", "--config", file.path().to_str().expect("utf-8 path")])
+}
+
 #[test]
-fn prints_the_greeting() {
-    let output = run(&[]);
-    assert_eq!(stdout_of(&output), "Hello Lokahi\n");
+fn running_the_node_needs_a_configuration_file() {
+    let output = run(&["node"]);
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("--config"), "unexpected error: {stderr}");
+}
+
+/// A supernode is a set of chains, so a file that lists none is rejected before any actor starts.
+#[test]
+fn a_configuration_without_chains_is_rejected() {
+    let output = run_node_with_config(
+        r#"
+        [l1]
+        eth-rpc = "http://localhost:8545"
+        beacon = "http://localhost:5052"
+        "#,
+    );
+
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("no chains configured"), "unexpected error: {stderr}");
+}
+
+/// Two chains inheriting one port from `[defaults]` fails at startup, naming both chains, rather
+/// than as an address-in-use once one chain's RPC server is already up.
+#[test]
+fn two_chains_sharing_a_port_are_rejected() {
+    let output = run_node_with_config(
+        r#"
+        [l1]
+        eth-rpc = "http://localhost:8545"
+        beacon = "http://localhost:5052"
+
+        [defaults]
+        engine-rpc = "http://localhost:9551"
+        jwt-secret = "/etc/lokahi/jwt.hex"
+        rpc-port = 9545
+        p2p-tcp-port = 9222
+        p2p-udp-port = 9222
+
+        [[chains]]
+        l2-chain-id = 901
+
+        [[chains]]
+        l2-chain-id = 902
+        "#,
+    );
+
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("901"), "the first chain is not named: {stderr}");
+    assert!(stderr.contains("902"), "the second chain is not named: {stderr}");
 }
 
 #[test]

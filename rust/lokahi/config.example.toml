@@ -1,0 +1,37 @@
+# An example `lokahi` configuration: two chains on one L1, in one process.
+#
+# `[l1]` and `[defaults]` are the global layer; each `[[chains]]` entry overlays `[defaults]` with
+# what is specific to that chain. This file is parsed by lokahi's test suite, so it cannot drift
+# from what the code accepts.
+
+[l1]
+eth-rpc = "http://localhost:8545"
+beacon = "http://localhost:5052"
+# A devnet L1 is not in the registry, so its chain config comes from a file.
+chain-config = "/etc/lokahi/l1-genesis.json"
+
+# What every chain shares. A chain overrides any of these.
+[defaults]
+datadir = "/var/lib/lokahi"
+jwt-secret = "/etc/lokahi/jwt.hex"
+mode = "validator"
+rpc-addr = "127.0.0.1"
+rpc-enable-admin = true
+
+[[chains]]
+l2-chain-id = 901
+rollup-config = "/etc/lokahi/rollup-901.json"
+engine-rpc = "http://localhost:9551"
+rpc-port = 9545
+p2p-tcp-port = 9222
+p2p-udp-port = 9222
+unsafe-block-signer = "0x1111111111111111111111111111111111111111"
+
+[[chains]]
+l2-chain-id = 902
+rollup-config = "/etc/lokahi/rollup-902.json"
+engine-rpc = "http://localhost:9561"
+rpc-port = 9555
+p2p-tcp-port = 9232
+p2p-udp-port = 9232
+unsafe-block-signer = "0x2222222222222222222222222222222222222222"

@@ -8543,8 +8543,35 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 name = "lokahi"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-engine",
+ "anyhow",
  "clap",
+ "discv5 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kona-cli",
+ "kona-derive",
+ "kona-disc",
+ "kona-engine",
+ "kona-genesis",
+ "kona-gossip",
+ "kona-interop",
+ "kona-node-service",
+ "kona-peers",
+ "kona-providers-alloy",
+ "kona-registry",
+ "kona-rpc",
+ "libp2p",
  "op-version",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tracing",
+ "url",
 ]
 
 [[package]]
