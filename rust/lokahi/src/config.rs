@@ -77,6 +77,9 @@ pub(crate) struct L1Settings {
     pub(crate) slot_duration_override: Option<u64>,
 }
 
+/// The subdirectory of the default data directory holding the process-wide interop stores.
+pub(crate) const INTEROP_DIR: &str = "interop";
+
 /// One chain's settings, as written in the file.
 ///
 /// Every field is optional: the same type is both the `[defaults]` layer and a `[[chains]]`
@@ -136,6 +139,15 @@ pub(crate) struct ResolvedConfig {
     pub(crate) chains: Box<[ResolvedChain]>,
     /// The socket the supernode-level admin RPC listens on, if one is configured.
     pub(crate) admin_rpc: Option<SocketAddr>,
+    /// The directory the process-wide interop stores live under, when one can be named.
+    ///
+    /// The interop verifier's frontier is a statement about the whole chain set, so it cannot
+    /// live in any one chain's directory: whichever chain got it would be the one whose state
+    /// could not be cleared independently. It is therefore `<[defaults] datadir>/interop`, and
+    /// [`None`] when no default directory was given — a configuration that names only per-chain
+    /// directories has nowhere process-wide to put it, which is a startup error once interop is
+    /// actually scheduled rather than a reason to reject a validator that will never need it.
+    pub(crate) interop_datadir: Option<PathBuf>,
 }
 
 /// One chain's resolved settings.
@@ -275,7 +287,9 @@ impl LokahiConfig {
         });
         check_admin_socket(admin_rpc, &resolved)?;
 
-        Ok(ResolvedConfig { l1, chains: resolved.into_boxed_slice(), admin_rpc })
+        let interop_datadir = defaults.datadir.as_ref().map(|dir| dir.join(INTEROP_DIR));
+
+        Ok(ResolvedConfig { l1, chains: resolved.into_boxed_slice(), admin_rpc, interop_datadir })
     }
 
     /// Resolves one chain's settings against the defaults.

@@ -3,6 +3,7 @@
 use crate::{
     admin,
     config::{L1Settings, ResolvedChain, ResolvedConfig},
+    interop::{ChainInterop, HostedChain, InteropActor},
 };
 use alloy_primitives::Address;
 use alloy_provider::RootProvider;
@@ -10,6 +11,7 @@ use alloy_rpc_types_engine::JwtSecret;
 use anyhow::{Context, Result, anyhow, bail};
 use discv5::enr::k256;
 use kona_disc::LocalNode;
+use kona_engine::OpEngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{
@@ -19,9 +21,16 @@ use kona_node_service::{
 use kona_peers::{BootNode, BootStoreFile};
 use kona_providers_alloy::OnlineBeaconClient;
 use kona_rpc::RpcBuilder;
+use kona_safedb::{DisabledDatabase, SharedSafeDb};
 use libp2p::identity::Keypair;
+use op_alloy_network::Optimism;
 use serde_json::{Value, from_reader, from_value};
-use std::{fs::File, net::SocketAddr, path::Path, sync::Arc};
+use std::{
+    fs::File,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -51,6 +60,11 @@ pub(crate) struct Supernode {
     admin_rpc: Option<SocketAddr>,
     /// The chains as configured, kept for the admin RPC to answer from.
     configured: Box<[ResolvedChain]>,
+    /// The directory the process-wide interop stores live under, when the configuration names
+    /// one.
+    interop_datadir: Option<PathBuf>,
+    /// The interop activation timestamp the chain set shares, or [`None`] when interop is off.
+    interop_activation: Option<u64>,
 }
 
 /// One configured chain, with the files its settings named already loaded.
@@ -62,6 +76,27 @@ struct Chain {
     rollup_config: RollupConfig,
     /// The chain's interop dependency set, when one is configured.
     dependency_set: Option<Arc<DependencySet>>,
+    /// What interop needs from this chain, present exactly when interop is on.
+    ///
+    /// One [`Option`] rather than a field per part, because the parts are all-or-nothing: a chain
+    /// recording safe-head history nobody reads, or holding a cross-safe head nobody promotes, is
+    /// a half-configured chain rather than a supported mode.
+    interop: Option<ChainInteropState>,
+}
+
+/// The per-chain state the interop verifier needs, alongside the chain's own actors.
+#[derive(Debug, Clone)]
+struct ChainInteropState {
+    /// The safe-head database the chain's controller records local-safe advances into, and the
+    /// verifier reads the L1 pairing of a block behind the local-safe head out of.
+    safe_db: SharedSafeDb,
+    /// A read-only execution-layer provider over the chain's engine endpoint.
+    ///
+    /// The engine endpoint is JWT-authenticated, so this is built through kona's own
+    /// authenticated-client helper rather than as a plain HTTP provider: an unauthenticated
+    /// request to that port is rejected, and the chain has no second, unauthenticated endpoint
+    /// configured.
+    el: RootProvider<Optimism>,
 }
 
 impl Supernode {
@@ -70,19 +105,27 @@ impl Supernode {
     /// This is where a misconfiguration still becomes a startup error rather than a running node
     /// with one broken chain: the whole set is loaded and checked before any actor exists.
     pub(crate) fn load(config: ResolvedConfig) -> Result<Self> {
-        let ResolvedConfig { l1, chains, admin_rpc } = config;
+        let ResolvedConfig { l1, chains, admin_rpc, interop_datadir } = config;
 
         let configured = chains.clone();
-        let chains = chains
-            .into_vec()
-            .into_iter()
-            .map(Chain::load)
-            .collect::<Result<Vec<_>>>()?
-            .into_boxed_slice();
+        let loaded = chains.into_vec().into_iter().map(Chain::load).collect::<Result<Vec<_>>>()?;
+
+        // Whether interop is on is decided over the whole loaded set, before any actor exists,
+        // so a set that cannot form one cluster fails to start rather than starting as a
+        // supernode that verifies nothing.
+        let interop_activation = InteropActor::activation(
+            &loaded
+                .iter()
+                .map(|chain| HostedChain {
+                    chain_id: chain.settings.l2_chain_id,
+                    rollup_config: &chain.rollup_config,
+                })
+                .collect::<Vec<_>>(),
+        )?;
 
         // One L1 watcher serves every chain, so the chains must agree on which L1 that is. Chains
         // on different L1s in one process would each be served the other's L1 blocks.
-        let (first, rest) = chains.split_first().expect("resolution rejects an empty chain set");
+        let (first, rest) = loaded.split_first().expect("resolution rejects an empty chain set");
         let l1_chain_id = first.rollup_config.l1_chain_id;
         if let Some(other) = rest.iter().find(|c| c.rollup_config.l1_chain_id != l1_chain_id) {
             bail!(
@@ -96,7 +139,26 @@ impl Supernode {
 
         let l1_chain_config = load_l1_chain_config(&l1, l1_chain_id)?;
 
-        Ok(Self { l1, l1_chain_config, chains, admin_rpc, configured })
+        // Last, because this is the first thing in `load` that touches the disk: a chain's data
+        // directory and its safe-head database are created only once the whole set is known to be
+        // runnable. Attached to the chain rather than opened later by the interop module, so that
+        // the controller which records into a database and the verifier which reads it are handed
+        // the same handle by construction.
+        let chains = loaded
+            .into_iter()
+            .map(|chain| chain.with_interop(interop_activation.is_some()))
+            .collect::<Result<Vec<_>>>()?
+            .into_boxed_slice();
+
+        Ok(Self {
+            l1,
+            l1_chain_config,
+            chains,
+            admin_rpc,
+            configured,
+            interop_datadir,
+            interop_activation,
+        })
     }
 
     /// Runs every chain until one of its actors exits or the process is signalled.
@@ -111,7 +173,15 @@ impl Supernode {
     ///
     /// [`RollupNode::compose`]: kona_node_service::RollupNode::compose
     pub(crate) async fn run(self) -> Result<()> {
-        let Self { l1, l1_chain_config, chains, admin_rpc, configured } = self;
+        let Self {
+            l1,
+            l1_chain_config,
+            chains,
+            admin_rpc,
+            configured,
+            interop_datadir,
+            interop_activation,
+        } = self;
 
         info!(
             target: "lokahi",
@@ -134,13 +204,39 @@ impl Supernode {
 
         let mut actors: Vec<BoxedNodeActor> = Vec::new();
         let mut watcher_ports: Vec<L1WatcherPorts> = Vec::with_capacity(chains.len());
+        let mut interop_chains: Vec<ChainInterop> = Vec::with_capacity(chains.len());
 
         for chain in chains {
             let chain_id = chain.settings.l2_chain_id;
-            let ComposedChain { actors: chain_actors, l1_watcher_ports } = chain
+            let datadir = chain.settings.datadir.clone();
+            let rollup_config = chain.rollup_config.clone();
+            let interop_state = chain.interop.clone();
+            let ComposedChain {
+                actors: chain_actors,
+                l1_watcher_ports,
+                controller_request_tx,
+                controller_rpc_request_tx,
+                cross_safe_promoter,
+            } = chain
                 .compose(&l1, &l1_chain_config)
                 .await
                 .with_context(|| format!("failed to compose the actors of chain {chain_id}"))?;
+
+            // A promoter exists exactly when the chain was composed with an externally fed
+            // cross-safe head, which is exactly when interop is on. Taking it here is what makes
+            // the interop actor the chain's only cross-safe writer.
+            if let (Some(promoter), Some(state)) = (cross_safe_promoter, interop_state) {
+                interop_chains.push(ChainInterop {
+                    chain_id,
+                    datadir,
+                    rollup_config,
+                    safe_db: state.safe_db,
+                    el: state.el,
+                    queries: controller_rpc_request_tx,
+                    requests: controller_request_tx,
+                    promoter,
+                });
+            }
 
             info!(
                 target: "lokahi",
@@ -165,6 +261,21 @@ impl Supernode {
         };
         actors.push(l1_config.l1_watcher(watcher_ports).map_err(|e| anyhow!(e))?.boxed());
 
+        // One verifier for the whole process, in the same actor set as the chains it verifies: a
+        // verifier that halts stops the supernode, rather than leaving it serving chains whose
+        // cross-safe heads have silently stopped moving.
+        if let Some(activation) = interop_activation {
+            actors.push(
+                InteropActor::build(
+                    interop_datadir.as_deref(),
+                    &l1.eth_rpc,
+                    activation,
+                    interop_chains,
+                )?
+                .boxed(),
+            );
+        }
+
         run_actors(CancellationToken::new(), actors).await.map_err(|e| anyhow!(e))
     }
 }
@@ -174,7 +285,34 @@ impl Chain {
     fn load(settings: ResolvedChain) -> Result<Self> {
         let rollup_config = load_rollup_config(&settings)?;
         let dependency_set = load_dependency_set(&settings, &rollup_config)?;
-        Ok(Self { settings, rollup_config, dependency_set })
+        Ok(Self { settings, rollup_config, dependency_set, interop: None })
+    }
+
+    /// Attaches this chain's interop state, or leaves it inert.
+    ///
+    /// Both halves are decided by one flag on purpose: the safe-head history exists so that the
+    /// verifier can pair a block behind the local-safe head with an L1 block, and the externally
+    /// fed cross-safe head exists so that the verifier is what moves it. A chain with one and not
+    /// the other is either recording history nobody reads or holding a head nobody promotes.
+    fn with_interop(self, enabled: bool) -> Result<Self> {
+        if !enabled {
+            return Ok(self);
+        }
+
+        // The database lives in the chain's own directory, which composition creates; create it
+        // here too, because this runs first.
+        std::fs::create_dir_all(&self.settings.datadir).with_context(|| {
+            format!("failed to create the data directory {}", self.settings.datadir.display())
+        })?;
+        let safe_db = ChainInterop::open_safe_db(&self.settings.datadir)?;
+
+        let jwt_secret = load_jwt_secret(&self.settings.jwt_secret)?;
+        let el = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
+            self.settings.engine_rpc.clone(),
+            jwt_secret,
+        );
+
+        Ok(Self { interop: Some(ChainInteropState { safe_db, el }), ..self })
     }
 
     /// Builds this chain's node and composes its actor group.
@@ -183,7 +321,10 @@ impl Chain {
         l1: &L1Settings,
         l1_chain_config: &L1ChainConfig,
     ) -> Result<ComposedChain> {
-        let Self { settings, rollup_config, dependency_set } = self;
+        let Self { settings, rollup_config, dependency_set, interop } = self;
+        let external_cross_safe = interop.is_some();
+        let safe_db = interop
+            .map_or_else(|| Arc::new(DisabledDatabase) as SharedSafeDb, |state| state.safe_db);
 
         // Every chain keeps its state in its own directory: its P2P identity, its bootstore, and
         // the admin-API state its RPC server persists.
@@ -229,6 +370,8 @@ impl Chain {
             Some(rpc_builder(&settings)),
         )
         .with_dependency_set(dependency_set)
+        .with_external_cross_safe(external_cross_safe)
+        .with_safe_db(safe_db)
         .build()
         .compose()
         .await
@@ -441,5 +584,134 @@ fn beacon_client(l1: &L1Settings) -> OnlineBeaconClient {
     match l1.slot_duration_override {
         Some(duration) => client.with_l1_slot_duration_override(duration),
         None => client,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interop::SAFE_DB_DIR;
+    use kona_genesis::HardForkConfig;
+    use kona_interop::ChainDependency;
+    use kona_node_service::NodeMode;
+    use std::net::Ipv4Addr;
+    use url::Url;
+
+    /// Interop activates here on every chain these tests build.
+    const ACTIVATION: u64 = 1_000;
+
+    /// Writes a rollup config naming `l1_chain_id`, with interop scheduled.
+    ///
+    /// Interop has to be scheduled for the ordering these tests are about to exist at all: a
+    /// chain set without it opens no databases, so there would be nothing for a failed check to
+    /// leave behind.
+    fn rollup_config_file(dir: &Path, l2_chain_id: u64, l1_chain_id: u64) -> PathBuf {
+        let config = RollupConfig {
+            l1_chain_id,
+            l2_chain_id: l2_chain_id.into(),
+            block_time: 2,
+            hardforks: HardForkConfig { lagoon_time: Some(ACTIVATION), ..Default::default() },
+            ..Default::default()
+        };
+        let path = dir.join(format!("rollup-{l2_chain_id}.json"));
+        std::fs::write(&path, serde_json::to_vec(&config).expect("serialize the rollup config"))
+            .expect("write the rollup config");
+        path
+    }
+
+    /// Writes a dependency set covering `chain_ids`, which an interop-scheduled chain must have.
+    fn dependency_set_file(dir: &Path, chain_ids: &[u64]) -> PathBuf {
+        let dependency_set = DependencySet {
+            dependencies: chain_ids.iter().map(|id| (*id, ChainDependency {})).collect(),
+            override_message_expiry_window: None,
+        };
+        let path = dir.join("depset.json");
+        std::fs::write(&path, serde_json::to_vec(&dependency_set).expect("serialize the depset"))
+            .expect("write the dependency set");
+        path
+    }
+
+    /// A resolved chain whose files are written under `dir`.
+    fn chain(dir: &Path, l2_chain_id: u64, l1_chain_id: u64, port: u16) -> ResolvedChain {
+        let jwt = dir.join("jwt.hex");
+        std::fs::write(&jwt, format!("0x{}", "11".repeat(32))).expect("write the jwt secret");
+        ResolvedChain {
+            l2_chain_id,
+            rollup_config: Some(rollup_config_file(dir, l2_chain_id, l1_chain_id)),
+            engine_rpc: Url::parse("http://127.0.0.1:1/").unwrap(),
+            jwt_secret: jwt,
+            trust_l2_rpc: false,
+            mode: NodeMode::Validator,
+            datadir: dir.join(l2_chain_id.to_string()),
+            rpc_socket: SocketAddr::new(IpAddr::from(Ipv4Addr::LOCALHOST), port),
+            rpc_enable_admin: false,
+            p2p_listen_ip: IpAddr::from(Ipv4Addr::LOCALHOST),
+            p2p_tcp_port: port + 1,
+            p2p_udp_port: port + 1,
+            unsafe_block_signer: Some(Address::repeat_byte(1)),
+            bootnodes: Vec::new(),
+            interop_dependency_set: Some(dependency_set_file(dir, &[l2_chain_id])),
+        }
+    }
+
+    /// A configuration over `chains`, with its interop state under `dir`.
+    fn config(dir: &Path, chains: Vec<ResolvedChain>) -> ResolvedConfig {
+        ResolvedConfig {
+            l1: L1Settings {
+                eth_rpc: Url::parse("http://127.0.0.1:1/").unwrap(),
+                beacon: Url::parse("http://127.0.0.1:1/").unwrap(),
+                trust_rpc: false,
+                chain_config: None,
+                slot_duration_override: None,
+            },
+            chains: chains.into_boxed_slice(),
+            admin_rpc: None,
+            interop_datadir: Some(dir.join("interop")),
+        }
+    }
+
+    /// Loading is all checks and then all side effects, in that order.
+    ///
+    /// A set whose chains derive from different L1s cannot run, and `load` says so. The point of
+    /// this test is what it must *not* have done on the way: opening a chain's safe-head database
+    /// creates its directory and a rocksdb LOCK, and doing that before the set is known to be
+    /// runnable leaves half-initialised state behind for every failed start — state a later run,
+    /// or an operator reading the data directory, would take for a chain this node once served.
+    #[test]
+    fn a_rejected_chain_set_leaves_nothing_on_disk() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        // 1 and 11155111 are mainnet and sepolia: two chains no supernode can follow at once.
+        let chains =
+            vec![chain(dir.path(), 901, 1, 9545), chain(dir.path(), 902, 11_155_111, 9555)];
+
+        let err = Supernode::load(config(dir.path(), chains)).expect_err("must be rejected");
+        assert!(err.to_string().contains("one supernode follows a single L1"), "{err:?}");
+
+        for chain_id in [901, 902] {
+            let datadir = dir.path().join(chain_id.to_string());
+            assert!(
+                !datadir.join(SAFE_DB_DIR).exists(),
+                "chain {chain_id}'s safe-head database must not be created before the chain set is \
+                 known to be runnable"
+            );
+        }
+    }
+
+    /// The counterpart, so the test above cannot pass by never opening a database at all: an
+    /// agreeing set does open one, in the chain's own directory.
+    #[test]
+    fn an_accepted_chain_set_opens_each_chain_a_safe_head_database() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let chains = vec![chain(dir.path(), 901, 1, 9565), chain(dir.path(), 902, 1, 9575)];
+
+        let supernode = Supernode::load(config(dir.path(), chains)).expect("must load");
+        assert_eq!(supernode.interop_activation, Some(ACTIVATION));
+
+        for chain_id in [901, 902] {
+            assert!(
+                dir.path().join(chain_id.to_string()).join(SAFE_DB_DIR).is_dir(),
+                "chain {chain_id}'s safe-head database lives in its own directory"
+            );
+        }
     }
 }

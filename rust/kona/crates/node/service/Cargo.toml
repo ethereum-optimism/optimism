@@ -25,6 +25,7 @@ kona-providers-alloy.workspace = true
 kona-rpc = { workspace = true, features = ["client"] }
 kona-peers.workspace = true
 kona-macros.workspace = true
+kona-safedb.workspace = true
 
 # alloy
 alloy-chains.workspace = true

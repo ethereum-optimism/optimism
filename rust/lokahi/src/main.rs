@@ -5,6 +5,7 @@
 mod admin;
 mod cli;
 mod config;
+mod interop;
 mod metrics;
 mod supernode;
 mod version;

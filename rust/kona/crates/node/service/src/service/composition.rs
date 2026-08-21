@@ -1,7 +1,11 @@
 //! The output of composing a single chain's actor group.
 
-use crate::{DerivationActorRequest, service::spawn::BoxedNodeActor};
+use crate::{
+    ChainControllerRequest, ChainControllerRpcRequest, DerivationActorRequest,
+    service::spawn::BoxedNodeActor,
+};
 use alloy_primitives::Address;
+use kona_engine::CrossSafePromoter;
 use kona_genesis::RollupConfig;
 use kona_protocol::BlockInfo;
 use kona_rpc::L1WatcherQueries;
@@ -31,6 +35,28 @@ pub struct ComposedChain {
     pub actors: Vec<BoxedNodeActor>,
     /// The endpoints of this chain that an L1 watcher owns.
     pub l1_watcher_ports: L1WatcherPorts,
+    /// The chain's state-mutating request channel, for a host that drives the chain from outside
+    /// its own actor set.
+    ///
+    /// Every actor that needs this already holds a clone, so a single-chain host has no use for
+    /// it. An interop host does: its cross-chain verifier is one actor for the whole process and
+    /// sends each chain's promotions here.
+    pub controller_request_tx: mpsc::Sender<ChainControllerRequest>,
+    /// The chain's read-only query channel, answered by the chain controller's RPC peer.
+    ///
+    /// Handed out for the same reason as [`Self::controller_request_tx`]: the verifier observes
+    /// every chain, and reads the local-safe snapshot and output roots through the same queue the
+    /// chain's own JSON-RPC server reads them through, rather than through a second view of the
+    /// engine state that could disagree with it.
+    pub controller_rpc_request_tx: mpsc::Sender<ChainControllerRpcRequest>,
+    /// The capability to promote this chain's cross-safe head, when the chain was composed with
+    /// an externally fed one.
+    ///
+    /// [`None`] for a standalone chain, whose cross-safe head trivially follows local-safe and
+    /// which therefore has no promoter to hand out. There is at most one of these per chain, and
+    /// it is not [`Clone`], so whoever takes it is by construction that chain's only cross-safe
+    /// writer.
+    pub cross_safe_promoter: Option<CrossSafePromoter>,
 }
 
 impl core::fmt::Debug for ComposedChain {

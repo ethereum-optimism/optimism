@@ -3,6 +3,7 @@
 use crate::error::SafeDbError;
 use alloy_eips::BlockNumHash;
 use kona_protocol::L2BlockInfo;
+use std::{fmt::Debug, sync::Arc};
 
 /// A recorded pairing of an L1 block and the L2 safe head derived as of that block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,6 +14,14 @@ pub struct SafeHeadRecord {
     pub safe_head: BlockNumHash,
 }
 
+/// A [`SafeDb`] shared between the actor that records into it and the readers that query it.
+///
+/// Spelled as an alias because every holder wants the same shape: the recording writer and each
+/// reader hold the *same* database, and swapping the on-disk backend for
+/// [`DisabledDatabase`](crate::DisabledDatabase) has to be a construction-site decision rather
+/// than a type change rippling through the holders.
+pub type SharedSafeDb = Arc<dyn SafeDb + Send + Sync>;
+
 /// The safe-head database interface.
 ///
 /// Implementations record, per L1 block, the L2 safe head that derivation reached as of that
@@ -20,7 +29,10 @@ pub struct SafeHeadRecord {
 ///
 /// Methods are synchronous: the backing store is queried in-process, and a future actor is
 /// expected to own a single instance and serialize access to it.
-pub trait SafeDb {
+///
+/// [`Debug`] is a supertrait so that a [`SharedSafeDb`] can sit in a `#[derive(Debug)]` holder;
+/// the actors and node configurations that carry one are all debug-printable.
+pub trait SafeDb: Debug {
     /// Reports whether this database actively records and serves derivation data.
     fn enabled(&self) -> bool;
 

@@ -21,6 +21,7 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_providers_alloy::OnlineBeaconClient;
 use kona_rpc::RpcBuilder;
+use kona_safedb::{DisabledDatabase, SharedSafeDb};
 
 /// Configuration for Derivation Delegate mode.
 #[derive(Debug, Clone)]
@@ -74,11 +75,15 @@ pub struct RollupNodeBuilder {
     pub derivation_delegate_config: Option<DerivationDelegateConfig>,
     /// The interop dependency set for this chain.
     pub dependency_set: Option<Arc<DependencySet>>,
+    /// Whether this chain's cross-safe head is fed by an external cross-chain verifier.
+    pub external_cross_safe: bool,
+    /// The safe-head database the chain controller records local-safe advances into.
+    pub safe_db: SharedSafeDb,
 }
 
 impl RollupNodeBuilder {
     /// Creates a new [`RollupNodeBuilder`] with the given [`RollupConfig`].
-    pub const fn new(
+    pub fn new(
         config: RollupConfig,
         l1_config_builder: L1ConfigBuilder,
         l2_trust_rpc: bool,
@@ -96,6 +101,8 @@ impl RollupNodeBuilder {
             sequencer_config: None,
             derivation_delegate_config: None,
             dependency_set: None,
+            external_cross_safe: false,
+            safe_db: Arc::new(DisabledDatabase),
         }
     }
 
@@ -106,6 +113,26 @@ impl RollupNodeBuilder {
     /// constructor panics on an interop-scheduled chain.
     pub fn with_dependency_set(self, dependency_set: Option<Arc<DependencySet>>) -> Self {
         Self { dependency_set, ..self }
+    }
+
+    /// Feeds this chain's cross-safe head from an external cross-chain verifier.
+    ///
+    /// Set by an interop host, which then takes the chain's
+    /// [`CrossSafePromoter`](kona_engine::CrossSafePromoter) out of the
+    /// [`ComposedChain`](crate::ComposedChain) and is thereafter the only writer of that head.
+    /// Left unset, the cross-safe head trivially follows local-safe, which is standalone
+    /// kona-node's behaviour and stays byte-identical.
+    pub fn with_external_cross_safe(self, external_cross_safe: bool) -> Self {
+        Self { external_cross_safe, ..self }
+    }
+
+    /// Sets the safe-head database the chain controller records local-safe advances into.
+    ///
+    /// Needed by a host that has to answer *which L1 block made an L2 block safe* for a block
+    /// behind the local-safe head — the live engine state holds that pairing only for the head
+    /// itself. Left unset, the recording writes are no-ops.
+    pub fn with_safe_db(self, safe_db: SharedSafeDb) -> Self {
+        Self { safe_db, ..self }
     }
 
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
@@ -190,6 +217,8 @@ impl RollupNodeBuilder {
             sequencer_config,
             derivation_delegate_provider,
             dependency_set: self.dependency_set,
+            external_cross_safe: self.external_cross_safe,
+            safe_db: self.safe_db,
         }
     }
 }

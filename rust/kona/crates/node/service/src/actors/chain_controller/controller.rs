@@ -5,11 +5,13 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, InsertTask, SealTask,
+    BuildTask, ConsolidateInput, ConsolidateTask, CrossSafePromotion, Engine, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
+    InsertTask, LocalSafeHead, PromoteCrossSafeTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
+use kona_safedb::SharedSafeDb;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
@@ -26,6 +28,14 @@ pub enum ChainControllerRequest {
     ProcessFinalizedL2Block(Box<FinalizeBlockId>),
     /// Request to process a received unsafe L2 block.
     ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
+    /// Request to promote the cross-safe head to an externally verified block.
+    ///
+    /// The [`CrossSafePromotion`] cannot be forged: only the holder of this engine's unique
+    /// [`CrossSafePromoter`] mints one, so the mere existence of this request is the proof that
+    /// the cross-chain verifier — and not some other actor — decided the block is cross-safe.
+    ///
+    /// [`CrossSafePromoter`]: kona_engine::CrossSafePromoter
+    PromoteCrossSafe(Box<CrossSafePromotion>),
     /// Request to reset the forkchoice.
     Reset(Box<ResetRequest>),
     /// Request to seal a block.
@@ -58,6 +68,14 @@ where
     el_sync_complete: bool,
     /// The last local-safe head update sent to the derivation actor.
     last_local_safe_head_sent: L2BlockInfo,
+    /// The safe-head database this controller records local-safe advances into.
+    safe_db: SharedSafeDb,
+    /// The last pairing written to [`Self::safe_db`], so an unchanged head is not rewritten.
+    ///
+    /// Cleared by a reset: the rewind that follows re-opens L1 block numbers this controller has
+    /// already recorded once, and the ascending-order contract is about what is *written*, not
+    /// about what was once written and then removed.
+    last_recorded: Option<LocalSafeHead>,
     /// A channel to use to relay the current unsafe head.
     /// ## Note
     /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
@@ -87,6 +105,7 @@ where
         engine: Engine<EngineClient_>,
         unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
         inbound_request_rx: mpsc::Receiver<ChainControllerRequest>,
+        safe_db: SharedSafeDb,
     ) -> Self {
         Self {
             client,
@@ -97,6 +116,8 @@ where
             rollup: config,
             unsafe_head_tx,
             inbound_request_rx,
+            safe_db,
+            last_recorded: None,
         }
     }
 
@@ -105,6 +126,11 @@ where
         // Reset the engine. Resets re-derive local safety only; the cross-safe head is not
         // touched.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
+
+        // Before derivation is told anything: the records above the reset point describe blocks
+        // this node has just disowned, and a reader that saw them between the reset and the
+        // rewind would pair a live timestamp with an L1 block on the abandoned branch.
+        self.rewind_safe_db(l2_safe_head);
 
         // Signal the derivation actor to reset.
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
@@ -160,6 +186,7 @@ where
             }
         }
 
+        self.record_local_safe_head(self.engine.state().sync_state.local_safe());
         self.send_derivation_actor_local_safe_head_if_updated().await?;
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
@@ -191,6 +218,92 @@ where
                 error!(target: "engine", ?e, "Failed to notify sync completed");
                 ChainControllerError::ChannelClosed
             })?
+    }
+
+    /// Records `local_safe` in the safe-head database, if it advanced and carries an L1 origin.
+    ///
+    /// This is the only writer of that database, which is what keeps the ascending-L1 contract
+    /// [`SafeDb::safe_head_updated`] states satisfiable at all: the pairing is read out of the
+    /// engine state this controller exclusively owns, so no other actor can interleave a record.
+    /// It is taken as an argument rather than read here so that what gets recorded is a function
+    /// of one observed pairing, and the caller decides which observation that is.
+    ///
+    /// An unpaired head is skipped rather than recorded against a defaulted L1 block. A reset
+    /// walkback and the derivation-delegation path both write heads whose L1 origin they never
+    /// knew, and recording those as "derived from block 0" would answer a later history query
+    /// with a pairing that was never true.
+    ///
+    /// The granularity is one record per drain rather than one per L2 block, because the drained
+    /// engine state is what this controller can observe. A reader asking which L1 block made an
+    /// L2 block safe therefore gets an L1 block that is canonical and at or after the true one,
+    /// never before it — the same conservative direction op-supernode's `safeDBAtL2` answers in,
+    /// and safe for a consumer that only ever treats it as "safe by this L1 block".
+    ///
+    /// A failed write is logged and not propagated: derivation is not wrong because a record of
+    /// it could not be stored, and the gap costs a later-than-necessary L1 answer rather than an
+    /// incorrect one.
+    ///
+    /// [`SafeDb::safe_head_updated`]: kona_safedb::SafeDb::safe_head_updated
+    pub(super) fn record_local_safe_head(&mut self, local_safe: LocalSafeHead) {
+        if !self.safe_db.enabled() {
+            return;
+        }
+
+        let Some(l1) = local_safe.derived_from_l1() else { return };
+        if self.last_recorded == Some(local_safe) {
+            return;
+        }
+
+        // A pairing below the last recorded L1 block is not an advance: it descends from a reset
+        // whose rewind has already removed the records above it and re-recorded the boundary
+        // itself, so writing it back would undo that. The *same* L1 block is an advance — a later
+        // L2 block derived from it is the safe head as of that block, and supersedes the earlier
+        // record under the same key.
+        if let Some(last) = self.last_recorded &&
+            let Some(last_l1) = last.derived_from_l1() &&
+            l1.number < last_l1.number
+        {
+            return;
+        }
+
+        // Synchronous and fsynced, on the controller's own task. One small write per drain
+        // against an L2 block time is not worth moving off the actor, and doing it here is what
+        // makes the record ordered with respect to the head that produced it.
+        match self.safe_db.safe_head_updated(local_safe.head, l1.id()) {
+            Ok(()) => self.last_recorded = Some(local_safe),
+            Err(err) => error!(
+                target: "engine",
+                ?err,
+                l2_number = local_safe.head.block_info.number,
+                l1_number = l1.number,
+                "Failed to record the local-safe head; history queries below it will answer with \
+                 a later L1 block"
+            ),
+        }
+    }
+
+    /// Rewinds the safe-head database so `safe_head` is its tip again.
+    ///
+    /// Paired with [`Self::record_local_safe_head`] across a reset: the engine has just disowned
+    /// everything above `safe_head`, and the records for those blocks have to go with them.
+    pub(super) fn rewind_safe_db(&mut self, safe_head: L2BlockInfo) {
+        if !self.safe_db.enabled() {
+            return;
+        }
+
+        if let Err(err) = self.safe_db.safe_head_reset(safe_head) {
+            error!(
+                target: "engine",
+                ?err,
+                l2_number = safe_head.block_info.number,
+                "Failed to rewind the safe-head database; it may still hold records of blocks \
+                 this node has disowned"
+            );
+        }
+        // Cleared either way: the records above the reset point are gone, or the rewind failed
+        // and this controller's idea of what is stored is no longer trustworthy. Both mean the
+        // next advance should be written rather than suppressed as unchanged.
+        self.last_recorded = None;
     }
 
     /// Attempts to send the [`crate::DerivationActor`] the local-safe head if updated.
@@ -287,6 +400,14 @@ where
                     // moves no local-safe head and has no L1 origin to pair with one.
                     *envelope,
                     None,
+                )));
+                self.engine.enqueue(task);
+            }
+            ChainControllerRequest::PromoteCrossSafe(promotion) => {
+                let task = EngineTask::PromoteCrossSafe(Box::new(PromoteCrossSafeTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    *promotion,
                 )));
                 self.engine.enqueue(task);
             }

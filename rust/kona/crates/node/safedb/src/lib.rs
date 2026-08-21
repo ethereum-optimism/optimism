@@ -20,7 +20,7 @@ mod tests;
 
 pub use disabled::DisabledDatabase;
 pub use error::SafeDbError;
-pub use traits::{SafeDb, SafeHeadRecord};
+pub use traits::{SafeDb, SafeHeadRecord, SharedSafeDb};
 
 #[cfg(feature = "rocksdb")]
 pub use safe_db::SafeDatabase;
