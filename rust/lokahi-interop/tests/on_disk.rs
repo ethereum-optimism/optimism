@@ -73,6 +73,38 @@ fn the_verified_frontier_and_wal_slot_survive_a_restart() {
     assert_eq!(store.pending().unwrap(), None);
 }
 
+/// The crash the WAL slot's contract singles out: the commit landed, and the process died before
+/// the slot could be cleared. On restart the slot still names a transition whose write is already
+/// durable, so re-applying it has to be a no-op rather than an error.
+#[test]
+fn a_commit_that_landed_before_its_wal_slot_cleared_replays_as_a_no_op() {
+    let dir = tempfile::tempdir().unwrap();
+    let transition = PendingTransition::Advance(RoundResult {
+        verified: verified_result(1000),
+        invalid_heads: BTreeMap::new(),
+    });
+
+    {
+        let store = open_verified_store(dir.path()).unwrap();
+        store.set_pending(&transition).unwrap();
+        store.commit(&verified_result(1000)).unwrap();
+        // The process dies here: after the write, before `clear_pending`.
+        store.backend().close();
+    }
+
+    let store = open_verified_store(dir.path()).unwrap();
+    assert_eq!(store.pending().unwrap(), Some(transition.clone()));
+    assert!(store.has(1000).unwrap());
+    assert_eq!(store.last_timestamp(), Some(1000));
+
+    // The recovery path re-drives the transition without having to know how far the last attempt
+    // got, and only then clears the slot.
+    store.commit(&transition.result().verified).unwrap();
+    store.clear_pending().unwrap();
+    assert_eq!(store.pending().unwrap(), None);
+    assert_eq!(store.last_timestamp(), Some(1000));
+}
+
 #[test]
 fn sealed_blocks_survive_a_restart_and_stay_queryable() {
     let dir = tempfile::tempdir().unwrap();

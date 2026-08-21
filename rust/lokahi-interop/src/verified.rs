@@ -130,12 +130,18 @@ struct Bounds {
 pub struct VerifiedStore<K> {
     kv: K,
     bounds: RwLock<Bounds>,
+    /// Serialises the read-check-write in [`VerifiedStore::set_pending`] against itself and
+    /// against [`VerifiedStore::clear_pending`], so the slot has one critical section and the
+    /// occupied-slot check cannot be raced by a second writer between its read and its write.
+    /// Separate from `bounds`, which guards the committed range rather than the slot.
+    pending_lock: RwLock<()>,
 }
 
 impl<K: Kv> VerifiedStore<K> {
     /// Opens the store over `kv`, reading the committed timestamp range from what is there.
     pub fn new(kv: K) -> Result<Self, StoreError> {
-        let store = Self { kv, bounds: RwLock::new(Bounds::default()) };
+        let store =
+            Self { kv, bounds: RwLock::new(Bounds::default()), pending_lock: RwLock::new(()) };
         let bounds = store.read_bounds()?;
         *store.bounds.write().unwrap_or_else(PoisonError::into_inner) = bounds;
         Ok(store)
@@ -183,7 +189,9 @@ impl<K: Kv> VerifiedStore<K> {
     /// Timestamps must be committed one per second with no gaps. Re-committing a timestamp the
     /// store already holds succeeds if the stored result is equal — that is the crash-replay
     /// case, where the write landed but the WAL slot had not yet been cleared — and fails with
-    /// [`StoreError::AlreadyCommitted`] if it differs.
+    /// [`StoreError::AlreadyCommitted`] if it differs. A timestamp below the store's retained
+    /// history is [`StoreError::Skipped`]: it can no longer be compared, so it can no longer be
+    /// replayed.
     pub fn commit(&self, result: &VerifiedResult) -> Result<(), StoreError> {
         let mut bounds = self.bounds.write().unwrap_or_else(PoisonError::into_inner);
         let timestamp = result.timestamp;
@@ -194,6 +202,11 @@ impl<K: Kv> VerifiedStore<K> {
                     expected: bounds.last + 1,
                     actual: timestamp,
                 });
+            }
+            if timestamp < bounds.first {
+                // Below retained history there is nothing to compare against, and the replay
+                // branch below would surface the miss as `NotFound` — a read's answer to a write.
+                return Err(StoreError::Skipped);
             }
             // Compare decoded results rather than raw bytes: a legitimate replay must not be
             // turned into a hard error by any future encoding drift.
@@ -206,7 +219,7 @@ impl<K: Kv> VerifiedStore<K> {
         }
 
         let mut batch = WriteBatch::new();
-        batch.put(column::verified_key(timestamp), encode_verified_result(result));
+        batch.put(column::verified_key(timestamp), encode_verified_result(result)?);
         self.kv.write(batch)?;
 
         if !bounds.initialized {
@@ -245,13 +258,28 @@ impl<K: Kv> VerifiedStore<K> {
         Ok(true)
     }
 
-    /// Writes the WAL slot, replacing whatever it held.
+    /// Writes the WAL slot.
     ///
     /// Returns only once the slot is durable. Callers must not begin any durable side effect of
     /// the transition before this returns.
+    ///
+    /// Writing the transition the slot already holds is a no-op, so a crash-replay path may set
+    /// it again unconditionally. Writing a *different* transition over an occupied slot fails
+    /// with [`StoreError::Conflict`]: the slot's occupant may have side effects already applied,
+    /// and overwriting it would discard the only record of them — the loss the WAL exists to
+    /// prevent. Clear the slot with [`VerifiedStore::clear_pending`] once its transition is fully
+    /// applied, and only then set the next one.
     pub fn set_pending(&self, pending: &PendingTransition) -> Result<(), StoreError> {
+        let _guard = self.pending_lock.write().unwrap_or_else(PoisonError::into_inner);
+        if let Some(existing) = self.pending()? &&
+            &existing != pending
+        {
+            return Err(StoreError::Conflict(
+                "the WAL slot holds a different unapplied transition",
+            ));
+        }
         let mut batch = WriteBatch::new();
-        batch.put(column::pending_key(), encode_pending(pending));
+        batch.put(column::pending_key(), encode_pending(pending)?);
         self.kv.write(batch)
     }
 
@@ -263,6 +291,7 @@ impl<K: Kv> VerifiedStore<K> {
     /// Clears the WAL slot. Callers must do this only after the transition's last durable side
     /// effect has landed.
     pub fn clear_pending(&self) -> Result<(), StoreError> {
+        let _guard = self.pending_lock.write().unwrap_or_else(PoisonError::into_inner);
         let mut batch = WriteBatch::new();
         batch.delete(column::pending_key());
         self.kv.write(batch)
@@ -292,30 +321,34 @@ const FORMAT_VERSION: u8 = 1;
 /// The count makes the record self-describing: a decoder needs the bytes and nothing else, and
 /// checks the declared count against the actual length. Chain ids are 8 bytes because this
 /// record only ever names lokahi's own configured chain set.
-fn encode_verified_result(result: &VerifiedResult) -> Vec<u8> {
+fn encode_verified_result(result: &VerifiedResult) -> Result<Vec<u8>, StoreError> {
     let mut sink = Sink::with_capacity(53 + result.l2_heads.len() * 48);
     sink.put_u8(FORMAT_VERSION);
-    put_verified_body(&mut sink, result);
-    sink.into_vec()
+    put_verified_body(&mut sink, result)?;
+    Ok(sink.into_vec())
 }
 
-fn put_verified_body(sink: &mut Sink, result: &VerifiedResult) {
+fn put_verified_body(sink: &mut Sink, result: &VerifiedResult) -> Result<(), StoreError> {
+    let head_count = u32::try_from(result.l2_heads.len())
+        .map_err(|_| StoreError::Conflict("too many chains in one verified result"))?;
     sink.put_u64(result.timestamp);
     sink.put_u64(result.l1_inclusion.number);
     sink.put_b256(result.l1_inclusion.hash);
-    sink.put_u32(result.l2_heads.len() as u32);
+    sink.put_u32(head_count);
     for (chain_id, head) in &result.l2_heads {
         sink.put_u64(*chain_id);
         sink.put_u64(head.number);
         sink.put_b256(head.hash);
     }
+    Ok(())
 }
 
 /// Decodes a [`VerifiedResult`] written by [`encode_verified_result`].
 fn decode_verified_result(raw: &[u8]) -> Result<VerifiedResult, StoreError> {
     let mut cursor = Cursor::new(raw, "verified result");
-    if cursor.take_u8()? != FORMAT_VERSION {
-        return Err(StoreError::DataCorruption("verified result: unknown format version"));
+    let version = cursor.take_u8()?;
+    if version != FORMAT_VERSION {
+        return Err(StoreError::UnsupportedVersion { expected: FORMAT_VERSION, actual: version });
     }
     let result = take_verified_body(&mut cursor)?;
     cursor.finish()?;
@@ -351,16 +384,18 @@ mod decision_tag {
 ///   | invalid count * ( chain id (8) | number (8) | hash (32) | state root (32)
 ///                       | message passer storage root (32) )
 /// ```
-fn encode_pending(pending: &PendingTransition) -> Vec<u8> {
+fn encode_pending(pending: &PendingTransition) -> Result<Vec<u8>, StoreError> {
     let (tag, result) = match pending {
         PendingTransition::Advance(result) => (decision_tag::ADVANCE, result),
         PendingTransition::Invalidate(result) => (decision_tag::INVALIDATE, result),
     };
+    let invalid_count = u32::try_from(result.invalid_heads.len())
+        .map_err(|_| StoreError::Conflict("too many invalid heads in one transition"))?;
     let mut sink = Sink::with_capacity(58 + result.invalid_heads.len() * 112);
     sink.put_u8(FORMAT_VERSION);
     sink.put_u8(tag);
-    put_verified_body(&mut sink, &result.verified);
-    sink.put_u32(result.invalid_heads.len() as u32);
+    put_verified_body(&mut sink, &result.verified)?;
+    sink.put_u32(invalid_count);
     for (chain_id, invalid) in &result.invalid_heads {
         sink.put_u64(*chain_id);
         sink.put_u64(invalid.block.number);
@@ -368,14 +403,15 @@ fn encode_pending(pending: &PendingTransition) -> Vec<u8> {
         sink.put_b256(invalid.state_root);
         sink.put_b256(invalid.message_passer_storage_root);
     }
-    sink.into_vec()
+    Ok(sink.into_vec())
 }
 
 /// Decodes a [`PendingTransition`] written by [`encode_pending`].
 fn decode_pending(raw: &[u8]) -> Result<PendingTransition, StoreError> {
     let mut cursor = Cursor::new(raw, "pending transition");
-    if cursor.take_u8()? != FORMAT_VERSION {
-        return Err(StoreError::DataCorruption("pending transition: unknown format version"));
+    let version = cursor.take_u8()?;
+    if version != FORMAT_VERSION {
+        return Err(StoreError::UnsupportedVersion { expected: FORMAT_VERSION, actual: version });
     }
     let tag = cursor.take_u8()?;
     let verified = take_verified_body(&mut cursor)?;
@@ -529,6 +565,7 @@ mod tests {
         store.set_pending(&advance).unwrap();
         assert_eq!(store.pending().unwrap(), Some(advance.clone()));
         assert!(advance.result().is_valid());
+        store.clear_pending().unwrap();
 
         let invalidate = PendingTransition::Invalidate(RoundResult {
             verified: result_at(101),
@@ -547,6 +584,44 @@ mod tests {
 
         store.clear_pending().unwrap();
         assert_eq!(store.pending().unwrap(), None);
+    }
+
+    #[test]
+    fn an_occupied_wal_slot_is_not_clobbered_by_a_different_transition() {
+        let store = store();
+        let advance = PendingTransition::Advance(RoundResult {
+            verified: result_at(100),
+            invalid_heads: BTreeMap::new(),
+        });
+        store.set_pending(&advance).unwrap();
+
+        // Re-writing the same transition is how a crash-replay path re-enters, so it succeeds.
+        store.set_pending(&advance).unwrap();
+        assert_eq!(store.pending().unwrap(), Some(advance.clone()));
+
+        // A different one would discard the record of side effects the occupant may already have
+        // applied, which is the loss the WAL exists to prevent.
+        let other = PendingTransition::Advance(RoundResult {
+            verified: result_at(101),
+            invalid_heads: BTreeMap::new(),
+        });
+        assert!(matches!(store.set_pending(&other), Err(StoreError::Conflict(_))));
+        assert_eq!(store.pending().unwrap(), Some(advance));
+
+        // Clearing the slot is what makes room for the next transition.
+        store.clear_pending().unwrap();
+        store.set_pending(&other).unwrap();
+        assert_eq!(store.pending().unwrap(), Some(other));
+    }
+
+    #[test]
+    fn committing_below_retained_history_is_skipped() {
+        let store = store();
+        store.commit(&result_at(100)).unwrap();
+        store.commit(&result_at(101)).unwrap();
+        // Not `NotFound`: the store is answering a write, and the timestamp is gone for good
+        // rather than merely absent.
+        assert!(matches!(store.commit(&result_at(99)), Err(StoreError::Skipped)));
     }
 
     #[test]
@@ -578,22 +653,26 @@ mod tests {
     }
 
     #[test]
-    fn truncated_and_mislabelled_records_are_corruption() {
-        let encoded = encode_verified_result(&result_at(100));
+    fn truncated_and_overlong_records_are_corruption() {
+        let encoded = encode_verified_result(&result_at(100)).unwrap();
         assert!(matches!(
             decode_verified_result(&encoded[..encoded.len() - 1]),
             Err(StoreError::DataCorruption(_))
         ));
 
-        let mut trailing = encoded.clone();
+        let mut trailing = encoded;
         trailing.push(0);
         assert!(matches!(decode_verified_result(&trailing), Err(StoreError::DataCorruption(_))));
+    }
 
-        let mut wrong_version = encoded;
+    #[test]
+    fn a_record_from_another_format_version_is_not_reported_as_damage() {
+        let mut wrong_version = encode_verified_result(&result_at(100)).unwrap();
         wrong_version[0] = FORMAT_VERSION + 1;
         assert!(matches!(
             decode_verified_result(&wrong_version),
-            Err(StoreError::DataCorruption(_))
+            Err(StoreError::UnsupportedVersion { expected: FORMAT_VERSION, actual })
+                if actual == FORMAT_VERSION + 1
         ));
     }
 
@@ -602,7 +681,8 @@ mod tests {
         let mut encoded = encode_pending(&PendingTransition::Advance(RoundResult {
             verified: result_at(100),
             invalid_heads: BTreeMap::new(),
-        }));
+        }))
+        .unwrap();
         encoded[1] = 0xff;
         assert!(matches!(decode_pending(&encoded), Err(StoreError::DataCorruption(_))));
     }
