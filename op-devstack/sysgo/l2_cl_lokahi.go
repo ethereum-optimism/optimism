@@ -237,58 +237,6 @@ func (n *LokahiSupernode) InteropTestAPI() apis.SupernodeInteropTestAPI {
 // ChainCL returns the L2CLNode addressing the chain at index i, in configuration order.
 func (n *LokahiSupernode) ChainCL(i int) L2CLNode { return n.chains[i] }
 
-// requireInteropActivationFromRollupConfigs asserts that a requested interop activation
-// timestamp activates interop at the same point lokahi will derive anyway.
-//
-// op-supernode takes the activation timestamp as its own configuration, independent of the
-// rollup configs it hosts. lokahi has no such knob: it reads Lagoon time out of each chain's
-// rollup config and requires the set to agree, because the message rules it applies read the
-// same field, so a separate number could put the verifier and the proof on different rules.
-//
-// The comparison is against the chain's first block rather than between the raw numbers,
-// because the two sides spell "active from the start" differently. A preset that schedules
-// Lagoon at genesis (WithForkAtGenesis, delaySeconds == 0) writes 0 into the rollup config,
-// while the timestamp it hands op-supernode is genesis L2 time plus the same zero offset. No
-// block exists before genesis, so activating at 0 and activating at genesis time select
-// exactly the same blocks; only a schedule that lands after the first block distinguishes
-// them. Clamping both to genesis time compares what interop actually applies to, and still
-// catches a real divergence — a request of genesis+100 against a Lagoon at genesis+50.
-func requireInteropActivationFromRollupConfigs(t devtest.T, cfg lokahiSupernodeConfig) {
-	if cfg.interopActivationTimestamp == nil {
-		return
-	}
-	requested := *cfg.interopActivationTimestamp
-	require := t.Require()
-	for _, chain := range cfg.chains {
-		genesis := chain.net.rollupCfg.Genesis.L2Time
-		// Compared without dereferencing on the failing path: this reports rather than returns,
-		// so it must not depend on the assertion aborting the loop it is in.
-		scheduled := chain.net.rollupCfg.LagoonTime
-		if scheduled == nil {
-			require.FailNowf("lokahi has no interop activation override",
-				"chain %s schedules no Lagoon time, so lokahi cannot activate interop at the "+
-					"requested %d: it takes activation from each chain's rollup config. "+
-					"Requested: %s",
-				chain.net.ChainID(), requested, cfg.describe())
-			continue
-		}
-		if activationPoint(*scheduled, genesis) != activationPoint(requested, genesis) {
-			require.FailNowf("lokahi has no interop activation override",
-				"chain %s schedules Lagoon at %d, but %d was requested, and with genesis at "+
-					"%d those are different blocks: lokahi takes interop activation from each "+
-					"chain's rollup config. Requested: %s",
-				chain.net.ChainID(), *scheduled, requested, genesis, cfg.describe())
-		}
-	}
-}
-
-// activationPoint is the first block timestamp a fork scheduled at `scheduled` applies to on a
-// chain whose first block is at `genesis`. Anything at or before genesis is the same point,
-// since there is no earlier block for the two to disagree about.
-func activationPoint(scheduled, genesis uint64) uint64 {
-	return max(scheduled, genesis)
-}
-
 // startLokahiSupernode runs lokahi as the shared multi-chain consensus layer.
 //
 // This is the out-of-process counterpart of startMixedKonaNode (mixed_runtime.go): the
@@ -299,8 +247,6 @@ func activationPoint(scheduled, genesis uint64) uint64 {
 func startLokahiSupernode(t devtest.T, cfg lokahiSupernodeConfig) *LokahiSupernode {
 	require := t.Require()
 	require.NotEmpty(cfg.chains, "a supernode hosts at least one chain")
-
-	requireInteropActivationFromRollupConfigs(t, cfg)
 
 	dir := t.TempDirWithPrefix("l2-cl-lokahi")
 	logger := t.Logger().New("component", "lokahi")
@@ -585,6 +531,14 @@ func lokahiConfigFile(t devtest.T, dir string, cfg lokahiSupernodeConfig, entrie
 		cfg.l1ELRPC, cfg.l1BeaconAddr, l1CfgPath)
 	// Loopback and port 0: the harness reads the port back out of the startup log.
 	fmt.Fprintf(&b, "[admin]\nrpc-addr = \"127.0.0.1\"\nrpc-port = 0\n\n")
+	// The activation the preset computed, passed on rather than rederived. lokahi normally reads
+	// it from each chain's Lagoon time, which is where the message rules read it too; the
+	// simple-interop presets hand op-supernode a timestamp and write rollup configs with no
+	// Lagoon at all, so there is nothing for lokahi to read and it has to be told. lokahi still
+	// refuses a value that disagrees with a fork a chain does schedule.
+	if cfg.interopActivationTimestamp != nil {
+		fmt.Fprintf(&b, "[interop]\nactivation-timestamp = %d\n\n", *cfg.interopActivationTimestamp)
+	}
 	// Acceptance tests drive a node through its admin API, which kona only registers when
 	// admin is enabled; op-node's devstack node enables it too.
 	fmt.Fprintf(&b, "[defaults]\ndatadir = %q\nmode = \"validator\"\n"+

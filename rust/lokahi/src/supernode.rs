@@ -110,7 +110,8 @@ impl Supernode {
     /// This is where a misconfiguration still becomes a startup error rather than a running node
     /// with one broken chain: the whole set is loaded and checked before any actor exists.
     pub(crate) fn load(config: ResolvedConfig) -> Result<Self> {
-        let ResolvedConfig { l1, chains, admin_rpc, interop_datadir } = config;
+        let ResolvedConfig { l1, chains, admin_rpc, interop_datadir, interop_activation_override } =
+            config;
 
         let configured = chains.clone();
         let loaded = chains.into_vec().into_iter().map(Chain::load).collect::<Result<Vec<_>>>()?;
@@ -126,7 +127,23 @@ impl Supernode {
                     rollup_config: &chain.rollup_config,
                 })
                 .collect::<Vec<_>>(),
+            interop_activation_override,
         )?;
+
+        // A chain in the interop cluster needs the dependency set the verifier reads messages
+        // against. `load_dependency_set` requires one from the fork alone, which an overridden
+        // activation does not go through, so the requirement is restated here -- the one place
+        // that knows interop is on for the whole set rather than for one chain's config.
+        if interop_activation.is_some() {
+            if let Some(chain) = loaded.iter().find(|chain| chain.dependency_set.is_none()) {
+                bail!(
+                    "chain {} has no interop-dependency-set, and interop activates at {:?} for \
+                     the whole hosted set: the verifier reads every chain's messages against it",
+                    chain.settings.l2_chain_id,
+                    interop_activation,
+                );
+            }
+        }
 
         // One L1 watcher serves every chain, so the chains must agree on which L1 that is. Chains
         // on different L1s in one process would each be served the other's L1 blocks.
@@ -863,6 +880,7 @@ mod tests {
             chains: chains.into_boxed_slice(),
             admin_rpc: None,
             interop_datadir: Some(dir.join("interop")),
+            interop_activation_override: None,
         }
     }
 

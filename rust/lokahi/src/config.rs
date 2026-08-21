@@ -43,6 +43,29 @@ pub(crate) struct LokahiConfig {
     /// Absent means the supernode exposes no process-wide surface at all, which is what a
     /// production deployment wants: everything an operator needs is on the chains' own RPCs.
     pub(crate) admin: Option<AdminSettings>,
+    /// The process-wide interop settings, when the file overrides any of them.
+    pub(crate) interop: Option<InteropSettings>,
+}
+
+/// The process-wide interop settings.
+///
+/// Interop is a property of the whole hosted set rather than of one chain -- rounds are lockstep
+/// across it -- so this is a single table rather than a per-chain field.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub(crate) struct InteropSettings {
+    /// Activates interop verification at this timestamp instead of deriving it from the chains'
+    /// Lagoon time.
+    ///
+    /// Absent is the normal case and the default everywhere outside a test harness: the
+    /// activation is read from each chain's rollup config, which is also where the message rules
+    /// the verifier applies read it, so the two cannot disagree.
+    ///
+    /// Present, it supplies an activation for chains whose rollup config schedules no Lagoon at
+    /// all -- which is the only thing it can do that reading the fork cannot. It does not
+    /// override a fork that is scheduled: a chain that schedules Lagoon must schedule it at the
+    /// same block this names, or the set is refused. See `InteropActor::activation`.
+    pub(crate) activation_timestamp: Option<u64>,
 }
 
 /// The supernode-level admin/test RPC's settings.
@@ -178,6 +201,10 @@ pub(crate) struct ResolvedConfig {
     /// directories has nowhere process-wide to put it, which is a startup error once interop is
     /// actually scheduled rather than a reason to reject a validator that will never need it.
     pub(crate) interop_datadir: Option<PathBuf>,
+    /// An interop activation timestamp from the file, overriding what the forks say.
+    ///
+    /// See [`InteropSettings::activation_timestamp`] for what it can and cannot do.
+    pub(crate) interop_activation_override: Option<u64>,
 }
 
 /// One chain's resolved settings.
@@ -357,7 +384,7 @@ impl LokahiConfig {
     /// possible to get wrong and a single-chain node cannot: the same chain configured twice, two
     /// chains sharing a port, two chains sharing a data directory.
     pub(crate) fn resolve(self) -> Result<ResolvedConfig, ConfigError> {
-        let Self { l1, defaults, chains, admin } = self;
+        let Self { l1, defaults, chains, admin, interop } = self;
 
         if chains.is_empty() {
             return Err(ConfigError::NoChains);
@@ -380,8 +407,15 @@ impl LokahiConfig {
         check_admin_socket(admin_rpc, &resolved)?;
 
         let interop_datadir = defaults.datadir.as_ref().map(|dir| dir.join(INTEROP_DIR));
+        let interop_activation_override = interop.and_then(|interop| interop.activation_timestamp);
 
-        Ok(ResolvedConfig { l1, chains: resolved.into_boxed_slice(), admin_rpc, interop_datadir })
+        Ok(ResolvedConfig {
+            l1,
+            chains: resolved.into_boxed_slice(),
+            admin_rpc,
+            interop_datadir,
+            interop_activation_override,
+        })
     }
 
     /// Resolves one chain's settings against the defaults.
@@ -628,6 +662,73 @@ mod tests {
             "#
         ))
         .expect("parses")
+    }
+
+    /// The interop table is optional, and its absence is what leaves lokahi reading each chain's
+    /// Lagoon time -- the default for every node that is not a test harness.
+    #[test]
+    fn a_file_without_an_interop_table_has_no_activation_override() {
+        let resolved = config(
+            r#"
+            [[chains]]
+            l2-chain-id = 901
+            "#,
+        )
+        .resolve()
+        .expect("resolves");
+        assert_eq!(resolved.interop_activation_override, None);
+    }
+
+    /// The activation override as the devstack writes it, in its own table because interop is a
+    /// property of the whole hosted set rather than of one chain.
+    #[test]
+    fn an_interop_table_supplies_the_activation_override() {
+        let config = LokahiConfig::parse(
+            r#"
+            [l1]
+            eth-rpc = "http://localhost:8545"
+            beacon = "http://localhost:5052"
+
+            [interop]
+            activation-timestamp = 1787335282
+
+            [defaults]
+            datadir = "/var/lib/lokahi"
+            jwt-secret = "/etc/lokahi/jwt.hex"
+            engine-rpc = "http://localhost:9551"
+            rpc-port = 9545
+            p2p-tcp-port = 9222
+            p2p-udp-port = 9222
+
+            [[chains]]
+            l2-chain-id = 901
+            "#,
+        )
+        .expect("parses");
+
+        let resolved = config.resolve().expect("resolves");
+        assert_eq!(resolved.interop_activation_override, Some(1_787_335_282));
+    }
+
+    /// `deny_unknown_fields` covers the new table too, so a misspelled key is a parse error
+    /// rather than a silently ignored activation.
+    #[test]
+    fn an_unknown_interop_key_is_refused() {
+        let err = LokahiConfig::parse(
+            r#"
+            [l1]
+            eth-rpc = "http://localhost:8545"
+            beacon = "http://localhost:5052"
+
+            [interop]
+            activation-time = 1787335282
+
+            [[chains]]
+            l2-chain-id = 901
+            "#,
+        )
+        .expect_err("an unknown interop key is not accepted");
+        assert!(err.to_string().contains("activation-time"), "{err}");
     }
 
     /// A chain entry naming only what the test is about.

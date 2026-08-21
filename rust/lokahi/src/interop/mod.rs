@@ -107,7 +107,47 @@ impl InteropActor {
     /// to the chains that do. Rounds are lockstep across the set: a chain outside the cluster
     /// would still be one the cluster waited for, and its blocks would be verified against rules
     /// it never activated.
-    pub(crate) fn activation(chains: &[HostedChain<'_>]) -> Result<Option<u64>> {
+    ///
+    /// `override_at` is the escape hatch for a caller that knows an activation the rollup configs
+    /// do not carry -- the devstack's simple-interop presets, which hand op-supernode an
+    /// activation timestamp directly and write rollup configs with no Lagoon time. It is
+    /// deliberately not a general override: see the body for why a scheduled fork still wins a
+    /// disagreement.
+    pub(crate) fn activation(
+        chains: &[HostedChain<'_>],
+        override_at: Option<u64>,
+    ) -> Result<Option<u64>> {
+        let Some(override_at) = override_at else { return Self::scheduled_activation(chains) };
+
+        // An override does not overrule a scheduled fork, because the message rules the verifier
+        // applies read that fork: a chain told to activate somewhere its own config does not
+        // would have the verifier and the proof on different rules. What it does is supply an
+        // activation for a chain whose config schedules no Lagoon at all, which reading the fork
+        // cannot do. So every chain that does schedule one has to agree with it.
+        for chain in chains {
+            let Some(scheduled) = chain.rollup_config.hardforks.lagoon_time else { continue };
+            let genesis = chain.rollup_config.genesis.l2_time;
+            if Self::activation_point(scheduled, genesis) !=
+                Self::activation_point(override_at, genesis)
+            {
+                bail!(
+                    "chain {} schedules Lagoon at {scheduled} but interop activation was \
+                     overridden to {override_at}, and with genesis at {genesis} those are \
+                     different blocks: an override supplies an activation for a chain that \
+                     schedules none, it does not move one that is scheduled",
+                    chain.chain_id
+                );
+            }
+        }
+
+        Ok(Some(override_at))
+    }
+
+    /// The activation the hosted set's own rollup configs agree on.
+    ///
+    /// This is the path every node that is not handed an override takes, and it is unchanged by
+    /// the existence of one: a set that cannot form a cluster is still refused here.
+    fn scheduled_activation(chains: &[HostedChain<'_>]) -> Result<Option<u64>> {
         let mut scheduled = chains.iter().filter_map(|chain| {
             chain.rollup_config.hardforks.lagoon_time.map(|time| (chain.chain_id, time))
         });
@@ -136,6 +176,17 @@ impl InteropActor {
         }
 
         Ok(Some(activation))
+    }
+
+    /// The first block timestamp a fork scheduled at `scheduled` applies to on a chain whose
+    /// first block is at `genesis`.
+    ///
+    /// Anything at or before genesis is the same activation point, since there is no earlier
+    /// block for two such numbers to disagree about. Comparing the raw numbers instead would
+    /// refuse a set where one side spells "from the first block" as 0 and the other as the
+    /// genesis timestamp, which is how the devstack's presets and op-supernode each spell it.
+    const fn activation_point(scheduled: u64, genesis: u64) -> u64 {
+        if scheduled > genesis { scheduled } else { genesis }
     }
 
     /// Builds the interop actor over the composed chains.
@@ -237,17 +288,28 @@ mod tests {
         HostedChain { chain_id, rollup_config }
     }
 
+    /// A rollup config with a genesis L2 time, for the cases that turn on where the first block
+    /// is rather than only on what the fork says.
+    fn config_from_genesis(lagoon_time: Option<u64>, genesis_l2_time: u64) -> RollupConfig {
+        let mut config = config(lagoon_time);
+        config.genesis.l2_time = genesis_l2_time;
+        config
+    }
+
     #[test]
     fn a_set_that_schedules_nothing_leaves_interop_off() {
         let (a, b) = (config(None), config(None));
-        assert_eq!(InteropActor::activation(&[hosted(901, &a), hosted(902, &b)]).unwrap(), None);
+        assert_eq!(
+            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], None).unwrap(),
+            None
+        );
     }
 
     #[test]
     fn a_set_that_agrees_activates_at_that_timestamp() {
         let (a, b) = (config(Some(1_700)), config(Some(1_700)));
         assert_eq!(
-            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)]).unwrap(),
+            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], None).unwrap(),
             Some(1_700)
         );
     }
@@ -257,8 +319,9 @@ mod tests {
     #[test]
     fn a_set_that_disagrees_on_the_time_is_rejected() {
         let (a, b) = (config(Some(1_700)), config(Some(1_800)));
-        let err =
-            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)]).unwrap_err().to_string();
+        let err = InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], None)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("901"), "{err}");
         assert!(err.contains("902"), "{err}");
     }
@@ -268,8 +331,9 @@ mod tests {
     #[test]
     fn a_partially_scheduled_set_is_rejected() {
         let (a, b) = (config(Some(1_700)), config(None));
-        let err =
-            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)]).unwrap_err().to_string();
+        let err = InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], None)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("do not schedule it at all"), "{err}");
     }
 
@@ -277,7 +341,101 @@ mod tests {
     #[test]
     fn a_single_scheduled_chain_activates() {
         let a = config(Some(42));
-        assert_eq!(InteropActor::activation(&[hosted(901, &a)]).unwrap(), Some(42));
+        assert_eq!(InteropActor::activation(&[hosted(901, &a)], None).unwrap(), Some(42));
+    }
+
+    // ---------------------------------------------------------------------------
+    // The activation override
+    //
+    // The devstack's simple-interop presets hand op-supernode an activation timestamp and write
+    // rollup configs with no Lagoon time, so reading the fork finds nothing to activate on. The
+    // override is what lets lokahi be configured the way op-supernode already is.
+    // ---------------------------------------------------------------------------
+
+    /// The case the override exists for, and the one that fails without it: no chain schedules
+    /// Lagoon, so `scheduled_activation` leaves interop off and the verifier never runs. With the
+    /// override the same set activates at the timestamp it was given.
+    #[test]
+    fn an_override_activates_a_set_whose_configs_schedule_no_lagoon() {
+        let (a, b) = (config(None), config(None));
+        let chains = [hosted(901, &a), hosted(902, &b)];
+
+        // Without it: interop off, which is what left these presets unrunnable.
+        assert_eq!(InteropActor::activation(&chains, None).unwrap(), None);
+        // With it: on, at the timestamp the caller knows.
+        assert_eq!(
+            InteropActor::activation(&chains, Some(1_787_335_282)).unwrap(),
+            Some(1_787_335_282)
+        );
+    }
+
+    /// An override alongside a fork scheduled at the same block is the consistent case: the
+    /// devstack passes both, because op-supernode needs the timestamp and the chains carry the
+    /// fork.
+    #[test]
+    fn an_override_matching_the_scheduled_fork_is_accepted() {
+        let a = config(Some(1_700));
+        let b = config(Some(1_700));
+        assert_eq!(
+            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], Some(1_700)).unwrap(),
+            Some(1_700)
+        );
+    }
+
+    /// The two spellings of "from the first block": a fork at genesis is written as 0, while the
+    /// timestamp handed to a supernode is the genesis timestamp. Both select the same blocks, so
+    /// comparing the raw numbers would refuse a configuration that is consistent.
+    #[test]
+    fn an_override_at_genesis_time_matches_a_fork_scheduled_at_zero() {
+        const GENESIS: u64 = 1_787_335_282;
+        let a = config_from_genesis(Some(0), GENESIS);
+        let b = config_from_genesis(Some(0), GENESIS);
+        assert_eq!(
+            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], Some(GENESIS)).unwrap(),
+            Some(GENESIS)
+        );
+    }
+
+    /// An override does not move a fork that is scheduled after the first block. The message
+    /// rules read the fork, so honouring the override there would verify blocks against rules the
+    /// chain had not activated -- the divergence this whole check exists to prevent.
+    #[test]
+    fn an_override_that_moves_a_scheduled_fork_is_refused() {
+        const GENESIS: u64 = 1_787_335_282;
+        let a = config_from_genesis(Some(GENESIS + 50), GENESIS);
+        let err = InteropActor::activation(&[hosted(901, &a)], Some(GENESIS + 100))
+            .expect_err("an override cannot move a scheduled fork");
+        let err = err.to_string();
+        assert!(err.contains("different blocks"), "{err}");
+        assert!(err.contains(&(GENESIS + 50).to_string()), "{err}");
+        assert!(err.contains(&(GENESIS + 100).to_string()), "{err}");
+    }
+
+    /// A mixed set: one chain schedules the fork, another does not. The override supplies the
+    /// missing one and agrees with the scheduled one, which is exactly what it is for -- and is
+    /// refused without it, because a set cannot be half in the cluster.
+    #[test]
+    fn an_override_fills_in_the_chain_that_schedules_nothing() {
+        let a = config(Some(1_700));
+        let b = config(None);
+        let chains = [hosted(901, &a), hosted(902, &b)];
+
+        let err = InteropActor::activation(&chains, None).unwrap_err().to_string();
+        assert!(err.contains("do not schedule it at all"), "{err}");
+
+        assert_eq!(InteropActor::activation(&chains, Some(1_700)).unwrap(), Some(1_700));
+    }
+
+    /// Chains that disagree with each other are still refused under an override, because the
+    /// override is checked against each of them: it cannot paper over a set that is not one
+    /// cluster.
+    #[test]
+    fn an_override_does_not_reconcile_chains_that_disagree() {
+        let a = config(Some(1_700));
+        let b = config(Some(2_000));
+        let err = InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], Some(1_700))
+            .expect_err("two different scheduled forks are not one cluster");
+        assert!(err.to_string().contains("different blocks"), "{err}", err = err.to_string());
     }
 }
 
