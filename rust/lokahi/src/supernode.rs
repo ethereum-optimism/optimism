@@ -813,13 +813,8 @@ mod tests {
     /// Interop activates here on every chain these tests build.
     const ACTIVATION: u64 = 1_000;
 
-    /// Writes a rollup config naming `l1_chain_id`, with interop scheduled.
-    fn rollup_config_file(dir: &Path, l2_chain_id: u64, l1_chain_id: u64) -> PathBuf {
-        rollup_config_file_with_interop(dir, l2_chain_id, l1_chain_id, true)
-    }
-
-    /// Writes a rollup config that may or may not schedule interop.
-    fn rollup_config_file_with_interop(
+    /// Writes a rollup config naming `l1_chain_id`, scheduling interop when asked to.
+    fn rollup_config_file(
         dir: &Path,
         l2_chain_id: u64,
         l1_chain_id: u64,
@@ -853,13 +848,40 @@ mod tests {
         path
     }
 
-    /// A resolved chain whose files are written under `dir`.
+    /// A resolved chain whose files are written under `dir`, scheduling interop.
     fn chain(dir: &Path, l2_chain_id: u64, l1_chain_id: u64, port: u16) -> ResolvedChain {
+        chain_with_interop(dir, l2_chain_id, l1_chain_id, port, true)
+    }
+
+    /// A resolved chain that schedules no interop, and so has no dependency set either.
+    fn chain_without_interop(
+        dir: &Path,
+        l2_chain_id: u64,
+        l1_chain_id: u64,
+        port: u16,
+    ) -> ResolvedChain {
+        chain_with_interop(dir, l2_chain_id, l1_chain_id, port, false)
+    }
+
+    /// A resolved chain whose files are written under `dir`.
+    ///
+    /// `interop` is one decision, not two: a chain that schedules Lagoon must have a dependency
+    /// set — `load_dependency_set` refuses one that does not — and a chain that does not schedule
+    /// it has nothing to put in one. Taking both from one flag is also what keeps the rollup config
+    /// and the dependency set from being written by two calls that disagree, since both land at the
+    /// same path.
+    fn chain_with_interop(
+        dir: &Path,
+        l2_chain_id: u64,
+        l1_chain_id: u64,
+        port: u16,
+        interop: bool,
+    ) -> ResolvedChain {
         let jwt = dir.join("jwt.hex");
         std::fs::write(&jwt, format!("0x{}", "11".repeat(32))).expect("write the jwt secret");
         ResolvedChain {
             l2_chain_id,
-            rollup_config: Some(rollup_config_file(dir, l2_chain_id, l1_chain_id)),
+            rollup_config: Some(rollup_config_file(dir, l2_chain_id, l1_chain_id, interop)),
             engine_rpc: Url::parse("http://127.0.0.1:1/").unwrap(),
             jwt_secret: jwt,
             trust_l2_rpc: false,
@@ -872,26 +894,7 @@ mod tests {
             p2p_udp_port: port + 1,
             unsafe_block_signer: Some(Address::repeat_byte(1)),
             bootnodes: Vec::new(),
-            interop_dependency_set: Some(dependency_set_file(dir, &[l2_chain_id])),
-        }
-    }
-
-    /// A resolved chain that schedules no interop, and so has no dependency set either.
-    fn chain_without_interop(
-        dir: &Path,
-        l2_chain_id: u64,
-        l1_chain_id: u64,
-        port: u16,
-    ) -> ResolvedChain {
-        ResolvedChain {
-            rollup_config: Some(rollup_config_file_with_interop(
-                dir,
-                l2_chain_id,
-                l1_chain_id,
-                false,
-            )),
-            interop_dependency_set: None,
-            ..chain(dir, l2_chain_id, l1_chain_id, port)
+            interop_dependency_set: interop.then(|| dependency_set_file(dir, &[l2_chain_id])),
         }
     }
 

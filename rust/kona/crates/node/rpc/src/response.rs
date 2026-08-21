@@ -57,6 +57,7 @@ impl From<&DependencySet> for DependencySetResponse {
 }
 
 #[cfg(test)]
+#[allow(clippy::zero_sized_map_values)]
 mod tests {
     use super::*;
 

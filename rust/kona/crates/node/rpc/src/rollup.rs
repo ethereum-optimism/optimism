@@ -167,6 +167,7 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
 }
 
 #[cfg(test)]
+#[allow(clippy::zero_sized_map_values)]
 mod tests {
     use super::*;
     use kona_engine::LocalSafeSnapshot;
