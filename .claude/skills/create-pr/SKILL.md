@@ -7,13 +7,6 @@ description: Open a pull request in the Optimism monorepo after you commit the c
 
 [docs/handbook/pr-guidelines.md](../../../docs/handbook/pr-guidelines.md) is the source of
 truth for the steps — review agents, tests, rebase, title, description, and CI. Read it and
-follow it in order. This file adds only what is specific to opening the PR under Claude Code,
-and applies after you commit the change on a feature branch.
+follow it in order. This file applies after you commit the change on a feature branch.
 
-- **Run the review agents as parallel subagents** so their output stays out of your context.
-- **Create the PR:**
-
-  ```bash
-  git push -u origin <branch>
-  gh pr create --base develop --title '<title>' --body-file /tmp/pr-body.md [--draft]
-  ```
+Run the review agents as parallel subagents, so their output stays out of your context.
