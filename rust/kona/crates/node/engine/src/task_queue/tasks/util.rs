@@ -1,6 +1,6 @@
 //! Utility functions for task execution.
 
-use super::{BuildTask, BuildTaskError, EngineTaskExt, SealTask, SealTaskError};
+use super::{BuildSealCoupling, BuildTask, BuildTaskError, EngineTaskExt, SealTask, SealTaskError};
 use crate::{EngineClient, EngineState};
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
@@ -50,10 +50,18 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
     .execute(state)
     .await?;
 
-    // Execute the seal task with the payload ID from the build
-    SealTask::new(engine, cfg, payload_id, attributes, is_attributes_derived, None)
-        .execute(state)
-        .await?;
+    // Execute the seal task with the payload ID from the build.
+    SealTask::new(
+        engine,
+        cfg,
+        payload_id,
+        attributes,
+        is_attributes_derived,
+        BuildSealCoupling::Atomic,
+        None,
+    )
+    .execute(state)
+    .await?;
 
     Ok(())
 }

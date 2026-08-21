@@ -14,6 +14,18 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Instant};
 use tokio::sync::mpsc;
 
+/// How a [`SealTask`] is coupled to the build that produced its payload.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BuildSealCoupling {
+    /// Build and seal run inside the same engine task, so no other task can advance the unsafe
+    /// head between them. The unsafe-head staleness check is skipped: a derivation-driven reorg
+    /// legitimately seals a payload whose parent differs from the current unsafe head.
+    Atomic,
+    /// The seal is enqueued as a task separate from its build, so another task may advance the
+    /// unsafe head in between, invalidating the built payload as stale.
+    Detached,
+}
+
 /// Task for block sealing and canonicalization.
 ///
 /// The [`SealTask`] handles the following parts of the block building workflow:
@@ -39,6 +51,8 @@ pub struct SealTask<EngineClient_: EngineClient> {
     pub attributes: OpAttributesWithParent,
     /// Whether or not the payload was derived, or created by the sequencer.
     pub is_attributes_derived: bool,
+    /// How this seal is coupled to the build that produced `payload_id`.
+    pub coupling: BuildSealCoupling,
     /// An optional sender to convey success/failure result of the built
     /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
     /// or the [`SealTaskError`] that occurred during processing.
@@ -266,9 +280,11 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
         let unsafe_block_info = state.sync_state.unsafe_head().block_info;
         let parent_block_info = self.attributes.parent.block_info;
 
-        let res = if unsafe_block_info.hash != parent_block_info.hash ||
-            unsafe_block_info.number != parent_block_info.number
-        {
+        let build_is_stale = self.coupling == BuildSealCoupling::Detached &&
+            (unsafe_block_info.hash != parent_block_info.hash ||
+                unsafe_block_info.number != parent_block_info.number);
+
+        let res = if build_is_stale {
             info!(
                 target: "engine",
                 unsafe_block_info = ?unsafe_block_info,
