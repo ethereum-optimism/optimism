@@ -9,6 +9,10 @@ use crate::{
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
     RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
+    service::{
+        composition::{ComposedChain, L1WatcherPorts},
+        spawn::{BoxedNodeActor, IntoBoxedNodeActor, run_actors},
+    },
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
@@ -285,13 +289,10 @@ impl RollupNode {
     /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
     /// type alias: the block-stream type produced by [`BlockStream::new_as_stream`] is
     /// `impl Stream`, so the resulting `L1WatcherActor` generic parameter cannot be written down.
-    /// Using `impl Trait` here is intentional; the macro consumer only requires `NodeActor`.
+    /// Using `impl Trait` here is intentional; the caller only needs a `NodeActor` to box.
     fn build_l1_watcher(
         &self,
-        derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
-        signer_tx: mpsc::Sender<Address>,
-        l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
-        l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
+        ports: L1WatcherPorts,
     ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
     {
         let head_stream = BlockStream::new_as_stream(
@@ -305,13 +306,21 @@ impl RollupNode {
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
         )?;
 
+        let L1WatcherPorts {
+            rollup_config,
+            derivation_actor_request_tx,
+            unsafe_signer_tx,
+            l1_query_rx,
+            l1_head_updates_tx,
+        } = ports;
+
         Ok(L1WatcherActor::new(
-            self.config.clone(),
+            rollup_config,
             self.l1_config.engine_provider.clone(),
             l1_query_rx,
             l1_head_updates_tx,
             QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
-            signer_tx,
+            unsafe_signer_tx,
             head_stream,
             finalized_stream,
         ))
@@ -412,36 +421,28 @@ impl RollupNode {
         Ok(Some(RpcActor::new(launcher, modules, handle, restarts_remaining)))
     }
 
-    /// Starts the rollup node service.
+    /// Composes this chain's actor group: the single-chain composition entry point.
     ///
-    /// The rollup node, in validator mode, listens to two sources of information to sync the L2
-    /// chain:
+    /// Every host that runs a chain goes through here, so there is exactly one definition of how a
+    /// chain is wired. [`Self::start`] is the single-chain host on top of it; a multi-chain host
+    /// calls this once per configured chain and runs all of the resulting actors together. A second
+    /// hand-copied composition would silently drift from this one, so there isn't one.
     ///
-    /// 1. The data availability layer, with a watcher that listens for new updates. L2 inputs (L2
-    ///    transaction batches + deposits) are then derived from the DA layer.
-    /// 2. The L2 sequencer, which produces unsafe L2 blocks and sends them to the network over p2p
-    ///    gossip.
+    /// What this builds:
     ///
-    /// From these two sources, the node imports `unsafe` blocks from the L2 sequencer, `safe`
-    /// blocks from the L2 derivation pipeline into the L2 execution layer via the Engine API,
-    /// and finalizes `safe` blocks that it has derived when L1 finalized block updates are
-    /// received.
+    /// - the [`ChainController`] and its read-only RPC peer,
+    /// - the derivation actor (delegating or self-deriving, per configuration),
+    /// - the P2P network actor, with its libp2p swarm already started,
+    /// - the sequencer actor, in sequencer mode only,
+    /// - the JSON-RPC actor, with its server already launched, when an [`RpcBuilder`] is
+    ///   configured.
     ///
-    /// In sequencer mode, the node is responsible for producing unsafe L2 blocks and sending them
-    /// to the network over p2p gossip. The node also listens for L1 finalized block updates and
-    /// finalizes `safe` blocks that it has derived when L1 finalized block updates are
-    /// received.
+    /// The one actor it does *not* build is the L1 watcher: a multi-chain host runs a single
+    /// watcher across all of its chains, so composition hands back that chain's
+    /// [`L1WatcherPorts`] and lets the host decide how many watchers to attach to them.
     ///
-    /// ## Shutdown
-    ///
-    /// Shutdown is unordered: when any actor exits (success, error, or panic) or an OS signal is
-    /// received, the umbrella cancellation token fires and all peer actors observe it on their
-    /// next `select!`. Actors may log channel-closed errors while peers are torn down
-    /// concurrently; this is expected and not a sign of an unclean exit.
-    pub async fn start(&self) -> Result<(), String> {
-        // Single umbrella cancellation token owned by the spawn_and_wait! macro.
-        let cancellation = CancellationToken::new();
-
+    /// The returned actors are inert until they are stepped by [`run_actors`].
+    pub async fn compose(&self) -> Result<ComposedChain, String> {
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
         // actor request channels
         let (derivation_actor_request_tx, derivation_actor_request_rx) =
@@ -493,13 +494,6 @@ impl RollupNode {
             gossip_payload_rx,
         );
 
-        let l1_watcher = self.build_l1_watcher(
-            derivation_actor_request_tx,
-            signer_tx,
-            l1_query_rx,
-            l1_head_updates_tx,
-        )?;
-
         let sequencer_actor = self.build_sequencer(
             controller_request_tx,
             gossip_payload_tx,
@@ -521,19 +515,62 @@ impl RollupNode {
             )
             .await?;
 
-        crate::service::spawn_and_wait!(
-            cancellation,
-            actors = [
-                rpc,
-                sequencer_actor,
-                Some(network),
-                Some(l1_watcher),
-                Some(derivation),
-                Some(chain_controller),
-                Some(chain_controller_rpc_actor),
-            ]
-        );
-        Ok(())
+        // Spawn order is not significant: every actor is spawned before any of them is awaited.
+        let mut actors: Vec<BoxedNodeActor> = Vec::with_capacity(6);
+        actors.extend(rpc.map(IntoBoxedNodeActor::boxed));
+        actors.extend(sequencer_actor.map(IntoBoxedNodeActor::boxed));
+        actors.push(network.boxed());
+        actors.push(derivation.boxed());
+        actors.push(chain_controller.boxed());
+        actors.push(chain_controller_rpc_actor.boxed());
+
+        Ok(ComposedChain {
+            actors,
+            l1_watcher_ports: L1WatcherPorts {
+                rollup_config: self.config.clone(),
+                derivation_actor_request_tx,
+                unsafe_signer_tx: signer_tx,
+                l1_query_rx,
+                l1_head_updates_tx,
+            },
+        })
+    }
+
+    /// Starts the rollup node service: the single-chain host over [`Self::compose`].
+    ///
+    /// Composes this chain, attaches an L1 watcher that follows the L1 for it alone, and runs
+    /// every actor until one of them exits or an OS shutdown signal arrives. Returns the first
+    /// fatal actor error, if any.
+    ///
+    /// The rollup node, in validator mode, listens to two sources of information to sync the L2
+    /// chain:
+    ///
+    /// 1. The data availability layer, with a watcher that listens for new updates. L2 inputs (L2
+    ///    transaction batches + deposits) are then derived from the DA layer.
+    /// 2. The L2 sequencer, which produces unsafe L2 blocks and sends them to the network over p2p
+    ///    gossip.
+    ///
+    /// From these two sources, the node imports `unsafe` blocks from the L2 sequencer, `safe`
+    /// blocks from the L2 derivation pipeline into the L2 execution layer via the Engine API,
+    /// and finalizes `safe` blocks that it has derived when L1 finalized block updates are
+    /// received.
+    ///
+    /// In sequencer mode, the node is responsible for producing unsafe L2 blocks and sending them
+    /// to the network over p2p gossip. The node also listens for L1 finalized block updates and
+    /// finalizes `safe` blocks that it has derived when L1 finalized block updates are
+    /// received.
+    ///
+    /// ## Shutdown
+    ///
+    /// Shutdown is unordered and process-wide; see [`run_actors`].
+    pub async fn start(&self) -> Result<(), String> {
+        // Single umbrella cancellation token owned by `run_actors`.
+        let cancellation = CancellationToken::new();
+
+        let ComposedChain { mut actors, l1_watcher_ports } = self.compose().await?;
+        actors.push(self.build_l1_watcher(l1_watcher_ports)?.boxed());
+
+        run_actors(cancellation, actors).await
     }
 }
 
