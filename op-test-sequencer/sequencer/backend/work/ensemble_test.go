@@ -75,3 +75,10 @@ func TestEnsemble(t *testing.T) {
 
 	require.NoError(t, ensemble.Close())
 }
+
+// TestEnsembleCloseNil checks Close tolerates a nil receiver, so that a caller which
+// deferred Close before checking Start's error does not panic on the error path.
+func TestEnsembleCloseNil(t *testing.T) {
+	var ensemble *work.Ensemble
+	require.NoError(t, ensemble.Close())
+}
