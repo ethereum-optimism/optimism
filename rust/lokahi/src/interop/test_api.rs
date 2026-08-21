@@ -232,7 +232,12 @@ impl LokahiInteropTestApiServer for InteropTestHandle {
     }
 
     async fn interop_sealed_blocks(&self, chain_id: u64) -> RpcResult<WireSealedBlocks> {
-        Ok(self.reader()?.sealed_blocks(ChainId::from(chain_id)).await.map_err(Self::query_error)?.into())
+        Ok(self
+            .reader()?
+            .sealed_blocks(ChainId::from(chain_id))
+            .await
+            .map_err(Self::query_error)?
+            .into())
     }
 }
 
