@@ -448,7 +448,6 @@ mod tests {
 
     fn optimistic(state: u8, bridge: u8, hash: u8, l1: u8, l1_number: u64) -> OptimisticOutput {
         OptimisticOutput {
-            block: BlockNumHash { number: 4_900, hash: B256::repeat_byte(hash) },
             output: OutputRoot::from_parts(
                 B256::repeat_byte(state),
                 B256::repeat_byte(bridge),

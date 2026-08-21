@@ -24,13 +24,14 @@ use lokahi_interop::ChainAt;
 use std::sync::Arc;
 use tracing::debug;
 
-/// One chain's optimistic output at a timestamp: the block, its output-root preimage, and the
-/// lowest L1 block the pair can be derived from.
+/// One chain's optimistic output at a timestamp: the output-root preimage of the block carrying
+/// it, and the lowest L1 block that block can be derived from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct OptimisticOutput {
-    /// The L2 block carrying the timestamp.
-    pub(crate) block: BlockNumHash,
-    /// That block's output-root preimage.
+    /// The output-root preimage of the block carrying the timestamp.
+    ///
+    /// The block's own id is not kept: `eth.OutputWithRequiredL1` does not carry one, and the
+    /// preimage already names the block hash it commits to.
     pub(crate) output: OutputRoot,
     /// The lowest L1 block from which the block can be derived.
     pub(crate) required_l1: BlockNumHash,
@@ -103,10 +104,12 @@ impl QueryChain {
     /// derived that far yet.
     ///
     /// This is op-supernode's `OptimisticOutputAtTimestamp` and `OptimisticAt` in one pass, and
-    /// the pass matters: those two resolve the same block number independently, and this resolves
-    /// it once and checks the block it reads back against the block it was promised. A response
-    /// that pairs one block's output root with another block's L1 requirement is well-formed and
-    /// wrong, which is worse than absent.
+    /// the pass matters. Those two each sample the chain's sync status again and resolve the block
+    /// number independently, and op-supernode documents the window between them; here the block
+    /// number and its L1 pairing come out of one borrow of the engine state, so there is no window
+    /// in which they can come to describe different blocks. The output root is then read at that
+    /// number, which is what op-supernode does too — an optimistic output is pre-verification and
+    /// reorg-able by construction, and this branch says so.
     ///
     /// [`None`] is op-supernode's `ethereum.NotFound`: the chain is left out of the optimistic
     /// map, and the caller reports no super root rather than a partial one. An error is one of the
@@ -147,7 +150,7 @@ impl QueryChain {
             },
         };
 
-        let (block, output, _state) =
+        let (_block, output, _state) =
             self.rollup.engine_client.output_at_block(number.into()).await.map_err(|err| {
                 QueryError::Chain {
                     chain_id: self.chain_id,
@@ -155,7 +158,7 @@ impl QueryChain {
                 }
             })?;
 
-        Ok(Some(OptimisticOutput { block: block.block_info.id(), output, required_l1 }))
+        Ok(Some(OptimisticOutput { output, required_l1 }))
     }
 
     /// Returns the output root of the block the verifier committed to at `timestamp`.

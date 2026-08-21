@@ -432,7 +432,6 @@ mod tests {
     /// A hand-built optimistic entry, distinguishable by its two seeds.
     fn output(seed: u8, required_l1: u64) -> OptimisticOutput {
         OptimisticOutput {
-            block: BlockNumHash { number: u64::from(seed), hash: B256::with_last_byte(seed) },
             output: kona_protocol::OutputRoot::from_parts(
                 B256::with_last_byte(seed),
                 b256!("00000000000000000000000000000000000000000000000000000000000000ff"),
