@@ -247,11 +247,7 @@ impl EngineSyncState {
     /// local-safe in op-node.
     ///
     /// [`SynchronizeTaskError::InvalidForkchoiceState`]: crate::SynchronizeTaskError::InvalidForkchoiceState
-    pub fn apply_cross_safe_promotion(
-        self,
-        chain_id: u64,
-        promotion: CrossSafePromotion,
-    ) -> Self {
+    pub fn apply_cross_safe_promotion(self, chain_id: u64, promotion: CrossSafePromotion) -> Self {
         let target = promotion.target();
 
         let target = if target.block_info.number > self.local_safe_head.block_info.number {
@@ -463,10 +459,13 @@ mod test {
     /// The read the interop query needs: one call, both halves, from one snapshot.
     #[test]
     fn local_safe_reads_the_head_and_its_origin_together() {
-        let state = EngineSyncState::default().apply_update(TEST_CHAIN_ID, EngineSyncStateUpdate {
-            local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
-            ..EngineSyncStateUpdate::NONE
-        });
+        let state = EngineSyncState::default().apply_update(
+            TEST_CHAIN_ID,
+            EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                ..EngineSyncStateUpdate::NONE
+            },
+        );
 
         assert_eq!(state.local_safe(), LocalSafeHead::derived_from(l2(4), l1(2)));
         assert_eq!(state.local_safe().head, state.local_safe_head());
@@ -487,16 +486,22 @@ mod test {
     /// must not disturb it either.
     #[test]
     fn an_update_that_leaves_the_head_alone_carries_the_origin_through() {
-        let paired = EngineSyncState::default().apply_update(TEST_CHAIN_ID, EngineSyncStateUpdate {
-            local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
-            ..EngineSyncStateUpdate::NONE
-        });
+        let paired = EngineSyncState::default().apply_update(
+            TEST_CHAIN_ID,
+            EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                ..EngineSyncStateUpdate::NONE
+            },
+        );
 
-        let after = paired.apply_update(TEST_CHAIN_ID, EngineSyncStateUpdate {
-            unsafe_head: Some(l2(9)),
-            finalized_head: Some(l2(1)),
-            ..EngineSyncStateUpdate::NONE
-        });
+        let after = paired.apply_update(
+            TEST_CHAIN_ID,
+            EngineSyncStateUpdate {
+                unsafe_head: Some(l2(9)),
+                finalized_head: Some(l2(1)),
+                ..EngineSyncStateUpdate::NONE
+            },
+        );
 
         assert_eq!(after.local_safe(), paired.local_safe());
     }
@@ -506,14 +511,20 @@ mod test {
     #[test]
     fn moving_the_head_rewrites_the_origin() {
         let state = EngineSyncState::default()
-            .apply_update(TEST_CHAIN_ID, EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
-                ..EngineSyncStateUpdate::NONE
-            })
-            .apply_update(TEST_CHAIN_ID, EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(5), l1(3))),
-                ..EngineSyncStateUpdate::NONE
-            });
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            )
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(5), l1(3))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            );
 
         assert_eq!(state.local_safe(), LocalSafeHead::derived_from(l2(5), l1(3)));
     }
@@ -524,14 +535,20 @@ mod test {
     #[test]
     fn an_unpaired_write_invalidates_the_previous_pairing() {
         let state = EngineSyncState::default()
-            .apply_update(TEST_CHAIN_ID, EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
-                ..EngineSyncStateUpdate::NONE
-            })
-            .apply_update(TEST_CHAIN_ID, EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::unpaired(l2(2))),
-                ..EngineSyncStateUpdate::NONE
-            });
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            )
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::unpaired(l2(2))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            );
 
         assert_eq!(state.local_safe_head(), l2(2));
         assert_eq!(
@@ -547,14 +564,20 @@ mod test {
     #[test]
     fn a_rewind_that_holds_cross_safe_still_records_the_origin() {
         let state = EngineSyncState::default()
-            .apply_update(TEST_CHAIN_ID, EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(9), l1(4))),
-                ..EngineSyncStateUpdate::NONE
-            })
-            .apply_update(TEST_CHAIN_ID, EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(3), l1(1))),
-                ..EngineSyncStateUpdate::NONE
-            });
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(9), l1(4))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            )
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(3), l1(1))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            );
 
         assert_eq!(state.cross_safe_head(), l2(3), "cross-safe cannot outrank local-safe");
         assert_eq!(state.local_safe(), LocalSafeHead::derived_from(l2(3), l1(1)));

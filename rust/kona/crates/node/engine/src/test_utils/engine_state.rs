@@ -94,9 +94,10 @@ impl TestEngineStateBuilder {
         });
         // Cross-safe defaults to local-safe, matching the standalone trivial feed. Tests that
         // want cross-safe to lag set it explicitly.
-        state.sync_state = state.apply_cross_safe_promotion(CrossSafePromoter::new().promote(
-            self.cross_safe_head.or(self.local_safe_head).unwrap_or(self.unsafe_head),
-        ));
+        state.sync_state = state
+            .apply_cross_safe_promotion(CrossSafePromoter::new().promote(
+                self.cross_safe_head.or(self.local_safe_head).unwrap_or(self.unsafe_head),
+            ));
 
         state.el_sync_finished = self.el_sync_finished;
         state
