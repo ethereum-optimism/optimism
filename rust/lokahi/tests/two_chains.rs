@@ -75,6 +75,41 @@ async fn two_chains_answer_on_their_own_rpc_sockets() {
             "the server on port {port} answered for another chain: {config}"
         );
     }
+
+    // The two supernode query methods answer on the same socket. Nothing here derives, so what
+    // this establishes is the wiring no unit test can reach: that both methods are registered
+    // under the namespaces their consumers call, and that they answer over the whole chain set
+    // rather than for one chain.
+    let status = await_sync_status(&node).await;
+    assert_eq!(
+        status["chain_ids"],
+        json!([CHAIN_A.to_string(), CHAIN_B.to_string()]),
+        "supernode_syncStatus must report the chain set as decimal strings: {status}"
+    );
+    assert!(
+        status["chains"].get(CHAIN_A.to_string()).is_some(),
+        "chain {CHAIN_A} is missing its own sync status: {status}"
+    );
+
+    // The timestamp is `hexutil.Uint64`, which is what every Go consumer sends, and it is far
+    // enough ahead that no chain can have derived it. So no chain contributes an optimistic
+    // output and there is no super root to state — which is a successful response with `data`
+    // absent, not an error.
+    let superroot = node
+        .admin()
+        .request::<Value, _>("superroot_atTimestamp", rpc_params!["0x7fffffff"])
+        .await
+        .expect("the admin rpc did not answer superroot_atTimestamp");
+    assert_eq!(
+        superroot["optimistic_at_timestamp"],
+        json!({}),
+        "no chain has derived that timestamp: {superroot}"
+    );
+    assert!(
+        superroot.get("data").is_none(),
+        "an absent super root omits `data` rather than sending null: {superroot}"
+    );
+    assert_eq!(superroot["chain_ids"], json!([CHAIN_A.to_string(), CHAIN_B.to_string()]));
 }
 
 /// One chain's execution layer being unreachable is that chain's problem.
@@ -353,6 +388,30 @@ fn admin_addr(line: &str) -> Option<SocketAddr> {
 }
 
 /// Polls one chain's own RPC until it answers `optimism_rollupConfig`.
+/// Polls `supernode_syncStatus` until it answers.
+///
+/// The process-wide RPC is bound before the chains are composed, so that the address it logs is
+/// available to a caller that has to wait for something. A call that arrives in that window is
+/// refused with "the supernode is still starting" rather than answered for an empty chain set, so
+/// this retries. A namespace that is not registered at all fails here instead, with the method
+/// name in the error.
+async fn await_sync_status(node: &Node) -> Value {
+    let deadline = Instant::now() + READY_TIMEOUT;
+
+    loop {
+        match node.admin().request::<Value, _>("supernode_syncStatus", rpc_params![]).await {
+            Ok(status) => return status,
+            Err(err) => {
+                assert!(
+                    Instant::now() < deadline,
+                    "the admin rpc never answered supernode_syncStatus: {err}"
+                );
+                sleep(Duration::from_millis(200)).await;
+            }
+        }
+    }
+}
+
 async fn await_rollup_config(port: u16) -> Value {
     let client = HttpClientBuilder::default()
         .build(format!("http://127.0.0.1:{port}"))

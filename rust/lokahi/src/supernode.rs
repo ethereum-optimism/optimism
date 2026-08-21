@@ -4,6 +4,7 @@ use crate::{
     admin,
     config::{L1Settings, ResolvedChain, ResolvedConfig, SequencerSettings},
     interop::{ChainInterop, HostedChain, InteropActor},
+    query::{QueryChain, QueryHandle},
 };
 use alloy_primitives::{Address, B256};
 use alloy_provider::RootProvider;
@@ -18,7 +19,8 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{
     BoxedNodeActor, ComposedChain, EngineConfig, IntoBoxedNodeActor, L1Config, L1ConfigBuilder,
-    L1WatcherPorts, NetworkConfig, RollupNodeBuilder, SequencerConfig, label_chain, run_actors,
+    L1WatcherPorts, NetworkConfig, QueuedEngineRpcClient, RollupNodeBuilder, SequencerConfig,
+    label_chain, run_actors,
 };
 use kona_peers::{BootNode, BootStoreFile};
 use kona_providers_alloy::OnlineBeaconClient;
@@ -201,14 +203,20 @@ impl Supernode {
         //
         // Held until `run` returns: dropping the handle stops the server, so the admin RPC is up
         // for exactly as long as the supernode is.
+        //
+        // The query API is registered on this server with nothing behind it yet, and the handle is
+        // filled in once every chain is composed. That ordering is what lets the address be logged
+        // before composition without the API ever answering for a chain set that does not exist.
+        let queries = QueryHandle::default();
         let _admin = match admin_rpc {
-            Some(socket) => Some(admin::serve(socket, &configured).await?),
+            Some(socket) => Some(admin::serve(socket, &configured, queries.clone()).await?),
             None => None,
         };
 
         let mut actors: Vec<BoxedNodeActor> = Vec::new();
         let mut watcher_ports: Vec<L1WatcherPorts> = Vec::with_capacity(chains.len());
         let mut interop_chains: Vec<ChainInterop> = Vec::with_capacity(chains.len());
+        let mut query_chains: Vec<QueryChain> = Vec::with_capacity(chains.len());
 
         for chain in chains {
             let chain_id = chain.settings.l2_chain_id;
@@ -220,11 +228,29 @@ impl Supernode {
                 l1_watcher_ports,
                 controller_request_tx,
                 controller_rpc_request_tx,
+                l1_query_tx,
                 cross_safe_promoter,
             } = chain
                 .compose(&l1, &l1_chain_config)
                 .await
                 .with_context(|| format!("failed to compose the actors of chain {chain_id}"))?;
+
+            // Every chain is queryable, whether or not interop is on: `supernode_syncStatus`
+            // answers for the set either way. Without interop the chain records no safe-head
+            // history, so `superroot_atTimestamp` can pair a block with an L1 block only at the
+            // local-safe head itself and reports a timestamp behind it as unavailable history —
+            // which is what it is. Interop turns that recording on, and every consumer of these
+            // methods runs against an interop cluster.
+            query_chains.push(QueryChain::new(
+                chain_id,
+                Arc::new(rollup_config.clone()),
+                QueuedEngineRpcClient::new(controller_rpc_request_tx.clone()),
+                l1_query_tx,
+                interop_state.as_ref().map_or_else(
+                    || Arc::new(DisabledDatabase) as SharedSafeDb,
+                    |state| state.safe_db.clone(),
+                ),
+            ));
 
             // A promoter exists exactly when the chain was composed with an externally fed
             // cross-safe head, which is exactly when interop is on. Taking it here is what makes
@@ -268,17 +294,24 @@ impl Supernode {
         // One verifier for the whole process, in the same actor set as the chains it verifies: a
         // verifier that halts stops the supernode, rather than leaving it serving chains whose
         // cross-safe heads have silently stopped moving.
+        //
+        // The read handle for the query API is taken from the actor before it is boxed: the
+        // verified store lives inside the actor, and rocksdb would refuse a second opener even if
+        // the types allowed one, so the only way to read it is to ask the actor that owns it.
+        let mut interop_reader = None;
         if let Some(activation) = interop_activation {
-            actors.push(
-                InteropActor::build(
-                    interop_datadir.as_deref(),
-                    &l1.eth_rpc,
-                    activation,
-                    interop_chains,
-                )?
-                .boxed(),
-            );
+            let mut interop = InteropActor::build(
+                interop_datadir.as_deref(),
+                &l1.eth_rpc,
+                activation,
+                interop_chains,
+            )?;
+            interop_reader = Some(interop.attach_queries(activation));
+            actors.push(interop.boxed());
         }
+
+        // Past this point every chain exists, so the query API can answer for the set.
+        queries.compose(query_chains, interop_reader);
 
         run_actors(CancellationToken::new(), actors).await.map_err(|e| anyhow!(e))
     }
