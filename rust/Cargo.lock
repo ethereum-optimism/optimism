@@ -7194,7 +7194,6 @@ dependencies = [
  "ark-ff 0.5.0",
  "async-trait",
  "clap",
- "futures-util",
  "kona-cli",
  "kona-client",
  "kona-derive",
@@ -7221,7 +7220,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
- "tokio-tungstenite",
  "tracing",
  "tracing-subscriber 0.3.23",
 ]
