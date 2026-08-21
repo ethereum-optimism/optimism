@@ -11,8 +11,9 @@ extern crate tracing;
 
 mod service;
 pub use service::{
-    BoxedNodeActor, ComposedChain, DerivationDelegateConfig, ErasedNodeActor, IntoBoxedNodeActor,
-    L1Config, L1ConfigBuilder, L1WatcherPorts, NodeMode, RollupNode, RollupNodeBuilder, run_actors,
+    BoxedNodeActor, ChainLabeledActor, ComposedChain, DerivationDelegateConfig, ErasedNodeActor,
+    IntoBoxedNodeActor, L1Config, L1ConfigBuilder, L1WatcherPorts, NodeMode, RollupNode,
+    RollupNodeBuilder, label_chain, run_actors,
 };
 
 mod actors;

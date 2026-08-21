@@ -32,6 +32,59 @@ where
 /// A boxed [`NodeActor`] with its error type erased, ready for [`run_actors`].
 pub type BoxedNodeActor = Box<dyn ErasedNodeActor>;
 
+/// An actor whose failures name the chain it belongs to.
+///
+/// [`NodeActor::Error`] is only `Debug`, and [`run_actors`] renders it with that implementation, so
+/// a multi-chain host's supervision line would otherwise read `Critical error in sub-routine:
+/// <debug>` with nothing in it to say which of N chains just died — the same rendering whichever
+/// chain's derivation, engine or network actor it was. Wrapping a chain's actors in this labels
+/// their failures at the seam where the chain is still known, without touching the actors
+/// themselves or the error types they define.
+///
+/// A single-chain host does not wrap anything, so its output is unchanged.
+pub struct ChainLabeledActor {
+    /// The chain this actor belongs to.
+    chain_id: u64,
+    /// The actor whose failures are labelled.
+    actor: BoxedNodeActor,
+}
+
+impl core::fmt::Debug for ChainLabeledActor {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // The wrapped actor is a boxed trait object and cannot be formatted; the chain it belongs
+        // to is the useful part anyway.
+        f.debug_struct("ChainLabeledActor")
+            .field("chain_id", &self.chain_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl ChainLabeledActor {
+    /// Labels `actor`'s failures with `chain_id`.
+    pub const fn new(chain_id: u64, actor: BoxedNodeActor) -> Self {
+        Self { chain_id, actor }
+    }
+}
+
+#[async_trait]
+impl ErasedNodeActor for ChainLabeledActor {
+    async fn step_erased(&mut self) -> Result<(), String> {
+        self.actor.step_erased().await.map_err(|e| format!("chain {}: {e}", self.chain_id))
+    }
+}
+
+/// Labels every actor of one chain, so a fatal error names the chain that produced it.
+///
+/// The counterpart of [`ComposedChain::actors`](crate::ComposedChain::actors) for a multi-chain
+/// host: composition returns a chain's actors unlabelled, because a single-chain host has no second
+/// chain to tell them apart from, and the multi-chain host labels them as it collects them.
+pub fn label_chain(chain_id: u64, actors: Vec<BoxedNodeActor>) -> Vec<BoxedNodeActor> {
+    actors
+        .into_iter()
+        .map(|actor| Box::new(ChainLabeledActor::new(chain_id, actor)) as BoxedNodeActor)
+        .collect()
+}
+
 /// Boxes a [`NodeActor`] into a [`BoxedNodeActor`].
 pub trait IntoBoxedNodeActor {
     /// Erases this actor's error type and boxes it.
@@ -231,6 +284,35 @@ mod tests {
         run_actors(cancellation, vec![PendingActor.boxed(), PendingActor.boxed()])
             .await
             .expect("cancellation is not an error");
+    }
+
+    /// A multi-chain host's supervision line has to name the chain: with N chains, the actor's own
+    /// `Debug` rendering does not say which one died.
+    #[tokio::test]
+    async fn a_labelled_actor_names_its_chain() {
+        let stepped = Arc::new(AtomicUsize::new(0));
+
+        let err = run_actors(
+            CancellationToken::new(),
+            label_chain(901, vec![FailingActor { steps: 0, stepped }.boxed()]),
+        )
+        .await
+        .expect_err("the failing actor must surface its error");
+
+        assert_eq!(err, format!("chain 901: {:?}", "fatal"));
+    }
+
+    /// A single-chain host labels nothing, so its error is exactly what it always was.
+    #[tokio::test]
+    async fn an_unlabelled_actor_reads_as_before() {
+        let stepped = Arc::new(AtomicUsize::new(0));
+
+        let err =
+            run_actors(CancellationToken::new(), vec![FailingActor { steps: 0, stepped }.boxed()])
+                .await
+                .expect_err("the failing actor must surface its error");
+
+        assert_eq!(err, format!("{:?}", "fatal"));
     }
 
     #[tokio::test]

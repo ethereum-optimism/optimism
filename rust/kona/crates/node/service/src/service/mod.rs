@@ -21,4 +21,6 @@ mod node;
 pub use node::{L1Config, RollupNode};
 
 mod spawn;
-pub use spawn::{BoxedNodeActor, ErasedNodeActor, IntoBoxedNodeActor, run_actors};
+pub use spawn::{
+    BoxedNodeActor, ChainLabeledActor, ErasedNodeActor, IntoBoxedNodeActor, label_chain, run_actors,
+};
