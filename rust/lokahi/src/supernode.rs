@@ -2,12 +2,14 @@
 
 use crate::{
     admin,
-    config::{L1Settings, ResolvedChain, ResolvedConfig},
+    config::{L1Settings, ResolvedChain, ResolvedConfig, SequencerSettings},
     interop::{ChainInterop, HostedChain, InteropActor},
 };
-use alloy_primitives::Address;
+use alloy_primitives::{Address, B256};
 use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::JwtSecret;
+use alloy_signer::Signer;
+use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Result, anyhow, bail};
 use discv5::enr::k256;
 use kona_disc::LocalNode;
@@ -16,12 +18,13 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{
     BoxedNodeActor, ComposedChain, EngineConfig, IntoBoxedNodeActor, L1Config, L1ConfigBuilder,
-    L1WatcherPorts, NetworkConfig, RollupNodeBuilder, label_chain, run_actors,
+    L1WatcherPorts, NetworkConfig, RollupNodeBuilder, SequencerConfig, label_chain, run_actors,
 };
 use kona_peers::{BootNode, BootStoreFile};
 use kona_providers_alloy::OnlineBeaconClient;
 use kona_rpc::RpcBuilder;
 use kona_safedb::{DisabledDatabase, SharedSafeDb};
+use kona_sources::BlockSigner;
 use libp2p::identity::Keypair;
 use op_alloy_network::Optimism;
 use serde_json::{Value, from_reader, from_value};
@@ -29,10 +32,11 @@ use std::{
     fs::File,
     net::SocketAddr,
     path::{Path, PathBuf},
+    str::FromStr,
     sync::Arc,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, warn};
 
 /// The name of the P2P secret key file inside a chain's data directory.
 const P2P_KEY_FILE: &str = "p2p_priv_key";
@@ -334,12 +338,22 @@ impl Chain {
 
         let jwt_secret = load_jwt_secret(&settings.jwt_secret)?;
 
+        // A sequencing chain's key is read here rather than while the configuration is resolved:
+        // resolution touches no files, so a key that is missing or unparseable is a startup error
+        // raised where the JWT secret and the rollup config are read.
+        let sequencer = settings
+            .sequencer
+            .as_ref()
+            .map(|sequencer| SequencerSigner::load(settings.l2_chain_id, sequencer))
+            .transpose()?;
+        let sequencer_config = settings.sequencer.as_ref().map(SequencerConfig::from);
+
         let engine_config = EngineConfig {
             config: Arc::new(rollup_config.clone()),
             l2_url: settings.engine_rpc.clone(),
             l2_jwt_secret: jwt_secret,
             l1_url: l1.eth_rpc.clone(),
-            mode: settings.mode,
+            mode: settings.mode(),
         };
 
         let l1_config_builder = L1ConfigBuilder {
@@ -350,18 +364,18 @@ impl Chain {
             slot_duration_override: l1.slot_duration_override,
         };
 
-        let p2p_config = network_config(&settings, &rollup_config)?;
+        let p2p_config = network_config(&settings, &rollup_config, sequencer)?;
 
         info!(
             target: "lokahi",
             chain_id = settings.l2_chain_id,
-            mode = %settings.mode,
+            mode = %settings.mode(),
             rpc = %settings.rpc_socket,
             datadir = %settings.datadir.display(),
             "Configured chain"
         );
 
-        RollupNodeBuilder::new(
+        let builder = RollupNodeBuilder::new(
             rollup_config,
             l1_config_builder,
             settings.trust_l2_rpc,
@@ -371,11 +385,73 @@ impl Chain {
         )
         .with_dependency_set(dependency_set)
         .with_external_cross_safe(external_cross_safe)
-        .with_safe_db(safe_db)
-        .build()
-        .compose()
-        .await
-        .map_err(|e| anyhow!(e))
+        .with_safe_db(safe_db);
+
+        // Left unset on a chain this supernode only validates, which is what a single-chain
+        // kona-node validator also ends up with: the builder's default, whose fields the
+        // sequencer actor a validator does not build would be the only reader of.
+        let builder = match sequencer_config {
+            Some(config) => builder.with_sequencer_config(config),
+            None => builder,
+        };
+
+        builder.build().compose().await.map_err(|e| anyhow!(e))
+    }
+}
+
+/// The signer of one sequencing chain, and the address its signatures recover to.
+///
+/// The address is kept alongside the signer so that the chain's configured unsafe block signer can
+/// be checked against it: they are two statements about the same key, and lokahi cannot read the
+/// second one off the chain's `SystemConfig` the way kona-node does.
+#[derive(Debug)]
+struct SequencerSigner {
+    /// The signer the network actor signs gossiped payloads with.
+    signer: BlockSigner,
+    /// The address that signer's signatures recover to.
+    address: Address,
+}
+
+impl SequencerSigner {
+    /// Loads a chain's sequencer key from the file its settings name.
+    ///
+    /// The file is read, not created. kona's [`kona_cli::SecretKeyLoader`], which this chain's P2P
+    /// identity goes through, writes a fresh key when the file is missing — right for an identity
+    /// nobody else has to recognise, and wrong for a sequencer key: a mistyped path would hand the
+    /// chain a key no peer accepts, and every block it signed would be dropped across the network
+    /// while the chain itself looked healthy. A missing key file stops startup instead.
+    fn load(chain_id: u64, sequencer: &SequencerSettings) -> Result<Self> {
+        let path = sequencer.key_path.as_path();
+        let hex = std::fs::read_to_string(path).with_context(|| {
+            format!(
+                "failed to read the sequencer key {} of chain {chain_id}",
+                path.display()
+            )
+        })?;
+        let key = B256::from_str(hex.trim()).with_context(|| {
+            format!(
+                "the sequencer key {} of chain {chain_id} is not a 32-byte hex key",
+                path.display()
+            )
+        })?;
+        let signer = PrivateKeySigner::from_bytes(&key)
+            .map_err(|e| {
+                anyhow!("the sequencer key {} of chain {chain_id} is not a valid signing key: {e}", path.display())
+            })?
+            .with_chain_id(Some(chain_id));
+
+        Ok(Self { address: signer.address(), signer: BlockSigner::Local(signer) })
+    }
+}
+
+impl From<&SequencerSettings> for SequencerConfig {
+    fn from(sequencer: &SequencerSettings) -> Self {
+        Self {
+            sequencer_stopped: sequencer.stopped,
+            sequencer_recovery_mode: sequencer.recover,
+            conductor_rpc_url: sequencer.conductor_rpc.clone(),
+            l1_conf_delay: sequencer.l1_confs,
+        }
     }
 }
 
@@ -398,8 +474,14 @@ fn rpc_builder(settings: &ResolvedChain) -> RpcBuilder {
 /// Builds one chain's P2P configuration.
 ///
 /// The chain's identity and its bootstore live in its own data directory, so two chains in one
-/// process do not share a peer id or overwrite each other's known peers.
-fn network_config(settings: &ResolvedChain, rollup_config: &RollupConfig) -> Result<NetworkConfig> {
+/// process do not share a peer id or overwrite each other's known peers. `sequencer` is the signer
+/// of a chain this supernode sequences, and [`None`] on a chain it only validates: without one the
+/// network actor has nothing to sign a built block with and gossips none of them.
+fn network_config(
+    settings: &ResolvedChain,
+    rollup_config: &RollupConfig,
+    sequencer: Option<SequencerSigner>,
+) -> Result<NetworkConfig> {
     let keypair =
         kona_cli::SecretKeyLoader::load(&settings.datadir.join(P2P_KEY_FILE)).map_err(|e| {
             anyhow!("failed to load the p2p key of chain {}: {e}", settings.l2_chain_id)
@@ -410,6 +492,25 @@ fn network_config(settings: &ResolvedChain, rollup_config: &RollupConfig) -> Res
     gossip_address.push(libp2p::multiaddr::Protocol::Tcp(settings.p2p_tcp_port));
 
     let unsafe_block_signer = unsafe_block_signer(settings)?;
+
+    // Two statements about the same key: what this chain signs its blocks with, and whose
+    // signature its peers accept. lokahi takes the second from the operator rather than from the
+    // chain's `SystemConfig`, so a disagreement is a configuration mistake it can see but cannot
+    // resolve — and one whose only other symptom is every peer silently dropping this chain's
+    // blocks. Not fatal: a key being rotated into the `SystemConfig` legitimately differs from the
+    // address currently recorded there.
+    if let Some(sequencer) = &sequencer &&
+        sequencer.address != unsafe_block_signer
+    {
+        warn!(
+            target: "lokahi",
+            chain_id = settings.l2_chain_id,
+            sequencer = %sequencer.address,
+            unsafe_block_signer = %unsafe_block_signer,
+            "The sequencer key of this chain does not match its unsafe block signer: peers will \
+             reject the blocks it gossips unless the signer is rotated"
+        );
+    }
 
     let bootnodes = settings
         .bootnodes
@@ -433,6 +534,7 @@ fn network_config(settings: &ResolvedChain, rollup_config: &RollupConfig) -> Res
         // never hits that because it always overrides this field; take the same defaults it
         // starts from, including the per-chain message-id label.
         gossip_config: kona_gossip::default_config(settings.l2_chain_id),
+        gossip_signer: sequencer.map(|sequencer| sequencer.signer),
         ..NetworkConfig::new(rollup_config.clone(), local_node, gossip_address, unsafe_block_signer)
     })
 }
@@ -591,9 +693,9 @@ fn beacon_client(l1: &L1Settings) -> OnlineBeaconClient {
 mod tests {
     use super::*;
     use crate::interop::SAFE_DB_DIR;
+    use alloy_primitives::address;
     use kona_genesis::HardForkConfig;
     use kona_interop::ChainDependency;
-    use kona_node_service::NodeMode;
     use std::net::{IpAddr, Ipv4Addr};
     use url::Url;
 
@@ -641,7 +743,7 @@ mod tests {
             engine_rpc: Url::parse("http://127.0.0.1:1/").unwrap(),
             jwt_secret: jwt,
             trust_l2_rpc: false,
-            mode: NodeMode::Validator,
+            sequencer: None,
             datadir: dir.join(l2_chain_id.to_string()),
             rpc_socket: SocketAddr::new(IpAddr::from(Ipv4Addr::LOCALHOST), port),
             rpc_enable_admin: false,
@@ -652,6 +754,11 @@ mod tests {
             bootnodes: Vec::new(),
             interop_dependency_set: Some(dependency_set_file(dir, &[l2_chain_id])),
         }
+    }
+
+    /// Sequencer settings naming `key_path`, with kona-node's defaults for everything else.
+    fn sequencer_settings(key_path: PathBuf) -> SequencerSettings {
+        SequencerSettings { key_path, stopped: false, l1_confs: 4, recover: false, conductor_rpc: None }
     }
 
     /// A configuration over `chains`, with its interop state under `dir`.
@@ -713,5 +820,34 @@ mod tests {
                 "chain {chain_id}'s safe-head database lives in its own directory"
             );
         }
+    }
+
+    /// A sequencing chain's key is read from the file its settings name, and the address it signs
+    /// with is the one its peers have to be expecting.
+    #[test]
+    fn a_sequencer_key_is_read_from_its_file() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("sequencer.key");
+        std::fs::write(&path, format!("0x{}\n", "00".repeat(31) + "01"))
+            .expect("write the sequencer key");
+
+        let sequencer = SequencerSigner::load(901, &sequencer_settings(path)).expect("must load");
+        // The address of the secp256k1 key `1`.
+        assert_eq!(sequencer.address, address!("0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"));
+    }
+
+    /// Why the key is read rather than loaded through kona's [`kona_cli::SecretKeyLoader`]: that
+    /// loader writes a fresh key when the file is missing, and a sequencer signing with a key no
+    /// peer recognises looks healthy while every block it gossips is dropped. A mistyped path
+    /// stops startup here instead.
+    #[test]
+    fn a_missing_sequencer_key_is_an_error_rather_than_a_new_key() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("absent.key");
+
+        let err = SequencerSigner::load(901, &sequencer_settings(path.clone()))
+            .expect_err("must not load");
+        assert!(err.to_string().contains("failed to read the sequencer key"), "{err:?}");
+        assert!(!path.exists(), "a missing sequencer key file must not be created");
     }
 }

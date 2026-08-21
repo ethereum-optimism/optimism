@@ -34,6 +34,11 @@ p2p-tcp-port = 9222
 p2p-udp-port = 9222
 unsafe-block-signer = "0x1111111111111111111111111111111111111111"
 
+# A chain this supernode sequences rather than validates. Sequencing needs a key to sign the blocks
+# the chain gossips, and the address it signs with is what `unsafe-block-signer` has to name: a
+# supernode cannot read that address off the chain's SystemConfig, so the two are stated here and a
+# disagreement between them is logged at startup. The remaining `sequencer-*` settings default to
+# kona-node's, and a chain that does not sequence may not state them at all.
 [[chains]]
 l2-chain-id = 902
 rollup-config = "/etc/lokahi/rollup-902.json"
@@ -42,3 +47,9 @@ rpc-port = 9555
 p2p-tcp-port = 9232
 p2p-udp-port = 9232
 unsafe-block-signer = "0x2222222222222222222222222222222222222222"
+mode = "sequencer"
+sequencer-key-path = "/etc/lokahi/sequencer-902.key"
+sequencer-stopped = false
+sequencer-l1-confs = 4
+sequencer-recover = false
+# conductor-rpc = "http://localhost:8547"

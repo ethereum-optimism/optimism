@@ -47,7 +47,7 @@ impl From<&ResolvedChain> for HostedChain {
         Self {
             chain_id: chain.l2_chain_id,
             rpc_addr: chain.rpc_socket,
-            mode: chain.mode.to_string(),
+            mode: chain.mode().to_string(),
             datadir: chain.datadir.clone(),
         }
     }

@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -31,6 +33,12 @@ import (
 // which logs the address without saying which chain it belongs to, so the chains are given
 // concrete ports here instead and lokahi's admin RPC is asked to confirm them.
 const lokahiAdminBoundMessage = "Admin RPC server bound to address"
+
+// lokahiSequencerL1Confs is how many L1 blocks a sequencing chain keeps away from the L1 head
+// when it picks an L1 origin. It matches the SequencerConfDepth the in-process Go supernode
+// gives its virtual sequencers, so the two implementations sequence the same distance behind
+// the L1 head; kona-node's own default of 4 is meant for a production L1.
+const lokahiSequencerL1Confs = 2
 
 // lokahiSupernodeChain is one chain the supernode must host: the L2 network whose rollup
 // config drives derivation, and the EL that chain's node advances.
@@ -140,11 +148,8 @@ func startLokahiSupernode(t devtest.T, cfg lokahiSupernodeConfig) *LokahiSuperno
 	require := t.Require()
 	require.NotEmpty(cfg.chains, "a supernode hosts at least one chain")
 
-	// Both are configurable in op-supernode and have no lokahi equivalent yet, so a caller
-	// asking for them is told rather than quietly given a validator without interop.
-	require.False(cfg.sequencerEnabled,
-		"lokahi cannot sequence yet: its configuration has no sequencer p2p key, so a "+
-			"sequencing chain would produce blocks it cannot sign. Requested: %s", cfg.describe())
+	// Still configurable in op-supernode with no lokahi equivalent, so a caller asking for
+	// it is told rather than quietly given a supernode that activates interop elsewhere.
 	require.Nil(cfg.interopActivationTimestamp,
 		"lokahi takes interop activation from the rollup config's Lagoon time and has no "+
 			"override for it. Requested: %s", cfg.describe())
@@ -393,9 +398,26 @@ func lokahiChainEntry(
 	// chain's SystemConfig contract when it is not given one; lokahi's configuration has no
 	// such path, and a devnet chain is not in the superchain registry either, so the devstack
 	// has to supply the address the sequencer's P2P key signs with.
-	signer, err := chain.net.keys.Address(devkeys.SequencerP2PRole.Key(chain.net.ChainID().ToBig()))
+	signerKey := devkeys.SequencerP2PRole.Key(chain.net.ChainID().ToBig())
+	signer, err := chain.net.keys.Address(signerKey)
 	require.NoError(err, "need the sequencer p2p address of chain %d", chainID)
 	fmt.Fprintf(&b, "unsafe-block-signer = %q\n", signer.Hex())
+
+	// A sequencing chain signs the blocks it gossips with the same key, handed over as a file
+	// so the configuration does not carry it. `[defaults]` makes every chain a validator, so
+	// this entry is what turns one on.
+	if cfg.sequencerEnabled {
+		secret, err := chain.net.keys.Secret(signerKey)
+		require.NoError(err, "need the sequencer p2p key of chain %d", chainID)
+		keyPath := filepath.Join(dir, fmt.Sprintf("sequencer-key-%d.hex", chainID))
+		require.NoError(os.WriteFile(keyPath, []byte(hex.EncodeToString(crypto.FromECDSA(secret))), 0o600),
+			"must write the sequencer key of chain %d", chainID)
+		fmt.Fprintf(&b, "mode = \"sequencer\"\nsequencer-key-path = %q\n", keyPath)
+		// The L1 confirmation distance the Go op-supernode gives its virtual sequencers
+		// (SequencerConfDepth), rather than kona-node's production default of 4: a devnet L1
+		// has few blocks to stay behind.
+		fmt.Fprintf(&b, "sequencer-l1-confs = %d\n", lokahiSequencerL1Confs)
+	}
 
 	if cfg.depSet != nil {
 		depSetPath := filepath.Join(dir, fmt.Sprintf("interop-depset-%d.json", chainID))
