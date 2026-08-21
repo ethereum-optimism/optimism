@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -318,47 +317,6 @@ func TestAsyncGossiperOverlappingPublishes(t *testing.T) {
 	dropped, _, maxLen := metrics.counts()
 	require.Zero(t, dropped, "nothing should be dropped: every block was still publishable")
 	require.Equal(t, 2, maxLen, "the backlog behind the in-flight publish should be visible in metrics")
-}
-
-// TestAsyncGossiperDropsAgedOutPayloads covers a backlog that outlived its
-// usefulness: peers REJECT a payload older than the gossip timestamp threshold,
-// and an invalid delivery is scored against the sender, so a block that waited
-// too long is dropped rather than published.
-func TestAsyncGossiperDropsAgedOutPayloads(t *testing.T) {
-	m := newBlockingNetwork()
-	metrics := &mockMetrics{}
-	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), metrics)
-
-	// atomic, because the publisher goroutine reads the clock we advance here
-	var now atomic.Int64
-	now.Store(time.Unix(1700000000, 0).UnixNano())
-	p.timeNow = func() time.Time { return time.Unix(0, now.Load()) }
-	p.Start()
-	defer p.Stop()
-	defer m.Release()
-
-	inFlight := testEnvelope(1)
-	p.Gossip(inFlight)
-	require.Equal(t, inFlight, requirePayload(t, m.started, "first publish never started"))
-
-	// two blocks pile up behind the stuck publish, then the signer comes back
-	// well after they could have been accepted
-	p.Gossip(testEnvelope(2))
-	p.Gossip(testEnvelope(3))
-	now.Add(int64(maxPublishAge + time.Second))
-
-	fresh := testEnvelope(4)
-	p.Gossip(fresh)
-	m.Release()
-
-	// the two that aged out are skipped; the one queued at the new time is published
-	require.Equal(t, inFlight, requirePayload(t, m.finished, "in-flight publish never finished"))
-	require.Equal(t, fresh, requirePayload(t, m.started, "fresh publish never started"))
-	require.Equal(t, fresh, requirePayload(t, m.finished, "fresh publish never finished"))
-	require.Eventually(t, func() bool {
-		dropped, _, _ := metrics.counts()
-		return dropped == 2
-	}, 10*time.Second, 10*time.Millisecond, "both aged-out payloads should be counted as dropped")
 }
 
 // TestAsyncGossiperBoundsQueue covers a signer the sequencer cannot reach for

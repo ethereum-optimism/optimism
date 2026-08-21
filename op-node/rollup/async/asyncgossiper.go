@@ -19,16 +19,6 @@ const (
 	// from wedging publishing until TCP gives up.
 	publishTimeout = 10 * time.Second
 
-	// maxPublishAge is how long a sealed block may wait for its turn to be
-	// published before it is dropped. It mirrors the default of
-	// --p2p.gossip.timestamp.threshold: peers REJECT a payload older than that,
-	// and an invalid delivery is scored against the sender, so publishing a block
-	// that has aged out spends a signing round-trip and peer score to have the
-	// block refused. A node configured with a lower threshold publishes a few
-	// blocks its peers refuse; the horizon is deliberately not plumbed through
-	// from the p2p config for that one case.
-	maxPublishAge = 60 * time.Second
-
 	// maxPublishQueue caps the queue, so that a signer the sequencer cannot reach
 	// costs gossip rather than block production: once the queue is full the
 	// oldest entries are dropped instead of held, and the sequencer is never
@@ -36,9 +26,8 @@ const (
 	// nodes by other means - L1 and derivation, other sync mechanisms - whereas
 	// a sequencer that stops building produces nothing for anyone.
 	//
-	// It doubles as a memory bound: an envelope can be megabytes, and
-	// maxPublishAge alone bounds the queue only in time. 32 spans the whole
-	// publishable window at a 2s block time.
+	// It doubles as a memory bound: an envelope can be megabytes. 32 is ~1 minute
+	// of blocks at a 2s block time.
 	maxPublishQueue = 32
 )
 
@@ -84,16 +73,13 @@ type SimpleAsyncGossiper struct {
 	net     Network
 	log     log.Logger
 	metrics Metrics
-	// timeNow is overridden in tests to age queue entries
-	timeNow func() time.Time
 }
 
 // queuedPayload is a payload awaiting publication, tagged with the epoch it was
-// handed over in and when it joined the queue.
+// handed over in.
 type queuedPayload struct {
-	payload    *eth.ExecutionPayloadEnvelope
-	epoch      uint64
-	enqueuedAt time.Time
+	payload *eth.ExecutionPayloadEnvelope
+	epoch   uint64
 }
 
 // To avoid import cycles, we define a new Network interface here
@@ -119,7 +105,6 @@ func NewAsyncGossiper(ctx context.Context, net Network, log log.Logger, metrics 
 		ctx:     ctx,
 		log:     log,
 		metrics: metrics,
-		timeNow: time.Now,
 	}
 }
 
@@ -128,17 +113,13 @@ func NewAsyncGossiper(ctx context.Context, net Network, log log.Logger, metrics 
 //
 // Blocks are published in the order they were sealed rather than skipping to the
 // tip: a verifier that never receives a block cannot follow the chain past it
-// over gossip alone. Blocks are dropped only when the queue overflows or an
-// entry ages out - see maxPublishQueue and maxPublishAge - at which point
-// keeping the sequencer building is worth more than the gossip.
+// over gossip alone. Blocks are dropped only when the queue overflows - see
+// maxPublishQueue - at which point keeping the sequencer building is worth more
+// than the gossip.
 func (p *SimpleAsyncGossiper) Gossip(payload *eth.ExecutionPayloadEnvelope) {
 	p.mu.Lock()
 	p.epoch++
-	p.queue = append(p.queue, &queuedPayload{
-		payload:    payload,
-		epoch:      p.epoch,
-		enqueuedAt: p.timeNow(),
-	})
+	p.queue = append(p.queue, &queuedPayload{payload: payload, epoch: p.epoch})
 	for len(p.queue) > maxPublishQueue {
 		dropped := p.queue[0]
 		p.queue[0] = nil // do not keep the envelope alive through the backing array
@@ -217,27 +198,18 @@ func (p *SimpleAsyncGossiper) Start() {
 	}()
 }
 
-// dequeue takes the oldest payload that a peer would still accept, dropping any
-// that aged out while they waited. It returns nil when the queue holds nothing
-// publishable, along with the number of entries left behind.
+// dequeue takes the oldest queued payload, along with the number of entries left
+// behind. It returns nil when the queue is empty.
 func (p *SimpleAsyncGossiper) dequeue() (*queuedPayload, int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	for len(p.queue) > 0 {
-		next := p.queue[0]
-		p.queue[0] = nil // do not keep the envelope alive through the backing array
-		p.queue = p.queue[1:]
-
-		if age := p.timeNow().Sub(next.enqueuedAt); age > maxPublishAge {
-			p.log.Warn("dropping unpublished block, aged out of the gossip window",
-				"id", next.payload.ExecutionPayload.ID(),
-				"age", age, "len", len(p.queue))
-			p.metrics.RecordDroppedPublish()
-			continue
-		}
-		return next, len(p.queue)
+	if len(p.queue) == 0 {
+		return nil, 0
 	}
-	return nil, 0
+	next := p.queue[0]
+	p.queue[0] = nil // do not keep the envelope alive through the backing array
+	p.queue = p.queue[1:]
+	return next, len(p.queue)
 }
 
 // publish publishes the next queued payload and stores it for reuse if the
