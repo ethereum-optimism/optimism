@@ -368,14 +368,11 @@ impl ProofProviderConfig {
             auction_timeout,
             range_proof_strategy: parse_fulfillment_strategy(env_or(
                 "RANGE_PROOF_STRATEGY",
-                "reserved",
+                "auction",
             ))
             .with_context(|| format!("invalid {}", env_var("RANGE_PROOF_STRATEGY")))?,
-            agg_proof_strategy: parse_fulfillment_strategy(env_or(
-                "AGG_PROOF_STRATEGY",
-                "reserved",
-            ))
-            .with_context(|| format!("invalid {}", env_var("AGG_PROOF_STRATEGY")))?,
+            agg_proof_strategy: parse_fulfillment_strategy(env_or("AGG_PROOF_STRATEGY", "auction"))
+                .with_context(|| format!("invalid {}", env_var("AGG_PROOF_STRATEGY")))?,
             range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
             range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
             agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
@@ -763,6 +760,14 @@ mod tests {
             assert!(!config.fast_finality_mode);
             assert_eq!(config.fast_finality_proving_limit.get(), 1);
             assert_eq!(config.proof_provider_config.timeout, 14_400);
+            assert_eq!(
+                config.proof_provider_config.range_proof_strategy,
+                FulfillmentStrategy::Auction
+            );
+            assert_eq!(
+                config.proof_provider_config.agg_proof_strategy,
+                FulfillmentStrategy::Auction
+            );
         }
 
         /// A zero defense cap would silently disable defense entirely;
