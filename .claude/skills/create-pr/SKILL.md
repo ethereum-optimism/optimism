@@ -11,8 +11,7 @@ follow it in order. This file adds only what is specific to opening the PR under
 and applies after you commit the change on a feature branch.
 
 - **Run the review agents as parallel subagents** so their output stays out of your context.
-- **Get the user's approval before you create the PR.** Show the proposed title and
-  description first. Open a draft PR unless the user says the change is ready for review.
+- **Create the PR.** Open a draft unless the change is ready for review.
 
   ```bash
   git push -u origin <branch>
