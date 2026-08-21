@@ -325,6 +325,55 @@ mod safe_db {
         verify(&db);
     }
 
+    /// A reset that wipes the database, followed by a refill from a later point, moves the floor
+    /// *up* -- and a target below the new floor is permanently unanswerable.
+    ///
+    /// Each half is already covered: `truncate_on_safe_head_reset_before_first_entry` pins the
+    /// wipe, and `l1_at_safe_head`'s `target_below_first` case pins the verdict below the floor.
+    /// What was not covered is the two in sequence, which is the only way the floor ever rises.
+    /// Entries are otherwise appended above it and `first_entry_stable_after_reset_ahead` shows a
+    /// reset ahead of the floor leaves it alone, so a target that answered once keeps answering.
+    /// After a wipe-and-refill it does not.
+    ///
+    /// The distinction that matters to a reader is which error it becomes. While the database
+    /// holds nothing the answer is `L1AtSafeHeadNotFound`, which means "not yet" and is worth
+    /// retrying; once it has refilled above the old floor the same target is
+    /// `L1AtSafeHeadUnavailable`, which is permanent. A reader that resolved its lower bound once
+    /// and cached it is therefore wrong from here on, through no fault of its own -- which is why
+    /// `lokahi_interop::Verifier` re-reads that bound every round instead of latching it at
+    /// startup.
+    #[test]
+    fn a_wipe_and_refill_moves_the_floor_up_permanently() {
+        let (_dir, db) = open();
+
+        // A database recording from L2 block 500 upwards.
+        db.safe_head_updated(l2(0x02, 0xaa, 500, 40), id(0x01, 0xaa, 100)).unwrap();
+        db.safe_head_updated(l2(0x02, 0xbb, 510, 41), id(0x01, 0xbb, 110)).unwrap();
+        assert_eq!(db.first_entry().unwrap().safe_head.number, 500);
+        // The floor answers, so a reader may legitimately take it as its lower bound.
+        assert_record(db.l1_at_safe_head(500).unwrap(), id(0x01, 0xaa, 100), id(0x02, 0xaa, 500));
+
+        // A reset at or before the earliest entry deletes everything and re-records nothing:
+        // there is no previous entry whose L1 block the reset head could be attached to, so the
+        // database cannot know whether that head became safe there or before its records began.
+        db.safe_head_reset(l2(0x02, 0x99, 499, 39)).unwrap();
+        assert!(matches!(db.first_entry(), Err(SafeDbError::NotFound)));
+        // Holding nothing, every target is a retry rather than a verdict.
+        assert!(matches!(db.l1_at_safe_head(500), Err(SafeDbError::L1AtSafeHeadNotFound)));
+
+        // Derivation resumes from where it now is, so the refill begins above the old floor.
+        db.safe_head_updated(l2(0x02, 0xcc, 700, 60), id(0x01, 0xcc, 200)).unwrap();
+        db.safe_head_updated(l2(0x02, 0xdd, 710, 61), id(0x01, 0xdd, 210)).unwrap();
+
+        // The floor has risen, and the target that answered before the wipe is now permanent.
+        assert_eq!(db.first_entry().unwrap().safe_head.number, 700);
+        assert!(matches!(db.l1_at_safe_head(500), Err(SafeDbError::L1AtSafeHeadUnavailable)));
+
+        // The new floor answers, and so does a target above it.
+        assert_record(db.l1_at_safe_head(700).unwrap(), id(0x01, 0xcc, 200), id(0x02, 0xcc, 700));
+        assert_record(db.l1_at_safe_head(705).unwrap(), id(0x01, 0xdd, 210), id(0x02, 0xdd, 710));
+    }
+
     fn populated_l1_at_safe_head_db() -> (TempDir, SafeDatabase) {
         let (dir, db) = open();
         db.safe_head_updated(l2(0x02, 0xaa, 500, 0), id(0x01, 0xaa, 100)).unwrap();
