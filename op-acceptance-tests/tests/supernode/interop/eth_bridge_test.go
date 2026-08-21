@@ -161,10 +161,13 @@ func bridgeETH(
 
 	sendReceipt, err := sendTx.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err, "sendETH receipt not found")
-	require.Len(sendReceipt.Logs, 3, "sendETH should emit burn, sendMessage, and sendETH logs")
+	require.Len(
+		sendReceipt.Logs, 4, "sendETH should emit burn, sendMessage, recordSentMessage, and sendETH logs",
+	)
 	for idx, addr := range []common.Address{
 		predeploys.ETHLiquidityAddr,
 		predeploys.L2toL2CrossDomainMessengerAddr,
+		predeploys.MessageExpiryRelayAddr,
 		predeploys.SuperchainETHBridgeAddr,
 	} {
 		require.Equal(addr, sendReceipt.Logs[idx].Address)
