@@ -67,7 +67,7 @@ fn the_verified_frontier_and_wal_slot_survive_a_restart() {
     assert!(!store.has(1002).unwrap());
 
     // Re-applying commits the frontier; only then is the slot cleared.
-    store.commit(&pending.result().verified.clone()).unwrap();
+    store.commit(&pending.result().verified).unwrap();
     store.clear_pending().unwrap();
     assert_eq!(store.last_timestamp(), Some(1002));
     assert_eq!(store.pending().unwrap(), None);

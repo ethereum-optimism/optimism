@@ -476,7 +476,11 @@ impl<K: Kv> LogsDb for LogStore<K> {
             }
         }
         if let Some(pending_parent) = cursors.pending_parent {
-            let expected = BlockNumHash { number: block.number - 1, hash: parent_hash };
+            let parent_number = block
+                .number
+                .checked_sub(1)
+                .ok_or(StoreError::Conflict("genesis cannot carry buffered logs"))?;
+            let expected = BlockNumHash { number: parent_number, hash: parent_hash };
             if pending_parent != expected {
                 return Err(StoreError::Conflict(
                     "sealed block's parent is not the buffered logs' parent",
@@ -792,6 +796,20 @@ mod tests {
         ));
         assert!(matches!(
             store.seal_block(block(10).hash, block(11), 999),
+            Err(StoreError::Conflict(_))
+        ));
+    }
+
+    #[test]
+    fn genesis_cannot_carry_buffered_logs() {
+        let store = store();
+        // `add_log` already refuses the zero parent, so reaching a seal at height 0 with
+        // buffered logs takes a bogus parent height; it must be rejected, not underflow.
+        store
+            .add_log(a_log_hash(0), BlockNumHash { number: u64::MAX, hash: B256::ZERO }, 0, None)
+            .unwrap();
+        assert!(matches!(
+            store.seal_block(B256::ZERO, block(0), 1000),
             Err(StoreError::Conflict(_))
         ));
     }
