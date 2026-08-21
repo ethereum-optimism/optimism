@@ -92,10 +92,7 @@ impl RuleViolation {
                 Self::OutOfOrder { initiating: actual, executing: max }
             }
             RuleError::MessageExpired { initiating_timestamp, executing_timestamp } => {
-                Self::Expired {
-                    initiating: initiating_timestamp,
-                    executing: executing_timestamp,
-                }
+                Self::Expired { initiating: initiating_timestamp, executing: executing_timestamp }
             }
             other => Self::Other(other.to_string()),
         }
@@ -222,12 +219,7 @@ impl FrontierBlock {
             }
         }
 
-        Self {
-            block: *block,
-            log_hashes,
-            checksums,
-            executing_messages,
-        }
+        Self { block: *block, log_hashes, checksums, executing_messages }
     }
 
     /// Returns how many logs the block holds.
@@ -376,9 +368,14 @@ pub fn verify_round(
         verdict.verified.l2_heads.insert(chain_id, chain.block);
 
         for (&log_index, message) in &block.executing_messages {
-            if let Some(violation) =
-                verify_executing_message(chain_id, block.block.timestamp, message, view, stores, rules)?
-            {
+            if let Some(violation) = verify_executing_message(
+                chain_id,
+                block.block.timestamp,
+                message,
+                view,
+                stores,
+                rules,
+            )? {
                 // First violation settles the block: the block is replaced whole, so the
                 // remaining messages in it have nothing left to decide.
                 verdict.invalid.insert(chain_id, InvalidReason::Message { log_index, violation });
@@ -429,9 +426,10 @@ fn verify_executing_message(
 
     // Rule order matches the shared rules' own, so a message that breaks several is reported
     // against the same one on both sides.
-    if let Err(error) =
-        MessageRules::check_executing_activation::<Infallible>(executing_config, executing_timestamp)
-    {
+    if let Err(error) = MessageRules::check_executing_activation::<Infallible>(
+        executing_config,
+        executing_timestamp,
+    ) {
         return Ok(Some(RuleViolation::from_rule_error(error)));
     }
     if let Err(error) = MessageRules::check_initiating_activation::<Infallible>(
@@ -456,8 +454,8 @@ fn verify_executing_message(
 
     // A message referencing its own timestamp names a block of this very round, which no log store
     // holds yet — a round's blocks are sealed only once it decides to advance.
-    if referenced.timestamp == executing_timestamp
-        && view.contains(initiating_chain, &query).is_some()
+    if referenced.timestamp == executing_timestamp &&
+        view.contains(initiating_chain, &query).is_some()
     {
         return Ok(None);
     }
@@ -498,5 +496,140 @@ fn cyclic_chains(view: &FrontierView, _rules: &MessageRules<'_>) -> Vec<ChainId>
         Err(RuleError::CyclicDependency { chain_ids }) => chain_ids,
         // `check_no_cycles` reports cycles and nothing else.
         Err(_) => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::{LogData, address};
+    use kona_protocol::BlockInfo;
+
+    const CHAIN: ChainId = 990_901;
+
+    fn log(seed: u8) -> alloy_primitives::Log {
+        alloy_primitives::Log {
+            address: address!("4200000000000000000000000000000000000023"),
+            data: LogData::new_unchecked(vec![B256::repeat_byte(seed)], vec![seed].into()),
+        }
+    }
+
+    fn indexed() -> FrontierBlock {
+        FrontierBlock::index(
+            CHAIN,
+            &BlockLogs {
+                block: BlockInfo {
+                    hash: B256::repeat_byte(0x10),
+                    number: 42,
+                    parent_hash: B256::repeat_byte(0x0f),
+                    timestamp: 1_000,
+                },
+                logs: vec![log(1), log(2)],
+            },
+        )
+    }
+
+    /// The query a correct reference to the log at `log_index` produces.
+    fn query_for(block: &FrontierBlock, log_index: u32) -> ContainsQuery {
+        ContainsQuery {
+            block_number: block.block.number,
+            log_index,
+            timestamp: block.block.timestamp,
+            checksum: ChecksumArgs {
+                block_number: block.block.number,
+                log_index,
+                timestamp: block.block.timestamp,
+                chain_id: U256::from(CHAIN),
+                log_hash: block.log_hashes[log_index as usize],
+            }
+            .checksum(),
+        }
+    }
+
+    #[test]
+    fn indexing_covers_every_log_in_order() {
+        let block = indexed();
+        assert_eq!(block.log_count(), 2);
+        assert_eq!(block.log_hashes, vec![log_to_log_hash(&log(1)), log_to_log_hash(&log(2))]);
+        // Neither log is an executing message: they are not `CrossL2Inbox` events.
+        assert!(block.executing_messages.is_empty());
+    }
+
+    #[test]
+    fn a_correct_reference_is_found_at_every_position() {
+        let block = indexed();
+        for log_index in 0..block.log_count() {
+            assert_eq!(block.contains(&query_for(&block, log_index)), Some(block.seal()));
+        }
+    }
+
+    #[test]
+    fn a_reference_to_another_block_is_not_found() {
+        let block = indexed();
+        let query = ContainsQuery { block_number: 43, ..query_for(&block, 0) };
+        assert_eq!(block.contains(&query), None);
+    }
+
+    #[test]
+    fn a_reference_claiming_the_wrong_timestamp_is_not_found() {
+        let block = indexed();
+        let query = ContainsQuery { timestamp: 1_001, ..query_for(&block, 0) };
+        assert_eq!(block.contains(&query), None);
+    }
+
+    #[test]
+    fn a_reference_past_the_last_log_is_not_found() {
+        let block = indexed();
+        let query = ContainsQuery { log_index: 2, ..query_for(&block, 0) };
+        assert_eq!(block.contains(&query), None);
+    }
+
+    #[test]
+    fn a_reference_to_the_right_position_with_the_wrong_checksum_is_not_found() {
+        let block = indexed();
+        // The log at index 1's checksum, claimed at index 0: position and payload must agree.
+        let query = ContainsQuery { log_index: 0, ..query_for(&block, 1) };
+        assert_eq!(block.contains(&query), None);
+    }
+
+    #[test]
+    fn the_view_answers_only_for_the_chain_asked_about() {
+        let block = indexed();
+        let query = query_for(&block, 0);
+        let view = FrontierView::new(BTreeMap::from([(CHAIN, block.clone())]));
+        assert_eq!(view.contains(CHAIN, &query), Some(block.seal()));
+        assert_eq!(view.contains(CHAIN + 1, &query), None);
+    }
+
+    #[test]
+    fn rule_errors_keep_their_identity_when_renamed() {
+        let cases = [
+            (
+                RuleError::ExecutedTooEarly { activation_time: 100, executing_message_time: 99 },
+                RuleViolation::ExecutedTooEarly(99),
+            ),
+            (
+                RuleError::InitiatedTooEarly { activation_time: 100, initiating_message_time: 98 },
+                RuleViolation::InitiatedTooEarly(98),
+            ),
+            (
+                RuleError::MessageInFuture { max: 100, actual: 101 },
+                RuleViolation::OutOfOrder { initiating: 101, executing: 100 },
+            ),
+            (
+                RuleError::MessageExpired { initiating_timestamp: 1, executing_timestamp: 100 },
+                RuleViolation::Expired { initiating: 1, executing: 100 },
+            ),
+        ];
+        for (error, expected) in cases {
+            assert_eq!(RuleViolation::from_rule_error(error), expected);
+        }
+    }
+
+    #[test]
+    fn an_unmapped_rule_error_keeps_its_rendering() {
+        let error = RuleError::MissingRollupConfig(7);
+        let rendered = error.to_string();
+        assert_eq!(RuleViolation::from_rule_error(error), RuleViolation::Other(rendered));
     }
 }

@@ -25,8 +25,10 @@ use crate::{
         backfill_chain, backfill_window, chain_backfill_range, fetch_and_seal, verification_start,
     },
     chain::{ChainAt, ChainError, InteropChain, L1Canonical, L1CanonicalExt, RoundError},
-    decide::{ChainFrontier, Decision, RoundObservation, StepOutput, check_preconditions,
-        decide_verified_result},
+    decide::{
+        ChainFrontier, Decision, RoundObservation, StepOutput, check_preconditions,
+        decide_verified_result,
+    },
     kv::Kv,
     logs::LogsDb,
     verified::{InvalidHead, PendingTransition, RoundResult, VerifiedResult, VerifiedStore},
@@ -152,13 +154,19 @@ impl<K: Kv> Verifier<K> {
             )));
         }
 
-        let start = verified.last_timestamp().map(|last| last + 1);
+        // A slot in the WAL is also a resume: it is written only after cold start has finished, so
+        // its timestamp is a start the verifier already chose. Re-running cold start instead would
+        // pick a start from today's safe heads while a transition for the old one sits unapplied.
+        let start = match verified.last_timestamp() {
+            Some(last) => Some(last + 1),
+            None => verified.pending()?.map(|pending| pending.result().verified.timestamp),
+        };
         if let Some(start) = start {
             info!(
                 target: "lokahi_interop",
                 start,
                 activation = config.activation_timestamp,
-                "Resuming interop verification from the verified store"
+                "Resuming interop verification"
             );
         }
 
@@ -285,9 +293,11 @@ impl<K: Kv> Verifier<K> {
 
     /// Fills every chain's log store over the window behind `start`.
     async fn backfill(&self, start: u64) -> Result<(), RoundError> {
-        let Some(window) =
-            backfill_window(self.config.activation_timestamp, start, self.config.log_backfill_depth)
-        else {
+        let Some(window) = backfill_window(
+            self.config.activation_timestamp,
+            start,
+            self.config.log_backfill_depth,
+        ) else {
             return Ok(());
         };
 
@@ -373,8 +383,8 @@ impl<K: Kv> Verifier<K> {
         // The committed frontier is checked first and on its own. If the L1 block it rests on has
         // left the canonical chain, everything built on it has to go, and no amount of waiting
         // changes that.
-        if let Some(last) = &observation.last_verified
-            && !self.l1.all_canonical(&[last.l1_inclusion]).await.map_err(RoundError::L1)?
+        if let Some(last) = &observation.last_verified &&
+            !self.l1.all_canonical(&[last.l1_inclusion]).await.map_err(RoundError::L1)?
         {
             observation.l1_needs_rewind = true;
             return Ok(observation);
@@ -434,12 +444,13 @@ impl<K: Kv> Verifier<K> {
 
     /// Fetches the round's frontier blocks and verifies their messages.
     async fn verify(&self, observation: &RoundObservation) -> Result<RoundVerdict, RoundError> {
-        let frontier = observation.frontier.as_ref().ok_or_else(|| {
-            RoundError::Invariant("verification ran without a frontier".into())
-        })?;
-        let l1_inclusion = observation.l1_inclusion().ok_or_else(|| {
-            RoundError::Invariant("a frontier with no L1 inclusion".into())
-        })?;
+        let frontier = observation
+            .frontier
+            .as_ref()
+            .ok_or_else(|| RoundError::Invariant("verification ran without a frontier".into()))?;
+        let l1_inclusion = observation
+            .l1_inclusion()
+            .ok_or_else(|| RoundError::Invariant("a frontier with no L1 inclusion".into()))?;
 
         let mut blocks = BTreeMap::new();
         for (&chain_id, chain_frontier) in frontier {
@@ -452,8 +463,7 @@ impl<K: Kv> Verifier<K> {
         }
         let view = FrontierView::new(blocks);
 
-        let rules =
-            MessageRules::new(&self.rollup_configs, self.config.message_expiry_window);
+        let rules = MessageRules::new(&self.rollup_configs, self.config.message_expiry_window);
         verify_round(
             observation.next_timestamp,
             l1_inclusion,
@@ -544,8 +554,8 @@ impl<K: Kv> Verifier<K> {
 
     /// Returns one chain's log store, or the invariant failure that it has none.
     fn store(&self, chain_id: ChainId) -> Result<&Arc<dyn LogsDb>, RoundError> {
-        self.stores.get(&chain_id).ok_or_else(|| {
-            RoundError::Invariant(format!("chain {chain_id} has no log store"))
-        })
+        self.stores
+            .get(&chain_id)
+            .ok_or_else(|| RoundError::Invariant(format!("chain {chain_id} has no log store")))
     }
 }

@@ -46,10 +46,8 @@ pub fn seal_indexed(store: &dyn LogsDb, block: &FrontierBlock) -> Result<(), Sto
     }
 
     let parent_hash = block.block.parent_hash;
-    let parent = BlockNumHash {
-        number: id.number.checked_sub(1).unwrap_or_default(),
-        hash: parent_hash,
-    };
+    let parent =
+        BlockNumHash { number: id.number.checked_sub(1).unwrap_or_default(), hash: parent_hash };
     for (log_index, log_hash) in block.log_hashes.iter().enumerate() {
         let log_index = log_index as u32;
         store.add_log(
@@ -69,10 +67,8 @@ pub async fn fetch_and_seal(
     block: BlockNumHash,
 ) -> Result<(), RoundError> {
     let chain_id = chain.chain_id();
-    let logs = chain
-        .block_logs(block)
-        .await
-        .map_err(|source| RoundError::chain(chain_id, source))?;
+    let logs =
+        chain.block_logs(block).await.map_err(|source| RoundError::chain(chain_id, source))?;
     if logs.id() != block {
         return Err(RoundError::Invariant(format!(
             "chain {chain_id}: asked for the logs of {block:?} and was given {:?}",
@@ -87,7 +83,10 @@ pub async fn fetch_and_seal(
 /// A reorg that happens while the verifier is not running leaves the store's tip on a chain that
 /// no longer exists. Without trimming it, the first seal after restart can never satisfy the
 /// store's parent-hash check and the node retries forever.
-pub async fn reconcile_tail(chain: &dyn InteropChain, store: &dyn LogsDb) -> Result<(), RoundError> {
+pub async fn reconcile_tail(
+    chain: &dyn InteropChain,
+    store: &dyn LogsDb,
+) -> Result<(), RoundError> {
     let chain_id = chain.chain_id();
     let Some(latest) = store.latest_sealed_block() else { return Ok(()) };
 
@@ -116,9 +115,7 @@ pub async fn reconcile_tail(chain: &dyn InteropChain, store: &dyn LogsDb) -> Res
             trimmed_tip = latest.number,
             "Log store tail diverged from canonical; rewinding"
         );
-        return store
-            .rewind(BlockNumHash { number, hash: seal.hash })
-            .map_err(RoundError::Store);
+        return store.rewind(BlockNumHash { number, hash: seal.hash }).map_err(RoundError::Store);
     }
 
     warn!(
@@ -186,10 +183,8 @@ pub async fn backfill_chain(
         "Backfilling log store"
     );
     for number in from..=range.to {
-        let output = chain
-            .output_at(number)
-            .await
-            .map_err(|source| RoundError::chain(chain_id, source))?;
+        let output =
+            chain.output_at(number).await.map_err(|source| RoundError::chain(chain_id, source))?;
         fetch_and_seal(chain, store, BlockNumHash { number, hash: output.block_hash }).await?;
     }
     Ok(())

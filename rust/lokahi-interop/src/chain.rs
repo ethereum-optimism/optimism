@@ -80,10 +80,12 @@ impl ChainAt {
             LocalSafeAtTimestamp::BeforeGenesis => Some(Self::BeforeGenesis),
             LocalSafeAtTimestamp::NotLocalSafeYet => Some(Self::NotYet),
             LocalSafeAtTimestamp::BehindHead => None,
-            LocalSafeAtTimestamp::Head(head) => Some(head.derived_from_l1().map_or(
-                Self::NotYet,
-                |l1| Self::Derived { block: head.head.block_info.id(), l1: l1.id() },
-            )),
+            LocalSafeAtTimestamp::Head(head) => {
+                Some(head.derived_from_l1().map_or(Self::NotYet, |l1| Self::Derived {
+                    block: head.head.block_info.id(),
+                    l1: l1.id(),
+                }))
+            }
         }
     }
 }

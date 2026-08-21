@@ -6,9 +6,7 @@
 //! substituted, so what is exercised is the real observe → decide → write-ahead → apply sequence.
 
 use alloy_eips::BlockNumHash;
-use alloy_primitives::{
-    Address, B256, ChainId, Log, LogData, U256, address, map::HashMap,
-};
+use alloy_primitives::{Address, B256, ChainId, Log, LogData, U256, address, map::HashMap};
 use alloy_sol_types::SolEvent;
 use async_trait::async_trait;
 use kona_genesis::{ChainGenesis, HardForkConfig, Predeploys, RollupConfig};
@@ -94,10 +92,7 @@ impl FakeChain {
             config: RollupConfig {
                 block_time: 1,
                 genesis: ChainGenesis { l2_time: ACTIVATION, ..Default::default() },
-                hardforks: HardForkConfig {
-                    lagoon_time: Some(ACTIVATION),
-                    ..Default::default()
-                },
+                hardforks: HardForkConfig { lagoon_time: Some(ACTIVATION), ..Default::default() },
                 l2_chain_id: chain_id.into(),
                 ..Default::default()
             },
@@ -220,9 +215,8 @@ fn executing_log(
     log_index: u32,
     timestamp: u64,
 ) -> Log {
-    let payload_hash = alloy_primitives::keccak256(
-        kona_interop::RawMessagePayload::from(initiating).as_ref(),
-    );
+    let payload_hash =
+        alloy_primitives::keccak256(kona_interop::RawMessagePayload::from(initiating).as_ref());
     let message = ExecutingMessage {
         identifier: MessageIdentifier {
             origin: initiating.address,
@@ -258,10 +252,7 @@ impl World {
     }
 
     fn log_stores(&self) -> LogStores {
-        self.stores
-            .iter()
-            .map(|(&id, store)| (id, store.clone() as Arc<dyn LogsDb>))
-            .collect()
+        self.stores.iter().map(|(&id, store)| (id, store.clone() as Arc<dyn LogsDb>)).collect()
     }
 
     fn store(&self, chain_id: ChainId) -> &Arc<LogStore<MemoryKv>> {
@@ -394,10 +385,7 @@ async fn a_chain_that_has_not_reached_the_timestamp_makes_the_round_wait() {
     let mut verifier = world.verifier();
 
     // Cold start, one round at 110, then nothing: chain B has no block at 111.
-    assert_eq!(
-        run(&mut verifier, 3).await,
-        vec![Pace::Immediate, Pace::Immediate, Pace::Idle]
-    );
+    assert_eq!(run(&mut verifier, 3).await, vec![Pace::Immediate, Pace::Immediate, Pace::Idle]);
     assert_eq!(verifier.verified().last_timestamp(), Some(START));
 
     world.chain_b.set_local_safe_through(START + 1);
@@ -709,3 +697,48 @@ fn the_checksum_a_stored_message_carries_matches_the_referenced_log() {
 /// Keeps the unused-import lint honest about items only used by some tests.
 #[allow(dead_code)]
 fn type_check_only(_: Address, _: HashMap<u64, RollupConfig>) {}
+
+#[tokio::test]
+async fn a_same_timestamp_cycle_holds_the_frontier() {
+    let world = World::new();
+    // Each chain's block at timestamp 111 holds an executing message at log index 0 that
+    // references the *other* chain's ordinary log at index 1, at the same timestamp. Both
+    // messages are individually valid — the referenced logs exist in the round's own view — but
+    // the two executing messages depend on each other's position, which is a cycle.
+    let plain_a = initiating_log(0x11);
+    let plain_b = initiating_log(0x22);
+    world.chain_a.set_block(FakeBlock::with_logs(
+        START + 1,
+        vec![executing_log(CHAIN_B, &plain_b, START + 1, 1, START + 1), plain_a.clone()],
+    ));
+    world.chain_b.set_block(FakeBlock::with_logs(
+        START + 1,
+        vec![executing_log(CHAIN_A, &plain_a, START + 1, 1, START + 1), plain_b.clone()],
+    ));
+    let mut verifier = world.verifier();
+
+    assert_eq!(run(&mut verifier, 3).await, vec![Pace::Immediate, Pace::Immediate, Pace::Idle]);
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+    assert_eq!(verifier.verified().pending().unwrap(), None);
+}
+
+#[tokio::test]
+async fn two_same_timestamp_messages_that_do_not_depend_on_each_other_advance() {
+    let world = World::new();
+    // The mirror of the cycle case: each chain's executing message references a log that comes
+    // *before* the other chain's executing message, so neither waits on the other.
+    let plain_a = initiating_log(0x33);
+    let plain_b = initiating_log(0x44);
+    world.chain_a.set_block(FakeBlock::with_logs(
+        START + 1,
+        vec![plain_a.clone(), executing_log(CHAIN_B, &plain_b, START + 1, 0, START + 1)],
+    ));
+    world.chain_b.set_block(FakeBlock::with_logs(
+        START + 1,
+        vec![plain_b.clone(), executing_log(CHAIN_A, &plain_a, START + 1, 0, START + 1)],
+    ));
+    let mut verifier = world.verifier();
+
+    assert_eq!(run(&mut verifier, 3).await, vec![Pace::Immediate; 3]);
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+}

@@ -65,10 +65,7 @@ impl RoundObservation {
     /// timestamp from a later L1 block sets the bound for the set.
     pub fn l1_inclusion(&self) -> Option<BlockNumHash> {
         let frontier = self.frontier.as_ref()?;
-        frontier
-            .values()
-            .map(|chain| chain.l1_inclusion)
-            .max_by_key(|l1| l1.number)
+        frontier.values().map(|chain| chain.l1_inclusion).max_by_key(|l1| l1.number)
     }
 
     /// Returns the L1 blocks a round at this observation depends on being canonical.
@@ -171,8 +168,7 @@ pub fn decide_verified_result(result: RoundResult) -> StepOutput {
     if result.verified.l2_heads.is_empty() {
         return StepOutput::bare(Decision::Wait);
     }
-    let decision =
-        if result.is_valid() { Decision::Advance } else { Decision::Invalidate };
+    let decision = if result.is_valid() { Decision::Advance } else { Decision::Invalidate };
     StepOutput { decision, result }
 }
 
@@ -223,20 +219,14 @@ mod tests {
     #[test]
     fn unready_chains_wait() {
         let observation = RoundObservation { frontier: None, ..ready() };
-        assert_eq!(
-            check_preconditions(&observation),
-            Some(StepOutput::bare(Decision::Wait))
-        );
+        assert_eq!(check_preconditions(&observation), Some(StepOutput::bare(Decision::Wait)));
     }
 
     #[test]
     fn a_stale_committed_l1_inclusion_rewinds() {
         let observation =
             RoundObservation { l1_needs_rewind: true, l1_consistent: false, ..ready() };
-        assert_eq!(
-            check_preconditions(&observation),
-            Some(StepOutput::bare(Decision::Rewind))
-        );
+        assert_eq!(check_preconditions(&observation), Some(StepOutput::bare(Decision::Rewind)));
     }
 
     #[test]
@@ -244,10 +234,7 @@ mod tests {
         // The committed frontier is still canonical; only a chain's own L1 head is behind. Waiting
         // lets that chain catch up, where rewinding would throw away verified history for it.
         let observation = RoundObservation { l1_consistent: false, ..ready() };
-        assert_eq!(
-            check_preconditions(&observation),
-            Some(StepOutput::bare(Decision::Wait))
-        );
+        assert_eq!(check_preconditions(&observation), Some(StepOutput::bare(Decision::Wait)));
     }
 
     #[test]
@@ -259,12 +246,8 @@ mod tests {
     fn unready_chains_take_precedence_over_a_rewind() {
         // Without a frontier there is nothing to rewind *to* that this round observed, so the
         // round waits and re-observes rather than acting on a half-read world.
-        let observation =
-            RoundObservation { frontier: None, l1_needs_rewind: true, ..ready() };
-        assert_eq!(
-            check_preconditions(&observation),
-            Some(StepOutput::bare(Decision::Wait))
-        );
+        let observation = RoundObservation { frontier: None, l1_needs_rewind: true, ..ready() };
+        assert_eq!(check_preconditions(&observation), Some(StepOutput::bare(Decision::Wait)));
     }
 
     #[test]
