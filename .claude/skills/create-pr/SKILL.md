@@ -22,7 +22,7 @@ change on a feature branch.
    [CONTRIBUTING.md](../../../CONTRIBUTING.md#commit-messages).
 
 4. **Write the description**: why the change is necessary, and its effect on users. Keep it
-   to two or three sentences. Do not repeat the diff. See
+   succinct. Do not repeat the diff. See
    [Writing the Description](../../../docs/handbook/pr-guidelines.md#writing-the-description).
 
 5. **[USER REVIEW]** Show the title and the description. Get approval before you create the
