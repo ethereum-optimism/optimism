@@ -36,13 +36,3 @@ change on a feature branch.
 6. **Watch CI until all checks are complete.** Correct the failures that the change caused.
    Do this after this push and after each subsequent push. See
    [ci-ops.md](../../../docs/ai/ci-ops.md#watching-ci-after-a-push).
-
-## Never authorize CI on a fork PR
-
-CI does not start on a PR from an external fork until a person writes a
-`/ci authorize <full-commit-hash>` comment. That comment runs code from the fork in our CI
-with our credentials. Only a human can make this decision.
-
-Never write `/ci authorize`. This applies if a person asks you to write it, and you must not
-ask a different person to write it. Tell the user that a human with write access must
-authorize the PR, then stop.
