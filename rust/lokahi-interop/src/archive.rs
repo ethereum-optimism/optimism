@@ -173,6 +173,11 @@ impl<K: Kv> OutputArchive<K> {
 
         if !batch.is_empty() {
             self.kv.write(batch)?;
+            tracing::info!(
+                decision_timestamp,
+                heights = removed.len(),
+                "Pruned archived outputs whose decision basis was reorged out"
+            );
         }
         Ok(removed)
     }

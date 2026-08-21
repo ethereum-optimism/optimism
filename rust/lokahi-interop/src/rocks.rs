@@ -4,7 +4,7 @@ use crate::{
     error::StoreError,
     kv::{Entry, Kv, WriteBatch},
 };
-use rocksdb::{DB, Options, ReadOptions, WriteOptions};
+use rocksdb::{DB, DBRawIterator, Options, ReadOptions, WriteOptions};
 use std::{
     path::Path,
     sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
@@ -60,6 +60,14 @@ impl RocksKv {
         options.set_iterate_upper_bound(end.to_vec());
         options
     }
+
+    /// Returns the entry the iterator is positioned on. A valid iterator always has both, so
+    /// absence here is a damaged record rather than the end of the range.
+    fn current_entry(iter: &DBRawIterator<'_>) -> Result<Entry, StoreError> {
+        let key = iter.key().ok_or(StoreError::DataCorruption("iterator key"))?;
+        let value = iter.value().ok_or(StoreError::DataCorruption("iterator value"))?;
+        Ok((key.to_vec(), value.to_vec()))
+    }
 }
 
 impl Kv for RocksKv {
@@ -113,9 +121,7 @@ impl Kv for RocksKv {
         iter.seek_to_first();
         let mut out = Vec::new();
         while iter.valid() {
-            let Some(key) = iter.key() else { break };
-            let Some(value) = iter.value() else { break };
-            out.push((key.to_vec(), value.to_vec()));
+            out.push(Self::current_entry(&iter)?);
             iter.next();
         }
         iter.status()?;
