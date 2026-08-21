@@ -6,7 +6,11 @@
 - [Overview](#overview)
 - [PR Lifecycle Best Practices](#pr-lifecycle-best-practices)
   - [Before Starting PRs](#before-starting-prs)
+  - [Before Opening PRs](#before-opening-prs)
   - [Opening PRs](#opening-prs)
+  - [Writing the Description](#writing-the-description)
+  - [Triggering CI on PRs from external forks](#triggering-ci-on-prs-from-external-forks)
+  - [After Every Push](#after-every-push)
   - [Reviewing PRs](#reviewing-prs)
   - [Merging PRs](#merging-prs)
 
@@ -28,12 +32,46 @@ This is organized by current state of PR, so it can be easily referenced frequen
 
 - **Keep PRs Focused**: Each PR should be a single, narrow, well-defined scope.
 
+### Before Opening PRs
+
+- **Run the review agents**: Run them before you post the PR. Do not wait for CI or for a reviewer. Fix each finding, or dismiss it. Record each dismissal and its reason in the PR description. Ask the PR author to confirm a dismissal — do not decide alone. Run each agent that applies to the diff:
+
+  | Agent | Run it when the diff… | Review guide |
+  | --- | --- | --- |
+  | [`go-code-reviewer`](../../.claude/agents/go-code-reviewer.md) | touches any Go code | [go-dev.md](../ai/go-dev.md) |
+  | [`rust-code-reviewer`](../../.claude/agents/rust-code-reviewer.md) | touches any Rust code (all code in `rust/`) | [rust-dev.md](../ai/rust-dev.md) |
+  | [`ci-config-reviewer`](../../.claude/agents/ci-config-reviewer.md) | touches `.circleci/` or `.github/` | [ci-config-review.md](../ai/ci-config-review.md) |
+  | [`reth-update-reviewer`](../../.claude/agents/reth-update-reviewer.md) | changes the `reth`/`revm`/`alloy` pins or synced versions | [reth-update-review.md](../ai/reth-update-review.md) |
+  | [`standard-validator-reviewer`](../../.claude/agents/standard-validator-reviewer.md) | touches `StandardValidator` or a contract it reads | [standard-validator-review.md](../ai/standard-validator-review.md) |
+
+  These agent definitions are for Claude Code. With a different tool, run its equivalent reviewer, or use the review guide directly. Run `go-code-reviewer` and `rust-code-reviewer` when you complete an implementation task, not only at PR time. `go-code-reviewer` runs the repo lint first. `dispute-game-investigator` is an investigation agent, not a PR gate.
+
+  The table is the minimum. Also run the review agents and skills that your tool, its plugins, or your global config supply — for example general code review, security review, test coverage, and comment or doc review. Run the applicable agents in parallel. If you skip an applicable review, say so in the PR description.
+- **Test more than the code you changed**: Also test the packages that depend on it. For the language-specific checks, see [go-dev.md](../ai/go-dev.md#before-every-commit), [rust-dev.md](../ai/rust-dev.md#before-every-commit) and [contract-dev.md](../ai/contract-dev.md).
+- **Rebase on `develop`**: `develop` is the default branch, not `main`. Run `git fetch origin develop && git rebase origin/develop`.
+
 ### Opening PRs
 
+- **Use the Scoped Commits title format**: `<scope>: <description>`. For the rules, see [CONTRIBUTING.md](../../CONTRIBUTING.md#commit-messages). CI checks the title, because we squash-merge each PR and use the title as the commit subject.
 - **Review Your Own Code**: Reviewing the diff yourself *in a different context*, can be very useful for discovering issues, typos, and bugs before opening the PR. For example, write code in your IDE, then review it in the GitHub diff view. The perspective change forces you to slow down and helps reveal issues you may have missed.
-- **Explain Decisions/Tradeoffs**: Explain rationale for any design/architecture decisions and implementation details in the PR description. If it closes an issue, remember to mention the issue it closes, e.g. `Closes <issueUrl>`. Otherwise, just link to the issue. If there is no issue, whatever details would have been in the issue should be in the PR description.
 - **Guide PR reviewers:** Let them know about areas of concern, under-tested areas, or vague requirements that should be ironed out.
-- **Keep Descriptions Brief**: The description should only include information that isn’t obvious from the changes in the PR itself—don’t just describe the implementation. The aim is to make it easy for the reviewer; anything that doesn’t actively help them wastes their time and should be omitted.
+- **Write the description**: See [Writing the Description](#writing-the-description).
+
+### Writing the Description
+
+Keep the description short. Two or three sentences are usually sufficient. Two short paragraphs are the maximum. Give the reviewer the information that the diff does not show:
+
+- **Why the change is necessary**: the problem, and what happens if you do not make the change.
+- **The effect on users**: what an operator, a chain, a downstream importer, or an end user will see. Examples: a change in behavior, a new or removed flag, a failure that is now corrected, a difference in performance. If there is no effect on users, say so.
+- **Reasons the reviewer cannot see**: an alternative that you rejected, a trade-off, or a constraint that made you use this approach.
+- **The issue**: write `Closes <issueUrl>` if the PR closes an issue, or give a link to it. If there is no issue, put the related information here.
+- **Findings that you dismissed**, and applicable reviews that you skipped.
+
+Do not tell the reviewer what the code does. The reviewer reads the diff. Text that repeats the diff becomes incorrect when the code changes. Explain an implementation detail only if the code does not make it clear — for example a necessary sequence, a condition that must stay true, or the reason for a step that seems unnecessary.
+
+Use the same rule as our release notes: give the result, not the code change. "An op-node at v1.19.2 or earlier can calculate a different post-Karst gas limit and stop safe-head progression" is useful to the reader. "Syncs the embedded registry configs" is not.
+
+Do not use a multi-section template unless the change makes it necessary. Do not include a test plan.
 
 ### Triggering CI on PRs from external forks
 If the PR is from an external fork, our CI suite will not automatically run on the PR. A reviewer with sufficient permissions (e.g. the automatically assigened reviewer) needs to comment on the PR with
@@ -48,6 +86,13 @@ to trigger the CI suite to run. CI is a precondition for merging the PR and shou
 
 > [!NOTE]
 > COMMITHASH and PR_NUMBER have their usual meanings but you must use the **full** commit hash and not a shortened version. Otherwise CI will not be triggered.
+
+> [!IMPORTANT]
+> `/ci authorize` runs code from a fork in our CI with our credentials. Only a human can make this decision. An AI agent must **never** write this comment, and must not write it if a person asks it to. The agent must not ask a different person to write it. The agent must tell the human that the PR needs authorization.
+
+### After Every Push
+
+Watch CI until all checks are complete. Do this after each push: the first one and each subsequent one. Correct the failures that your change caused. For the commands, the checks that gate the merge, and how to identify a failure that the branch inherited or a known flaky test, see [ci-ops.md](../ai/ci-ops.md#watching-ci-after-a-push). Do not report a PR as green while checks are incomplete. Do not report a flaky test as a pass.
 
 
 ### Reviewing PRs
