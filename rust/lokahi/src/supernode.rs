@@ -1,6 +1,9 @@
 //! The N-chain host: one actor group per configured chain, one L1 watcher, one process.
 
-use crate::config::{L1Settings, ResolvedChain, ResolvedConfig};
+use crate::{
+    admin,
+    config::{L1Settings, ResolvedChain, ResolvedConfig},
+};
 use alloy_primitives::Address;
 use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::JwtSecret;
@@ -44,6 +47,10 @@ pub(crate) struct Supernode {
     l1_chain_config: L1ChainConfig,
     /// The chains, with their rollup configs loaded. Fixed: a boxed slice cannot grow.
     chains: Box<[Chain]>,
+    /// The supernode-level admin RPC's socket, if one is configured.
+    admin_rpc: Option<SocketAddr>,
+    /// The chains as configured, kept for the admin RPC to answer from.
+    configured: Box<[ResolvedChain]>,
 }
 
 /// One configured chain, with the files its settings named already loaded.
@@ -63,8 +70,9 @@ impl Supernode {
     /// This is where a misconfiguration still becomes a startup error rather than a running node
     /// with one broken chain: the whole set is loaded and checked before any actor exists.
     pub(crate) fn load(config: ResolvedConfig) -> Result<Self> {
-        let ResolvedConfig { l1, chains } = config;
+        let ResolvedConfig { l1, chains, admin_rpc } = config;
 
+        let configured = chains.clone();
         let chains = chains
             .into_vec()
             .into_iter()
@@ -88,7 +96,7 @@ impl Supernode {
 
         let l1_chain_config = load_l1_chain_config(&l1, l1_chain_id)?;
 
-        Ok(Self { l1, l1_chain_config, chains })
+        Ok(Self { l1, l1_chain_config, chains, admin_rpc, configured })
     }
 
     /// Runs every chain until one of its actors exits or the process is signalled.
@@ -103,7 +111,7 @@ impl Supernode {
     ///
     /// [`RollupNode::compose`]: kona_node_service::RollupNode::compose
     pub(crate) async fn run(self) -> Result<()> {
-        let Self { l1, l1_chain_config, chains } = self;
+        let Self { l1, l1_chain_config, chains, admin_rpc, configured } = self;
 
         info!(
             target: "lokahi",
@@ -111,6 +119,18 @@ impl Supernode {
             l1_chain_id = l1_chain_config.chain_id,
             "Starting supernode"
         );
+
+        // Bound before the chains are composed, so the address it logs is available to a caller
+        // that launched this process and has to wait for something. Composing a chain reaches out
+        // to the L1 and to an execution layer and can take a while, or fail; a caller watching for
+        // one line either has an admin RPC to ask or has a process that exited.
+        //
+        // Held until `run` returns: dropping the handle stops the server, so the admin RPC is up
+        // for exactly as long as the supernode is.
+        let _admin = match admin_rpc {
+            Some(socket) => Some(admin::serve(socket, &configured).await?),
+            None => None,
+        };
 
         let mut actors: Vec<BoxedNodeActor> = Vec::new();
         let mut watcher_ports: Vec<L1WatcherPorts> = Vec::with_capacity(chains.len());

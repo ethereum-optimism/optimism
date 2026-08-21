@@ -38,6 +38,22 @@ pub(crate) struct LokahiConfig {
     /// configured" rather than as a missing field.
     #[serde(default)]
     pub(crate) chains: Vec<ChainSettings>,
+    /// The supernode-level admin/test RPC, when the file asks for one.
+    ///
+    /// Absent means the supernode exposes no process-wide surface at all, which is what a
+    /// production deployment wants: everything an operator needs is on the chains' own RPCs.
+    pub(crate) admin: Option<AdminSettings>,
+}
+
+/// The supernode-level admin/test RPC's settings.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub(crate) struct AdminSettings {
+    /// The address the admin RPC listens on. Loopback by default: this is a control surface, so
+    /// it does not become reachable off the host by leaving a field out.
+    pub(crate) rpc_addr: Option<IpAddr>,
+    /// The port the admin RPC listens on. `0` lets the OS choose, and the chosen port is logged.
+    pub(crate) rpc_port: u16,
 }
 
 /// The L1 settings, shared by every chain.
@@ -118,6 +134,8 @@ pub(crate) struct ResolvedConfig {
     /// A boxed slice rather than a `Vec`: the chain set is fixed once the file is read, and a
     /// collection that cannot grow says so in the type.
     pub(crate) chains: Box<[ResolvedChain]>,
+    /// The socket the supernode-level admin RPC listens on, if one is configured.
+    pub(crate) admin_rpc: Option<SocketAddr>,
 }
 
 /// One chain's resolved settings.
@@ -198,6 +216,17 @@ pub(crate) enum ConfigError {
         /// The address both chains claimed.
         address: String,
     },
+    /// The admin RPC would listen on a socket a chain's RPC server already claimed.
+    #[error(
+        "the admin rpc would listen on {address}, which is chain {chain_id}'s rpc socket: give \
+         the admin rpc its own port"
+    )]
+    AdminAddressCollision {
+        /// The chain that claimed the socket.
+        chain_id: u64,
+        /// The socket both would bind.
+        address: String,
+    },
     /// Two chains would keep their state in the same directory.
     #[error("chains {first} and {second} both use the data directory {path}")]
     DataDirCollision {
@@ -224,7 +253,7 @@ impl LokahiConfig {
     /// possible to get wrong and a single-chain node cannot: the same chain configured twice, two
     /// chains sharing a port, two chains sharing a data directory.
     pub(crate) fn resolve(self) -> Result<ResolvedConfig, ConfigError> {
-        let Self { l1, defaults, chains } = self;
+        let Self { l1, defaults, chains, admin } = self;
 
         if chains.is_empty() {
             return Err(ConfigError::NoChains);
@@ -238,7 +267,15 @@ impl LokahiConfig {
 
         check_unique(&resolved)?;
 
-        Ok(ResolvedConfig { l1, chains: resolved.into_boxed_slice() })
+        let admin_rpc = admin.map(|admin| {
+            SocketAddr::new(
+                admin.rpc_addr.unwrap_or_else(|| IpAddr::from(Ipv4Addr::LOCALHOST)),
+                admin.rpc_port,
+            )
+        });
+        check_admin_socket(admin_rpc, &resolved)?;
+
+        Ok(ResolvedConfig { l1, chains: resolved.into_boxed_slice(), admin_rpc })
     }
 
     /// Resolves one chain's settings against the defaults.
@@ -359,6 +396,27 @@ fn check_unique(chains: &[ResolvedChain]) -> Result<(), ConfigError> {
     }
 
     Ok(())
+}
+
+/// Reports an admin RPC socket that a chain's RPC server has already claimed.
+///
+/// Same reason as the per-chain checks: two servers on one socket surfaces as an address-in-use
+/// after one of them is already up, and which one wins depends on start order. Port 0 is exempt —
+/// it is a request for any free port, not a claim on one.
+fn check_admin_socket(
+    admin_rpc: Option<SocketAddr>,
+    chains: &[ResolvedChain],
+) -> Result<(), ConfigError> {
+    let Some(admin_rpc) = admin_rpc.filter(|socket| socket.port() != 0) else {
+        return Ok(());
+    };
+
+    chains.iter().find(|chain| chain.rpc_socket == admin_rpc).map_or(Ok(()), |chain| {
+        Err(ConfigError::AdminAddressCollision {
+            chain_id: chain.l2_chain_id,
+            address: admin_rpc.to_string(),
+        })
+    })
 }
 
 /// Deserializes a [`NodeMode`] from its name.
@@ -580,5 +638,50 @@ mod tests {
         assert_eq!(resolved.chains[0].l2_chain_id, 901);
         assert_eq!(resolved.chains[1].l2_chain_id, 902);
         assert!(resolved.chains.iter().all(|chain| chain.rpc_enable_admin));
+    }
+
+    /// A file that says nothing about `[admin]` gets no process-wide surface at all, which is what
+    /// a production deployment wants: the chains' own RPCs are the operator interface.
+    #[test]
+    fn the_admin_rpc_is_off_unless_it_is_asked_for() {
+        let resolved = config(&chain("l2-chain-id = 901")).resolve().expect("resolves");
+        assert_eq!(resolved.admin_rpc, None);
+    }
+
+    /// A control surface does not become reachable off the host by leaving a field out.
+    #[test]
+    fn the_admin_rpc_listens_on_loopback_by_default() {
+        let mut file = config(&chain("l2-chain-id = 901"));
+        file.admin = Some(AdminSettings { rpc_addr: None, rpc_port: 9600 });
+
+        let resolved = file.resolve().expect("resolves");
+        assert_eq!(resolved.admin_rpc, Some("127.0.0.1:9600".parse().unwrap()));
+    }
+
+    /// The same reason the per-chain listeners are checked: an overlap surfaces as an
+    /// address-in-use after one of the two servers is already up.
+    #[test]
+    fn the_admin_rpc_cannot_take_a_chains_rpc_socket() {
+        let mut file = config(&chain("l2-chain-id = 901"));
+        file.admin = Some(AdminSettings { rpc_addr: None, rpc_port: 9545 });
+
+        assert_eq!(
+            file.resolve().expect_err("admin socket collision"),
+            ConfigError::AdminAddressCollision {
+                chain_id: 901,
+                address: "127.0.0.1:9545".to_string(),
+            }
+        );
+    }
+
+    /// Port 0 asks the OS for a free port rather than claiming one, so it cannot collide with a
+    /// chain even when a chain is also on 0.
+    #[test]
+    fn the_admin_rpc_may_ask_the_os_for_a_port() {
+        let mut file = config(&chain("l2-chain-id = 901"));
+        file.admin = Some(AdminSettings { rpc_addr: None, rpc_port: 0 });
+
+        let resolved = file.resolve().expect("resolves");
+        assert_eq!(resolved.admin_rpc, Some("127.0.0.1:0".parse().unwrap()));
     }
 }

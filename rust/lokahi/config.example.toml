@@ -10,6 +10,13 @@ beacon = "http://localhost:5052"
 # A devnet L1 is not in the registry, so its chain config comes from a file.
 chain-config = "/etc/lokahi/l1-genesis.json"
 
+# The supernode-level admin/test RPC. Omit the table to expose no process-wide surface at all;
+# everything an operator needs is on the chains' own RPCs below. Port 0 asks the OS for a free port,
+# which the supernode then logs — that is how a test harness that launched the process finds it.
+[admin]
+rpc-addr = "127.0.0.1"
+rpc-port = 9500
+
 # What every chain shares. A chain overrides any of these.
 [defaults]
 datadir = "/var/lib/lokahi"
