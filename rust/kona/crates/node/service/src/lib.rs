@@ -26,7 +26,7 @@ pub use actors::{
     DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
     DerivationStateTransitionError, DerivationStateUpdate, EngineConfig, JsonrpseeServerLauncher,
     L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor,
-    L1WatcherActorError, L1WatcherDerivationClient, NetworkActor, NetworkActorError,
+    L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient, NetworkActor, NetworkActorError,
     NetworkBuilder, NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError,
     NetworkEngineClient, NetworkHandler, NodeActor, OriginSelector,
     QueuedChainControllerDerivationClient, QueuedDerivationEngineClient, QueuedEngineRpcClient,

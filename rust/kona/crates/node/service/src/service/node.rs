@@ -3,7 +3,7 @@ use crate::{
     ChainController, ChainControllerRequest, ChainControllerRpcActor, ChainControllerRpcRequest,
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineConfig,
-    JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor, NetworkActor, NetworkBuilder,
+    JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder,
     NetworkConfig, NetworkHandler, NodeActor, NodeMode, QueuedChainControllerDerivationClient,
     QueuedDerivationEngineClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
@@ -314,15 +314,20 @@ impl RollupNode {
             l1_head_updates_tx,
         } = ports;
 
-        Ok(L1WatcherActor::new(
+        // A standalone kona-node is the N=1 case of the multi-chain watcher.
+        let chain = L1WatcherChain::new(
             rollup_config,
-            self.l1_config.engine_provider.clone(),
-            l1_query_rx,
-            l1_head_updates_tx,
             QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
             unsafe_signer_tx,
+            l1_query_rx,
+        );
+
+        Ok(L1WatcherActor::new(
+            self.l1_config.engine_provider.clone(),
+            l1_head_updates_tx,
             head_stream,
             finalized_stream,
+            vec![chain],
         ))
     }
 

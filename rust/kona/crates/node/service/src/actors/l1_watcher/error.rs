@@ -20,7 +20,13 @@ pub enum L1WatcherActorError<T> {
     /// Stream ended unexpectedly.
     #[error("Stream ended unexpectedly")]
     StreamEnded,
-    /// Derivation client error.
-    #[error("derivation client error: {0}")]
-    DerivationClientError(#[from] DerivationClientError),
+    /// Derivation client error, naming the chain whose derivation client failed.
+    #[error("derivation client error for chain {chain_id}: {source}")]
+    DerivationClientError {
+        /// The id of the L2 chain served by the failing derivation client.
+        chain_id: u64,
+        /// The underlying derivation client error.
+        #[source]
+        source: DerivationClientError,
+    },
 }
