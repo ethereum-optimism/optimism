@@ -1,7 +1,8 @@
 //! A task for importing a block that has already been started.
 use super::SealTaskError;
 use crate::{
-    EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, InsertTask,
+    EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
+    InsertTask,
     InsertTaskError::{self},
     task_queue::build_and_seal,
 };
@@ -40,6 +41,7 @@ pub enum BuildSealCoupling {
 /// [`InsertTask`]: crate::InsertTask
 /// [`InsertTaskError`]: crate::InsertTaskError
 #[derive(Debug, Clone, Constructor)]
+#[allow(clippy::too_many_arguments)] // the derived constructor takes one field each
 pub struct SealTask<EngineClient_: EngineClient> {
     /// The engine API client.
     pub engine: Arc<EngineClient_>,
@@ -57,6 +59,8 @@ pub struct SealTask<EngineClient_: EngineClient> {
     /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
     /// or the [`SealTaskError`] that occurred during processing.
     pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
@@ -157,6 +161,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
             self.cfg.clone(),
             payload,
             self.is_attributes_derived,
+            Arc::clone(&self.block_sink),
         )
         .execute(state)
         .await
@@ -184,6 +189,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                     self.cfg.clone(),
                     deposits_only_attrs.clone(),
                     self.is_attributes_derived,
+                    self.block_sink.clone(),
                 )
                 .await
                 {
