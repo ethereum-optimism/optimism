@@ -74,7 +74,7 @@ impl Kv for RocksKv {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StoreError> {
         let guard = self.read_guard();
         let db = guard.as_ref().ok_or(StoreError::Closed)?;
-        Ok(db.get(key)?)
+        db.get(key).map_err(StoreError::from)
     }
 
     fn write(&self, batch: WriteBatch) -> Result<(), StoreError> {
@@ -84,7 +84,7 @@ impl Kv for RocksKv {
         Ok(())
     }
 
-    fn first_in(&self, start: &[u8], end: &[u8]) -> Result<Option<(Vec<u8>, Vec<u8>)>, StoreError> {
+    fn first_in(&self, start: &[u8], end: &[u8]) -> Result<Option<Entry>, StoreError> {
         let guard = self.read_guard();
         let db = guard.as_ref().ok_or(StoreError::Closed)?;
         let mut iter = db.raw_iterator_opt(Self::bounded_read_options(start, end));
@@ -93,10 +93,7 @@ impl Kv for RocksKv {
             iter.status()?;
             return Ok(None);
         }
-        Ok(Some((
-            iter.key().unwrap_or_default().to_vec(),
-            iter.value().unwrap_or_default().to_vec(),
-        )))
+        Self::current_entry(&iter).map(Some)
     }
 
     fn last_in(&self, start: &[u8], end: &[u8]) -> Result<Option<Entry>, StoreError> {
@@ -108,10 +105,7 @@ impl Kv for RocksKv {
             iter.status()?;
             return Ok(None);
         }
-        Ok(Some((
-            iter.key().unwrap_or_default().to_vec(),
-            iter.value().unwrap_or_default().to_vec(),
-        )))
+        Self::current_entry(&iter).map(Some)
     }
 
     fn range(&self, start: &[u8], end: &[u8]) -> Result<Vec<Entry>, StoreError> {
