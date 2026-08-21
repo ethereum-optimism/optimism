@@ -48,6 +48,9 @@ contract MessageExpiryRelay is ProxyAdminOwnedBase, Initializable, ISemver {
         uint256 destination;
     }
 
+    /// @notice Thrown when initializing with an expiry window that does not fit in a uint64.
+    error MessageExpiryRelay_InvalidExpiryWindow();
+
     /// @notice Thrown when the message being recorded does not match a message sent by the caller.
     error MessageExpiryRelay_MessageNotSent();
 
@@ -130,6 +133,9 @@ contract MessageExpiryRelay is ProxyAdminOwnedBase, Initializable, ISemver {
     ///                      expiry window (see `expiryWindow`).
     function initialize(address _hub, uint256 _expiryWindow) external initializer {
         _assertOnlyProxyAdminOrProxyAdminOwner();
+        // Bound the window so `recordedAt + expiryWindow` can never overflow in receiveExpiry,
+        // which would otherwise permanently brick expiry consumption until an upgrade.
+        if (_expiryWindow > type(uint64).max) revert MessageExpiryRelay_InvalidExpiryWindow();
         hub = _hub;
         expiryWindow = _expiryWindow;
     }

@@ -29,16 +29,15 @@ import { IMessageExpiryRelay } from "interfaces/L2/IMessageExpiryRelay.sol";
 ///         the fixed gas frame of a relayed withdrawal. Forwarding is permissionless and repeatable;
 ///         consumption on the source chain is idempotent.
 contract MessageExpiryHub is ISemver {
-    /// @notice A recorded expiry notice from a destination chain.
+    /// @notice A recorded expiry notice from a destination chain. The attestor's shared ETHLockbox
+    ///         is the notice's mapping key rather than a field.
     /// @custom:field sourceChainId       Chain ID the attested message was sent from.
-    /// @custom:field ethLockbox          Shared ETHLockbox identifying the attestor's cluster.
-    /// @custom:field attestedAt          Timestamp of the attestation on the attestor chain.
     /// @custom:field anchorStateRegistry Shared AnchorStateRegistry of the attestor's cluster.
+    /// @custom:field attestedAt          Timestamp of the attestation on the attestor chain.
     struct ExpiryNotice {
         uint256 sourceChainId;
-        address ethLockbox;
-        uint64 attestedAt;
         address anchorStateRegistry;
+        uint64 attestedAt;
     }
 
     /// @notice Thrown when a SystemConfig and its L1CrossDomainMessenger are not bound to each
@@ -80,19 +79,27 @@ contract MessageExpiryHub is ISemver {
     event ChainRegistered(address indexed ethLockbox, uint256 indexed chainId, address systemConfig);
 
     /// @notice Emitted when an expiry notice is received from a destination chain.
+    /// @param ethLockbox      Shared ETHLockbox identifying the attestor's cluster.
     /// @param attestorChainId Chain ID of the attesting (destination) chain.
     /// @param msgHash         Hash of the attested message.
     /// @param sourceChainId   Chain ID the message was sent from.
     /// @param attestedAt      Timestamp of the attestation.
     event ExpiryNoticeReceived(
-        uint256 indexed attestorChainId, bytes32 indexed msgHash, uint256 sourceChainId, uint256 attestedAt
+        address indexed ethLockbox,
+        uint256 indexed attestorChainId,
+        bytes32 indexed msgHash,
+        uint256 sourceChainId,
+        uint256 attestedAt
     );
 
     /// @notice Emitted when an expiry notice is forwarded to its source chain.
+    /// @param ethLockbox      Shared ETHLockbox identifying the cluster.
     /// @param attestorChainId Chain ID of the attesting (destination) chain.
     /// @param msgHash         Hash of the attested message.
     /// @param sourceChainId   Chain ID the notice was forwarded to.
-    event ExpiryNoticeForwarded(uint256 indexed attestorChainId, bytes32 indexed msgHash, uint256 sourceChainId);
+    event ExpiryNoticeForwarded(
+        address indexed ethLockbox, uint256 indexed attestorChainId, bytes32 indexed msgHash, uint256 sourceChainId
+    );
 
     /// @notice Address of the MessageExpiryRelay predeploy, identical on every chain. Mirrors
     ///         Predeploys.MESSAGE_EXPIRY_RELAY.
@@ -102,8 +109,10 @@ contract MessageExpiryHub is ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice Recorded expiry notices, keyed by attestor chain ID and message hash.
-    mapping(uint256 => mapping(bytes32 => ExpiryNotice)) public notices;
+    /// @notice Recorded expiry notices, keyed by the attestor's shared ETHLockbox (its cluster
+    ///         identity), the attestor chain ID, and the message hash. The lockbox key prevents
+    ///         clusters with colliding chain IDs from interfering with each other's notices.
+    mapping(address => mapping(uint256 => mapping(bytes32 => ExpiryNotice))) public notices;
 
     /// @notice Registered chains available as forwarding targets, keyed by their cluster's shared
     ///         ETHLockbox and their chain ID.
@@ -154,16 +163,17 @@ contract MessageExpiryHub is ISemver {
         if (attestorChainId == 0) revert MessageExpiryHub_InvalidChainId();
         if (_sourceChainId == attestorChainId) revert MessageExpiryHub_InvalidSourceChain();
         if (_attestedAt > type(uint64).max) revert MessageExpiryHub_InvalidTimestamp();
-        if (_attestedAt <= notices[attestorChainId][_msgHash].attestedAt) revert MessageExpiryHub_StaleNotice();
+        if (_attestedAt <= notices[address(lockbox)][attestorChainId][_msgHash].attestedAt) {
+            revert MessageExpiryHub_StaleNotice();
+        }
 
-        notices[attestorChainId][_msgHash] = ExpiryNotice({
+        notices[address(lockbox)][attestorChainId][_msgHash] = ExpiryNotice({
             sourceChainId: _sourceChainId,
-            ethLockbox: address(lockbox),
-            attestedAt: uint64(_attestedAt),
-            anchorStateRegistry: anchorStateRegistry
+            anchorStateRegistry: anchorStateRegistry,
+            attestedAt: uint64(_attestedAt)
         });
 
-        emit ExpiryNoticeReceived(attestorChainId, _msgHash, _sourceChainId, _attestedAt);
+        emit ExpiryNoticeReceived(address(lockbox), attestorChainId, _msgHash, _sourceChainId, _attestedAt);
     }
 
     /// @notice Forwards a recorded expiry notice to its source chain's MessageExpiryRelay through
@@ -172,17 +182,25 @@ contract MessageExpiryHub is ISemver {
     ///         resource metering gas burn, and consumption on the source chain is idempotent. The
     ///         source chain must be registered and must verifiably belong to the same cluster as
     ///         the attestor at forwarding time.
+    /// @param _ethLockbox      Shared ETHLockbox identifying the cluster the notice belongs to.
     /// @param _attestorChainId Chain ID of the attesting (destination) chain.
     /// @param _msgHash         Hash of the attested message.
     /// @param _minGasLimit     Minimum gas limit for the MessageExpiryRelay call on the source
     ///                         chain. Must cover expiry verification plus the application callback;
     ///                         an undergassed relay lands in the source chain's failed messages and
     ///                         remains permissionlessly replayable there.
-    function forwardExpiryNotice(uint256 _attestorChainId, bytes32 _msgHash, uint32 _minGasLimit) external {
-        ExpiryNotice memory notice = notices[_attestorChainId][_msgHash];
+    function forwardExpiryNotice(
+        address _ethLockbox,
+        uint256 _attestorChainId,
+        bytes32 _msgHash,
+        uint32 _minGasLimit
+    )
+        external
+    {
+        ExpiryNotice memory notice = notices[_ethLockbox][_attestorChainId][_msgHash];
         if (notice.attestedAt == 0) revert MessageExpiryHub_NoticeNotFound();
 
-        ISystemConfig systemConfig = registeredChains[notice.ethLockbox][notice.sourceChainId];
+        ISystemConfig systemConfig = registeredChains[_ethLockbox][notice.sourceChainId];
         if (address(systemConfig) == address(0)) revert MessageExpiryHub_ChainNotRegistered();
 
         address messenger = systemConfig.l1CrossDomainMessenger();
@@ -194,7 +212,7 @@ contract MessageExpiryHub is ISemver {
         }
 
         (IETHLockbox lockbox, address anchorStateRegistry) = _validateClusterMembership(systemConfig);
-        if (address(lockbox) != notice.ethLockbox || anchorStateRegistry != notice.anchorStateRegistry) {
+        if (address(lockbox) != _ethLockbox || anchorStateRegistry != notice.anchorStateRegistry) {
             revert MessageExpiryHub_ClusterMismatch();
         }
 
@@ -206,7 +224,7 @@ contract MessageExpiryHub is ISemver {
             _minGasLimit: _minGasLimit
         });
 
-        emit ExpiryNoticeForwarded(_attestorChainId, _msgHash, notice.sourceChainId);
+        emit ExpiryNoticeForwarded(_ethLockbox, _attestorChainId, _msgHash, notice.sourceChainId);
     }
 
     /// @notice Validates that a chain belongs to a shared-lockbox cluster: its portal must be

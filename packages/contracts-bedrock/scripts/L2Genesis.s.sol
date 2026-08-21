@@ -33,6 +33,7 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
+import { IMessageExpiryRelay } from "interfaces/L2/IMessageExpiryRelay.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -283,6 +284,7 @@ contract L2Genesis is Script {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
+            setMessageExpiryRelay(); // 2E
         }
         if (_input.useCustomGasToken) {
             setLiquidityController(_input); // 29
@@ -631,6 +633,15 @@ contract L2Genesis is Script {
     function setSuperchainETHBridge() internal {
         Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    function setMessageExpiryRelay() internal {
+        Predeploys.assertGates(Predeploys.MESSAGE_EXPIRY_RELAY, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
+        address impl = _setImplementationCode(Predeploys.MESSAGE_EXPIRY_RELAY);
+        // Zero args are explicitly permitted by the contract so that the etched implementation can
+        // be initialization-locked; the implementation fails closed with an unset hub and window.
+        IMessageExpiryRelay(impl).initialize({ _hub: address(0), _expiryWindow: 0 });
     }
 
     /// @notice This predeploy is following the safety invariant #1.

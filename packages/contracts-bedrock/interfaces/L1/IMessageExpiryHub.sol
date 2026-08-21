@@ -19,22 +19,35 @@ interface IMessageExpiryHub {
 
     event ChainRegistered(address indexed ethLockbox, uint256 indexed chainId, address systemConfig);
     event ExpiryNoticeReceived(
-        uint256 indexed attestorChainId, bytes32 indexed msgHash, uint256 sourceChainId, uint256 attestedAt
+        address indexed ethLockbox,
+        uint256 indexed attestorChainId,
+        bytes32 indexed msgHash,
+        uint256 sourceChainId,
+        uint256 attestedAt
     );
-    event ExpiryNoticeForwarded(uint256 indexed attestorChainId, bytes32 indexed msgHash, uint256 sourceChainId);
+    event ExpiryNoticeForwarded(
+        address indexed ethLockbox, uint256 indexed attestorChainId, bytes32 indexed msgHash, uint256 sourceChainId
+    );
 
     function version() external view returns (string memory);
     function notices(
+        address,
         uint256,
         bytes32
     )
         external
         view
-        returns (uint256 sourceChainId, address ethLockbox, uint64 attestedAt, address anchorStateRegistry);
+        returns (uint256 sourceChainId, address anchorStateRegistry, uint64 attestedAt);
     function registeredChains(address, uint256) external view returns (ISystemConfig);
     function registerChain(ISystemConfig _systemConfig) external;
     function receiveExpiryNotice(bytes32 _msgHash, uint256 _sourceChainId, uint256 _attestedAt) external;
-    function forwardExpiryNotice(uint256 _attestorChainId, bytes32 _msgHash, uint32 _minGasLimit) external;
+    function forwardExpiryNotice(
+        address _ethLockbox,
+        uint256 _attestorChainId,
+        bytes32 _msgHash,
+        uint32 _minGasLimit
+    )
+        external;
 
     function __constructor__() external;
 }

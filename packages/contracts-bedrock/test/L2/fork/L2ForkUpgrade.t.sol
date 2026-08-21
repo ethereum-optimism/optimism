@@ -144,6 +144,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
             if (
                 _predeploy == Predeploys.CROSS_L2_INBOX || _predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
                     || _predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE || _predeploy == Predeploys.ETH_LIQUIDITY
+                    || _predeploy == Predeploys.MESSAGE_EXPIRY_RELAY
             ) {
                 return true;
             }

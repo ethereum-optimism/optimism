@@ -35,8 +35,8 @@ contract L2ContractsManager is ISemver {
     error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.14.0
-    string public constant version = "1.14.0";
+    /// @custom:semver 1.15.0
+    string public constant version = "1.15.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -97,6 +97,8 @@ contract L2ContractsManager is ISemver {
     address internal immutable SUPERCHAIN_ETH_BRIDGE_IMPL;
     /// @notice ETHLiquidity implementation.
     address internal immutable ETH_LIQUIDITY_IMPL;
+    /// @notice MessageExpiryRelay implementation.
+    address internal immutable MESSAGE_EXPIRY_RELAY_IMPL;
     /// @notice NativeAssetLiquidity implementation.
     address internal immutable NATIVE_ASSET_LIQUIDITY_IMPL;
     /// @notice LiquidityController implementation.
@@ -140,6 +142,7 @@ contract L2ContractsManager is ISemver {
             L2ContractsManagerUtils.findImpl(_implementations, "L2ToL2CrossDomainMessenger");
         SUPERCHAIN_ETH_BRIDGE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "SuperchainETHBridge");
         ETH_LIQUIDITY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "ETHLiquidity");
+        MESSAGE_EXPIRY_RELAY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "MessageExpiryRelay");
         NATIVE_ASSET_LIQUIDITY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "NativeAssetLiquidity");
         LIQUIDITY_CONTROLLER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "LiquidityController");
         CONDITIONAL_DEPLOYER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "ConditionalDeployer");
@@ -425,6 +428,10 @@ contract L2ContractsManager is ISemver {
             );
             L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL, _isDeploy);
             L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL, _isDeploy);
+            // MessageExpiryRelay has an initializer, but its `hub` and `expiryWindow` are not part
+            // of the L2CM config, so the proxy is left uninitialized (fails closed) until it is
+            // initialized separately.
+            L2ContractsManagerUtils.upgradeTo(Predeploys.MESSAGE_EXPIRY_RELAY, MESSAGE_EXPIRY_RELAY_IMPL, _isDeploy);
         }
         L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL, _isDeploy);
         L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL, _isDeploy);
@@ -450,7 +457,7 @@ contract L2ContractsManager is ISemver {
         view
         returns (L2ContractsManagerTypes.ImplRecord[] memory implementations_)
     {
-        implementations_ = new L2ContractsManagerTypes.ImplRecord[](26);
+        implementations_ = new L2ContractsManagerTypes.ImplRecord[](27);
         implementations_[0] = L2ContractsManagerTypes.ImplRecord({ name: "StorageSetter", impl: STORAGE_SETTER_IMPL });
         implementations_[1] =
             L2ContractsManagerTypes.ImplRecord({ name: "L2CrossDomainMessenger", impl: L2_CROSS_DOMAIN_MESSENGER_IMPL });
@@ -495,12 +502,14 @@ contract L2ContractsManager is ISemver {
             L2ContractsManagerTypes.ImplRecord({ name: "SuperchainETHBridge", impl: SUPERCHAIN_ETH_BRIDGE_IMPL });
         implementations_[21] = L2ContractsManagerTypes.ImplRecord({ name: "ETHLiquidity", impl: ETH_LIQUIDITY_IMPL });
         implementations_[22] =
-            L2ContractsManagerTypes.ImplRecord({ name: "NativeAssetLiquidity", impl: NATIVE_ASSET_LIQUIDITY_IMPL });
+            L2ContractsManagerTypes.ImplRecord({ name: "MessageExpiryRelay", impl: MESSAGE_EXPIRY_RELAY_IMPL });
         implementations_[23] =
-            L2ContractsManagerTypes.ImplRecord({ name: "LiquidityController", impl: LIQUIDITY_CONTROLLER_IMPL });
+            L2ContractsManagerTypes.ImplRecord({ name: "NativeAssetLiquidity", impl: NATIVE_ASSET_LIQUIDITY_IMPL });
         implementations_[24] =
-            L2ContractsManagerTypes.ImplRecord({ name: "ConditionalDeployer", impl: CONDITIONAL_DEPLOYER_IMPL });
+            L2ContractsManagerTypes.ImplRecord({ name: "LiquidityController", impl: LIQUIDITY_CONTROLLER_IMPL });
         implementations_[25] =
+            L2ContractsManagerTypes.ImplRecord({ name: "ConditionalDeployer", impl: CONDITIONAL_DEPLOYER_IMPL });
+        implementations_[26] =
             L2ContractsManagerTypes.ImplRecord({ name: "L2DevFeatureFlags", impl: L2_DEV_FEATURE_FLAGS_IMPL });
     }
 }

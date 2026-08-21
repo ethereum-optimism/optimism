@@ -80,6 +80,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         address l2ToL2CrossDomainMessengerImpl;
         address superchainETHBridgeImpl;
         address ethLiquidityImpl;
+        address messageExpiryRelayImpl;
         address nativeAssetLiquidityImpl;
         address liquidityControllerImpl;
         address l2DevFeatureFlagsImpl;
@@ -160,6 +161,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         state_.superchainETHBridgeImpl = EIP1967Helper.getImplementation(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         state_.ethLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.ETH_LIQUIDITY);
+        state_.messageExpiryRelayImpl = EIP1967Helper.getImplementation(Predeploys.MESSAGE_EXPIRY_RELAY);
         state_.nativeAssetLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.NATIVE_ASSET_LIQUIDITY);
         state_.liquidityControllerImpl = EIP1967Helper.getImplementation(Predeploys.LIQUIDITY_CONTROLLER);
         state_.l2DevFeatureFlagsImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
@@ -210,6 +212,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         );
         assertEq(_state1.superchainETHBridgeImpl, _state2.superchainETHBridgeImpl, "SuperchainETHBridge impl mismatch");
         assertEq(_state1.ethLiquidityImpl, _state2.ethLiquidityImpl, "ETHLiquidity impl mismatch");
+        assertEq(_state1.messageExpiryRelayImpl, _state2.messageExpiryRelayImpl, "MessageExpiryRelay impl mismatch");
         assertEq(
             _state1.nativeAssetLiquidityImpl, _state2.nativeAssetLiquidityImpl, "NativeAssetLiquidity impl mismatch"
         );
@@ -847,9 +850,10 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
         interopPredeploys.push(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         interopPredeploys.push(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         interopPredeploys.push(Predeploys.ETH_LIQUIDITY);
+        interopPredeploys.push(Predeploys.MESSAGE_EXPIRY_RELAY);
     }
 
-    /// @notice Tests that all 4 interop predeploys are upgraded when the INTEROP sys feature is enabled
+    /// @notice Tests that all 5 interop predeploys are upgraded when the INTEROP sys feature is enabled
     ///         (which requires OPTIMISM_PORTAL_INTEROP dev feature to also be enabled for consistency).
     function test_upgradeUpgradesInteropPredeploys_whenInteropFlagEnabled_succeeds() public {
         // Capture pre-upgrade implementations
@@ -881,6 +885,11 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
             _findImplByName("ETHLiquidity"),
             "ETHLiquidity should be upgraded"
         );
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.MESSAGE_EXPIRY_RELAY),
+            _findImplByName("MessageExpiryRelay"),
+            "MessageExpiryRelay should be upgraded"
+        );
     }
 }
 
@@ -899,9 +908,10 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
         interopPredeploys.push(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         interopPredeploys.push(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         interopPredeploys.push(Predeploys.ETH_LIQUIDITY);
+        interopPredeploys.push(Predeploys.MESSAGE_EXPIRY_RELAY);
     }
 
-    /// @notice Tests that all 4 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
+    /// @notice Tests that all 5 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
     /// is disabled.
     function test_upgradeSkipsInteropPredeploys_whenInteropFlagDisabled_succeeds() public {
         // Capture pre-upgrade implementations
@@ -1051,7 +1061,8 @@ contract L2ContractsManager_Deploy_Coverage_Test is L2ContractsManager_Upgrade_T
         _assertDeployTouchesExactly(_deployConfig(true, false));
     }
 
-    /// @notice Interop combo: CrossL2Inbox, L2ToL2CrossDomainMessenger, SuperchainETHBridge, ETHLiquidity gated in.
+    /// @notice Interop combo: CrossL2Inbox, L2ToL2CrossDomainMessenger, SuperchainETHBridge, ETHLiquidity,
+    ///         MessageExpiryRelay gated in.
     function test_deployTouchedSet_interop_succeeds() public {
         _assertDeployTouchesExactly(_deployConfig(false, true));
     }
@@ -1097,13 +1108,14 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
     /// @notice Tests that all interop predeploys retain their pre-upgrade implementations
     ///         when the flags implementation has no code.
     function test_upgrade_skipsInteropPredeploys_succeeds() public {
-        address[] memory interopPredeploys = new address[](4);
+        address[] memory interopPredeploys = new address[](5);
         interopPredeploys[0] = Predeploys.CROSS_L2_INBOX;
         interopPredeploys[1] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
         interopPredeploys[2] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
         interopPredeploys[3] = Predeploys.ETH_LIQUIDITY;
+        interopPredeploys[4] = Predeploys.MESSAGE_EXPIRY_RELAY;
 
-        address[] memory preUpgradeImpls = new address[](4);
+        address[] memory preUpgradeImpls = new address[](5);
         for (uint256 i = 0; i < interopPredeploys.length; i++) {
             preUpgradeImpls[i] = EIP1967Helper.getImplementation(interopPredeploys[i]);
         }

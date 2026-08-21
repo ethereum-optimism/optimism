@@ -1,0 +1,379 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_msgHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_sourceChainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_minGasLimit",
+        "type": "uint32"
+      }
+    ],
+    "name": "attestUndelivered",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "expiryWindow",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "hub",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_hub",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_expiryWindow",
+        "type": "uint256"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proxyAdmin",
+    "outputs": [
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proxyAdminOwner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_msgHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_attestorChainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_attestedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "receiveExpiry",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_destination",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_message",
+        "type": "bytes"
+      }
+    ],
+    "name": "recordSentMessage",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "msgHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "sentMessageRecords",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "app",
+        "type": "address"
+      },
+      {
+        "internalType": "uint96",
+        "name": "recordedAt",
+        "type": "uint96"
+      },
+      {
+        "internalType": "uint256",
+        "name": "destination",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "msgHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "app",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "attestorChainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "attestedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "ExpiredMessageRelayed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "msgHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "app",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "destination",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "recordedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "SentMessageRecorded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "msgHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "sourceChainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "attestedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "UndeliveredMessageAttested",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_AlreadyRecorded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_InvalidExpirySender",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_InvalidExpiryWindow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_InvalidSourceChain",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_MessageDelivered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_MessageNotExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_MessageNotRecorded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_MessageNotSent",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_NotInitialized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryRelay_WrongAttestor",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdmin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotResolvedDelegateProxy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotSharedProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_ProxyAdminNotFound",
+    "type": "error"
+  }
+]

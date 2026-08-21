@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+
 /// @title IMessageExpiryRelay
 /// @notice Interface for the MessageExpiryRelay contract.
-interface IMessageExpiryRelay {
+interface IMessageExpiryRelay is IProxyAdminOwnedBase {
+    error MessageExpiryRelay_InvalidExpiryWindow();
     error MessageExpiryRelay_MessageNotSent();
     error MessageExpiryRelay_AlreadyRecorded();
     error MessageExpiryRelay_MessageDelivered();

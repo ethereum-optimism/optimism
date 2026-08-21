@@ -1,0 +1,285 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_ethLockbox",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_attestorChainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_msgHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_minGasLimit",
+        "type": "uint32"
+      }
+    ],
+    "name": "forwardExpiryNotice",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "notices",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "sourceChainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "anchorStateRegistry",
+        "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "attestedAt",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_msgHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_sourceChainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_attestedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "receiveExpiryNotice",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      }
+    ],
+    "name": "registerChain",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "registeredChains",
+    "outputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "ethLockbox",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "chainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "systemConfig",
+        "type": "address"
+      }
+    ],
+    "name": "ChainRegistered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "ethLockbox",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "attestorChainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "msgHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "sourceChainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ExpiryNoticeForwarded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "ethLockbox",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "attestorChainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "msgHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "sourceChainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "attestedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "ExpiryNoticeReceived",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_ChainNotRegistered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_ClusterMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_InvalidChainId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_InvalidCrossDomainSender",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_InvalidMessenger",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_InvalidSourceChain",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_InvalidTimestamp",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_NoticeNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_StaleNotice",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageExpiryHub_UnauthorizedPortal",
+    "type": "error"
+  }
+]
