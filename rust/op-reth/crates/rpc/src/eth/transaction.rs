@@ -171,6 +171,10 @@ where
     ///
     /// With flashblocks, we should also lookup the pending block for the transaction
     /// because this is considered confirmed/mined.
+    /// UPSTREAM-MIRROR(override): reth@rev:aef8d3e
+    /// `reth_rpc_eth_api::helpers::EthTransactions::transaction_receipt`
+    ///
+    /// Extends the upstream default with a flashblock receipt lookup.
     fn transaction_receipt(
         &self,
         hash: B256,
@@ -202,6 +206,10 @@ where
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
+    /// UPSTREAM-MIRROR(override): reth@rev:aef8d3e
+    /// `reth_rpc_eth_api::helpers::LoadTransaction::transaction_by_hash`
+    ///
+    /// Extends the upstream disk/cache/pool lookup with flashblocks.
     async fn transaction_by_hash(
         &self,
         hash: B256,

@@ -791,6 +791,7 @@ workflows:
       - rust-ci-fmt:
           name: rust-fmt
           directory: rust
+          command: "just fmt-check && just check-upstream-mirrors"
           context: &rust-ci-context
             - circleci-repo-readonly-authenticated-github-token
             # GCP Workload Identity coords + reader SA + bucket for the sccache
