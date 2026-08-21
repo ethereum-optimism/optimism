@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
@@ -388,9 +389,13 @@ func lokahiChainEntry(
 	fmt.Fprintf(&b, "engine-rpc = %q\njwt-secret = %q\n",
 		strings.ReplaceAll(chain.el.EngineRPC(), "ws://", "http://"), chain.el.JWTPath())
 	fmt.Fprintf(&b, "rpc-port = %d\np2p-tcp-port = %d\np2p-udp-port = %d\n", rpcPort, tcpPort, udpPort)
-	// A devnet chain is not in the registry, so its signer has to be stated.
-	fmt.Fprintf(&b, "unsafe-block-signer = %q\n",
-		chain.net.rollupCfg.Genesis.SystemConfig.BatcherAddr.Hex())
+	// Stated rather than read from L1. kona-node resolves the unsafe block signer from the
+	// chain's SystemConfig contract when it is not given one; lokahi's configuration has no
+	// such path, and a devnet chain is not in the superchain registry either, so the devstack
+	// has to supply the address the sequencer's P2P key signs with.
+	signer, err := chain.net.keys.Address(devkeys.SequencerP2PRole.Key(chain.net.ChainID().ToBig()))
+	require.NoError(err, "need the sequencer p2p address of chain %d", chainID)
+	fmt.Fprintf(&b, "unsafe-block-signer = %q\n", signer.Hex())
 
 	if cfg.depSet != nil {
 		depSetPath := filepath.Join(dir, fmt.Sprintf("interop-depset-%d.json", chainID))
