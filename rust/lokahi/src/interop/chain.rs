@@ -130,6 +130,16 @@ impl NodeChain {
             }
             // The records that would have answered are gone, or were never kept. The one
             // permanent verdict, and the one that halts the verifier.
+            //
+            // These two arrive here as one verdict and leave as one log line: the halt the
+            // verifier prints for `HistoryUnavailable` says only that the pairing "is no longer
+            // recorded on this node", which reads as the first case and is equally the second.
+            // Anyone debugging that message from logs alone cannot tell "the records were pruned
+            // below what was asked" from "this chain never had a safe-head database at all", so
+            // rule the second out at the source rather than from the log: `Chain::open` opens the
+            // database for every chain, interop scheduled or not
+            // (`lokahi/src/supernode.rs:366-375`), which is what makes `NotEnabled` unreachable
+            // in a running supernode and the message unambiguous in practice.
             Err(SafeDbError::L1AtSafeHeadUnavailable | SafeDbError::NotEnabled) => {
                 return Ok(ChainAt::HistoryUnavailable);
             }

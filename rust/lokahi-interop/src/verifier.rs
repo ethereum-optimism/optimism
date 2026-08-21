@@ -351,23 +351,7 @@ impl<K: Kv> Verifier<K> {
         // waiting for the retry loop to engage is waiting for exactly those.
         self.backfill_attempts = self.backfill_attempts.saturating_add(1);
 
-        let mut first_safe_heads = Vec::with_capacity(self.chains.len());
-        for (&chain_id, chain) in &self.chains {
-            match chain.first_safe_head_timestamp().await {
-                Ok(timestamp) => first_safe_heads.push((chain_id, timestamp)),
-                Err(ChainError::NotReady) => {
-                    debug!(
-                        target: "lokahi_interop",
-                        chain_id,
-                        "Interop cold start: waiting for a first safe head"
-                    );
-                    return Ok(false);
-                }
-                Err(source) => return Err(RoundError::chain(chain_id, source)),
-            }
-        }
-
-        let start = verification_start(self.config.activation_timestamp, &first_safe_heads);
+        let Some(start) = self.history_lower_bound().await? else { return Ok(false) };
         self.backfill(start).await?;
         self.start = Some(start);
         info!(
@@ -377,6 +361,97 @@ impl<K: Kv> Verifier<K> {
             "Interop cold start complete"
         );
         Ok(true)
+    }
+
+    /// Reads the earliest timestamp every chain's safe-head history can still answer for, or
+    /// [`None`] while any chain has yet to record one.
+    ///
+    /// The all-chains gate is the point of the loop: a bound taken from only the chains that
+    /// happen to be ready would sit below one that is not, and the verifier cannot verify a
+    /// timestamp any of its chains has no safe head for.
+    async fn history_lower_bound(&self) -> Result<Option<u64>, RoundError> {
+        let mut first_safe_heads = Vec::with_capacity(self.chains.len());
+        for (&chain_id, chain) in &self.chains {
+            match chain.first_safe_head_timestamp().await {
+                Ok(timestamp) => first_safe_heads.push((chain_id, timestamp)),
+                Err(ChainError::NotReady) => {
+                    debug!(
+                        target: "lokahi_interop",
+                        chain_id,
+                        "Interop verification: waiting for a first safe head"
+                    );
+                    return Ok(None);
+                }
+                Err(source) => return Err(RoundError::chain(chain_id, source)),
+            }
+        }
+        Ok(Some(verification_start(self.config.activation_timestamp, &first_safe_heads)))
+    }
+
+    /// Reconciles the round's next timestamp with what the chains' safe-head history still holds.
+    ///
+    /// The bound is *re-read every round* rather than latched once, which is what op-supernode
+    /// does: its backfill wait re-reads `FirstSafeHeadTimestamp` on every backoff pass
+    /// (`op-node/rollup/interop/log_backfill.go:71`, `:85-95`) instead of keeping the first answer
+    /// it got. lokahi latched it at cold start, and that difference was a permanent halt. A
+    /// derivation reset at or before the earliest recorded entry wipes the safe-head database
+    /// outright — `safe_head_reset` deletes from the boundary to the end and, when the boundary is
+    /// the first entry, deliberately re-records nothing
+    /// (`kona/crates/node/safedb/src/safe_db.rs:100-121`). The wipe on its own is survivable,
+    /// because an empty database answers `L1AtSafeHeadNotFound`, which is a retry. What halted was
+    /// the refill: the database comes back from wherever derivation now is, its earliest record is
+    /// above the latched start, and the next round asks below it and gets
+    /// [`ChainAt::HistoryUnavailable`] — the one permanent verdict.
+    ///
+    /// What can be done about it depends on whether anything is committed:
+    ///
+    /// * **Nothing committed** — the start is still the verifier's to choose, so it follows the
+    ///   history up and backfills the widened window. This is the wipe-and-refill case, and it is
+    ///   no longer terminal.
+    /// * **A frontier committed** — the store's first timestamp is authoritative and the frontier
+    ///   has to stay contiguous, so a bound that has risen above the next timestamp is a real gap
+    ///   in this node's history. That halts, as it does in op-supernode, but it halts *here*, with
+    ///   the gap named, rather than several reads later as a chain that cannot answer.
+    ///
+    /// The second arm is also the resume path's only safe-head check. Resuming takes its start
+    /// from the verified store — `last_verified + 1` — which consults no safe-head database at
+    /// all, and [`Self::log_history_gap`], the coverage check [`Self::new`] runs at startup, reads
+    /// only the log stores. The two live under different roots and are lost independently: a log
+    /// store sits in its chain's own datadir, next to that chain's safe-head database, while the
+    /// verified store sits under the interop datadir. This check belongs with them but cannot run
+    /// beside them, because [`Self::new`] is synchronous and reading a chain's first safe head is
+    /// not; the first round is the earliest it can happen.
+    async fn reconcile_history_bound(&mut self) -> Result<(), RoundError> {
+        let Some(bound) = self.history_lower_bound().await? else { return Ok(()) };
+
+        let Some(last) = self.verified.last_timestamp() else {
+            let Some(start) = self.start else { return Ok(()) };
+            if bound <= start {
+                return Ok(());
+            }
+            warn!(
+                target: "lokahi_interop",
+                previous = start,
+                start = bound,
+                "The chains' safe-head history no longer reaches the verification start, and \
+                 nothing is committed yet, so the start follows it up rather than the verifier \
+                 halting. A derivation reset that wiped the history and refilled it higher does \
+                 this"
+            );
+            self.backfill(bound).await?;
+            self.start = Some(bound);
+            return Ok(());
+        };
+
+        let next = last + 1;
+        if bound > next {
+            return Err(RoundError::Permanent(format!(
+                "the chains' safe-head history begins at timestamp {bound}, but the verified \
+                 frontier ends at {last} and must continue from {next}: the history that would \
+                 answer for {next} is gone, and the frontier cannot skip it"
+            )));
+        }
+        Ok(())
     }
 
     /// Fills every chain's log store over the window behind `start`.
@@ -403,6 +478,10 @@ impl<K: Kv> Verifier<K> {
         if let Some(pending) = self.verified.pending()? {
             return self.apply(pending).await;
         }
+
+        // Before anything is observed, and after the pending slot above: a slot is a decision
+        // already committed to for a start this must not move under it.
+        self.reconcile_history_bound().await?;
 
         let observation = self.observe().await?;
         let output = match check_preconditions(&observation) {
@@ -704,6 +783,15 @@ impl<K: Kv> Verifier<K> {
     /// initiated; and the chain's own genesis, because no earlier block of it exists. The last
     /// two are the bounds [`backfill_window`] and [`chain_backfill_range`] already apply when
     /// filling the stores.
+    ///
+    /// This covers the log stores only. The other database a round reads is the chain's
+    /// safe-head history, which is checked by [`Self::reconcile_history_bound`] on the first
+    /// round instead of here, because reading a chain's first safe head is asynchronous and this
+    /// runs inside [`Self::new`]. Both halves are needed, and for the same reason: the three
+    /// databases sit under two different roots — a chain's log store and its safe-head database
+    /// live in that chain's datadir, the verified store lives under the interop datadir — so any
+    /// one of them can be reseeded or lost without the others, and each is only as trustworthy
+    /// as the check that reads it.
     fn log_history_gap(
         chains: &BTreeMap<ChainId, Arc<dyn InteropChain>>,
         stores: &LogStores,
