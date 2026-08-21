@@ -3,6 +3,7 @@ use super::SealTaskError;
 use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, InsertTask,
     InsertTaskError::{self},
+    state::LocalSafeOrigin,
     task_queue::build_and_seal,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
@@ -46,6 +47,16 @@ pub struct SealTask<EngineClient_: EngineClient> {
 }
 
 impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
+    /// The pairing to hand to the [`InsertTask`], or [`None`] when this block is not a local-safe
+    /// write.
+    ///
+    /// Derived attributes name their own L1 origin, so the sealed block's L1 key travels with the
+    /// attributes rather than being looked up afterwards. The Holocene deposits-only retry below
+    /// preserves it: [`OpAttributesWithParent::as_deposits_only`] copies `derived_from`.
+    fn local_safe_origin(&self) -> Option<LocalSafeOrigin> {
+        self.is_attributes_derived.then(|| LocalSafeOrigin::from(self.attributes.derived_from))
+    }
+
     /// Seals the execution payload in the EL, returning the execution envelope.
     ///
     /// ## Engine Method Selection
@@ -142,7 +153,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
             Arc::clone(&self.engine),
             self.cfg.clone(),
             payload,
-            self.is_attributes_derived,
+            self.local_safe_origin(),
         )
         .execute(state)
         .await

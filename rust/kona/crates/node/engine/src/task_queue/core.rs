@@ -5,7 +5,7 @@ use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, L2ForkchoiceState, Metrics, SyncStartError, SynchronizeTask,
     SynchronizeTaskError, find_starting_forkchoice,
-    state::{CrossSafePromoter, CrossSafeSource},
+    state::{CrossSafePromoter, CrossSafeSource, LocalSafeHead},
     task_queue::EngineTaskErrors,
 };
 use kona_genesis::RollupConfig;
@@ -219,7 +219,11 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             config.clone(),
             EngineSyncStateUpdate {
                 unsafe_head: Some(target.un_safe),
-                local_safe_head: Some(target.local_safe),
+                // A reset installs a walkback point found by traversing the L2 chain, not one
+                // produced by derivation, so there is no L1 key to pair with it. Writing it
+                // unpaired is also what invalidates the pairing recorded before the reset, which
+                // no longer describes the head the engine is on.
+                local_safe_head: Some(LocalSafeHead::unpaired(target.local_safe)),
                 finalized_head: Some(target.finalized),
             },
         )

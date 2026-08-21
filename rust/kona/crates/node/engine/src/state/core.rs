@@ -2,7 +2,7 @@
 
 use crate::{
     Metrics,
-    state::{CrossSafePromotion, CrossSafeSource},
+    state::{CrossSafePromotion, CrossSafeSource, LocalSafeHead, LocalSafeOrigin},
 };
 use alloy_rpc_types_engine::ForkchoiceState;
 use kona_protocol::L2BlockInfo;
@@ -34,6 +34,11 @@ pub struct EngineSyncState {
     unsafe_head: L2BlockInfo,
     /// Derived from L1 data as a completed span-batch, but not yet cross-verified.
     local_safe_head: L2BlockInfo,
+    /// The L1 block `local_safe_head` was derived from, as recorded by whoever wrote that head.
+    ///
+    /// Written in the same step as the head it describes, so the two cannot drift apart; see
+    /// [`EngineSyncState::local_safe`] for the paired read.
+    local_safe_origin: LocalSafeOrigin,
     /// Local-safe and cross-verified to have safe L1 dependencies on every dependency chain.
     cross_safe_head: L2BlockInfo,
     /// Derived from finalized L1 data with only finalized dependencies (highest safety level).
@@ -51,6 +56,25 @@ impl EngineSyncState {
     /// Returns the current local-safe head.
     pub const fn local_safe_head(&self) -> L2BlockInfo {
         self.local_safe_head
+    }
+
+    /// Returns the L1 origin recorded for the current local-safe head.
+    ///
+    /// [`LocalSafeOrigin::Unpaired`] is a real answer — the writer of this head held no L1 key —
+    /// and not a placeholder for a value that will arrive later.
+    pub const fn local_safe_origin(&self) -> LocalSafeOrigin {
+        self.local_safe_origin
+    }
+
+    /// Returns the current local-safe head together with its L1 origin.
+    ///
+    /// This is the atomic read of the pairing: both halves come from the same snapshot of this
+    /// state, so a consumer answering "which L1 block was the chain safe at?" cannot observe a head
+    /// from one update alongside an origin from another. Reading
+    /// [`Self::local_safe_head`] and [`Self::local_safe_origin`] separately off a `Copy` of this
+    /// state is equivalent; reading them off a live engine is not.
+    pub const fn local_safe(&self) -> LocalSafeHead {
+        LocalSafeHead::new(self.local_safe_head, self.local_safe_origin)
     }
 
     /// Returns the current cross-safe head, i.e. the forkchoice `safeBlockHash`.
@@ -107,10 +131,10 @@ impl EngineSyncState {
                 unsafe_head.block_info.number,
             );
         }
-        if let Some(local_safe_head) = sync_state_update.local_safe_head {
+        if let Some(local_safe) = sync_state_update.local_safe_head {
             Self::update_block_label_metric(
                 Metrics::LOCAL_SAFE_BLOCK_LABEL,
-                local_safe_head.block_info.number,
+                local_safe.head.block_info.number,
             );
         }
         if let Some(finalized_head) = sync_state_update.finalized_head {
@@ -120,19 +144,24 @@ impl EngineSyncState {
             );
         }
 
-        let local_safe_head = sync_state_update.local_safe_head.unwrap_or(self.local_safe_head);
+        // The pairing is rewritten exactly when the head it describes is, so an origin can never
+        // outlive the head it was recorded for: an update that leaves the local-safe head alone
+        // carries the previous origin through, and one that moves it — a reset included — replaces
+        // the origin with whatever that writer holds, which may be `Unpaired`.
+        let local_safe = sync_state_update.local_safe_head.unwrap_or_else(|| self.local_safe());
 
         let updated = Self {
             unsafe_head: sync_state_update.unsafe_head.unwrap_or(self.unsafe_head),
-            local_safe_head,
-            cross_safe_head: self.hold_cross_safe_at(local_safe_head),
+            local_safe_head: local_safe.head,
+            local_safe_origin: local_safe.origin,
+            cross_safe_head: self.hold_cross_safe_at(local_safe.head),
             finalized_head: sync_state_update.finalized_head.unwrap_or(self.finalized_head),
             cross_safe_source: self.cross_safe_source,
         };
 
         sync_state_update
             .local_safe_head
-            .and_then(|head| updated.cross_safe_source.trivial_promotion(head))
+            .and_then(|local_safe| updated.cross_safe_source.trivial_promotion(local_safe.head))
             .map_or(updated, |promotion| updated.apply_cross_safe_promotion(promotion))
     }
 
@@ -262,9 +291,13 @@ impl EngineSyncState {
 pub struct EngineSyncStateUpdate {
     /// Most recent block found on the p2p network
     pub unsafe_head: Option<L2BlockInfo>,
-    /// Derived from L1, and known to be a completed span-batch,
-    /// but not cross-verified yet.
-    pub local_safe_head: Option<L2BlockInfo>,
+    /// Derived from L1, and known to be a completed span-batch, but not cross-verified yet,
+    /// paired with the L1 block it was derived from.
+    ///
+    /// The pairing is part of the head rather than a field beside it, so a writer cannot advance
+    /// the local-safe head while leaving a previous L1 origin in place. Writers that hold no L1
+    /// key say so with [`LocalSafeHead::unpaired`].
+    pub local_safe_head: Option<LocalSafeHead>,
     /// Derived from finalized L1 data,
     /// and cross-verified to only have finalized dependencies.
     pub finalized_head: Option<L2BlockInfo>,
