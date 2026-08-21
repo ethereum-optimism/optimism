@@ -1,7 +1,7 @@
 [package]
 name = "lokahi-interop"
 version = "0.1.0"
-description = "Persistent stores for the lokahi interop actor"
+description = "The lokahi interop verifier: its stores and its verification round loop"
 
 edition.workspace = true
 authors.workspace = true
@@ -18,6 +18,8 @@ workspace = true
 
 [dependencies]
 # Kona
+kona-engine.workspace = true
+kona-genesis.workspace = true
 kona-interop.workspace = true
 kona-protocol.workspace = true
 
@@ -29,11 +31,14 @@ alloy-primitives.workspace = true
 rocksdb = { workspace = true, features = ["snappy"], optional = true }
 
 # Misc
+async-trait.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+alloy-sol-types.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 default = []
