@@ -7,8 +7,7 @@ use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
     EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
-    ImportedBlockSink,
-    InsertTask, SealTask,
+    ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;

@@ -61,6 +61,7 @@ metrics = [ "dep:metrics", "kona-derive/metrics", "kona-providers-local/metrics"
 
 [dev-dependencies]
 tokio.workspace = true
+kona-protocol = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true
 httpmock.workspace = true
 serde_json.workspace = true

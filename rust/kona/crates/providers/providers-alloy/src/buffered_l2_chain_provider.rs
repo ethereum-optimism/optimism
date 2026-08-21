@@ -69,14 +69,13 @@ mod tests {
     use kona_genesis::ChainGenesis;
     use op_alloy_network::Optimism;
 
-    const BUFFERED_HASH: B256 = B256::repeat_byte(0xaa);
+    const GENESIS_HASH: B256 = B256::repeat_byte(0xaa);
 
-    /// A config whose genesis block is `BUFFERED_HASH`, so the local buffer can answer for it
-    /// without being handed a block carrying a real L1-info deposit.
+    /// A config whose genesis block is `GENESIS_HASH`.
     fn rollup_config() -> Arc<RollupConfig> {
         Arc::new(RollupConfig {
             genesis: ChainGenesis {
-                l2: alloy_eips::BlockNumHash { hash: BUFFERED_HASH, number: 0 },
+                l2: alloy_eips::BlockNumHash { hash: GENESIS_HASH, number: 0 },
                 system_config: Some(SystemConfig { gas_limit: 30_000_000, ..Default::default() }),
                 ..Default::default()
             },
@@ -84,13 +83,20 @@ mod tests {
         })
     }
 
-    fn provider(server: &MockServer, config: Arc<RollupConfig>) -> BufferedAlloyL2ChainProvider {
-        let rpc = AlloyL2ChainProvider::new(
+    fn rpc(server: &MockServer, config: Arc<RollupConfig>) -> AlloyL2ChainProvider {
+        AlloyL2ChainProvider::new(
             RootProvider::<Optimism>::new(RpcClient::new_http(server.base_url().parse().unwrap())),
-            config.clone(),
+            config,
             8,
-        );
-        BufferedAlloyL2ChainProvider::new(BufferedL2Provider::new(config, 8, 8), rpc)
+        )
+    }
+
+    /// A provider over an empty buffer, so every lookup falls through to `server`.
+    fn provider(server: &MockServer, config: Arc<RollupConfig>) -> BufferedAlloyL2ChainProvider {
+        BufferedAlloyL2ChainProvider::new(
+            BufferedL2Provider::new(config.clone(), 8, 8),
+            rpc(server, config),
+        )
     }
 
     /// Answers the RPC block lookup with `null`, i.e. "no such block".
@@ -104,18 +110,72 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn locally_held_blocks_do_not_reach_the_rpc() {
+    async fn the_genesis_config_is_answered_locally() {
         let server = MockServer::start();
         let rpc_lookup = mount_block_lookup(&server);
         let config = rollup_config();
 
         let system_config = provider(&server, config.clone())
-            .system_config_by_l2_hash(BUFFERED_HASH, config.clone())
+            .system_config_by_l2_hash(GENESIS_HASH, config.clone())
             .await
             .unwrap();
 
         rpc_lookup.assert_calls(0);
         assert_eq!(Some(system_config), config.genesis.system_config);
+    }
+
+    #[tokio::test]
+    async fn buffered_blocks_are_converted_without_touching_the_rpc() {
+        // The point of the buffer: a block the node imported is turned into a SystemConfig
+        // locally. Genesis sits at an unrelated hash so nothing short-circuits, and the block
+        // carries a real L1-info deposit so the conversion has to actually decode it.
+        let header =
+            alloy_consensus::Header { number: 7, gas_limit: 30_000_000, ..Default::default() };
+        let block = OpBlock {
+            header,
+            body: alloy_consensus::BlockBody {
+                transactions: vec![op_alloy_consensus::OpTxEnvelope::Deposit(
+                    alloy_primitives::Sealed::new(op_alloy_consensus::TxDeposit {
+                        input: alloy_primitives::Bytes::from(
+                            &kona_protocol::test_utils::RAW_ECOTONE_INFO_TX,
+                        ),
+                        ..Default::default()
+                    }),
+                )],
+                ..Default::default()
+            },
+        };
+        let block_hash = block.header.hash_slow();
+
+        let config = Arc::new(RollupConfig {
+            genesis: ChainGenesis {
+                l2: alloy_eips::BlockNumHash { hash: GENESIS_HASH, number: 0 },
+                system_config: Some(SystemConfig::default()),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let l2_block_info = L2BlockInfo::from_block_and_genesis(&block, &config.genesis)
+            .expect("the deposit describes the block's L1 origin");
+
+        let server = MockServer::start();
+        let rpc_lookup = mount_block_lookup(&server);
+        let buffered = BufferedL2Provider::new(config.clone(), 8, 8);
+        buffered.add_block(block, l2_block_info).expect("buffering an imported block");
+
+        let system_config =
+            BufferedAlloyL2ChainProvider::new(buffered, rpc(&server, config.clone()))
+                .system_config_by_l2_hash(block_hash, config)
+                .await
+                .unwrap();
+
+        rpc_lookup.assert_calls(0);
+        // Decoded from the deposit's calldata, not echoed from genesis.
+        assert_eq!(
+            system_config.batcher_address,
+            alloy_primitives::address!("6887246668a3b87f54deb3b94ba47a6f63f32985")
+        );
+        assert_eq!(system_config.gas_limit, 30_000_000, "read from the buffered block's header");
     }
 
     #[tokio::test]
