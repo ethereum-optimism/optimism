@@ -25,6 +25,10 @@ pub struct OpNextBlockEnvAttributes {
 impl<H: alloy_consensus::BlockHeader> reth_rpc_eth_api::helpers::pending_block::BuildPendingEnv<H>
     for OpNextBlockEnvAttributes
 {
+    /// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+    /// `reth_rpc_eth_api::helpers::pending_block::NextBlockEnvAttributes::build_pending_env`
+    ///
+    /// Copies upstream pending-environment defaults for the OP attribute type.
     fn build_pending_env(
         parent: &crate::SealedHeader<H>,
         block_overrides: Option<&alloy_rpc_types_eth::BlockOverrides>,

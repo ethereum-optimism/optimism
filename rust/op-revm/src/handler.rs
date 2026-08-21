@@ -81,10 +81,10 @@ where
 
     /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::validate_env`
     ///
-    /// Deposits return early: they are pre-verified on L1, so none of the upstream
-    /// block/transaction validation applies to them. Non-deposits add the `enveloped_tx`
-    /// requirement and then delegate. Re-check on any change to the upstream default or to
-    /// `revm_handler::validation::validate_env`; a check added there does not reach deposits.
+    /// Deposits return before `validation::validate_env`; non-deposits add the
+    /// `enveloped_tx` requirement and then delegate. Re-check changes to the upstream
+    /// default and `revm_handler::validation::validate_env`. Other handler validation,
+    /// including `validate_initial_tx_gas`, still applies to deposits.
     fn validate_env(&self, evm: &mut Self::Evm) -> Result<(), Self::Error> {
         // Do not perform any extra validation for deposit transactions, they are pre-verified on
         // L1.
@@ -110,11 +110,14 @@ where
     }
 
     /// UPSTREAM-MIRROR(override): revm-handler@41.0.0
+    /// `revm_handler::Handler::validate_against_state_and_deduct_caller`
+    ///
+    /// UPSTREAM-MIRROR(copy): revm-handler@41.0.0
     /// `revm_handler::pre_execution::validate_against_state_and_deduct_caller`
     ///
-    /// The non-deposit arm reproduces the upstream body with the L1-fee deduction inserted
-    /// between the nonce/code validation and `calculate_caller_fee`. The deposit arm skips
-    /// both. Re-derive the non-deposit arm against the new upstream body on any change.
+    /// The non-deposit arm copies the upstream helper with the L1-fee deduction inserted
+    /// before `calculate_caller_fee`; the deposit arm replaces the default entirely.
+    /// Re-derive both sources when either upstream body changes.
     fn validate_against_state_and_deduct_caller(
         &self,
         evm: &mut Self::Evm,
@@ -431,11 +434,8 @@ where
 
     /// UPSTREAM-MIRROR(override): revm-handler@41.0.0 `revm_handler::Handler::catch_error`
     ///
-    /// Overriding this method is what caused the SDM warm-set leak fixed in
-    /// <https://github.com/ethereum-optimism/optimism/pull/21723>: revm added
-    /// `journal.discard_tx()` to the default body and the fix did not reach us. Re-derive on
-    /// any change to the default or to the journal's `discard_tx`/`commit_tx`/`finalize`
-    /// semantics.
+    /// Re-derive upstream error-path cleanup, currently `journal.discard_tx()`,
+    /// when the default or journal semantics change.
     fn catch_error(
         &self,
         evm: &mut Self::Evm,

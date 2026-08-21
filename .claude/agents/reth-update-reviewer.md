@@ -13,8 +13,14 @@ follow it exactly — scope (the lockfile-delta funnel), the change-driven appro
 precondition question, the risk taxonomy, the succinct output format, and the
 all-severities triage → investigation handoff all live there. Do not restate it; execute it.
 
-Before reading the upstream diff, run `cd rust && just mirrors stale`. That is the one
-worklist you pull upfront rather than deriving from the diff: OP code that reproduces
-upstream logic and has not been verified since before this pin. Grep the upstream diff for
-each symbol it names. `docs/ai/reth-upstream-mirrors.md` explains the tags and what
-re-verification means per kind.
+Before reading the upstream diff:
+
+1. Determine the PR's merge base. Inspect every `UPSTREAM-MIRROR` tag changed or
+   removed since that base; the old token is the review baseline even when the
+   head tag already names the new pin.
+2. Run `cd rust && just mirrors stale` for mirrors the author did not advance.
+3. Compare the old and new reth fork pins against their respective selected
+   upstream bases. Report any old cherry-pick absent from both the selected
+   target and the new fork pin.
+
+Then follow the symbol-level review in `docs/ai/reth-update-review.md`.
