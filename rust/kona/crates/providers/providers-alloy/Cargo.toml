@@ -30,7 +30,6 @@ alloy-transport.workspace = true
 alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
 reqwest = { workspace = true, features = ["query"] }
 alloy-consensus.workspace = true
-alloy-rpc-types-beacon.workspace = true
 alloy-rpc-types-engine.workspace = true
 alloy-rpc-client.workspace = true
 alloy-provider = { workspace = true, features = ["ipc", "ws", "reqwest"] }
