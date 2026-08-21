@@ -373,7 +373,7 @@ mod test {
         /// Set the local safe head.
         pub fn set_local_safe_head(&mut self, local_safe_head: L2BlockInfo) {
             self.sync_state.apply_update(EngineSyncStateUpdate {
-                local_safe_head: Some(local_safe_head),
+                local_safe_head: Some(LocalSafeHead::unpaired(local_safe_head)),
                 ..Default::default()
             });
         }
@@ -385,7 +385,7 @@ mod test {
         /// has to keep the resulting state, because the clamp reads `local_safe_head` back.
         pub fn set_cross_safe_head(&mut self, cross_safe_head: L2BlockInfo) {
             self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
-                local_safe_head: Some(cross_safe_head),
+                local_safe_head: Some(LocalSafeHead::unpaired(cross_safe_head)),
                 ..Default::default()
             });
             self.sync_state = self

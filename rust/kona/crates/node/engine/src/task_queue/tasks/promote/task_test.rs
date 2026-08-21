@@ -4,7 +4,7 @@
 //! classified as the wrong one. Withholding promotion is the only shape that can.
 
 use crate::{
-    CrossSafePromoter, Engine, EngineState, EngineSyncStateUpdate, EngineTaskExt,
+    CrossSafePromoter, Engine, EngineState, EngineSyncStateUpdate, EngineTaskExt, LocalSafeHead,
     PromoteCrossSafeTask, SynchronizeTask,
     test_utils::{MockEngineClient, test_engine_client_builder},
 };
@@ -55,7 +55,7 @@ fn externally_promoted(genesis: L2BlockInfo) -> (EngineState, CrossSafePromoter)
     let mut state = *engine.state();
     state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
         unsafe_head: Some(genesis),
-        local_safe_head: Some(genesis),
+        local_safe_head: Some(LocalSafeHead::unpaired(genesis)),
         finalized_head: Some(genesis),
     });
     state.sync_state = state.sync_state.apply_cross_safe_promotion(promoter.promote(genesis));
@@ -74,7 +74,7 @@ async fn advance_local_safe(
         cfg,
         EngineSyncStateUpdate {
             unsafe_head: Some(head),
-            local_safe_head: Some(head),
+            local_safe_head: Some(LocalSafeHead::unpaired(head)),
             ..EngineSyncStateUpdate::NONE
         },
     )
@@ -280,7 +280,7 @@ async fn a_reset_below_the_cross_safe_head_holds_cross_safe_at_the_walkback_poin
         cfg.clone(),
         EngineSyncStateUpdate {
             unsafe_head: Some(b2),
-            local_safe_head: Some(b2),
+            local_safe_head: Some(LocalSafeHead::unpaired(b2)),
             finalized_head: Some(genesis),
         },
     )
