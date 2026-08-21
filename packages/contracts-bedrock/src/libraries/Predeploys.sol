@@ -114,6 +114,9 @@ library Predeploys {
     /// @notice Address of the L2DevFeatureFlags predeploy.
     address internal constant L2_DEV_FEATURE_FLAGS = 0x420000000000000000000000000000000000002d;
 
+    /// @notice Address of the MessageExpiryRelay predeploy.
+    address internal constant MESSAGE_EXPIRY_RELAY = 0x420000000000000000000000000000000000002E;
+
     /// @notice Implementation variant selector.
     /// @dev Values are array indexes into `PredeployRecord.variants`.
     enum VariantKind {
