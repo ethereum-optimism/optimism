@@ -68,10 +68,7 @@ mod tests {
     #[test]
     fn dependency_set_response_matches_op_node() {
         let depset = DependencySet {
-            dependencies: BTreeMap::from([
-                (901, ChainDependency {}),
-                (902, ChainDependency {}),
-            ]),
+            dependencies: BTreeMap::from([(901, ChainDependency {}), (902, ChainDependency {})]),
             override_message_expiry_window: None,
         };
 
