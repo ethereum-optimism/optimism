@@ -216,9 +216,66 @@ impl RoundError {
         match self {
             // Every `ChainError` is by construction an "ask again".
             Self::Chain { .. } | Self::L1(_) => true,
-            // A damaged store is permanent; every other store failure is a failed write to retry.
-            Self::Store(err) => !matches!(err, StoreError::DataCorruption(_)),
+            // A store whose records are damaged, whose format this build does not read, or whose
+            // handle is gone cannot be retried into working: the cause outlives the round. Every
+            // other store failure is a rejected write or a position not sealed yet, where the
+            // next round observes the chains again and may ask something different.
+            Self::Store(err) => !matches!(
+                err,
+                StoreError::DataCorruption(_) |
+                    StoreError::UnsupportedVersion { .. } |
+                    StoreError::Closed
+            ),
             Self::Invariant(_) | Self::Permanent(_) => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The retry decision is made per store failure, so a new [`StoreError`] variant defaults to
+    /// "retry" unless [`RoundError::is_transient`] is told otherwise. These are the ones whose
+    /// cause outlives the round: retrying them would spin the round loop forever instead of
+    /// halting with the cause named.
+    #[test]
+    fn a_store_failure_no_retry_can_clear_is_not_transient() {
+        for err in [
+            StoreError::DataCorruption("a record is damaged"),
+            StoreError::UnsupportedVersion { expected: 1, actual: 2 },
+            StoreError::Closed,
+        ] {
+            let rendered = err.to_string();
+            assert!(!RoundError::Store(err).is_transient(), "{rendered} should not be retried");
+        }
+    }
+
+    /// The other store failures are a rejected write or a position not sealed yet. The next round
+    /// observes the chains again and may ask something different, so halting on these would stop a
+    /// node that would have recovered.
+    #[test]
+    fn a_store_failure_another_round_could_clear_is_transient() {
+        for err in [
+            StoreError::Future,
+            StoreError::NotFound,
+            StoreError::Conflict("disagrees about the block"),
+            StoreError::OutOfOrder("does not extend the frontier"),
+        ] {
+            let rendered = err.to_string();
+            assert!(RoundError::Store(err).is_transient(), "{rendered} should be retried");
+        }
+    }
+
+    #[test]
+    fn a_named_permanent_condition_is_not_transient() {
+        assert!(!RoundError::Permanent("history is gone".to_string()).is_transient());
+        assert!(!RoundError::Invariant("unreachable state".to_string()).is_transient());
+    }
+
+    #[test]
+    fn an_unobservable_chain_is_transient() {
+        assert!(RoundError::chain(ChainId::from(1u64), ChainError::NotReady).is_transient());
+        assert!(RoundError::L1(ChainError::NotReady).is_transient());
     }
 }
