@@ -157,3 +157,85 @@ async fn shutdown_signal() {
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    /// An actor that never finishes a step, standing in for a healthy peer.
+    struct PendingActor;
+
+    #[async_trait]
+    impl NodeActor for PendingActor {
+        type Error = &'static str;
+
+        async fn step(&mut self) -> Result<(), Self::Error> {
+            std::future::pending().await
+        }
+    }
+
+    /// An actor that steps `steps` times and then reports a fatal error.
+    struct FailingActor {
+        steps: usize,
+        stepped: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl NodeActor for FailingActor {
+        type Error = &'static str;
+
+        async fn step(&mut self) -> Result<(), Self::Error> {
+            if self.steps == 0 {
+                return Err("fatal");
+            }
+            self.steps -= 1;
+            self.stepped.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn fatal_error_tears_down_peer_actors() {
+        let cancellation = CancellationToken::new();
+        let stepped = Arc::new(AtomicUsize::new(0));
+
+        let err = run_actors(
+            cancellation.clone(),
+            vec![
+                PendingActor.boxed(),
+                FailingActor { steps: 3, stepped: stepped.clone() }.boxed(),
+                PendingActor.boxed(),
+            ],
+        )
+        .await
+        .expect_err("the failing actor must surface its error");
+
+        // The error is the actor's own, rendered through `Debug`.
+        assert_eq!(err, format!("{:?}", "fatal"));
+        // The actor was stepped repeatedly before failing, and its peers were torn down: this is
+        // the process-wide fail-fast a multi-chain host relies on.
+        assert_eq!(stepped.load(Ordering::Relaxed), 3);
+        assert!(cancellation.is_cancelled(), "a fatal actor error must cancel its peers");
+    }
+
+    #[tokio::test]
+    async fn external_cancellation_is_a_clean_exit() {
+        let cancellation = CancellationToken::new();
+        let token = cancellation.clone();
+        tokio::spawn(async move { token.cancel() });
+
+        run_actors(cancellation, vec![PendingActor.boxed(), PendingActor.boxed()])
+            .await
+            .expect("cancellation is not an error");
+    }
+
+    #[tokio::test]
+    async fn no_actors_returns_immediately() {
+        // A host with nothing to run must not block on the shutdown signal.
+        run_actors(CancellationToken::new(), Vec::new()).await.expect("empty actor set");
+    }
+}
