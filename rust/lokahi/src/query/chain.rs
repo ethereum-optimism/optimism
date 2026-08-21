@@ -255,3 +255,44 @@ impl QueryChain {
         genesis.l2.number + elapsed / self.rollup_config.block_time.max(1)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kona_safedb::DisabledDatabase;
+
+    /// A [`QueryChain`] over channels nothing reads, with `safe_db` as given.
+    ///
+    /// Enough for the history lookup, which is the one part of this module that answers without
+    /// reaching the chain at all.
+    fn chain(safe_db: SharedSafeDb) -> QueryChain {
+        let (engine_tx, _engine_rx) = tokio::sync::mpsc::channel(1);
+        let (l1_tx, _l1_rx) = tokio::sync::mpsc::channel(1);
+        QueryChain::new(
+            901,
+            Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
+            QueuedEngineRpcClient::new(engine_tx),
+            l1_tx,
+            safe_db,
+        )
+    }
+
+    /// A chain that records no safe-head history cannot pair a block behind the local-safe head
+    /// with an L1 block, and says so rather than guessing.
+    ///
+    /// This is why the safe-head database is opened for every chain and not only for an
+    /// interop-scheduled one: pre-activation the proposer asks `superroot_atTimestamp` about
+    /// exactly these timestamps, and this error fails the whole call. op-supernode never reaches
+    /// it, because its chain container gives every virtual node a `SafeDBPath`.
+    #[test]
+    fn a_chain_recording_no_history_cannot_answer_about_a_past_timestamp() {
+        let err = chain(Arc::new(DisabledDatabase))
+            .required_l1_from_history(1_700_000_040)
+            .expect_err("a disabled database has no pairing to offer");
+
+        assert!(
+            matches!(err, QueryError::HistoryUnavailable { chain_id: 901, .. }),
+            "expected the history to be reported unavailable, got {err:?}"
+        );
+    }
+}

@@ -25,7 +25,7 @@ use kona_node_service::{
 use kona_peers::{BootNode, BootStoreFile};
 use kona_providers_alloy::OnlineBeaconClient;
 use kona_rpc::RpcBuilder;
-use kona_safedb::{DisabledDatabase, SharedSafeDb};
+use kona_safedb::SharedSafeDb;
 use kona_sources::BlockSigner;
 use libp2p::identity::Keypair;
 use op_alloy_network::Optimism;
@@ -60,7 +60,7 @@ pub(crate) struct Supernode {
     /// The L1 chain config every chain derives against.
     l1_chain_config: L1ChainConfig,
     /// The chains, with their rollup configs loaded. Fixed: a boxed slice cannot grow.
-    chains: Box<[Chain]>,
+    chains: Box<[OpenChain]>,
     /// The supernode-level admin RPC's socket, if one is configured.
     admin_rpc: Option<SocketAddr>,
     /// The chains as configured, kept for the admin RPC to answer from.
@@ -81,20 +81,40 @@ struct Chain {
     rollup_config: RollupConfig,
     /// The chain's interop dependency set, when one is configured.
     dependency_set: Option<Arc<DependencySet>>,
-    /// What interop needs from this chain, present exactly when interop is on.
+}
+
+/// A chain whose on-disk state is open: the phase after [`Chain::load`], and the only form
+/// [`OpenChain::compose`] exists on.
+///
+/// A separate type rather than more [`Option`]s on [`Chain`], because "not opened yet" and
+/// "interop is off for this chain" are different states that a single `Option` would spell the
+/// same way — and the safe-head database is now open in both of the latter's cases.
+#[derive(Debug)]
+struct OpenChain {
+    /// The chain's resolved settings.
+    settings: ResolvedChain,
+    /// The chain's rollup config.
+    rollup_config: RollupConfig,
+    /// The chain's interop dependency set, when one is configured.
+    dependency_set: Option<Arc<DependencySet>>,
+    /// The safe-head database this chain's controller records local-safe advances into.
     ///
-    /// One [`Option`] rather than a field per part, because the parts are all-or-nothing: a chain
-    /// recording safe-head history nobody reads, or holding a cross-safe head nobody promotes, is
-    /// a half-configured chain rather than a supported mode.
+    /// Open on every chain, whether or not interop is scheduled, because two readers need it and
+    /// only one of them is the interop verifier. The other is `superroot_atTimestamp`, which pairs
+    /// a block behind the local-safe head with the L1 block that made it safe — and
+    /// pre-activation that pairing *is* the super root, since the optimistic outputs are the
+    /// canonical ones there. op-supernode has it unconditionally for the same reason: its chain
+    /// container sets `SafeDBPath` on every virtual node it starts, with no interop gate
+    /// (`op-supernode/supernode/chain_container/chain_container.go:236`).
+    safe_db: SharedSafeDb,
+    /// What interop needs from this chain beyond the safe-head history, present exactly when
+    /// interop is on.
     interop: Option<ChainInteropState>,
 }
 
 /// The per-chain state the interop verifier needs, alongside the chain's own actors.
 #[derive(Debug, Clone)]
 struct ChainInteropState {
-    /// The safe-head database the chain's controller records local-safe advances into, and the
-    /// verifier reads the L1 pairing of a block behind the local-safe head out of.
-    safe_db: SharedSafeDb,
     /// A read-only execution-layer provider over the chain's engine endpoint.
     ///
     /// The engine endpoint is JWT-authenticated, so this is built through kona's own
@@ -147,11 +167,11 @@ impl Supernode {
         // Last, because this is the first thing in `load` that touches the disk: a chain's data
         // directory and its safe-head database are created only once the whole set is known to be
         // runnable. Attached to the chain rather than opened later by the interop module, so that
-        // the controller which records into a database and the verifier which reads it are handed
-        // the same handle by construction.
+        // the controller which records into a database and the readers of it — the verifier, and
+        // the super-root query — are handed the same handle by construction.
         let chains = loaded
             .into_iter()
-            .map(|chain| chain.with_interop(interop_activation.is_some()))
+            .map(|chain| chain.open(interop_activation.is_some()))
             .collect::<Result<Vec<_>>>()?
             .into_boxed_slice();
 
@@ -225,6 +245,7 @@ impl Supernode {
             let datadir = chain.settings.datadir.clone();
             let rollup_config = chain.rollup_config.clone();
             let interop_state = chain.interop.clone();
+            let safe_db = chain.safe_db.clone();
             let ComposedChain {
                 actors: chain_actors,
                 l1_watcher_ports,
@@ -237,21 +258,18 @@ impl Supernode {
                 .await
                 .with_context(|| format!("failed to compose the actors of chain {chain_id}"))?;
 
-            // Every chain is queryable, whether or not interop is on: `supernode_syncStatus`
-            // answers for the set either way. Without interop the chain records no safe-head
-            // history, so `superroot_atTimestamp` can pair a block with an L1 block only at the
-            // local-safe head itself and reports a timestamp behind it as unavailable history —
-            // which is what it is. Interop turns that recording on, and every consumer of these
-            // methods runs against an interop cluster.
+            // Every chain is queryable, whether or not interop is on, and both methods answer
+            // from the same places in both regimes: `supernode_syncStatus` aggregates the set, and
+            // `superroot_atTimestamp` reads this chain's safe-head history. Handing it that
+            // history unconditionally is what lets it answer before interop activates, where the
+            // verifier reports interop inactive, the optimistic outputs are the canonical ones,
+            // and the super root is composed from them and the L1 blocks recorded here.
             query_chains.push(QueryChain::new(
                 chain_id,
                 Arc::new(rollup_config.clone()),
                 QueuedEngineRpcClient::new(controller_rpc_request_tx.clone()),
                 l1_query_tx,
-                interop_state.as_ref().map_or_else(
-                    || Arc::new(DisabledDatabase) as SharedSafeDb,
-                    |state| state.safe_db.clone(),
-                ),
+                safe_db.clone(),
             ));
 
             // A promoter exists exactly when the chain was composed with an externally fed
@@ -262,7 +280,7 @@ impl Supernode {
                     chain_id,
                     datadir,
                     rollup_config,
-                    safe_db: state.safe_db,
+                    safe_db,
                     el: state.el,
                     queries: controller_rpc_request_tx,
                     requests: controller_request_tx,
@@ -329,46 +347,56 @@ impl Chain {
     fn load(settings: ResolvedChain) -> Result<Self> {
         let rollup_config = load_rollup_config(&settings)?;
         let dependency_set = load_dependency_set(&settings, &rollup_config)?;
-        Ok(Self { settings, rollup_config, dependency_set, interop: None })
+        Ok(Self { settings, rollup_config, dependency_set })
     }
 
-    /// Attaches this chain's interop state, or leaves it inert.
+    /// Opens this chain's on-disk state, and the interop state on top of it when interop is on.
     ///
-    /// Both halves are decided by one flag on purpose: the safe-head history exists so that the
-    /// verifier can pair a block behind the local-safe head with an L1 block, and the externally
-    /// fed cross-safe head exists so that the verifier is what moves it. A chain with one and not
-    /// the other is either recording history nobody reads or holding a head nobody promotes.
-    fn with_interop(self, enabled: bool) -> Result<Self> {
-        if !enabled {
-            return Ok(self);
-        }
+    /// The safe-head database is opened either way. It exists so that a block behind the local-safe
+    /// head can be paired with the L1 block that made it safe, and both readers of that pairing
+    /// need it: the interop verifier, which only exists once interop is scheduled, and
+    /// `superroot_atTimestamp`, which is asked about pre-interop timestamps by the proposer of a
+    /// chain set that schedules no interop at all. Without it that query has no history to read
+    /// and fails for every timestamp behind the head — where op-supernode answers from pre-interop
+    /// consensus, because its chain container gives every virtual node a `SafeDBPath` with no
+    /// interop gate (`op-supernode/supernode/chain_container/chain_container.go:236`).
+    ///
+    /// `enabled` therefore decides only what interop needs *in addition*: the authenticated
+    /// execution-layer provider the verifier reads receipts through.
+    fn open(self, enabled: bool) -> Result<OpenChain> {
+        let Self { settings, rollup_config, dependency_set } = self;
 
         // The database lives in the chain's own directory, which composition creates; create it
         // here too, because this runs first.
-        std::fs::create_dir_all(&self.settings.datadir).with_context(|| {
-            format!("failed to create the data directory {}", self.settings.datadir.display())
+        std::fs::create_dir_all(&settings.datadir).with_context(|| {
+            format!("failed to create the data directory {}", settings.datadir.display())
         })?;
-        let safe_db = ChainInterop::open_safe_db(&self.settings.datadir)?;
+        let safe_db = ChainInterop::open_safe_db(&settings.datadir)?;
 
-        let jwt_secret = load_jwt_secret(&self.settings.jwt_secret)?;
-        let el = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
-            self.settings.engine_rpc.clone(),
-            jwt_secret,
-        );
+        let interop = if enabled {
+            let jwt_secret = load_jwt_secret(&settings.jwt_secret)?;
+            let el = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
+                settings.engine_rpc.clone(),
+                jwt_secret,
+            );
+            Some(ChainInteropState { el })
+        } else {
+            None
+        };
 
-        Ok(Self { interop: Some(ChainInteropState { safe_db, el }), ..self })
+        Ok(OpenChain { settings, rollup_config, dependency_set, safe_db, interop })
     }
+}
 
+impl OpenChain {
     /// Builds this chain's node and composes its actor group.
     async fn compose(
         self,
         l1: &L1Settings,
         l1_chain_config: &L1ChainConfig,
     ) -> Result<ComposedChain> {
-        let Self { settings, rollup_config, dependency_set, interop } = self;
+        let Self { settings, rollup_config, dependency_set, safe_db, interop } = self;
         let external_cross_safe = interop.is_some();
-        let safe_db = interop
-            .map_or_else(|| Arc::new(DisabledDatabase) as SharedSafeDb, |state| state.safe_db);
 
         // Every chain keeps its state in its own directory: its P2P identity, its bootstore, and
         // the admin-API state its RPC server persists.
@@ -786,16 +814,25 @@ mod tests {
     const ACTIVATION: u64 = 1_000;
 
     /// Writes a rollup config naming `l1_chain_id`, with interop scheduled.
-    ///
-    /// Interop has to be scheduled for the ordering these tests are about to exist at all: a
-    /// chain set without it opens no databases, so there would be nothing for a failed check to
-    /// leave behind.
     fn rollup_config_file(dir: &Path, l2_chain_id: u64, l1_chain_id: u64) -> PathBuf {
+        rollup_config_file_with_interop(dir, l2_chain_id, l1_chain_id, true)
+    }
+
+    /// Writes a rollup config that may or may not schedule interop.
+    fn rollup_config_file_with_interop(
+        dir: &Path,
+        l2_chain_id: u64,
+        l1_chain_id: u64,
+        interop: bool,
+    ) -> PathBuf {
         let config = RollupConfig {
             l1_chain_id,
             l2_chain_id: l2_chain_id.into(),
             block_time: 2,
-            hardforks: HardForkConfig { lagoon_time: Some(ACTIVATION), ..Default::default() },
+            hardforks: HardForkConfig {
+                lagoon_time: interop.then_some(ACTIVATION),
+                ..Default::default()
+            },
             ..Default::default()
         };
         let path = dir.join(format!("rollup-{l2_chain_id}.json"));
@@ -836,6 +873,25 @@ mod tests {
             unsafe_block_signer: Some(Address::repeat_byte(1)),
             bootnodes: Vec::new(),
             interop_dependency_set: Some(dependency_set_file(dir, &[l2_chain_id])),
+        }
+    }
+
+    /// A resolved chain that schedules no interop, and so has no dependency set either.
+    fn chain_without_interop(
+        dir: &Path,
+        l2_chain_id: u64,
+        l1_chain_id: u64,
+        port: u16,
+    ) -> ResolvedChain {
+        ResolvedChain {
+            rollup_config: Some(rollup_config_file_with_interop(
+                dir,
+                l2_chain_id,
+                l1_chain_id,
+                false,
+            )),
+            interop_dependency_set: None,
+            ..chain(dir, l2_chain_id, l1_chain_id, port)
         }
     }
 
@@ -907,6 +963,42 @@ mod tests {
             assert!(
                 dir.path().join(chain_id.to_string()).join(SAFE_DB_DIR).is_dir(),
                 "chain {chain_id}'s safe-head database lives in its own directory"
+            );
+        }
+    }
+
+    /// A chain set that schedules no interop still gets a safe-head database per chain.
+    ///
+    /// This is what makes `superroot_atTimestamp` answerable before interop activates. The query
+    /// pairs the block at a timestamp with the L1 block that made it safe, and for any timestamp
+    /// behind the local-safe head that pairing only exists in this database — so a chain set
+    /// without one fails the whole call rather than answering from pre-interop consensus, which is
+    /// what op-supernode does there. op-supernode has no interop gate on it either: its chain
+    /// container sets `SafeDBPath` on every virtual node it starts.
+    #[test]
+    fn a_chain_set_without_interop_still_opens_a_safe_head_database() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let chains = vec![
+            chain_without_interop(dir.path(), 901, 1, 9585),
+            chain_without_interop(dir.path(), 902, 1, 9595),
+        ];
+
+        let supernode = Supernode::load(config(dir.path(), chains)).expect("must load");
+        assert_eq!(
+            supernode.interop_activation, None,
+            "this set schedules no interop, or the test is not testing what it says"
+        );
+
+        for chain in &supernode.chains {
+            assert!(
+                chain.interop.is_none(),
+                "chain {} must have no interop state without interop scheduled",
+                chain.settings.l2_chain_id
+            );
+            assert!(
+                dir.path().join(chain.settings.l2_chain_id.to_string()).join(SAFE_DB_DIR).is_dir(),
+                "chain {} must record safe-head history whether or not interop is scheduled",
+                chain.settings.l2_chain_id
             );
         }
     }
