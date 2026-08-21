@@ -59,7 +59,7 @@ This is organized by current state of PR, so it can be easily referenced frequen
 
 ### Writing the Description
 
-Keep the description short. Two or three sentences are usually sufficient. Two short paragraphs are the maximum. Give the reviewer the information that the diff does not show:
+Keep the description short. Two or three sentences are usually sufficient for smaller changes. Give the reviewer the information that the diff does not show:
 
 - **Why the change is necessary**: the problem, and what happens if you do not make the change.
 - **The effect on users**: what an operator, a chain, a downstream importer, or an end user will see. Examples: a change in behavior, a new or removed flag, a failure that is now corrected, a difference in performance. If there is no effect on users, say so.
