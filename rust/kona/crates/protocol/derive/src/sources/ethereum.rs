@@ -44,8 +44,17 @@ where
     pub fn new_from_parts(provider: C, blobs: B, cfg: &RollupConfig) -> Self {
         Self {
             ecotone_timestamp: cfg.hardforks.ecotone_time,
-            blob_source: BlobSource::new(provider.clone(), blobs, cfg.batch_inbox_address),
-            calldata_source: CalldataSource::new(provider, cfg.batch_inbox_address),
+            blob_source: BlobSource::new(
+                provider.clone(),
+                blobs,
+                cfg.batch_inbox_address,
+                cfg.l2_chain_id.id(),
+            ),
+            calldata_source: CalldataSource::new(
+                provider,
+                cfg.batch_inbox_address,
+                cfg.l2_chain_id.id(),
+            ),
         }
     }
 }
@@ -96,7 +105,7 @@ mod tests {
         let chain_provider = TestChainProvider::default();
         let blob_fetcher = TestBlobProvider::default();
         let batcher_address = Address::default();
-        BlobSource::new(chain_provider, blob_fetcher, batcher_address)
+        BlobSource::new(chain_provider, blob_fetcher, batcher_address, 10)
     }
 
     #[tokio::test]
@@ -104,10 +113,10 @@ mod tests {
         let chain = TestChainProvider::default();
         let blob = TestBlobProvider::default();
         let cfg = RollupConfig::default();
-        let mut calldata = CalldataSource::new(chain.clone(), Address::ZERO);
+        let mut calldata = CalldataSource::new(chain.clone(), Address::ZERO, 10);
         calldata.calldata.insert(0, Default::default());
         calldata.open = true;
-        let mut blob = BlobSource::new(chain, blob, Address::ZERO);
+        let mut blob = BlobSource::new(chain, blob, Address::ZERO, 10);
         blob.data = vec![Default::default()];
         blob.open = true;
         let mut data_source = EthereumDataSource::new(blob, calldata, &cfg);
@@ -125,7 +134,7 @@ mod tests {
         let mut blob = default_test_blob_source();
         blob.open = true;
         blob.data.push(BlobData { data: None, calldata: Some(Bytes::default()) });
-        let calldata = CalldataSource::new(chain.clone(), Address::ZERO);
+        let calldata = CalldataSource::new(chain.clone(), Address::ZERO, 10);
         let cfg = RollupConfig {
             hardforks: HardForkConfig { ecotone_time: Some(0), ..Default::default() },
             ..Default::default()

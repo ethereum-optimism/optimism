@@ -110,13 +110,13 @@ impl BlockHandler {
             Ok(received) => received,
             Err(_) => {
                 #[cfg(feature = "metrics")]
-                kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signature");
+                kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signature", Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
                 return Err(BlockInvalidError::Signature);
             }
         };
         if received != expected {
             #[cfg(feature = "metrics")]
-            kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signer");
+            kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signer", Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             return Err(BlockInvalidError::Signer { expected, received });
         }
         Ok(())
@@ -146,7 +146,7 @@ impl BlockHandler {
                 OpExecutionPayloadEnvelope::V3 { .. } => "v3",
                 OpExecutionPayloadEnvelope::V4 { .. } => "v4",
             };
-            kona_macros::inc!(counter, Metrics::BLOCK_VERSION, "version" => version);
+            kona_macros::inc!(counter, Metrics::BLOCK_VERSION, "version" => version, Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
         }
 
         let validation_result = self.validate_block_internal(envelope);
@@ -158,7 +158,8 @@ impl BlockHandler {
             kona_macros::record!(
                 histogram,
                 Metrics::BLOCK_VALIDATION_DURATION_SECONDS,
-                duration.as_secs_f64()
+                duration.as_secs_f64(),
+                Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
             );
         }
 
@@ -166,7 +167,7 @@ impl BlockHandler {
         match &validation_result {
             Ok(()) => {
                 #[cfg(feature = "metrics")]
-                kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_SUCCESS);
+                kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_SUCCESS, Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
             }
             Err(_err) => {
                 #[cfg(feature = "metrics")]
@@ -190,7 +191,7 @@ impl BlockHandler {
                         BlockInvalidError::ExcessBlobGas => "excess_blob_gas",
                         BlockInvalidError::WithdrawalsRoot => "withdrawals_root",
                     };
-                    kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => reason);
+                    kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => reason, Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone());
                 }
             }
         }
@@ -658,7 +659,7 @@ pub(crate) mod tests {
     #[cfg(feature = "metrics")]
     fn test_metrics_instrumentation() {
         use crate::Metrics;
-        Metrics::init();
+        Metrics::init(10);
 
         let envelope = v1_envelope(&v1_valid_block());
         let mut handler = handler();

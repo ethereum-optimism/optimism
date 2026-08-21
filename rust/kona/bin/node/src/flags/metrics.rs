@@ -9,15 +9,15 @@ use metrics::gauge;
 /// Initialize the tracing stack and Prometheus metrics recorder.
 ///
 /// This function should be called at the beginning of the program.
-pub fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
+pub fn init_unified_metrics(args: &MetricsArgs, l2_chain_id: u64) -> anyhow::Result<()> {
     args.init_metrics()?;
     if args.enabled {
-        kona_gossip::Metrics::init();
-        kona_disc::Metrics::init();
-        kona_engine::Metrics::init();
-        kona_node_service::Metrics::init();
-        kona_derive::Metrics::init();
-        kona_providers_alloy::Metrics::init();
+        kona_gossip::Metrics::init(l2_chain_id);
+        kona_disc::Metrics::init(l2_chain_id);
+        kona_engine::Metrics::init(l2_chain_id);
+        kona_node_service::Metrics::init(l2_chain_id);
+        kona_derive::Metrics::init(l2_chain_id);
+        kona_providers_alloy::Metrics::init(l2_chain_id);
         gauge!(
             "kona_node_info",
             &[

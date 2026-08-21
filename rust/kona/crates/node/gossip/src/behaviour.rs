@@ -109,7 +109,7 @@ mod tests {
     #[test]
     fn test_behaviour_no_handlers() {
         let key = libp2p::identity::Keypair::generate_secp256k1();
-        let cfg = config::default_config();
+        let cfg = config::default_config(10);
         let handlers = vec![];
         let _ = Behaviour::new(key.public(), cfg, &handlers).unwrap();
     }
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn test_behaviour_with_handlers() {
         let key = libp2p::identity::Keypair::generate_secp256k1();
-        let cfg = config::default_config();
+        let cfg = config::default_config(10);
         let (_, recv) = tokio::sync::watch::channel(Address::default());
         let block_handler = BlockHandler::new(
             RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },

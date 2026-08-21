@@ -211,7 +211,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                     let total_duration = global_start.elapsed();
 
                     // Apply a transient update to the local-safe head.
-                    state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+                    state.sync_state = state.apply_sync_update(EngineSyncStateUpdate {
                         local_safe_head: Some(LocalSafeHead::new(
                             block_info,
                             self.input.local_safe_origin(),

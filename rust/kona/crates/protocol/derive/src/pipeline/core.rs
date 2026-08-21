@@ -28,6 +28,11 @@ where
     pub prepared: VecDeque<OpAttributesWithParent>,
     /// The rollup config.
     pub rollup_config: Arc<RollupConfig>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the pipeline's per-frame and per-batch emits clone a refcount rather than
+    /// re-allocating the label.
+    pub chain_id_label: Arc<str>,
     /// The L2 Chain Provider used to fetch the system config on reset.
     pub l2_chain_provider: P,
 }
@@ -38,12 +43,15 @@ where
     P: L2ChainProvider + Send + Sync + Debug,
 {
     /// Creates a new instance of the [`DerivationPipeline`].
-    pub const fn new(
-        attributes: S,
-        rollup_config: Arc<RollupConfig>,
-        l2_chain_provider: P,
-    ) -> Self {
-        Self { attributes, prepared: VecDeque::new(), rollup_config, l2_chain_provider }
+    pub fn new(attributes: S, rollup_config: Arc<RollupConfig>, l2_chain_provider: P) -> Self {
+        let chain_id_label = kona_macros::chain_id_label(rollup_config.l2_chain_id.id());
+        Self {
+            attributes,
+            prepared: VecDeque::new(),
+            rollup_config,
+            l2_chain_provider,
+            chain_id_label,
+        }
     }
 
     /// Walks back the L2 chain to find the correct L1 origin for a pipeline reset.
@@ -107,7 +115,8 @@ where
         kona_macros::set!(
             gauge,
             crate::metrics::Metrics::PIPELINE_PAYLOAD_ATTRIBUTES_BUFFER,
-            self.prepared.len().saturating_sub(1) as f64
+            self.prepared.len().saturating_sub(1) as f64,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
         );
         self.prepared.pop_front()
     }
@@ -158,6 +167,7 @@ where
             gauge,
             crate::metrics::Metrics::PIPELINE_SIGNALS,
             "type" => signal.to_string(),
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
         );
         Ok(())
     }
@@ -203,35 +213,51 @@ where
     ///
     /// [`PipelineError`]: crate::errors::PipelineError
     async fn step(&mut self, cursor: L2BlockInfo) -> StepResult {
-        kona_macros::inc!(gauge, crate::metrics::Metrics::PIPELINE_STEPS);
+        kona_macros::inc!(
+            gauge,
+            crate::metrics::Metrics::PIPELINE_STEPS,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+        );
         kona_macros::set!(
             gauge,
             crate::metrics::Metrics::PIPELINE_STEP_BLOCK,
-            cursor.block_info.number as f64
+            cursor.block_info.number as f64,
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
         );
         match self.attributes.next_attributes(cursor).await {
             Ok(a) => {
                 trace!(target: "pipeline", "Prepared L2 attributes: {:?}", a);
                 kona_macros::inc!(
                     gauge,
-                    crate::metrics::Metrics::PIPELINE_PAYLOAD_ATTRIBUTES_BUFFER
+                    crate::metrics::Metrics::PIPELINE_PAYLOAD_ATTRIBUTES_BUFFER,
+                    crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                 );
                 kona_macros::set!(
                     gauge,
                     crate::metrics::Metrics::PIPELINE_LATEST_PAYLOAD_TX_COUNT,
-                    a.attributes.transactions.as_ref().map_or(0.0, |txs| txs.len() as f64)
+                    a.attributes.transactions.as_ref().map_or(0.0, |txs| txs.len() as f64),
+                    crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                 );
                 if a.is_last_in_span {
                     kona_macros::set!(
                         gauge,
                         crate::metrics::Metrics::PIPELINE_DERIVED_SPAN_SIZE,
-                        0
+                        0,
+                        crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                     );
                 } else {
-                    kona_macros::inc!(gauge, crate::metrics::Metrics::PIPELINE_DERIVED_SPAN_SIZE);
+                    kona_macros::inc!(
+                        gauge,
+                        crate::metrics::Metrics::PIPELINE_DERIVED_SPAN_SIZE,
+                        crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                    );
                 }
                 self.prepared.push_back(a);
-                kona_macros::inc!(gauge, crate::metrics::Metrics::PIPELINE_PREPARED_ATTRIBUTES);
+                kona_macros::inc!(
+                    gauge,
+                    crate::metrics::Metrics::PIPELINE_PREPARED_ATTRIBUTES,
+                    crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
                 StepResult::PreparedAttributes
             }
             Err(err) => match err {

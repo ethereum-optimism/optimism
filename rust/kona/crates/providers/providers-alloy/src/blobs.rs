@@ -8,7 +8,7 @@ use alloy_primitives::{B256, FixedBytes};
 use async_trait::async_trait;
 use kona_derive::{BlobProvider, BlobProviderError};
 use kona_protocol::BlockInfo;
-use std::{boxed::Box, string::ToString, vec::Vec};
+use std::{boxed::Box, string::ToString, sync::Arc, vec::Vec};
 use tracing::warn;
 
 /// A boxed blob.
@@ -41,6 +41,11 @@ pub struct OnlineBlobProvider<B: BeaconClient> {
     pub genesis_time: u64,
     /// Slot interval used for the time to slot conversion.
     pub slot_interval: u64,
+    /// The `chain_id` label attached to this provider's metrics.
+    ///
+    /// The node builds one provider per chain and sets it. It is `None` only in the proof hosts,
+    /// which share one provider across chains and do not compile the `metrics` feature at all.
+    pub chain_id_label: Option<Arc<str>>,
 }
 
 impl<B: BeaconClient> OnlineBlobProvider<B> {
@@ -65,7 +70,24 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
             .map(|r| r.data.seconds_per_slot)
             .map_err(|e| BlobProviderError::Backend(e.to_string()))
             .expect("Failed to load slot interval from beacon client");
-        Self { beacon_client, genesis_time, slot_interval }
+        Self { beacon_client, genesis_time, slot_interval, chain_id_label: None }
+    }
+
+    /// Attributes this provider's metrics to `chain_id`.
+    pub fn with_chain_id(mut self, chain_id: u64) -> Self {
+        self.chain_id_label = Some(kona_macros::chain_id_label(chain_id));
+        self
+    }
+
+    /// Increments `metric`, tagged with this provider's chain when one is set.
+    #[cfg(feature = "metrics")]
+    fn record(&self, metric: &'static str) {
+        match &self.chain_id_label {
+            Some(chain_id) => {
+                metrics::gauge!(metric, Metrics::CHAIN_ID_LABEL => chain_id.clone()).increment(1)
+            }
+            None => metrics::gauge!(metric).increment(1),
+        }
     }
 
     /// Computes the slot for the given timestamp.
@@ -86,7 +108,8 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
         slot: u64,
         blob_hashes: &[B256],
     ) -> Result<Vec<BoxedBlob>, BlobProviderError> {
-        kona_macros::inc!(gauge, Metrics::BLOB_FETCHES);
+        #[cfg(feature = "metrics")]
+        self.record(Metrics::BLOB_FETCHES);
 
         let result =
             self.beacon_client.filtered_beacon_blobs(slot, blob_hashes).await.map_err(|e| {
@@ -107,7 +130,7 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
 
         #[cfg(feature = "metrics")]
         if result.is_err() {
-            kona_macros::inc!(gauge, Metrics::BLOB_FETCH_ERRORS);
+            self.record(Metrics::BLOB_FETCH_ERRORS);
         }
 
         result

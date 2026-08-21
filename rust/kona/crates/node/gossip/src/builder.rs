@@ -144,7 +144,7 @@ impl GossipDriverBuilder {
         let handler = BlockHandler::new(rollup_config, signer_rx);
 
         // Construct the gossip behaviour
-        let config = self.config.unwrap_or_else(crate::default_config);
+        let config = self.config.unwrap_or_else(|| crate::default_config(l2_chain_id.id()));
         info!(
             target: "gossip",
             "CONFIG: [Mesh D: {}] [Mesh L: {}] [Mesh H: {}] [Gossip Lazy: {}] [Flood Publish: {}]",
@@ -214,7 +214,7 @@ impl GossipDriverBuilder {
             .build();
 
         let gater_config = self.gater_config.take().unwrap_or_default();
-        let gate = crate::ConnectionGater::new(gater_config);
+        let gate = crate::ConnectionGater::new(gater_config, l2_chain_id.id());
 
         Ok((GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate), signer_tx))
     }

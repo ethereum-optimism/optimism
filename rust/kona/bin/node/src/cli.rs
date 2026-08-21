@@ -62,7 +62,7 @@ impl Cli {
         }
 
         // Initialize unified metrics
-        init_unified_metrics(&self.global.metrics)?;
+        init_unified_metrics(&self.global.metrics, self.global.l2_chain_id.id())?;
 
         // Allow subcommands to initialize cli metrics.
         match self.subcommand {

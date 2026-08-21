@@ -246,7 +246,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
             kona_macros::inc!(
                 counter,
                 crate::Metrics::ENGINE_TASK_FAILURE,
-                self.task_metrics_label() => severity.to_string()
+                "type" => self.task_metrics_label(),
+                "severity" => severity.to_string(),
+                crate::Metrics::CHAIN_ID_LABEL => state.chain_id.to_string()
             );
 
             match severity {
@@ -271,7 +273,12 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
             }
         }
 
-        kona_macros::inc!(counter, crate::Metrics::ENGINE_TASK_SUCCESS, self.task_metrics_label());
+        kona_macros::inc!(
+            counter,
+            crate::Metrics::ENGINE_TASK_SUCCESS,
+            "type" => self.task_metrics_label(),
+            crate::Metrics::CHAIN_ID_LABEL => state.chain_id.to_string()
+        );
 
         Ok(())
     }
@@ -308,7 +315,7 @@ mod tests {
     /// A state whose unsafe and local-safe heads both sit at `head`.
     fn state_at(head: L2BlockInfo) -> EngineState {
         let mut state = EngineState::default();
-        state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+        state.sync_state = state.apply_sync_update(EngineSyncStateUpdate {
             unsafe_head: Some(head),
             local_safe_head: Some(LocalSafeHead::unpaired(head)),
             ..Default::default()

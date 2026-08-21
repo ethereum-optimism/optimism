@@ -104,8 +104,7 @@ impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
         // When inserting a payload, we advertise the parent's unsafe head as the current unsafe
         // head to build on top of.
         let new_forkchoice = state
-            .sync_state
-            .apply_update(EngineSyncStateUpdate {
+            .apply_sync_update(EngineSyncStateUpdate {
                 unsafe_head: Some(attributes_envelope.parent),
                 ..Default::default()
             })

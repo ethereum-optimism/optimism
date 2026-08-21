@@ -50,6 +50,11 @@ where
     pub config: Arc<RollupConfig>,
     /// Used to validate the batches.
     pub fetcher: BF,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the pipeline's per-frame and per-batch emits clone a refcount rather than
+    /// re-allocating the label.
+    pub chain_id_label: Arc<str>,
 }
 
 impl<P, BF> BatchStream<P, BF>
@@ -58,8 +63,9 @@ where
     BF: L2ChainProvider + Debug,
 {
     /// Create a new [`BatchStream`] stage.
-    pub const fn new(prev: P, config: Arc<RollupConfig>, fetcher: BF) -> Self {
-        Self { prev, span: None, buffer: VecDeque::new(), config, fetcher }
+    pub fn new(prev: P, config: Arc<RollupConfig>, fetcher: BF) -> Self {
+        let chain_id_label = kona_macros::chain_id_label(config.l2_chain_id.id());
+        Self { prev, span: None, buffer: VecDeque::new(), config, fetcher, chain_id_label }
     }
 
     /// Returns if the [`BatchStream`] stage is active based on the
@@ -94,9 +100,19 @@ where
         #[cfg(feature = "metrics")]
         {
             let batch_count = self.buffer.len() as f64;
-            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_BUFFER, batch_count);
+            kona_macros::set!(
+                gauge,
+                crate::metrics::Metrics::PIPELINE_BATCH_BUFFER,
+                batch_count,
+                crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
             let batch_size = std::mem::size_of_val(&self.buffer) as f64;
-            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_MEM, batch_size);
+            kona_macros::set!(
+                gauge,
+                crate::metrics::Metrics::PIPELINE_BATCH_MEM,
+                batch_size,
+                crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
         }
         Ok(())
     }
@@ -160,13 +176,15 @@ where
                     kona_macros::record!(
                         histogram,
                         crate::metrics::Metrics::PIPELINE_CHECK_BATCH_PREFIX,
-                        start.elapsed().as_secs_f64()
+                        start.elapsed().as_secs_f64(),
+                        crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                     );
 
                     kona_macros::inc!(
                         gauge,
                         crate::metrics::Metrics::PIPELINE_BATCH_VALIDITY,
                         "validity" => validity.to_string(),
+                        crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
                     );
 
                     match validity {
