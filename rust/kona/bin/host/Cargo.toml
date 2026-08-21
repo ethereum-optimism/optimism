@@ -73,8 +73,10 @@ ark-ff.workspace = true
 
 [dev-dependencies]
 alloy-json-rpc.workspace = true
+futures-util.workspace = true
 proptest.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
+tokio-tungstenite.workspace = true
 
 [features]
 default = [ "interop", "single" ]

@@ -267,7 +267,8 @@ impl SingleChainHost {
             self.l1_node_address
                 .as_ref()
                 .ok_or(SingleChainHostError::Other("Provider must be set"))?,
-        );
+        )
+        .await;
         let blob_provider = OnlineBlobProvider::init(OnlineBeaconClient::new_http(
             self.l1_beacon_address
                 .clone()
@@ -278,7 +279,8 @@ impl SingleChainHost {
             self.l2_node_address
                 .as_ref()
                 .ok_or(SingleChainHostError::Other("L2 node address must be set"))?,
-        );
+        )
+        .await;
 
         Ok(SingleChainProviders { l1: l1_provider, blobs: blob_provider, l2: l2_provider })
     }
