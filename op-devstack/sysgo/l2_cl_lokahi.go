@@ -16,9 +16,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 )
 
@@ -93,12 +95,27 @@ type LokahiSupernode struct {
 	args     []string
 
 	// adminRPC is the process-wide admin/test RPC, discovered from the startup log line.
+	// It is also where the supernode query API answers: supernode_syncStatus and
+	// superroot_atTimestamp are statements about the whole chain set, so they are served by
+	// the process rather than by any one chain's socket.
 	adminRPC string
 	// chains keeps the hosted chains in configuration order.
 	chains []*lokahiChainCL
 
+	// queryAPI is the client for the supernode query API, built on first use and reused. A
+	// client rather than a connection: it dials lazily and survives a supernode restart,
+	// because the admin RPC comes back on the same address.
+	queryAPI *sources.SuperNodeClient
+
 	sub *SubProcess
 }
+
+// LokahiSupernode serves the supernode query API, which is the read-only surface every
+// consumer of a supernode uses: op-proposer and op-challenger read superroot_atTimestamp,
+// and the devstack DSL's SuperRootSource reads both methods through this interface.
+var _ interface {
+	QueryAPI() apis.SupernodeQueryAPI
+} = (*LokahiSupernode)(nil)
 
 // lokahiChainCL addresses one chain of a running lokahi supernode.
 //
@@ -125,6 +142,33 @@ func (c *lokahiChainCL) ChainID() eth.ChainID { return c.chainID }
 
 // AdminRPC is the process-wide admin/test RPC of the supernode.
 func (n *LokahiSupernode) AdminRPC() string { return n.adminRPC }
+
+// QueryRPC is the endpoint the supernode query API answers on.
+//
+// The same socket as AdminRPC, named separately because they are different contracts: the
+// admin namespace is lokahi's own and may change with lokahi, while the query API is the
+// wire op-supernode defines and its consumers depend on. A preset wiring lokahi in as a
+// stack.Supernode hands this to the frontend, not AdminRPC.
+func (n *LokahiSupernode) QueryRPC() string { return n.adminRPC }
+
+// QueryAPI returns the supernode query API of the running process.
+//
+// The client is op-service/sources.SuperNodeClient — the same one the in-process Go
+// supernode is read through — so nothing about these two RPCs is reimplemented for lokahi
+// on the Go side. Whether the answers match is a question about what lokahi serves, which
+// is where it belongs, rather than about two Go clients agreeing.
+func (n *LokahiSupernode) QueryAPI() apis.SupernodeQueryAPI {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.queryAPI == nil {
+		n.p.Require().NotEmpty(n.adminRPC, "lokahi has no query RPC address yet")
+		rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminRPC, client.WithLazyDial())
+		n.p.Require().NoError(err, "dial the lokahi supernode query API")
+		n.queryAPI = sources.NewSuperNodeClient(rpcCl)
+		n.p.Cleanup(n.queryAPI.Close)
+	}
+	return n.queryAPI
+}
 
 // ChainCL returns the L2CLNode addressing the chain at index i, in configuration order.
 func (n *LokahiSupernode) ChainCL(i int) L2CLNode { return n.chains[i] }

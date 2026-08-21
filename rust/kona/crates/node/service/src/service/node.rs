@@ -574,7 +574,7 @@ impl RollupNode {
                 sequencer_admin_client,
                 p2p_rpc_tx,
                 network_admin_tx,
-                l1_query_tx,
+                l1_query_tx.clone(),
             )
             .await?;
 
@@ -598,6 +598,7 @@ impl RollupNode {
             },
             controller_request_tx,
             controller_rpc_request_tx,
+            l1_query_tx,
             cross_safe_promoter,
         })
     }

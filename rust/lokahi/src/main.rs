@@ -7,6 +7,7 @@ mod cli;
 mod config;
 mod interop;
 mod metrics;
+mod query;
 mod supernode;
 mod version;
 
