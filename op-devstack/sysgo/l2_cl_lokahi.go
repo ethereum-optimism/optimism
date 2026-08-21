@@ -149,7 +149,8 @@ func startLokahiSupernode(t devtest.T, cfg lokahiSupernodeConfig) *LokahiSuperno
 	require.NotEmpty(cfg.chains, "a supernode hosts at least one chain")
 
 	// Still configurable in op-supernode with no lokahi equivalent, so a caller asking for
-	// it is told rather than quietly given a supernode that activates interop elsewhere.
+	// it is told rather than quietly given a supernode whose interop activates whenever the
+	// rollup configs say it does.
 	require.Nil(cfg.interopActivationTimestamp,
 		"lokahi takes interop activation from the rollup config's Lagoon time and has no "+
 			"override for it. Requested: %s", cfg.describe())

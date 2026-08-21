@@ -387,9 +387,9 @@ impl Chain {
         .with_external_cross_safe(external_cross_safe)
         .with_safe_db(safe_db);
 
-        // Left unset on a chain this supernode only validates, which is what a single-chain
-        // kona-node validator also ends up with: the builder's default, whose fields the
-        // sequencer actor a validator does not build would be the only reader of.
+        // Left unset on a chain this supernode only validates. The builder then falls back to
+        // `SequencerConfig::default()`, which is only ever read by the sequencer actor — and a
+        // validator composes none.
         let builder = match sequencer_config {
             Some(config) => builder.with_sequencer_config(config),
             None => builder,
