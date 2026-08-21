@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 /// 3. **Cross-safe** - Local-safe *and* cross-verified against the other chains' safe dependencies.
 ///    This is the head reported as `safeBlockHash` in the forkchoice update. It *advances* only
 ///    through [`EngineSyncState::apply_cross_safe_promotion`]; the only other move it makes is
-///    downwards, when [`EngineSyncState::apply_update`] rewinds the local-safe head below it.
+///    downwards, when [`EngineState::apply_sync_update`] rewinds the local-safe head below it.
 /// 4. **Finalized** - Derived from finalized L1 data only.
 ///
 /// See the [OP Stack specifications](https://specs.optimism.io) for detailed safety definitions.
@@ -301,7 +301,7 @@ impl EngineSyncState {
 /// There is deliberately no cross-safe field: the cross-safe head advances only through
 /// [`EngineSyncState::apply_cross_safe_promotion`], so an ordinary head writer cannot advance it.
 /// A writer that rewinds the local-safe head does drag it down, because cross-safe cannot outrank
-/// local-safe — see [`EngineSyncState::apply_update`].
+/// local-safe — see [`EngineState::apply_sync_update`].
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EngineSyncStateUpdate {
     /// Most recent block found on the p2p network
