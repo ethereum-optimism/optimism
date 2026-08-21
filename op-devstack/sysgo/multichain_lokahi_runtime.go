@@ -17,8 +17,9 @@ import (
 //
 // Each chain is produced the production way, by its own op-node sequencer and batcher over
 // its own execution layer, and is then verified by lokahi from L1 over a second execution
-// layer. Nothing joins the two sides but L1, so a chain's safe head advancing under lokahi
-// means lokahi derived it rather than being handed it.
+// layer. The two sides share the chain's L2 P2P mesh, which is what bootstraps lokahi's engine
+// (see joinL2P2P); the safe head still moves only on L1 data, so a chain's safe head advancing
+// under lokahi means lokahi derived it rather than being handed it.
 type LokahiRuntime struct {
 	Keys devkeys.Keys
 
@@ -88,6 +89,7 @@ func NewTwoL2LokahiRuntime(t devtest.T) *LokahiRuntime {
 	})
 	for i, chain := range chains {
 		chain.CL = lokahi.ChainCL(i)
+		joinL2P2P(t, chain)
 	}
 
 	return &LokahiRuntime{
@@ -98,6 +100,28 @@ func NewTwoL2LokahiRuntime(t devtest.T) *LokahiRuntime {
 		Chains:    chains,
 		Lokahi:    lokahi,
 	}
+}
+
+// joinL2P2P puts lokahi's endpoint for one chain, and the execution layer behind it, on that
+// chain's L2 P2P mesh alongside the node producing it.
+//
+// This is not an optimisation, it is what makes lokahi derive at all. A kona validator gates
+// derivation behind EL-sync completion, and it only marks EL sync complete once an engine
+// forkchoiceUpdated has come back VALID. The single thing that starts that in validator mode is an
+// unsafe payload arriving over gossip: the engine inserts it, and the execution layer backfills its
+// parents from its own peer until the forkchoice call is answered rather than deferred. With no
+// peers the derivation actor stays in AwaitingELSyncCompletion, the execution layer is never called
+// at all, and the safe head never leaves genesis. op-node has no such gate, which is why the
+// op-node runtimes derive from L1 without being peered; the same gate is why the isolated-verifier
+// SDM test is op-node-only (op-acceptance-tests/tests/sdm/init_test.go).
+//
+// What the mesh supplies is the unsafe head. The safe head is still only ever set by the consensus
+// layer applying attributes it derived from L1, so peering does not hand lokahi the thing the test
+// asks it to prove.
+func joinL2P2P(t devtest.T, chain *LokahiChainRuntime) {
+	logger := t.Logger().New("chain", chain.Network.ChainID(), "name", chain.Name)
+	connectL2CLPeers(t, logger, chain.SequencerCL, chain.CL)
+	connectL2ELPeers(t, logger, chain.SequencerEL.UserRPC(), chain.VerifierEL.UserRPC())
 }
 
 // startLokahiChain brings up one chain's producing side and the execution layer lokahi will

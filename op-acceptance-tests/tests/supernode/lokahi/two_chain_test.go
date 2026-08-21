@@ -18,9 +18,10 @@ import (
 // supernode, two chains, and the three things a supernode has to get right that a
 // single-chain node cannot get wrong.
 //
-//   - Both chains sync. Each chain is produced by its own op-node sequencer and batcher and
-//     shares nothing with lokahi but L1, so a safe head advancing under lokahi is lokahi
-//     deriving that chain.
+//   - Both chains sync. Each chain is produced by its own op-node sequencer and batcher, and the
+//     safe head is only ever set from L1 batch data, so a safe head advancing under lokahi is
+//     lokahi deriving that chain. (lokahi shares the chain's L2 P2P mesh, which is what gets its
+//     engine past EL sync and no more; see sysgo.joinL2P2P.)
 //   - Each chain answers for itself. The two endpoints are different sockets on one process,
 //     and each must report its own chain rather than the other's.
 //   - One execution layer going down stalls only its chain. A supernode whose chains share a
@@ -45,7 +46,8 @@ func TestLokahiTwoChains(gt *testing.T) {
 	require.Equal(t,
 		chainB.Network.RollupConfig().Genesis.L2.Hash, statusB.genesisHash(), "chain B endpoint")
 
-	// Both chains derive. The safe head is what proves it: it only advances from L1 data.
+	// Both chains derive. The safe head is what proves it: gossip moves the unsafe head, but the
+	// safe head is only ever set from batches read off L1.
 	safeA, safeB := statusA.safe(), statusB.safe()
 	t.Logger().Info("initial safe heads", "l2a", safeA, "l2b", safeB)
 	t.Require().Eventually(func() bool {
