@@ -619,13 +619,19 @@ mod test {
         });
 
         let rendered = handle.render();
-        // The exporter does not guarantee label ordering, so match the line, not a full string.
+        // The line is selected by the label under test, not by being the first block-labels line:
+        // a setter may write more than one head — promoting the cross-safe head first advances
+        // local-safe, since cross-safe is local-safe *and* cross-verified — and the exporter does
+        // not guarantee the order it renders a metric's series in. Label ordering within a line is
+        // not guaranteed either, so the labels are matched individually rather than as one string.
+        let prefix = format!("{}{{", Metrics::BLOCK_LABELS);
         let line = rendered
             .lines()
-            .find(|line| line.starts_with(&format!("{}{{", Metrics::BLOCK_LABELS)))
-            .expect("block labels metric was not rendered");
+            .find(|line| {
+                line.starts_with(&prefix) && line.contains(&format!("label=\"{label_name}\""))
+            })
+            .unwrap_or_else(|| panic!("no {label_name} block label was rendered in:\n{rendered}"));
 
-        assert!(line.contains(&format!("label=\"{label_name}\"")), "{line}");
         assert!(line.contains(&format!("{}=\"{CHAIN_ID}\"", Metrics::CHAIN_ID_LABEL)), "{line}");
         assert!(line.ends_with(&format!(" {number}")), "{line}");
     }
