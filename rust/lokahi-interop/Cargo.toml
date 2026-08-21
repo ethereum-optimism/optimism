@@ -1,0 +1,43 @@
+[package]
+name = "lokahi-interop"
+version = "0.1.0"
+description = "Persistent stores for the lokahi interop actor"
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+keywords.workspace = true
+homepage.workspace = true
+repository.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Kona
+kona-interop.workspace = true
+kona-protocol.workspace = true
+
+# Alloy
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+
+# Storage
+rocksdb = { workspace = true, features = ["snappy"], optional = true }
+
+# Misc
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+default = []
+# Enables the on-disk [`RocksKv`] backend. Off by default so that consumers needing only the
+# store traits, the record encodings or the in-memory backend avoid the rocksdb/libclang build
+# dependency.
+rocksdb = ["dep:rocksdb"]
