@@ -238,18 +238,21 @@ func (n *LokahiSupernode) InteropTestAPI() apis.SupernodeInteropTestAPI {
 func (n *LokahiSupernode) ChainCL(i int) L2CLNode { return n.chains[i] }
 
 // requireInteropActivationFromRollupConfigs asserts that a requested interop activation
-// timestamp is the one lokahi will derive anyway.
+// timestamp activates interop at the same point lokahi will derive anyway.
 //
 // op-supernode takes the activation timestamp as its own configuration, independent of the
 // rollup configs it hosts. lokahi has no such knob: it reads Lagoon time out of each chain's
 // rollup config and requires the set to agree, because the message rules it applies read the
 // same field, so a separate number could put the verifier and the proof on different rules.
 //
-// Every interop preset derives the timestamp it passes here from the same place — genesis time
-// plus the Lagoon offset it configured the chains with (see buildTwoL2RuntimeWorld) — so the
-// two numbers are the same number and there is nothing to override. Asserting that rather than
-// ignoring the pointer is what keeps a future preset that genuinely wants a different
-// activation from silently getting the rollup config's.
+// The comparison is against the chain's first block rather than between the raw numbers,
+// because the two sides spell "active from the start" differently. A preset that schedules
+// Lagoon at genesis (WithForkAtGenesis, delaySeconds == 0) writes 0 into the rollup config,
+// while the timestamp it hands op-supernode is genesis L2 time plus the same zero offset. No
+// block exists before genesis, so activating at 0 and activating at genesis time select
+// exactly the same blocks; only a schedule that lands after the first block distinguishes
+// them. Clamping both to genesis time compares what interop actually applies to, and still
+// catches a real divergence — a request of genesis+100 against a Lagoon at genesis+50.
 func requireInteropActivationFromRollupConfigs(t devtest.T, cfg lokahiSupernodeConfig) {
 	if cfg.interopActivationTimestamp == nil {
 		return
@@ -257,22 +260,33 @@ func requireInteropActivationFromRollupConfigs(t devtest.T, cfg lokahiSupernodeC
 	requested := *cfg.interopActivationTimestamp
 	require := t.Require()
 	for _, chain := range cfg.chains {
+		genesis := chain.net.rollupCfg.Genesis.L2Time
 		// Compared without dereferencing on the failing path: this reports rather than returns,
 		// so it must not depend on the assertion aborting the loop it is in.
-		switch scheduled := chain.net.rollupCfg.LagoonTime; {
-		case scheduled == nil:
+		scheduled := chain.net.rollupCfg.LagoonTime
+		if scheduled == nil {
 			require.FailNowf("lokahi has no interop activation override",
 				"chain %s schedules no Lagoon time, so lokahi cannot activate interop at the "+
 					"requested %d: it takes activation from each chain's rollup config. "+
 					"Requested: %s",
 				chain.net.ChainID(), requested, cfg.describe())
-		case *scheduled != requested:
+			continue
+		}
+		if activationPoint(*scheduled, genesis) != activationPoint(requested, genesis) {
 			require.FailNowf("lokahi has no interop activation override",
-				"chain %s schedules Lagoon at %d, but %d was requested: lokahi takes interop "+
-					"activation from each chain's rollup config. Requested: %s",
-				chain.net.ChainID(), *scheduled, requested, cfg.describe())
+				"chain %s schedules Lagoon at %d, but %d was requested, and with genesis at "+
+					"%d those are different blocks: lokahi takes interop activation from each "+
+					"chain's rollup config. Requested: %s",
+				chain.net.ChainID(), *scheduled, requested, genesis, cfg.describe())
 		}
 	}
+}
+
+// activationPoint is the first block timestamp a fork scheduled at `scheduled` applies to on a
+// chain whose first block is at `genesis`. Anything at or before genesis is the same point,
+// since there is no earlier block for the two to disagree about.
+func activationPoint(scheduled, genesis uint64) uint64 {
+	return max(scheduled, genesis)
 }
 
 // startLokahiSupernode runs lokahi as the shared multi-chain consensus layer.

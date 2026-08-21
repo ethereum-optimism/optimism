@@ -62,6 +62,15 @@ func lokahiTestChain(chainID uint64, lagoonTime *uint64) lokahiSupernodeChain {
 
 func u64(v uint64) *uint64 { return &v }
 
+// lokahiTestChainFromGenesis is lokahiTestChain for the cases that turn on where the chain's
+// first block is: a fork scheduled at or before genesis activates at genesis whatever number it
+// is written as.
+func lokahiTestChainFromGenesis(chainID uint64, lagoonTime *uint64, genesisL2Time uint64) lokahiSupernodeChain {
+	chain := lokahiTestChain(chainID, lagoonTime)
+	chain.net.rollupCfg.Genesis.L2Time = genesisL2Time
+	return chain
+}
+
 // The interop presets pass the activation timestamp they configured the chains' Lagoon offset
 // with, so it is the number lokahi derives anyway and the run proceeds. This is the case every
 // interop preset is in; a check that rejected it would gate lokahi out of all of them.
@@ -123,4 +132,54 @@ func TestLokahiSkipsTheCheckWhenNoActivationIsRequested(t *testing.T) {
 		chains: []lokahiSupernodeChain{lokahiTestChain(901, nil)},
 	})
 	require.False(t, g.failed, "no requested activation is not a conflict: %s", g.msg.String())
+}
+
+// The case every delaySeconds == 0 interop preset is in, and the one that first ran this check
+// against real presets: WithForkAtGenesis writes Lagoon as 0, while the timestamp handed to
+// op-supernode is genesis L2 time plus that same zero offset. Both mean "interop from the first
+// block", so both must be accepted -- rejecting this gated lokahi out of every such preset.
+func TestLokahiAcceptsLagoonAtGenesisAgainstAGenesisTimeRequest(t *testing.T) {
+	const genesis = 1_787_335_282
+	g := newGateT()
+	requireInteropActivationFromRollupConfigs(g, lokahiSupernodeConfig{
+		chains: []lokahiSupernodeChain{
+			lokahiTestChainFromGenesis(901, u64(0), genesis),
+			lokahiTestChainFromGenesis(902, u64(0), genesis),
+		},
+		interopActivationTimestamp: u64(genesis),
+	})
+	require.False(t, g.failed, "Lagoon at genesis is the requested genesis activation: %s", g.msg.String())
+}
+
+// The mirror of the above: a schedule after the first block is a point the request can actually
+// disagree with, and there the check must still bite. Both numbers are above genesis, so the
+// clamp does not hide the difference.
+func TestLokahiRejectsAnActivationAfterGenesisThatTheChainsDoNotSchedule(t *testing.T) {
+	const genesis = 1_787_335_282
+	g := newGateT()
+	requireInteropActivationFromRollupConfigs(g, lokahiSupernodeConfig{
+		chains: []lokahiSupernodeChain{
+			lokahiTestChainFromGenesis(901, u64(genesis+50), genesis),
+			lokahiTestChainFromGenesis(902, u64(genesis+50), genesis),
+		},
+		interopActivationTimestamp: u64(genesis + 100),
+	})
+
+	require.True(t, g.failed, "a post-genesis divergence must stop the run")
+	msg := g.msg.String()
+	require.Contains(t, msg, "different blocks", "the message must say why the two disagree")
+	require.Contains(t, msg, fmt.Sprint(genesis), "the message must name genesis, which the clamp turns on")
+}
+
+// A Lagoon time below genesis is the same activation as one at genesis, so a request naming
+// genesis is consistent with it. This is the clamp applying to both sides rather than only to
+// the requested number.
+func TestLokahiAcceptsLagoonBeforeGenesis(t *testing.T) {
+	const genesis = 1_787_335_282
+	g := newGateT()
+	requireInteropActivationFromRollupConfigs(g, lokahiSupernodeConfig{
+		chains:                     []lokahiSupernodeChain{lokahiTestChainFromGenesis(901, u64(genesis-500), genesis)},
+		interopActivationTimestamp: u64(genesis),
+	})
+	require.False(t, g.failed, "a pre-genesis Lagoon activates at genesis: %s", g.msg.String())
 }
