@@ -8582,11 +8582,16 @@ version = "0.1.0"
 dependencies = [
  "alloy-eips 2.1.1",
  "alloy-primitives",
+ "alloy-sol-types",
+ "async-trait",
+ "kona-engine",
+ "kona-genesis",
  "kona-interop",
  "kona-protocol",
  "rocksdb",
  "tempfile",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
 ]
 

@@ -321,7 +321,7 @@ impl<K: Kv> Verifier<K> {
             Some(early) => early,
             None => {
                 let verdict = self.verify(&observation).await?;
-                decide_verified_result(self.into_round_result(verdict).await?)
+                decide_verified_result(self.round_result(verdict).await?)
             }
         };
 
@@ -334,18 +334,21 @@ impl<K: Kv> Verifier<K> {
                 self.apply(pending).await
             }
             decision @ (Decision::Invalidate | Decision::Rewind) => {
-                self.hold(decision, &output);
+                Self::hold(decision, observation.next_timestamp, &output);
                 Ok(false)
             }
         }
     }
 
     /// Records a decision this phase does not apply.
-    fn hold(&self, decision: Decision, output: &StepOutput) {
+    ///
+    /// The timestamp comes from the observation rather than from the result: a rewind carries no
+    /// result, so reading it there would report zero.
+    fn hold(decision: Decision, timestamp: u64, output: &StepOutput) {
         warn!(
             target: "lokahi_interop",
             %decision,
-            timestamp = output.result.verified.timestamp,
+            timestamp,
             chains = ?output.result.invalid_heads.keys().collect::<Vec<_>>(),
             "Interop verification reached a decision this phase does not apply; the verified \
              frontier holds where it is"
@@ -480,7 +483,7 @@ impl<K: Kv> Verifier<K> {
     /// Kept out of verification so the verdict stays a function of the round's inputs: the
     /// preimage is only needed to *describe* an already-decided invalidity to the optimistic
     /// superroot branch, never to reach it.
-    async fn into_round_result(&self, verdict: RoundVerdict) -> Result<RoundResult, RoundError> {
+    async fn round_result(&self, verdict: RoundVerdict) -> Result<RoundResult, RoundError> {
         let RoundVerdict { verified, invalid } = verdict;
         let mut invalid_heads = BTreeMap::new();
         for (chain_id, reason) in invalid {

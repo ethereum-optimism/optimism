@@ -18,7 +18,10 @@ workspace = true
 
 [dependencies]
 # Kona
-kona-engine.workspace = true
+# `metrics` matches what the lokahi binary enables. Features are additive across the graph, so a
+# lokahi build compiles kona-engine with them on regardless; declaring it here keeps a standalone
+# `-p lokahi-interop` build identical to the one that ships, and avoids a second kona-engine build.
+kona-engine = { workspace = true, features = ["metrics"] }
 kona-genesis.workspace = true
 kona-interop.workspace = true
 kona-protocol.workspace = true

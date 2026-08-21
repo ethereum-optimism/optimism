@@ -6,7 +6,7 @@
 //! substituted, so what is exercised is the real observe → decide → write-ahead → apply sequence.
 
 use alloy_eips::BlockNumHash;
-use alloy_primitives::{Address, B256, ChainId, Log, LogData, U256, address, map::HashMap};
+use alloy_primitives::{B256, ChainId, Log, LogData, U256, address};
 use alloy_sol_types::SolEvent;
 use async_trait::async_trait;
 use kona_genesis::{ChainGenesis, HardForkConfig, Predeploys, RollupConfig};
@@ -55,7 +55,7 @@ impl FakeBlock {
         Self { number, logs: Vec::new() }
     }
 
-    fn with_logs(number: u64, logs: Vec<Log>) -> Self {
+    const fn with_logs(number: u64, logs: Vec<Log>) -> Self {
         Self { number, logs }
     }
 
@@ -259,7 +259,7 @@ impl World {
         &self.stores[&chain_id]
     }
 
-    fn config(&self) -> VerifierConfig {
+    const fn config(&self) -> VerifierConfig {
         VerifierConfig {
             activation_timestamp: ACTIVATION,
             message_expiry_window: 20,
@@ -693,10 +693,6 @@ fn the_checksum_a_stored_message_carries_matches_the_referenced_log() {
 
     assert_eq!(actual, expected);
 }
-
-/// Keeps the unused-import lint honest about items only used by some tests.
-#[allow(dead_code)]
-fn type_check_only(_: Address, _: HashMap<u64, RollupConfig>) {}
 
 #[tokio::test]
 async fn a_same_timestamp_cycle_holds_the_frontier() {

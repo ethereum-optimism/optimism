@@ -46,8 +46,7 @@ pub fn seal_indexed(store: &dyn LogsDb, block: &FrontierBlock) -> Result<(), Sto
     }
 
     let parent_hash = block.block.parent_hash;
-    let parent =
-        BlockNumHash { number: id.number.checked_sub(1).unwrap_or_default(), hash: parent_hash };
+    let parent = BlockNumHash { number: id.number.saturating_sub(1), hash: parent_hash };
     for (log_index, log_hash) in block.log_hashes.iter().enumerate() {
         let log_index = log_index as u32;
         store.add_log(
@@ -166,11 +165,8 @@ pub async fn backfill_chain(
     let chain_id = chain.chain_id();
     reconcile_tail(chain, store).await?;
 
-    let from = match store.latest_sealed_block() {
-        // Resume behind whatever survived reconciliation rather than re-sealing it.
-        Some(latest) => latest.number + 1,
-        None => range.from,
-    };
+    // Resume behind whatever survived reconciliation rather than re-sealing it.
+    let from = store.latest_sealed_block().map_or(range.from, |latest| latest.number + 1);
     if from > range.to {
         return Ok(());
     }

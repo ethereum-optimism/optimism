@@ -212,7 +212,7 @@ impl RoundError {
     ///
     /// An untrue answer here is costly in both directions: treating a permanent failure as
     /// transient spins forever, and treating a transient one as permanent halts a healthy node.
-    pub fn is_transient(&self) -> bool {
+    pub const fn is_transient(&self) -> bool {
         match self {
             // Every `ChainError` is by construction an "ask again".
             Self::Chain { .. } | Self::L1(_) => true,

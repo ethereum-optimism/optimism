@@ -78,9 +78,10 @@ impl RoundObservation {
 }
 
 /// What a round decided to do.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Decision {
     /// Do nothing this round and observe again later.
+    #[default]
     Wait,
     /// Commit the round's frontier as verified.
     Advance,
@@ -130,12 +131,6 @@ pub struct StepOutput {
     pub decision: Decision,
     /// The round's result, empty for a decision that carries none.
     pub result: RoundResult,
-}
-
-impl Default for Decision {
-    fn default() -> Self {
-        Self::Wait
-    }
 }
 
 impl StepOutput {

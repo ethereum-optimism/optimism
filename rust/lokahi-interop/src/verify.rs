@@ -223,7 +223,7 @@ impl FrontierBlock {
     }
 
     /// Returns how many logs the block holds.
-    pub fn log_count(&self) -> u32 {
+    pub const fn log_count(&self) -> u32 {
         self.log_hashes.len() as u32
     }
 
@@ -289,7 +289,7 @@ pub struct FrontierView {
 
 impl FrontierView {
     /// Builds a view from each chain's indexed frontier block.
-    pub fn new(blocks: BTreeMap<ChainId, FrontierBlock>) -> Self {
+    pub const fn new(blocks: BTreeMap<ChainId, FrontierBlock>) -> Self {
         Self { blocks }
     }
 
@@ -384,7 +384,7 @@ pub fn verify_round(
         }
     }
 
-    for chain_id in cyclic_chains(view, rules) {
+    for chain_id in cyclic_chains(view) {
         // A cycle is a property of the message set, not of one message, so it names its chains
         // directly. It does not overwrite a rule violation already found on that chain: the
         // earlier verdict is the more specific one.
@@ -480,7 +480,10 @@ fn verify_executing_message(
 }
 
 /// Returns the chains taking part in a same-timestamp dependency cycle.
-fn cyclic_chains(view: &FrontierView, _rules: &MessageRules<'_>) -> Vec<ChainId> {
+///
+/// The cycle rule reads nothing but the message set, so it takes no configuration — unlike the
+/// expiry rule, it is an associated function of [`MessageRules`] rather than a method.
+fn cyclic_chains(view: &FrontierView) -> Vec<ChainId> {
     let messages: Vec<_> = view
         .blocks()
         .iter()
@@ -492,10 +495,9 @@ fn cyclic_chains(view: &FrontierView, _rules: &MessageRules<'_>) -> Vec<ChainId>
         .collect();
 
     match MessageRules::check_no_cycles::<Infallible>(&messages) {
-        Ok(()) => Vec::new(),
         Err(RuleError::CyclicDependency { chain_ids }) => chain_ids,
-        // `check_no_cycles` reports cycles and nothing else.
-        Err(_) => Vec::new(),
+        // `check_no_cycles` reports cycles and nothing else, so anything else is "no cycle".
+        Ok(()) | Err(_) => Vec::new(),
     }
 }
 
