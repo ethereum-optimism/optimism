@@ -47,13 +47,16 @@ pub(crate) enum QueryError {
         timestamp: u64,
     },
     /// A chain could not be read.
-    #[error("chain {chain_id}: {source}")]
+    ///
+    /// The cause is carried rendered rather than as a `#[source]`: the underlying failures are
+    /// jsonrpsee error objects and store errors with no common error type, and a field named
+    /// `source` would make `thiserror` demand one.
+    #[error("chain {chain_id}: {reason}")]
     Chain {
         /// The chain that could not be read.
         chain_id: ChainId,
-        /// What went wrong, rendered — the underlying errors are RPC error objects and store
-        /// errors with no common type.
-        source: String,
+        /// What went wrong, rendered.
+        reason: String,
     },
     /// The interop verifier could not be read.
     #[error(transparent)]

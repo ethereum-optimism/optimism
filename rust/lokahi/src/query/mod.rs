@@ -40,15 +40,10 @@ pub(crate) use chain::QueryChain;
 use crate::{
     interop::{InteropReader, Verdict, VerifiedAt},
     query::{
-        aggregate::{
-            Aggregate, handoff_data, lower, optimistic_branch, require_same_chain_set,
-            verified_data,
-        },
+        aggregate::Aggregate,
         chain::OptimisticOutput,
         error::QueryError,
-        wire::{
-            WireChainId, WireSuperRootAtTimestamp, WireSuperRootData, WireSyncStatus, WireU64,
-        },
+        wire::{WireChainId, WireSuperRootAtTimestamp, WireSuperRootData, WireSyncStatus, WireU64},
     },
 };
 use alloy_eips::BlockNumHash;
@@ -137,11 +132,6 @@ impl QueryState {
         Ok(out)
     }
 
-    /// The chain set this supernode hosts, ascending.
-    fn hosted(&self) -> Vec<ChainId> {
-        self.chains.iter().map(QueryChain::chain_id).collect()
-    }
-
     /// Reads each chain's output root at the head the verifier committed to.
     ///
     /// op-supernode reads the same roots by block *hash*, and an execution layer that no longer
@@ -193,8 +183,9 @@ impl QueryHandle {
     }
 
     /// Builds the RPC module serving both namespaces from this handle.
-    pub(crate) fn into_rpc_module(self) -> Result<RpcModule<()>, jsonrpsee::core::RegisterMethodError>
-    {
+    pub(crate) fn into_rpc_module(
+        self,
+    ) -> Result<RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
         let rpc = QueryRpc { handle: self };
         let mut module = RpcModule::new(());
         module.merge(SupernodeQueryApiServer::into_rpc(rpc.clone()))?;
@@ -239,63 +230,74 @@ enum Branch {
     Handoff,
 }
 
-/// Maps what the verifier said onto the branch that answers.
-///
-/// [`None`] is a chain set with no interop scheduled. op-supernode always has a verifier to ask
-/// and hears `ErrNotActive` from it; there is nothing to ask here, and the answer is the same one.
-fn branch(verified: Option<VerifiedAt>) -> Branch {
-    match verified {
-        None => Branch::Handoff,
-        Some(VerifiedAt { current_l1, verdict }) => match verdict {
-            Verdict::Verified(result) => Branch::Verified { result, verifier_l1: current_l1 },
-            Verdict::NotYet => Branch::Waiting { verifier_l1: current_l1 },
-            Verdict::NotActive | Verdict::BeforeVerified | Verdict::NotStarted => Branch::Handoff,
-        },
+impl Branch {
+    /// Maps what the verifier said onto the branch that answers.
+    ///
+    /// [`None`] is a chain set with no interop scheduled. op-supernode always has a verifier to
+    /// ask and hears `ErrNotActive` from it; there is nothing to ask here, and the answer is the
+    /// same one.
+    fn of(verified: Option<VerifiedAt>) -> Self {
+        match verified {
+            None => Self::Handoff,
+            Some(VerifiedAt { current_l1, verdict }) => match verdict {
+                Verdict::Verified(result) => Self::Verified { result, verifier_l1: current_l1 },
+                Verdict::NotYet => Self::Waiting { verifier_l1: current_l1 },
+                Verdict::NotActive | Verdict::BeforeVerified | Verdict::NotStarted => Self::Handoff,
+            },
+        }
     }
 }
 
-/// Renders an aggregate as the `supernode_syncStatus` response.
-fn sync_status_response(aggregate: Aggregate) -> WireSyncStatus {
-    let chain_ids = aggregate.chain_ids();
-    let Aggregate { chains, current_l1, safe_timestamp, local_safe_timestamp, finalized_timestamp } =
-        aggregate;
+impl From<Aggregate> for WireSyncStatus {
+    fn from(aggregate: Aggregate) -> Self {
+        let chain_ids = aggregate.chain_ids();
+        let Aggregate {
+            chains,
+            current_l1,
+            safe_timestamp,
+            local_safe_timestamp,
+            finalized_timestamp,
+        } = aggregate;
 
-    WireSyncStatus {
-        chains: chains.into_iter().map(|(id, status)| (WireChainId(id), status)).collect(),
-        chain_ids,
-        current_l1: current_l1.into(),
-        safe_timestamp,
-        local_safe_timestamp,
-        finalized_timestamp,
+        Self {
+            chains: chains.into_iter().map(|(id, status)| (WireChainId(id), status)).collect(),
+            chain_ids,
+            current_l1: current_l1.into(),
+            safe_timestamp,
+            local_safe_timestamp,
+            finalized_timestamp,
+        }
     }
 }
 
-/// Renders the `superroot_atTimestamp` response from the pieces the branch decided on.
-///
-/// `current_l1` is passed in rather than taken from `aggregate` because two branches lower it to
-/// the verifier's snapshot value, and `data` is passed in because what it holds — or that it holds
-/// nothing — is the branch's whole answer.
-fn superroot_response(
-    aggregate: &Aggregate,
-    optimistic: &BTreeMap<ChainId, OptimisticOutput>,
-    current_l1: BlockNumHash,
-    data: Option<WireSuperRootData>,
-) -> WireSuperRootAtTimestamp {
-    WireSuperRootAtTimestamp {
-        current_l1: current_l1.into(),
-        safe_timestamp: aggregate.safe_timestamp,
-        local_safe_timestamp: aggregate.local_safe_timestamp,
-        finalized_timestamp: aggregate.finalized_timestamp,
-        optimistic_at_timestamp: optimistic_branch(optimistic),
-        chain_ids: aggregate.chain_ids(),
-        data,
+impl WireSuperRootAtTimestamp {
+    /// Renders the response from the pieces the branch decided on.
+    ///
+    /// `current_l1` is passed in rather than taken from `aggregate` because two branches lower it
+    /// to the verifier's snapshot value, and `data` is passed in because what it holds — or that it
+    /// holds nothing — is the branch's whole answer.
+    fn new(
+        aggregate: &Aggregate,
+        optimistic: &BTreeMap<ChainId, OptimisticOutput>,
+        current_l1: BlockNumHash,
+        data: Option<WireSuperRootData>,
+    ) -> Self {
+        Self {
+            current_l1: current_l1.into(),
+            safe_timestamp: aggregate.safe_timestamp,
+            local_safe_timestamp: aggregate.local_safe_timestamp,
+            finalized_timestamp: aggregate.finalized_timestamp,
+            optimistic_at_timestamp: OptimisticOutput::branch(optimistic),
+            chain_ids: aggregate.chain_ids(),
+            data,
+        }
     }
 }
 
 impl QueryRpc {
     /// Answers `supernode_syncStatus`.
     async fn sync_status(&self) -> Result<WireSyncStatus, QueryError> {
-        Ok(sync_status_response(self.handle.state()?.aggregate().await?))
+        Ok(self.handle.state()?.aggregate().await?.into())
     }
 
     /// Answers `superroot_atTimestamp`.
@@ -308,7 +310,6 @@ impl QueryRpc {
     async fn at_timestamp(&self, timestamp: u64) -> Result<WireSuperRootAtTimestamp, QueryError> {
         let state = self.handle.state()?;
         let aggregate = state.aggregate().await?;
-        let hosted = state.hosted();
 
         let verified = match &state.interop {
             Some(reader) => Some(reader.verified_at(timestamp).await?),
@@ -316,25 +317,28 @@ impl QueryRpc {
         };
         let optimistic = state.optimistic_branch(timestamp).await?;
 
-        let (current_l1, data) = match branch(verified) {
+        let (current_l1, data) = match Branch::of(verified) {
             Branch::Verified { result, verifier_l1 } => {
-                require_same_chain_set(timestamp, &hosted, &result.l2_heads)?;
+                aggregate.require_same_chain_set(timestamp, &result.l2_heads)?;
                 let roots = state.verified_roots(timestamp, &result.l2_heads).await?;
                 (
-                    lower(aggregate.current_l1, verifier_l1),
-                    Some(verified_data(timestamp, result.l1_inclusion, roots)),
+                    Aggregate::lower(aggregate.current_l1, verifier_l1),
+                    Some(WireSuperRootData::verified(timestamp, result.l1_inclusion, roots)),
                 )
             }
             // No frontier yet, so no super root. The verifier's write gate guarantees the reported
             // L1 has not reached the block this timestamp would need, so a consumer that waits on
             // L1 progress waits rather than concluding the super root is missing for good.
-            Branch::Waiting { verifier_l1 } => (lower(aggregate.current_l1, verifier_l1), None),
-            Branch::Handoff => {
-                (aggregate.current_l1, handoff_data(timestamp, hosted.len(), &optimistic))
+            Branch::Waiting { verifier_l1 } => {
+                (Aggregate::lower(aggregate.current_l1, verifier_l1), None)
             }
+            Branch::Handoff => (
+                aggregate.current_l1,
+                WireSuperRootData::from_handoff(timestamp, &aggregate, &optimistic),
+            ),
         };
 
-        Ok(superroot_response(&aggregate, &optimistic, current_l1, data))
+        Ok(WireSuperRootAtTimestamp::new(&aggregate, &optimistic, current_l1, data))
     }
 }
 
@@ -438,10 +442,8 @@ mod tests {
             (901, status(0x11, 900, 1_700_000_040, 1_700_000_050, 1_700_000_000)),
             (902, status(0x21, 898, 1_700_000_030, 1_700_000_046, 1_700_000_010)),
         ]);
-        Aggregate::of(chains).with_verifier_l1(BlockNumHash {
-            number: 896,
-            hash: B256::repeat_byte(0x77),
-        })
+        Aggregate::of(chains)
+            .with_verifier_l1(BlockNumHash { number: 896, hash: B256::repeat_byte(0x77) })
     }
 
     fn optimistic(state: u8, bridge: u8, hash: u8, l1: u8, l1_number: u64) -> OptimisticOutput {
@@ -492,7 +494,7 @@ mod tests {
     /// `supernode_syncStatus`, field for field, against what the Go consumers decode.
     #[test]
     fn the_sync_status_response_matches_the_go_wire_shape() {
-        assert_matches_fixture("supernode_syncStatus", &sync_status_response(fixture_aggregate()));
+        assert_matches_fixture("supernode_syncStatus", &WireSyncStatus::from(fixture_aggregate()));
     }
 
     /// `superroot_atTimestamp` on the verified branch — the branch that publishes a commitment.
@@ -500,13 +502,17 @@ mod tests {
     fn the_superroot_response_matches_the_go_wire_shape() {
         let aggregate = fixture_aggregate();
         let optimistic = fixture_optimistic();
-        let data = verified_data(
+        let data = WireSuperRootData::verified(
             FIXTURE_TIMESTAMP,
             BlockNumHash { number: 890, hash: B256::repeat_byte(0x55) },
             fixture_verified_roots(),
         );
-        let response =
-            superroot_response(&aggregate, &optimistic, aggregate.current_l1, Some(data));
+        let response = WireSuperRootAtTimestamp::new(
+            &aggregate,
+            &optimistic,
+            aggregate.current_l1,
+            Some(data),
+        );
 
         assert_matches_fixture("superroot_atTimestamp", &response);
     }
@@ -515,7 +521,7 @@ mod tests {
     /// Rendering it as a JSON number is the mistake that makes every Go consumer fail to decode.
     #[test]
     fn chain_ids_are_decimal_strings() {
-        let response = sync_status_response(fixture_aggregate());
+        let response = WireSyncStatus::from(fixture_aggregate());
         let value = serde_json::to_value(&response).expect("serializes");
 
         assert_eq!(value["chain_ids"], json!(["901", "902"]));
@@ -527,12 +533,12 @@ mod tests {
     #[test]
     fn only_the_super_root_timestamp_is_hexadecimal() {
         let aggregate = fixture_aggregate();
-        let data = verified_data(
+        let data = WireSuperRootData::verified(
             FIXTURE_TIMESTAMP,
             BlockNumHash::default(),
             fixture_verified_roots(),
         );
-        let value = serde_json::to_value(superroot_response(
+        let value = serde_json::to_value(WireSuperRootAtTimestamp::new(
             &aggregate,
             &fixture_optimistic(),
             aggregate.current_l1,
@@ -550,7 +556,7 @@ mod tests {
     #[test]
     fn an_absent_super_root_omits_the_data_key() {
         let aggregate = fixture_aggregate();
-        let value = serde_json::to_value(superroot_response(
+        let value = serde_json::to_value(WireSuperRootAtTimestamp::new(
             &aggregate,
             &fixture_optimistic(),
             aggregate.current_l1,
@@ -566,7 +572,7 @@ mod tests {
     #[test]
     fn empty_collections_serialize_as_empty_rather_than_null() {
         let aggregate = Aggregate::of(BTreeMap::new());
-        let value = serde_json::to_value(superroot_response(
+        let value = serde_json::to_value(WireSuperRootAtTimestamp::new(
             &aggregate,
             &BTreeMap::new(),
             aggregate.current_l1,
@@ -578,7 +584,7 @@ mod tests {
         assert_eq!(value["chain_ids"], json!([]));
         assert_eq!(value["current_l1"], json!({ "hash": B256::ZERO, "number": 0 }));
 
-        let status = serde_json::to_value(sync_status_response(Aggregate::of(BTreeMap::new())))
+        let status = serde_json::to_value(WireSyncStatus::from(Aggregate::of(BTreeMap::new())))
             .expect("serializes");
         assert_eq!(status["chains"], json!({}));
         assert_eq!(status["chain_ids"], json!([]));
@@ -588,7 +594,7 @@ mod tests {
     #[test]
     fn an_optimistic_entry_carries_the_hash_of_the_preimage_it_shows() {
         let entry = optimistic(0x31, 0x32, 0x33, 0x34, 880);
-        let rendered = optimistic_branch(&BTreeMap::from([(901, entry)]));
+        let rendered = OptimisticOutput::branch(&BTreeMap::from([(901, entry)]));
         let wire = rendered.get(&WireChainId(901)).expect("the chain is present");
 
         assert_eq!(wire.output, WireOutputV0::from(entry.output));
@@ -608,16 +614,16 @@ mod tests {
         };
 
         assert_eq!(
-            branch(at(Verdict::Verified(result.clone()))),
+            Branch::of(at(Verdict::Verified(result.clone()))),
             Branch::Verified { result, verifier_l1 }
         );
-        assert_eq!(branch(at(Verdict::NotYet)), Branch::Waiting { verifier_l1 });
-        assert_eq!(branch(at(Verdict::NotActive)), Branch::Handoff);
-        assert_eq!(branch(at(Verdict::BeforeVerified)), Branch::Handoff);
-        assert_eq!(branch(at(Verdict::NotStarted)), Branch::Handoff);
+        assert_eq!(Branch::of(at(Verdict::NotYet)), Branch::Waiting { verifier_l1 });
+        assert_eq!(Branch::of(at(Verdict::NotActive)), Branch::Handoff);
+        assert_eq!(Branch::of(at(Verdict::BeforeVerified)), Branch::Handoff);
+        assert_eq!(Branch::of(at(Verdict::NotStarted)), Branch::Handoff);
         // A chain set with no interop scheduled: there is no verifier to ask, and pre-interop
         // consensus covers every timestamp.
-        assert_eq!(branch(None), Branch::Handoff);
+        assert_eq!(Branch::of(None), Branch::Handoff);
     }
 
     /// A query that arrives before the chains are composed is told so, rather than being answered

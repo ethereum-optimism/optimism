@@ -219,12 +219,12 @@ impl serde::de::Visitor<'_> for WireU64Visitor {
     }
 
     fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-        let parsed = match value.strip_prefix("0x").or_else(|| value.strip_prefix("0X")) {
-            Some(digits) => u64::from_str_radix(digits, 16),
+        let parsed = value.strip_prefix("0x").or_else(|| value.strip_prefix("0X")).map_or_else(
             // Go's `hexutil.Uint64` requires the prefix, but a decimal string is unambiguous and
             // some hand-written clients send one.
-            None => value.parse(),
-        };
+            || value.parse(),
+            |digits| u64::from_str_radix(digits, 16),
+        );
         parsed.map(WireU64).map_err(|err| E::custom(format!("invalid u64 {value:?}: {err}")))
     }
 }

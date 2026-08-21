@@ -102,10 +102,14 @@ type LokahiSupernode struct {
 	// chains keeps the hosted chains in configuration order.
 	chains []*lokahiChainCL
 
-	// queryAPI is the client for the supernode query API, built on first use and reused. A
-	// client rather than a connection: it dials lazily and survives a supernode restart,
-	// because the admin RPC comes back on the same address.
-	queryAPI *sources.SuperNodeClient
+	// queryAPI is the client for the supernode query API, built on first use, and
+	// queryAPIAddr is the address it was built for. Both are needed rather than just the
+	// client: lokahi asks for port 0 for its process-wide RPC, so a restart hands out a new
+	// port, and a client held across one would keep dialling a dead one. The chains avoid
+	// this with a proxy per chain; this endpoint is discovered from a log line instead, so
+	// the address is compared and the client is rebuilt when it moves.
+	queryAPI     *sources.SuperNodeClient
+	queryAPIAddr string
 
 	sub *SubProcess
 }
@@ -157,14 +161,17 @@ func (n *LokahiSupernode) QueryRPC() string { return n.adminRPC }
 // supernode is read through — so nothing about these two RPCs is reimplemented for lokahi
 // on the Go side. Whether the answers match is a question about what lokahi serves, which
 // is where it belongs, rather than about two Go clients agreeing.
+// It is safe to call across a Stop/Start: the returned client is rebuilt whenever the
+// process-wide RPC comes back on a different port.
 func (n *LokahiSupernode) QueryAPI() apis.SupernodeQueryAPI {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.queryAPI == nil {
-		n.p.Require().NotEmpty(n.adminRPC, "lokahi has no query RPC address yet")
+	n.p.Require().NotEmpty(n.adminRPC, "lokahi has no query RPC address yet")
+	if n.queryAPI == nil || n.queryAPIAddr != n.adminRPC {
 		rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminRPC, client.WithLazyDial())
 		n.p.Require().NoError(err, "dial the lokahi supernode query API")
-		n.queryAPI = sources.NewSuperNodeClient(rpcCl)
+		n.queryAPI, n.queryAPIAddr = sources.NewSuperNodeClient(rpcCl), n.adminRPC
+		// Bound to this client, so a client replaced after a restart is still closed once.
 		n.p.Cleanup(n.queryAPI.Close)
 	}
 	return n.queryAPI

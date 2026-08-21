@@ -36,6 +36,19 @@ pub(crate) struct OptimisticOutput {
     pub(crate) required_l1: BlockNumHash,
 }
 
+/// One chain's block at a timestamp, and the L1 block that made it safe.
+///
+/// Named rather than a pair, because the two halves are only meaningful together: a response that
+/// puts one block's output root next to another block's L1 requirement is well-formed and wrong,
+/// and a `(u64, BlockNumHash)` is exactly the shape that lets that happen unnoticed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Pairing {
+    /// The number of the L2 block carrying the timestamp.
+    number: u64,
+    /// The lowest L1 block the block can be derived from.
+    required_l1: BlockNumHash,
+}
+
 /// One hosted chain's read-only surface for the supernode query API.
 #[derive(Debug)]
 pub(crate) struct QueryChain {
@@ -83,7 +96,7 @@ impl QueryChain {
         self.rollup
             .op_sync_status()
             .await
-            .map_err(|err| QueryError::Chain { chain_id: self.chain_id, source: err.to_string() })
+            .map_err(|err| QueryError::Chain { chain_id: self.chain_id, reason: err.to_string() })
     }
 
     /// Returns this chain's optimistic output at `timestamp`, or [`None`] when the chain has not
@@ -116,8 +129,10 @@ impl QueryChain {
         // `from_snapshot` answers from the live state, or returns `None` to say the pairing is
         // behind the head and lives in recorded history. The same mapping the interop verifier
         // reads this state through, so the two cannot disagree about what the chain has derived.
-        let (number, required_l1) = match ChainAt::from_snapshot(&snapshot) {
-            Some(ChainAt::Derived { block, l1 }) => (block.number, l1),
+        let Pairing { number, required_l1 } = match ChainAt::from_snapshot(&snapshot) {
+            Some(ChainAt::Derived { block, l1 }) => {
+                Pairing { number: block.number, required_l1: l1 }
+            }
             Some(ChainAt::NotYet) => return Ok(None),
             Some(ChainAt::BeforeGenesis) => {
                 return Err(QueryError::BeforeGenesis { chain_id: self.chain_id, timestamp });
@@ -132,14 +147,12 @@ impl QueryChain {
             },
         };
 
-        let (block, output, _state) = self
-            .rollup
-            .engine_client
-            .output_at_block(number.into())
-            .await
-            .map_err(|err| QueryError::Chain {
-                chain_id: self.chain_id,
-                source: format!("output at block {number}: {err}"),
+        let (block, output, _state) =
+            self.rollup.engine_client.output_at_block(number.into()).await.map_err(|err| {
+                QueryError::Chain {
+                    chain_id: self.chain_id,
+                    reason: format!("output at block {number}: {err}"),
+                }
             })?;
 
         Ok(Some(OptimisticOutput { block: block.block_info.id(), output, required_l1 }))
@@ -159,15 +172,13 @@ impl QueryChain {
         timestamp: u64,
         verified: BlockNumHash,
     ) -> Result<B256, QueryError> {
-        let (block, output, _state) = self
-            .rollup
-            .engine_client
-            .output_at_block(verified.number.into())
-            .await
-            .map_err(|err| QueryError::Chain {
-                chain_id: self.chain_id,
-                source: format!("output at verified block {}: {err}", verified.number),
-            })?;
+        let (block, output, _state) =
+            self.rollup.engine_client.output_at_block(verified.number.into()).await.map_err(
+                |err| QueryError::Chain {
+                    chain_id: self.chain_id,
+                    reason: format!("output at verified block {}: {err}", verified.number),
+                },
+            )?;
 
         let canonical = block.block_info.hash;
         if canonical != verified.hash {
@@ -188,11 +199,9 @@ impl QueryChain {
         &self,
         timestamp: u64,
     ) -> Result<LocalSafeSnapshot, QueryError> {
-        self.engine.local_safe_snapshot_at(timestamp).await.map_err(|err| {
-            QueryError::Chain {
-                chain_id: self.chain_id,
-                source: format!("local-safe snapshot at {timestamp}: {err}"),
-            }
+        self.engine.local_safe_snapshot_at(timestamp).await.map_err(|err| QueryError::Chain {
+            chain_id: self.chain_id,
+            reason: format!("local-safe snapshot at {timestamp}: {err}"),
         })
     }
 
@@ -204,13 +213,10 @@ impl QueryChain {
     /// L1 is the earliest entry whose safe head had reached this height, which the recording
     /// granularity can round up but never down — so a consumer reading it as "safe by this L1
     /// block" is never told more than is true.
-    fn required_l1_from_history(
-        &self,
-        timestamp: u64,
-    ) -> Result<Option<(u64, BlockNumHash)>, QueryError> {
+    fn required_l1_from_history(&self, timestamp: u64) -> Result<Option<Pairing>, QueryError> {
         let number = self.block_number_at_timestamp(timestamp);
         match self.safe_db.l1_at_safe_head(number) {
-            Ok(record) => Ok(Some((number, record.l1))),
+            Ok(record) => Ok(Some(Pairing { number, required_l1: record.l1 })),
             // The recorded tip has not reached this height yet. Transient by construction, since
             // the block is already local-safe.
             Err(SafeDbError::L1AtSafeHeadNotFound | SafeDbError::NotFound) => {
@@ -230,7 +236,7 @@ impl QueryChain {
             }
             Err(err) => Err(QueryError::Chain {
                 chain_id: self.chain_id,
-                source: format!("safe-head database: {err}"),
+                reason: format!("safe-head database: {err}"),
             }),
         }
     }

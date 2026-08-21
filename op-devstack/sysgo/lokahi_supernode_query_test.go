@@ -13,7 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
-// lokahiQueryFixture is the parity fixture lokahi's own tests generate this file from.
+// lokahiQueryFixture names the wire-parity fixture this package shares with lokahi's own
+// tests.
 //
 // The Rust side pulls this exact file in with include_str! (rust/lokahi/src/query/mod.rs) and
 // asserts that serializing its two responses produces it. This test asserts the other half: that
@@ -43,6 +44,8 @@ func readLokahiQueryFixture(t *testing.T, method string, out any) {
 // TestLokahiSyncStatusDecodesIntoGoTypes checks that what lokahi serves for
 // supernode_syncStatus is what eth.SuperNodeSyncStatusResponse reads.
 func TestLokahiSyncStatusDecodesIntoGoTypes(t *testing.T) {
+	t.Parallel()
+
 	var status eth.SuperNodeSyncStatusResponse
 	readLokahiQueryFixture(t, "supernode_syncStatus", &status)
 
@@ -76,6 +79,8 @@ func TestLokahiSyncStatusDecodesIntoGoTypes(t *testing.T) {
 // TestLokahiSuperRootDecodesIntoGoTypes checks the superroot_atTimestamp response, and
 // recomputes both of its commitments with the Go implementations.
 func TestLokahiSuperRootDecodesIntoGoTypes(t *testing.T) {
+	t.Parallel()
+
 	var response eth.SuperRootAtTimestampResponse
 	readLokahiQueryFixture(t, "superroot_atTimestamp", &response)
 
@@ -126,10 +131,7 @@ func TestLokahiSuperRootDecodesIntoGoTypes(t *testing.T) {
 	}
 }
 
-// TestLokahiQueryClientSatisfiesTheQueryAPI records that lokahi needs no Go client of its own:
-// the existing op-service/sources.SuperNodeClient already implements the interface, so the Go
-// side of this feature is plumbing and the wire is where the parity question lives.
-func TestLokahiQueryClientSatisfiesTheQueryAPI(t *testing.T) {
-	var api apis.SupernodeQueryAPI = (*sources.SuperNodeClient)(nil)
-	require.NotNil(t, &api)
-}
+// lokahi needs no Go client of its own: op-service/sources.SuperNodeClient already implements
+// the query API, so the Go side of this feature is plumbing and the wire is where the parity
+// question lives.
+var _ apis.SupernodeQueryAPI = (*sources.SuperNodeClient)(nil)

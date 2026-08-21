@@ -149,7 +149,8 @@ impl InteropActor {
     /// queried and one that has one cannot be queried through a second.
     pub(crate) fn attach_queries(&mut self, activation: u64) -> InteropReader {
         let (queries, receiver) = mpsc::channel(QUERY_QUEUE);
-        let (current_l1, current_l1_rx) = watch::channel(self.verifier.current_l1().unwrap_or_default());
+        let (current_l1, current_l1_rx) =
+            watch::channel(self.verifier.current_l1().unwrap_or_default());
         self.queries = Some(receiver);
         self.current_l1 = Some(current_l1);
         InteropReader { activation, current_l1: current_l1_rx, queries }

@@ -67,10 +67,11 @@ impl Aggregate {
 
         for status in chains.values() {
             let chain_l1 = status.current_l1.id();
-            current_l1 = Some(current_l1.map_or(chain_l1, |current| lower(current, chain_l1)));
-            safe = Some(min_or(safe, status.safe_l2.block_info.timestamp));
-            local_safe = Some(min_or(local_safe, status.local_safe_l2.block_info.timestamp));
-            finalized = Some(min_or(finalized, status.finalized_l2.block_info.timestamp));
+            current_l1 =
+                Some(current_l1.map_or(chain_l1, |current| Self::lower(current, chain_l1)));
+            safe = Some(Self::min_or(safe, status.safe_l2.block_info.timestamp));
+            local_safe = Some(Self::min_or(local_safe, status.local_safe_l2.block_info.timestamp));
+            finalized = Some(Self::min_or(finalized, status.finalized_l2.block_info.timestamp));
         }
 
         Self {
@@ -89,8 +90,8 @@ impl Aggregate {
     /// minimum. It is only folded in when interop is configured, which is exactly when a verifier
     /// is registered on the chains over there.
     #[must_use]
-    pub(crate) fn with_verifier_l1(mut self, verifier_l1: BlockNumHash) -> Self {
-        self.current_l1 = lower(self.current_l1, verifier_l1);
+    pub(crate) const fn with_verifier_l1(mut self, verifier_l1: BlockNumHash) -> Self {
+        self.current_l1 = Self::lower(self.current_l1, verifier_l1);
         self
     }
 
@@ -98,139 +99,153 @@ impl Aggregate {
     pub(crate) fn chain_ids(&self) -> Vec<WireChainId> {
         self.chains.keys().copied().map(WireChainId).collect()
     }
-}
 
-/// Returns the lower of `current` and `candidate`, comparing block numbers.
-///
-/// Numbers only, as op-supernode compares: two chains reporting the same L1 height with different
-/// hashes are in the middle of an L1 reorg, and picking either is as good as the other. `current`
-/// wins a tie, which with a chain-id-ordered iteration makes the answer deterministic rather than
-/// dependent on map order.
-///
-/// Also used to fold the verifier's snapshot L1 into a superroot response, which op-supernode does
-/// with the same strict comparison.
-pub(crate) fn lower(current: BlockNumHash, candidate: BlockNumHash) -> BlockNumHash {
-    if current.number <= candidate.number { current } else { candidate }
-}
-
-/// Returns the lower of `current` and `candidate`, seeding from `candidate` when unset.
-fn min_or(current: Option<u64>, candidate: u64) -> u64 {
-    current.map_or(candidate, |current| current.min(candidate))
-}
-
-/// Renders the optimistic branch for the wire.
-pub(crate) fn optimistic_branch(
-    optimistic: &BTreeMap<ChainId, OptimisticOutput>,
-) -> BTreeMap<WireChainId, WireOutputWithRequiredL1> {
-    optimistic
-        .iter()
-        .map(|(&chain_id, entry)| {
-            (
-                WireChainId(chain_id),
-                WireOutputWithRequiredL1 {
-                    output: WireOutputV0::from(entry.output),
-                    output_root: entry.output.hash(),
-                    required_l1: entry.required_l1.into(),
-                },
-            )
-        })
-        .collect()
-}
-
-/// Composes the super root at `timestamp` from the optimistic outputs.
-///
-/// op-supernode: `composeHandoffDataFromOptimistic`. Used where the optimistic outputs *are* the
-/// canonical ones — before interop activates, and below the first timestamp the verifier covers,
-/// where the safe-head handoff guarantees it. Returns [`None`] when any chain is missing from the
-/// branch, because a super root over a subset of the set is not this set's super root.
-///
-/// `verified_required_l1` is the *highest* required L1 of the chains, not the lowest: it answers
-/// "from which L1 block can all of this be derived", and that is the last one any chain needs.
-pub(crate) fn handoff_data(
-    timestamp: u64,
-    hosted: usize,
-    optimistic: &BTreeMap<ChainId, OptimisticOutput>,
-) -> Option<WireSuperRootData> {
-    if optimistic.len() != hosted {
-        return None;
+    /// How many chains this supernode hosts.
+    ///
+    /// The aggregate's own chain set is the hosted set: it has one entry per chain the query API
+    /// was composed over. Reading it from here rather than assembling a second list means the
+    /// `chain_ids` a consumer sees and the count the super root is checked against cannot differ.
+    pub(crate) fn hosted(&self) -> usize {
+        self.chains.len()
     }
-    let mut required_l1 = BlockNumHash::default();
-    let roots = optimistic
-        .iter()
-        .map(|(&chain_id, entry)| {
-            if entry.required_l1.number > required_l1.number {
-                required_l1 = entry.required_l1;
-            }
-            OutputRootWithChain::new(chain_id, entry.output.hash())
-        })
-        .collect();
-    Some(super_root_data(timestamp, required_l1, roots))
-}
 
-/// Composes the super root at `timestamp` from per-chain output roots and the L1 block the
-/// verified frontier was derived from.
-///
-/// op-supernode: the tail of `composeVerifiedData`.
-pub(crate) fn verified_data(
-    timestamp: u64,
-    l1_inclusion: BlockNumHash,
-    roots: Vec<OutputRootWithChain>,
-) -> WireSuperRootData {
-    super_root_data(timestamp, l1_inclusion, roots)
-}
-
-/// Builds the response's `data` section from the roots that make up the super root.
-///
-/// [`SuperRoot::new`] sorts by chain id and [`SuperRoot::hash`] is the same encoding-then-keccak
-/// that `eth.SuperV1.Marshal` feeds `eth.SuperRoot`, so the commitment published here is
-/// bit-identical to op-supernode's over the same inputs. Nothing in this file computes a hash of
-/// its own.
-fn super_root_data(
-    timestamp: u64,
-    required_l1: BlockNumHash,
-    roots: Vec<OutputRootWithChain>,
-) -> WireSuperRootData {
-    let super_root = SuperRoot::new(timestamp, roots);
-    WireSuperRootData {
-        verified_required_l1: WireBlockId::from(required_l1),
-        super_v1: WireSuperV1 {
-            timestamp: super_root.timestamp,
-            chains: super_root
-                .output_roots
-                .iter()
-                .map(|root| WireChainIdAndOutput {
-                    chain_id: WireChainId(root.chain_id),
-                    output: root.output_root,
-                })
-                .collect(),
-        },
-        super_root: super_root.hash(),
+    /// Returns the lower of `current` and `candidate`, comparing block numbers.
+    ///
+    /// Numbers only, as op-supernode compares: two chains reporting the same L1 height with
+    /// different hashes are in the middle of an L1 reorg, and picking either is as good as the
+    /// other. `current` wins a tie, which with a chain-id-ordered iteration makes the answer
+    /// deterministic rather than dependent on map order.
+    ///
+    /// Also used to fold the verifier's snapshot L1 into a superroot response, which op-supernode
+    /// does with the same strict comparison.
+    pub(crate) const fn lower(current: BlockNumHash, candidate: BlockNumHash) -> BlockNumHash {
+        if current.number <= candidate.number { current } else { candidate }
     }
-}
 
-/// Checks that a verified frontier covers exactly the chains this supernode hosts.
-///
-/// op-supernode: the two guards at the top of `composeVerifiedData`. Either direction of mismatch
-/// means the frontier and the boot configuration disagree about the dependency set, and a super
-/// root computed over either one would disagree with peers running the full set.
-pub(crate) fn require_same_chain_set(
-    timestamp: u64,
-    hosted: &[ChainId],
-    verified: &BTreeMap<ChainId, BlockNumHash>,
-) -> Result<(), QueryError> {
-    if verified.len() != hosted.len() {
-        return Err(QueryError::ChainSetMismatch {
-            timestamp,
-            verified: verified.len(),
-            hosted: hosted.len(),
-        });
-    }
-    for &chain_id in hosted {
-        if !verified.contains_key(&chain_id) {
-            return Err(QueryError::ChainNotVerified { timestamp, chain_id });
+    /// Returns the lower of `current` and `candidate`, seeding from `candidate` when unset.
+    const fn min_or(current: Option<u64>, candidate: u64) -> u64 {
+        match current {
+            Some(current) if current < candidate => current,
+            _ => candidate,
         }
     }
-    Ok(())
+
+    /// Checks that a verified frontier covers exactly the chains this supernode hosts.
+    ///
+    /// op-supernode: the two guards at the top of `composeVerifiedData`. Either direction of
+    /// mismatch means the frontier and the boot configuration disagree about the dependency set,
+    /// and a super root computed over either one would disagree with peers running the full set.
+    pub(crate) fn require_same_chain_set(
+        &self,
+        timestamp: u64,
+        verified: &BTreeMap<ChainId, BlockNumHash>,
+    ) -> Result<(), QueryError> {
+        if verified.len() != self.hosted() {
+            return Err(QueryError::ChainSetMismatch {
+                timestamp,
+                verified: verified.len(),
+                hosted: self.hosted(),
+            });
+        }
+        for &chain_id in self.chains.keys() {
+            if !verified.contains_key(&chain_id) {
+                return Err(QueryError::ChainNotVerified { timestamp, chain_id });
+            }
+        }
+        Ok(())
+    }
+}
+
+impl OptimisticOutput {
+    /// Renders a whole optimistic branch for the wire.
+    pub(crate) fn branch(
+        optimistic: &BTreeMap<ChainId, Self>,
+    ) -> BTreeMap<WireChainId, WireOutputWithRequiredL1> {
+        optimistic
+            .iter()
+            .map(|(&chain_id, entry)| {
+                (
+                    WireChainId(chain_id),
+                    WireOutputWithRequiredL1 {
+                        output: WireOutputV0::from(entry.output),
+                        output_root: entry.output.hash(),
+                        required_l1: entry.required_l1.into(),
+                    },
+                )
+            })
+            .collect()
+    }
+}
+
+impl WireSuperRootData {
+    /// Composes the super root at `timestamp` from the optimistic outputs.
+    ///
+    /// op-supernode: `composeHandoffDataFromOptimistic`. Used where the optimistic outputs *are*
+    /// the canonical ones — before interop activates, and below the first timestamp the verifier
+    /// covers, where the safe-head handoff guarantees it. Returns [`None`] when any chain is
+    /// missing from the branch, because a super root over a subset of the set is not this set's
+    /// super root.
+    ///
+    /// `verified_required_l1` is the *highest* required L1 of the chains, not the lowest: it
+    /// answers "from which L1 block can all of this be derived", and that is the last one any
+    /// chain needs.
+    pub(crate) fn from_handoff(
+        timestamp: u64,
+        aggregate: &Aggregate,
+        optimistic: &BTreeMap<ChainId, OptimisticOutput>,
+    ) -> Option<Self> {
+        if optimistic.len() != aggregate.hosted() {
+            return None;
+        }
+        let mut required_l1 = BlockNumHash::default();
+        let roots = optimistic
+            .iter()
+            .map(|(&chain_id, entry)| {
+                if entry.required_l1.number > required_l1.number {
+                    required_l1 = entry.required_l1;
+                }
+                OutputRootWithChain::new(chain_id, entry.output.hash())
+            })
+            .collect();
+        Some(Self::new(timestamp, required_l1, roots))
+    }
+
+    /// Composes the super root at `timestamp` from per-chain output roots and the L1 block the
+    /// verified frontier was derived from.
+    ///
+    /// op-supernode: the tail of `composeVerifiedData`.
+    pub(crate) fn verified(
+        timestamp: u64,
+        l1_inclusion: BlockNumHash,
+        roots: Vec<OutputRootWithChain>,
+    ) -> Self {
+        Self::new(timestamp, l1_inclusion, roots)
+    }
+
+    /// Builds the response's `data` section from the roots that make up the super root.
+    ///
+    /// [`SuperRoot::new`] sorts by chain id and [`SuperRoot::hash`] is the same
+    /// encoding-then-keccak that `eth.SuperV1.Marshal` feeds `eth.SuperRoot`, so the commitment
+    /// published here is bit-identical to op-supernode's over the same inputs. Nothing in this
+    /// file computes a hash of its own.
+    fn new(timestamp: u64, required_l1: BlockNumHash, roots: Vec<OutputRootWithChain>) -> Self {
+        let super_root = SuperRoot::new(timestamp, roots);
+        Self {
+            verified_required_l1: WireBlockId::from(required_l1),
+            super_v1: WireSuperV1 {
+                timestamp: super_root.timestamp,
+                chains: super_root
+                    .output_roots
+                    .iter()
+                    .map(|root| WireChainIdAndOutput {
+                        chain_id: WireChainId(root.chain_id),
+                        output: root.output_root,
+                    })
+                    .collect(),
+            },
+            super_root: super_root.hash(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -244,7 +259,10 @@ mod tests {
     }
 
     fn l2(timestamp: u64) -> L2BlockInfo {
-        L2BlockInfo { block_info: BlockInfo { timestamp, ..Default::default() }, ..Default::default() }
+        L2BlockInfo {
+            block_info: BlockInfo { timestamp, ..Default::default() },
+            ..Default::default()
+        }
     }
 
     fn status(current_l1: u64, safe: u64, local_safe: u64, finalized: u64) -> SyncStatus {
@@ -337,8 +355,8 @@ mod tests {
         let mut optimistic = BTreeMap::new();
         optimistic.insert(901, output(1, 5));
 
-        assert!(handoff_data(1_000, 2, &optimistic).is_none());
-        assert!(handoff_data(1_000, 1, &optimistic).is_some());
+        assert!(WireSuperRootData::from_handoff(1_000, &hosting(2), &optimistic).is_none());
+        assert!(WireSuperRootData::from_handoff(1_000, &hosting(1), &optimistic).is_some());
     }
 
     /// The handoff branch's required L1 is the *latest* of the chains': it answers "from which L1
@@ -349,7 +367,8 @@ mod tests {
         optimistic.insert(901, output(1, 5));
         optimistic.insert(902, output(2, 9));
 
-        let data = handoff_data(1_000, 2, &optimistic).expect("both chains present");
+        let data = WireSuperRootData::from_handoff(1_000, &hosting(2), &optimistic)
+            .expect("both chains present");
         assert_eq!(data.verified_required_l1.number, 9);
     }
 
@@ -362,7 +381,8 @@ mod tests {
         optimistic.insert(902, output(2, 9));
         optimistic.insert(901, output(1, 5));
 
-        let data = handoff_data(1_000, 2, &optimistic).expect("both chains present");
+        let data = WireSuperRootData::from_handoff(1_000, &hosting(2), &optimistic)
+            .expect("both chains present");
         assert_eq!(data.super_v1.timestamp, 1_000);
         assert_eq!(
             data.super_v1.chains.iter().map(|c| c.chain_id.0).collect::<Vec<_>>(),
@@ -384,23 +404,29 @@ mod tests {
     /// served over the chains they share.
     #[test]
     fn a_frontier_over_a_different_chain_set_is_refused() {
-        let hosted = [901, 902];
+        let aggregate =
+            Aggregate::of(statuses([(901, status(1, 1, 1, 1)), (902, status(1, 1, 1, 1))]));
         let mut verified = BTreeMap::new();
         verified.insert(901, BlockNumHash::default());
         assert!(matches!(
-            require_same_chain_set(1_000, &hosted, &verified),
+            aggregate.require_same_chain_set(1_000, &verified),
             Err(QueryError::ChainSetMismatch { verified: 1, hosted: 2, .. })
         ));
 
         verified.insert(903, BlockNumHash::default());
         assert!(matches!(
-            require_same_chain_set(1_000, &hosted, &verified),
+            aggregate.require_same_chain_set(1_000, &verified),
             Err(QueryError::ChainNotVerified { chain_id: 902, .. })
         ));
 
         verified.remove(&903);
         verified.insert(902, BlockNumHash::default());
-        assert!(require_same_chain_set(1_000, &hosted, &verified).is_ok());
+        assert!(aggregate.require_same_chain_set(1_000, &verified).is_ok());
+    }
+
+    /// An aggregate over `count` chains, for the handoff branch's "every chain present" check.
+    fn hosting(count: u64) -> Aggregate {
+        Aggregate::of((901..901 + count).map(|id| (id, status(1, 1, 1, 1))).collect())
     }
 
     /// A hand-built optimistic entry, distinguishable by its two seeds.
