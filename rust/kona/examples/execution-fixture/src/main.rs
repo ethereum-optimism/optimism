@@ -15,11 +15,13 @@
 //! - `-b` or `--block-number`: L2 block number to execute for the fixture.
 //! - `-o` or `--output-dir`: (Optional) The output directory for the fixture. If not provided,
 //!   defaults to `kona-executor`'s `testdata` directory.
+//! - `--rollup-config`: (Optional) Rollup-config JSON for an unregistered devnet chain.
 
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use kona_cli::{LogArgs, LogConfig};
 use kona_executor::test_utils::ExecutorTestFixtureCreator;
+use kona_genesis::RollupConfig;
 use std::path::PathBuf;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -40,6 +42,9 @@ pub struct ExecutionFixtureCommand {
     /// The output directory for the fixture.
     #[arg(long, short = 'o')]
     pub output_dir: Option<PathBuf>,
+    /// Rollup-config JSON to use for a devnet chain that is not in the registry.
+    #[arg(long)]
+    pub rollup_config: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -65,9 +70,13 @@ async fn main() -> Result<()> {
             .join("crates/proof/executor/testdata")
     };
 
-    ExecutorTestFixtureCreator::new(cli.l2_rpc.as_str(), cli.block_number, output_dir)
-        .create_static_fixture()
-        .await;
+    let mut creator =
+        ExecutorTestFixtureCreator::new(cli.l2_rpc.as_str(), cli.block_number, output_dir);
+    if let Some(path) = cli.rollup_config {
+        let config: RollupConfig = serde_json::from_slice(&std::fs::read(&path)?)?;
+        creator = creator.with_rollup_config(config);
+    }
+    creator.create_static_fixture().await;
 
     info!(target: "execution_fixture", block_number = cli.block_number, "Successfully created static test fixture");
     Ok(())

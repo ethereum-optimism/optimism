@@ -3,7 +3,7 @@
 use crate::{BlockBuildingOutcome, ExecutorResult, StatelessL2Builder, TrieDBProvider};
 use alloy_consensus::Header;
 use alloy_op_evm::OpEvmFactory;
-use alloy_primitives::{B256, Bytes, Sealable};
+use alloy_primitives::{Address, B256, Bytes, Sealable, keccak256};
 use alloy_provider::{Provider, RootProvider, network::primitives::BlockTransactions};
 use alloy_rlp::Decodable;
 use alloy_rpc_client::RpcClient;
@@ -17,6 +17,32 @@ use rocksdb::{DB, Options};
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc};
 use tokio::{fs, runtime::Handle, sync::Mutex};
+use tracing::warn;
+
+#[derive(Debug, Deserialize)]
+struct ExecutionWitness {
+    state: Vec<Bytes>,
+    codes: Vec<Bytes>,
+    headers: Vec<Bytes>,
+    keys: Vec<Bytes>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AccountProof {
+    account_proof: Vec<Bytes>,
+    storage_proof: Vec<StorageProof>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StorageProof {
+    proof: Vec<Bytes>,
+}
+
+struct WitnessAccount {
+    address: Address,
+    storage_keys: Vec<B256>,
+}
 
 /// A loaded executor test fixture and its backing temporary fixture directory.
 #[derive(Debug)]
@@ -114,6 +140,8 @@ pub struct ExecutorTestFixtureCreator {
     pub kv_store: Arc<Mutex<rocksdb::DB>>,
     /// The data directory for the test fixture.
     pub data_dir: PathBuf,
+    /// Optional rollup config for devnets that are not in the superchain registry.
+    pub rollup_config_override: Option<RollupConfig>,
 }
 
 impl ExecutorTestFixtureCreator {
@@ -131,15 +159,144 @@ impl ExecutorTestFixtureCreator {
         let db = DB::open(&options, base.join("kv").as_path())
             .unwrap_or_else(|e| panic!("Failed to open database at {base:?}: {e}"));
 
-        Self { provider, block_number, kv_store: Arc::new(Mutex::new(db)), data_dir: base }
+        Self {
+            provider,
+            block_number,
+            kv_store: Arc::new(Mutex::new(db)),
+            data_dir: base,
+            rollup_config_override: None,
+        }
+    }
+
+    /// Uses `rollup_config` instead of looking up the live chain in the superchain registry.
+    ///
+    /// This is required when capturing fixtures from ephemeral devnets, whose chain IDs and fork
+    /// schedules are intentionally absent from the registry.
+    #[must_use]
+    pub fn with_rollup_config(mut self, rollup_config: RollupConfig) -> Self {
+        self.rollup_config_override = Some(rollup_config);
+        self
     }
 }
 
 impl ExecutorTestFixtureCreator {
+    async fn account_proof_preimages(
+        &self,
+        account: WitnessAccount,
+        block_ids: &[String],
+    ) -> Vec<Bytes> {
+        let mut preimages = Vec::new();
+        for block_id in block_ids {
+            let proof = self
+                .provider
+                .client()
+                .request::<(Address, Vec<B256>, String), AccountProof>(
+                    "eth_getProof",
+                    (account.address, account.storage_keys.clone(), block_id.clone()),
+                )
+                .await
+                .expect("Failed to fetch account proof for execution witness");
+            preimages.extend(proof.account_proof);
+            preimages.extend(proof.storage_proof.into_iter().flat_map(|proof| proof.proof));
+        }
+        preimages
+    }
+
+    async fn preload_execution_witness(&self) {
+        let block = format!("0x{:x}", self.block_number);
+        let witness = self
+            .provider
+            .client()
+            .request::<[String; 1], ExecutionWitness>("debug_executionWitness", [block.clone()])
+            .await;
+        let witness = match witness {
+            Ok(witness) => witness,
+            Err(err) => {
+                warn!(%err, "debug_executionWitness unavailable; falling back to on-demand trie reads");
+                return;
+            }
+        };
+
+        // Reth's execution witness contains the nodes needed to execute the block, but a
+        // stateless builder also needs complete account/storage proof paths to recompute the
+        // post-state root. The witness key stream groups each 20-byte address with its following
+        // 32-byte storage keys, so use it to fetch those proof paths at the parent block.
+        let mut proof_preimages = Vec::new();
+        let mut account: Option<WitnessAccount> = None;
+        let parent = format!("0x{:x}", self.block_number.saturating_sub(1));
+        let block_ids = [parent, block];
+        let mut proof_keys = witness.keys;
+
+        // A proof for a touched account contains hashes for untouched siblings, not their
+        // preimages. Kona's sealing pass may traverse those siblings while applying trie updates.
+        // Add one absent-account proof under every three-nibble prefix so the fixture includes the
+        // shallow sibling subtrees as well.
+        let mut covered_prefixes = [false; 4096];
+        let mut candidate = 0u64;
+        while covered_prefixes.iter().any(|covered| !covered) {
+            let mut bytes = [0u8; 20];
+            bytes[12..].copy_from_slice(&candidate.to_be_bytes());
+            candidate = candidate.checked_add(1).expect("proof probe address overflow");
+            let hash = keccak256(bytes);
+            let prefix = (usize::from(hash[0]) << 4) | usize::from(hash[1] >> 4);
+            if !covered_prefixes[prefix] {
+                covered_prefixes[prefix] = true;
+                proof_keys.push(Bytes::copy_from_slice(&bytes));
+            }
+        }
+
+        for key in proof_keys {
+            match key.len() {
+                20 => {
+                    if let Some(account) = account.take() {
+                        proof_preimages
+                            .extend(self.account_proof_preimages(account, &block_ids).await);
+                    }
+                    account = Some(WitnessAccount {
+                        address: Address::from_slice(&key),
+                        storage_keys: Vec::new(),
+                    });
+                }
+                32 => account
+                    .as_mut()
+                    .expect("Execution witness storage key has no account")
+                    .storage_keys
+                    .push(B256::from_slice(&key)),
+                len => panic!("Unexpected execution witness key length: {len}"),
+            }
+        }
+        if let Some(account) = account {
+            proof_preimages.extend(self.account_proof_preimages(account, &block_ids).await);
+        }
+
+        let store = self.kv_store.lock().await;
+        for preimage in witness
+            .state
+            .into_iter()
+            .chain(witness.codes)
+            .chain(witness.headers)
+            .chain(proof_preimages)
+        {
+            store
+                .put(keccak256(preimage.as_ref()), preimage)
+                .expect("Failed to cache execution witness");
+        }
+    }
+
     /// Create a static test fixture with the configuration provided.
     pub async fn create_static_fixture(self) {
+        self.preload_execution_witness().await;
         let chain_id = self.provider.get_chain_id().await.expect("Failed to get chain ID");
-        let rollup_config = ROLLUP_CONFIGS.get(&chain_id).expect("Rollup config not found");
+        let rollup_config = self
+            .rollup_config_override
+            .clone()
+            .or_else(|| ROLLUP_CONFIGS.get(&chain_id).cloned())
+            .expect("Rollup config not found; provide one explicitly for an unregistered chain");
+        assert_eq!(
+            rollup_config.l2_chain_id.id(),
+            chain_id,
+            "Rollup config chain ID does not match the fixture provider"
+        );
 
         let executing_block = self
             .provider
@@ -212,7 +369,7 @@ impl ExecutorTestFixtureCreator {
         };
 
         let mut executor = StatelessL2Builder::new(
-            rollup_config,
+            &rollup_config,
             OpEvmFactory::<alloy_op_evm::OpTx>::default(),
             alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
             self,
@@ -244,19 +401,38 @@ impl ExecutorTestFixtureCreator {
     }
 }
 
+impl ExecutorTestFixtureCreator {
+    fn cached_preimage(&self, key: B256) -> Result<Option<Bytes>, TestTrieNodeProviderError> {
+        tokio::task::block_in_place(|| {
+            Handle::current().block_on(async {
+                self.kv_store
+                    .lock()
+                    .await
+                    .get(key)
+                    .map(|value| value.map(Bytes::from))
+                    .map_err(|_| TestTrieNodeProviderError::KVStore)
+            })
+        })
+    }
+}
+
 impl TrieProvider for ExecutorTestFixtureCreator {
     type Error = TestTrieNodeProviderError;
 
     fn trie_node_by_hash(&self, key: B256) -> Result<TrieNode, Self::Error> {
+        if let Some(preimage) = self.cached_preimage(key)? {
+            return TrieNode::decode(&mut preimage.as_ref())
+                .map_err(TestTrieNodeProviderError::Rlp);
+        }
+
         // Fetch the preimage from the L2 chain provider.
         let preimage: Bytes = tokio::task::block_in_place(move || {
             Handle::current().block_on(async {
-                let preimage: Bytes = self
-                    .provider
-                    .client()
-                    .request("debug_dbGet", &[key])
-                    .await
-                    .map_err(|_| TestTrieNodeProviderError::PreimageNotFound)?;
+                let preimage: Bytes =
+                    self.provider.client().request("debug_dbGet", &[key]).await.map_err(|err| {
+                        warn!(%key, %err, "failed to fetch trie-node preimage");
+                        TestTrieNodeProviderError::PreimageNotFound
+                    })?;
 
                 self.kv_store
                     .lock()
@@ -275,6 +451,10 @@ impl TrieProvider for ExecutorTestFixtureCreator {
 
 impl TrieDBProvider for ExecutorTestFixtureCreator {
     fn bytecode_by_hash(&self, hash: B256) -> Result<Bytes, Self::Error> {
+        if let Some(code) = self.cached_preimage(hash)? {
+            return Ok(code);
+        }
+
         // geth hashdb scheme code hash key prefix
         const CODE_PREFIX: u8 = b'c';
 
@@ -315,6 +495,11 @@ impl TrieDBProvider for ExecutorTestFixtureCreator {
     }
 
     fn header_by_hash(&self, hash: B256) -> Result<Header, Self::Error> {
+        if let Some(encoded_header) = self.cached_preimage(hash)? {
+            return Header::decode(&mut encoded_header.as_ref())
+                .map_err(TestTrieNodeProviderError::Rlp);
+        }
+
         let encoded_header: Bytes = tokio::task::block_in_place(move || {
             Handle::current().block_on(async {
                 let preimage: Bytes = self

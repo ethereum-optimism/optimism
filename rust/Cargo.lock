@@ -4848,6 +4848,8 @@ dependencies = [
  "clap",
  "kona-cli",
  "kona-executor",
+ "kona-genesis",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.23",

@@ -3,8 +3,9 @@ use crate::{
     test_utils::{execute_loaded_fixture, load_test_fixture, run_test_fixture},
 };
 use alloy_consensus::Header;
-use alloy_eips::Encodable2718;
-use op_alloy_consensus::{OpReceiptEnvelope, SDMGasEntry, build_post_exec_tx};
+use alloy_eips::eip2718::{Decodable2718, Encodable2718};
+use alloy_primitives::b256;
+use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope, SDMGasEntry, build_post_exec_tx};
 use rstest::rstest;
 use std::path::PathBuf;
 
@@ -14,6 +15,11 @@ use std::path::PathBuf;
 /// several tests target that index when constructing payload entries.
 fn post_exec_fixture_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/block-26207960.tar.gz")
+}
+
+/// Premium-produced, Lagoon-active block with a non-empty `PostExec` refund payload.
+fn premium_sdm_fixture_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/block-7-sdm-premium.tar.gz")
 }
 
 fn fixture_block_number(parent_header: &Header) -> u64 {
@@ -137,6 +143,47 @@ async fn post_exec_valid_empty_payload_executes_without_state_or_gas_change() {
     assert_eq!(outcome.header.state_root, baseline.header.state_root);
     assert_ne!(outcome.header.transactions_root, baseline.header.transactions_root);
     assert_ne!(outcome.header.receipts_root, baseline.header.receipts_root);
+}
+
+#[tokio::test]
+async fn post_exec_nonzero_payload_applies_refunds_and_matches_op_reth() {
+    let loaded = load_test_fixture(premium_sdm_fixture_path()).await;
+    let expected_block_hash = loaded.fixture.expected_block_hash;
+    let timestamp = loaded.fixture.executing_payload.payload_attributes.timestamp;
+    assert!(loaded.fixture.rollup_config.is_lagoon_active(timestamp));
+    assert_eq!(
+        expected_block_hash,
+        b256!("a128f899f6bff19247a2656364c3e440de4bc1292347bf3b8f6f4f717765c0b2"),
+        "fixture must remain pinned to the premium-produced block"
+    );
+
+    let encoded = loaded
+        .fixture
+        .executing_payload
+        .transactions
+        .as_ref()
+        .and_then(|transactions| transactions.last())
+        .expect("premium fixture must contain transactions");
+    let envelope =
+        OpTxEnvelope::decode_2718_exact(encoded.as_ref()).expect("trailing tx must decode");
+    let OpTxEnvelope::PostExec(post_exec) = envelope else {
+        panic!("premium fixture must end in a PostExec transaction")
+    };
+    assert!(!post_exec.inner().payload.gas_refund_entries.is_empty());
+    let refund_total: u64 =
+        post_exec.inner().payload.gas_refund_entries.iter().map(|entry| entry.gas_refund).sum();
+    assert!(refund_total > 0, "premium fixture refund must be non-zero");
+    assert_eq!(refund_total, 630_000);
+
+    let outcome = execute_loaded_fixture(loaded, None).expect("premium SDM fixture executes");
+    assert_eq!(outcome.header.hash(), expected_block_hash);
+    assert_eq!(
+        outcome.header.state_root,
+        b256!("483d0a88146a80c0d5a592879f2d04f060b7515a1bad20f295fd4b601db20b93")
+    );
+    assert_eq!(outcome.execution_result.gas_used, 885_842);
+    let evm_gas_used = 1_515_842;
+    assert_eq!(outcome.execution_result.gas_used, evm_gas_used - refund_total);
 }
 
 #[tokio::test]
