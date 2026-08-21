@@ -815,6 +815,9 @@ jobs:
   # Split of the former single rust-workspace-binaries build: kona binaries and
   # op-reth compile in parallel jobs, so the critical path is the slower of the
   # two rather than their sum, and neither job compiles the other's dep tree.
+  # lokahi is built here rather than in a job of its own: it shares kona's dependency
+  # tree, so it is nearly free next to kona-node and would otherwise compile that tree a
+  # second time. Its persist path is spelled out because the kona-* glob does not cover it.
   rust-kona-binaries:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
@@ -823,13 +826,14 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: "kona-host kona-client kona-node kona-sp1-proposer"
+          package: "kona-host kona-client kona-node kona-sp1-proposer lokahi"
           save_cache: true
           fetch_workspace: true
       - persist_to_workspace:
           root: "."
           paths:
             - "rust/target/release/kona-*"
+            - "rust/target/release/lokahi"
 
   rust-op-reth-binary:
     docker:
@@ -1972,6 +1976,7 @@ jobs:
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
 
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_LOKAHI=$ROOT_DIR/rust/target/release/lokahi" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE=$ROOT_DIR/rust/target/release/op-reth-sdm-fixture" >> "$BASH_ENV"
@@ -1982,6 +1987,7 @@ jobs:
             # error when a test first tries to launch one of these.
             test -x "$ROOT_DIR/rust/target/release/op-reth"
             test -x "$ROOT_DIR/rust/target/release/op-reth-sdm-fixture"
+            test -x "$ROOT_DIR/rust/target/release/lokahi"
             # KONA_SP1_ELF_DIR deliberately not set: acceptance tests run with
             # stub prestate artifacts (the devstack deploys the mock verifier,
             # so nothing consumes real ELF bytes until the proving path). This
@@ -2622,13 +2628,14 @@ workflows:
       # presets run kona-node as their per-chain CL; the multi-chain/interop presets have
       # no per-chain CL to swap and select their supernode implementation separately.
       #
-      # supernode_kind stays op-supernode for now: lokahi (rust/lokahi) is still a CLI
-      # skeleton, so selecting it fails every supernode and interop test in a job that
-      # ci-gate requires. Flip this one line to "lokahi" once lokahi can host a chain --
-      # that also needs the binary built and pathed (add lokahi to the rust-kona-binaries
-      # package list and export RUST_BINARY_PATH_LOKAHI above). Until then the interop
-      # presets in this variant are identical to the op-node variant's, which is what the
-      # rename makes visible rather than hides.
+      # supernode_kind stays op-supernode for now, and this is no longer about lokahi being
+      # unable to host a chain: it can, and the two-chain lokahi test in
+      # op-acceptance-tests/tests/supernode/lokahi runs it in every variant. What blocks
+      # these presets is stack.SupernodeTestControl, whose InteropActivity() hands tests an
+      # in-process *interop.Interop pointer that no out-of-process supernode can provide.
+      # Flip this one line to "lokahi" once that has an RPC-shaped replacement. Until then
+      # the interop presets in this variant are identical to the op-node variant's, which is
+      # what the rename makes visible rather than hides.
       - op-acceptance-tests:
           name: memory-all-kona-lokahi-op-reth-<<matrix.l1_fork>>
           matrix:
