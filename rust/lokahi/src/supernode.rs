@@ -423,10 +423,7 @@ impl SequencerSigner {
     fn load(chain_id: u64, sequencer: &SequencerSettings) -> Result<Self> {
         let path = sequencer.key_path.as_path();
         let hex = std::fs::read_to_string(path).with_context(|| {
-            format!(
-                "failed to read the sequencer key {} of chain {chain_id}",
-                path.display()
-            )
+            format!("failed to read the sequencer key {} of chain {chain_id}", path.display())
         })?;
         let key = B256::from_str(hex.trim()).with_context(|| {
             format!(
@@ -436,7 +433,10 @@ impl SequencerSigner {
         })?;
         let signer = PrivateKeySigner::from_bytes(&key)
             .map_err(|e| {
-                anyhow!("the sequencer key {} of chain {chain_id} is not a valid signing key: {e}", path.display())
+                anyhow!(
+                    "the sequencer key {} of chain {chain_id} is not a valid signing key: {e}",
+                    path.display()
+                )
             })?
             .with_chain_id(Some(chain_id));
 
@@ -758,7 +758,13 @@ mod tests {
 
     /// Sequencer settings naming `key_path`, with kona-node's defaults for everything else.
     fn sequencer_settings(key_path: PathBuf) -> SequencerSettings {
-        SequencerSettings { key_path, stopped: false, l1_confs: 4, recover: false, conductor_rpc: None }
+        SequencerSettings {
+            key_path,
+            stopped: false,
+            l1_confs: 4,
+            recover: false,
+            conductor_rpc: None,
+        }
     }
 
     /// A configuration over `chains`, with its interop state under `dir`.

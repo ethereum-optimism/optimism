@@ -471,12 +471,10 @@ impl LokahiConfig {
         defaults: &ChainSettings,
     ) -> Result<Option<SequencerSettings>, ConfigError> {
         if mode.is_validator() {
-            return match chain.stated_sequencer_setting() {
-                Some(field) => {
-                    Err(ConfigError::SequencerSettingWithoutSequencing { chain_id, field })
-                }
-                None => Ok(None),
-            };
+            if let Some(field) = chain.stated_sequencer_setting() {
+                return Err(ConfigError::SequencerSettingWithoutSequencing { chain_id, field });
+            }
+            return Ok(None);
         }
 
         let key_path = chain
@@ -694,7 +692,9 @@ mod tests {
     #[test]
     fn a_sequencing_chain_needs_a_key() {
         assert_eq!(
-            config(&chain("l2-chain-id = 901\nmode = \"sequencer\"")).resolve().expect_err("no key"),
+            config(&chain("l2-chain-id = 901\nmode = \"sequencer\""))
+                .resolve()
+                .expect_err("no key"),
             ConfigError::SequencerWithoutKey { chain_id: 901 }
         );
     }
