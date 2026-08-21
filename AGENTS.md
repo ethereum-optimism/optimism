@@ -70,6 +70,7 @@ Under Claude Code, the repo-local review agents live in `.claude/agents/`; under
 | [`ci-config-reviewer`](.claude/agents/ci-config-reviewer.md) | touches `.circleci/` or `.github/` | [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md) |
 | [`reth-update-reviewer`](.claude/agents/reth-update-reviewer.md) | bumps the `reth`/`revm`/`alloy` pins or synced versions | [docs/ai/reth-update-review.md](docs/ai/reth-update-review.md) |
 | [`standard-validator-reviewer`](.claude/agents/standard-validator-reviewer.md) | touches `StandardValidator` or a contract it walks | [docs/ai/standard-validator-review.md](docs/ai/standard-validator-review.md) |
+| [`deletion-reviewer`](.claude/agents/deletion-reviewer.md) | deletes a public symbol, wire/RPC field, metric name or label value, event, config key, or CLI flag | [docs/ai/deletion-review.md](docs/ai/deletion-review.md) |
 
 `go-code-reviewer` and `rust-code-reviewer` are `proactive` agents — invoke them after finishing an implementation task, not only at PR time. `go-code-reviewer` runs the repo lint itself before reviewing. `dispute-game-investigator` is an investigation agent, not a PR gate.
 
@@ -113,6 +114,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/docker.md](docs/ai/docker.md) - Docker image builds: making every external fetch (apt/apk/curl/wget) retry so registry/CDN blips don't flake CI
 - [docs/ai/contract-dev.md](docs/ai/contract-dev.md) - Smart contract development
 - [docs/ai/standard-validator-review.md](docs/ai/standard-validator-review.md) - Reviewing `StandardValidator` for assertions it should make but doesn't: cross-game symmetry, diff-driven coverage, read-versus-assert, plus the false-positive traps (pass-through getters, implementation-pinned immutables) that make naive gap-hunting noisy. Pairs with the `standard-validator-reviewer` agent
+- [docs/ai/deletion-review.md](docs/ai/deletion-review.md) - Reviewing diffs that delete externally observable names or state writes: the whole-tree reference sweep (docs examples, dashboards, CI config) and proving *when* surviving writers of shared state fire, not just that they exist. Pairs with the `deletion-reviewer` agent
 - [docs/ai/dispute-game-investigation.md](docs/ai/dispute-game-investigation.md) - Investigating fault dispute games: challenger disagreements, excessive moves, self-contradiction, proposal validity, diagnosing the responsible op-node, and the bond outcome (read-only)
 - [docs/ai/flake-prevention.md](docs/ai/flake-prevention.md) - Guidance for preventing flaky tests
 - [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md) - General development workflow: pinned tools via mise, Just usage, pre-PR checks, and CI caveats
