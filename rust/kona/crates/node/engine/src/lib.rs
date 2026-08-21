@@ -66,7 +66,7 @@ pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPa
 mod state;
 pub use state::{
     CrossSafePromoter, CrossSafePromotion, CrossSafeSource, EngineState, EngineSyncState,
-    EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin,
+    EngineSyncStateUpdate, LocalSafeAtTimestamp, LocalSafeHead, LocalSafeOrigin, LocalSafeSnapshot,
 };
 
 mod kinds;
