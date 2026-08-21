@@ -117,6 +117,10 @@ pub(crate) struct ChainSettings {
     /// A path rather than the key itself. kona-node also accepts `--p2p.sequencer.key` because a
     /// command line has nowhere else to put it; a supernode already configures itself from a file,
     /// and inlining the keys would make that one file the secret of every chain it hosts.
+    ///
+    /// A key is generated at this path when no file is there yet, as everywhere else in the stack
+    /// that names a key by a path — so a mistyped path yields a working sequencer whose blocks no
+    /// peer accepts, caught only by the unsafe-block-signer warning at startup.
     pub(crate) sequencer_key_path: Option<PathBuf>,
     /// Whether this chain's sequencer starts stopped, to be started over the admin API.
     pub(crate) sequencer_stopped: Option<bool>,
@@ -239,8 +243,9 @@ impl ResolvedChain {
 pub(crate) struct SequencerSettings {
     /// The file holding the key this chain signs the blocks it gossips with.
     ///
-    /// Still a path at this point: resolution reads no files, so whether the key is present and
-    /// well-formed is a startup error raised where the signer is built.
+    /// Still a path at this point: resolution touches no files. Loading the key — or generating
+    /// one, when the file is not there yet — happens where the signer is built, and a file that
+    /// exists but does not hold a key is a startup error raised there.
     pub(crate) key_path: PathBuf,
     /// Whether the sequencer starts stopped, to be started over the admin API.
     pub(crate) stopped: bool,

@@ -32,7 +32,6 @@ use std::{
     fs::File,
     net::SocketAddr,
     path::{Path, PathBuf},
-    str::FromStr,
     sync::Arc,
 };
 use tokio_util::sync::CancellationToken;
@@ -413,25 +412,55 @@ struct SequencerSigner {
 }
 
 impl SequencerSigner {
-    /// Loads a chain's sequencer key from the file its settings name.
+    /// Loads a chain's sequencer key from the file its settings name, generating one when no file
+    /// is there yet.
     ///
-    /// The file is read, not created. kona's [`kona_cli::SecretKeyLoader`], which this chain's P2P
-    /// identity goes through, writes a fresh key when the file is missing — right for an identity
-    /// nobody else has to recognise, and wrong for a sequencer key: a mistyped path would hand the
-    /// chain a key no peer accepts, and every block it signed would be dropped across the network
-    /// while the chain itself looked healthy. A missing key file stops startup instead.
+    /// Load-or-generate is what a key named by a path does across the stack: this goes through
+    /// kona's [`kona_cli::SecretKeyLoader`], the loader behind kona-node's own
+    /// `--p2p.sequencer.key.path`, and the Go stack writes a key the same way at
+    /// `--p2p.priv.path` (`loadNetworkPrivKey`, `op-node/p2p/cli/load_config.go`). The one thing
+    /// `SecretKeyLoader` leaves out is restricting what it writes, so a key it creates is
+    /// tightened to owner-only afterwards — the mode the Go loader creates its key with. An
+    /// existing file's mode is left as it is, which is what the Go loader does too.
+    ///
+    /// Nothing here can tell a generated key from the one the network expects: the only signal a
+    /// mistyped path produces is the unsafe-block-signer comparison in [`network_config`], which
+    /// warns and lets startup continue.
     fn load(chain_id: u64, sequencer: &SequencerSettings) -> Result<Self> {
         let path = sequencer.key_path.as_path();
-        let hex = std::fs::read_to_string(path).with_context(|| {
-            format!("failed to read the sequencer key {} of chain {chain_id}", path.display())
+        let existed = path.is_file();
+
+        let keypair = kona_cli::SecretKeyLoader::load(path).map_err(|e| {
+            anyhow!("failed to load the sequencer key {} of chain {chain_id}: {e}", path.display())
         })?;
-        let key = B256::from_str(hex.trim()).with_context(|| {
-            format!(
-                "the sequencer key {} of chain {chain_id} is not a 32-byte hex key",
-                path.display()
-            )
-        })?;
-        let signer = PrivateKeySigner::from_bytes(&key)
+
+        if !existed {
+            restrict_to_owner(path).with_context(|| {
+                format!(
+                    "failed to restrict the new sequencer key {} of chain {chain_id}",
+                    path.display()
+                )
+            })?;
+            warn!(
+                target: "lokahi",
+                chain_id,
+                path = %path.display(),
+                "No sequencer key at this path: generated a new one. The blocks this chain signs \
+                 with it are dropped by its peers until it is the chain's unsafe block signer"
+            );
+        }
+
+        let secret = keypair
+            .try_into_secp256k1()
+            .map_err(|_| {
+                anyhow!(
+                    "the sequencer key {} of chain {chain_id} is not a secp256k1 key",
+                    path.display()
+                )
+            })?
+            .secret()
+            .to_bytes();
+        let signer = PrivateKeySigner::from_bytes(&B256::from_slice(&secret))
             .map_err(|e| {
                 anyhow!(
                     "the sequencer key {} of chain {chain_id} is not a valid signing key: {e}",
@@ -442,6 +471,19 @@ impl SequencerSigner {
 
         Ok(Self { address: signer.address(), signer: BlockSigner::Local(signer) })
     }
+}
+
+/// Restricts a file to owner read/write, the mode the Go stack's p2p key loader creates a key file
+/// with. A no-op where file modes do not apply.
+fn restrict_to_owner(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
 }
 
 impl From<&SequencerSettings> for SequencerConfig {
@@ -828,8 +870,8 @@ mod tests {
         }
     }
 
-    /// A sequencing chain's key is read from the file its settings name, and the address it signs
-    /// with is the one its peers have to be expecting.
+    /// A sequencing chain's key is taken from the file its settings name when one is there, and
+    /// the address it signs with is the one its peers have to be expecting.
     #[test]
     fn a_sequencer_key_is_read_from_its_file() {
         let dir = tempfile::tempdir().expect("temp dir");
@@ -842,18 +884,28 @@ mod tests {
         assert_eq!(sequencer.address, address!("0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"));
     }
 
-    /// Why the key is read rather than loaded through kona's [`kona_cli::SecretKeyLoader`]: that
-    /// loader writes a fresh key when the file is missing, and a sequencer signing with a key no
-    /// peer recognises looks healthy while every block it gossips is dropped. A mistyped path
-    /// stops startup here instead.
+    /// A key file that is not there yet is generated rather than refused, the same as every other
+    /// key the stack names by a path — and it is written owner-only, the mode the Go
+    /// `loadNetworkPrivKey` creates its key with. Generated once: the second load reads back the
+    /// key the first one wrote, so a restart keeps the identity its peers have started accepting.
     #[test]
-    fn a_missing_sequencer_key_is_an_error_rather_than_a_new_key() {
+    fn a_missing_sequencer_key_is_generated_owner_only_and_then_reused() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let path = dir.path().join("absent.key");
+        let path = dir.path().join("nested").join("absent.key");
 
-        let err = SequencerSigner::load(901, &sequencer_settings(path.clone()))
-            .expect_err("must not load");
-        assert!(err.to_string().contains("failed to read the sequencer key"), "{err:?}");
-        assert!(!path.exists(), "a missing sequencer key file must not be created");
+        let sequencer =
+            SequencerSigner::load(901, &sequencer_settings(path.clone())).expect("must generate");
+        assert!(path.is_file(), "a missing sequencer key file is created");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&path).expect("metadata").permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "a generated sequencer key is readable only by its owner");
+        }
+
+        let reloaded =
+            SequencerSigner::load(901, &sequencer_settings(path)).expect("must load what it wrote");
+        assert_eq!(reloaded.address, sequencer.address);
     }
 }

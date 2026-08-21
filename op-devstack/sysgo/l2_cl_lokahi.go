@@ -406,7 +406,10 @@ func lokahiChainEntry(
 
 	// A sequencing chain signs the blocks it gossips with the same key, handed over as a file
 	// so the configuration does not carry it. `[defaults]` makes every chain a validator, so
-	// this entry is what turns one on.
+	// this entry is what turns one on. The file has to be written here rather than left for
+	// lokahi to generate: lokahi would generate some other key, and the address printed above
+	// as `unsafe-block-signer` is this one, so the chain's peers would drop every block it
+	// signed.
 	if cfg.sequencerEnabled {
 		secret, err := chain.net.keys.Secret(signerKey)
 		require.NoError(err, "need the sequencer p2p key of chain %d", chainID)

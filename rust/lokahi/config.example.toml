@@ -37,7 +37,9 @@ unsafe-block-signer = "0x1111111111111111111111111111111111111111"
 # A chain this supernode sequences rather than validates. Sequencing needs a key to sign the blocks
 # the chain gossips, and the address it signs with is what `unsafe-block-signer` has to name: a
 # supernode cannot read that address off the chain's SystemConfig, so the two are stated here and a
-# disagreement between them is logged at startup. The remaining `sequencer-*` settings default to
+# disagreement between them is logged at startup. A key is generated at `sequencer-key-path` when
+# no file is there yet, so check that warning after a first start: a mistyped path produces a
+# sequencer whose blocks every peer drops. The remaining `sequencer-*` settings default to
 # kona-node's, and a chain that does not sequence may not state them at all.
 [[chains]]
 l2-chain-id = 902
