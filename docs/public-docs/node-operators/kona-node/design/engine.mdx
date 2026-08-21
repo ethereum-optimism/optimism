@@ -143,8 +143,8 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     rollup_config: Arc<RollupConfig>,
     /// The network payload envelope.
     envelope: OpExecutionPayloadEnvelope,
-    /// If the payload is local-safe this is true.
-    is_payload_local_safe: bool,
+    /// The L1 origin to record if this payload is local-safe, and `None` if it is not.
+    local_safe_origin: Option<LocalSafeOrigin>,
 }
 ```
 
@@ -199,7 +199,7 @@ pub struct EngineState {
 }
 ```
 
-The unsafe, local-safe, cross-safe, and finalized heads live in the nested `EngineSyncState`. The forkchoice `safeBlockHash` is the cross-safe head, and it moves only through `EngineSyncState::apply_cross_safe_promotion`: every other head writer (insert, consolidation, engine reset) advances local-safe only. Standalone kona-node has no cross-chain verifier, so its engine mints the trivial promotion from each local-safe advance and local-safe and cross-safe are always equal. State updates are communicated through watch channels, enabling reactive programming patterns across the system.
+The unsafe, local-safe, cross-safe, and finalized heads live in the nested `EngineSyncState`, where the local-safe head is stored together with the L1 block it was derived from. That pairing is written by whoever writes the head, in the same step, and a writer that holds no L1 key — an engine reset, or the derivation-delegation path — records an explicit `LocalSafeOrigin::Unpaired` rather than leaving the previous key behind. `EngineSyncState::local_safe` reads both halves out of one snapshot. The forkchoice `safeBlockHash` is the cross-safe head, and it moves only through `EngineSyncState::apply_cross_safe_promotion`: every other head writer (insert, consolidation, engine reset) advances local-safe only. Standalone kona-node has no cross-chain verifier, so its engine mints the trivial promotion from each local-safe advance and local-safe and cross-safe are always equal. State updates are communicated through watch channels, enabling reactive programming patterns across the system.
 
 ## Integration with kona-node
 
@@ -240,6 +240,9 @@ pub enum EngineQueries {
     State(Sender<EngineState>),
     /// Request the L2 output root for a specific block.
     OutputAtBlock { block: BlockNumberOrTag, sender: Sender<(L2BlockInfo, OutputRoot, EngineState)> },
+    /// Request the local-safe head at an L2 timestamp, the L1 block it was derived from, and
+    /// the sync status all of it was read with.
+    LocalSafeSnapshotAt { timestamp: u64, sender: Sender<LocalSafeSnapshot> },
     /// Subscribe to engine state updates via a watch channel receiver.
     StateReceiver(Sender<tokio::sync::watch::Receiver<EngineState>>),
     /// Development API: Subscribe to task queue length updates.
@@ -248,6 +251,10 @@ pub enum EngineQueries {
     TaskQueueLength(Sender<usize>),
 }
 ```
+
+`LocalSafeSnapshotAt` is the read a cross-chain verifier needs: "which L2 block was local-safe at this timestamp, and which L1 block was it derived from?". Both halves, and the sync status they are reported beside, are computed from a single borrow of the engine state watch, so they always describe the same instant — assembling the same answer from two reads leaves a window in which the local-safe head advances or is reset between them, and the reply then pairs a block with an L1 key it was not derived from.
+
+The answer distinguishes the cases a caller has to treat differently. A timestamp ahead of the local-safe head is not local-safe yet and should be retried; one behind it names a block that is local-safe, but whose L1 origin is history rather than live state; one below L2 genesis names no block at all. A local-safe head whose writer held no L1 key is reported as unpaired, which is a different answer from an origin that happens to be block 0.
 
 ## Usage Patterns
 
