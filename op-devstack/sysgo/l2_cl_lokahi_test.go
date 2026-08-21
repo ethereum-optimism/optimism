@@ -11,8 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
@@ -51,17 +49,6 @@ func (e *stubEL) Stop()             {}
 func (e *stubEL) UserRPC() string   { return e.engineRPC }
 func (e *stubEL) EngineRPC() string { return e.engineRPC }
 func (e *stubEL) JWTPath() string   { return "/dev/null" }
-
-// lokahiTestChain is one hosted chain with the given id and Lagoon schedule.
-func lokahiTestChain(chainID uint64, lagoonTime *uint64) lokahiSupernodeChain {
-	return lokahiSupernodeChain{
-		net: &L2Network{
-			chainID:   eth.ChainIDFromUInt64(chainID),
-			rollupCfg: &rollup.Config{LagoonTime: lagoonTime},
-		},
-		el: &stubEL{engineRPC: fmt.Sprintf("http://127.0.0.1:9%03d", chainID%1000)},
-	}
-}
 
 func u64(v uint64) *uint64 { return &v }
 

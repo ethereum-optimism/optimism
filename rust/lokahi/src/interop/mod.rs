@@ -435,7 +435,7 @@ mod tests {
         let b = config(Some(2_000));
         let err = InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], Some(1_700))
             .expect_err("two different scheduled forks are not one cluster");
-        assert!(err.to_string().contains("different blocks"), "{err}", err = err.to_string());
+        assert!(err.to_string().contains("different blocks"), "{err}");
     }
 }
 

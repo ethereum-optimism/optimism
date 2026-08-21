@@ -73,22 +73,6 @@ type lokahiSupernodeConfig struct {
 	sequencerEnabled bool
 }
 
-// describe renders the requested configuration for diagnostics.
-func (c lokahiSupernodeConfig) describe() string {
-	chains := make([]string, 0, len(c.chains))
-	for _, chain := range c.chains {
-		chains = append(chains, fmt.Sprintf("%s(engine=%s)", chain.net.ChainID(), chain.el.EngineRPC()))
-	}
-
-	depSetChains := 0
-	if c.depSet != nil {
-		depSetChains = len(c.depSet.Chains())
-	}
-
-	return fmt.Sprintf("chains=[%s] l1=%s l1Beacon=%s depSetChains=%d sequencer=%t",
-		strings.Join(chains, " "), c.l1ELRPC, c.l1BeaconAddr, depSetChains, c.sequencerEnabled)
-}
-
 // LokahiSupernode is a running lokahi process hosting one or more chains.
 //
 // Unlike the Go op-supernode, which serves every chain from one RPC under a /<chainID>
