@@ -442,7 +442,8 @@ func (n *LokahiSupernode) RestartWithFreshDataDir() error {
 	if err := os.RemoveAll(n.dataDir); err != nil {
 		return fmt.Errorf("sysgo: wipe lokahi data dir %s: %w", n.dataDir, err)
 	}
-	if err := os.MkdirAll(n.dataDir, 0o755); err != nil {
+	// 0o750, matching the 0o640 the config files beside it use: the node is the only reader.
+	if err := os.MkdirAll(n.dataDir, 0o750); err != nil {
 		return fmt.Errorf("sysgo: recreate lokahi data dir %s: %w", n.dataDir, err)
 	}
 	n.startLocked()
