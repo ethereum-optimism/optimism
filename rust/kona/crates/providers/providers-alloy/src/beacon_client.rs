@@ -182,11 +182,18 @@ impl OnlineBeaconClient {
         slot: u64,
         blob_hashes: &[B256],
     ) -> Result<Vec<BoxedBlob>, BeaconClientError> {
-        let params = blob_hashes.iter().map(|hash| hash.to_string()).collect::<Vec<_>>();
+        // The Beacon API defines `versioned_hashes` as a query array:
+        // https://github.com/ethereum/beacon-APIs/blob/e20dfabd6230a3e0de8a8964fee7a4f276e480d6/apis/beacon/blobs/blobs.yaml#L20-L28
+        // Encode its default exploded form with one query parameter per hash. Some clients reject
+        // a single comma-separated value.
+        let params = blob_hashes
+            .iter()
+            .map(|hash| ("versioned_hashes", hash.to_string()))
+            .collect::<Vec<_>>();
         let response = self
             .inner
             .get(format!("{}/{}/{}", self.base, BLOBS_METHOD_PREFIX, slot))
-            .query(&[("versioned_hashes", &params.join(","))])
+            .query(&params)
             .send()
             .await?;
 
@@ -333,7 +340,7 @@ mod tests {
         let slot_string = slot.to_string();
         let repeated_blob_data: Vec<Blob> = vec![TEST_BLOB_DATA, TEST_BLOB_DATA];
         let garbage_blob_data: Vec<Blob> = vec![FixedBytes::repeat_byte(2)];
-        let required_query_param = format!("{TEST_BLOB_HASH_HEX},{TEST_BLOB_HASH_HEX}");
+        let required_query_param = TEST_BLOB_HASH_HEX.to_string();
         let test_blob_hash: FixedBytes<32> = FixedBytes::from_hex(TEST_BLOB_HASH_HEX).unwrap();
         let requested_blob_hashes: Vec<B256> = vec![test_blob_hash, test_blob_hash];
 
@@ -370,7 +377,8 @@ mod tests {
             let mut blobs_mock = server.mock(|when, then| {
                 when.method(GET)
                     .path(format!("/eth/v1/beacon/blobs/{slot_string}"))
-                    .query_param("versioned_hashes", required_query_param.clone());
+                    .query_param("versioned_hashes", required_query_param.clone())
+                    .query_param_count("^versioned_hashes$", ".*", 2);
                 then.status(200).json_body(mock_response);
             });
 
