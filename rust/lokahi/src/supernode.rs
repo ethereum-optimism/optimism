@@ -264,6 +264,12 @@ fn network_config(settings: &ResolvedChain, rollup_config: &RollupConfig) -> Res
         bootstore: Some(BootStoreFile::Custom(settings.datadir.join(BOOTSTORE_FILE))),
         bootnodes,
         keypair,
+        // `NetworkConfig::new` leaves this at `libp2p::gossipsub::Config::default()`, whose
+        // `ValidationMode::Strict` is rejected outright by the `MessageAuthenticity::Anonymous`
+        // the gossip behaviour is built with, so every chain fails to compose. kona-node's CLI
+        // never hits that because it always overrides this field; take the same defaults it
+        // starts from, including the per-chain message-id label.
+        gossip_config: kona_gossip::default_config(settings.l2_chain_id),
         ..NetworkConfig::new(rollup_config.clone(), local_node, gossip_address, unsafe_block_signer)
     })
 }
