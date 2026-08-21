@@ -95,8 +95,11 @@ where
     {
         dependency_set.clone()
     } else {
+        #[cfg(target_os = "zkvm")]
         eprintln!(
-            "No embedded dependency set found for proof chain ids {:?}, falling back to preimage oracle. This is insecure in production without additional validation!",
+            "The SP1 guest has no embedded dependency set for proof chain ids {:?}; falling \
+             back to preimage oracle. This is insecure in production without additional \
+             validation!",
             chain_ids
         );
         let serialized = oracle
