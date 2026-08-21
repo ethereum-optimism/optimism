@@ -196,7 +196,7 @@ impl L2ChainProvider for BufferedL2Provider {
 impl BatchValidationProvider for BufferedL2Provider {
     type Error = BufferedProviderError;
 
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         // Get the block from cache
         let cached_block = self.buffer.get_block_by_number(number);
 
@@ -212,7 +212,7 @@ impl BatchValidationProvider for BufferedL2Provider {
 
         let cached_block = cached_block.ok_or(BufferedProviderError::BlockNotFound(number))?;
 
-        Ok((*cached_block.block).clone())
+        Ok(cached_block.block)
     }
 
     async fn l2_block_info_by_number(&mut self, number: u64) -> Result<L2BlockInfo, Self::Error> {

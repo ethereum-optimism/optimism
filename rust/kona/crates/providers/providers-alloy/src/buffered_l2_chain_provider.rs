@@ -38,7 +38,7 @@ impl BatchValidationProvider for BufferedAlloyL2ChainProvider {
         self.rpc.l2_block_info_by_number(number).await
     }
 
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         self.rpc.block_by_number(number).await
     }
 }
