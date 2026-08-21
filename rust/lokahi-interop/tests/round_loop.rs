@@ -81,6 +81,8 @@ struct FakeChain {
     first_safe_head: RwLock<Option<u64>>,
     /// When set, the chain reports that the L1 pairing at or below this timestamp is gone.
     history_gap: RwLock<bool>,
+    /// When set, the chain reports that its genesis is later than the round's timestamp.
+    before_genesis: RwLock<bool>,
 }
 
 impl FakeChain {
@@ -100,6 +102,7 @@ impl FakeChain {
             local_safe_through: RwLock::new(200),
             first_safe_head: RwLock::new(Some(START)),
             history_gap: RwLock::new(false),
+            before_genesis: RwLock::new(false),
         }
     }
 
@@ -118,6 +121,10 @@ impl FakeChain {
     fn set_history_gap(&self, gap: bool) {
         *self.history_gap.write().unwrap() = gap;
     }
+
+    fn set_before_genesis(&self, before: bool) {
+        *self.before_genesis.write().unwrap() = before;
+    }
 }
 
 #[async_trait]
@@ -131,7 +138,7 @@ impl InteropChain for FakeChain {
     }
 
     async fn local_safe_at(&self, timestamp: u64) -> Result<ChainAt, ChainError> {
-        if timestamp < self.config.genesis.l2_time {
+        if timestamp < self.config.genesis.l2_time || *self.before_genesis.read().unwrap() {
             return Ok(ChainAt::BeforeGenesis);
         }
         if *self.history_gap.read().unwrap() {
@@ -580,6 +587,34 @@ async fn a_missing_l1_pairing_halts_the_verifier() {
     world.chain_a.set_history_gap(false);
     assert!(verifier.step().await.is_err());
     assert_eq!(verifier.verified().last_timestamp(), Some(START));
+}
+
+/// A timestamp below a chain's genesis cannot resolve by waiting, but it is still not a halt.
+///
+/// op-supernode reaches the same condition through `TargetBlockNumber`, whose plain error its
+/// interop activity logs and backs off on rather than halting, and lokahi mirrors op-supernode.
+/// The round makes no progress and warns every attempt, but the verifier stays alive and picks
+/// straight back up once the disagreement is resolved.
+#[tokio::test]
+async fn a_timestamp_below_a_chains_genesis_is_retried_rather_than_halting() {
+    let world = World::new();
+    let mut verifier = world.verifier();
+    run(&mut verifier, 2).await;
+
+    world.chain_a.set_before_genesis(true);
+    let pace = verifier.step().await.expect("a pre-genesis timestamp must not halt the verifier");
+    assert_eq!(pace, Pace::Retry);
+    assert_eq!(verifier.state(), VerifierState::Running);
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+
+    // Still alive, and still not advancing, for as long as the disagreement stands.
+    assert_eq!(verifier.step().await.unwrap(), Pace::Retry);
+    assert_eq!(verifier.state(), VerifierState::Running);
+
+    // Once the chain set and the start agree again, the loop carries on where it stopped.
+    world.chain_a.set_before_genesis(false);
+    assert_eq!(verifier.step().await.unwrap(), Pace::Immediate);
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
 }
 
 #[tokio::test]

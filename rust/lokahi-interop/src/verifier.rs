@@ -537,11 +537,33 @@ impl<K: Kv> Verifier<K> {
                          longer recorded on this node"
                     )));
                 }
+                // No block of this chain can ever carry this timestamp, so unlike the waits
+                // above this one cannot resolve on its own — and yet it is deliberately *not* the
+                // halt its neighbour above is. op-supernode reaches the same condition through
+                // `TargetBlockNumber`, which returns a plain error for a pre-genesis timestamp
+                // (`op-node/rollup/types.go:242`). That error is neither `ethereum.NotFound` nor
+                // `ErrHistoryUnavailable`, so `chain_container.go` passes it through unmapped and
+                // the interop activity logs it and backs off (`interop.go:429`) instead of
+                // halting. lokahi mirrors op-supernode, so a node upstream keeps alive must not
+                // die here. The cost is a round that retries without ever advancing, so it is
+                // logged at warn every time rather than silently: the chain set and the
+                // verification start disagree, and only an operator can reconcile them.
                 ChainAt::BeforeGenesis => {
-                    return Err(RoundError::Permanent(format!(
-                        "chain {chain_id}: timestamp {timestamp} predates the chain's genesis, so \
-                         no block of it can ever carry that timestamp"
-                    )));
+                    warn!(
+                        target: "lokahi_interop",
+                        chain_id,
+                        timestamp,
+                        "Timestamp predates the chain's genesis, so no block of it can carry \
+                         that timestamp; retrying rather than halting, to match op-supernode. \
+                         This round cannot advance until the chain set or the verification \
+                         start timestamp is corrected"
+                    );
+                    return Err(RoundError::chain(
+                        chain_id,
+                        ChainError::Unreachable(format!(
+                            "timestamp {timestamp} predates the chain's genesis"
+                        )),
+                    ));
                 }
             }
         }
