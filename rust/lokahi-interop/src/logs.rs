@@ -905,7 +905,16 @@ mod tests {
         assert_eq!(u32::from_be_bytes(raw[76..80].try_into().unwrap()), 1);
         assert_eq!(&raw[80..112], a_log_hash(0).as_slice());
         assert_eq!(&raw[112..144], a_log_hash(1).as_slice());
+        // The executing-message entry, field by field, at the offsets `encodeExecMsgInto` writes.
+        // Round-tripping cannot pin these: a consistent encode/decode swap would still round-trip
+        // while diverging from Go. The entry's own log index is 0 where the log it hangs off is at
+        // index 1, so a swap of the two shows up here.
         assert_eq!(u32::from_be_bytes(raw[144..148].try_into().unwrap()), 1);
+        assert_eq!(U256::from_be_slice(&raw[148..180]), U256::from(902));
+        assert_eq!(u64::from_be_bytes(raw[180..188].try_into().unwrap()), 1);
+        assert_eq!(u32::from_be_bytes(raw[188..192].try_into().unwrap()), 0);
+        assert_eq!(u64::from_be_bytes(raw[192..200].try_into().unwrap()), 1000);
+        assert_eq!(&raw[200..232], B256::repeat_byte(1).as_slice());
     }
 
     #[test]
