@@ -25,7 +25,7 @@ kona-interop.workspace = true
 
 # Alloy
 alloy-serde.workspace = true
-alloy-eips = { workspace = true, features = ["kzg"] }
+alloy-eips = { workspace = true, features = ["kzg", "serde"] }
 alloy-transport.workspace = true
 alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
 reqwest = { workspace = true, features = ["query"] }
