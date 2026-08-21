@@ -19,8 +19,8 @@
 //! [`FinalizeTask`]: crate::FinalizeTask
 
 use crate::{
-    EngineState, EngineSyncState, EngineSyncStateUpdate, LocalSafeHead,
-    state::CrossSafePromoter, test_utils::TestEngineStateBuilder,
+    EngineState, EngineSyncState, EngineSyncStateUpdate, LocalSafeHead, state::CrossSafePromoter,
+    test_utils::TestEngineStateBuilder,
 };
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
@@ -107,7 +107,8 @@ fn a_promotion_decided_before_a_reset_cannot_break_the_ordering() {
 
     // The verifier's in-flight round finishes and promotes 18 — decided against the pre-reset
     // chain, and now ahead of a local-safe head that has moved backwards underneath it.
-    state.sync_state = state.apply_cross_safe_promotion(CrossSafePromoter::new().promote(block(18)));
+    state.sync_state =
+        state.apply_cross_safe_promotion(CrossSafePromoter::new().promote(block(18)));
     assert_ordered(&state.sync_state, "after a stale promotion to 18");
     assert_eq!(
         state.sync_state.cross_safe_head().block_info.number,
@@ -176,7 +177,8 @@ fn a_promotion_at_the_local_safe_head_is_applied_unchanged() {
     let mut state = caught_up();
     state.sync_state = reset_to(&state, block(12), block(10));
 
-    state.sync_state = state.apply_cross_safe_promotion(CrossSafePromoter::new().promote(block(12)));
+    state.sync_state =
+        state.apply_cross_safe_promotion(CrossSafePromoter::new().promote(block(12)));
     assert_ordered(&state.sync_state, "after promoting to local-safe");
     assert_eq!(state.sync_state.cross_safe_head().block_info.number, 12);
 }
