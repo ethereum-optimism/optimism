@@ -139,30 +139,31 @@ impl InteropActor {
     /// The backoff is where this actor spends nearly all of its time, so serving queries through
     /// it is what keeps read latency at "the current round" rather than "the next idle moment".
     async fn wait_answering(&mut self, wait: Duration) {
+        // The queue is taken out of `self` for the wait and put back after it. Answering needs
+        // `&mut self` — a pause instruction reaches the verifier — and that cannot overlap a
+        // borrow of the field the instruction arrived through.
+        let Some(mut queries) = self.queries.take() else {
+            tokio::time::sleep(wait).await;
+            return;
+        };
+
         let deadline = tokio::time::sleep(wait);
         tokio::pin!(deadline);
         loop {
-            // `recv` on a `None` queue would be a future that never completes, which is exactly
-            // what the `else` branch below wants — but borrowing `self` twice inside `select!` is
-            // not expressible, so the two cases are split.
-            let Some(queries) = self.queries.as_mut() else {
-                deadline.await;
-                return;
-            };
             tokio::select! {
-                () = &mut deadline => return,
+                () = &mut deadline => break,
                 query = queries.recv() => match query {
                     Some(query) => self.answer(query),
                     // Every read handle is gone. Nothing more will arrive, so wait out the rest
-                    // of the backoff plainly.
+                    // of the backoff plainly and leave the queue behind.
                     None => {
-                        self.queries = None;
                         deadline.await;
                         return;
                     }
                 },
             }
         }
+        self.queries = Some(queries);
     }
 
     /// Promotes every chain's cross-safe head to the verified frontier, if there is one.

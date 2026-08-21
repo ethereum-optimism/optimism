@@ -8,9 +8,10 @@
 //!
 //! The surface is deliberately small. It reports what the supernode was configured to run; it does
 //! not report liveness, because a chain's own RPC answering is the liveness signal a caller
-//! actually needs and this server would only be guessing at it. Later phases add the controls that
-//! do need process-wide reach — pausing and resuming interop, introspecting backfill — and they
-//! belong here for the same reason: they are not questions about one chain.
+//! actually needs and this server would only be guessing at it. The controls that do need
+//! process-wide reach — pausing and resuming interop, introspecting backfill — are served here for
+//! the same reason: they are not questions about one chain. See
+//! [`crate::interop::InteropTestHandle`].
 //!
 //! The supernode *query* API — `supernode_syncStatus` and `superroot_atTimestamp` — is served on
 //! this same socket, in its own two namespaces. It belongs here for the same reason as everything
@@ -18,7 +19,7 @@
 //! per-chain answer to be served from a chain's own socket. It is also what makes lokahi reachable
 //! by the existing consumers, which dial one supernode endpoint and call two methods on it.
 
-use crate::{config::ResolvedChain, query::QueryHandle, version};
+use crate::{config::ResolvedChain, interop::InteropTestHandle, query::QueryHandle, version};
 use anyhow::{Context, Result};
 use jsonrpsee::{
     core::RpcResult,
@@ -102,6 +103,7 @@ pub(crate) async fn serve(
     socket: SocketAddr,
     chains: &[ResolvedChain],
     queries: QueryHandle,
+    interop_test: InteropTestHandle,
 ) -> Result<ServerHandle> {
     let server = Server::builder()
         .build(socket)
@@ -118,5 +120,12 @@ pub(crate) async fn serve(
     module
         .merge(queries.into_rpc_module().context("failed to build the supernode query API")?)
         .context("failed to register the supernode query API")?;
+    module
+        .merge(
+            interop_test
+                .into_rpc_module()
+                .context("failed to build the interop test-control API")?,
+        )
+        .context("failed to register the interop test-control API")?;
     Ok(server.start(module))
 }

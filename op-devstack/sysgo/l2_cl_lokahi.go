@@ -124,6 +124,11 @@ type LokahiSupernode struct {
 	queryAPI     *sources.SuperNodeClient
 	queryAPIAddr string
 
+	// interopTestAPI is the client for the interop test-control API, cached the same way and
+	// for the same reason as queryAPI: it answers on the same rediscovered address.
+	interopTestAPI     *sources.SupernodeInteropTestClient
+	interopTestAPIAddr string
+
 	sub *SubProcess
 }
 
@@ -190,8 +195,76 @@ func (n *LokahiSupernode) QueryAPI() apis.SupernodeQueryAPI {
 	return n.queryAPI
 }
 
+// InteropTestAPI returns the test-control surface for the interop verifier: pause, resume,
+// status and one chain's sealed range.
+//
+// Nil when the process is not running. The DSL treats that as "supernode stopped or interop
+// disabled" and says so, which is what a caller driving a stopped supernode should hear —
+// whereas a client dialling a dead port would surface as a timeout naming nothing.
+//
+// The four methods are served by lokahi on its process-wide RPC (rust/lokahi/src/interop/
+// test_api.rs). Interop being off is not distinguished here: lokahi answers those calls with an
+// error saying it has no verifier, which is the honest answer and reaches the test as one.
+//
+// Rebuilt whenever the process-wide RPC comes back on a different port, for the same reason
+// QueryAPI is.
+func (n *LokahiSupernode) InteropTestAPI() apis.SupernodeInteropTestAPI {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sub == nil {
+		return nil
+	}
+	if n.interopTestAPI == nil || n.interopTestAPIAddr != n.adminRPC {
+		rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminRPC, client.WithLazyDial())
+		n.p.Require().NoError(err, "dial the lokahi interop test-control API")
+		n.interopTestAPI = sources.NewSupernodeInteropTestClient(rpcCl)
+		n.interopTestAPIAddr = n.adminRPC
+		// Bound to this client, so a client replaced after a restart is still closed once.
+		n.p.Cleanup(n.interopTestAPI.Close)
+	}
+	return n.interopTestAPI
+}
+
 // ChainCL returns the L2CLNode addressing the chain at index i, in configuration order.
 func (n *LokahiSupernode) ChainCL(i int) L2CLNode { return n.chains[i] }
+
+// requireInteropActivationFromRollupConfigs asserts that a requested interop activation
+// timestamp is the one lokahi will derive anyway.
+//
+// op-supernode takes the activation timestamp as its own configuration, independent of the
+// rollup configs it hosts. lokahi has no such knob: it reads Lagoon time out of each chain's
+// rollup config and requires the set to agree, because the message rules it applies read the
+// same field, so a separate number could put the verifier and the proof on different rules.
+//
+// Every interop preset derives the timestamp it passes here from the same place — genesis time
+// plus the Lagoon offset it configured the chains with (see buildTwoL2RuntimeWorld) — so the
+// two numbers are the same number and there is nothing to override. Asserting that rather than
+// ignoring the pointer is what keeps a future preset that genuinely wants a different
+// activation from silently getting the rollup config's.
+func requireInteropActivationFromRollupConfigs(t devtest.T, cfg lokahiSupernodeConfig) {
+	if cfg.interopActivationTimestamp == nil {
+		return
+	}
+	requested := *cfg.interopActivationTimestamp
+	require := t.Require()
+	for _, chain := range cfg.chains {
+		// Compared without dereferencing on the failing path: this reports rather than returns,
+		// so it must not depend on the assertion aborting the loop it is in.
+		switch scheduled := chain.net.rollupCfg.LagoonTime; {
+		case scheduled == nil:
+			require.FailNowf("lokahi has no interop activation override",
+				"chain %s schedules no Lagoon time, so lokahi cannot activate interop at the "+
+					"requested %d: it takes activation from each chain's rollup config. "+
+					"Requested: %s",
+				chain.net.ChainID(), requested, cfg.describe())
+		case *scheduled != requested:
+			require.FailNowf("lokahi has no interop activation override",
+				"chain %s schedules Lagoon at %d, but %d was requested: lokahi takes interop "+
+					"activation from each chain's rollup config. Requested: %s",
+				chain.net.ChainID(), *scheduled, requested, cfg.describe())
+		}
+	}
+}
 
 // startLokahiSupernode runs lokahi as the shared multi-chain consensus layer.
 //
@@ -204,12 +277,7 @@ func startLokahiSupernode(t devtest.T, cfg lokahiSupernodeConfig) *LokahiSuperno
 	require := t.Require()
 	require.NotEmpty(cfg.chains, "a supernode hosts at least one chain")
 
-	// Still configurable in op-supernode with no lokahi equivalent, so a caller asking for
-	// it is told rather than quietly given a supernode whose interop activates whenever the
-	// rollup configs say it does.
-	require.Nil(cfg.interopActivationTimestamp,
-		"lokahi takes interop activation from the rollup config's Lagoon time and has no "+
-			"override for it. Requested: %s", cfg.describe())
+	requireInteropActivationFromRollupConfigs(t, cfg)
 
 	dir := t.TempDirWithPrefix("l2-cl-lokahi")
 	logger := t.Logger().New("component", "lokahi")
@@ -571,36 +639,27 @@ func reservePorts(t devtest.T, n int) []int {
 	return ports
 }
 
-// failLokahiUnsupportedByPresets rejects DEVSTACK_SUPERNODE_KIND=lokahi for the multi-chain
-// and interop presets.
+// var assertion for the seam the presets reach lokahi through. It is here rather than beside the
+// type so that a method removed from LokahiSupernode fails to compile at the seam that needs it.
+var _ SharedSupernode = (*LokahiSupernode)(nil)
+
+// startSharedLokahiSupernode brings up lokahi as the shared supernode of a multi-chain preset,
+// and hands back the per-chain endpoints in configuration order.
 //
-// The launch above works, and the harness is ready for a supernode in another process:
-// everything stack.SupernodeTestControl asks for is RPC-shaped rather than a handle on an
-// in-process object, and RestartWithFreshDataDir above is implemented. What is still missing is
-// on the lokahi side, and it is three separate things, each tracked on its own:
+// This is what DEVSTACK_SUPERNODE_KIND=lokahi selects, and it is the counterpart of the Go
+// supernode bring-up in multichain_supernode_runtime.go rather than a second bring-up path: both
+// are handed the same lokahiSupernodeConfig-shaped inputs, which is what keeps the two
+// implementations from being given different worlds to run in.
 //
-//   - #22537 — lokahi has no interop verifier wired into the node at all. rust/lokahi's manifest
-//     does not depend on lokahi-interop, and the process-wide admin RPC serves only
-//     lokahi_chains and lokahi_version, so there is nothing to pause, resume, or report on.
-//   - #22544 — LokahiSupernode has no QueryAPI, so neither supernode_syncStatus nor
-//     superroot_atTimestamp is answered; the DSL Supernode wrapper calls QueryAPI
-//     unconditionally, when it is constructed.
-//   - #22545 — these presets have the supernode's virtual nodes sequence, and pass a non-nil
-//     interop activation timestamp. startLokahiSupernode refuses both outright.
-//
-// The check stays until those are closed, and it has to stay: startTwoL2SharedSupernode returns
-// the concrete *SuperNode, and the presets pass that same value as both the test control and the
-// frontend's backing. Removing this would therefore not let lokahi through — it would silently
-// bring up the Go op-supernode while DEVSTACK_SUPERNODE_KIND=lokahi is set, which is worse than
-// failing here.
-func failLokahiUnsupportedByPresets(t devtest.T, cfg lokahiSupernodeConfig) {
-	t.Require().FailNowf("lokahi cannot back the shared-supernode presets yet",
-		"%s=%s selected, but lokahi serves no interop verifier (#22537) and no supernode "+
-			"query API (#22544), and these presets need the supernode's virtual nodes to "+
-			"sequence with interop activated, which its launch path refuses (#22545). "+
-			"Requested: %s. Unset %s (or set it to %q) to run the in-process Go "+
-			"op-supernode; the lokahi component itself is covered by the two-chain lokahi "+
-			"preset.",
-		devstackSupernodeKindEnv, SupernodeLokahi, cfg.describe(),
-		devstackSupernodeKindEnv, SupernodeOpSupernode)
+// The endpoints are L2CLNode, not *SuperNodeProxy: a chain of a Go supernode is a route on one
+// shared RPC, and a chain of lokahi is its own socket behind its own proxy. Everything a preset
+// does with them — peer them, follow them, batch from them, propose from them — is on that
+// interface.
+func startSharedLokahiSupernode(t devtest.T, cfg lokahiSupernodeConfig) (*LokahiSupernode, []L2CLNode) {
+	sn := startLokahiSupernode(t, cfg)
+	cls := make([]L2CLNode, len(cfg.chains))
+	for i := range cfg.chains {
+		cls[i] = sn.ChainCL(i)
+	}
+	return sn, cls
 }

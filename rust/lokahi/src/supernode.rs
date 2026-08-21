@@ -3,7 +3,7 @@
 use crate::{
     admin,
     config::{L1Settings, ResolvedChain, ResolvedConfig, SequencerSettings},
-    interop::{ChainInterop, HostedChain, InteropActor},
+    interop::{ChainInterop, HostedChain, InteropActor, InteropTestHandle},
     query::{QueryChain, QueryHandle},
 };
 use alloy_primitives::{Address, B256};
@@ -208,8 +208,11 @@ impl Supernode {
         // filled in once every chain is composed. That ordering is what lets the address be logged
         // before composition without the API ever answering for a chain set that does not exist.
         let queries = QueryHandle::default();
+        let interop_test = InteropTestHandle::default();
         let _admin = match admin_rpc {
-            Some(socket) => Some(admin::serve(socket, &configured, queries.clone()).await?),
+            Some(socket) => Some(
+                admin::serve(socket, &configured, queries.clone(), interop_test.clone()).await?,
+            ),
             None => None,
         };
 
@@ -306,7 +309,12 @@ impl Supernode {
                 activation,
                 interop_chains,
             )?;
-            interop_reader = Some(interop.attach_queries(activation));
+            let reader = interop.attach_queries(activation);
+            // The test-control API reads and drives the verifier through the same queue the query
+            // API reads it through, so a pause it sets and a frontier the query API reports cannot
+            // disagree: both are one turn of the actor's loop.
+            interop_test.attach(reader.clone());
+            interop_reader = Some(reader);
             actors.push(interop.boxed());
         }
 

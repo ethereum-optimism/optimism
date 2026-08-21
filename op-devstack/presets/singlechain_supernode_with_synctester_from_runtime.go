@@ -64,7 +64,7 @@ func singleSupernodeWithSyncTesterFromRuntime(t devtest.T, runtime *sysgo.MultiC
 	l2Net.AddL2ELNode(syncTesterELFront)
 	l2Net.AddL2CLNode(supernodeCLFront)
 
-	supernodeFront := newSupernodeFrontend(t, "supernode-sync-tester-system", runtime.Supernode.UserRPC())
+	supernodeFront := newSupernodeFrontend(t, "supernode-sync-tester-system", runtime.Supernode.QueryRPC())
 
 	l1ELDSL := dsl.NewL1ELNode(l1ELFront)
 	l1CLDSL := dsl.NewL1CLNode(l1CLFront)

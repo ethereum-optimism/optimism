@@ -150,7 +150,9 @@ type MultiChainRuntime struct {
 
 	Chains map[string]*MultiChainNodeRuntime
 
-	Supernode *SuperNode
+	// Supernode is the shared multi-chain consensus layer, whichever implementation
+	// DEVSTACK_SUPERNODE_KIND selected. See SharedSupernode.
+	Supernode SharedSupernode
 
 	TimeTravel         *clock.AdvancingClock
 	TestSequencer      *TestSequencerRuntime
