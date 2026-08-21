@@ -402,9 +402,7 @@ where
         // Message expiry invariant: The timestamp of the initiating message must be no more than
         // `MESSAGE_EXPIRY_WINDOW` seconds in the past, relative to the timestamp of the executing
         // message.
-        if initiating_timestamp <
-            message.executing_timestamp.saturating_sub(self.message_expiry_window)
-        {
+        if message.executing_timestamp - initiating_timestamp > self.message_expiry_window {
             return Err(MessageGraphError::MessageExpired {
                 initiating_timestamp,
                 executing_timestamp: message.executing_timestamp,
@@ -1065,6 +1063,39 @@ mod test {
                 executing_timestamp: chain_a_time + MESSAGE_EXPIRY_WINDOW + 1
             }
         );
+    }
+
+    /// A message executed exactly `MESSAGE_EXPIRY_WINDOW` seconds after it was initiated is
+    /// still valid: the expiry invariant only invalidates a strictly larger gap.
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_message_at_expiry_boundary() {
+        let mut superchain = default_superchain();
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain
+            .chain(CHAIN_B_ID)
+            .with_timestamp(chain_a_time + MESSAGE_EXPIRY_WINDOW)
+            .add_executing_message(
+                ExecutingMessageBuilder::default()
+                    .with_message_hash(keccak256(MOCK_MESSAGE))
+                    .with_origin_chain_id(CHAIN_A_ID)
+                    .with_origin_timestamp(chain_a_time),
+            );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        graph.resolve().await.unwrap();
     }
 
     #[tokio::test]

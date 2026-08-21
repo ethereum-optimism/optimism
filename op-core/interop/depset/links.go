@@ -2,7 +2,6 @@ package depset
 
 import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/safemath"
 )
 
 // ActivationConfig answers per-chain interop activation queries.
@@ -71,8 +70,8 @@ func (lc *LinkCheckerImpl) CanExecute(execInChain eth.ChainID,
 	if initTimestamp > execInTimestamp {
 		return false
 	}
-	expiresAt := safemath.SaturatingAdd(initTimestamp, lc.cfg.MessageExpiryWindow())
-	if expiresAt < execInTimestamp { // expiry check
+	// expiry check
+	if execInTimestamp-initTimestamp > lc.cfg.MessageExpiryWindow() {
 		return false
 	}
 	return true
