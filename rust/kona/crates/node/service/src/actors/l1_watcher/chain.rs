@@ -7,7 +7,7 @@ use kona_genesis::{RollupConfig, SystemConfigLog, SystemConfigUpdate, UnsafeBloc
 use kona_protocol::BlockInfo;
 use kona_rpc::L1WatcherQueries;
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 /// A single L2 chain served by the [`L1WatcherActor`](super::L1WatcherActor).
 ///
@@ -24,6 +24,14 @@ pub struct L1WatcherChain<L1WatcherDerivationClient_> {
     pub(super) block_signer_sender: mpsc::Sender<Address>,
     /// The inbound queries for this chain.
     pub(super) inbound_queries: mpsc::Receiver<L1WatcherQueries>,
+    /// Where the observed L1 head is published for this chain; its sequencer reads the head from
+    /// here through its origin selector.
+    ///
+    /// One watch per chain rather than one for the whole watcher: a chain's actors are wired
+    /// together by [`RollupNode::compose`](crate::RollupNode::compose) before any host decides how
+    /// many watchers to run, so the receiving end already belongs to the chain by the time the
+    /// watcher is built.
+    l1_head_updates: watch::Sender<Option<BlockInfo>>,
 }
 
 impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_> {
@@ -33,8 +41,21 @@ impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_> {
         derivation_client: L1WatcherDerivationClient_,
         block_signer_sender: mpsc::Sender<Address>,
         inbound_queries: mpsc::Receiver<L1WatcherQueries>,
+        l1_head_updates: watch::Sender<Option<BlockInfo>>,
     ) -> Self {
-        Self { rollup_config, derivation_client, block_signer_sender, inbound_queries }
+        Self {
+            rollup_config,
+            derivation_client,
+            block_signer_sender,
+            inbound_queries,
+            l1_head_updates,
+        }
+    }
+
+    /// The L1 head last published to this chain, which is also the view its RPC frontend reports
+    /// as the current L1 block.
+    pub(super) fn latest_l1_head(&self) -> Option<BlockInfo> {
+        *self.l1_head_updates.borrow()
     }
 
     /// The id of the L2 chain this instance serves.
@@ -50,11 +71,15 @@ impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_>
 where
     L1WatcherDerivationClient_: L1WatcherDerivationClient,
 {
-    /// Sends a new L1 head to this chain's derivation actor.
+    /// Publishes a new L1 head to this chain: to its head watch, and to its derivation actor.
+    ///
+    /// The watch is published first and unconditionally, so a full derivation queue does not also
+    /// hide the new head from the chain's sequencer.
     pub(super) async fn send_new_l1_head(
         &self,
         block: BlockInfo,
     ) -> Result<(), L1WatcherActorError<BlockInfo>> {
+        self.l1_head_updates.send_replace(Some(block));
         self.derivation_client.send_new_l1_head(block).await.map_err(|e| {
             warn!(target: "l1_watcher", chain_id = self.chain_id(), "Error sending l1 head update to derivation actor: {e}");
             L1WatcherActorError::DerivationClientError { chain_id: self.chain_id(), source: e }

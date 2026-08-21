@@ -11,7 +11,7 @@ use futures::{
 };
 use kona_protocol::BlockInfo;
 use kona_rpc::{L1State, L1WatcherQueries};
-use tokio::{select, sync::watch};
+use tokio::select;
 
 use super::{L1WatcherChain, L1WatcherDerivationClient};
 
@@ -44,8 +44,6 @@ where
 {
     /// The L1 provider.
     l1_provider: L1Provider,
-    /// The latest L1 head block.
-    latest_head: watch::Sender<Option<BlockInfo>>,
     /// A stream over the latest head.
     head_stream: BlockStream,
     /// A stream over the finalized block accepted as canonical.
@@ -74,21 +72,13 @@ where
     /// Panics if `chains` is empty; a watcher without a chain to serve has nothing to do.
     pub fn new(
         l1_provider: L1Provider,
-        l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
         head_stream: BlockStream,
         finalized_stream: BlockStream,
         chains: Vec<L1WatcherChain<L1WatcherDerivationClient_>>,
     ) -> Self {
         assert!(!chains.is_empty(), "the L1 watcher must serve at least one chain");
 
-        Self {
-            l1_provider,
-            latest_head: l1_head_updates_tx,
-            head_stream,
-            finalized_stream,
-            chains,
-            next_chain: 0,
-        }
+        Self { l1_provider, head_stream, finalized_stream, chains, next_chain: 0 }
     }
 
     /// Reads the L1 view answered by [`L1WatcherQueries::L1State`] from the L1 provider.
@@ -163,9 +153,6 @@ where
                 Err(L1WatcherActorError::StreamEnded)
             }
             L1WatcherEvent::Head(Some(head_block_info)) => {
-                // Send the head update event to all consumers.
-                self.latest_head.send_replace(Some(head_block_info));
-
                 // Fan the head out to every chain before the log queries below, so that a slow
                 // query for one chain does not hold up derivation on the others. The sends are
                 // started together rather than awaited one at a time: each chain's derivation
@@ -215,7 +202,7 @@ where
                         }
                     }
                     L1WatcherQueries::L1State(sender) => {
-                        let current_l1 = *self.latest_head.borrow();
+                        let current_l1 = self.chains[chain_index].latest_l1_head();
                         if let Err(e) =
                             sender.send(Self::l1_state(&self.l1_provider, current_l1).await)
                         {
@@ -256,7 +243,7 @@ mod tests {
             atomic::{AtomicUsize, Ordering},
         },
     };
-    use tokio::sync::{mpsc, oneshot};
+    use tokio::sync::{mpsc, oneshot, watch};
 
     /// Both block streams of an actor must have the same type, so tests box them.
     type TestStream = Pin<Box<dyn Stream<Item = BlockInfo> + Send>>;
@@ -265,6 +252,7 @@ mod tests {
     struct ChainHandles {
         query_tx: mpsc::Sender<L1WatcherQueries>,
         signer_rx: mpsc::Receiver<Address>,
+        l1_head_rx: watch::Receiver<Option<BlockInfo>>,
     }
 
     fn chain_at(index: u8) -> Address {
@@ -321,10 +309,11 @@ mod tests {
         });
         let (signer_tx, signer_rx) = mpsc::channel(16);
         let (query_tx, query_rx) = mpsc::channel(16);
+        let (l1_head_tx, l1_head_rx) = watch::channel(None);
 
         (
-            L1WatcherChain::new(rollup_config, client, signer_tx, query_rx),
-            ChainHandles { query_tx, signer_rx },
+            L1WatcherChain::new(rollup_config, client, signer_tx, query_rx, l1_head_tx),
+            ChainHandles { query_tx, signer_rx, l1_head_rx },
         )
     }
 
@@ -335,17 +324,13 @@ mod tests {
         heads: Vec<BlockInfo>,
         finalized: Vec<BlockInfo>,
         chains: Vec<L1WatcherChain<Client>>,
-    ) -> (L1WatcherActor<TestStream, impl Provider, Client>, watch::Receiver<Option<BlockInfo>>)
-    {
-        let (latest_head_tx, latest_head_rx) = watch::channel(None);
-        let actor = L1WatcherActor::new(
+    ) -> L1WatcherActor<TestStream, impl Provider, Client> {
+        L1WatcherActor::new(
             ProviderBuilder::default().connect_mocked_client(asserter),
-            latest_head_tx,
             Box::pin(stream::iter(heads).chain(stream::pending())) as TestStream,
             Box::pin(stream::iter(finalized).chain(stream::pending())) as TestStream,
             chains,
-        );
-        (actor, latest_head_rx)
+        )
     }
 
     /// A new L1 head reaches every chain's derivation actor, and each chain's system config logs
@@ -380,11 +365,15 @@ mod tests {
             handles.push(handle);
         }
 
-        let (mut actor, latest_head_rx) = actor(asserter, vec![block], vec![], chains);
+        let mut actor = actor(asserter, vec![block], vec![], chains);
         actor.step().await.expect("step");
 
-        assert_eq!(*latest_head_rx.borrow(), Some(block));
         for (index, handle) in handles.iter_mut().enumerate() {
+            assert_eq!(
+                *handle.l1_head_rx.borrow(),
+                Some(block),
+                "chain {index} did not observe the new L1 head on its own head watch"
+            );
             assert_eq!(
                 handle.signer_rx.try_recv().expect("signer update"),
                 signer_at(index as u8),
@@ -416,7 +405,7 @@ mod tests {
             handles.push(handle);
         }
 
-        let (mut actor, _latest_head_rx) = actor(Asserter::new(), vec![], vec![block], chains);
+        let mut actor = actor(Asserter::new(), vec![], vec![block], chains);
         actor.step().await.expect("step");
 
         // Keep the query senders alive for the duration of the step.
@@ -491,7 +480,7 @@ mod tests {
             observed.push(chain_observed);
         }
 
-        let (mut actor, _latest_head_rx) = actor(asserter, heads, finalized, chains);
+        let mut actor = actor(asserter, heads, finalized, chains);
         actor.step().await.expect("step");
 
         for (index, chain_observed) in observed.iter().enumerate() {
@@ -532,7 +521,7 @@ mod tests {
             handles.push(handle);
         }
 
-        let (mut actor, _latest_head_rx) = actor(Asserter::new(), vec![], vec![], chains);
+        let mut actor = actor(Asserter::new(), vec![], vec![], chains);
 
         // Keep chain 0's channel non-empty for the whole test: with a fixed 0..N poll order it
         // wins every round and no other chain is ever reached.
@@ -573,7 +562,7 @@ mod tests {
             handles.push(handle);
         }
 
-        let (mut actor, _latest_head_rx) = actor(Asserter::new(), vec![], vec![], chains);
+        let mut actor = actor(Asserter::new(), vec![], vec![], chains);
 
         for index in 0..CHAINS {
             let (tx, rx) = oneshot::channel();
@@ -620,7 +609,7 @@ mod tests {
             handles.push(handle);
         }
 
-        let (mut actor, _latest_head_rx) = actor(asserter.clone(), vec![block], vec![], chains);
+        let mut actor = actor(asserter.clone(), vec![block], vec![], chains);
 
         // Take the head first, so that the query below has a `current_l1` to report.
         actor.step().await.expect("head step");

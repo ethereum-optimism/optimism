@@ -56,6 +56,68 @@ pub struct L1Config {
     pub engine_provider: RootProvider,
 }
 
+impl L1Config {
+    /// Builds the one L1 watcher a host runs, serving every chain whose [`L1WatcherPorts`] are
+    /// given.
+    ///
+    /// This is the single place a watcher is attached to composed chains, and the reason
+    /// [`RollupNode::compose`] leaves the watcher out of a chain's actors: the L1 is followed once
+    /// per process, not once per chain, so how many watchers exist is the host's decision and this
+    /// is where the host states it. A single-chain host passes one chain's ports; a multi-chain
+    /// host passes every chain's, and the head and finalized streams are then polled once for all
+    /// of them.
+    ///
+    /// The returned actor is inert until it is stepped by [`run_actors`].
+    ///
+    /// Returns `impl NodeActor` rather than a named type: the block-stream type produced by
+    /// [`BlockStream::new_as_stream`] is `impl Stream`, so the `L1WatcherActor` generic parameter
+    /// cannot be written down. Callers only need a `NodeActor` to box.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `chains` is empty; a watcher with no chain to serve has nothing to do, and a host
+    /// that composed no chain is a configuration bug rather than a runtime condition.
+    pub fn l1_watcher(
+        &self,
+        chains: Vec<L1WatcherPorts>,
+    ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
+    {
+        let head_stream = BlockStream::new_as_stream(
+            self.engine_provider.clone(),
+            BlockNumberOrTag::Latest,
+            Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
+        )?;
+        let finalized_stream = BlockStream::new_as_stream(
+            self.engine_provider.clone(),
+            BlockNumberOrTag::Finalized,
+            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+        )?;
+
+        let chains = chains
+            .into_iter()
+            .map(|ports| {
+                let L1WatcherPorts {
+                    rollup_config,
+                    derivation_actor_request_tx,
+                    unsafe_signer_tx,
+                    l1_query_rx,
+                    l1_head_updates_tx,
+                } = ports;
+
+                L1WatcherChain::new(
+                    rollup_config,
+                    QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
+                    unsafe_signer_tx,
+                    l1_query_rx,
+                    l1_head_updates_tx,
+                )
+            })
+            .collect();
+
+        Ok(L1WatcherActor::new(self.engine_provider.clone(), head_stream, finalized_stream, chains))
+    }
+}
+
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
 /// Stack configuration of components.
 #[derive(Debug)]
@@ -288,53 +350,6 @@ impl RollupNode {
                 self.create_pipeline().await,
             )))
         }
-    }
-
-    /// Builds the L1 watcher actor along with its head and finalized block streams.
-    ///
-    /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
-    /// type alias: the block-stream type produced by [`BlockStream::new_as_stream`] is
-    /// `impl Stream`, so the resulting `L1WatcherActor` generic parameter cannot be written down.
-    /// Using `impl Trait` here is intentional; the caller only needs a `NodeActor` to box.
-    fn build_l1_watcher(
-        &self,
-        ports: L1WatcherPorts,
-    ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
-    {
-        let head_stream = BlockStream::new_as_stream(
-            self.l1_config.engine_provider.clone(),
-            BlockNumberOrTag::Latest,
-            Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
-        )?;
-        let finalized_stream = BlockStream::new_as_stream(
-            self.l1_config.engine_provider.clone(),
-            BlockNumberOrTag::Finalized,
-            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
-        )?;
-
-        let L1WatcherPorts {
-            rollup_config,
-            derivation_actor_request_tx,
-            unsafe_signer_tx,
-            l1_query_rx,
-            l1_head_updates_tx,
-        } = ports;
-
-        // A standalone kona-node is the N=1 case of the multi-chain watcher.
-        let chain = L1WatcherChain::new(
-            rollup_config,
-            QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
-            unsafe_signer_tx,
-            l1_query_rx,
-        );
-
-        Ok(L1WatcherActor::new(
-            self.l1_config.engine_provider.clone(),
-            l1_head_updates_tx,
-            head_stream,
-            finalized_stream,
-            vec![chain],
-        ))
     }
 
     /// Builds the sequencer actor when the node is in sequencer mode; otherwise returns `None`.
@@ -587,7 +602,7 @@ impl RollupNode {
         let cancellation = CancellationToken::new();
 
         let ComposedChain { mut actors, l1_watcher_ports } = self.compose().await?;
-        actors.push(self.build_l1_watcher(l1_watcher_ports)?.boxed());
+        actors.push(self.l1_config.l1_watcher(vec![l1_watcher_ports])?.boxed());
 
         run_actors(cancellation, actors).await
     }
