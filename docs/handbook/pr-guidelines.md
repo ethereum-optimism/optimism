@@ -69,7 +69,7 @@ Keep the description short. Two or three sentences are usually sufficient. Two s
 
 Do not tell the reviewer what the code does. The reviewer reads the diff. Text that repeats the diff becomes incorrect when the code changes. Explain an implementation detail only if the code does not make it clear — for example a necessary sequence, a condition that must stay true, or the reason for a step that seems unnecessary.
 
-Use the same rule as our release notes: give the result, not the code change. "An op-node at v1.19.2 or earlier can calculate a different post-Karst gas limit and stop safe-head progression" is useful to the reader. "Syncs the embedded registry configs" is not.
+Give the result, not the code change — our release notes use the same principle. Write in the present tense, and compare with the behavior before this PR. Do not give version numbers. "Corrects a gas limit calculation that stops safe-head progression after the Karst upgrade" tells the reader the result. "Syncs the embedded registry configs" does not.
 
 Do not use a multi-section template unless the change makes it necessary. Do not include a test plan.
 
