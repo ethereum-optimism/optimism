@@ -45,7 +45,13 @@ func (bs *Ensemble) Start(ctx context.Context, opts *StartOpts) (*Ensemble, erro
 	return bs, nil
 }
 
+// Close closes all services of the ensemble.
+// Close is safe to call on a nil Ensemble: Starter.Start may return a nil ensemble
+// alongside an error, and callers may have deferred Close before checking that error.
 func (bs *Ensemble) Close() error {
+	if bs == nil {
+		return nil
+	}
 	// We close all services in reverse order: user-facing first most, then underlying services.
 	var result error
 	bs.sequencers.Range(func(id seqtypes.SequencerID, v Sequencer) bool {

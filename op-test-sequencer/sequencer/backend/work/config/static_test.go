@@ -72,3 +72,27 @@ func TestEnsemble_Start(t *testing.T) {
 		require.Len(t, out.Sequencers(), 1)
 	})
 }
+
+// TestEnsemble_StartError checks that a failure part-way through Start unwinds cleanly:
+// the already-started services are closed and the failure is returned as an error,
+// rather than the cleanup defer panicking on the nil ensemble the error paths return.
+func TestEnsemble_StartError(t *testing.T) {
+	v := &Ensemble{
+		Builders: map[seqtypes.BuilderID]*BuilderEntry{
+			"noop-builder": {
+				Noop: &noopbuilder.Config{},
+			},
+		},
+		// An entry with no kind set fails to start, after the builder above already started.
+		Sequencers: map[seqtypes.SequencerID]*SequencerEntry{
+			"broken-sequencer": {},
+		},
+	}
+	logger := testlog.Logger(t, log.LevelError)
+	out, err := v.Start(context.Background(), &work.StartOpts{
+		Log:     logger,
+		Metrics: &metrics.NoopMetrics{},
+	})
+	require.ErrorIs(t, err, seqtypes.ErrUnknownKind)
+	require.Nil(t, out)
+}
