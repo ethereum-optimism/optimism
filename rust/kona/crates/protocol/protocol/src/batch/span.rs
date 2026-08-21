@@ -620,7 +620,19 @@ impl SpanBatch {
         fetcher: &mut BF,
     ) -> (BatchValidity, Option<L2BlockInfo>) {
         if l1_origins.is_empty() {
-            warn!(target: "batch_span", "missing L1 block input, cannot proceed with batch checking");
+            warn!(
+                target: "batch_span",
+                chain_id = self.chain_id,
+                l1_origin_count = l1_origins.len(),
+                span_block_count = self.batches.len(),
+                safe_head_number = l2_safe_head.block_info.number,
+                safe_head_timestamp = l2_safe_head.block_info.timestamp,
+                safe_head_l1_origin_number = l2_safe_head.l1_origin.number,
+                inclusion_l1_block_number = inclusion_block.number,
+                inclusion_l1_block_timestamp = inclusion_block.timestamp,
+                holocene_active = cfg.is_holocene_active(inclusion_block.timestamp),
+                "missing L1 block input, cannot proceed with batch checking"
+            );
             return (BatchValidity::Undecided, None);
         }
         if self.batches.is_empty() {
@@ -671,8 +683,26 @@ impl SpanBatch {
 
         // Drop the batch if it has no new blocks after the safe head.
         if self.final_timestamp() < next_timestamp {
-            warn!(target: "batch_span", "span batch has no new blocks after safe head");
-            return if cfg.is_holocene_active(inclusion_block.timestamp) {
+            let span_start_timestamp = self.starting_timestamp();
+            let span_final_timestamp = self.final_timestamp();
+            let span_lag_seconds = next_timestamp.saturating_sub(span_final_timestamp);
+            let holocene_active = cfg.is_holocene_active(inclusion_block.timestamp);
+            let batch_validity = if holocene_active { "past" } else { "drop" };
+            warn!(
+                target: "batch_span",
+                chain_id = self.chain_id,
+                span_start_timestamp,
+                span_final_timestamp,
+                safe_head_timestamp = l2_safe_head.block_info.timestamp,
+                next_expected_timestamp = next_timestamp,
+                span_lag_seconds,
+                inclusion_l1_block_number = inclusion_block.number,
+                inclusion_l1_block_timestamp = inclusion_block.timestamp,
+                holocene_active,
+                batch_validity,
+                "span batch has no new blocks after safe head"
+            );
+            return if holocene_active {
                 (BatchValidity::Past, None)
             } else {
                 (BatchValidity::Drop(BatchDropReason::SpanBatchNoNewBlocksPreHolocene), None)
@@ -927,12 +957,19 @@ mod tests {
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
 
-        let cfg = RollupConfig::default();
+        let cfg = RollupConfig {
+            hardforks: HardForkConfig { holocene_time: Some(200), ..Default::default() },
+            ..Default::default()
+        };
         let l1_blocks = vec![];
-        let l2_safe_head = L2BlockInfo::default();
-        let inclusion_block = BlockInfo::default();
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo { number: 22, timestamp: 120, ..Default::default() },
+            l1_origin: BlockNumHash { number: 9, ..Default::default() },
+            ..Default::default()
+        };
+        let inclusion_block = BlockInfo { number: 14, timestamp: 150, ..Default::default() };
         let mut fetcher: TestBatchValidator = TestBatchValidator::default();
-        let batch = SpanBatch::default();
+        let batch = SpanBatch { chain_id: 10, ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
             BatchValidity::Undecided
@@ -940,6 +977,15 @@ mod tests {
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
         assert!(logs[0].contains("missing L1 block input, cannot proceed with batch checking"));
+        assert!(logs[0].contains("chain_id: 10"));
+        assert!(logs[0].contains("l1_origin_count: 0"));
+        assert!(logs[0].contains("span_block_count: 0"));
+        assert!(logs[0].contains("safe_head_number: 22"));
+        assert!(logs[0].contains("safe_head_timestamp: 120"));
+        assert!(logs[0].contains("safe_head_l1_origin_number: 9"));
+        assert!(logs[0].contains("inclusion_l1_block_number: 14"));
+        assert!(logs[0].contains("inclusion_l1_block_timestamp: 150"));
+        assert!(logs[0].contains("holocene_active: false"));
     }
 
     #[tokio::test]
@@ -1100,28 +1146,54 @@ mod tests {
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
 
-        let cfg = RollupConfig {
-            hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
-            block_time: 10,
-            ..Default::default()
-        };
         let block = BlockInfo { number: 10, timestamp: 10, ..Default::default() };
         let l1_blocks = vec![block];
         let l2_safe_head = L2BlockInfo {
-            block_info: BlockInfo { timestamp: 10, ..Default::default() },
+            block_info: BlockInfo { timestamp: 20, ..Default::default() },
             ..Default::default()
         };
-        let inclusion_block = BlockInfo::default();
+        let inclusion_block = BlockInfo { number: 12, timestamp: 25, ..Default::default() };
         let mut fetcher: TestBatchValidator = TestBatchValidator::default();
-        let first = SpanBatchElement { epoch_num: 10, timestamp: 10, ..Default::default() };
-        let batch = SpanBatch { batches: vec![first], ..Default::default() };
-        assert_eq!(
-            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop(BatchDropReason::SpanBatchNoNewBlocksPreHolocene)
-        );
+        let first = SpanBatchElement { epoch_num: 10, timestamp: 0, ..Default::default() };
+        let last = SpanBatchElement { epoch_num: 10, timestamp: 10, ..Default::default() };
+        let batch = SpanBatch { chain_id: 10, batches: vec![first, last], ..Default::default() };
+        for (holocene_time, expected_validity) in [
+            (Some(26), BatchValidity::Drop(BatchDropReason::SpanBatchNoNewBlocksPreHolocene)),
+            (Some(0), BatchValidity::Past),
+        ] {
+            let cfg = RollupConfig {
+                hardforks: HardForkConfig {
+                    delta_time: Some(0),
+                    holocene_time,
+                    ..Default::default()
+                },
+                block_time: 10,
+                ..Default::default()
+            };
+            assert_eq!(
+                batch
+                    .check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher,)
+                    .await,
+                expected_validity
+            );
+        }
         let logs = trace_store.get_by_level(Level::WARN);
-        assert_eq!(logs.len(), 1);
-        assert!(logs[0].contains("span batch has no new blocks after safe head"));
+        assert_eq!(logs.len(), 2);
+        for log in &logs {
+            assert!(log.contains("span batch has no new blocks after safe head"));
+            assert!(log.contains("chain_id: 10"));
+            assert!(log.contains("span_start_timestamp: 0"));
+            assert!(log.contains("span_final_timestamp: 10"));
+            assert!(log.contains("safe_head_timestamp: 20"));
+            assert!(log.contains("next_expected_timestamp: 30"));
+            assert!(log.contains("span_lag_seconds: 20"));
+            assert!(log.contains("inclusion_l1_block_number: 12"));
+            assert!(log.contains("inclusion_l1_block_timestamp: 25"));
+        }
+        assert!(logs[0].contains("holocene_active: false"));
+        assert!(logs[0].contains("batch_validity: \"drop\""));
+        assert!(logs[1].contains("holocene_active: true"));
+        assert!(logs[1].contains("batch_validity: \"past\""));
     }
 
     #[tokio::test]

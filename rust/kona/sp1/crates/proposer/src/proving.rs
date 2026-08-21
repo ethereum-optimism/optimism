@@ -6,7 +6,7 @@
 //! aggregation-input validation. The mock provider then returns placeholder bytes; the network
 //! provider proves each chunk in compressed mode and aggregates them with PLONK.
 
-use std::num::NonZeroUsize;
+use std::{future::Future, num::NonZeroUsize};
 
 use alloy_primitives::B256;
 use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -19,6 +19,7 @@ use kona_sp1_super_range_executor::{
     proof_from_super_v1, synthesize_execution,
 };
 use sp1_sdk::{SP1Proof, SP1Stdin};
+use tracing::Instrument;
 
 pub use crate::ports::GameProofInputs;
 
@@ -193,6 +194,32 @@ struct ChunkResult {
     proofs: Option<(SP1Proof, SP1Proof)>,
 }
 
+/// Runs a range-witness chunk with proof-replay context attached for its full async lifetime.
+async fn with_proof_replay_chunk_span<F>(
+    index: usize,
+    chunk_count: usize,
+    agreed_timestamp: u64,
+    claimed_timestamp: u64,
+    future: F,
+) -> F::Output
+where
+    F: Future,
+{
+    let guest_span_start_timestamp = agreed_timestamp + 1;
+    future
+        .instrument(tracing::info_span!(
+            "proof_replay_chunk",
+            derivation_mode = "proof_replay",
+            chunk_index = index,
+            chunk_count,
+            agreed_timestamp,
+            claimed_timestamp,
+            guest_span_start_timestamp,
+            guest_span_end_timestamp = claimed_timestamp,
+        ))
+        .await
+}
+
 /// Proves the game's span end to end and returns the on-chain proof bytes.
 ///
 /// `keys` must be `Some` in network mode (resolved per-prestate through the
@@ -224,75 +251,93 @@ pub async fn prove_game_inner(
         let first = (agreed_ts - game.starting_ts) as usize;
         let last = (claimed_ts - game.starting_ts) as usize;
         let chunk_responses = &responses[first..=last];
-        async move {
-            // `split` yields `(agreed, claimed]` chunks; the guest span
-            // names the claimed timestamps.
-            let span = TimestampSpan::new(agreed_ts + 1, claimed_ts)
-                .map_err(|err| anyhow!("invalid chunk span: {err:?}"))?;
-            let synthesized =
-                synthesize_execution(span, game.l1_head, game.l1_head_number, chunk_responses)
+        with_proof_replay_chunk_span(index, chunk_count, agreed_ts, claimed_ts, async move {
+            let result = async {
+                // `split` yields `(agreed, claimed]` chunks; the guest span
+                // names the claimed timestamps.
+                let span = TimestampSpan::new(agreed_ts + 1, claimed_ts)
+                    .map_err(|err| anyhow!("invalid chunk span: {err:?}"))?;
+                let synthesized =
+                    synthesize_execution(span, game.l1_head, game.l1_head_number, chunk_responses)
+                        .with_context(|| {
+                            format!("failed to synthesize span {}..={}", span.start, span.end)
+                        })?;
+
+                let range_host = build_interop_host(
+                    host_inputs,
+                    game.l1_head,
+                    &synthesized.previous_super_root_proof_bytes,
+                    synthesized.current_super_root,
+                    span.end,
+                )?;
+                let (range_witness, range_outputs) = collect_range_witness(
+                    range_host,
+                    &synthesized.range_inputs,
+                    &synthesized.preloaded_preimages,
+                )
+                .await
+                .with_context(|| format!("range witness collection failed for span {span:?}"))?;
+
+                let consolidation_host = build_interop_host(
+                    host_inputs,
+                    game.l1_head,
+                    &synthesized.previous_super_root_proof_bytes,
+                    synthesized.current_super_root,
+                    span.end,
+                )?;
+                let (consolidation_witness, consolidation_outputs) =
+                    collect_consolidation_witness(
+                        consolidation_host,
+                        &synthesized.consolidation_inputs,
+                        &synthesized.preloaded_preimages,
+                    )
+                    .await
                     .with_context(|| {
-                        format!("failed to synthesize span {}..={}", span.start, span.end)
+                        format!("consolidation witness collection failed for span {span:?}")
                     })?;
 
-            let range_host = build_interop_host(
-                host_inputs,
-                game.l1_head,
-                &synthesized.previous_super_root_proof_bytes,
-                synthesized.current_super_root,
-                span.end,
-            )?;
-            let (range_witness, range_outputs) = collect_range_witness(
-                range_host,
-                &synthesized.range_inputs,
-                &synthesized.preloaded_preimages,
-            )
-            .await
-            .with_context(|| format!("range witness collection failed for span {span:?}"))?;
+                let proofs = match (provider, keys) {
+                    (ProofProvider::Mock(_), _) => None,
+                    (provider, Some(keys)) => {
+                        let range_stdin =
+                            build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
+                        let range_proof = provider.generate_range_proof(keys, range_stdin).await?;
+                        let consolidation_stdin = build_super_consolidation_stdin(
+                            &synthesized.consolidation_inputs,
+                            consolidation_witness,
+                        )?;
+                        // Both guest modes run the super-range ELF, so both
+                        // proofs use the range proving key.
+                        let consolidation_proof =
+                            provider.generate_range_proof(keys, consolidation_stdin).await?;
+                        Some((range_proof.proof, consolidation_proof.proof))
+                    }
+                    (_, None) => bail!("network proving requires prestate proving keys"),
+                };
 
-            let consolidation_host = build_interop_host(
-                host_inputs,
-                game.l1_head,
-                &synthesized.previous_super_root_proof_bytes,
-                synthesized.current_super_root,
-                span.end,
-            )?;
-            let (consolidation_witness, consolidation_outputs) = collect_consolidation_witness(
-                consolidation_host,
-                &synthesized.consolidation_inputs,
-                &synthesized.preloaded_preimages,
-            )
-            .await
-            .with_context(|| {
-                format!("consolidation witness collection failed for span {span:?}")
-            })?;
+                Ok::<_, anyhow::Error>(ChunkResult {
+                    index,
+                    range_outputs,
+                    consolidation_outputs,
+                    proofs,
+                })
+            }
+            .await;
 
-            let proofs = match (provider, keys) {
-                (ProofProvider::Mock(_), _) => None,
-                (provider, Some(keys)) => {
-                    let range_stdin =
-                        build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
-                    let range_proof = provider.generate_range_proof(keys, range_stdin).await?;
-                    let consolidation_stdin = build_super_consolidation_stdin(
-                        &synthesized.consolidation_inputs,
-                        consolidation_witness,
-                    )?;
-                    // Both guest modes run the super-range ELF, so both
-                    // proofs use the range proving key.
-                    let consolidation_proof =
-                        provider.generate_range_proof(keys, consolidation_stdin).await?;
-                    Some((range_proof.proof, consolidation_proof.proof))
-                }
-                (_, None) => bail!("network proving requires prestate proving keys"),
-            };
-
-            Ok::<_, anyhow::Error>(ChunkResult {
-                index,
-                range_outputs,
-                consolidation_outputs,
-                proofs,
-            })
-        }
+            match &result {
+                Ok(chunk) => tracing::info!(
+                    range_transition_count = chunk.range_outputs.transitions.len(),
+                    consolidation_transition_count = chunk.consolidation_outputs.transitions.len(),
+                    proofs_generated = chunk.proofs.is_some(),
+                    "Proof replay chunk completed after validating range output-root/block bindings and consolidated super-root claims"
+                ),
+                Err(error) => tracing::error!(
+                    error = ?error,
+                    "Proof replay chunk failed"
+                ),
+            }
+            result
+        })
     });
 
     let max_concurrent = max_concurrent.get().min(chunk_count);
@@ -389,13 +434,93 @@ fn collect_indexed<T>(items: Vec<Option<T>>, what: &str) -> Result<Vec<T>> {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        collections::HashMap,
+        fmt::Write,
+        sync::{Arc, Mutex},
+    };
+
     use alloy_primitives::{Address, U256};
+    use futures::StreamExt;
     use kona_sp1_client_utils::test_utils::valid_aggregation_inputs;
     use kona_sp1_super_range_executor::{
         BlockId, ChainId, ChainIdAndOutput, SuperRootResponseData, SuperV1,
     };
+    use tracing::{
+        Event, Instrument, Metadata, Subscriber,
+        field::{Field, Visit},
+        span::{Attributes, Id, Record},
+    };
 
     use super::*;
+
+    #[derive(Debug, Default)]
+    struct CapturedSpan {
+        name: String,
+        parent: Option<u64>,
+        fields: String,
+    }
+
+    #[derive(Debug, Default)]
+    struct TraceCapture {
+        next_id: u64,
+        spans: HashMap<u64, CapturedSpan>,
+        entered: Vec<u64>,
+        event_spans: Vec<u64>,
+    }
+
+    #[derive(Debug)]
+    struct CapturingSubscriber(Arc<Mutex<TraceCapture>>);
+
+    struct FieldVisitor<'a>(&'a mut String);
+
+    impl Visit for FieldVisitor<'_> {
+        fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+            write!(self.0, "{}={value:?} ", field.name()).unwrap();
+        }
+    }
+
+    impl Subscriber for CapturingSubscriber {
+        fn enabled(&self, _metadata: &Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, attributes: &Attributes<'_>) -> Id {
+            let mut capture = self.0.lock().unwrap();
+            capture.next_id += 1;
+            let id = capture.next_id;
+            let parent = attributes
+                .parent()
+                .map(|parent| parent.clone().into_u64())
+                .or_else(|| capture.entered.last().copied());
+            let mut span = CapturedSpan {
+                name: attributes.metadata().name().to_string(),
+                parent,
+                ..Default::default()
+            };
+            attributes.record(&mut FieldVisitor(&mut span.fields));
+            capture.spans.insert(id, span);
+            Id::from_u64(id)
+        }
+
+        fn record(&self, _span: &Id, _values: &Record<'_>) {}
+
+        fn record_follows_from(&self, _span: &Id, _follows: &Id) {}
+
+        fn event(&self, _event: &Event<'_>) {
+            let mut capture = self.0.lock().unwrap();
+            let current = capture.entered.last().copied().unwrap();
+            capture.event_spans.push(current);
+        }
+
+        fn enter(&self, span: &Id) {
+            self.0.lock().unwrap().entered.push(span.clone().into_u64());
+        }
+
+        fn exit(&self, span: &Id) {
+            assert_eq!(self.0.lock().unwrap().entered.pop(), Some(span.clone().into_u64()));
+        }
+    }
 
     /// Builds a self-consistent supernode response trusted by default.
     fn response_at(
@@ -552,5 +677,56 @@ mod tests {
 
         let err = collect_indexed(vec![Some(1), None::<u64>], "chunks").unwrap_err();
         assert!(err.to_string().contains("missing chunks for chunk 1"));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn proof_replay_chunk_span_survives_unordered_execution() {
+        let capture = Arc::new(Mutex::new(TraceCapture::default()));
+        let subscriber = CapturingSubscriber(capture.clone());
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let work = async {
+            let tasks = (0..2usize).map(|index| {
+                let agreed_timestamp = 100 + index as u64 * 10;
+                let claimed_timestamp = agreed_timestamp + 10;
+                with_proof_replay_chunk_span(
+                    index,
+                    2,
+                    agreed_timestamp,
+                    claimed_timestamp,
+                    async move {
+                        tokio::task::yield_now().await;
+                        tracing::warn!(index, "nested derivation warning");
+                    },
+                )
+            });
+            futures::stream::iter(tasks).buffer_unordered(2).collect::<Vec<_>>().await;
+        };
+        work.instrument(tracing::info_span!("game", game_address = "0x1234")).await;
+
+        let capture = capture.lock().unwrap();
+        assert_eq!(capture.event_spans.len(), 2);
+        let outer = capture.spans.values().find(|span| span.name == "game").unwrap();
+        assert!(outer.fields.contains("game_address=\"0x1234\""));
+        for index in 0..2 {
+            let chunk = capture
+                .event_spans
+                .iter()
+                .map(|span_id| &capture.spans[span_id])
+                .find(|span| span.fields.contains(&format!("chunk_index={index} ")))
+                .unwrap();
+            assert_eq!(chunk.name, "proof_replay_chunk");
+            assert_eq!(capture.spans[&chunk.parent.unwrap()].name, "game");
+            assert!(chunk.fields.contains("derivation_mode=\"proof_replay\""));
+            assert!(chunk.fields.contains("chunk_count=2 "));
+            assert!(chunk.fields.contains(&format!("agreed_timestamp={} ", 100 + index * 10)));
+            assert!(chunk.fields.contains(&format!("claimed_timestamp={} ", 110 + index * 10)));
+            assert!(
+                chunk.fields.contains(&format!("guest_span_start_timestamp={} ", 101 + index * 10))
+            );
+            assert!(
+                chunk.fields.contains(&format!("guest_span_end_timestamp={} ", 110 + index * 10))
+            );
+        }
     }
 }
