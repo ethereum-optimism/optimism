@@ -12,11 +12,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-node/config"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
 
 var errSupernodeNotRunning = errors.New("sysgo: supernode is not running")
@@ -156,16 +156,17 @@ func (n *SuperNode) clearProxyUpstreams() {
 	}
 }
 
-// InteropActivity returns the interop activity, or nil if the supernode is
-// stopped or has no interop activity. The pointer is bound to the current
-// instance; do not cache across RestartWithFreshDataDir. Test-only.
-func (n *SuperNode) InteropActivity() *interop.Interop {
+// InteropTestAPI returns the test-control surface for the interop verification
+// activity, or nil if the supernode is stopped or has no interop activity. The
+// returned value is bound to the current instance; do not cache it across
+// Stop/Start or RestartWithFreshDataDir. Test-only.
+func (n *SuperNode) InteropTestAPI() apis.SupernodeInteropTestAPI {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.sn == nil {
 		return nil
 	}
-	return n.sn.InteropActivity()
+	return n.sn.InteropTestAPI()
 }
 
 // RestartWithFreshDataDir stops the supernode, deletes its on-disk data

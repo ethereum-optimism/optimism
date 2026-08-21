@@ -6,9 +6,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
 
 // Supernode wraps a stack.Supernode interface for DSL operations
@@ -108,30 +108,48 @@ func (s *Supernode) SuperRootAt(timestamp uint64, expectedChainIDs ...eth.ChainI
 	return resp
 }
 
-// interopActivity returns the currently running interop activity, failing
-// the test if test control is not wired up or the activity is not present.
-// All methods below that exercise the interop activity route through this
-// helper so that the nil-guard is written in exactly one place.
-func (s *Supernode) interopActivity() *interop.Interop {
+// interopTestAPI returns the test-control surface for the currently running
+// interop verifier, failing the test if test control is not wired up or the
+// verifier is not present. All methods below that exercise the verifier route
+// through this helper so the guard is written in exactly one place.
+//
+// The returned surface is deliberately not cached on the DSL wrapper: for an
+// in-process supernode it is bound to the current instance, so a Stop/Start or
+// RestartWithFreshDataDir must be followed by a fresh lookup.
+func (s *Supernode) interopTestAPI() apis.SupernodeInteropTestAPI {
 	s.require.NotNil(s.testControl, "operation requires test control; use NewSupernodeWithTestControl")
-	ia := s.testControl.InteropActivity()
-	s.require.NotNil(ia, "interop activity not present (supernode stopped or interop disabled)")
-	return ia
+	api := s.testControl.InteropTestAPI()
+	s.require.NotNil(api, "interop activity not present (supernode stopped or interop disabled)")
+	return api
 }
 
-// PauseInterop pauses the interop activity at the given timestamp.
-// When the interop activity attempts to process this timestamp, it returns early.
+// interopStatus reads the verifier's test-visible progress, failing the test if
+// it cannot be read.
+func (s *Supernode) interopStatus(api apis.SupernodeInteropTestAPI) eth.SupernodeInteropStatus {
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	status, err := api.InteropStatus(ctx)
+	s.require.NoError(err, "failed to read interop status")
+	return status
+}
+
+// PauseInterop pauses the interop verifier at the given timestamp.
+// When the verifier attempts to process this timestamp, it returns early.
 // This function is for integration test control only.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) PauseInterop(ts uint64) {
-	s.interopActivity().PauseAt(ts)
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	s.require.NoError(s.interopTestAPI().PauseInterop(ctx, ts), "failed to pause interop at %d", ts)
 }
 
-// ResumeInterop clears any pause on the interop activity, allowing normal processing.
+// ResumeInterop clears any pause on the interop verifier, allowing normal processing.
 // This function is for integration test control only.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) ResumeInterop() {
-	s.interopActivity().Resume()
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	s.require.NoError(s.interopTestAPI().ResumeInterop(ctx), "failed to resume interop")
 }
 
 // RestartWithFreshDataDir stops the supernode, deletes its on-disk data
@@ -167,64 +185,79 @@ func (s *Supernode) Start() {
 }
 
 // BackfillAttempts returns the number of log-backfill attempts since the
-// running interop activity's most recent (re)start.
+// running interop verifier's most recent (re)start.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) BackfillAttempts() int32 {
-	return s.interopActivity().BackfillAttempts()
+	return s.interopStatus(s.interopTestAPI()).BackfillAttempts
 }
 
 // AwaitBackfillAttempts blocks until BackfillAttempts() >= minAttempts or the
 // timeout elapses. Fails the test on timeout.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) AwaitBackfillAttempts(minAttempts int32) {
-	ia := s.interopActivity()
+	api := s.interopTestAPI()
 	ctx, cancel := context.WithTimeout(s.ctx, 3*DefaultTimeout)
 	defer cancel()
+	var attempts int32
 	err := wait.For(ctx, 500*time.Millisecond, func() (bool, error) {
-		return ia.BackfillAttempts() >= minAttempts, nil
+		status, err := api.InteropStatus(ctx)
+		if err != nil {
+			return false, nil // Ignore transient errors.
+		}
+		attempts = status.BackfillAttempts
+		return attempts >= minAttempts, nil
 	})
 	s.require.NoErrorf(err, "backfill did not reach %d attempts in time (got %d)",
-		minAttempts, ia.BackfillAttempts())
+		minAttempts, attempts)
 }
 
-// AwaitBackfillCompleted blocks until the interop activity finishes its
+// awaitBackfillCompleted blocks until the interop verifier finishes its
+// cold-start initialization, then returns the status that reported it. Fails
+// the test on timeout. Callers that need post-init fields read them off the
+// returned status rather than issuing a second call, so that what they assert
+// on is the same snapshot that told them init was done.
+func (s *Supernode) awaitBackfillCompleted(api apis.SupernodeInteropTestAPI, what string) eth.SupernodeInteropStatus {
+	ctx, cancel := context.WithTimeout(s.ctx, 3*DefaultTimeout)
+	defer cancel()
+	var status eth.SupernodeInteropStatus
+	err := wait.For(ctx, 500*time.Millisecond, func() (bool, error) {
+		got, err := api.InteropStatus(ctx)
+		if err != nil {
+			return false, nil // Ignore transient errors.
+		}
+		status = got
+		return status.BackfillCompleted, nil
+	})
+	s.require.NoErrorf(err, "%s did not complete in time", what)
+	return status
+}
+
+// AwaitBackfillCompleted blocks until the interop verifier finishes its
 // log backfill phase, or the timeout elapses. Fails the test on timeout.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) AwaitBackfillCompleted() {
-	ia := s.interopActivity()
-	ctx, cancel := context.WithTimeout(s.ctx, 3*DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 500*time.Millisecond, func() (bool, error) {
-		return ia.BackfillCompleted(), nil
-	})
-	s.require.NoError(err, "backfill did not complete in time")
+	s.awaitBackfillCompleted(s.interopTestAPI(), "backfill")
 }
 
 // ActivationTimestamp returns the configured interop activation timestamp.
 // Requires NewSupernodeWithTestControl.
 func (s *Supernode) ActivationTimestamp() uint64 {
-	return s.interopActivity().ActivationTimestamp()
+	return s.interopStatus(s.interopTestAPI()).ActivationTimestamp
 }
 
 // VerificationStartTimestamp returns the L2 timestamp the current interop
-// activity began verifying at. Returns 0 before cold-start init completes.
+// verifier began verifying at. Returns 0 before cold-start init completes.
 // Requires NewSupernodeWithTestControl.
 func (s *Supernode) VerificationStartTimestamp() uint64 {
-	return s.interopActivity().VerificationStartTimestamp()
+	return s.interopStatus(s.interopTestAPI()).VerificationStartTimestamp
 }
 
 // AwaitVerificationStartsAt blocks until cold-start init completes, then
 // asserts VerificationStartTimestamp equals expected.
 // Requires NewSupernodeWithTestControl.
 func (s *Supernode) AwaitVerificationStartsAt(expected uint64) {
-	ia := s.interopActivity()
-	ctx, cancel := context.WithTimeout(s.ctx, 3*DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 500*time.Millisecond, func() (bool, error) {
-		return ia.BackfillCompleted(), nil
-	})
-	s.require.NoError(err, "cold-start initialization did not complete in time")
-	actual := ia.VerificationStartTimestamp()
+	status := s.awaitBackfillCompleted(s.interopTestAPI(), "cold-start initialization")
+	actual := status.VerificationStartTimestamp
 	s.require.Equalf(expected, actual,
 		"verificationStartTimestamp mismatch after cold-start init: expected %d, got %d",
 		expected, actual)
@@ -240,7 +273,7 @@ func (s *Supernode) AwaitVerificationStartsAt(expected uint64) {
 //     (the first seal is at most one block before activation; when activation
 //     is not aligned to a block boundary, the block representing the chain
 //     state as of activation is the correct pairing anchor and is sealed).
-//  2. firstSealed.Timestamp <  FirstVerifiableTimestamp()
+//  2. firstSealed.Timestamp <  FirstVerifiableTimestamp
 //     (the post-backfill handoff happens strictly after the backfilled range)
 //  3. firstSealed.Timestamp <= max(ActivationTimestamp, latestSealed.Timestamp - depth)
 //     + blockTime                         (backfill reached ~depth back,
@@ -251,18 +284,22 @@ func (s *Supernode) AwaitVerificationStartsAt(expected uint64) {
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) AssertBackfillCovers(depth time.Duration, blockTime uint64, chains ...eth.ChainID) {
 	s.require.Positive(len(chains), "AssertBackfillCovers requires at least one chain")
-	ia := s.interopActivity()
+	api := s.interopTestAPI()
 
-	activation := ia.ActivationTimestamp()
-	backfillHandoff := ia.FirstVerifiableTimestamp()
+	status := s.interopStatus(api)
+	activation := status.ActivationTimestamp
+	backfillHandoff := status.FirstVerifiableTimestamp
 	depthSec := uint64(depth / time.Second)
 
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+
 	for _, chainID := range chains {
-		first, err := ia.FirstSealedBlock(chainID)
-		s.require.NoErrorf(err, "chain %s: first sealed block must be readable", chainID)
-		latest, hasLatest, err := ia.LatestSealedBlock(chainID)
-		s.require.NoErrorf(err, "chain %s: latest sealed block must be readable", chainID)
-		s.require.Truef(hasLatest, "chain %s: logs DB must contain at least one sealed block after backfill", chainID)
+		sealed, err := api.InteropSealedBlocks(ctx, chainID)
+		s.require.NoErrorf(err, "chain %s: sealed block range must be readable", chainID)
+		s.require.Truef(sealed.HasBlocks,
+			"chain %s: logs DB must contain at least one sealed block after backfill", chainID)
+		first, latest := sealed.First, sealed.Latest
 
 		s.require.Greaterf(first.Timestamp+blockTime, activation,
 			"chain %s: first seal ts %d must be within one block time (%d) of activation ts %d",
@@ -280,20 +317,20 @@ func (s *Supernode) AssertBackfillCovers(depth time.Duration, blockTime uint64, 
 			"chain %s: first seal ts %d should be within one block of expected lower bound %d (latest ts %d, depth %s)",
 			chainID, first.Timestamp, expectedLowerBound, latest.Timestamp, depth)
 
-		s.require.Greaterf(latest.Number, first.Number,
+		s.require.Greaterf(latest.ID.Number, first.ID.Number,
 			"chain %s: backfill should produce multiple sealed blocks (first=%d, latest=%d)",
-			chainID, first.Number, latest.Number)
+			chainID, first.ID.Number, latest.ID.Number)
 
 		s.log.Info("backfill coverage verified",
 			"chain", chainID,
-			"first_num", first.Number, "first_ts", first.Timestamp,
-			"latest_num", latest.Number, "latest_ts", latest.Timestamp,
+			"first_num", first.ID.Number, "first_ts", first.Timestamp,
+			"latest_num", latest.ID.Number, "latest_ts", latest.Timestamp,
 			"activation", activation, "backfill_handoff", backfillHandoff,
 			"depth_sec", depthSec)
 	}
 }
 
-// EnsureInteropPaused pauses the interop activity and verifies it has stopped.
+// EnsureInteropPaused pauses the interop verifier and verifies it has stopped.
 // It takes the local safe timestamps from two CL nodes, uses the maximum, then:
 // 1. Pauses interop at localSafeTimestamp + pauseOffset
 // 2. Awaits validation of localSafeTimestamp + pauseOffset - 1
@@ -301,8 +338,6 @@ func (s *Supernode) AssertBackfillCovers(depth time.Duration, blockTime uint64, 
 // Returns the first unverified timestamp (adjusted if pause came in late).
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) EnsureInteropPaused(clA, clB *L2CLNode, pauseOffset uint64) uint64 {
-	ia := s.interopActivity()
-
 	// Get the local safe of both chains from sync status
 	statusA := clA.SyncStatus()
 	statusB := clB.SyncStatus()
@@ -321,8 +356,8 @@ func (s *Supernode) EnsureInteropPaused(clA, clB *L2CLNode, pauseOffset uint64) 
 	pauseTimestamp := localSafeTimestamp + pauseOffset
 	awaitTimestamp := pauseTimestamp - 1
 
-	// Pause interop activity at the pause timestamp
-	ia.PauseAt(pauseTimestamp)
+	// Pause the interop verifier at the pause timestamp
+	s.PauseInterop(pauseTimestamp)
 
 	// Await interop validation of the timestamp before the pause
 	s.AwaitValidatedTimestamp(awaitTimestamp)
