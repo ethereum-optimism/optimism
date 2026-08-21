@@ -70,7 +70,6 @@ func (lc *LinkCheckerImpl) CanExecute(execInChain eth.ChainID,
 	if initTimestamp > execInTimestamp {
 		return false
 	}
-	// expiry check
 	if execInTimestamp-initTimestamp > lc.cfg.MessageExpiryWindow() {
 		return false
 	}
