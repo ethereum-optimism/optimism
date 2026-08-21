@@ -18,6 +18,8 @@ type Metrics interface {
 	RecordPipelineReset()
 	RecordFollowSourceRequest(result string)
 	RecordPublishingError()
+	RecordPublishQueueLen(length int)
+	RecordDroppedPublish()
 	RecordDerivationError()
 
 	RecordL1Ref(name string, ref eth.L1BlockRef)

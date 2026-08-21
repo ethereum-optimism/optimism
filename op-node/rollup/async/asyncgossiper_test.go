@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,9 +25,33 @@ func (m *mockNetwork) SignAndPublishL2Payload(ctx context.Context, payload *eth.
 	return nil
 }
 
-type mockMetrics struct{}
+type mockMetrics struct {
+	mu       sync.Mutex
+	dropped  int
+	queueLen int
+	maxLen   int
+}
 
 func (m *mockMetrics) RecordPublishingError() {}
+
+func (m *mockMetrics) RecordPublishQueueLen(length int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.queueLen = length
+	m.maxLen = max(m.maxLen, length)
+}
+
+func (m *mockMetrics) RecordDroppedPublish() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dropped++
+}
+
+func (m *mockMetrics) counts() (dropped, queueLen, maxLen int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.dropped, m.queueLen, m.maxLen
+}
 
 // TestAsyncGossiper tests the AsyncGossiper component
 // because the component is small and simple, it is tested as a whole
@@ -161,10 +186,13 @@ type blockingNetwork struct {
 }
 
 func newBlockingNetwork() *blockingNetwork {
+	// Buffered well past the queue cap: a publish must never wait for the test to
+	// observe it, or a test that drains a full queue wedges the publisher (and
+	// with it Stop) instead of failing an assertion.
+	const room = 4 * maxPublishQueue
 	return &blockingNetwork{
-		// buffered, so a publish never waits for the test to observe it
-		started:  make(chan *eth.ExecutionPayloadEnvelope, 10),
-		finished: make(chan *eth.ExecutionPayloadEnvelope, 10),
+		started:  make(chan *eth.ExecutionPayloadEnvelope, room),
+		finished: make(chan *eth.ExecutionPayloadEnvelope, room),
 		release:  make(chan struct{}),
 	}
 }
@@ -249,11 +277,13 @@ func TestAsyncGossiperDoesNotBlockOnPublish(t *testing.T) {
 }
 
 // TestAsyncGossiperOverlappingPublishes covers a publish still being in flight
-// when the next block is sealed: handing over the new payload must not block,
-// and the newest payload is the one that gets published next.
+// when the next blocks are sealed: handing them over must not block, and every
+// one of them is published, in the order it was sealed. A verifier cannot follow
+// the chain past a block it never received, so none may be skipped.
 func TestAsyncGossiperOverlappingPublishes(t *testing.T) {
 	m := newBlockingNetwork()
-	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
+	metrics := &mockMetrics{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), metrics)
 	p.Start()
 	defer p.Stop()
 	defer m.Release()
@@ -278,12 +308,89 @@ func TestAsyncGossiperOverlappingPublishes(t *testing.T) {
 		t.Fatal("Gossip blocked until the in-flight publish returned")
 	}
 
-	// the second payload was superseded before it was ever published: peers get
-	// it through sync, and the tip is what matters
 	m.Release()
-	require.Equal(t, third, requirePayload(t, m.started, "queued publish never started"))
 	require.Equal(t, first, requirePayload(t, m.finished, "first publish never finished"))
-	require.Equal(t, third, requirePayload(t, m.finished, "queued publish never finished"))
+	require.Equal(t, second, requirePayload(t, m.started, "queued second never started"))
+	require.Equal(t, second, requirePayload(t, m.finished, "queued second never finished"))
+	require.Equal(t, third, requirePayload(t, m.started, "queued third never started"))
+	require.Equal(t, third, requirePayload(t, m.finished, "queued third never finished"))
+
+	dropped, _, maxLen := metrics.counts()
+	require.Zero(t, dropped, "nothing should be dropped: every block was still publishable")
+	require.Equal(t, 2, maxLen, "the backlog behind the in-flight publish should be visible in metrics")
+}
+
+// TestAsyncGossiperDropsAgedOutPayloads covers a backlog that outlived its
+// usefulness: peers REJECT a payload older than the gossip timestamp threshold,
+// and an invalid delivery is scored against the sender, so a block that waited
+// too long is dropped rather than published.
+func TestAsyncGossiperDropsAgedOutPayloads(t *testing.T) {
+	m := newBlockingNetwork()
+	metrics := &mockMetrics{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), metrics)
+
+	// atomic, because the publisher goroutine reads the clock we advance here
+	var now atomic.Int64
+	now.Store(time.Unix(1700000000, 0).UnixNano())
+	p.timeNow = func() time.Time { return time.Unix(0, now.Load()) }
+	p.Start()
+	defer p.Stop()
+	defer m.Release()
+
+	inFlight := testEnvelope(1)
+	p.Gossip(inFlight)
+	require.Equal(t, inFlight, requirePayload(t, m.started, "first publish never started"))
+
+	// two blocks pile up behind the stuck publish, then the signer comes back
+	// well after they could have been accepted
+	p.Gossip(testEnvelope(2))
+	p.Gossip(testEnvelope(3))
+	now.Add(int64(maxPublishAge + time.Second))
+
+	fresh := testEnvelope(4)
+	p.Gossip(fresh)
+	m.Release()
+
+	// the two that aged out are skipped; the one queued at the new time is published
+	require.Equal(t, inFlight, requirePayload(t, m.finished, "in-flight publish never finished"))
+	require.Equal(t, fresh, requirePayload(t, m.started, "fresh publish never started"))
+	require.Equal(t, fresh, requirePayload(t, m.finished, "fresh publish never finished"))
+	require.Eventually(t, func() bool {
+		dropped, _, _ := metrics.counts()
+		return dropped == 2
+	}, 10*time.Second, 10*time.Millisecond, "both aged-out payloads should be counted as dropped")
+}
+
+// TestAsyncGossiperBoundsQueue covers a signer the sequencer cannot reach for
+// long enough to fill the queue: the oldest entries are dropped rather than
+// held, so the cost lands on gossip - recoverable by other means - instead of on
+// block production or on memory.
+func TestAsyncGossiperBoundsQueue(t *testing.T) {
+	m := newBlockingNetwork()
+	metrics := &mockMetrics{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), metrics)
+	p.Start()
+	defer p.Stop()
+	defer m.Release()
+
+	p.Gossip(testEnvelope(0))
+	require.Equal(t, testEnvelope(0).ExecutionPayload.BlockNumber,
+		requirePayload(t, m.started, "first publish never started").ExecutionPayload.BlockNumber)
+
+	// pile up twice the cap behind the stuck publish
+	for i := 1; i <= 2*maxPublishQueue; i++ {
+		p.Gossip(testEnvelope(uint64(i)))
+	}
+
+	dropped, queueLen, _ := metrics.counts()
+	require.Equal(t, maxPublishQueue, queueLen, "queue must not grow past the cap")
+	require.Equal(t, maxPublishQueue, dropped, "the overflow must be counted as dropped")
+
+	// the oldest were dropped, so the queue resumes from the newest run of blocks
+	m.Release()
+	next := requirePayload(t, m.started, "queued publish never started")
+	require.Equal(t, hexutil.Uint64(maxPublishQueue+1), next.ExecutionPayload.BlockNumber,
+		"the oldest entries are dropped, keeping the newest")
 }
 
 // countingNetwork records the last payload it published.
