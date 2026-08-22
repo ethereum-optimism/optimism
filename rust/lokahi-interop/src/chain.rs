@@ -150,6 +150,17 @@ pub trait InteropChain: Debug + Send + Sync {
     /// The number of the block covering `timestamp`, flooring onto the preceding block when the
     /// timestamp falls between two of them.
     async fn block_number_at_timestamp(&self, timestamp: u64) -> Result<u64, ChainError>;
+
+    /// The L1 block this chain's derivation has considered up to — its sync status `currentL1`.
+    ///
+    /// The round loop folds this into the verifier's own L1 progress so that progress keeps
+    /// moving while the frontier waits: op-supernode refreshes its `currentL1` from the minimum
+    /// of every chain's `SyncStatus().CurrentL1` on each waiting round
+    /// (`refreshCurrentL1OnWait`, `op-supernode/supernode/activity/interop/interop.go:558-570`,
+    /// via `collectCurrentL1`, `:1125-1140`) and caps a committed frontier's L1 inclusion at the
+    /// same minimum (`:908-922`). A chain that has not derived anything yet answers the zero
+    /// block, which is what its own sync status reports then.
+    async fn current_l1(&self) -> Result<BlockNumHash, ChainError>;
 }
 
 /// The writes the verifier performs on a chain: taking it off a block it invalidated, and — when

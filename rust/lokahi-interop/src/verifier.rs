@@ -361,13 +361,15 @@ impl<K: Kv> Verifier<K> {
     }
 
     /// Returns the L1 block the verifier has considered up to, or [`None`] before the first
-    /// advance.
+    /// refresh.
     ///
-    /// This is the highest L1 block any chain's verified block was derived from. op-supernode
-    /// additionally caps it at the lowest L1 block *any* chain has derived from, so the value is
-    /// safe to publish on its own rather than only once aggregated. That cap needs the L1 half of
-    /// each chain's sync status, which the L1 watcher owns and this seam does not carry; until it
-    /// does, a consumer must combine this with its own view by taking the minimum.
+    /// On an advancing round this is the frontier's L1 inclusion, capped at the lowest L1 block
+    /// any chain has derived from, so the value is individually safe rather than only once
+    /// aggregated (op-supernode's commit-time cap,
+    /// `op-supernode/supernode/activity/interop/interop.go:908-922`). On a waiting round it is
+    /// refreshed to that same per-chain minimum, so it keeps tracking L1 while the chains produce
+    /// no new timestamps (`refreshCurrentL1OnWait`, `interop.go:558-570`) — the consumers gating
+    /// on "the supernode has fully processed L1 block X" depend on exactly that.
     pub const fn current_l1(&self) -> Option<BlockNumHash> {
         self.current_l1
     }
@@ -487,7 +489,10 @@ impl<K: Kv> Verifier<K> {
         };
 
         match output.decision {
-            Decision::Wait => Ok(false),
+            Decision::Wait => {
+                self.refresh_current_l1_on_wait().await;
+                Ok(false)
+            }
             Decision::Advance => {
                 let pending = PendingTransition::Advance(output.result);
                 // Durable before the first side effect, cleared after the last.
@@ -541,6 +546,49 @@ impl<K: Kv> Verifier<K> {
             "Interop verification reached a decision this verifier does not apply; the verified \
              frontier holds where it is"
         );
+    }
+
+    /// Refreshes the verifier's L1 progress from the chains, on a round that decided to wait.
+    ///
+    /// op-supernode's `refreshCurrentL1OnWait`
+    /// (`op-supernode/supernode/activity/interop/interop.go:558-570`): a waiting round means the
+    /// chains have produced no new timestamp, but their derivation keeps following L1, and the
+    /// verifier's published progress has to follow it too — consumers gate on "the supernode has
+    /// fully processed L1 block X", and a `current_l1` frozen at the last committed frontier's
+    /// inclusion would hold them forever on an idle cluster. A chain that cannot answer keeps the
+    /// existing value, exactly as op-supernode treats a failed collection on wait: non-fatal,
+    /// logged, retried by the next round.
+    async fn refresh_current_l1_on_wait(&mut self) {
+        match self.collect_current_l1().await {
+            Ok(Some(lowest)) => self.current_l1 = Some(lowest),
+            Ok(None) => {}
+            Err(err) => {
+                debug!(
+                    target: "lokahi_interop",
+                    %err,
+                    "Failed to collect the chains' L1 progress on a waiting round"
+                );
+            }
+        }
+    }
+
+    /// Returns the lowest L1 block any chain's derivation has considered up to.
+    ///
+    /// op-supernode's `collectCurrentL1`
+    /// (`op-supernode/supernode/activity/interop/interop.go:1125-1140`): the minimum over the
+    /// chains' sync-status `currentL1`s, which is the L1 height every chain is known to have
+    /// processed. [`None`] only over an empty chain set, which construction does not produce.
+    async fn collect_current_l1(&self) -> Result<Option<BlockNumHash>, RoundError> {
+        let mut lowest: Option<BlockNumHash> = None;
+        for (&chain_id, chain) in &self.chains {
+            let block =
+                chain.current_l1().await.map_err(|source| RoundError::chain(chain_id, source))?;
+            lowest = Some(match lowest {
+                Some(current) if current.number <= block.number => current,
+                _ => block,
+            });
+        }
+        Ok(lowest)
     }
 
     /// Observes every chain and the L1 once.
@@ -982,7 +1030,27 @@ impl<K: Kv> Verifier<K> {
 
         self.verified.commit(&result.verified)?;
         self.verified.clear_pending()?;
-        self.current_l1 = Some(l1_inclusion);
+
+        // The frontier's L1 inclusion is the *highest* L1 block any chain derived this timestamp
+        // from, so it can exceed what another chain has processed. Cap it at the lowest L1 block
+        // every chain has considered, so the published value is individually safe rather than
+        // only safe once aggregated — op-supernode's commit-time cap
+        // (`op-supernode/supernode/activity/interop/interop.go:908-922`), with the same fallback:
+        // a failed collection keeps the inclusion and warns.
+        let mut current_l1 = l1_inclusion;
+        match self.collect_current_l1().await {
+            Ok(Some(lowest)) if lowest.number < current_l1.number => current_l1 = lowest,
+            Ok(_) => {}
+            Err(err) => {
+                warn!(
+                    target: "lokahi_interop",
+                    %err,
+                    "Failed to collect the chains' L1 progress on advance; publishing the \
+                     frontier's L1 inclusion"
+                );
+            }
+        }
+        self.current_l1 = Some(current_l1);
 
         info!(
             target: "lokahi_interop",

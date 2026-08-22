@@ -17,6 +17,7 @@ use kona_engine::{DenyList, DenyListReadError, EngineQueries};
 use kona_genesis::RollupConfig;
 use kona_node_service::{ChainControllerRequest, ChainControllerRpcRequest, RewindRequest};
 use kona_protocol::{BlockInfo, L2BlockInfo, OutputRoot};
+use kona_rpc::{L1WatcherQueries, L1WatcherQuerySender};
 use kona_safedb::{SafeDbError, SharedSafeDb};
 use lokahi_interop::{
     BlockLogs, ChainAt, ChainError, InteropChain, L1Canonical, RocksOutputArchive,
@@ -43,6 +44,8 @@ pub(crate) struct NodeChain {
     rollup_config: RollupConfig,
     /// The chain controller's read-only query queue.
     queries: mpsc::Sender<ChainControllerRpcRequest>,
+    /// The L1 watcher's query channel for this chain, which answers its derivation L1 progress.
+    l1_queries: L1WatcherQuerySender,
     /// The safe-head database the chain's controller records local-safe advances into.
     safe_db: SharedSafeDb,
     /// A read-only execution-layer provider, for block contents.
@@ -62,10 +65,11 @@ impl NodeChain {
         chain_id: ChainId,
         rollup_config: RollupConfig,
         queries: mpsc::Sender<ChainControllerRpcRequest>,
+        l1_queries: L1WatcherQuerySender,
         safe_db: SharedSafeDb,
         el: RootProvider<Optimism>,
     ) -> Self {
-        Self { chain_id, rollup_config, queries, safe_db, el }
+        Self { chain_id, rollup_config, queries, l1_queries, safe_db, el }
     }
 
     /// Sends one [`EngineQueries`] to the chain controller's RPC peer and awaits its answer.
@@ -272,6 +276,21 @@ impl InteropChain for NodeChain {
         // the whole answer and asking the execution layer would only be a slower way to compute
         // it. Integer division is the flooring the trait asks for.
         Ok(genesis.l2.number + elapsed / self.rollup_config.block_time.max(1))
+    }
+
+    async fn current_l1(&self) -> Result<BlockNumHash, ChainError> {
+        let (sender, receiver) = oneshot::channel();
+        self.l1_queries.send(L1WatcherQueries::L1State(sender)).await.map_err(|_| {
+            ChainError::Unreachable("the L1 watcher is not accepting queries".into())
+        })?;
+        let state = receiver
+            .await
+            .map_err(|_| ChainError::Unreachable("the L1 watcher did not answer".into()))?;
+        // A chain whose derivation has not consumed any L1 block yet reports the zero block —
+        // the same zero its own `optimism_syncStatus` reports for `current_l1` then
+        // (`kona/crates/node/rpc/src/rollup.rs:58`), and the zero op-supernode's
+        // `collectCurrentL1` folds into its minimum for such a chain.
+        Ok(state.current_l1.map(|block| block.id()).unwrap_or_default())
     }
 }
 
@@ -547,6 +566,7 @@ mod tests {
     /// must not be waiting on an RPC to find that out.
     fn chain_with(err: fn() -> SafeDbError) -> NodeChain {
         let (queries, _rx) = mpsc::channel(1);
+        let (l1_queries, _l1_rx) = mpsc::channel(1);
         NodeChain::new(
             901,
             RollupConfig {
@@ -555,6 +575,7 @@ mod tests {
                 ..Default::default()
             },
             queries,
+            l1_queries,
             Arc::new(FailingSafeDb(err)),
             RootProvider::<Optimism>::new_http(Url::parse("http://127.0.0.1:1/").unwrap()),
         )

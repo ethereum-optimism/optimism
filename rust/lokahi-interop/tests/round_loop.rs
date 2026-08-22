@@ -82,6 +82,8 @@ struct FakeChain {
     first_safe_head: RwLock<Option<u64>>,
     /// When set, the chain reports that the L1 pairing at or below this timestamp is gone.
     history_gap: RwLock<bool>,
+    /// The L1 block this chain's derivation has considered up to.
+    current_l1: RwLock<BlockNumHash>,
 }
 
 impl FakeChain {
@@ -101,6 +103,9 @@ impl FakeChain {
             local_safe_through: RwLock::new(200),
             first_safe_head: RwLock::new(Some(START)),
             history_gap: RwLock::new(false),
+            // Well ahead of every block's own pairing, so the advance-time cap is a no-op unless
+            // a test lowers it.
+            current_l1: RwLock::new(l1_at(200)),
         }
     }
 
@@ -118,6 +123,10 @@ impl FakeChain {
 
     fn set_history_gap(&self, gap: bool) {
         *self.history_gap.write().unwrap() = gap;
+    }
+
+    fn set_current_l1(&self, block: BlockNumHash) {
+        *self.current_l1.write().unwrap() = block;
     }
 }
 
@@ -175,6 +184,10 @@ impl InteropChain for FakeChain {
     async fn block_number_at_timestamp(&self, timestamp: u64) -> Result<u64, ChainError> {
         // Timestamps equal block numbers in this world.
         Ok(timestamp)
+    }
+
+    async fn current_l1(&self) -> Result<BlockNumHash, ChainError> {
+        Ok(*self.current_l1.read().unwrap())
     }
 }
 
@@ -527,6 +540,48 @@ async fn a_chain_that_has_not_reached_the_timestamp_makes_the_round_wait() {
     world.chain_b.set_local_safe_through(START + 1);
     assert_eq!(verifier.step().await.unwrap(), Pace::Immediate);
     assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+}
+
+/// A waiting round refreshes the verifier's L1 progress from the chains, so it keeps tracking L1
+/// while the chains produce no new timestamps — op-supernode's `refreshCurrentL1OnWait`
+/// (`op-supernode/supernode/activity/interop/interop.go:558-570`). Without it, `current_l1`
+/// freezes at the last committed frontier's inclusion, and every consumer gating on "the
+/// supernode has fully processed L1 block X" — the challenger trace provider's gate in the
+/// acceptance tests — waits forever on an idle cluster.
+#[tokio::test]
+async fn a_waiting_round_refreshes_the_l1_progress_from_the_chains() {
+    let world = World::new();
+    world.chain_b.set_local_safe_through(START);
+    let mut verifier = world.verifier();
+
+    // Cold start, one advancing round at START, then a wait: chain B has no block at START + 1.
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.current_l1(), Some(l1_at(START)));
+
+    // The chains' derivation keeps following L1 while no new L2 timestamp appears.
+    world.chain_a.set_current_l1(l1_at(150));
+    world.chain_b.set_current_l1(l1_at(140));
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+
+    // The minimum over the chains, not the maximum: L1 is fully processed only up to the block
+    // every chain has considered (op-supernode's `collectCurrentL1`, `interop.go:1125-1140`).
+    assert_eq!(verifier.current_l1(), Some(l1_at(140)));
+}
+
+/// An advancing round publishes the frontier's L1 inclusion capped at the lowest L1 block any
+/// chain has processed — op-supernode's commit-time cap (`interop.go:908-922`): the inclusion is
+/// the *highest* per-chain L1 block, so publishing it uncapped would claim progress a lagging
+/// chain has not made.
+#[tokio::test]
+async fn an_advance_caps_the_l1_progress_at_the_chains_minimum() {
+    let world = World::new();
+    // Chain B's derivation idles behind the L1 block chain A derived the frontier from.
+    world.chain_b.set_current_l1(l1_at(START - 5));
+    let mut verifier = world.verifier();
+
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.verified().get(START).unwrap().l1_inclusion, l1_at(START));
+    assert_eq!(verifier.current_l1(), Some(l1_at(START - 5)));
 }
 
 #[tokio::test]
