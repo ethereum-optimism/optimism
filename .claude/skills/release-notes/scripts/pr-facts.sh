@@ -90,9 +90,16 @@ fi
 # --- PR facts --------------------------------------------------------------------------
 
 fetch() {
-    gh pr view "$2" --repo "$REPO" --json number,title,author,files \
-        --jq '"\(.number)\t\(.author.login)\t\(.files | length)\t\(.title)", (.files[].path)' \
-        > "$1" 2>/dev/null || printf '%s\t?\t0\t(could not fetch PR %s)\n' "$2" "$2" > "$1"
+    local tries=0
+    while [ "$tries" -lt 2 ]; do
+        gh pr view "$2" --repo "$REPO" --json number,title,author,files \
+            --jq '"\(.number)\t\(.author.login)\t\(.files | length)\t\(.title)", (.files[].path)' \
+            > "$1" 2>/dev/null && return 0
+        tries=$((tries + 1))
+    done
+    # Never let a failed fetch look like a PR that touched nothing: it must be judged,
+    # not silently dropped.
+    printf '%s\t?\t0\t(could not fetch PR %s — check by hand)\n' "$2" "$2" > "$1"
 }
 export -f fetch
 export REPO
@@ -150,7 +157,8 @@ for f in "$workdir"/pr-*; do
                 n = split(p, seg, "/")
                 shorts[(n > 1) ? seg[1] "/" seg[2] : seg[1]] = 1
             }
-            if (mode == "none")                 { tag = "?";      for (p in shorts) out = out " " p }
+            if (title ~ /^\(could not fetch/)   { tag = "?" }
+            else if (mode == "none")            { tag = "?";      for (p in shorts) out = out " " p }
             else if (length(hits))              { tag = "LINKED"; for (p in hits)   out = out " " p }
             else if (manifest && !other_files)  { tag = "DEPS";   out = " (manifest only)" }
             else                                { tag = "--";     for (p in shorts) out = out " " p }
