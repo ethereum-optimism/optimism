@@ -7,7 +7,8 @@ use crate::{
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use kona_engine::{
-    Engine, EngineState, EngineSyncStateUpdate, LocalSafeHead, test_utils::MockEngineClient,
+    Engine, EngineState, EngineSyncStateUpdate, LocalSafeHead, NoopBlockSink,
+    test_utils::MockEngineClient,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
