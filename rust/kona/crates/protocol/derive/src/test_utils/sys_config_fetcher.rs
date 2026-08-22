@@ -49,11 +49,15 @@ impl From<TestSystemConfigL2FetcherError> for PipelineErrorKind {
 impl BatchValidationProvider for TestSystemConfigL2Fetcher {
     type Error = TestSystemConfigL2FetcherError;
 
-    async fn block_by_number(&mut self, _: u64) -> Result<OpBlock, Self::Error> {
+    async fn block_by_number(&mut self, _: u64) -> Result<Arc<OpBlock>, Self::Error> {
         unimplemented!()
     }
 
     async fn l2_block_info_by_number(&mut self, _: u64) -> Result<L2BlockInfo, Self::Error> {
+        unimplemented!()
+    }
+
+    async fn l2_block_info_by_hash(&mut self, _: B256) -> Result<L2BlockInfo, Self::Error> {
         unimplemented!()
     }
 }

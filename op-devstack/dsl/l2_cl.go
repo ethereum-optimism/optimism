@@ -21,6 +21,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// errNoChainHeadForLevel is returned for safety levels that name no chain head, either
+// because the level classifies individual messages (safety.CrossUnsafe) or because it is
+// not a level at all.
+var errNoChainHeadForLevel = errors.New("no chain head for safety level")
+
 // L2CLNode wraps a stack.L2CLNode interface for DSL operations
 type L2CLNode struct {
 	commonImpl
@@ -161,6 +166,12 @@ func (cl *L2CLNode) headBlockRef(lvl safety.Level) (eth.L2BlockRef, error) {
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
+	return syncStatusHead(syncStatus, lvl)
+}
+
+// syncStatusHead picks the chain head of the given safety level out of a sync status.
+// Levels that do not label a chain head are rejected.
+func syncStatusHead(syncStatus *eth.SyncStatus, lvl safety.Level) (eth.L2BlockRef, error) {
 	switch lvl {
 	case safety.Finalized:
 		return syncStatus.FinalizedL2, nil
@@ -168,12 +179,10 @@ func (cl *L2CLNode) headBlockRef(lvl safety.Level) (eth.L2BlockRef, error) {
 		return syncStatus.SafeL2, nil
 	case safety.LocalSafe:
 		return syncStatus.LocalSafeL2, nil
-	case safety.CrossUnsafe:
-		return syncStatus.CrossUnsafeL2, nil
 	case safety.LocalUnsafe:
 		return syncStatus.UnsafeL2, nil
 	default:
-		return eth.L2BlockRef{}, fmt.Errorf("invalid safety level: %v", lvl)
+		return eth.L2BlockRef{}, fmt.Errorf("%w: %v", errNoChainHeadForLevel, lvl)
 	}
 }
 
