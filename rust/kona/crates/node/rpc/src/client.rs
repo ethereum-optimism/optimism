@@ -2,7 +2,7 @@ use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use jsonrpsee::core::RpcResult;
-use kona_engine::EngineState;
+use kona_engine::{EngineState, LocalSafeSnapshot};
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OutputRoot};
 use std::fmt::Debug;
@@ -24,6 +24,13 @@ pub trait EngineRpcClient: Debug + Send + Sync + Clone {
         &self,
         block: BlockNumberOrTag,
     ) -> RpcResult<(L2BlockInfo, OutputRoot, EngineState)>;
+    /// Request the local-safe head at an L2 timestamp, the L1 block it was derived from, and the
+    /// sync status all of it was read with, as one [`LocalSafeSnapshot`].
+    ///
+    /// The whole answer comes from a single read of the engine state, so the L2 block and its L1
+    /// key cannot come from different views of the chain. This is the read interop's cross-safety
+    /// decision needs; op-supernode reaches it with two reads and a race between them.
+    async fn local_safe_snapshot_at(&self, timestamp: u64) -> RpcResult<LocalSafeSnapshot>;
     /// Development API: Get the current number of pending tasks in the queue.
     async fn dev_get_task_queue_length(&self) -> RpcResult<usize>;
     /// Development API: Subscribes to engine queue length updates managed by the returned
