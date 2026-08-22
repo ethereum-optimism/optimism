@@ -1,5 +1,3 @@
-//! Tests for [`FinalizeTask::execute`].
-
 use crate::{
     EngineTaskExt, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
     test_utils::{TestEngineStateBuilder, test_engine_client_builder},

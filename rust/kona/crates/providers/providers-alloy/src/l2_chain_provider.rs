@@ -230,9 +230,9 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
             .map_err(|_| AlloyL2ChainProviderError::L2BlockInfoConstruction(number))
     }
 
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         if let Some(block) = self.block_by_number_cache.get(&number) {
-            return Ok((**block).clone());
+            return Ok(Arc::clone(block));
         }
 
         kona_macros::inc!(
@@ -263,7 +263,7 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
 
         self.block_by_hash_cache.put(block.header.hash_slow(), Arc::clone(&block));
         self.block_by_number_cache.put(number, Arc::clone(&block));
-        Ok((*block).clone())
+        Ok(block)
     }
 }
 

@@ -15,7 +15,6 @@ workspace = true
 # Workspace
 kona-genesis.workspace = true
 kona-registry.workspace = true
-kona-protocol.workspace = true
 
 # General
 thiserror.workspace = true
@@ -61,10 +60,8 @@ std = [
 	"alloy-rlp/std",
 	"alloy-serde?/std",
 	"alloy-sol-types/std",
-	"derive_more/display",
 	"derive_more/std",
 	"kona-genesis/std",
-	"kona-protocol/std",
 	"kona-registry/std",
 	"op-alloy-consensus/std",
 	"serde?/std",
@@ -79,7 +76,6 @@ arbitrary = [
 	"alloy-sol-types/arbitrary",
 	"dep:arbitrary",
 	"kona-genesis/arbitrary",
-	"kona-protocol/arbitrary",
 	"op-alloy-consensus/arbitrary",
 	"std",
 ]
@@ -90,8 +86,7 @@ serde = [
 	"dep:alloy-serde",
 	"dep:serde",
 	"kona-genesis/serde",
-	"kona-protocol/serde",
 	"op-alloy-consensus/serde",
 ]
-test-utils = [ "kona-protocol/test-utils", "std" ]
+test-utils = [ "std" ]
 

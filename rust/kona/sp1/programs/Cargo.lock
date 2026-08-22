@@ -1675,7 +1675,6 @@ dependencies = [
  "async-trait",
  "derive_more",
  "kona-genesis",
- "kona-protocol",
  "kona-registry",
  "op-alloy-consensus",
  "serde",
@@ -1789,7 +1788,6 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
- "alloy-serde",
  "ambassador",
  "async-trait",
  "brotli-decompressor",
@@ -1800,10 +1798,8 @@ dependencies = [
  "op-alloy-consensus",
  "op-alloy-rpc-types",
  "op-alloy-rpc-types-engine",
- "serde",
  "thiserror",
  "tracing",
- "tracing-subscriber",
  "unsigned-varint",
 ]
 
@@ -2029,7 +2025,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
 dependencies = [
  "adler2",
- "serde",
 ]
 
 [[package]]
@@ -3634,7 +3629,6 @@ version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
 dependencies = [
- "serde",
  "sharded-slab",
  "thread_local",
  "tracing-core",
