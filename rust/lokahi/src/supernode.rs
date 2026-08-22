@@ -314,19 +314,26 @@ impl Supernode {
             // verifier reports interop inactive, the optimistic outputs are the canonical ones,
             // and the super root is composed from them and the L1 blocks recorded here.
             let shared_rollup_config = Arc::new(rollup_config.clone());
-            let query_chain = || {
+            let query_chain = |archive| {
                 QueryChain::new(
                     chain_id,
                     Arc::clone(&shared_rollup_config),
                     QueuedEngineRpcClient::new(controller_rpc_request_tx.clone()),
                     l1_query_tx.clone(),
                     safe_db.clone(),
+                    archive,
                 )
             };
-            query_chains.push(query_chain());
+            // The root's set-wide answer consults the invalidated-output archive, as
+            // op-supernode's superroot activity consults its deny list.
+            query_chains
+                .push(query_chain(interop_state.as_ref().map(|state| Arc::clone(&state.archive))));
 
-            // Past this point the chain exists, so its route's query API can answer for it.
-            route_queries.compose(query_chain());
+            // Past this point the chain exists, so its route's query API can answer for it. The
+            // route is op-node's own single-chain `superroot` namespace, and an op-node consults
+            // no deny list — its EL holds the replacement block — so the route's reads carry no
+            // archive.
+            route_queries.compose(query_chain(None));
 
             // A promoter exists exactly when the chain was composed with an externally fed
             // cross-safe head, which is exactly when interop is on. Taking it here is what makes
