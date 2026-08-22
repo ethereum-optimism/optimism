@@ -16,8 +16,11 @@
 //! Each chain's method set is built by kona, inside [`RollupNode::compose`], from the channels
 //! that chain's actors read. lokahi cannot rebuild it and does not try: it hands kona a launcher
 //! ([`SharedRpcServerLauncher`]) which takes the finished [`RpcModule`] and registers it as a
-//! route instead of binding it to a socket. So the per-chain method set stays kona's, byte for
-//! byte, including the HTTP middleware a standalone kona-node serves it behind.
+//! route instead of binding it to a socket. So kona's methods reach the route as kona built them,
+//! including the HTTP middleware a standalone kona-node serves them behind. What a route serves
+//! *beyond* kona's set — Go op-supernode's chain routes answer `superroot_atTimestamp`, because
+//! each virtual op-node registers that namespace itself — is deposited per chain through
+//! [`SupernodeRpc::add_chain_methods`] and merged at registration.
 //!
 //! [`RollupNode::compose`]: kona_node_service::RollupNode::compose
 
@@ -89,6 +92,14 @@ type Handler = Arc<
 struct Routes {
     /// Route by chain id's decimal string: the path segment a caller writes.
     chains: RwLock<HashMap<String, Option<Handler>>>,
+    /// Supernode-owned methods merged into a chain's route when it registers, by the same key.
+    ///
+    /// This is how a chain's route comes to serve more than kona's method set, the way the Go
+    /// op-supernode's routes do: op-node registers a `superroot` namespace of its own, so every
+    /// virtual node op-supernode serves under `/<chainID>` answers `superroot_atTimestamp`.
+    /// kona builds its module set from its actors and lokahi does not reopen it; what lokahi
+    /// serves per chain beyond it is deposited here and merged at registration.
+    extras: RwLock<HashMap<String, Methods>>,
     /// The handler for `/`: the supernode's own namespaces.
     root: RwLock<Option<Handler>>,
     /// The stop handle every service built from this table holds.
@@ -234,6 +245,7 @@ impl SupernodeRpc {
         let (stop_handle, server_handle) = stop_channel();
         let routes = Arc::new(Routes {
             chains: RwLock::new(chain_ids.into_iter().map(|id| (id.to_string(), None)).collect()),
+            extras: RwLock::new(HashMap::new()),
             root: RwLock::new(None),
             stop_handle,
             _server_handle: server_handle,
@@ -267,6 +279,25 @@ impl SupernodeRpc {
     /// The launcher chain `chain_id`'s RPC module set is handed to instead of a socket.
     pub(crate) fn launcher(&self, chain_id: u64) -> SharedRpcServerLauncher {
         Arc::new(ChainLauncher { routes: Arc::clone(&self.routes), chain_id: chain_id.to_string() })
+    }
+
+    /// Adds supernode-owned methods to chain `chain_id`'s route, merged when the route registers.
+    ///
+    /// Must be called before the chain is composed, because kona registers the route *while*
+    /// composing: the supernode deposits each chain's extra methods first and only then composes
+    /// it, so a route never registers before its extras are here. The methods therefore exist
+    /// before the state they answer from — the same ordering the root's query API lives with —
+    /// and hold a handle that is filled once the chain exists. A method that collides with one
+    /// kona already serves fails the chain's launch loudly rather than serving one of the two
+    /// quietly — if kona grows one of these methods natively, the right move is to stop supplying
+    /// it here, not to shadow it.
+    pub(crate) fn add_chain_methods(&self, chain_id: u64, methods: impl Into<Methods>) {
+        let _ = self
+            .routes
+            .extras
+            .write()
+            .expect("the extras lock is never held across a panic")
+            .insert(chain_id.to_string(), methods.into());
     }
 }
 
@@ -411,7 +442,26 @@ struct ChainLauncher {
 impl RpcServerLauncher for ChainLauncher {
     type Handle = Route;
 
-    async fn launch(&self, modules: RpcModule<()>) -> Result<Self::Handle, std::io::Error> {
+    async fn launch(&self, mut modules: RpcModule<()>) -> Result<Self::Handle, std::io::Error> {
+        // The supernode's own additions to this chain's route, deposited before the actors
+        // started. Merged into kona's set rather than replacing anything in it; a collision is a
+        // real conflict — two implementations of one method on one route — and fails the launch
+        // with the method's name rather than picking one silently.
+        let extra = self
+            .routes
+            .extras
+            .read()
+            .expect("the extras lock is never held across a panic")
+            .get(&self.chain_id)
+            .cloned();
+        if let Some(extra) = extra {
+            modules.merge(extra).map_err(|err| {
+                std::io::Error::other(format!(
+                    "chain {} route: a supernode-supplied method collides with kona's: {err}",
+                    self.chain_id
+                ))
+            })?;
+        }
         self.routes.register(&self.chain_id, modules.into());
         Ok(Route::new(Arc::clone(&self.routes), self.chain_id.clone()))
     }

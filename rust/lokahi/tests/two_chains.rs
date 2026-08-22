@@ -120,6 +120,50 @@ async fn two_chains_answer_on_one_socket_under_their_own_routes() {
         "an absent super root omits `data` rather than sending null: {superroot}"
     );
     assert_eq!(superroot["chain_ids"], json!([CHAIN_A.to_string(), CHAIN_B.to_string()]));
+
+    // Each chain's route answers `superroot_atTimestamp` for that one chain. This is the Go
+    // stack's addressing: op-node registers the `superroot` namespace on its RPC unconditionally
+    // (`op-node/node/node.go`, `registerAPIs`), so every route of the Go op-supernode serves the
+    // method — the root over the whole set, each chain's route over that chain alone. Real
+    // consumers dial the chain route for it: the devstack's per-chain proposers
+    // (`op-devstack/sysgo/singlechain_runtime.go`, `SuperRootRpcs = l2CL.UserRPC()`) and the
+    // anchor read when a game type is added (`op-devstack/sysgo/add_game_type.go`). A route built
+    // from kona's method set alone refuses the call with "Method not found", which is how those
+    // consumers failed against lokahi while the root answered.
+    for chain_id in [CHAIN_A, CHAIN_B] {
+        let client = HttpClientBuilder::default()
+            .build(node.chain_url(chain_id))
+            .expect("build a chain rpc client");
+        let superroot = client
+            .request::<Value, _>("superroot_atTimestamp", rpc_params!["0x7fffffff"])
+            .await
+            .unwrap_or_else(|err| {
+                panic!("the route of chain {chain_id} did not answer superroot_atTimestamp: {err}")
+            });
+        assert_eq!(
+            superroot["chain_ids"],
+            json!([chain_id.to_string()]),
+            "the route of chain {chain_id} must answer for exactly that chain: {superroot}"
+        );
+        assert_eq!(
+            superroot["optimistic_at_timestamp"],
+            json!({}),
+            "the chain has not derived that timestamp: {superroot}"
+        );
+        assert!(
+            superroot.get("data").is_none(),
+            "an absent super root omits `data` on a chain route too: {superroot}"
+        );
+
+        // The set-wide method stays off the chain route, as it is off op-node's RPC: what the
+        // whole chain set has derived is the root's answer, and a chain route that answered it
+        // would be a surface the Go supernode does not have.
+        let err = client.request::<Value, _>("supernode_syncStatus", rpc_params![]).await;
+        assert!(
+            err.is_err(),
+            "supernode_syncStatus must not answer on chain {chain_id}'s route: it is a root method"
+        );
+    }
 }
 
 /// One chain's execution layer being unreachable is that chain's problem.
