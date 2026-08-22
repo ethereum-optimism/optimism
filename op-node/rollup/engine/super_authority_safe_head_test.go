@@ -249,7 +249,7 @@ func TestForceReset_SeedsCrossSafeCache(t *testing.T) {
 	emitter.ExpectOnceType("ForkchoiceUpdateEvent")
 	emitter.ExpectOnceType("EngineResetConfirmedEvent")
 
-	ec.ForceReset(context.Background(), resetRef, resetRef, resetRef, resetRef, resetFinalized)
+	ec.ForceReset(context.Background(), resetRef, resetRef, resetRef, resetFinalized)
 
 	// Cache must hold the reset crossSafe, not the pre-reset value. Get
 	// re-validates canonicality against the EL; expect the lookup at the reset

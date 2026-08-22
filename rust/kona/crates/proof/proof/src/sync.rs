@@ -31,7 +31,7 @@ where
     OracleProviderError:
         From<<L1 as ChainProvider>::Error> + From<<L2 as BatchValidationProvider>::Error>,
 {
-    let safe_head_info = l2_chain_provider.l2_block_info_by_number(safe_header.number).await?;
+    let safe_head_info = l2_chain_provider.l2_block_info_by_hash(safe_header.hash()).await?;
     let l1_origin = chain_provider.block_info_by_number(safe_head_info.l1_origin.number).await?;
 
     // Walk back the starting L1 block by `channel_timeout` to ensure that the full channel is
