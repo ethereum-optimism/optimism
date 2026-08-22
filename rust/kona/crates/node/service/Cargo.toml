@@ -16,6 +16,8 @@ workspace = true
 kona-gossip.workspace = true
 kona-disc.workspace = true
 kona-engine.workspace = true
+kona-providers-local.workspace = true
+op-alloy-consensus.workspace = true
 kona-sources.workspace = true
 kona-genesis.workspace = true
 kona-derive.workspace = true
@@ -58,7 +60,7 @@ async-stream.workspace = true
 tokio-stream.workspace = true
 strum = { workspace = true, features = ["derive"] }
 backon.workspace = true
-derive_more = { workspace = true, features = ["debug", "eq"] }
+derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tower.workspace = true
@@ -88,6 +90,7 @@ metrics = [
 	"kona-derive/metrics",
 	"kona-disc/metrics",
 	"kona-engine/metrics",
+	"kona-providers-local/metrics",
 	"kona-gossip/metrics",
 	"kona-providers-alloy/metrics",
 	"kona-rpc/metrics",

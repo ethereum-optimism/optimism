@@ -8,8 +8,14 @@ use alloy_primitives::B256;
 use kona_protocol::L2BlockInfo;
 use lru::LruCache;
 use op_alloy_consensus::OpBlock;
-use std::{num::NonZeroUsize, sync::Arc};
-use tokio::sync::RwLock;
+use std::{
+    num::NonZeroUsize,
+    sync::{Arc, RwLock},
+};
+
+/// Panic message for a poisoned cache lock. Every critical section is a couple of infallible LRU
+/// operations, so this cannot fire short of a panic elsewhere in the process.
+pub(crate) const LOCK_POISONED: &str = "chain state buffer lock poisoned";
 
 /// Events that can affect chain state
 #[derive(Debug, Clone)]
@@ -48,8 +54,11 @@ pub enum ChainStateEvent {
 /// recompute or fetch data from external sources.
 #[derive(Debug, Clone)]
 pub struct CachedBlock {
-    /// Full OP block data including header and body
-    pub block: OpBlock,
+    /// Full OP block data including header and body.
+    ///
+    /// Shared rather than owned: a cache hit clones the [`CachedBlock`], and the readers that
+    /// matter want only the header and the first transaction.
+    pub block: Arc<OpBlock>,
     /// L2 block info derived from the block
     pub l2_block_info: L2BlockInfo,
     /// Whether this block is part of the canonical chain
@@ -58,8 +67,8 @@ pub struct CachedBlock {
 
 impl CachedBlock {
     /// Create a new cached block
-    pub const fn new(block: OpBlock, l2_block_info: L2BlockInfo) -> Self {
-        Self { block, l2_block_info, canonical: true }
+    pub fn new(block: OpBlock, l2_block_info: L2BlockInfo) -> Self {
+        Self { block: Arc::new(block), l2_block_info, canonical: true }
     }
 
     /// Mark this block as non-canonical
@@ -126,30 +135,28 @@ impl ChainStateBuffer {
     }
 
     /// Get block by hash from cache
-    pub async fn get_block_by_hash(&self, hash: B256) -> Option<CachedBlock> {
-        let cache = self.blocks_by_hash.read().await;
+    pub fn get_block_by_hash(&self, hash: B256) -> Option<CachedBlock> {
+        let cache = self.blocks_by_hash.read().expect(LOCK_POISONED);
         cache.peek(&hash).cloned()
     }
 
     /// Get block by number from cache
-    pub async fn get_block_by_number(&self, number: u64) -> Option<CachedBlock> {
-        let blocks_by_number = self.blocks_by_number.read().await;
-        if let Some(hash) = blocks_by_number.peek(&number) {
-            let hash = *hash;
-            drop(blocks_by_number);
-            self.get_block_by_hash(hash).await
-        } else {
-            None
-        }
+    pub fn get_block_by_number(&self, number: u64) -> Option<CachedBlock> {
+        let blocks_by_number = self.blocks_by_number.read().expect(LOCK_POISONED);
+        let hash = *blocks_by_number.peek(&number)?;
+        // Released before taking the by-hash lock: every writer takes hash before number, so
+        // holding both here in the opposite order would deadlock against `insert_block`.
+        drop(blocks_by_number);
+        self.get_block_by_hash(hash)
     }
 
     /// Insert a block into the cache
-    pub async fn insert_block(&self, block: CachedBlock) {
+    pub fn insert_block(&self, block: CachedBlock) {
         let hash = block.hash();
         let number = block.number();
 
-        let mut blocks_by_hash = self.blocks_by_hash.write().await;
-        let mut blocks_by_number = self.blocks_by_number.write().await;
+        let mut blocks_by_hash = self.blocks_by_hash.write().expect(LOCK_POISONED);
+        let mut blocks_by_number = self.blocks_by_number.write().expect(LOCK_POISONED);
 
         blocks_by_hash.put(hash, block);
         blocks_by_number.put(number, hash);
@@ -175,32 +182,32 @@ impl ChainStateBuffer {
     }
 
     /// Handle a chain state event
-    pub async fn handle_event(&self, event: ChainStateEvent) -> Result<(), ChainBufferError> {
+    pub fn handle_event(&self, event: ChainStateEvent) -> Result<(), ChainBufferError> {
         match event {
             ChainStateEvent::ChainCommitted { new_head, committed } => {
-                self.handle_chain_committed(new_head, committed).await
+                self.handle_chain_committed(new_head, committed)
             }
             ChainStateEvent::ChainReorged { old_head, new_head, depth } => {
-                self.handle_chain_reorged(old_head, new_head, depth).await
+                self.handle_chain_reorged(old_head, new_head, depth)
             }
             ChainStateEvent::ChainReverted { old_head, new_head, reverted } => {
-                self.handle_chain_reverted(old_head, new_head, reverted).await
+                self.handle_chain_reverted(old_head, new_head, reverted)
             }
         }
     }
 
     /// Handle chain committed event
-    async fn handle_chain_committed(
+    fn handle_chain_committed(
         &self,
         new_head: B256,
         committed: Vec<B256>,
     ) -> Result<(), ChainBufferError> {
         // Update canonical head
-        let mut canonical_head = self.canonical_head.write().await;
+        let mut canonical_head = self.canonical_head.write().expect(LOCK_POISONED);
         *canonical_head = Some(new_head);
 
         // Mark all committed blocks as canonical
-        let mut blocks_by_hash = self.blocks_by_hash.write().await;
+        let mut blocks_by_hash = self.blocks_by_hash.write().expect(LOCK_POISONED);
         for hash in committed {
             if let Some(block) = blocks_by_hash.get_mut(&hash) {
                 block.canonical = true;
@@ -211,7 +218,7 @@ impl ChainStateBuffer {
     }
 
     /// Handle chain reorged event
-    async fn handle_chain_reorged(
+    fn handle_chain_reorged(
         &self,
         _old_head: B256,
         new_head: B256,
@@ -233,14 +240,14 @@ impl ChainStateBuffer {
         }
 
         // Update canonical head
-        let mut canonical_head = self.canonical_head.write().await;
+        let mut canonical_head = self.canonical_head.write().expect(LOCK_POISONED);
         *canonical_head = Some(new_head);
 
         // We need to invalidate cached blocks that are no longer canonical
         // For now, we'll clear the entire cache on deep reorgs
         if depth > 10 {
-            let mut blocks_by_hash = self.blocks_by_hash.write().await;
-            let mut blocks_by_number = self.blocks_by_number.write().await;
+            let mut blocks_by_hash = self.blocks_by_hash.write().expect(LOCK_POISONED);
+            let mut blocks_by_number = self.blocks_by_number.write().expect(LOCK_POISONED);
             blocks_by_hash.clear();
             blocks_by_number.clear();
 
@@ -259,18 +266,18 @@ impl ChainStateBuffer {
     }
 
     /// Handle chain reverted event
-    async fn handle_chain_reverted(
+    fn handle_chain_reverted(
         &self,
         _old_head: B256,
         new_head: B256,
         reverted: Vec<B256>,
     ) -> Result<(), ChainBufferError> {
         // Update canonical head
-        let mut canonical_head = self.canonical_head.write().await;
+        let mut canonical_head = self.canonical_head.write().expect(LOCK_POISONED);
         *canonical_head = Some(new_head);
 
         // Mark reverted blocks as non-canonical and remove from cache
-        let mut blocks_by_hash = self.blocks_by_hash.write().await;
+        let mut blocks_by_hash = self.blocks_by_hash.write().expect(LOCK_POISONED);
         for hash in reverted {
             blocks_by_hash.pop(&hash);
         }
@@ -279,15 +286,15 @@ impl ChainStateBuffer {
     }
 
     /// Get the current canonical head
-    pub async fn canonical_head(&self) -> Option<B256> {
-        let canonical_head = self.canonical_head.read().await;
+    pub fn canonical_head(&self) -> Option<B256> {
+        let canonical_head = self.canonical_head.read().expect(LOCK_POISONED);
         *canonical_head
     }
 
     /// Get cache statistics
-    pub async fn cache_stats(&self) -> CacheStats {
-        let blocks_by_hash = self.blocks_by_hash.read().await;
-        let blocks_by_number = self.blocks_by_number.read().await;
+    pub fn cache_stats(&self) -> CacheStats {
+        let blocks_by_hash = self.blocks_by_hash.read().expect(LOCK_POISONED);
+        let blocks_by_number = self.blocks_by_number.read().expect(LOCK_POISONED);
 
         CacheStats {
             blocks_by_hash_len: blocks_by_hash.len(),
@@ -298,10 +305,12 @@ impl ChainStateBuffer {
     }
 
     /// Clear the entire cache
-    pub async fn clear(&self) {
-        let mut blocks_by_hash = self.blocks_by_hash.write().await;
-        let mut blocks_by_number = self.blocks_by_number.write().await;
-        let mut canonical_head = self.canonical_head.write().await;
+    pub fn clear(&self) {
+        // `canonical_head` first, matching the chain-event handlers: the reverse order would
+        // deadlock against them.
+        let mut canonical_head = self.canonical_head.write().expect(LOCK_POISONED);
+        let mut blocks_by_hash = self.blocks_by_hash.write().expect(LOCK_POISONED);
+        let mut blocks_by_number = self.blocks_by_number.write().expect(LOCK_POISONED);
 
         blocks_by_hash.clear();
         blocks_by_number.clear();
@@ -410,8 +419,8 @@ mod tests {
         (block, l2_block_info)
     }
 
-    #[tokio::test]
-    async fn test_buffer_basic_operations() {
+    #[test]
+    fn test_buffer_basic_operations() {
         let buffer = ChainStateBuffer::new(100, 10, 10);
 
         let (block, l2_info) = create_test_block(1, B256::ZERO, B256::ZERO);
@@ -419,21 +428,21 @@ mod tests {
         let computed_hash = cached_block.hash();
 
         // Insert block
-        buffer.insert_block(cached_block.clone()).await;
+        buffer.insert_block(cached_block);
 
         // Retrieve by hash
-        let retrieved = buffer.get_block_by_hash(computed_hash).await;
+        let retrieved = buffer.get_block_by_hash(computed_hash);
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().hash(), computed_hash);
 
         // Retrieve by number
-        let retrieved = buffer.get_block_by_number(1).await;
+        let retrieved = buffer.get_block_by_number(1);
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().number(), 1);
     }
 
-    #[tokio::test]
-    async fn test_chain_committed_event() {
+    #[test]
+    fn test_chain_committed_event() {
         let buffer = ChainStateBuffer::new(100, 10, 10);
 
         let hash1 = B256::with_last_byte(1);
@@ -444,21 +453,21 @@ mod tests {
         let cached_block1 = CachedBlock::new(block1, l2_info1);
         let cached_block2 = CachedBlock::new(block2, l2_info2);
 
-        buffer.insert_block(cached_block1).await;
-        buffer.insert_block(cached_block2).await;
+        buffer.insert_block(cached_block1);
+        buffer.insert_block(cached_block2);
 
         // Handle committed event
         let event =
             ChainStateEvent::ChainCommitted { new_head: hash2, committed: vec![hash1, hash2] };
 
-        buffer.handle_event(event).await.unwrap();
+        buffer.handle_event(event).unwrap();
 
         // Check canonical head is updated
-        assert_eq!(buffer.canonical_head().await, Some(hash2));
+        assert_eq!(buffer.canonical_head(), Some(hash2));
     }
 
-    #[tokio::test]
-    async fn test_reorg_too_deep() {
+    #[test]
+    fn test_reorg_too_deep() {
         let buffer = ChainStateBuffer::new(100, 5, 10);
 
         let hash1 = B256::with_last_byte(1);
@@ -470,41 +479,41 @@ mod tests {
             depth: 10, // Exceeds max depth of 5
         };
 
-        let result = buffer.handle_event(event).await;
+        let result = buffer.handle_event(event);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ChainBufferError::ReorgTooDeep { .. }));
     }
 
-    #[tokio::test]
-    async fn test_cache_stats() {
+    #[test]
+    fn test_cache_stats() {
         let buffer = ChainStateBuffer::new(100, 10, 10);
 
         let hash1 = B256::with_last_byte(1);
         let (block, l2_info) = create_test_block(1, hash1, B256::ZERO);
         let cached_block = CachedBlock::new(block, l2_info);
 
-        buffer.insert_block(cached_block).await;
+        buffer.insert_block(cached_block);
 
-        let stats = buffer.cache_stats().await;
+        let stats = buffer.cache_stats();
         assert_eq!(stats.blocks_by_hash_len, 1);
         assert_eq!(stats.blocks_by_number_len, 1);
         assert_eq!(stats.capacity, 100);
         assert_eq!(stats.max_reorg_depth, 10);
     }
 
-    #[tokio::test]
-    async fn test_clear_cache() {
+    #[test]
+    fn test_clear_cache() {
         let buffer = ChainStateBuffer::new(100, 10, 10);
 
         let (block, l2_info) = create_test_block(1, B256::ZERO, B256::ZERO);
         let cached_block = CachedBlock::new(block, l2_info);
         let computed_hash = cached_block.hash();
 
-        buffer.insert_block(cached_block).await;
-        assert!(buffer.get_block_by_hash(computed_hash).await.is_some());
+        buffer.insert_block(cached_block);
+        assert!(buffer.get_block_by_hash(computed_hash).is_some());
 
-        buffer.clear().await;
-        assert!(buffer.get_block_by_hash(computed_hash).await.is_none());
-        assert_eq!(buffer.canonical_head().await, None);
+        buffer.clear();
+        assert!(buffer.get_block_by_hash(computed_hash).is_none());
+        assert_eq!(buffer.canonical_head(), None);
     }
 }
