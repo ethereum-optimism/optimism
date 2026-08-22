@@ -14,7 +14,8 @@ use tokio::{
 use crate::{
     NetworkEngineClient, NodeActor,
     actors::network::{
-        driver::NetworkDriverError, error::NetworkBuilderError, handler::NetworkHandler,
+        driver::NetworkDriverError, error::NetworkBuilderError, gossip::PayloadToPublish,
+        handler::NetworkHandler,
     },
 };
 
@@ -32,7 +33,7 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     /// A channel to receive admin RPC queries.
     admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
     /// A channel to receive unsafe blocks and send them through the gossip layer.
-    publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+    publish_rx: mpsc::Receiver<PayloadToPublish>,
     /// A client to use to interact with the chain controller.
     engine_client: NetworkEngineClient_,
     // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
@@ -55,7 +56,7 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
         unsafe_block_signer_rx: mpsc::Receiver<Address>,
         p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
         admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
-        publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+        publish_rx: mpsc::Receiver<PayloadToPublish>,
     ) -> Self {
         let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
         Self {
@@ -133,22 +134,32 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            Some(block) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
-                let timestamp = block.timestamp();
+            Some(to_publish) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
+                let timestamp = to_publish.payload().timestamp();
                 let selector = |handler: &kona_gossip::BlockHandler| {
                     handler.topic(timestamp)
                 };
-                let Some(signer) = self.handler.signer.as_ref() else {
-                    warn!(target: "net", "No local signer available to sign the payload");
-                    return Ok(());
+
+                // A payload that arrives signed is published with the signature it carries —
+                // op-node's `PublishBlock` — and needs no local signer; an unsigned one is
+                // signed here with the node's own block signer.
+                let (block, signature) = match to_publish {
+                    PayloadToPublish::Signed(block, signature) => (block, signature),
+                    PayloadToPublish::Unsigned(block) => {
+                        let Some(signer) = self.handler.signer.as_ref() else {
+                            warn!(target: "net", "No local signer available to sign the payload");
+                            return Ok(());
+                        };
+
+                        let chain_id = self.handler.discovery.chain_id;
+
+                        let sender_address = *self.handler.unsafe_block_signer_sender.borrow();
+
+                        let payload_hash = block.payload_hash();
+                        let signature = signer.sign_block(payload_hash, chain_id, sender_address).await?;
+                        (block, signature)
+                    }
                 };
-
-                let chain_id = self.handler.discovery.chain_id;
-
-                let sender_address = *self.handler.unsafe_block_signer_sender.borrow();
-
-                let payload_hash = block.payload_hash();
-                let signature = signer.sign_block(payload_hash, chain_id, sender_address).await?;
 
                 match self.handler.gossip.publish(selector, block, signature) {
                     Ok(id) => info!("Published unsafe payload | {:?}", id),

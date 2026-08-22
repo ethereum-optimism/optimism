@@ -71,6 +71,21 @@ func TestLokahiConfigCarriesTheRequestedInteropActivation(t *testing.T) {
 		"the requested activation must reach lokahi verbatim")
 }
 
+// Every hosted chain serves the experimental opstack block-building namespace, because
+// op-supernode's virtual op-nodes do (makeNodeCfg sets ExperimentalOPStackAPI on all of them):
+// the test sequencer drives block building through opstack_* on each chain's route.
+func TestLokahiConfigEnablesTheOpstackNamespace(t *testing.T) {
+	cfg := lokahiSupernodeConfig{
+		l1Net:        &L1Network{genesis: &core.Genesis{Config: params.MainnetChainConfig}},
+		l1ELRPC:      "http://127.0.0.1:8545",
+		l1BeaconAddr: "http://127.0.0.1:5052",
+	}
+	rendered := lokahiConfigFile(newGateT(), t.TempDir(), cfg, nil)
+
+	require.Contains(t, rendered, "experimental-opstack-api = true",
+		"the devstack must turn the opstack namespace on, as it does on op-supernode")
+}
+
 // A preset that requests no activation must not write the table at all, so a node that was not
 // told one keeps reading its activation from the rollup configs -- the default path, unchanged.
 func TestLokahiConfigOmitsInteropWhenNoActivationIsRequested(t *testing.T) {

@@ -34,6 +34,9 @@ datadir = "/var/lib/lokahi"
 jwt-secret = "/etc/lokahi/jwt.hex"
 mode = "validator"
 rpc-enable-admin = true
+# The experimental `opstack` block-building namespace on each chain's route, op-node's
+# `--experimental.sequencer-api`. Off unless a test sequencer is meant to drive the chain.
+# experimental-opstack-api = true
 
 [[chains]]
 l2-chain-id = 901

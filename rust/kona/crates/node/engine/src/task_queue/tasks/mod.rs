@@ -11,6 +11,9 @@ pub use synchronize::{SynchronizeTask, SynchronizeTaskError};
 mod insert;
 pub use insert::{InsertTask, InsertTaskError};
 
+mod commit;
+pub use commit::{CommitBlockError, CommitTask, CommitTaskError};
+
 mod build;
 pub use build::{BuildTask, BuildTaskError, EngineBuildError};
 

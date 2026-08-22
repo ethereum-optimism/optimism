@@ -1,6 +1,6 @@
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{BuildTaskError, EngineQueries, SealTaskError};
-use kona_protocol::OpAttributesWithParent;
+use kona_engine::{BuildTaskError, CommitBlockError, EngineQueries, SealTaskError};
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -54,6 +54,22 @@ pub struct BuildRequest {
 pub struct ResetRequest {
     /// response will be sent to this channel, if `Some`.
     pub result_tx: mpsc::Sender<ChainControllerClientResult<()>>,
+}
+
+/// A request to commit an externally built payload as the chain's unsafe head, answering the
+/// caller: `opstack_commitBlockV1`'s write.
+///
+/// This is the unsafe-block import the gossip path performs fire-and-forget
+/// ([`ChainControllerRequest::ProcessUnsafeL2Block`]), with a result channel: op-node's
+/// `CommitBlock` returns the `engine_newPayload` verdict to its caller, so this does too.
+///
+/// [`ChainControllerRequest::ProcessUnsafeL2Block`]: crate::ChainControllerRequest::ProcessUnsafeL2Block
+#[derive(Debug)]
+pub struct CommitRequest {
+    /// The payload to commit.
+    pub envelope: OpExecutionPayloadEnvelope,
+    /// The channel on which the result, successful or not, will be sent.
+    pub result_tx: mpsc::Sender<Result<L2BlockInfo, CommitBlockError>>,
 }
 
 /// A request to seal and canonicalize a payload.

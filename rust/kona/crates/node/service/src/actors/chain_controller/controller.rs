@@ -1,13 +1,14 @@
 use crate::{
     BuildRequest, ChainControllerClientError, ChainControllerDerivationClient,
-    ChainControllerError, NodeActor, ResetRequest, SealRequest,
+    ChainControllerError, CommitRequest, NodeActor, ResetRequest, SealRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, CrossSafePromotion, Engine,
-    EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
-    FinalizeTask, ImportedBlockSink, InsertTask, LocalSafeHead, PromoteCrossSafeTask, SealTask,
+    BuildSealCoupling, BuildTask, CommitTask, ConsolidateInput, ConsolidateTask,
+    CrossSafePromotion, Engine, EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
+    FinalizeBlockId, FinalizeTask, ImportedBlockSink, InsertTask, LocalSafeHead,
+    PromoteCrossSafeTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -28,6 +29,9 @@ pub enum ChainControllerRequest {
     ProcessFinalizedL2Block(Box<FinalizeBlockId>),
     /// Request to process a received unsafe L2 block.
     ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
+    /// Request to commit an externally built payload as the unsafe head, answering the caller:
+    /// `opstack_commitBlockV1`'s write. The gossip import above, with a result channel.
+    CommitBlock(Box<CommitRequest>),
     /// Request to promote the cross-safe head to an externally verified block.
     ///
     /// The [`CrossSafePromotion`] cannot be forged: only the holder of this engine's unique
@@ -407,6 +411,17 @@ where
                     // moves no local-safe head and has no L1 origin to pair with one.
                     *envelope,
                     None,
+                    Arc::clone(&self.block_sink),
+                )));
+                self.engine.enqueue(task);
+            }
+            ChainControllerRequest::CommitBlock(commit_request) => {
+                let CommitRequest { envelope, result_tx } = *commit_request;
+                let task = EngineTask::Commit(Box::new(CommitTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    envelope,
+                    result_tx,
                     Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
