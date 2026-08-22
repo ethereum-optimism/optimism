@@ -54,6 +54,9 @@ pub use task_queue::{
 mod attributes;
 pub use attributes::{AttributesMatch, AttributesMismatch};
 
+mod deny;
+pub use deny::{DenyList, DenyListReadError, SharedDenyList};
+
 mod client;
 pub use client::{
     EngineClient, EngineClientBuilder, EngineClientError, EngineRpcClient, HyperAuthClient,

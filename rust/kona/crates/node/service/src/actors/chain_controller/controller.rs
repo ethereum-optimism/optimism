@@ -1,13 +1,14 @@
 use crate::{
     BuildRequest, ChainControllerClientError, ChainControllerDerivationClient,
-    ChainControllerError, CommitRequest, NodeActor, ResetRequest, SealRequest,
+    ChainControllerError, CommitRequest, NodeActor, ResetRequest, RewindRequest, SealRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     BuildTask, CommitTask, ConsolidateInput, ConsolidateTask, CrossSafePromotion, Engine,
     EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
-    FinalizeTask, InsertTask, LocalSafeHead, PromoteCrossSafeTask, SealTask,
+    FinalizeTask, InsertTask, L2ForkchoiceState, LocalSafeHead, PromoteCrossSafeTask, SealTask,
+    SharedDenyList,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -41,6 +42,12 @@ pub enum ChainControllerRequest {
     PromoteCrossSafe(Box<CrossSafePromotion>),
     /// Request to reset the forkchoice.
     Reset(Box<ResetRequest>),
+    /// Request to rewind the chain onto the parent of an invalidated block.
+    ///
+    /// The interop verifier sends this while applying an invalidation, after the block is durably
+    /// on the deny list: the rewind takes the chain off the invalid block, and derivation's
+    /// rebuild of the height then hits the deny list and becomes the deposits-only replacement.
+    Rewind(Box<RewindRequest>),
     /// Request to seal a block.
     Seal(Box<SealRequest>),
 }
@@ -93,6 +100,15 @@ where
     engine: Engine<EngineClient_>,
     /// The inbound request channel.
     inbound_request_rx: mpsc::Receiver<ChainControllerRequest>,
+    /// The super-authority deny list, when the node runs under one.
+    ///
+    /// Threaded into the consolidate and seal tasks — where a denied block is refused adoption and
+    /// replaced deposits-only — and consulted here to gate unsafe ingestion while an invalidation
+    /// is being recovered from.
+    deny: Option<SharedDenyList>,
+    /// Whether unsafe ingestion is currently gated by the deny list, kept so the gate logs its
+    /// edges rather than every dropped payload.
+    unsafe_deny_gated: bool,
 }
 
 impl<EngineClient_, DerivationClient> ChainController<EngineClient_, DerivationClient>
@@ -101,6 +117,7 @@ where
     DerivationClient: ChainControllerDerivationClient + 'static,
 {
     /// Constructs a new [`ChainController`] from the params.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: Arc<EngineClient_>,
         config: Arc<RollupConfig>,
@@ -109,6 +126,7 @@ where
         unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
         inbound_request_rx: mpsc::Receiver<ChainControllerRequest>,
         safe_db: SharedSafeDb,
+        deny: Option<SharedDenyList>,
     ) -> Self {
         Self {
             client,
@@ -121,6 +139,8 @@ where
             inbound_request_rx,
             safe_db,
             last_recorded: None,
+            deny,
+            unsafe_deny_gated: false,
         }
     }
 
@@ -148,6 +168,86 @@ where
         self.send_derivation_actor_local_safe_head_if_updated().await?;
 
         Ok(())
+    }
+
+    /// Rewinds the engine onto `parent` and propagates the reset to the derivation actor.
+    ///
+    /// The targeted counterpart of [`Self::reset`], for the one caller that already knows where
+    /// the chain must land: the interop verifier applying an invalidation, whose target is the
+    /// parent of the invalidated block. The walkback would re-*discover* a landing point and could
+    /// pick a different block than the one the invalidation means, so [`Engine::reset_to`] applies
+    /// the caller's target verbatim. Everything after the engine move is the same as a reset: the
+    /// safe-head records above the target describe blocks this node has just disowned, and
+    /// derivation restarts from the target to rebuild the invalidated height — where the deny
+    /// list turns the rebuild into a deposits-only replacement.
+    async fn rewind_to(&mut self, parent: L2BlockInfo) -> Result<(), ChainControllerError> {
+        let target = L2ForkchoiceState {
+            un_safe: parent,
+            local_safe: parent,
+            finalized: self.engine.state().sync_state.finalized_head(),
+        };
+        let l2_safe_head =
+            self.engine.reset_to(self.client.clone(), self.rollup.clone(), target).await?;
+
+        // Before derivation is told anything, for the same reason `reset` does it there.
+        self.rewind_safe_db(l2_safe_head);
+
+        let signal = Signal::Reset(ResetSignal { l2_safe_head });
+        match self.derivation_client.send_signal(signal).await {
+            Ok(_) => info!(target: "engine", "Sent reset signal to derivation actor after rewind"),
+            Err(err) => {
+                error!(target: "engine", ?err, "Failed to send reset signal to the derivation actor");
+                return Err(ChainControllerError::ChannelClosed);
+            }
+        }
+
+        self.send_derivation_actor_local_safe_head_if_updated().await?;
+
+        Ok(())
+    }
+
+    /// Whether unsafe-payload ingestion is blocked by the deny list: from the moment a block is
+    /// denied until the finalized head passes the highest denied height, so unsafe sync cannot
+    /// re-adopt the invalidated branch.
+    ///
+    /// The mirror of op-node's `unsafeDenyGatingActive`
+    /// (`op-node/rollup/engine/engine_controller.go:776-799`), with the same posture: a deny-list
+    /// read error fails open — a wedged unsafe pipeline is worse than looping invalidation until
+    /// the store heals — and it is always logged.
+    fn unsafe_deny_gating_active(&mut self) -> bool {
+        let Some(deny) = &self.deny else { return false };
+        let max_denied = match deny.max_denied_height() {
+            Ok(max_denied) => max_denied,
+            Err(err) => {
+                error!(
+                    target: "engine",
+                    %err,
+                    "Failed to read max denied height, allowing unsafe ingestion"
+                );
+                return false;
+            }
+        };
+        let finalized = self.engine.state().sync_state.finalized_head().block_info.number;
+        let active = max_denied.is_some_and(|max_denied| max_denied > finalized);
+        if active != self.unsafe_deny_gated {
+            self.unsafe_deny_gated = active;
+            if active {
+                warn!(
+                    target: "engine",
+                    max_denied_height = max_denied,
+                    finalized,
+                    "Gating unsafe ingestion during invalidation recovery"
+                );
+            } else {
+                warn!(
+                    target: "engine",
+                    max_denied_height = max_denied,
+                    finalized,
+                    "Resuming unsafe ingestion, finality passed the invalidation"
+                );
+            }
+        }
+        active
     }
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
@@ -383,6 +483,7 @@ where
                     self.client.clone(),
                     self.rollup.clone(),
                     local_safe_signal,
+                    self.deny.clone(),
                 )));
                 self.engine.enqueue(task);
             }
@@ -396,6 +497,20 @@ where
                 self.engine.enqueue(task);
             }
             ChainControllerRequest::ProcessUnsafeL2Block(envelope) => {
+                // Kept out of the queue rather than failed inside it: a queued task that can
+                // never succeed would be retried forever, and op-node's gate likewise drops the
+                // payload at ingestion (`AddUnsafePayload`). The gate covers the whole
+                // invalidation-recovery window, not just the denied hash, so a descendant of the
+                // denied block cannot re-adopt the branch either.
+                if self.unsafe_deny_gating_active() {
+                    warn!(
+                        target: "engine",
+                        block_number = envelope.block_number(),
+                        block_hash = %envelope.block_hash(),
+                        "Dropping unsafe payload: ingestion is gated during invalidation recovery"
+                    );
+                    return Ok(());
+                }
                 let task = EngineTask::Insert(Box::new(InsertTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
@@ -413,6 +528,7 @@ where
                     self.rollup.clone(),
                     envelope,
                     result_tx,
+                    self.deny.clone(),
                 )));
                 self.engine.enqueue(task);
             }
@@ -441,6 +557,28 @@ where
                     reset_res?;
                 }
             }
+            ChainControllerRequest::Rewind(rewind_request) => {
+                let RewindRequest { parent, result_tx } = *rewind_request;
+                warn!(
+                    target: "engine",
+                    parent_number = parent.block_info.number,
+                    parent_hash = %parent.block_info.hash,
+                    "Received rewind request: taking the chain off an invalidated block"
+                );
+
+                let rewind_res = self.rewind_to(parent).await;
+
+                let response_payload = rewind_res
+                    .as_ref()
+                    .map(|_| ())
+                    .map_err(|e| ChainControllerClientError::ResetForkchoiceError(e.to_string()));
+                if result_tx.send(response_payload).await.is_err() {
+                    warn!(target: "engine", "Sending rewind response failed");
+                    // If there was an error and we couldn't notify the caller to handle it,
+                    // return the error.
+                    rewind_res?;
+                }
+            }
             ChainControllerRequest::Seal(seal_request) => {
                 let SealRequest { payload_id, attributes, result_tx } = *seal_request;
                 let task = EngineTask::Seal(Box::new(SealTask::new(
@@ -451,6 +589,7 @@ where
                     // The payload is not derived in this case.
                     false,
                     Some(result_tx),
+                    self.deny.clone(),
                 )));
                 self.engine.enqueue(task);
             }

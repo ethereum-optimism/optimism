@@ -13,14 +13,16 @@ use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::{B256, ChainId, Log};
 use alloy_provider::{Provider, RootProvider};
 use async_trait::async_trait;
-use kona_engine::EngineQueries;
+use kona_engine::{DenyList, DenyListReadError, EngineQueries};
 use kona_genesis::RollupConfig;
-use kona_node_service::ChainControllerRpcRequest;
+use kona_node_service::{ChainControllerRequest, ChainControllerRpcRequest, RewindRequest};
 use kona_protocol::{BlockInfo, L2BlockInfo, OutputRoot};
 use kona_safedb::{SafeDbError, SharedSafeDb};
-use lokahi_interop::{BlockLogs, ChainAt, ChainError, InteropChain, L1Canonical};
+use lokahi_interop::{
+    BlockLogs, ChainAt, ChainError, InteropChain, L1Canonical, RocksOutputArchive,
+};
 use op_alloy_network::Optimism;
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
 
@@ -145,7 +147,7 @@ impl NodeChain {
     }
 
     /// Returns this chain's canonical block at `number`, as the verifier's block shape.
-    async fn block_info_at(&self, number: u64) -> Result<BlockInfo, ChainError> {
+    pub(crate) async fn block_info_at(&self, number: u64) -> Result<BlockInfo, ChainError> {
         // Only the header is read: the round needs the block's identity and timestamp, and its
         // logs come from the receipts rather than from the transaction list.
         let block = self
@@ -269,6 +271,124 @@ impl NodeChain {
         let genesis = &self.rollup_config.genesis;
         genesis.l2_time +
             number.saturating_sub(genesis.l2.number) * self.rollup_config.block_time.max(1)
+    }
+}
+
+/// The rewind seam over one composed chain: the write half of applying an invalidation.
+///
+/// Reads through the same [`NodeChain`] the verifier observes with, and writes through the chain
+/// controller's request channel — the only writer of the chain's heads — so the rewind is ordered
+/// with everything else that moves them.
+pub(crate) struct ChainRewindRoute {
+    /// The chain, for reading what it currently carries at the invalidated height.
+    chain: Arc<NodeChain>,
+    /// The chain controller's request channel, which applies the rewind.
+    requests: mpsc::Sender<ChainControllerRequest>,
+}
+
+impl Debug for ChainRewindRoute {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ChainRewindRoute").field("chain", &self.chain).finish_non_exhaustive()
+    }
+}
+
+impl ChainRewindRoute {
+    /// Builds the rewind seam over one composed chain.
+    pub(crate) const fn new(
+        chain: Arc<NodeChain>,
+        requests: mpsc::Sender<ChainControllerRequest>,
+    ) -> Self {
+        Self { chain, requests }
+    }
+}
+
+#[async_trait]
+impl lokahi_interop::RewindableChain for ChainRewindRoute {
+    /// The decision structure is op-supernode's `InvalidateBlock`
+    /// (`op-supernode/supernode/chain_container/invalidation.go:438-465`): a canonical block at
+    /// the height that is *not* the invalidated one means the replacement already stands, and the
+    /// rewind is skipped; a missing block is a partially applied rewind from a previous crash and
+    /// is driven to completion; only the invalidated block itself still standing starts a fresh
+    /// rewind.
+    async fn rewind_off(&self, invalidated: BlockNumHash) -> Result<bool, ChainError> {
+        match self.chain.block_info_at(invalidated.number).await {
+            Ok(info) if info.hash != invalidated.hash => {
+                debug!(
+                    target: "lokahi_interop",
+                    number = invalidated.number,
+                    invalidated = %invalidated.hash,
+                    canonical = %info.hash,
+                    "The canonical block differs from the invalidated one; no rewind needed"
+                );
+                return Ok(false);
+            }
+            // Still canonical: rewind. Or no canonical block at the height at all — a prior
+            // crashed attempt may have left it that way, so the rewind is driven to completion
+            // rather than skipped.
+            Ok(_) | Err(ChainError::NotReady) => {}
+            Err(err) => return Err(err),
+        }
+
+        // The forkchoice target needs the parent as a full `L2BlockInfo`, and the chain is the
+        // authority on what that block is. Read at apply time rather than captured at decision
+        // time: canonicality below the invalidated height is untouched by the rewind, so the
+        // canonical block at `number - 1` is the invalidated block's parent on every retry.
+        let parent = self.chain.block_at(invalidated.number - 1).await?;
+        if parent.block_info.number != invalidated.number - 1 {
+            return Err(ChainError::Unreachable(format!(
+                "asked for block {} and was answered with block {}",
+                invalidated.number - 1,
+                parent.block_info.number
+            )));
+        }
+
+        let (result_tx, mut result_rx) = mpsc::channel(1);
+        self.requests
+            .send(ChainControllerRequest::Rewind(Box::new(RewindRequest { parent, result_tx })))
+            .await
+            .map_err(|_| {
+                ChainError::Unreachable("the chain controller is not accepting requests".into())
+            })?;
+        result_rx
+            .recv()
+            .await
+            .ok_or_else(|| {
+                ChainError::Unreachable("the chain controller dropped the rewind request".into())
+            })?
+            .map_err(|err| ChainError::Unreachable(format!("rewind failed: {err}")))?;
+
+        Ok(true)
+    }
+}
+
+/// The invalidated-output archive, read as the deny list the chain's engine consults.
+///
+/// One record serves both: the archive keeps the invalidated block's output preimage for the
+/// optimistic superroot branch, and its existence at a `(height, hash)` is the denial — the same
+/// doubling op-supernode's deny list does, whose records carry the output preimage fields too.
+#[derive(Debug)]
+pub(crate) struct ArchiveDenyList {
+    /// The archive backing the answers.
+    archive: Arc<RocksOutputArchive>,
+}
+
+impl ArchiveDenyList {
+    /// Builds the deny-list view over a chain's archive.
+    pub(crate) const fn new(archive: Arc<RocksOutputArchive>) -> Self {
+        Self { archive }
+    }
+}
+
+impl DenyList for ArchiveDenyList {
+    fn is_denied(&self, number: u64, hash: B256) -> Result<bool, DenyListReadError> {
+        self.archive
+            .get(number, hash)
+            .map(|output| output.is_some())
+            .map_err(|err| DenyListReadError(err.to_string()))
+    }
+
+    fn max_denied_height(&self) -> Result<Option<u64>, DenyListReadError> {
+        self.archive.max_height().map_err(|err| DenyListReadError(err.to_string()))
     }
 }
 

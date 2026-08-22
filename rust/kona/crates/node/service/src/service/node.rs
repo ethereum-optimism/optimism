@@ -20,7 +20,7 @@ use alloy_primitives::Address;
 use alloy_provider::RootProvider;
 use jsonrpsee::RpcModule;
 use kona_derive::StatefulAttributesBuilder;
-use kona_engine::{CrossSafePromoter, Engine, EngineState, OpEngineClient};
+use kona_engine::{CrossSafePromoter, Engine, EngineState, OpEngineClient, SharedDenyList};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_gossip::P2pRpcRequest;
 use kona_interop::DependencySet;
@@ -166,6 +166,8 @@ pub struct RollupNode {
     /// [`kona_safedb::DisabledDatabase`] for a host that does not need the history: its writes
     /// are no-ops, so nothing branches on whether recording is on.
     pub(crate) safe_db: SharedSafeDb,
+    /// The super-authority deny list the engine consults, when the node runs under one.
+    pub(crate) deny_list: Option<SharedDenyList>,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -350,6 +352,7 @@ impl RollupNode {
             unsafe_head_tx_opt,
             controller_request_rx,
             self.safe_db.clone(),
+            self.deny_list.clone(),
         );
 
         let rpc_actor = ChainControllerRpcActor::new(

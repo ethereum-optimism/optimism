@@ -20,6 +20,14 @@ pub enum CommitBlockError {
     /// silently the way the gossip path does.
     #[error("the payload does not descend from the local-safe head")]
     DoesNotDescendFromLocalSafe,
+    /// The payload is on the super-authority deny list: it was invalidated by cross-chain
+    /// verification and must not become canonical again.
+    ///
+    /// The mirror of op-node's `ErrPayloadDenied` on its `ProcessPayload` path
+    /// (`op-node/rollup/engine/payload_process.go:60-85`), which every `CommitBlock` goes
+    /// through.
+    #[error("the payload is denied by the super authority")]
+    Denied,
 }
 
 /// An error that occurs when running the [`CommitTask`](crate::CommitTask).
