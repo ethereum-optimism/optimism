@@ -155,11 +155,11 @@ impl<T: CommsClient + Send + Sync> BatchValidationProvider for OracleL2ChainProv
             .map_err(OracleProviderError::BlockInfo)
     }
 
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         // Fetch the header for the given block number.
         let header = self.header_by_number(number).await?;
         let header_hash = header.hash_slow();
-        self.block_from_header(header, header_hash).await
+        self.block_from_header(header, header_hash).await.map(Arc::new)
     }
 }
 

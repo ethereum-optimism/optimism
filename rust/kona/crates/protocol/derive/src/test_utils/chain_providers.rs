@@ -189,12 +189,13 @@ impl BatchValidationProvider for TestL2ChainProvider {
             .ok_or_else(|| TestProviderError::BlockNotFound)
     }
 
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         self.op_blocks
             .iter()
             .find(|p| p.header.number == number)
             .cloned()
-            .ok_or_else(|| TestProviderError::L2BlockNotFound)
+            .map(Arc::new)
+            .ok_or(TestProviderError::L2BlockNotFound)
     }
 }
 
