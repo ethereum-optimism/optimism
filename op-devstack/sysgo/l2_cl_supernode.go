@@ -39,8 +39,18 @@ type SuperNode struct {
 }
 
 var _ L2CLNode = (*SuperNode)(nil)
+var _ SharedSupernode = (*SuperNode)(nil)
 
 func (n *SuperNode) UserRPC() string {
+	return n.userRPC
+}
+
+// QueryRPC is the endpoint serving supernode_syncStatus and superroot_atTimestamp.
+//
+// The same address as UserRPC: the Go supernode serves the query API and the per-chain
+// /<chainID> routes from one RPC server. lokahi splits them, which is why the presets ask for
+// this rather than for UserRPC.
+func (n *SuperNode) QueryRPC() string {
 	return n.userRPC
 }
 

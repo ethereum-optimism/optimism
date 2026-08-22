@@ -2628,14 +2628,25 @@ workflows:
       # presets run kona-node as their per-chain CL; the multi-chain/interop presets have
       # no per-chain CL to swap and select their supernode implementation separately.
       #
-      # supernode_kind stays op-supernode for now, and this is no longer about lokahi being
-      # unable to host a chain: it can, and the two-chain lokahi test in
-      # op-acceptance-tests/tests/supernode/lokahi runs it in every variant. What blocks
-      # these presets is stack.SupernodeTestControl, whose InteropActivity() hands tests an
-      # in-process *interop.Interop pointer that no out-of-process supernode can provide.
-      # Flip this one line to "lokahi" once that has an RPC-shaped replacement. Until then
-      # the interop presets in this variant are identical to the op-node variant's, which is
-      # what the rename makes visible rather than hides.
+      # supernode_kind stays op-supernode, and the reason is measured rather than assumed. The
+      # flip to lokahi was made and the suites run (job 5505219, 7b4b313a): 190 passed, 130
+      # failed, 25 skipped. Failures fell by only 8, because activating interop replaced one
+      # failure mode with another rather than clearing it.
+      #
+      # 76 of the 130 halt on "which L1 block made timestamp N safe is no longer recorded on this
+      # node". The activation the presets compute is genesis L2 time, which is earlier than the
+      # safe-head history the node has recorded, so the verifier asks for L1 origins from before
+      # its own records and stops. lokahi's own remediation text says it: advance the activation
+      # past the gap and rederive. That is an argument for #22625 -- a fork scheduled on the
+      # chains activates where derivation actually starts -- not for a bigger override.
+      #
+      # 4 more are refused by lokahi on purpose: TestInteropFaultProofs_ActivationBoundary,
+      # _PreForkActivation and TestPostInbox schedule Lagoon at 1818878464 while the preset hands
+      # over 1787342464, and an override does not move a fork a chain schedules.
+      #
+      # optimism_dependencySet and the host:port assertion no longer appear, though both are
+      # being fixed on other branches and both sit behind tests that now halt earlier, so treat
+      # those two as unconfirmed rather than fixed.
       - op-acceptance-tests:
           name: memory-all-kona-lokahi-op-reth-<<matrix.l1_fork>>
           matrix:

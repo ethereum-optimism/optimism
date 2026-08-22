@@ -21,7 +21,7 @@
 //! frontier is the other half of this work and is deliberately left to a follow-up rather than
 //! half-done here.
 
-use crate::interop::chain::NodeChain;
+use crate::interop::{chain::NodeChain, query::InteropQuery};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::ChainId;
 use async_trait::async_trait;
@@ -29,7 +29,7 @@ use kona_engine::CrossSafePromoter;
 use kona_node_service::{ChainControllerRequest, NodeActor};
 use lokahi_interop::{Halted, InteropChain, Pace, RocksKv, StoreError, Verifier};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tracing::{debug, info, warn};
 
 /// How long to wait after a round that made no progress.
@@ -78,9 +78,18 @@ pub(crate) struct ChainRoute {
 /// Runs the verification round loop and applies each verified frontier to the chains.
 pub(crate) struct InteropActor {
     /// The verifier, with the stores it owns.
-    verifier: Verifier<RocksKv>,
+    pub(super) verifier: Verifier<RocksKv>,
     /// Each chain's promotion route, by chain id.
     routes: BTreeMap<ChainId, ChainRoute>,
+    /// Read-only questions from the RPC layer, drained around each round.
+    ///
+    /// [`None`] when nothing holds a read handle, which is the case for every use of this actor
+    /// other than a supernode serving `superroot_atTimestamp`. See
+    /// [`InteropActor::attach_queries`](crate::interop::InteropActor::attach_queries).
+    pub(super) queries: Option<mpsc::Receiver<InteropQuery>>,
+    /// Where the verifier's L1 progress is republished after each round, for readers that need
+    /// that and nothing else. [`None`] alongside [`Self::queries`].
+    pub(super) current_l1: Option<watch::Sender<BlockNumHash>>,
     /// The block each chain's cross-safe head was last promoted to.
     ///
     /// Timestamps advance one second at a time while blocks are a block time apart, so most
@@ -105,7 +114,56 @@ impl InteropActor {
     /// be the id the route's own chain reports.
     pub(super) fn new(verifier: Verifier<RocksKv>, routes: Vec<ChainRoute>) -> Self {
         let routes = routes.into_iter().map(|route| (route.chain.chain_id(), route)).collect();
-        Self { verifier, routes, promoted: BTreeMap::new() }
+        Self { verifier, routes, queries: None, current_l1: None, promoted: BTreeMap::new() }
+    }
+
+    /// Answers every query already waiting, without blocking on more.
+    ///
+    /// Run before each round so a caller that arrived during the previous backoff is not made to
+    /// wait for a second round.
+    fn answer_pending(&mut self) {
+        let Some(queries) = self.queries.as_mut() else { return };
+        // `try_recv` also reports a closed queue, which is not an error here: nothing holding a
+        // read handle is the normal state, and the actor's job is unaffected.
+        let mut pending = Vec::new();
+        while let Ok(query) = queries.try_recv() {
+            pending.push(query);
+        }
+        for query in pending {
+            self.answer(query);
+        }
+    }
+
+    /// Waits `wait`, answering queries as they arrive.
+    ///
+    /// The backoff is where this actor spends nearly all of its time, so serving queries through
+    /// it is what keeps read latency at "the current round" rather than "the next idle moment".
+    async fn wait_answering(&mut self, wait: Duration) {
+        // The queue is taken out of `self` for the wait and put back after it. Answering needs
+        // `&mut self` — a pause instruction reaches the verifier — and that cannot overlap a
+        // borrow of the field the instruction arrived through.
+        let Some(mut queries) = self.queries.take() else {
+            tokio::time::sleep(wait).await;
+            return;
+        };
+
+        let deadline = tokio::time::sleep(wait);
+        tokio::pin!(deadline);
+        loop {
+            tokio::select! {
+                () = &mut deadline => break,
+                query = queries.recv() => match query {
+                    Some(query) => self.answer(query),
+                    // Every read handle is gone. Nothing more will arrive, so wait out the rest
+                    // of the backoff plainly and leave the queue behind.
+                    None => {
+                        deadline.await;
+                        return;
+                    }
+                },
+            }
+        }
+        self.queries = Some(queries);
     }
 
     /// Promotes every chain's cross-safe head to the verified frontier, if there is one.
@@ -201,13 +259,18 @@ impl NodeActor for InteropActor {
     /// waits longer. Only a halt is fatal, and it is fatal on purpose — a supernode whose
     /// verifier has stopped is no longer answering the question it exists to answer.
     async fn step(&mut self) -> Result<(), Self::Error> {
+        self.answer_pending();
         let pace = self.verifier.step().await?;
+        self.publish_current_l1();
         self.promote().await?;
 
         match pace {
+            // An immediate round is a catch-up round, and a run of them can be long. Queries are
+            // answered at the top of the next step rather than here, which bounds a reader's wait
+            // at one round instead of at the end of the catch-up.
             Pace::Immediate => {}
-            Pace::Idle => tokio::time::sleep(IDLE_BACKOFF).await,
-            Pace::Retry => tokio::time::sleep(RETRY_BACKOFF).await,
+            Pace::Idle => self.wait_answering(IDLE_BACKOFF).await,
+            Pace::Retry => self.wait_answering(RETRY_BACKOFF).await,
         }
         Ok(())
     }

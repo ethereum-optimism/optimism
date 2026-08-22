@@ -565,15 +565,15 @@ func startTwoL2SharedSupernode(
 	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
 	sequencerEnabled bool,
-) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
+) (SharedSupernode, L2CLNode, L2CLNode) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
 
-	// Resolve the requested supernode implementation before anything is started, so a run
-	// that asked for lokahi is turned away on its own terms instead of part-way through a Go
-	// supernode bring-up.
+	// The requested implementation is resolved before anything is started, so a run that asked
+	// for lokahi brings up lokahi rather than getting a Go supernode built underneath it. This
+	// is the multi-chain counterpart of the l2_cl_kind switch between op-node and kona-node.
 	if ResolveSupernodeKind(t) == SupernodeLokahi {
-		failLokahiUnsupportedByPresets(t, lokahiSupernodeConfig{
+		lokahi, cls := startSharedLokahiSupernode(t, lokahiSupernodeConfig{
 			l1Net:        l1Net,
 			l1ELRPC:      l1EL.UserRPC(),
 			l1BeaconAddr: l1CL.beaconHTTPAddr,
@@ -585,6 +585,7 @@ func startTwoL2SharedSupernode(
 			interopActivationTimestamp: interopActivationTimestamp,
 			sequencerEnabled:           sequencerEnabled,
 		})
+		return lokahi, cls[0], cls[1]
 	}
 
 	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode) *opnodeconfig.Config {
@@ -701,13 +702,18 @@ func startSingleChainSharedSupernode(
 	interopActivationTimestamp *uint64,
 	sequencerEnabled bool,
 	verifierSyncMode nodeSync.Mode,
-) (*SuperNode, *SuperNodeProxy) {
+) (SharedSupernode, L2CLNode) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
 
-	// Same early dispatch as startTwoL2SharedSupernode: one hosted chain rather than two.
+	// Same dispatch as startTwoL2SharedSupernode: one hosted chain rather than two.
+	//
+	// verifierSyncMode has no lokahi counterpart and is not passed on. kona's validator gates
+	// derivation behind EL-sync completion and reaches it through gossip rather than through a
+	// sync-mode setting, so there is nothing to select; the presets that ask for a non-default
+	// mode here are single-chain sync-tester presets, which is where that shows up.
 	if ResolveSupernodeKind(t) == SupernodeLokahi {
-		failLokahiUnsupportedByPresets(t, lokahiSupernodeConfig{
+		lokahi, cls := startSharedLokahiSupernode(t, lokahiSupernodeConfig{
 			l1Net:                      l1Net,
 			l1ELRPC:                    l1EL.UserRPC(),
 			l1BeaconAddr:               l1CL.beaconHTTPAddr,
@@ -716,6 +722,7 @@ func startSingleChainSharedSupernode(
 			interopActivationTimestamp: interopActivationTimestamp,
 			sequencerEnabled:           sequencerEnabled,
 		})
+		return lokahi, cls[0]
 	}
 
 	makeNodeCfg := func() *opnodeconfig.Config {

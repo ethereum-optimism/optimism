@@ -15,6 +15,8 @@
 
 mod actor;
 mod chain;
+mod query;
+mod test_api;
 
 use alloy_primitives::ChainId;
 use alloy_provider::RootProvider;
@@ -37,6 +39,10 @@ use url::Url;
 
 pub(crate) use actor::InteropActor;
 pub(crate) use chain::{L1Provider, NodeChain};
+pub(crate) use query::{
+    InteropQueryError, InteropReader, InteropStatus, SealedBlocks, Verdict, VerifiedAt,
+};
+pub(crate) use test_api::InteropTestHandle;
 
 use actor::ChainRoute;
 
@@ -101,7 +107,58 @@ impl InteropActor {
     /// to the chains that do. Rounds are lockstep across the set: a chain outside the cluster
     /// would still be one the cluster waited for, and its blocks would be verified against rules
     /// it never activated.
-    pub(crate) fn activation(chains: &[HostedChain<'_>]) -> Result<Option<u64>> {
+    ///
+    /// `override_at` governs outright when it is set, and the scheduled forks are not consulted
+    /// at all -- op-supernode's `resolveInteropActivationTimestamp` returns the override before it
+    /// reads any chain's Lagoon time (`op-supernode/supernode/supernode.go:164`), and lokahi is
+    /// meant to behave the way op-supernode behaves.
+    ///
+    /// That is not the rule this function started with. It first required a chain that scheduled
+    /// Lagoon to agree with the override, on the reasoning that the message rules the verifier
+    /// applies read the fork, so activating elsewhere would put the verifier and the proof on
+    /// different rules. The acceptance suites then refused four tests over it --
+    /// `TestInteropFaultProofs_ActivationBoundary`, `_PreForkActivation` and `TestPostInbox`,
+    /// which schedule Lagoon well after the timestamp their preset supplies. op-supernode runs
+    /// them,
+    /// so the divergence was lokahi's, and mirroring op-supernode is the target that decides it.
+    pub(crate) fn activation(
+        chains: &[HostedChain<'_>],
+        override_at: Option<u64>,
+    ) -> Result<Option<u64>> {
+        let Some(override_at) = override_at else { return Self::scheduled_activation(chains) };
+
+        // The override wins, and the scheduled forks are not consulted -- neither to agree with
+        // nor to disagree with. This mirrors op-supernode, which returns the override before it
+        // looks at any rollup config, and which therefore also skips the cross-chain checks the
+        // scheduled path applies.
+        //
+        // op-supernode says nothing when the two disagree. Reporting it is lokahi's own addition:
+        // taking one number over another that the operator also wrote down is worth a line in the
+        // log, and a log line cannot change what the verifier does. It is INFO rather than WARN
+        // because the disagreement is the normal case for the presets that pass an override.
+        for chain in chains {
+            let Some(scheduled) = chain.rollup_config.hardforks.lagoon_time else { continue };
+            let genesis = chain.rollup_config.genesis.l2_time;
+            if Self::activation_point(scheduled, genesis) !=
+                Self::activation_point(override_at, genesis)
+            {
+                info!(
+                    chain = %chain.chain_id,
+                    scheduled,
+                    override_at,
+                    "interop activation overridden away from this chain's scheduled Lagoon time"
+                );
+            }
+        }
+
+        Ok(Some(override_at))
+    }
+
+    /// The activation the hosted set's own rollup configs agree on.
+    ///
+    /// This is the path every node that is not handed an override takes, and it is unchanged by
+    /// the existence of one: a set that cannot form a cluster is still refused here.
+    fn scheduled_activation(chains: &[HostedChain<'_>]) -> Result<Option<u64>> {
         let mut scheduled = chains.iter().filter_map(|chain| {
             chain.rollup_config.hardforks.lagoon_time.map(|time| (chain.chain_id, time))
         });
@@ -130,6 +187,17 @@ impl InteropActor {
         }
 
         Ok(Some(activation))
+    }
+
+    /// The first block timestamp a fork scheduled at `scheduled` applies to on a chain whose
+    /// first block is at `genesis`.
+    ///
+    /// Anything at or before genesis is the same activation point, since there is no earlier
+    /// block for two such numbers to disagree about. Comparing the raw numbers instead would
+    /// refuse a set where one side spells "from the first block" as 0 and the other as the
+    /// genesis timestamp, which is how the devstack's presets and op-supernode each spell it.
+    const fn activation_point(scheduled: u64, genesis: u64) -> u64 {
+        if scheduled > genesis { scheduled } else { genesis }
     }
 
     /// Builds the interop actor over the composed chains.
@@ -231,17 +299,28 @@ mod tests {
         HostedChain { chain_id, rollup_config }
     }
 
+    /// A rollup config with a genesis L2 time, for the cases that turn on where the first block
+    /// is rather than only on what the fork says.
+    fn config_from_genesis(lagoon_time: Option<u64>, genesis_l2_time: u64) -> RollupConfig {
+        let mut config = config(lagoon_time);
+        config.genesis.l2_time = genesis_l2_time;
+        config
+    }
+
     #[test]
     fn a_set_that_schedules_nothing_leaves_interop_off() {
         let (a, b) = (config(None), config(None));
-        assert_eq!(InteropActor::activation(&[hosted(901, &a), hosted(902, &b)]).unwrap(), None);
+        assert_eq!(
+            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], None).unwrap(),
+            None
+        );
     }
 
     #[test]
     fn a_set_that_agrees_activates_at_that_timestamp() {
         let (a, b) = (config(Some(1_700)), config(Some(1_700)));
         assert_eq!(
-            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)]).unwrap(),
+            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], None).unwrap(),
             Some(1_700)
         );
     }
@@ -251,8 +330,9 @@ mod tests {
     #[test]
     fn a_set_that_disagrees_on_the_time_is_rejected() {
         let (a, b) = (config(Some(1_700)), config(Some(1_800)));
-        let err =
-            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)]).unwrap_err().to_string();
+        let err = InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], None)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("901"), "{err}");
         assert!(err.contains("902"), "{err}");
     }
@@ -262,8 +342,9 @@ mod tests {
     #[test]
     fn a_partially_scheduled_set_is_rejected() {
         let (a, b) = (config(Some(1_700)), config(None));
-        let err =
-            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)]).unwrap_err().to_string();
+        let err = InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], None)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("do not schedule it at all"), "{err}");
     }
 
@@ -271,7 +352,125 @@ mod tests {
     #[test]
     fn a_single_scheduled_chain_activates() {
         let a = config(Some(42));
-        assert_eq!(InteropActor::activation(&[hosted(901, &a)]).unwrap(), Some(42));
+        assert_eq!(InteropActor::activation(&[hosted(901, &a)], None).unwrap(), Some(42));
+    }
+
+    // ---------------------------------------------------------------------------
+    // The activation override
+    //
+    // The devstack's simple-interop presets hand op-supernode an activation timestamp and write
+    // rollup configs with no Lagoon time, so reading the fork finds nothing to activate on. The
+    // override is what lets lokahi be configured the way op-supernode already is.
+    // ---------------------------------------------------------------------------
+
+    /// The case the override exists for, and the one that fails without it: no chain schedules
+    /// Lagoon, so `scheduled_activation` leaves interop off and the verifier never runs. With the
+    /// override the same set activates at the timestamp it was given.
+    #[test]
+    fn an_override_activates_a_set_whose_configs_schedule_no_lagoon() {
+        let (a, b) = (config(None), config(None));
+        let chains = [hosted(901, &a), hosted(902, &b)];
+
+        // Without it: interop off, which is what left these presets unrunnable.
+        assert_eq!(InteropActor::activation(&chains, None).unwrap(), None);
+        // With it: on, at the timestamp the caller knows.
+        assert_eq!(
+            InteropActor::activation(&chains, Some(1_787_335_282)).unwrap(),
+            Some(1_787_335_282)
+        );
+    }
+
+    /// An override alongside a fork scheduled at the same block: the devstack passes both,
+    /// because op-supernode needs the timestamp and the chains carry the fork. Agreement is no
+    /// longer required, but it is still the common case and still yields that timestamp.
+    #[test]
+    fn an_override_matching_the_scheduled_fork_is_accepted() {
+        let a = config(Some(1_700));
+        let b = config(Some(1_700));
+        assert_eq!(
+            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], Some(1_700)).unwrap(),
+            Some(1_700)
+        );
+    }
+
+    /// The two spellings of "from the first block": a fork at genesis is written as 0, while the
+    /// timestamp handed to a supernode is the genesis timestamp. Both select the same blocks. The
+    /// clamp survives the refusal it was written for, because it is what keeps the log line below
+    /// quiet for a configuration that is actually consistent.
+    #[test]
+    fn an_override_at_genesis_time_matches_a_fork_scheduled_at_zero() {
+        const GENESIS: u64 = 1_787_335_282;
+        let a = config_from_genesis(Some(0), GENESIS);
+        let b = config_from_genesis(Some(0), GENESIS);
+        assert_eq!(
+            InteropActor::activation(&[hosted(901, &a), hosted(902, &b)], Some(GENESIS)).unwrap(),
+            Some(GENESIS)
+        );
+    }
+
+    /// An override moves an activation away from a fork the chain schedules, and that is allowed:
+    /// op-supernode returns the override without reading the rollup configs at all
+    /// (`op-supernode/supernode/supernode.go:164`). This is the case the acceptance suites need --
+    /// `TestInteropFaultProofs_ActivationBoundary` and `_PreForkActivation` schedule Lagoon well
+    /// after the timestamp their preset supplies -- and the case an earlier version of this
+    /// function refused.
+    #[test]
+    fn an_override_governs_a_fork_scheduled_somewhere_else() {
+        const GENESIS: u64 = 1_787_335_282;
+        let a = config_from_genesis(Some(GENESIS + 50), GENESIS);
+        assert_eq!(
+            InteropActor::activation(&[hosted(901, &a)], Some(GENESIS + 100)).unwrap(),
+            Some(GENESIS + 100),
+            "the override governs, not the scheduled fork"
+        );
+
+        // Including backwards, to before the scheduled fork: the acceptance tests that exercise
+        // pre-activation behaviour need an activation earlier than the fork their chain carries.
+        assert_eq!(
+            InteropActor::activation(&[hosted(901, &a)], Some(GENESIS + 10)).unwrap(),
+            Some(GENESIS + 10)
+        );
+    }
+
+    /// A mixed set: one chain schedules the fork, another does not. The override supplies the
+    /// missing one and agrees with the scheduled one, which is exactly what it is for -- and is
+    /// refused without it, because a set cannot be half in the cluster.
+    #[test]
+    fn an_override_fills_in_the_chain_that_schedules_nothing() {
+        let a = config(Some(1_700));
+        let b = config(None);
+        let chains = [hosted(901, &a), hosted(902, &b)];
+
+        let err = InteropActor::activation(&chains, None).unwrap_err().to_string();
+        assert!(err.contains("do not schedule it at all"), "{err}");
+
+        assert_eq!(InteropActor::activation(&chains, Some(1_700)).unwrap(), Some(1_700));
+    }
+
+    /// An override also skips the cross-chain checks, because op-supernode skips them: the
+    /// override returns before the loop that compares chains to each other, so a set that the
+    /// scheduled path refuses as "not one cluster" is accepted when an activation is supplied.
+    ///
+    /// This is a real widening and worth stating plainly. It is not a judgement that the check
+    /// was wrong -- the same set is still refused when no override is given, immediately below --
+    /// but op-supernode's behaviour is the target, and op-supernode accepts this.
+    #[test]
+    fn an_override_skips_the_cross_chain_checks_as_op_supernode_does() {
+        let a = config(Some(1_700));
+        let b = config(Some(2_000));
+        let chains = [hosted(901, &a), hosted(902, &b)];
+
+        assert_eq!(
+            InteropActor::activation(&chains, Some(1_700)).unwrap(),
+            Some(1_700),
+            "an override is taken without comparing the chains to each other"
+        );
+
+        // Unchanged without one: the scheduled path still refuses a set that is not one cluster.
+        let err = InteropActor::activation(&chains, None)
+            .expect_err("two different scheduled forks are not one cluster")
+            .to_string();
+        assert!(err.contains("activate together"), "{err}");
     }
 }
 

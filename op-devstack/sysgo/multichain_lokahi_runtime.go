@@ -8,12 +8,13 @@ import (
 
 // LokahiRuntime is a two-chain world whose verifier is one lokahi process.
 //
-// It is not the shared-supernode runtime with a different consensus layer dropped in: those
-// presets also drive the supernode's interop verifier through
-// apis.SupernodeInteropTestAPI, which lokahi does not serve yet (see
-// failLokahiUnsupportedByPresets). This runtime asks only for what lokahi already does —
-// host N chains, answer per chain, and keep one chain's failure to itself — and is what the
-// lokahi component is exercised against.
+// It is not the shared-supernode runtime with a different consensus layer dropped in — those
+// presets now select their supernode implementation themselves (see SharedSupernode), and run
+// against lokahi under DEVSTACK_SUPERNODE_KIND=lokahi. This runtime is narrower on purpose: it
+// asks only what the lokahi *component* must do — host N chains, answer per chain, and keep one
+// chain's failure to itself — and it does so in every acceptance variant rather than only in the
+// one that selects lokahi, so a regression in the component is caught even by a run whose presets
+// are on the Go supernode.
 //
 // Each chain is produced the production way, by its own op-node sequencer and batcher over
 // its own execution layer, and is then verified by lokahi from L1 over a second execution

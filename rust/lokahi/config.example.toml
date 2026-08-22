@@ -17,6 +17,16 @@ chain-config = "/etc/lokahi/l1-genesis.json"
 rpc-addr = "127.0.0.1"
 rpc-port = 9500
 
+# Process-wide interop settings. Optional, and normally absent.
+#
+# activation-timestamp overrides where interop verification starts. Left out -- the default --
+# lokahi reads it from each chain's Lagoon time, which is also where the message rules it applies
+# read it, so the verifier and the proof cannot end up on different rules. Set it only when the
+# rollup configs cannot carry the fork: it supplies an activation for a chain that schedules no
+# Lagoon, and is refused if it disagrees with a fork a chain does schedule.
+# [interop]
+# activation-timestamp = 1735689600
+
 # What every chain shares. A chain overrides any of these.
 [defaults]
 datadir = "/var/lib/lokahi"

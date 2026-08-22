@@ -129,6 +129,19 @@ pub struct Verifier<K> {
     current_l1: Option<BlockNumHash>,
     /// Why the verifier halted, once it has.
     halted: Option<String>,
+    /// The timestamp verification stops at, when a test has asked it to.
+    ///
+    /// Test-control state, and the only mutable knob on this type that production never turns.
+    /// It lives on the verifier rather than beside it because the check it drives has to be the
+    /// one the round loop makes: a pause enforced anywhere else would still let a round already
+    /// in flight commit the timestamp the test wanted held back. See [`Self::set_pause`].
+    pause_at: Option<u64>,
+    /// How many cold-start attempts have been made in this process.
+    ///
+    /// Counted rather than derived because the thing tests ask about is the *retry loop*: a
+    /// verifier waiting for a chain's first safe head is indistinguishable, from the outside,
+    /// from one that has not been stepped at all. See [`Self::backfill_attempts`].
+    backfill_attempts: u32,
 }
 
 impl<K: Kv> Verifier<K> {
@@ -200,6 +213,8 @@ impl<K: Kv> Verifier<K> {
             start,
             current_l1: None,
             halted,
+            pause_at: None,
+            backfill_attempts: 0,
         })
     }
 
@@ -224,6 +239,55 @@ impl<K: Kv> Verifier<K> {
     /// Once anything is committed, the store's first timestamp is authoritative and cannot move.
     pub fn first_verifiable_timestamp(&self) -> Option<u64> {
         self.verified.first_timestamp().or(self.start)
+    }
+
+    /// Returns the timestamp the cluster activates interop at.
+    pub const fn activation_timestamp(&self) -> u64 {
+        self.config.activation_timestamp
+    }
+
+    /// Returns the timestamp this verifier's round loop began at, or [`None`] while cold-starting.
+    ///
+    /// Distinct from [`Self::first_verifiable_timestamp`], which is the lowest timestamp the
+    /// verifier *covers*: once a frontier has been committed, that is the store's first timestamp
+    /// and cannot move, while this stays the start the current run chose.
+    pub const fn verification_start(&self) -> Option<u64> {
+        self.start
+    }
+
+    /// Returns how many cold-start attempts this verifier has made.
+    ///
+    /// Zero once the count is no longer moving *and* [`Self::verification_start`] is set on a
+    /// resumed verifier: resuming chooses its start in [`Self::new`], so no attempt is ever made.
+    pub const fn backfill_attempts(&self) -> u32 {
+        self.backfill_attempts
+    }
+
+    /// Returns one chain's log store, or [`None`] when the chain is not followed.
+    ///
+    /// The store is the verifier's, handed out behind a shared pointer rather than copied: a
+    /// reader gets the same database the round loop seals into, so what it reports cannot lag
+    /// what the loop has written.
+    pub fn logs(&self, chain_id: ChainId) -> Option<&Arc<dyn LogsDb>> {
+        self.stores.get(&chain_id)
+    }
+
+    /// Stops the round loop at `timestamp`, or clears an existing pause with [`None`].
+    ///
+    /// Test control, and inclusive and forward-looking on purpose: a verifier already past
+    /// `timestamp` still stops, so a test that asks late is not silently given a running verifier.
+    /// It matches op-supernode's `PauseAt`, whose zero means "clear" — expressed here as [`None`]
+    /// so a caller cannot mean timestamp zero and get a clear.
+    ///
+    /// Production never calls this. The pause is checked where the round loop decides which
+    /// timestamp to attempt, so a round already in flight finishes and no later one starts.
+    pub const fn set_pause(&mut self, timestamp: Option<u64>) {
+        self.pause_at = timestamp;
+    }
+
+    /// Returns whether a pause holds the round loop back from `next_timestamp`.
+    fn paused_at(&self, next_timestamp: u64) -> bool {
+        self.pause_at.is_some_and(|pause| next_timestamp >= pause)
     }
 
     /// Returns the L1 block the verifier has considered up to, or [`None`] before the first
@@ -283,6 +347,10 @@ impl<K: Kv> Verifier<K> {
     /// attached yet, an execution layer not up, a safe head not recorded — is expected and retried
     /// rather than fatal.
     async fn advance_cold_start(&mut self) -> Result<bool, RoundError> {
+        // Counted at the top, so an attempt that gives up below still counts as one: a test
+        // waiting for the retry loop to engage is waiting for exactly those.
+        self.backfill_attempts = self.backfill_attempts.saturating_add(1);
+
         let mut first_safe_heads = Vec::with_capacity(self.chains.len());
         for (&chain_id, chain) in &self.chains {
             match chain.first_safe_head_timestamp().await {
@@ -397,6 +465,21 @@ impl<K: Kv> Verifier<K> {
             l1_consistent: false,
             l1_needs_rewind: false,
         };
+
+        // A pause is honoured here, where the timestamp to attempt has just been chosen and
+        // nothing has been observed yet, which is where op-supernode checks it too. A frontier-less
+        // observation is a `Decision::Wait`, so the round loop idles without deciding anything —
+        // the paused verifier answers reads from the frontier it already committed, and commits
+        // nothing further.
+        if self.paused_at(next_timestamp) {
+            debug!(
+                target: "lokahi_interop",
+                next_timestamp,
+                pause_at = self.pause_at,
+                "Interop verification is paused"
+            );
+            return Ok(observation);
+        }
 
         let Some(frontier) = self.observe_frontier(next_timestamp).await? else {
             return Ok(observation);
