@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand/v2"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
@@ -28,13 +29,13 @@ const (
 	disputeL1OffsetBlocks = uint64(7 * 24 * 60 * 60 / 12)  // 50400
 )
 
-func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, superNodeClient *sources.SuperNodeClient, l1Client *ethclient.Client, typeName string, gameType gameTypes.GameType, ageGameInputs bool) (utils.LocalGameInputs, error) {
+func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1Client *ethclient.Client, typeName string, gameType gameTypes.GameType, ageGameInputs bool) (utils.LocalGameInputs, error) {
 	switch gameType {
 	case gameTypes.SuperCannonKonaGameType:
-		if superNodeClient == nil {
+		if superRoots == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires super root RPC to be set", gameType)
 		}
-		return createGameInputsInterop(ctx, log, superNodeClient, typeName)
+		return createGameInputsInterop(ctx, log, superRoots, typeName)
 	default:
 		if rollupClient == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires rollup rpc to be set", gameType)
@@ -164,14 +165,18 @@ func hasNonZeroSafeHead(ctx context.Context, client *sources.RollupClient, l1Num
 	return safeHead.SafeHead.Number > 0, nil
 }
 
-func createGameInputsInterop(ctx context.Context, log log.Logger, client *sources.SuperNodeClient, typeName string) (utils.LocalGameInputs, error) {
-	status, err := client.SyncStatus(ctx)
+func createGameInputsInterop(ctx context.Context, log log.Logger, client super.SuperNodeRootProvider, typeName string) (utils.LocalGameInputs, error) {
+	// superroot_atTimestamp carries the same finalized timestamp and L1 head as
+	// supernode_syncStatus, and is served by op-supernode and by op-node (which has no
+	// supernode namespace), so a single-chain rollup can be its own super root source.
+	// A timestamp past the head omits chain data but still reports both fields.
+	status, err := client.SuperRootAtTimestamp(ctx, uint64(time.Now().Unix()))
 	if err != nil {
-		return utils.LocalGameInputs{}, fmt.Errorf("failed to get super root RPC sync status: %w", err)
+		return utils.LocalGameInputs{}, fmt.Errorf("failed to get super root status: %w", err)
 	}
-	log.Info("Got sync status", "status", status, "type", typeName)
+	log.Info("Got super root status", "status", status, "type", typeName)
 
-	claimTimestamp := status.FinalizedTimestamp
+	claimTimestamp := status.CurrentFinalizedTimestamp
 	agreedTimestamp := claimTimestamp - 1
 	if claimTimestamp == 0 {
 		return utils.LocalGameInputs{}, errors.New("finalized timestamp is 0")
