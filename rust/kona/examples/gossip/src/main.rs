@@ -23,7 +23,7 @@ use discv5::enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
+    ChainControllerClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
 };
 use kona_registry::ROLLUP_CONFIGS;
 use libp2p::{Multiaddr, identity::Keypair};
@@ -43,7 +43,10 @@ struct ForwardingNetworkEngineClient {
 
 #[async_trait]
 impl NetworkEngineClient for ForwardingNetworkEngineClient {
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
+    async fn send_unsafe_block(
+        &self,
+        block: OpExecutionPayloadEnvelope,
+    ) -> ChainControllerClientResult<()> {
         let _ = self
             .block_tx
             .send(block)

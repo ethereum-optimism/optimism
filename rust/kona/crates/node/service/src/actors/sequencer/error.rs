@@ -1,5 +1,6 @@
 use crate::{
-    L1OriginSelectorError, UnsafePayloadGossipClientError, actors::engine::EngineClientError,
+    L1OriginSelectorError, UnsafePayloadGossipClientError,
+    actors::chain_controller::ChainControllerClientError,
 };
 use kona_derive::PipelineErrorKind;
 use kona_engine::BuildTaskError;
@@ -18,7 +19,7 @@ pub enum SequencerActorError {
     L1OriginSelector(#[from] L1OriginSelectorError),
     /// An error occurred communicating with the engine.
     #[error(transparent)]
-    EngineError(#[from] EngineClientError),
+    ChainControllerError(#[from] ChainControllerClientError),
     /// An error occurred while attempting to build a payload.
     #[error(transparent)]
     BuildError(#[from] BuildTaskError),

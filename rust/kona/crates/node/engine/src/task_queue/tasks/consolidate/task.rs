@@ -288,12 +288,12 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
     // Behavior depends on how the local-safe head is provided:
     //
     // - `Attributes`: The local-safe head is advanced through the normal derivation flow, where the
-    //   DerivationActor and EngineActor coordinate both local-safe and unsafe heads. In this case,
-    //   we consolidate as long as the unsafe head has not fallen behind.
+    //   DerivationActor and ChainController coordinate both local-safe and unsafe heads. In this
+    //   case, we consolidate as long as the unsafe head has not fallen behind.
     //
     // - `BlockInfo`: The local-safe head is injected externally by the DerivationActor while
-    //   delegating derivation, and is not coordinated with the EngineActor's local-safe/unsafe
-    //   heads. If the injected head is ahead of the EngineActor's unsafe head, we reconcile the
+    //   delegating derivation, and is not coordinated with the ChainController's local-safe/unsafe
+    //   heads. If the injected head is ahead of the ChainController's unsafe head, we reconcile the
     //   unsafe chain up to it instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
         // Derivation drives consolidation, so the comparison is against the *local*-safe head.

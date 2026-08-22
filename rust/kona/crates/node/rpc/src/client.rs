@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use thiserror::Error;
 use tokio::sync::watch;
 
-/// Client trait wrapping RPC implementation for the `EngineActor`.
+/// Client trait wrapping RPC implementation for the `ChainController`.
 #[async_trait]
 pub trait EngineRpcClient: Debug + Send + Sync + Clone {
     /// Request the current [`RollupConfig`].

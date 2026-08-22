@@ -12,7 +12,7 @@ The execution engine is built around several key components:
 - **Engine Task Queue**: A priority-ordered queue that manages Engine API operations
 - **Trait Abstractions**: Extensible interfaces for tasks, errors, and state management  
 - **Engine Client**: HTTP client for communicating with the execution layer
-- **Actor Integration**: Service layer integration through the `EngineActor`
+- **Actor Integration**: Service layer integration through the `ChainController`
 
 ## Core Trait Abstractions
 
@@ -148,6 +148,8 @@ pub struct InsertTask<EngineClient_: EngineClient> {
 }
 ```
 
+A gossiped payload only becomes the unsafe head if it descends from the local-safe head, since the unsafe head is the top of the ordering `unsafe >= local-safe >= cross-safe >= finalized`. Two cases are decidable from the state on hand and both are rejected: a payload at or below the local-safe head, and a payload exactly one above it whose parent is not the local-safe head. A rejected payload is dropped rather than clamped into place, and the heads stay put.
+
 #### ConsolidateTask
 
 Advances the local-safe chain through derivation:
@@ -201,11 +203,11 @@ The unsafe, local-safe, cross-safe, and finalized heads live in the nested `Engi
 
 ## Integration with kona-node
 
-The `kona-node` service layer integrates the engine through the `EngineActor`:
+The `kona-node` service layer integrates the engine through the `ChainController`, the actor that owns one chain's head state. It is the sole writer of the engine's heads, the mediator of every derivation-bound signal, and the owner of reset initiation. Under interop a multi-chain host runs one controller per chain over a shared set of components, which is why it is named for the chain it controls rather than for the Engine API it drives.
 
 ### Actor Pattern
 
-The `EngineActor` implements the `NodeActor` trait:
+The `ChainController` implements the `NodeActor` trait:
 
 ```rust
 #[async_trait]
@@ -220,7 +222,11 @@ pub trait NodeActor: Send + 'static {
 
 ### Communication Channels
 
-The `EngineActor` receives all state-mutating input through a single inbound request channel of `EngineActorRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). A separate read-only `EngineRpcActor` runs as an independent peer and serves engine queries; it shares the engine client and a watch over the engine state and queue length, but is constrained to a read-only subset of the engine client so it cannot reach Engine API mutation methods.
+The `ChainController` receives all state-mutating input through a single inbound request channel of `ChainControllerRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). In the other direction it sends derivation its reset, channel-flush, sync-completed and local-safe head signals, so derivation never reaches the execution layer itself. The local-safe head signal is a depth-1 lockstep confirmation that unblocks derivation's next set of payload attributes, and it is deliberately driven by the local-safe head rather than the cross-safe one: under interop, cross-safe promotion waits on every chain's derivation, so feeding the confirmation from it would deadlock.
+
+A separate read-only `ChainControllerRpcActor` runs as an independent peer and serves engine queries; it shares the engine client and a watch over the engine state and queue length, but is constrained to a read-only subset of the engine client so it cannot reach Engine API mutation methods.
+
+RPC method names, WS subscriptions and the development API (for example `dev_subscribe_engine_queue_size`) are unaffected by the controller naming, as is the `engine` tracing target.
 
 ### Engine Queries
 

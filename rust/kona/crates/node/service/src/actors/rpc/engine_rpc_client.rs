@@ -1,4 +1,4 @@
-use crate::EngineRpcRequest;
+use crate::ChainControllerRpcRequest;
 use alloy_eips::BlockNumberOrTag;
 use async_trait::async_trait;
 use derive_more::Constructor;
@@ -17,8 +17,9 @@ use tokio::sync::{mpsc, oneshot, watch};
 /// operations, providing a nice facade for callers.
 #[derive(Clone, Constructor, Debug)]
 pub struct QueuedEngineRpcClient {
-    /// A channel to use to send [`EngineRpcRequest`]s to the [`crate::EngineRpcActor`].
-    pub engine_rpc_request_tx: mpsc::Sender<EngineRpcRequest>,
+    /// A channel to use to send [`ChainControllerRpcRequest`]s to the
+    /// [`crate::ChainControllerRpcActor`].
+    pub controller_rpc_request_tx: mpsc::Sender<ChainControllerRpcRequest>,
 }
 
 #[async_trait]
@@ -26,8 +27,8 @@ impl EngineRpcClient for QueuedEngineRpcClient {
     async fn get_config(&self) -> RpcResult<RollupConfig> {
         let (config_tx, config_rx) = oneshot::channel();
 
-        self.engine_rpc_request_tx
-            .send(EngineRpcRequest(Box::new(EngineQueries::Config(config_tx))))
+        self.controller_rpc_request_tx
+            .send(ChainControllerRpcRequest(Box::new(EngineQueries::Config(config_tx))))
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 
@@ -40,8 +41,8 @@ impl EngineRpcClient for QueuedEngineRpcClient {
     async fn get_state(&self) -> RpcResult<EngineState> {
         let (state_tx, state_rx) = oneshot::channel();
 
-        self.engine_rpc_request_tx
-            .send(EngineRpcRequest(Box::new(EngineQueries::State(state_tx))))
+        self.controller_rpc_request_tx
+            .send(ChainControllerRpcRequest(Box::new(EngineQueries::State(state_tx))))
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 
@@ -57,8 +58,8 @@ impl EngineRpcClient for QueuedEngineRpcClient {
     ) -> RpcResult<(L2BlockInfo, OutputRoot, EngineState)> {
         let (output_tx, output_rx) = oneshot::channel();
 
-        self.engine_rpc_request_tx
-            .send(EngineRpcRequest(Box::new(EngineQueries::OutputAtBlock {
+        self.controller_rpc_request_tx
+            .send(ChainControllerRpcRequest(Box::new(EngineQueries::OutputAtBlock {
                 block,
                 sender: output_tx,
             })))
@@ -74,8 +75,8 @@ impl EngineRpcClient for QueuedEngineRpcClient {
     async fn dev_get_task_queue_length(&self) -> RpcResult<usize> {
         let (length_tx, length_rx) = oneshot::channel();
 
-        self.engine_rpc_request_tx
-            .send(EngineRpcRequest(Box::new(EngineQueries::TaskQueueLength(length_tx))))
+        self.controller_rpc_request_tx
+            .send(ChainControllerRpcRequest(Box::new(EngineQueries::TaskQueueLength(length_tx))))
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 
@@ -88,8 +89,8 @@ impl EngineRpcClient for QueuedEngineRpcClient {
     async fn dev_subscribe_to_engine_queue_length(&self) -> RpcResult<watch::Receiver<usize>> {
         let (sub_tx, sub_rx) = oneshot::channel();
 
-        self.engine_rpc_request_tx
-            .send(EngineRpcRequest(Box::new(EngineQueries::QueueLengthReceiver(sub_tx))))
+        self.controller_rpc_request_tx
+            .send(ChainControllerRpcRequest(Box::new(EngineQueries::QueueLengthReceiver(sub_tx))))
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 
@@ -101,8 +102,8 @@ impl EngineRpcClient for QueuedEngineRpcClient {
     async fn dev_subscribe_to_engine_state(&self) -> RpcResult<watch::Receiver<EngineState>> {
         let (sub_tx, sub_rx) = oneshot::channel();
 
-        self.engine_rpc_request_tx
-            .send(EngineRpcRequest(Box::new(EngineQueries::StateReceiver(sub_tx))))
+        self.controller_rpc_request_tx
+            .send(ChainControllerRpcRequest(Box::new(EngineQueries::StateReceiver(sub_tx))))
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 

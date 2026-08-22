@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
+    ChainControllerClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
 };
 use kona_peers::BootNode;
 use kona_sources::BlockSigner;
@@ -133,7 +133,10 @@ struct ForwardingNetworkEngineClient {
 
 #[async_trait]
 impl NetworkEngineClient for ForwardingNetworkEngineClient {
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
+    async fn send_unsafe_block(
+        &self,
+        block: OpExecutionPayloadEnvelope,
+    ) -> ChainControllerClientResult<()> {
         let _ = self
             .blocks_tx
             .send(block)

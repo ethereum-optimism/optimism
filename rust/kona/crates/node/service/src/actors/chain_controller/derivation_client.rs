@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 /// Client to use to interact with the [`crate::DerivationActor`].
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
-pub trait EngineDerivationClient: Debug + Send + Sync {
+pub trait ChainControllerDerivationClient: Debug + Send + Sync {
     /// Notifies the [`crate::DerivationActor`] that engine syncing has completed.
     /// Note: Does not wait for the derivation client to process this message.
     async fn notify_sync_completed(
@@ -31,13 +31,13 @@ pub trait EngineDerivationClient: Debug + Send + Sync {
 
 /// Client to use to send messages to the [`crate::DerivationActor`]'s inbound channel.
 #[derive(Constructor, Debug)]
-pub struct QueuedEngineDerivationClient {
+pub struct QueuedChainControllerDerivationClient {
     /// A channel to use to send the [`DerivationActorRequest`]s to the [`crate::DerivationActor`].
     pub derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
 }
 
 #[async_trait]
-impl EngineDerivationClient for QueuedEngineDerivationClient {
+impl ChainControllerDerivationClient for QueuedChainControllerDerivationClient {
     async fn notify_sync_completed(
         &self,
         local_safe_head: L2BlockInfo,

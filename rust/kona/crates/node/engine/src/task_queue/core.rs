@@ -41,9 +41,9 @@ pub(super) const RESET_TO_MAX_ATTEMPTS: usize = 3;
 pub struct Engine<EngineClient_: EngineClient> {
     /// The state of the engine.
     state: EngineState,
-    /// A sender that can be used to notify the engine actor of state changes.
+    /// A sender that can be used to notify the chain controller of state changes.
     state_sender: Sender<EngineState>,
-    /// A sender that can be used to notify the engine actor of task queue length changes.
+    /// A sender that can be used to notify the chain controller of task queue length changes.
     task_queue_length: Sender<usize>,
     /// The task queue.
     tasks: BinaryHeap<EngineTask<EngineClient_>>,
@@ -241,7 +241,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             // Execute the task
             task.execute(&mut self.state).await?;
 
-            // Update the state and notify the engine actor.
+            // Update the state and notify the chain controller.
             self.state_sender.send_replace(self.state);
 
             // Pop the task from the queue now that it's been executed.

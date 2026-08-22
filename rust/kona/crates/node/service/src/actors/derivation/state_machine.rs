@@ -12,9 +12,9 @@ pub enum DerivationState {
     AwaitingELSyncCompletion,
     /// The [`crate::DerivationActor`] is idle awaiting data.
     AwaitingL1Data,
-    /// [`kona_protocol::OpAttributesWithParent`] were sent to the [`crate::EngineActor`], and the
-    /// [`crate::DerivationActor`] is waiting for confirmation that they were processed into a safe
-    /// head.
+    /// [`kona_protocol::OpAttributesWithParent`] were sent to the [`crate::ChainController`], and
+    /// the [`crate::DerivationActor`] is waiting for confirmation that they were processed into
+    /// a safe head.
     AwaitingSafeHeadConfirmation,
     /// A reorg or some other inconsistency was detected, necessitating a [`kona_derive::Signal`]
     /// to be processed before continuing derivation.

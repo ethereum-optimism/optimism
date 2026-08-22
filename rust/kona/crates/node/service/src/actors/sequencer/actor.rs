@@ -4,7 +4,7 @@ use crate::{
     NodeActor, SequencerAdminQuery, UnsafePayloadGossipClient,
     actors::{
         SequencerEngineClient,
-        engine::EngineClientError,
+        chain_controller::ChainControllerClientError,
         sequencer::{
             conductor::Conductor,
             error::SequencerActorError,
@@ -478,10 +478,10 @@ where
                         self.next_payload_to_seal = res.unsealed_payload_handle;
                         self.last_seal_duration = res.seal_duration;
                     }
-                    Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => {
+                    Err(SequencerActorError::ChainControllerError(ChainControllerClientError::SealError(err))) => {
                         if is_seal_task_err_fatal(&err) {
                             error!(target: "sequencer", err=?err, "Critical seal task error occurred");
-                            return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
+                            return Err(SequencerActorError::ChainControllerError(ChainControllerClientError::SealError(err)));
                         }
                         self.next_payload_to_seal = None;
                     }
@@ -510,10 +510,10 @@ where
 
 // Determines whether the provided [`SealTaskError`] is fatal for the sequencer.
 //
-// NB: We could use `err.severity()`, but that gives EngineActor control over this classification.
-// `SequencerActor` may have different interpretations of severity, and it is not clear when making
-// a change in that area of the codebase that it will affect this area. When a new task error is
-// added, this approach guarantees compilation will fail until it is handled here.
+// NB: We could use `err.severity()`, but that gives ChainController control over this
+// classification. `SequencerActor` may have different interpretations of severity, and it is not
+// clear when making a change in that area of the codebase that it will affect this area. When a new
+// task error is added, this approach guarantees compilation will fail until it is handled here.
 fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
     match err {
         SealTaskError::PayloadInsertionFailed(insert_err) => match &**insert_err {

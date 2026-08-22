@@ -50,6 +50,62 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
     const fn check_new_payload_status(&self, status: &PayloadStatusEnum) -> bool {
         matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing)
     }
+
+    /// The block number this payload claims.
+    pub(crate) const fn payload_block_number(&self) -> u64 {
+        self.payload.block_number()
+    }
+
+    /// Whether this payload may become the unsafe head, i.e. whether it descends from the
+    /// local-safe head.
+    ///
+    /// A gossiped payload is untrusted input, and inserting one moves the unsafe head to it. The
+    /// unsafe head is the top of the ordering `unsafe >= local-safe >= cross-safe >= finalized`, so
+    /// a payload at or below the local-safe head would rewind the unsafe head under a head derived
+    /// from L1 and the next [`crate::EngineSyncState::create_forkchoice_state`] would report
+    /// `safeBlockHash` ahead of `headBlockHash` — the `INVALID_FORK_CHOICE_STATE` rejection that
+    /// costs a full engine reset.
+    ///
+    /// [`crate::EngineSyncState::apply_update`] deliberately clamps only the cross-safe head and
+    /// leaves the unsafe head alone, on the grounds that no writer produces an unsafe head below
+    /// cross-safe. This check is what makes that true for the one writer fed from outside the node.
+    /// It cannot live in the actor that enqueues the payload: the local-safe head can advance
+    /// between enqueue and execution, so only a check against the state the write actually uses
+    /// holds the ordering.
+    ///
+    /// The execution layer's own forkchoice-consistency check does not substitute for this, so the
+    /// rejection is made here rather than inferred from the `engine_newPayload` response.
+    ///
+    /// Untrusted input is rejected, not clamped: the payload is dropped and the heads stay put.
+    /// Two cases are decidable locally, and only those two:
+    ///
+    /// - **At or below local-safe.** Rejected. Either it is the local-safe block itself — already
+    ///   canonical, nothing to insert — or it is a competitor on a fork L1-derived data has already
+    ///   ruled out.
+    /// - **Exactly one above local-safe.** Rejected unless its parent *is* the local-safe head.
+    ///
+    /// Anything further ahead is admitted: its ancestry back to the local-safe head is not on hand,
+    /// and derivation settles it when local-safe catches up. A payload arriving before the engine
+    /// has a local-safe head at all — the execution-layer sync bootstrap — is admitted for the same
+    /// reason: there is nothing yet to descend from.
+    pub(crate) fn descends_from_local_safe(&self, state: &EngineState) -> bool {
+        // A derived payload is a local-safe write, not an unsafe one; it defines the head this
+        // check compares against instead of being checked by it.
+        if self.is_payload_local_safe {
+            return true;
+        }
+
+        let local_safe = state.sync_state.local_safe_head();
+        if local_safe == L2BlockInfo::default() {
+            return true;
+        }
+
+        match self.payload.block_number().checked_sub(local_safe.block_info.number) {
+            Some(0) | None => false,
+            Some(1) => self.payload.parent_hash() == local_safe.block_info.hash,
+            _ => true,
+        }
+    }
 }
 
 #[async_trait]
