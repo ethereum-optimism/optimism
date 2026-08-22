@@ -513,9 +513,12 @@ func lokahiConfigFile(t devtest.T, dir string, cfg lokahiSupernodeConfig, entrie
 		fmt.Fprintf(&b, "[interop]\nactivation-timestamp = %d\n\n", *cfg.interopActivationTimestamp)
 	}
 	// Acceptance tests drive a node through its admin API, which kona only registers when
-	// admin is enabled; op-node's devstack node enables it too.
+	// admin is enabled; op-node's devstack node enables it too. The experimental opstack
+	// namespace mirrors op-supernode's virtual nodes, which always run with
+	// ExperimentalOPStackAPI (multichain_supernode_runtime.go): the test sequencer drives
+	// block building through it on each chain's route.
 	fmt.Fprintf(&b, "[defaults]\ndatadir = %q\nmode = \"validator\"\n"+
-		"rpc-enable-admin = true\np2p-listen-ip = \"127.0.0.1\"\n\n",
+		"rpc-enable-admin = true\nexperimental-opstack-api = true\np2p-listen-ip = \"127.0.0.1\"\n\n",
 		lokahiDataDir(dir))
 	b.WriteString(strings.Join(entries, "\n"))
 	return b.String()

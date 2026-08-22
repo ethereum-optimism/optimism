@@ -56,6 +56,8 @@ impl Metrics {
 
     /// Insert task label.
     pub const INSERT_TASK_LABEL: &str = "insert";
+    /// Commit task label.
+    pub const COMMIT_TASK_LABEL: &str = "commit";
     /// Consolidate task label.
     pub const CONSOLIDATE_TASK_LABEL: &str = "consolidate";
     /// Forkchoice task label.
@@ -128,6 +130,7 @@ impl Metrics {
         // emit exactly.
         for task in [
             Self::INSERT_TASK_LABEL,
+            Self::COMMIT_TASK_LABEL,
             Self::CONSOLIDATE_TASK_LABEL,
             Self::BUILD_TASK_LABEL,
             Self::SEAL_TASK_LABEL,

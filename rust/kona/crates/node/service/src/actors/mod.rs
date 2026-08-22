@@ -9,13 +9,13 @@ mod chain_controller;
 pub use chain_controller::{
     BuildRequest, ChainController, ChainControllerClientError, ChainControllerClientResult,
     ChainControllerDerivationClient, ChainControllerError, ChainControllerRequest,
-    ChainControllerRpcActor, ChainControllerRpcRequest, EngineConfig,
+    ChainControllerRpcActor, ChainControllerRpcRequest, CommitRequest, EngineConfig,
     QueuedChainControllerDerivationClient, ResetRequest, SealRequest,
 };
 
 pub(crate) mod rpc;
 pub use rpc::{
-    DynRpcServerLauncher, JsonrpseeServerLauncher, QueuedEngineRpcClient,
+    DynRpcServerLauncher, JsonrpseeServerLauncher, OpStackRpc, QueuedEngineRpcClient,
     QueuedSequencerAdminAPIClient, RpcActor, RpcActorError, RpcServerHandle, RpcServerLauncher,
     SharedRpcServerLauncher,
 };
@@ -38,7 +38,7 @@ pub use l1_watcher::{
 mod network;
 pub use network::{
     NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
-    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
+    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler, PayloadToPublish,
     QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient,
     UnsafePayloadGossipClientError,
 };

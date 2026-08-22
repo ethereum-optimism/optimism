@@ -20,7 +20,7 @@ pub use error::ChainControllerError;
 mod request;
 pub use request::{
     BuildRequest, ChainControllerClientError, ChainControllerClientResult,
-    ChainControllerRpcRequest, ResetRequest, SealRequest,
+    ChainControllerRpcRequest, CommitRequest, ResetRequest, SealRequest,
 };
 
 mod rpc_actor;

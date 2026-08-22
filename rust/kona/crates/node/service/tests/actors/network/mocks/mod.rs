@@ -6,7 +6,7 @@ use alloy_primitives::Address;
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
 use kona_gossip::{P2pRpcRequest, PeerDump, PeerInfo};
-use kona_node_service::NetworkActorError;
+use kona_node_service::{NetworkActorError, PayloadToPublish};
 use kona_rpc::NetworkAdminQuery;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::{
@@ -22,7 +22,7 @@ pub(crate) struct TestNetwork {
     pub(super) p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
     #[allow(dead_code)]
     pub(super) admin_rpc_tx: mpsc::Sender<NetworkAdminQuery>,
-    pub(super) gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+    pub(super) gossip_payload_tx: mpsc::Sender<PayloadToPublish>,
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     #[allow(dead_code)]
     handle: JoinHandle<Result<(), NetworkActorError>>,

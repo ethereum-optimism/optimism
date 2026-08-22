@@ -167,6 +167,12 @@ pub(crate) struct ChainSettings {
     pub(crate) datadir: Option<PathBuf>,
     /// Whether to expose the admin namespace on this chain's RPC route.
     pub(crate) rpc_enable_admin: Option<bool>,
+    /// Whether to expose the experimental `opstack` block-building namespace on this chain's RPC
+    /// route.
+    ///
+    /// op-node's `--experimental.sequencer-api`, which op-supernode's devstack turns on for every
+    /// virtual node it hosts: the op-test-sequencer drives block building through these methods.
+    pub(crate) experimental_opstack_api: Option<bool>,
     /// The address this chain's P2P stack listens on.
     pub(crate) p2p_listen_ip: Option<IpAddr>,
     /// The TCP port this chain's gossip listens on.
@@ -233,6 +239,9 @@ pub(crate) struct ResolvedChain {
     pub(crate) datadir: PathBuf,
     /// Whether to expose the admin namespace on this chain's RPC route.
     pub(crate) rpc_enable_admin: bool,
+    /// Whether to expose the experimental `opstack` block-building namespace on this chain's RPC
+    /// route.
+    pub(crate) experimental_opstack_api: bool,
     /// The address this chain's P2P stack listens on.
     pub(crate) p2p_listen_ip: IpAddr,
     /// The TCP port this chain's gossip listens on.
@@ -458,6 +467,10 @@ impl LokahiConfig {
             rpc_enable_admin: chain
                 .rpc_enable_admin
                 .or(defaults.rpc_enable_admin)
+                .unwrap_or_default(),
+            experimental_opstack_api: chain
+                .experimental_opstack_api
+                .or(defaults.experimental_opstack_api)
                 .unwrap_or_default(),
             p2p_listen_ip: chain
                 .p2p_listen_ip
@@ -980,6 +993,64 @@ mod tests {
         assert!(resolved.chains.iter().all(|chain| chain.rpc_enable_admin));
         assert_eq!(resolved.chains[0].mode(), NodeMode::Validator);
         assert_eq!(resolved.chains[1].mode(), NodeMode::Sequencer);
+    }
+
+    /// The experimental opstack namespace is off unless asked for, follows `[defaults]` like the
+    /// admin flag, and a chain's own entry overrides the default — per chain, because op-node's
+    /// `--experimental.sequencer-api` is per node.
+    #[test]
+    fn the_opstack_namespace_is_off_by_default_and_resolved_per_chain() {
+        let resolved = LokahiConfig::parse(
+            r#"
+            [l1]
+            eth-rpc = "http://localhost:8545"
+            beacon = "http://localhost:5052"
+
+            [defaults]
+            engine-rpc = "http://localhost:8551"
+            jwt-secret = "/tmp/jwt.hex"
+            p2p-tcp-port = 9222
+            p2p-udp-port = 9223
+            experimental-opstack-api = true
+
+            [[chains]]
+            l2-chain-id = 901
+
+            [[chains]]
+            l2-chain-id = 902
+            p2p-tcp-port = 9224
+            p2p-udp-port = 9225
+            experimental-opstack-api = false
+            "#,
+        )
+        .expect("parses")
+        .resolve()
+        .expect("resolves");
+
+        assert!(resolved.chains[0].experimental_opstack_api, "the default applies to chain 901");
+        assert!(!resolved.chains[1].experimental_opstack_api, "chain 902 overrides the default");
+
+        let unstated = LokahiConfig::parse(
+            r#"
+            [l1]
+            eth-rpc = "http://localhost:8545"
+            beacon = "http://localhost:5052"
+
+            [[chains]]
+            l2-chain-id = 901
+            engine-rpc = "http://localhost:8551"
+            jwt-secret = "/tmp/jwt.hex"
+            p2p-tcp-port = 9222
+            p2p-udp-port = 9223
+            "#,
+        )
+        .expect("parses")
+        .resolve()
+        .expect("resolves");
+        assert!(
+            !unstated.chains[0].experimental_opstack_api,
+            "an experimental namespace stays off unless asked for"
+        );
     }
 
     /// A file that says nothing about `[admin]` gets no RPC at all — the chains are served on that
