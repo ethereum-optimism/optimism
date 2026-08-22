@@ -300,6 +300,40 @@ async fn reset_still_discovers_its_start_point_by_walkback() {
     );
 }
 
+/// A reset mutates the engine state outside `drain`, so it has to publish the state watch itself.
+/// Every reader served through the watch — the RPC actor's queries, and the interop verifier's
+/// observations through them — would otherwise keep seeing the heads from before the reset until
+/// some unrelated task happened to succeed. That staleness is what held the interop verifier on an
+/// invalidated block after its rewind: the chain was off the block, but the watch still answered
+/// with it, and every round failed on the mismatch. (op-supernode's readers take the chain
+/// container's live state under lock, so they cannot lag a rewind at all.)
+#[tokio::test]
+async fn reset_to_publishes_the_state_watch() {
+    let cfg = Arc::new(RollupConfig::default());
+    let client = walkback_blind_client(cfg.clone());
+    let (genesis, b1, b2, b3) = (block(0), block(1), block(2), block(3));
+
+    let initial = TestEngineStateBuilder::new()
+        .with_unsafe_head(b3)
+        .with_local_safe_head(b3)
+        .with_finalized_head(genesis)
+        .build();
+    let (state_tx, state_rx) = watch::channel(initial);
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let mut targeted = Engine::new(initial, state_tx, len_tx);
+
+    let target = L2ForkchoiceState { un_safe: b2, local_safe: b1, finalized: genesis };
+    targeted.reset_to(client, cfg, target).await.expect("targeted reset");
+
+    let published = *state_rx.borrow();
+    assert_eq!(
+        published.sync_state.local_safe_head(),
+        b1,
+        "the watch must reflect the reset heads, not the heads from before it"
+    );
+    assert_eq!(published.sync_state, targeted.state().sync_state);
+}
+
 /// A reset installs a walkback point found by traversing the L2 chain, not one derived from L1, so
 /// it has no L1 key to pair with the head it writes — and the pairing it supersedes describes a
 /// head the engine is no longer on. Recording the new head as unpaired is what invalidates it: a

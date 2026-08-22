@@ -216,7 +216,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         config: &Arc<RollupConfig>,
         target: L2ForkchoiceState,
     ) -> Result<(), SynchronizeTaskError> {
-        SynchronizeTask::new(
+        let result = SynchronizeTask::new(
             client.clone(),
             config.clone(),
             EngineSyncStateUpdate {
@@ -230,7 +230,16 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             },
         )
         .execute(&mut self.state)
-        .await
+        .await;
+        // A reset moves the heads outside `drain`, so the watch has to be told here — otherwise
+        // every reader served through it (the RPC actor's queries, and the interop verifier's
+        // observations through them) keeps seeing the heads from before the reset. The Go
+        // supernode has no second copy to go stale: its readers take the chain container's own
+        // state under lock (`op-supernode/supernode/chain_container/chain_container.go`), so a
+        // rewind is visible to the next verifier round immediately — mirrored here by publishing
+        // on every state mutation, failed attempts included.
+        self.state_sender.send_replace(self.state);
+        result
     }
 
     /// Clears the task queue.
@@ -245,10 +254,19 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         while let Some(task) = self.tasks.peek() {
             // Execute the task
-            task.execute(&mut self.state).await?;
+            let result = task.execute(&mut self.state).await;
 
-            // Update the state and notify the chain controller.
+            // Update the state and notify the chain controller — on failure too: a task may
+            // mutate the state and *then* return an error. The seal task does exactly that when
+            // a derived payload is denied — it imports the deposits-only replacement, moving the
+            // local-safe head, and then signals `HoloceneInvalidFlush` so the rest of the channel
+            // is flushed. Skipping the publish there leaves every watch reader (the RPC actor's
+            // queries, and the interop verifier observing through them) on the invalidated block
+            // until some later task happens to succeed, which stalls cross-safety behind an
+            // unrelated event. op-supernode's readers take the live state under lock and cannot
+            // lag it; publishing on every execution is the same guarantee for the watch.
             self.state_sender.send_replace(self.state);
+            result?;
 
             // Pop the task from the queue now that it's been executed.
             self.tasks.pop();
