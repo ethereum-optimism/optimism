@@ -815,6 +815,9 @@ jobs:
   # Split of the former single rust-workspace-binaries build: kona binaries and
   # op-reth compile in parallel jobs, so the critical path is the slower of the
   # two rather than their sum, and neither job compiles the other's dep tree.
+  # lokahi is built here rather than in a job of its own: it shares kona's dependency
+  # tree, so it is nearly free next to kona-node and would otherwise compile that tree a
+  # second time. Its persist path is spelled out because the kona-* glob does not cover it.
   rust-kona-binaries:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
@@ -823,13 +826,14 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: "kona-host kona-client kona-node kona-sp1-proposer"
+          package: "kona-host kona-client kona-node kona-sp1-proposer lokahi"
           save_cache: true
           fetch_workspace: true
       - persist_to_workspace:
           root: "."
           paths:
             - "rust/target/release/kona-*"
+            - "rust/target/release/lokahi"
 
   rust-op-reth-binary:
     docker:
@@ -1921,9 +1925,16 @@ jobs:
         type: string
         default: "fusaka"
       l2_cl_kind:
-        description: "L2 consensus layer client (op-node or kona-node)"
+        description: "Per-chain L2 consensus layer client of the single-chain presets
+          (op-node or kona-node)"
         type: string
         default: "op-node"
+      supernode_kind:
+        description: "Supernode implementation of the multi-chain/interop presets
+          (op-supernode or lokahi). Independent of l2_cl_kind: those presets have no
+          per-chain CL to swap, their CL is a supernode hosting every chain."
+        type: string
+        default: "op-supernode"
       l2_el_kind:
         description: "L2 execution layer client (op-geth or op-reth)"
         type: string
@@ -1965,6 +1976,7 @@ jobs:
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
 
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_LOKAHI=$ROOT_DIR/rust/target/release/lokahi" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE=$ROOT_DIR/rust/target/release/op-reth-sdm-fixture" >> "$BASH_ENV"
@@ -1975,6 +1987,7 @@ jobs:
             # error when a test first tries to launch one of these.
             test -x "$ROOT_DIR/rust/target/release/op-reth"
             test -x "$ROOT_DIR/rust/target/release/op-reth-sdm-fixture"
+            test -x "$ROOT_DIR/rust/target/release/lokahi"
             # KONA_SP1_ELF_DIR deliberately not set: acceptance tests run with
             # stub prestate artifacts (the devstack deploys the mock verifier,
             # so nothing consumes real ELF bytes until the proving path). This
@@ -1985,6 +1998,7 @@ jobs:
           command: |
             echo "export DEVSTACK_L1_FORK=<<parameters.l1_fork>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
+            echo "export DEVSTACK_SUPERNODE_KIND=<<parameters.supernode_kind>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules (downloaded once by prep-go-modules) plus the
       # per-job build cache. Modules are already present, so the test run below
@@ -2610,13 +2624,25 @@ workflows:
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
-      # IN-MEMORY - kona/op-reth
+      # IN-MEMORY - kona-node/lokahi/op-reth: the Rust-client variant. The single-chain
+      # presets run kona-node as their per-chain CL; the multi-chain/interop presets have
+      # no per-chain CL to swap and select their supernode implementation separately.
+      #
+      # supernode_kind stays op-supernode for now, and this is no longer about lokahi being
+      # unable to host a chain: it can, and the two-chain lokahi test in
+      # op-acceptance-tests/tests/supernode/lokahi runs it in every variant. What blocks
+      # these presets is stack.SupernodeTestControl, whose InteropActivity() hands tests an
+      # in-process *interop.Interop pointer that no out-of-process supernode can provide.
+      # Flip this one line to "lokahi" once that has an RPC-shaped replacement. Until then
+      # the interop presets in this variant are identical to the op-node variant's, which is
+      # what the rename makes visible rather than hides.
       - op-acceptance-tests:
-          name: memory-all-kona-op-reth-<<matrix.l1_fork>>
+          name: memory-all-kona-lokahi-op-reth-<<matrix.l1_fork>>
           matrix:
             parameters:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
+          supernode_kind: op-supernode
           l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
@@ -2646,7 +2672,7 @@ workflows:
             - semgrep-test: terminal
             - go-tests: terminal
             - memory-all-opn-op-reth-fusaka: terminal
-            - memory-all-kona-op-reth-fusaka: terminal
+            - memory-all-kona-lokahi-op-reth-fusaka: terminal
             - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal

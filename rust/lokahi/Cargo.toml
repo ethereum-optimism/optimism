@@ -40,8 +40,10 @@ alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
 
 # general
 anyhow.workspace = true
+async-trait.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 discv5.workspace = true
+jsonrpsee = { workspace = true, features = ["macros", "server"] }
 libp2p.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["std"] }
@@ -53,4 +55,6 @@ tracing.workspace = true
 url = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
+# The two-chain smoke test talks to the binary it starts, over the same client a caller would use.
+jsonrpsee = { workspace = true, features = ["http-client"] }
 tempfile.workspace = true
