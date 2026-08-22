@@ -2,6 +2,7 @@ use crate::{
     BuildRequest, ChainControllerClientError, ChainControllerDerivationClient,
     ChainControllerError, CommitRequest, NodeActor, ResetRequest, RewindRequest, SealRequest,
 };
+use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
@@ -159,6 +160,7 @@ where
         // this node has just disowned, and a reader that saw them between the reset and the
         // rewind would pair a live timestamp with an L1 block on the abandoned branch.
         self.rewind_safe_db(l2_safe_head);
+        self.seed_genesis_safe_head(l2_safe_head).await;
 
         // Signal the derivation actor to reset.
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
@@ -196,6 +198,7 @@ where
 
         // Before derivation is told anything, for the same reason `reset` does it there.
         self.rewind_safe_db(l2_safe_head);
+        self.seed_genesis_safe_head(l2_safe_head).await;
 
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
         match self.derivation_client.send_signal(signal).await {
@@ -412,6 +415,63 @@ where
         // and this controller's idea of what is stored is no longer trustworthy. Both mean the
         // next advance should be written rather than suppressed as unchanged.
         self.last_recorded = None;
+    }
+
+    /// Records L2 genesis as safe from L1 block 0, when a reset lands the local-safe head there.
+    ///
+    /// This is op-node's behaviour on an engine-reset confirmation
+    /// (`op-node/rollup/driver/sync_deriver.go:204-220`): the rollup genesis block is safe by
+    /// definition, and a pipeline that resets this far back will observe every safe-head update
+    /// from here on, so genesis can be recorded as safe from L1 genesis. op-node deliberately
+    /// keys the record at L1 block 0 rather than `cfg.Genesis.L1` — the dispute contracts may
+    /// predate the L2 genesis's own L1 origin, so games can anchor at an earlier L1 head.
+    ///
+    /// The entry is what holds the safe-head database's floor at genesis. Without it, the
+    /// earliest recorded entry is the first post-reset advance — which, under one L1 key per
+    /// recorded transition, can name an L2 block well above 1 — and `l1_at_safe_head` for any
+    /// height below that floor answers `L1AtSafeHeadUnavailable`, permanently. op-supernode's
+    /// superroot API fails the whole `superroot_atTimestamp` call on that error, so a supernode
+    /// missing this record cannot answer for any timestamp its first recorded entry does not
+    /// cover, even though it derived those blocks itself.
+    ///
+    /// A failed L1 read or write is logged rather than propagated, the posture
+    /// [`Self::rewind_safe_db`] already takes for this database: the reset is not wrong because
+    /// a record of it could not be stored. (op-node instead withholds the pipeline-reset
+    /// confirmation so the reset re-runs; this controller has no such re-trigger, and the cost
+    /// here is history queries below the first recorded advance failing as they did before the
+    /// seed existed.)
+    pub(super) async fn seed_genesis_safe_head(&self, l2_safe_head: L2BlockInfo) {
+        if !self.safe_db.enabled() || l2_safe_head.block_info.id() != self.rollup.genesis.l2 {
+            return;
+        }
+        let l1_genesis = match self.client.get_l1_block(BlockNumberOrTag::Number(0).into()).await {
+            Ok(Some(block)) => {
+                BlockNumHash { number: block.header.number, hash: block.header.hash }
+            }
+            Ok(None) => {
+                error!(
+                    target: "engine",
+                    "The L1 has no genesis block; cannot record L2 genesis as safe"
+                );
+                return;
+            }
+            Err(err) => {
+                error!(
+                    target: "engine",
+                    ?err,
+                    "Failed to read the L1 genesis block; cannot record L2 genesis as safe"
+                );
+                return;
+            }
+        };
+        if let Err(err) = self.safe_db.safe_head_updated(l2_safe_head, l1_genesis) {
+            error!(
+                target: "engine",
+                ?err,
+                "Failed to record L2 genesis as safe; history queries below the first recorded \
+                 advance will answer as unavailable"
+            );
+        }
     }
 
     /// Attempts to send the [`crate::DerivationActor`] the local-safe head if updated.

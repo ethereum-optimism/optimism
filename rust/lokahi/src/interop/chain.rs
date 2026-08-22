@@ -116,6 +116,19 @@ impl NodeChain {
     /// block", which is what cross-safety means, is therefore never told more than is true.
     async fn behind_head(&self, timestamp: u64) -> Result<ChainAt, ChainError> {
         let number = self.block_number_at_timestamp(timestamp).await?;
+
+        // Genesis L2 is trivially safe at L1 block 0, answered before the database is consulted —
+        // op-supernode's own guard (`op-supernode/supernode/chain_container/virtual_node/
+        // virtual_node.go:263-269`). It uses block 0 rather than the L2 genesis's L1 origin
+        // because the dispute contracts may predate that origin, allowing games anchored to
+        // earlier L1 heads; the zero hash is what its `eth.BlockID{Number: 0}` carries.
+        if number == self.rollup_config.genesis.l2.number {
+            return Ok(ChainAt::Derived {
+                block: self.rollup_config.genesis.l2,
+                l1: BlockNumHash { number: 0, hash: B256::ZERO },
+            });
+        }
+
         let record = match self.safe_db.l1_at_safe_head(number) {
             Ok(record) => record,
             // The recorded tip has not reached this height. Transient by construction: this is a
@@ -559,6 +572,25 @@ mod tests {
     async fn a_timestamp_before_genesis_answers_with_genesis() {
         let chain = chain_with(|| SafeDbError::NotFound);
         assert_eq!(chain.block_number_at_timestamp(1).await.unwrap(), 0);
+    }
+
+    /// Genesis is safe at L1 block 0 by definition, and the answer must not depend on the
+    /// database — op-supernode's guard (`virtual_node.go:263-269`) short-circuits before its
+    /// `SafeDB` lookup. The database here answers every read with the *permanent* error, so
+    /// without the guard this verdict would be [`ChainAt::HistoryUnavailable`] — the one that
+    /// halts the verifier — for the very timestamp verification starts from when interop
+    /// activates at genesis.
+    #[tokio::test]
+    async fn genesis_is_safe_at_l1_block_zero_without_consulting_history() {
+        let chain = chain_with(|| SafeDbError::L1AtSafeHeadUnavailable);
+
+        let genesis = ChainAt::Derived {
+            block: BlockNumHash::default(),
+            l1: BlockNumHash { number: 0, hash: B256::ZERO },
+        };
+        // The genesis timestamp itself, and an unaligned timestamp flooring onto genesis.
+        assert_eq!(chain.behind_head(1_000).await.unwrap(), genesis);
+        assert_eq!(chain.behind_head(1_001).await.unwrap(), genesis);
     }
 
     /// The two directions have to agree, or the timestamp cold start picks from a chain's first
