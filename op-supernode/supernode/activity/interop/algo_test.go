@@ -512,6 +512,65 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		{
+			name: "ValidBlocks/TimestampsNearMaxUint64",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				sourceChainID := eth.ChainIDFromUInt64(10)
+				destChainID := eth.ChainIDFromUInt64(8453)
+
+				sourceBlockHash := common.HexToHash("0xSource")
+				destBlockHash := common.HexToHash("0xDest")
+
+				execTimestamp := ^uint64(0)
+				initTimestamp := execTimestamp - 10
+
+				sourceBlock := eth.BlockID{Number: 50, Hash: sourceBlockHash}
+				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+				l1Block := eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}
+
+				execMsg := &messages.ExecutingMessage{
+					ChainID:   sourceChainID,
+					BlockNum:  50,
+					LogIdx:    0,
+					Timestamp: initTimestamp,
+					Checksum:  messages.MessageChecksum{0x01},
+				}
+
+				sourceDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: initTimestamp},
+					containsSeal: messages.BlockSeal{Number: 50, Timestamp: initTimestamp},
+				}
+
+				destDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: execTimestamp},
+					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
+						0: execMsg,
+					},
+				}
+
+				interop := &Interop{
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{
+						sourceChainID: sourceDB,
+						destChainID:   destDB,
+					},
+					chains: map[eth.ChainID]cc.InteropChain{
+						sourceChainID: newMockChainWithL1(sourceChainID, l1Block),
+						destChainID:   newMockChainWithL1(destChainID, l1Block),
+					},
+				}
+
+				return interop, execTimestamp, map[eth.ChainID]eth.BlockID{
+					sourceChainID: sourceBlock,
+					destChainID:   destBlock,
+				}
+			},
+			validate: func(t *testing.T, result Result) {
+				require.True(t, result.IsValid())
+				require.Empty(t, result.InvalidHeads)
+			},
+		},
+		{
 			name: "ValidBlocks/SameTimestampMessage",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
 				// Same-timestamp interop: executing message references an initiating message
