@@ -93,11 +93,16 @@ build-lokahi-debug:
 
 # Run all outer-workspace tests. SP1 guests require generated vkeys and are tested by CI after
 # their ELFs are built.
-test: test-unit test-docs
+test: test-unit test-beacon-blob-stack test-docs
 
 # Run unit tests (excluding online tests)
 test-unit *args="-E '!test(test_online)'":
   cargo nextest run --workspace --all-features {{args}}
+
+# Exercise the production beacon blob parser without debug assertions on a bounded stack.
+test-beacon-blob-stack:
+  cargo test --profile fast-build --locked -p kona-providers-alloy \
+    test_filtered_beacon_blobs_deserializes_on_small_stack
 
 # Run online tests only
 test-online:
