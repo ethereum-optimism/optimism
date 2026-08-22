@@ -60,7 +60,6 @@ std = [
 	"alloy-rlp/std",
 	"alloy-serde?/std",
 	"alloy-sol-types/std",
-	"derive_more/display",
 	"derive_more/std",
 	"kona-genesis/std",
 	"kona-registry/std",
