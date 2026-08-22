@@ -5,8 +5,9 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, InsertTask, SealTask,
+    BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
+    ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -72,6 +73,9 @@ where
     engine: Engine<EngineClient_>,
     /// The inbound request channel.
     inbound_request_rx: mpsc::Receiver<ChainControllerRequest>,
+    /// Where to hand every imported block, so the derivation providers can read it locally
+    /// instead of fetching it back from the execution layer.
+    block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl<EngineClient_, DerivationClient> ChainController<EngineClient_, DerivationClient>
@@ -87,6 +91,7 @@ where
         engine: Engine<EngineClient_>,
         unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
         inbound_request_rx: mpsc::Receiver<ChainControllerRequest>,
+        block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
         Self {
             client,
@@ -97,6 +102,7 @@ where
             rollup: config,
             unsafe_head_tx,
             inbound_request_rx,
+            block_sink,
         }
     }
 
@@ -267,6 +273,7 @@ where
                     self.client.clone(),
                     self.rollup.clone(),
                     local_safe_signal,
+                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }
@@ -286,7 +293,8 @@ where
                     // The payload is not derived in this case. This is an unsafe block, so it
                     // moves no local-safe head and has no L1 origin to pair with one.
                     *envelope,
-                    None,
+                    None, // The payload is not derived: an unsafe block moves no local-safe head.
+                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }
@@ -316,7 +324,9 @@ where
                     attributes,
                     // The payload is not derived in this case.
                     false,
+                    BuildSealCoupling::Detached,
                     Some(result_tx),
+                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }

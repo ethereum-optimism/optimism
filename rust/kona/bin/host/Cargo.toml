@@ -44,7 +44,6 @@ alloy-rpc-client.workspace = true
 alloy-transport-http.workspace = true
 alloy-rpc-types = { workspace = true, features = ["eth", "debug"] }
 alloy-primitives = { workspace = true, features = ["serde"] }
-alloy-rpc-types-beacon.workspace = true
 
 # Op Alloy
 op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
@@ -74,6 +73,7 @@ ark-ff.workspace = true
 [dev-dependencies]
 alloy-json-rpc.workspace = true
 proptest.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 [features]
 default = [ "interop", "single" ]

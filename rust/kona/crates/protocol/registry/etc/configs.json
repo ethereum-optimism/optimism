@@ -882,7 +882,8 @@
             "granite_time": 1727780400,
             "holocene_time": 1738238400,
             "isthmus_time": 1764072000,
-            "jovian_time": 1777593600
+            "jovian_time": 1777593600,
+            "karst_time": 1789992000
           },
           "optimism": {
             "eip1559Elasticity": 10,
@@ -3307,7 +3308,8 @@
             "holocene_time": 1737633600,
             "pectra_blob_schedule_time": 1742486400,
             "isthmus_time": 1761825600,
-            "jovian_time": 1777161600
+            "jovian_time": 1777161600,
+            "karst_time": 1788868800
           },
           "optimism": {
             "eip1559Elasticity": 10,
