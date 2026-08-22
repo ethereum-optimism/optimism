@@ -76,12 +76,13 @@ impl BatchValidationProvider for TestBatchValidator {
             .ok_or_else(|| TestBatchValidatorError::BlockNotFound)
     }
 
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         self.op_blocks
             .iter()
             .find(|p| p.header.number == number)
             .cloned()
-            .ok_or_else(|| TestBatchValidatorError::L2BlockNotFound)
+            .map(Arc::new)
+            .ok_or(TestBatchValidatorError::L2BlockNotFound)
     }
 }
 

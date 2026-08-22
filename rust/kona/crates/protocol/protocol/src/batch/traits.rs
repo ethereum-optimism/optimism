@@ -1,6 +1,6 @@
 //! Traits for working with protocol types.
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, sync::Arc};
 use async_trait::async_trait;
 use core::fmt::Display;
 use op_alloy_consensus::OpBlock;
@@ -20,6 +20,9 @@ pub trait BatchValidationProvider {
 
     /// Returns the [`OpBlock`] for a given number.
     ///
+    /// Shared rather than owned: span batch validation walks every overlapped block, and the
+    /// providers that hold blocks would otherwise deep-copy each one, transactions included.
+    ///
     /// Errors if no block is available for the given block number.
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error>;
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error>;
 }

@@ -163,7 +163,7 @@ func (v *LockstepCrossValidator) ResetCrossValidatedTimestamp(timestamp uint64) 
 //   - inclusionTimestamp: when the executing message is included
 //   - messageExpiryWindow: how long messages remain valid
 //   - timeout: optional max execution delay (0 = disabled)
-//   - execTimestamp: execution timestamp (only used if timeout > 0)
+//   - execTimestamp: execution timestamp (only used if timeout > 0; must be >= initTimestamp)
 func validateMessageTiming(
 	initTimestamp, inclusionTimestamp, messageExpiryWindow, timeout, execTimestamp uint64,
 ) error {
@@ -173,32 +173,24 @@ func validateMessageTiming(
 			initTimestamp, inclusionTimestamp, interop.ErrConflict)
 	}
 
-	// Rule 2: compute expiry with overflow check
-	expiresAt := initTimestamp + messageExpiryWindow
-	if expiresAt < initTimestamp {
-		return fmt.Errorf("overflow in expiry calculation: timestamp %d + window %d: %w",
-			initTimestamp, messageExpiryWindow, interop.ErrConflict)
+	// Rule 2: message must not be expired at inclusion
+	if inclusionTimestamp-initTimestamp > messageExpiryWindow {
+		return fmt.Errorf("initiating message expired: inclusion %d - init %d > expiry window %d: %w",
+			inclusionTimestamp, initTimestamp, messageExpiryWindow, interop.ErrConflict)
 	}
 
-	// Rule 3: message must not be expired at inclusion
-	if expiresAt < inclusionTimestamp {
-		return fmt.Errorf("initiating message expired: init %d + expiry window %d = %d < inclusion %d: %w",
-			initTimestamp, messageExpiryWindow, expiresAt, inclusionTimestamp, interop.ErrConflict)
-	}
-
-	// Rule 4: if timeout set, message must not expire before timeout deadline
+	// Rule 3: if timeout set, message must not expire before timeout deadline
 	if timeout > 0 {
-		maxExecTimestamp := execTimestamp + timeout
-		if maxExecTimestamp < execTimestamp {
-			return fmt.Errorf("overflow in max exec timestamp calculation: timestamp %d + timeout %d: %w",
-				execTimestamp, timeout, interop.ErrConflict)
+		if execTimestamp < initTimestamp {
+			return fmt.Errorf("exec timestamp %d before initiating message timestamp %d: %w",
+				execTimestamp, initTimestamp, interop.ErrConflict)
 		}
-		if expiresAt < maxExecTimestamp {
+		// The timeout must fit in the lifetime the message has left at execution.
+		execAge := execTimestamp - initTimestamp
+		if execAge > messageExpiryWindow || timeout > messageExpiryWindow-execAge {
 			return fmt.Errorf("initiating message will expire before timeout: "+
-				"init %d + expiry %d = %d < exec %d + timeout %d = %d: %w",
-				initTimestamp, messageExpiryWindow, expiresAt,
-				execTimestamp, timeout, maxExecTimestamp,
-				interop.ErrConflict)
+				"exec %d - init %d + timeout %d > expiry window %d: %w",
+				execTimestamp, initTimestamp, timeout, messageExpiryWindow, interop.ErrConflict)
 		}
 	}
 

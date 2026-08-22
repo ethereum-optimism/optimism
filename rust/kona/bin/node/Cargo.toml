@@ -33,6 +33,7 @@ kona-registry = { workspace = true, features = ["tabled"] }
 kona-sources = { workspace = true }
 kona-node-service = { workspace = true, features = ["metrics"] }
 kona-providers-alloy = { workspace = true, features = ["metrics"] }
+kona-providers-local = { workspace = true, features = ["metrics"] }
 
 # alloy
 alloy-chains.workspace = true
