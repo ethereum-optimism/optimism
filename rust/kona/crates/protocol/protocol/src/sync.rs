@@ -62,24 +62,68 @@ pub struct SyncStatus {
 #[cfg(all(test, feature = "serde"))]
 mod tests {
     use super::*;
+    use alloy_primitives::b256;
 
-    /// There is a single unsafe head, so the sync status carries no cross-unsafe field.
+    /// A CL that still reports `cross_unsafe_l2` must stay parseable. `DerivationDelegateClient`
+    /// reads `optimism_syncStatus` from an arbitrary external node, and op-nodes predating the
+    /// field's removal — plus third-party implementations — still send it. This only works
+    /// because [`SyncStatus`] does not `deny_unknown_fields`.
     #[test]
-    fn test_sync_status_serializes_without_cross_unsafe() {
-        let status = SyncStatus {
-            current_l1: BlockInfo::default(),
-            current_l1_finalized: BlockInfo::default(),
-            head_l1: BlockInfo::default(),
-            safe_l1: BlockInfo::default(),
-            finalized_l1: BlockInfo::default(),
-            unsafe_l2: L2BlockInfo::default(),
-            safe_l2: L2BlockInfo::default(),
-            finalized_l2: L2BlockInfo::default(),
-            local_safe_l2: L2BlockInfo::default(),
+    fn test_sync_status_ignores_cross_unsafe_from_an_external_node() {
+        let l1_block = r#"{
+            "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "number": 18123456,
+            "parentHash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+            "timestamp": 1699123456
+        }"#;
+        let l2_block = |number: u64| {
+            format!(
+                r#"{{
+                    "hash": "0x3333333333333333333333333333333333333333333333333333333333333333",
+                    "number": {number},
+                    "parentHash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+                    "timestamp": 1699123456,
+                    "l1Origin": {{
+                        "hash": "0x5555555555555555555555555555555555555555555555555555555555555555",
+                        "number": 18123456
+                    }},
+                    "sequenceNumber": 42
+                }}"#
+            )
         };
 
-        let json = serde_json::to_value(&status).unwrap();
-        assert!(json.get("unsafe_l2").is_some());
-        assert!(json.get("cross_unsafe_l2").is_none());
+        let payload = format!(
+            r#"{{
+                "current_l1": {l1_block},
+                "current_l1_finalized": {l1_block},
+                "head_l1": {l1_block},
+                "safe_l1": {l1_block},
+                "finalized_l1": {l1_block},
+                "unsafe_l2": {unsafe_l2},
+                "safe_l2": {safe_l2},
+                "finalized_l2": {finalized_l2},
+                "cross_unsafe_l2": {cross_unsafe_l2},
+                "local_safe_l2": {local_safe_l2}
+            }}"#,
+            l1_block = l1_block,
+            unsafe_l2 = l2_block(12350),
+            safe_l2 = l2_block(12345),
+            finalized_l2 = l2_block(12340),
+            cross_unsafe_l2 = l2_block(12348),
+            local_safe_l2 = l2_block(12346),
+        );
+
+        let status: SyncStatus = serde_json::from_str(&payload).unwrap();
+
+        // The extra field is dropped, and the heads we do read are unaffected by it.
+        assert_eq!(status.unsafe_l2.block_info.number, 12350);
+        assert_eq!(status.safe_l2.block_info.number, 12345);
+        assert_eq!(status.local_safe_l2.block_info.number, 12346);
+        assert_eq!(
+            status.unsafe_l2.block_info.hash,
+            b256!("3333333333333333333333333333333333333333333333333333333333333333")
+        );
+        assert_eq!(status.unsafe_l2.l1_origin.number, 18123456);
+        assert_eq!(status.unsafe_l2.seq_num, 42);
     }
 }

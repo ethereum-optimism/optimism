@@ -268,7 +268,7 @@ func logInterop(ctx context.Context, stderr io.Writer, sys *presets.TwoL2Superno
 	var lastSafeTS, lastLocalSafeTS uint64
 	lastSafe := make(map[string]uint64)
 	lastLocalSafe := make(map[string]uint64)
-	lastCrossUnsafe := make(map[string]uint64)
+	lastUnsafe := make(map[string]uint64)
 
 	for {
 		select {
@@ -296,10 +296,9 @@ func logInterop(ctx context.Context, stderr io.Writer, sys *presets.TwoL2Superno
 			for chainID, cs := range status.Chains {
 				id := chainID.String()
 
-				// Cross-unsafe progression
-				if cs.CrossUnsafeL2.Number != lastCrossUnsafe[id] && cs.CrossUnsafeL2.Number > 0 {
-					fmt.Fprintf(stderr, "[interop] Chain %s cross-unsafe: #%d\n", id, cs.CrossUnsafeL2.Number)
-					lastCrossUnsafe[id] = cs.CrossUnsafeL2.Number
+				if cs.UnsafeL2.Number != lastUnsafe[id] && cs.UnsafeL2.Number > 0 {
+					fmt.Fprintf(stderr, "[interop] Chain %s unsafe: #%d\n", id, cs.UnsafeL2.Number)
+					lastUnsafe[id] = cs.UnsafeL2.Number
 				}
 
 				// Local-safe progression
