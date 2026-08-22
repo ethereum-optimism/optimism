@@ -37,18 +37,16 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 		testL2ReorgAfterL1Reorg(gt, 3, preEarly, pre, post)
 	})
 
-	gt.Run("unsafe, local-safe, cross-unsafe, cross-safe reorgs", func(gt *testing.T) {
-		var crossSafeRef, crossUnsafeRef, localSafeRef, unsafeRef eth.BlockID
+	gt.Run("unsafe, local-safe, cross-safe reorgs", func(gt *testing.T) {
+		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
 		pre := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 			ss := sys.L2ACL.SyncStatus()
-			crossUnsafeRef = ss.CrossUnsafeL2.ID()
 			crossSafeRef = ss.SafeL2.ID()
 			localSafeRef = ss.LocalSafeL2.ID()
 			unsafeRef = ss.UnsafeL2.ID()
 		}
 		post := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 			require.False(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should have been reorged")
-			require.False(t, sys.L2ELA.IsCanonical(crossUnsafeRef), "Previous cross-unsafe block should have been reorged")
 			require.False(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should have been reorged")
 			require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
 		}

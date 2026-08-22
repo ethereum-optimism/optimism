@@ -89,8 +89,14 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 	switch gameType {
 	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 		return NewSuperFaultDisputeGameContract(ctx, metrics, addr, caller)
-	default:
+	case gameTypes.CannonGameType,
+		gameTypes.PermissionedGameType,
+		gameTypes.CannonKonaGameType,
+		gameTypes.AlphabetGameType,
+		gameTypes.FastGameType:
 		return NewPreInteropFaultDisputeGameContract(ctx, metrics, addr, caller)
+	default:
+		return nil, fmt.Errorf("%w: %v", ErrUnsupportedGameType, gameType)
 	}
 }
 
