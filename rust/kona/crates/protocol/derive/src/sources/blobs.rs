@@ -4,7 +4,7 @@ use crate::{
     BlobData, BlobProvider, ChainProvider, DataAvailabilityProvider, PipelineError,
     PipelineErrorKind, PipelineResult, ResetError,
 };
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use alloy_consensus::{
     Transaction, TxEip4844Variant, TxEnvelope, TxType, transaction::SignerRecoverable,
 };
@@ -29,6 +29,8 @@ where
     pub data: Vec<BlobData>,
     /// Whether the source is open.
     pub open: bool,
+    /// The `chain_id` label attached to this source's metrics.
+    pub chain_id_label: Arc<str>,
 }
 
 impl<F, B> BlobSource<F, B>
@@ -37,8 +39,20 @@ where
     B: BlobProvider + Send,
 {
     /// Creates a new blob source.
-    pub const fn new(chain_provider: F, blob_fetcher: B, batcher_address: Address) -> Self {
-        Self { chain_provider, blob_fetcher, batcher_address, data: Vec::new(), open: false }
+    pub fn new(
+        chain_provider: F,
+        blob_fetcher: B,
+        batcher_address: Address,
+        chain_id: u64,
+    ) -> Self {
+        Self {
+            chain_provider,
+            blob_fetcher,
+            batcher_address,
+            data: Vec::new(),
+            open: false,
+            chain_id_label: kona_macros::chain_id_label(chain_id),
+        }
     }
 
     fn extract_blob_data(
@@ -101,6 +115,7 @@ where
         metrics::gauge!(
             crate::metrics::Metrics::PIPELINE_DATA_AVAILABILITY_PROVIDER,
             "source" => "blobs",
+            crate::metrics::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone(),
         )
         .increment(data.len() as f64);
         (data, hashes)
@@ -246,7 +261,7 @@ pub(crate) mod tests {
         let chain_provider = TestChainProvider::default();
         let blob_fetcher = TestBlobProvider::default();
         let batcher_address = Address::default();
-        BlobSource::new(chain_provider, blob_fetcher, batcher_address)
+        BlobSource::new(chain_provider, blob_fetcher, batcher_address, 10)
     }
 
     pub(crate) fn valid_blob_txs() -> Vec<TxEnvelope> {
@@ -485,7 +500,7 @@ pub(crate) mod tests {
     async fn test_load_blobs_block_not_found_triggers_reset() {
         let chain_provider = BlockNotFoundChainProvider;
         let blob_fetcher = crate::test_utils::TestBlobProvider::default();
-        let mut source = BlobSource::new(chain_provider, blob_fetcher, Address::ZERO);
+        let mut source = BlobSource::new(chain_provider, blob_fetcher, Address::ZERO, 10);
 
         let err = source.load_blobs(&BlockInfo::default(), Address::ZERO).await.unwrap_err();
         assert!(

@@ -53,12 +53,12 @@ fn externally_promoted(genesis: L2BlockInfo) -> (EngineState, CrossSafePromoter)
     );
 
     let mut state = *engine.state();
-    state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+    state.sync_state = state.apply_sync_update(EngineSyncStateUpdate {
         unsafe_head: Some(genesis),
         local_safe_head: Some(LocalSafeHead::unpaired(genesis)),
         finalized_head: Some(genesis),
     });
-    state.sync_state = state.sync_state.apply_cross_safe_promotion(promoter.promote(genesis));
+    state.sync_state = state.apply_cross_safe_promotion(promoter.promote(genesis));
 
     (state, promoter)
 }

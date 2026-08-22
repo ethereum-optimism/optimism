@@ -3,10 +3,19 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod cli;
+mod config;
+mod metrics;
+mod supernode;
 mod version;
 
 fn main() {
     use clap::Parser;
 
-    cli::Cli::parse().run();
+    kona_cli::sigsegv_handler::install();
+    kona_cli::backtrace::enable();
+
+    if let Err(err) = cli::Cli::parse().run() {
+        eprintln!("Error: {err:?}");
+        std::process::exit(1);
+    }
 }

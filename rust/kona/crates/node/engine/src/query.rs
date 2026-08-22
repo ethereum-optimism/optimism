@@ -249,7 +249,7 @@ mod tests {
         );
 
         let mut advanced = state;
-        advanced.sync_state = advanced.sync_state.apply_update(EngineSyncStateUpdate {
+        advanced.sync_state = advanced.apply_sync_update(EngineSyncStateUpdate {
             local_safe_head: Some(LocalSafeHead::derived_from(l2(11, 102), l1(6))),
             ..EngineSyncStateUpdate::NONE
         });

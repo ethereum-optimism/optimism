@@ -3,11 +3,11 @@ use crate::{
     ChainController, ChainControllerRequest, ChainControllerRpcActor, ChainControllerRpcRequest,
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineConfig,
-    JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor, NetworkActor, NetworkBuilder,
-    NetworkConfig, NetworkHandler, NodeActor, NodeMode, QueuedChainControllerDerivationClient,
-    QueuedDerivationEngineClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
+    JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor,
+    NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
+    QueuedChainControllerDerivationClient, QueuedDerivationEngineClient, QueuedEngineRpcClient,
+    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
+    QueuedSequencerEngineClient, RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::{
         BufferImportedBlocks,
@@ -62,6 +62,68 @@ pub struct L1Config {
     pub beacon_client: OnlineBeaconClient,
     /// The L1 engine provider.
     pub engine_provider: RootProvider,
+}
+
+impl L1Config {
+    /// Builds the one L1 watcher a host runs, serving every chain whose [`L1WatcherPorts`] are
+    /// given.
+    ///
+    /// This is the single place a watcher is attached to composed chains, and the reason
+    /// [`RollupNode::compose`] leaves the watcher out of a chain's actors: the L1 is followed once
+    /// per process, not once per chain, so how many watchers exist is the host's decision and this
+    /// is where the host states it. A single-chain host passes one chain's ports; a multi-chain
+    /// host passes every chain's, and the head and finalized streams are then polled once for all
+    /// of them.
+    ///
+    /// The returned actor is inert until it is stepped by [`run_actors`].
+    ///
+    /// Returns `impl NodeActor` rather than a named type: the block-stream type produced by
+    /// [`BlockStream::new_as_stream`] is `impl Stream`, so the `L1WatcherActor` generic parameter
+    /// cannot be written down. Callers only need a `NodeActor` to box.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `chains` is empty; a watcher with no chain to serve has nothing to do, and a host
+    /// that composed no chain is a configuration bug rather than a runtime condition.
+    pub fn l1_watcher(
+        &self,
+        chains: Vec<L1WatcherPorts>,
+    ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
+    {
+        let head_stream = BlockStream::new_as_stream(
+            self.engine_provider.clone(),
+            BlockNumberOrTag::Latest,
+            Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
+        )?;
+        let finalized_stream = BlockStream::new_as_stream(
+            self.engine_provider.clone(),
+            BlockNumberOrTag::Finalized,
+            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+        )?;
+
+        let chains = chains
+            .into_iter()
+            .map(|ports| {
+                let L1WatcherPorts {
+                    rollup_config,
+                    derivation_actor_request_tx,
+                    unsafe_signer_tx,
+                    l1_query_rx,
+                    l1_head_updates_tx,
+                } = ports;
+
+                L1WatcherChain::new(
+                    rollup_config,
+                    QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
+                    unsafe_signer_tx,
+                    l1_query_rx,
+                    l1_head_updates_tx,
+                )
+            })
+            .collect();
+
+        Ok(L1WatcherActor::new(self.engine_provider.clone(), head_stream, finalized_stream, chains))
+    }
 }
 
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
@@ -182,6 +244,7 @@ impl RollupNode {
             self.l1_config.engine_provider.clone(),
             DERIVATION_PROVIDER_CACHE_SIZE,
             self.l1_config.trust_rpc,
+            self.config.l2_chain_id.id(),
         );
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
@@ -208,6 +271,7 @@ impl RollupNode {
             self.l1_config.engine_provider.clone(),
             DERIVATION_PROVIDER_CACHE_SIZE,
             self.l1_config.trust_rpc,
+            self.config.l2_chain_id.id(),
         );
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
@@ -222,7 +286,9 @@ impl RollupNode {
         OnlinePipeline::new_polled(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
-            OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
+            OnlineBlobProvider::init(self.l1_config.beacon_client.clone())
+                .await
+                .with_chain_id(self.config.l2_chain_id.id()),
             l1_derivation_provider,
             l2_derivation_provider,
             self.dependency_set.clone(),
@@ -243,7 +309,8 @@ impl RollupNode {
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
     ) -> (ConfiguredChainController, ConfiguredChainControllerRpcActor) {
         // Engine-internal watches; not visible outside this helper.
-        let engine_state = EngineState::default();
+        let engine_state =
+            EngineState { chain_id: self.config.l2_chain_id.id(), ..Default::default() };
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
         let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
         let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
@@ -286,6 +353,7 @@ impl RollupNode {
             let l1_provider = AlloyChainProvider::new(
                 self.l1_config.engine_provider.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
+                self.config.l2_chain_id.id(),
             );
             ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { controller_request_tx },
@@ -300,48 +368,6 @@ impl RollupNode {
                 self.create_pipeline().await,
             )))
         }
-    }
-
-    /// Builds the L1 watcher actor along with its head and finalized block streams.
-    ///
-    /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
-    /// type alias: the block-stream type produced by [`BlockStream::new_as_stream`] is
-    /// `impl Stream`, so the resulting `L1WatcherActor` generic parameter cannot be written down.
-    /// Using `impl Trait` here is intentional; the caller only needs a `NodeActor` to box.
-    fn build_l1_watcher(
-        &self,
-        ports: L1WatcherPorts,
-    ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
-    {
-        let head_stream = BlockStream::new_as_stream(
-            self.l1_config.engine_provider.clone(),
-            BlockNumberOrTag::Latest,
-            Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
-        )?;
-        let finalized_stream = BlockStream::new_as_stream(
-            self.l1_config.engine_provider.clone(),
-            BlockNumberOrTag::Finalized,
-            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
-        )?;
-
-        let L1WatcherPorts {
-            rollup_config,
-            derivation_actor_request_tx,
-            unsafe_signer_tx,
-            l1_query_rx,
-            l1_head_updates_tx,
-        } = ports;
-
-        Ok(L1WatcherActor::new(
-            rollup_config,
-            self.l1_config.engine_provider.clone(),
-            l1_query_rx,
-            l1_head_updates_tx,
-            QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
-            unsafe_signer_tx,
-            head_stream,
-            finalized_stream,
-        ))
     }
 
     /// Builds the sequencer actor when the node is in sequencer mode; otherwise returns `None`.
@@ -407,16 +433,24 @@ impl RollupNode {
             .merge(HealthzApiServer::into_rpc(HealthzRpc {}))
             .map_err(|e| format!("Failed to register healthz module: {e:?}"))?;
         modules
-            .merge(P2pRpc::new(p2p_rpc_tx).into_rpc())
+            .merge(P2pRpc::new(p2p_rpc_tx, self.config.l2_chain_id.id()).into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
         merge_admin_module(
             &mut modules,
             config.enable_admin(),
             sequencer_admin_client,
             network_admin_tx,
+            self.config.l2_chain_id.id(),
         )?;
         modules
-            .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
+            .merge(
+                RollupRpc::new(
+                    engine_rpc_client.clone(),
+                    l1_watcher_queries_tx,
+                    self.config.l2_chain_id.id(),
+                )
+                .into_rpc(),
+            )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
         if config.dev_enabled() {
             modules
@@ -586,7 +620,7 @@ impl RollupNode {
         let cancellation = CancellationToken::new();
 
         let ComposedChain { mut actors, l1_watcher_ports } = self.compose().await?;
-        actors.push(self.build_l1_watcher(l1_watcher_ports)?.boxed());
+        actors.push(self.l1_config.l1_watcher(vec![l1_watcher_ports])?.boxed());
 
         run_actors(cancellation, actors).await
     }
@@ -600,10 +634,11 @@ fn merge_admin_module(
     enable_admin: bool,
     sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
     network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
+    chain_id: u64,
 ) -> Result<(), String> {
     if enable_admin {
         modules
-            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
+            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx, chain_id).into_rpc())
             .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
     }
     Ok(())
@@ -616,7 +651,7 @@ mod tests {
     fn admin_method_names(enable_admin: bool) -> Vec<String> {
         let mut modules = RpcModule::new(());
         let (network_admin_tx, _rx) = mpsc::channel(1);
-        merge_admin_module(&mut modules, enable_admin, None, network_admin_tx)
+        merge_admin_module(&mut modules, enable_admin, None, network_admin_tx, 10)
             .expect("admin module registration");
         modules.method_names().map(ToString::to_string).collect()
     }

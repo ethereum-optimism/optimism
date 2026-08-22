@@ -39,6 +39,11 @@ pub struct BufferedL2Provider {
     rollup_config: Arc<RollupConfig>,
     /// Genesis information
     genesis: ChainGenesis,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the per-query cache-hit/miss emits clone a refcount rather than re-allocating
+    /// the label.
+    chain_id_label: Arc<str>,
 }
 
 impl BufferedL2Provider {
@@ -50,11 +55,13 @@ impl BufferedL2Provider {
     /// * `max_reorg_depth` - Maximum reorg depth to handle before clearing the cache
     pub fn new(rollup_config: Arc<RollupConfig>, cache_size: usize, max_reorg_depth: u64) -> Self {
         let genesis = rollup_config.genesis;
+        let chain_id = rollup_config.l2_chain_id.id();
         Self {
-            buffer: Arc::new(ChainStateBuffer::new(cache_size, max_reorg_depth)),
+            buffer: Arc::new(ChainStateBuffer::new(cache_size, max_reorg_depth, chain_id)),
             current_head: RwLock::new(None),
             rollup_config,
             genesis,
+            chain_id_label: kona_macros::chain_id_label(chain_id),
         }
     }
 
@@ -93,9 +100,19 @@ impl BufferedL2Provider {
         {
             use crate::Metrics;
             if result.is_ok() {
-                kona_macros::inc!(gauge, Metrics::CHAIN_EVENTS_PROCESSED, "event" => event_type);
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::CHAIN_EVENTS_PROCESSED,
+                    "event" => event_type,
+                    crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
             } else {
-                kona_macros::inc!(gauge, Metrics::CHAIN_EVENT_ERRORS, "event" => event_type);
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::CHAIN_EVENT_ERRORS,
+                    "event" => event_type,
+                    crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
             }
         }
 
@@ -122,7 +139,11 @@ impl BufferedL2Provider {
         #[cfg(feature = "metrics")]
         {
             use crate::Metrics;
-            kona_macros::inc!(gauge, Metrics::BLOCKS_ADDED);
+            kona_macros::inc!(
+                gauge,
+                Metrics::BLOCKS_ADDED,
+                crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
         }
 
         Ok(())
@@ -153,6 +174,7 @@ impl Clone for BufferedL2Provider {
             current_head: RwLock::new(None),
             rollup_config: self.rollup_config.clone(),
             genesis: self.genesis,
+            chain_id_label: self.chain_id_label.clone(),
         }
     }
 }
@@ -178,9 +200,19 @@ impl L2ChainProvider for BufferedL2Provider {
         {
             use crate::Metrics;
             if cached_block.is_some() {
-                kona_macros::inc!(gauge, Metrics::BUFFERED_PROVIDER_CACHE_HITS, "method" => "system_config");
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::BUFFERED_PROVIDER_CACHE_HITS,
+                    "method" => "system_config",
+                    crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
             } else {
-                kona_macros::inc!(gauge, Metrics::BUFFERED_PROVIDER_CACHE_MISSES, "method" => "system_config");
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::BUFFERED_PROVIDER_CACHE_MISSES,
+                    "method" => "system_config",
+                    crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
             }
         }
 
@@ -204,9 +236,19 @@ impl BatchValidationProvider for BufferedL2Provider {
         {
             use crate::Metrics;
             if cached_block.is_some() {
-                kona_macros::inc!(gauge, Metrics::BUFFERED_PROVIDER_CACHE_HITS, "method" => "block_by_number");
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::BUFFERED_PROVIDER_CACHE_HITS,
+                    "method" => "block_by_number",
+                    crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
             } else {
-                kona_macros::inc!(gauge, Metrics::BUFFERED_PROVIDER_CACHE_MISSES, "method" => "block_by_number");
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::BUFFERED_PROVIDER_CACHE_MISSES,
+                    "method" => "block_by_number",
+                    crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
             }
         }
 
@@ -232,9 +274,19 @@ impl BatchValidationProvider for BufferedL2Provider {
         {
             use crate::Metrics;
             if cached_block.is_some() {
-                kona_macros::inc!(gauge, Metrics::BUFFERED_PROVIDER_CACHE_HITS, "method" => "l2_block_info");
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::BUFFERED_PROVIDER_CACHE_HITS,
+                    "method" => "l2_block_info",
+                    crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
             } else {
-                kona_macros::inc!(gauge, Metrics::BUFFERED_PROVIDER_CACHE_MISSES, "method" => "l2_block_info");
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::BUFFERED_PROVIDER_CACHE_MISSES,
+                    "method" => "l2_block_info",
+                    crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
             }
         }
 

@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use libp2p::gossipsub::{Config, ConfigBuilder, Message, MessageId};
 use openssl::sha::sha256;
 use snap::raw::Decoder;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // GossipSub Constants
@@ -69,11 +69,17 @@ lazy_static! {
 /// - peer exchange is disabled
 /// - maximum byte size for gossip messages: 2048 bytes
 ///
+/// `chain_id` is the L2 chain ID; the message-id function attaches it as the `chain_id` metric
+/// label so a multi-chain process can attribute malformed-frame counts to the right chain.
+///
 /// # Returns
 ///
 /// A [`ConfigBuilder`] with the default gossipsub configuration already set.
 /// Call `.build()` on the returned builder to get the final [`libp2p::gossipsub::Config`].
-pub fn default_config_builder() -> ConfigBuilder {
+pub fn default_config_builder(chain_id: u64) -> ConfigBuilder {
+    // `message_id_fn` takes a `'static` callable, so the label is rendered once here and moved
+    // into the closure rather than re-allocated on every inbound frame.
+    let chain_id_label = kona_macros::chain_id_label(chain_id);
     let mut builder = ConfigBuilder::default();
     builder
         .mesh_n(DEFAULT_MESH_D)
@@ -90,14 +96,14 @@ pub fn default_config_builder() -> ConfigBuilder {
         .duplicate_cache_time(Duration::from_secs(120))
         .validation_mode(libp2p::gossipsub::ValidationMode::None)
         .validate_messages()
-        .message_id_fn(compute_message_id);
+        .message_id_fn(move |msg| compute_message_id(msg, &chain_id_label));
 
     builder
 }
 
 /// Returns the default [Config] for gossipsub.
-pub fn default_config() -> Config {
-    default_config_builder().build().expect("default gossipsub config must be valid")
+pub fn default_config(chain_id: u64) -> Config {
+    default_config_builder(chain_id).build().expect("default gossipsub config must be valid")
 }
 
 /// Returns the snappy-declared decompressed length of `data` if it is within
@@ -135,7 +141,7 @@ const MESSAGE_DOMAIN_INVALID_SNAPPY: [u8; 4] = [0, 0, 0, 0];
 /// Invoked as gossipsub's `message_id_fn` on every inbound PUBLISH before signature validation, so
 /// the input is unauthenticated; oversized frames are bounded via
 /// [`snappy_decompressed_len_within_bound`] before decompression.
-fn compute_message_id(msg: &Message) -> MessageId {
+fn compute_message_id(msg: &Message, _chain_id_label: &Arc<str>) -> MessageId {
     // Only attempt decompression once the header's declared length is within bound, so an oversized
     // frame never triggers a large allocation (see `snappy_decompressed_len_within_bound`).
     let decompressed = snappy_decompressed_len_within_bound(&msg.data)
@@ -145,7 +151,11 @@ fn compute_message_id(msg: &Message) -> MessageId {
         || {
             // Oversized or undecompressable frame: invalid-snappy domain. Count and debug-log,
             // never warn — this runs on unauthenticated remote input.
-            kona_macros::inc!(counter, crate::Metrics::MESSAGE_ID_INVALID_SNAPPY);
+            kona_macros::inc!(
+                counter,
+                crate::Metrics::MESSAGE_ID_INVALID_SNAPPY,
+                crate::Metrics::CHAIN_ID_LABEL => _chain_id_label.clone()
+            );
             debug!(target: "gossip", len = msg.data.len(), "Snappy frame failed to decompress within bound in message-id");
             (MESSAGE_DOMAIN_INVALID_SNAPPY, msg.data.as_slice())
         },
@@ -178,7 +188,7 @@ mod tests {
 
     #[test]
     fn test_constructs_default_config() {
-        let cfg = default_config();
+        let cfg = default_config(10);
         assert_eq!(cfg.mesh_n(), DEFAULT_MESH_D);
         assert_eq!(cfg.mesh_n_low(), DEFAULT_MESH_DLO);
         assert_eq!(cfg.mesh_n_high(), DEFAULT_MESH_DHI);
@@ -193,7 +203,7 @@ mod tests {
             topic: libp2p::gossipsub::TopicHash::from_raw("test"),
         };
 
-        let id = compute_message_id(&msg);
+        let id = compute_message_id(&msg, &Arc::from("10"));
         assert_eq!(
             id.0,
             expected_message_id(MESSAGE_DOMAIN_INVALID_SNAPPY, "test", &[1, 2, 3, 4, 5])
@@ -210,7 +220,7 @@ mod tests {
             topic: libp2p::gossipsub::TopicHash::from_raw("test"),
         };
 
-        let id = compute_message_id(&msg);
+        let id = compute_message_id(&msg, &Arc::from("10"));
         assert_eq!(
             id.0,
             expected_message_id(MESSAGE_DOMAIN_VALID_SNAPPY, "test", &[1, 2, 3, 4, 5])
@@ -230,8 +240,8 @@ mod tests {
             topic: libp2p::gossipsub::TopicHash::from_raw(topic),
         };
 
-        let id_v1 = compute_message_id(&make("/optimism/10/0/blocks"));
-        let id_v2 = compute_message_id(&make("/optimism/10/1/blocks"));
+        let id_v1 = compute_message_id(&make("/optimism/10/0/blocks"), &Arc::from("10"));
+        let id_v2 = compute_message_id(&make("/optimism/10/1/blocks"), &Arc::from("10"));
         assert_ne!(id_v1.0, id_v2.0, "message id must depend on the topic");
         assert_eq!(
             id_v1.0,
@@ -253,14 +263,14 @@ mod tests {
 
         // Invalid snappy: raw payload [1,2,3,4,5] (fails decompression), topic "test".
         assert_eq!(
-            compute_message_id(&make(vec![1, 2, 3, 4, 5], "test")).0,
+            compute_message_id(&make(vec![1, 2, 3, 4, 5], "test"), &Arc::from("10")).0,
             alloy_primitives::hex::decode("b6897dcba59347fedcd694cc0f5117093c9dc727").unwrap(),
         );
 
         // Valid snappy: compress([1,2,3,4,5]) decompresses to [1,2,3,4,5], topic "test".
         let valid = snap::raw::Encoder::new().compress_vec(&[1, 2, 3, 4, 5]).unwrap();
         assert_eq!(
-            compute_message_id(&make(valid, "test")).0,
+            compute_message_id(&make(valid, "test"), &Arc::from("10")).0,
             alloy_primitives::hex::decode("adbe547b27f41294a08a09210a5e8531e83cdc16").unwrap(),
         );
     }
@@ -286,7 +296,7 @@ mod tests {
             topic: libp2p::gossipsub::TopicHash::from_raw("test"),
         };
 
-        let id = compute_message_id(&msg);
+        let id = compute_message_id(&msg, &Arc::from("10"));
         // Bomb takes the oversized-header rejection branch: hash uses invalid-snappy domain.
         assert_eq!(id.0, expected_message_id(MESSAGE_DOMAIN_INVALID_SNAPPY, "test", &bomb));
     }
@@ -307,7 +317,7 @@ mod tests {
             sequence_number: None,
             topic: libp2p::gossipsub::TopicHash::from_raw("test"),
         };
-        let id = compute_message_id(&msg);
+        let id = compute_message_id(&msg, &Arc::from("10"));
 
         // Bounded path: invalid-snappy domain over the raw (still-compressed) bytes.
         assert_eq!(id.0, expected_message_id(MESSAGE_DOMAIN_INVALID_SNAPPY, "test", &over));
@@ -378,7 +388,7 @@ mod tests {
         let recorder = DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
         metrics::with_local_recorder(&recorder, || {
-            let _ = compute_message_id(&msg);
+            let _ = compute_message_id(&msg, &Arc::from("10"));
         });
 
         assert_eq!(message_id_invalid_snappy_count(snapshotter.snapshot()), 1);
@@ -401,7 +411,7 @@ mod tests {
         let recorder = DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
         metrics::with_local_recorder(&recorder, || {
-            let _ = compute_message_id(&msg);
+            let _ = compute_message_id(&msg, &Arc::from("10"));
         });
 
         assert_eq!(message_id_invalid_snappy_count(snapshotter.snapshot()), 1);
@@ -423,7 +433,7 @@ mod tests {
         let recorder = DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
         metrics::with_local_recorder(&recorder, || {
-            let _ = compute_message_id(&msg);
+            let _ = compute_message_id(&msg, &Arc::from("10"));
         });
 
         assert_eq!(message_id_invalid_snappy_count(snapshotter.snapshot()), 0);

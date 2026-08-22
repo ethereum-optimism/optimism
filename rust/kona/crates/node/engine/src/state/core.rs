@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 /// 3. **Cross-safe** - Local-safe *and* cross-verified against the other chains' safe dependencies.
 ///    This is the head reported as `safeBlockHash` in the forkchoice update. It *advances* only
 ///    through [`EngineSyncState::apply_cross_safe_promotion`]; the only other move it makes is
-///    downwards, when [`EngineSyncState::apply_update`] rewinds the local-safe head below it.
+///    downwards, when [`EngineState::apply_sync_update`] rewinds the local-safe head below it.
 /// 4. **Finalized** - Derived from finalized L1 data only.
 ///
 /// See the [OP Stack specifications](https://specs.optimism.io) for detailed safety definitions.
@@ -124,21 +124,28 @@ impl EngineSyncState {
     /// A local-safe *rewind* is the one case where this moves the cross-safe head without a
     /// promotion: it is held at the rewound head, since cross-safe cannot outrank the local-safe
     /// head it is derived from. See the private `hold_cross_safe_at` helper below.
-    pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
+    ///
+    /// Private to this module: callers go through [`EngineState::apply_sync_update`], which
+    /// supplies the chain ID from the state that already owns it. Every head this writes is
+    /// reported as a chain-labelled metric, so a multi-chain process can tell the series apart.
+    fn apply_update(self, chain_id: u64, sync_state_update: EngineSyncStateUpdate) -> Self {
         if let Some(unsafe_head) = sync_state_update.unsafe_head {
             Self::update_block_label_metric(
+                chain_id,
                 Metrics::UNSAFE_BLOCK_LABEL,
                 unsafe_head.block_info.number,
             );
         }
         if let Some(local_safe) = sync_state_update.local_safe_head {
             Self::update_block_label_metric(
+                chain_id,
                 Metrics::LOCAL_SAFE_BLOCK_LABEL,
                 local_safe.head.block_info.number,
             );
         }
         if let Some(finalized_head) = sync_state_update.finalized_head {
             Self::update_block_label_metric(
+                chain_id,
                 Metrics::FINALIZED_BLOCK_LABEL,
                 finalized_head.block_info.number,
             );
@@ -154,7 +161,7 @@ impl EngineSyncState {
             unsafe_head: sync_state_update.unsafe_head.unwrap_or(self.unsafe_head),
             local_safe_head: local_safe.head,
             local_safe_origin: local_safe.origin,
-            cross_safe_head: self.hold_cross_safe_at(local_safe.head),
+            cross_safe_head: self.hold_cross_safe_at(chain_id, local_safe.head),
             finalized_head: sync_state_update.finalized_head.unwrap_or(self.finalized_head),
             cross_safe_source: self.cross_safe_source,
         };
@@ -162,7 +169,7 @@ impl EngineSyncState {
         sync_state_update
             .local_safe_head
             .and_then(|local_safe| updated.cross_safe_source.trivial_promotion(local_safe.head))
-            .map_or(updated, |promotion| updated.apply_cross_safe_promotion(promotion))
+            .map_or(updated, |promotion| updated.apply_cross_safe_promotion(chain_id, promotion))
     }
 
     /// Returns the cross-safe head held at `local_safe_head`, which the caller is about to install.
@@ -193,7 +200,7 @@ impl EngineSyncState {
     /// [`Engine::reset`]: crate::Engine::reset
     /// [`Engine::reset_to`]: crate::Engine::reset_to
     /// [`find_starting_forkchoice`]: crate::find_starting_forkchoice
-    fn hold_cross_safe_at(&self, local_safe_head: L2BlockInfo) -> L2BlockInfo {
+    fn hold_cross_safe_at(&self, chain_id: u64, local_safe_head: L2BlockInfo) -> L2BlockInfo {
         if self.cross_safe_head.block_info.number <= local_safe_head.block_info.number {
             return self.cross_safe_head;
         }
@@ -211,6 +218,7 @@ impl EngineSyncState {
             "Local-safe head rewound below the cross-safe head; holding cross-safe at local-safe"
         );
         Self::update_block_label_metric(
+            chain_id,
             Metrics::CROSS_SAFE_BLOCK_LABEL,
             local_safe_head.block_info.number,
         );
@@ -239,7 +247,7 @@ impl EngineSyncState {
     /// local-safe in op-node.
     ///
     /// [`SynchronizeTaskError::InvalidForkchoiceState`]: crate::SynchronizeTaskError::InvalidForkchoiceState
-    pub fn apply_cross_safe_promotion(self, promotion: CrossSafePromotion) -> Self {
+    pub fn apply_cross_safe_promotion(self, chain_id: u64, promotion: CrossSafePromotion) -> Self {
         let target = promotion.target();
 
         let target = if target.block_info.number > self.local_safe_head.block_info.number {
@@ -267,6 +275,7 @@ impl EngineSyncState {
         };
 
         Self::update_block_label_metric(
+            chain_id,
             Metrics::CROSS_SAFE_BLOCK_LABEL,
             cross_safe_head.block_info.number,
         );
@@ -274,10 +283,16 @@ impl EngineSyncState {
         Self { cross_safe_head, ..self }
     }
 
-    /// Updates a block label metric, keyed by the label.
+    /// Updates a block label metric, keyed by the chain ID and the label.
     #[inline]
-    fn update_block_label_metric(label: &'static str, number: u64) {
-        kona_macros::set!(gauge, Metrics::BLOCK_LABELS, "label", label, number as f64);
+    fn update_block_label_metric(chain_id: u64, label: &'static str, number: u64) {
+        kona_macros::set!(
+            gauge,
+            Metrics::BLOCK_LABELS,
+            number as f64,
+            "label" => label,
+            Metrics::CHAIN_ID_LABEL => chain_id.to_string()
+        );
     }
 }
 
@@ -286,7 +301,7 @@ impl EngineSyncState {
 /// There is deliberately no cross-safe field: the cross-safe head advances only through
 /// [`EngineSyncState::apply_cross_safe_promotion`], so an ordinary head writer cannot advance it.
 /// A writer that rewinds the local-safe head does drag it down, because cross-safe cannot outrank
-/// local-safe — see [`EngineSyncState::apply_update`].
+/// local-safe — see [`EngineState::apply_sync_update`].
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EngineSyncStateUpdate {
     /// Most recent block found on the p2p network
@@ -311,6 +326,10 @@ impl EngineSyncStateUpdate {
 /// The chain state viewed by the engine controller.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct EngineState {
+    /// The L2 chain ID this engine drives. Emitted as a label on every engine metric so that a
+    /// multi-chain process can tell the per-chain series apart.
+    pub chain_id: u64,
+
     /// The sync state of the engine.
     pub sync_state: EngineSyncState,
 
@@ -341,6 +360,23 @@ pub struct EngineState {
 }
 
 impl EngineState {
+    /// Applies `update` to this state's sync state, returning the new sync state.
+    ///
+    /// [`EngineState`] owns both the sync state and the chain ID that its metrics are labelled
+    /// with, so callers never pass the chain ID across the API boundary themselves.
+    pub fn apply_sync_update(&self, update: EngineSyncStateUpdate) -> EngineSyncState {
+        self.sync_state.apply_update(self.chain_id, update)
+    }
+
+    /// Applies `promotion` to this state's sync state, returning the new sync state.
+    ///
+    /// The counterpart of [`Self::apply_sync_update`] for the one entry point through which the
+    /// cross-safe head moves: [`EngineState`] owns the chain ID its metrics are labelled with, so
+    /// callers do not pass it across the API boundary themselves.
+    pub fn apply_cross_safe_promotion(&self, promotion: CrossSafePromotion) -> EngineSyncState {
+        self.sync_state.apply_cross_safe_promotion(self.chain_id, promotion)
+    }
+
     /// Returns if consolidation is needed.
     ///
     /// [Consolidation] is only performed by a rollup node when the unsafe head
@@ -365,7 +401,7 @@ mod test {
     impl EngineState {
         /// Set the unsafe head.
         pub fn set_unsafe_head(&mut self, unsafe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.apply_sync_update(EngineSyncStateUpdate {
                 unsafe_head: Some(unsafe_head),
                 ..Default::default()
             });
@@ -373,7 +409,7 @@ mod test {
 
         /// Set the local safe head.
         pub fn set_local_safe_head(&mut self, local_safe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.apply_sync_update(EngineSyncStateUpdate {
                 local_safe_head: Some(LocalSafeHead::unpaired(local_safe_head)),
                 ..Default::default()
             });
@@ -385,23 +421,25 @@ mod test {
         /// cross-safe is local-safe *and* cross-verified. Unlike the other setters here, this one
         /// has to keep the resulting state, because the clamp reads `local_safe_head` back.
         pub fn set_cross_safe_head(&mut self, cross_safe_head: L2BlockInfo) {
-            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.apply_sync_update(EngineSyncStateUpdate {
                 local_safe_head: Some(LocalSafeHead::unpaired(cross_safe_head)),
                 ..Default::default()
             });
-            self.sync_state = self
-                .sync_state
-                .apply_cross_safe_promotion(CrossSafePromoter::new().promote(cross_safe_head));
+            self.sync_state =
+                self.apply_cross_safe_promotion(CrossSafePromoter::new().promote(cross_safe_head));
         }
 
         /// Set the finalized head.
         pub fn set_finalized_head(&mut self, finalized_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.apply_sync_update(EngineSyncStateUpdate {
                 finalized_head: Some(finalized_head),
                 ..Default::default()
             });
         }
     }
+
+    /// The chain id the state-level tests label their metrics with.
+    const TEST_CHAIN_ID: u64 = 10;
 
     fn l1(number: u64) -> BlockInfo {
         BlockInfo { number, hash: B256::repeat_byte(number as u8), ..Default::default() }
@@ -421,10 +459,13 @@ mod test {
     /// The read the interop query needs: one call, both halves, from one snapshot.
     #[test]
     fn local_safe_reads_the_head_and_its_origin_together() {
-        let state = EngineSyncState::default().apply_update(EngineSyncStateUpdate {
-            local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
-            ..EngineSyncStateUpdate::NONE
-        });
+        let state = EngineSyncState::default().apply_update(
+            TEST_CHAIN_ID,
+            EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                ..EngineSyncStateUpdate::NONE
+            },
+        );
 
         assert_eq!(state.local_safe(), LocalSafeHead::derived_from(l2(4), l1(2)));
         assert_eq!(state.local_safe().head, state.local_safe_head());
@@ -445,16 +486,22 @@ mod test {
     /// must not disturb it either.
     #[test]
     fn an_update_that_leaves_the_head_alone_carries_the_origin_through() {
-        let paired = EngineSyncState::default().apply_update(EngineSyncStateUpdate {
-            local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
-            ..EngineSyncStateUpdate::NONE
-        });
+        let paired = EngineSyncState::default().apply_update(
+            TEST_CHAIN_ID,
+            EngineSyncStateUpdate {
+                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                ..EngineSyncStateUpdate::NONE
+            },
+        );
 
-        let after = paired.apply_update(EngineSyncStateUpdate {
-            unsafe_head: Some(l2(9)),
-            finalized_head: Some(l2(1)),
-            ..EngineSyncStateUpdate::NONE
-        });
+        let after = paired.apply_update(
+            TEST_CHAIN_ID,
+            EngineSyncStateUpdate {
+                unsafe_head: Some(l2(9)),
+                finalized_head: Some(l2(1)),
+                ..EngineSyncStateUpdate::NONE
+            },
+        );
 
         assert_eq!(after.local_safe(), paired.local_safe());
     }
@@ -464,14 +511,20 @@ mod test {
     #[test]
     fn moving_the_head_rewrites_the_origin() {
         let state = EngineSyncState::default()
-            .apply_update(EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
-                ..EngineSyncStateUpdate::NONE
-            })
-            .apply_update(EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(5), l1(3))),
-                ..EngineSyncStateUpdate::NONE
-            });
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            )
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(5), l1(3))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            );
 
         assert_eq!(state.local_safe(), LocalSafeHead::derived_from(l2(5), l1(3)));
     }
@@ -482,14 +535,20 @@ mod test {
     #[test]
     fn an_unpaired_write_invalidates_the_previous_pairing() {
         let state = EngineSyncState::default()
-            .apply_update(EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
-                ..EngineSyncStateUpdate::NONE
-            })
-            .apply_update(EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::unpaired(l2(2))),
-                ..EngineSyncStateUpdate::NONE
-            });
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(4), l1(2))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            )
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::unpaired(l2(2))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            );
 
         assert_eq!(state.local_safe_head(), l2(2));
         assert_eq!(
@@ -505,14 +564,20 @@ mod test {
     #[test]
     fn a_rewind_that_holds_cross_safe_still_records_the_origin() {
         let state = EngineSyncState::default()
-            .apply_update(EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(9), l1(4))),
-                ..EngineSyncStateUpdate::NONE
-            })
-            .apply_update(EngineSyncStateUpdate {
-                local_safe_head: Some(LocalSafeHead::derived_from(l2(3), l1(1))),
-                ..EngineSyncStateUpdate::NONE
-            });
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(9), l1(4))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            )
+            .apply_update(
+                TEST_CHAIN_ID,
+                EngineSyncStateUpdate {
+                    local_safe_head: Some(LocalSafeHead::derived_from(l2(3), l1(1))),
+                    ..EngineSyncStateUpdate::NONE
+                },
+            );
 
         assert_eq!(state.cross_safe_head(), l2(3), "cross-safe cannot outrank local-safe");
         assert_eq!(state.local_safe(), LocalSafeHead::derived_from(l2(3), l1(1)));
@@ -533,20 +598,41 @@ mod test {
         #[case] label_name: &str,
         #[case] number: u64,
     ) {
-        let handle = PrometheusBuilder::new().install_recorder().unwrap();
-        crate::Metrics::init();
+        const CHAIN_ID: u64 = 10;
 
-        let mut state = EngineState::default();
-        set_fn(
-            &mut state,
-            L2BlockInfo {
-                block_info: BlockInfo { number, ..Default::default() },
-                ..Default::default()
-            },
-        );
+        // A local recorder keeps the rstest cases independent; a global one can only be
+        // installed once per process, so all but the first case would fail.
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
 
-        assert!(handle.render().contains(
-            format!("kona_node_block_labels{{label=\"{label_name}\"}} {number}").as_str()
-        ));
+        metrics::with_local_recorder(&recorder, || {
+            crate::Metrics::init(CHAIN_ID);
+
+            let mut state = EngineState { chain_id: CHAIN_ID, ..Default::default() };
+            set_fn(
+                &mut state,
+                L2BlockInfo {
+                    block_info: BlockInfo { number, ..Default::default() },
+                    ..Default::default()
+                },
+            );
+        });
+
+        let rendered = handle.render();
+        // The line is selected by the label under test, not by being the first block-labels line:
+        // a setter may write more than one head — promoting the cross-safe head first advances
+        // local-safe, since cross-safe is local-safe *and* cross-verified — and the exporter does
+        // not guarantee the order it renders a metric's series in. Label ordering within a line is
+        // not guaranteed either, so the labels are matched individually rather than as one string.
+        let prefix = format!("{}{{", Metrics::BLOCK_LABELS);
+        let line = rendered
+            .lines()
+            .find(|line| {
+                line.starts_with(&prefix) && line.contains(&format!("label=\"{label_name}\""))
+            })
+            .unwrap_or_else(|| panic!("no {label_name} block label was rendered in:\n{rendered}"));
+
+        assert!(line.contains(&format!("{}=\"{CHAIN_ID}\"", Metrics::CHAIN_ID_LABEL)), "{line}");
+        assert!(line.ends_with(&format!(" {number}")), "{line}");
     }
 }

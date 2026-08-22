@@ -84,7 +84,7 @@ impl TestEngineStateBuilder {
         let mut state = EngineState::default();
 
         // Set unsafe head (required)
-        state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+        state.sync_state = state.apply_sync_update(EngineSyncStateUpdate {
             unsafe_head: Some(self.unsafe_head),
             local_safe_head: Some(LocalSafeHead::new(
                 self.local_safe_head.unwrap_or(self.unsafe_head),
@@ -94,8 +94,8 @@ impl TestEngineStateBuilder {
         });
         // Cross-safe defaults to local-safe, matching the standalone trivial feed. Tests that
         // want cross-safe to lag set it explicitly.
-        state.sync_state =
-            state.sync_state.apply_cross_safe_promotion(CrossSafePromoter::new().promote(
+        state.sync_state = state
+            .apply_cross_safe_promotion(CrossSafePromoter::new().promote(
                 self.cross_safe_head.or(self.local_safe_head).unwrap_or(self.unsafe_head),
             ));
 

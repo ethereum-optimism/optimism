@@ -111,9 +111,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
 
     async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, SynchronizeTaskError> {
         // Apply the sync state update to the engine state.
-        let mut new_sync_state = state.sync_state.apply_update(self.state_update);
+        let mut new_sync_state = state.apply_sync_update(self.state_update);
         if let Some(promotion) = self.cross_safe_promotion {
-            new_sync_state = new_sync_state.apply_cross_safe_promotion(promotion);
+            new_sync_state = new_sync_state.apply_cross_safe_promotion(state.chain_id, promotion);
         }
 
         // Check if a forkchoice update is not needed, return early.
