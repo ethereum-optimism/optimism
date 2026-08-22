@@ -2624,9 +2624,17 @@ workflows:
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
-      # IN-MEMORY - kona-node/lokahi/op-reth: the Rust-client variant. The single-chain
-      # presets run kona-node as their per-chain CL; the multi-chain/interop presets have
-      # no per-chain CL to swap and select their supernode implementation separately.
+      # IN-MEMORY - kona-node/op-supernode/op-reth: the Rust per-chain-CL variant. The
+      # single-chain presets run kona-node as their per-chain CL; the multi-chain/interop
+      # presets have no per-chain CL to swap and select their supernode implementation
+      # separately, and here that selection is op-supernode.
+      #
+      # This job was called memory-all-kona-lokahi-op-reth-<fork> while running
+      # supernode_kind: op-supernode, and the name was read as evidence three times: green runs
+      # of a job named lokahi were reported as lokahi passing the acceptance tests when lokahi
+      # had not started. The name is now what it runs, and lokahi is reserved for a job that
+      # actually sets supernode_kind: lokahi. Renaming means updating ci-gate's requires below,
+      # which is the whole cost of it -- no GitHub ruleset change, per the note on that job.
       #
       # supernode_kind stays op-supernode, and the reason is measured rather than assumed. The
       # flip to lokahi was made and the suites run (job 5505219, 7b4b313a): 190 passed, 130
@@ -2648,7 +2656,7 @@ workflows:
       # being fixed on other branches and both sit behind tests that now halt earlier, so treat
       # those two as unconfirmed rather than fixed.
       - op-acceptance-tests:
-          name: memory-all-kona-lokahi-op-reth-<<matrix.l1_fork>>
+          name: memory-all-kona-op-reth-<<matrix.l1_fork>>
           matrix:
             parameters:
               l1_fork: *acceptance_l1_forks
@@ -2683,7 +2691,7 @@ workflows:
             - semgrep-test: terminal
             - go-tests: terminal
             - memory-all-opn-op-reth-fusaka: terminal
-            - memory-all-kona-lokahi-op-reth-fusaka: terminal
+            - memory-all-kona-op-reth-fusaka: terminal
             - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
