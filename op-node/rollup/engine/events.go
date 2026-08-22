@@ -45,15 +45,6 @@ func (ev UnsafeUpdateEvent) String() string {
 	return "unsafe-update"
 }
 
-// PromoteCrossUnsafeEvent signals that the given block may be promoted to cross-unsafe.
-type PromoteCrossUnsafeEvent struct {
-	Ref eth.L2BlockRef
-}
-
-func (ev PromoteCrossUnsafeEvent) String() string {
-	return "promote-cross-unsafe"
-}
-
 type PendingSafeUpdateEvent struct {
 	PendingSafe eth.L2BlockRef
 	Unsafe      eth.L2BlockRef // tip, added to the signal, to determine if there are existing blocks to consolidate
@@ -86,7 +77,6 @@ func (ev SafeDerivedEvent) String() string {
 
 type EngineResetConfirmedEvent struct {
 	LocalUnsafe eth.L2BlockRef
-	CrossUnsafe eth.L2BlockRef
 	LocalSafe   eth.L2BlockRef
 	CrossSafe   eth.L2BlockRef
 	Finalized   eth.L2BlockRef
@@ -117,7 +107,6 @@ func (ev InteropReplacedBlockEvent) String() string {
 
 type ResetEngineControl interface {
 	SetUnsafeHead(eth.L2BlockRef)
-	SetCrossUnsafeHead(ref eth.L2BlockRef)
 	SetLocalSafeHead(ref eth.L2BlockRef)
 	SetDeprecatedSafeHead(eth.L2BlockRef)
 	SetFinalizedHead(eth.L2BlockRef)
@@ -125,11 +114,8 @@ type ResetEngineControl interface {
 	SetPendingSafeL2Head(eth.L2BlockRef)
 }
 
-func ForceEngineReset(ec ResetEngineControl, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+func ForceEngineReset(ec ResetEngineControl, localUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
 	ec.SetUnsafeHead(localUnsafe)
-
-	// cross-safe is fine to revert back, it does not affect engine logic, just sync-status
-	ec.SetCrossUnsafeHead(crossUnsafe)
 
 	// derivation continues at local-safe point
 	ec.SetLocalSafeHead(localSafe)

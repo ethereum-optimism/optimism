@@ -216,7 +216,6 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 		c.currentAttributes = nil
 		c.emitter.Emit(ctx, engine.EngineResetConfirmedEvent{
 			LocalUnsafe: c.unsafe,
-			CrossUnsafe: c.unsafe,
 			LocalSafe:   c.safe,
 			CrossSafe:   c.safe,
 			Finalized:   c.finalized,
