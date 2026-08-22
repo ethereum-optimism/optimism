@@ -438,20 +438,19 @@ func reservePorts(t devtest.T, n int) []int {
 // failLokahiUnsupportedByPresets rejects DEVSTACK_SUPERNODE_KIND=lokahi for the multi-chain
 // and interop presets.
 //
-// The launch above works; what those presets need on top of it does not exist yet.
-// stack.SupernodeTestControl (op-devstack/stack/supernode.go) hands tests an in-process
-// pointer: InteropActivity() returns *interop.Interop, which the DSL calls PauseAt/Resume
-// on (op-devstack/dsl/supernode.go), and no out-of-process supernode can satisfy that
-// signature. Replacing it with something RPC-shaped is its own change; until then these
-// presets are op-supernode's, and the lokahi component is exercised by the preset that was
-// built for it.
+// The launch above works, and so does the harness: stack.SupernodeTestControl now asks for
+// apis.SupernodeInteropTestAPI, four context-and-error methods over plain data that a
+// supernode in another process can serve. What is missing is the lokahi side of it. Until
+// lokahi answers those calls there is nothing for the presets to drive it through, so they
+// are turned away here rather than part-way through a run — and the failure names the one
+// remaining gap instead of an impossible signature.
 func failLokahiUnsupportedByPresets(t devtest.T, cfg lokahiSupernodeConfig) {
-	t.Require().FailNowf("lokahi cannot back the shared-supernode presets",
-		"%s=%s selected, but these presets drive the supernode through "+
-			"stack.SupernodeTestControl, whose InteropActivity() returns an in-process "+
-			"*interop.Interop pointer that an out-of-process supernode cannot provide. "+
-			"Requested: %s. Unset %s (or set it to %q) to run the in-process Go op-supernode; "+
-			"the lokahi component itself is covered by the two-chain lokahi preset.",
+	t.Require().FailNowf("lokahi cannot back the shared-supernode presets yet",
+		"%s=%s selected, but these presets drive the supernode's interop verifier through "+
+			"apis.SupernodeInteropTestAPI (pause, resume, status, sealed blocks), which "+
+			"lokahi does not serve yet. Requested: %s. Unset %s (or set it to %q) to run "+
+			"the in-process Go op-supernode; the lokahi component itself is covered by the "+
+			"two-chain lokahi preset.",
 		devstackSupernodeKindEnv, SupernodeLokahi, cfg.describe(),
 		devstackSupernodeKindEnv, SupernodeOpSupernode)
 }
