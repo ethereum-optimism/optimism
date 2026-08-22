@@ -15,6 +15,14 @@ pub enum ConsolidateTaskError {
     /// Failed to fetch the unsafe L2 block.
     #[error("Failed to fetch the unsafe L2 block")]
     FailedToFetchUnsafeL2Block,
+    /// The attributes' parent sits at the local-safe height but is not the local-safe head:
+    /// reorg inconsistency between the queued attributes and the head they were derived onto.
+    ///
+    /// The mirror of op-node's queued-attributes conflict check, and its answer — a reset, so
+    /// derivation rebuilds attributes on the head the engine actually has
+    /// (`op-node/rollup/attributes/attributes.go:172-182`, a `ResetEvent`).
+    #[error("Consolidation attributes parent conflicts with the local-safe head")]
+    ParentConflictsWithLocalSafe,
     /// The deny list could not be read while deciding whether the block may be adopted.
     ///
     /// Fails closed: without a deny-list answer the block can be neither promoted nor reorged, so
@@ -45,7 +53,9 @@ impl From<BuildAndSealError> for ConsolidateTaskError {
 impl EngineTaskError for ConsolidateTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
-            Self::MissingUnsafeL2Block(_) => EngineTaskErrorSeverity::Reset,
+            Self::MissingUnsafeL2Block(_) | Self::ParentConflictsWithLocalSafe => {
+                EngineTaskErrorSeverity::Reset
+            }
             Self::FailedToFetchUnsafeL2Block | Self::DenyListUnavailable => {
                 EngineTaskErrorSeverity::Temporary
             }

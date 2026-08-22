@@ -354,6 +354,48 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
     //   heads. If the injected head is ahead of the ChainController's unsafe head, we reconcile the
     //   unsafe chain up to it instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+        // Attributes that no longer sit on the local-safe head are stale and are dropped, the
+        // mirror of op-node's queued-attributes check against the pending-safe head
+        // (`op-node/rollup/attributes/attributes.go:156-182`). The drop is not an error case:
+        // op-node's comment reads "This is expected after successful processing of these
+        // attributes", and that is exactly how the deposits-only fallback ends. Both the Holocene
+        // invalid-payload retry and an invalidation's replacement import a block *for* these
+        // attributes and advance local-safe past their parent, while the consolidate task itself
+        // returns the flush signal as an error — which [`crate::Engine::drain`] answers by keeping
+        // the task queued for retry. Without this drop, the retried task re-consolidates the same
+        // attributes against the replacement it just imported, mismatches, deterministically
+        // rebuilds the denied block, and replaces it again, forever — post-replacement
+        // consolidation livelocks instead of converging.
+        //
+        // A parent at the local-safe *height* whose hash is not the local-safe head is the other
+        // arm of op-node's check (`attributes.go:172-182`): reorg inconsistency, answered with a
+        // reset rather than a drop.
+        if let ConsolidateInput::Attributes(attributes) = &self.input {
+            let local_safe = state.sync_state.local_safe_head().block_info;
+            let parent = attributes.parent.block_info;
+            if parent.number != local_safe.number {
+                debug!(
+                    target: "engine",
+                    parent_number = parent.number,
+                    parent_hash = %parent.hash,
+                    local_safe_number = local_safe.number,
+                    local_safe_hash = %local_safe.hash,
+                    "Dropping stale consolidation attributes; the local-safe head moved past them"
+                );
+                return Ok(());
+            }
+            if parent.hash != local_safe.hash {
+                warn!(
+                    target: "engine",
+                    parent_number = parent.number,
+                    parent_hash = %parent.hash,
+                    local_safe_hash = %local_safe.hash,
+                    "Consolidation attributes parent conflicts with the local-safe head"
+                );
+                return Err(ConsolidateTaskError::ParentConflictsWithLocalSafe);
+            }
+        }
+
         // Derivation drives consolidation, so the comparison is against the *local*-safe head.
         // Reading cross-safe here would re-consolidate already-consolidated blocks whenever
         // cross-safe lags local-safe under interop.
