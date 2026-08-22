@@ -342,7 +342,7 @@ fn seeding_controller(
         request_rx,
         safe_db,
         None,
-        Arc::new(kona_engine::NoopBlockSink),
+        Arc::new(NoopBlockSink),
     )
 }
 
