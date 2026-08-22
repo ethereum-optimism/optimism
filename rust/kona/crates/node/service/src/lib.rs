@@ -33,8 +33,8 @@ pub use actors::{
     NetworkHandler, NodeActor, OpStackRpc, OriginSelector, PayloadToPublish,
     QueuedChainControllerDerivationClient, QueuedDerivationEngineClient, QueuedEngineRpcClient,
     QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
-    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor,
-    RpcActorError, RpcServerHandle, RpcServerLauncher, SealRequest, SequencerActor,
+    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RewindRequest,
+    RpcActor, RpcActorError, RpcServerHandle, RpcServerLauncher, SealRequest, SequencerActor,
     SequencerActorError, SequencerAdminQuery, SequencerConfig, SequencerEngineClient,
     SharedRpcServerLauncher, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };

@@ -15,6 +15,13 @@ pub enum ConsolidateTaskError {
     /// Failed to fetch the unsafe L2 block.
     #[error("Failed to fetch the unsafe L2 block")]
     FailedToFetchUnsafeL2Block,
+    /// The deny list could not be read while deciding whether the block may be adopted.
+    ///
+    /// Fails closed: without a deny-list answer the block can be neither promoted nor reorged, so
+    /// consolidation stalls and retries — the posture of op-node's consolidation deny check
+    /// (`op-node/rollup/attributes/attributes.go:241-247`).
+    #[error("The deny list could not be read while consolidating")]
+    DenyListUnavailable,
     /// The build task failed.
     #[error(transparent)]
     BuildTaskFailed(#[from] BuildTaskError),
@@ -39,7 +46,9 @@ impl EngineTaskError for ConsolidateTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::MissingUnsafeL2Block(_) => EngineTaskErrorSeverity::Reset,
-            Self::FailedToFetchUnsafeL2Block => EngineTaskErrorSeverity::Temporary,
+            Self::FailedToFetchUnsafeL2Block | Self::DenyListUnavailable => {
+                EngineTaskErrorSeverity::Temporary
+            }
             Self::BuildTaskFailed(inner) => inner.severity(),
             Self::SealTaskFailed(inner) => inner.severity(),
             Self::ForkchoiceUpdateFailed(inner) => inner.severity(),

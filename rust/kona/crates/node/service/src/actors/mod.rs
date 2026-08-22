@@ -10,7 +10,7 @@ pub use chain_controller::{
     BuildRequest, ChainController, ChainControllerClientError, ChainControllerClientResult,
     ChainControllerDerivationClient, ChainControllerError, ChainControllerRequest,
     ChainControllerRpcActor, ChainControllerRpcRequest, CommitRequest, EngineConfig,
-    QueuedChainControllerDerivationClient, ResetRequest, SealRequest,
+    QueuedChainControllerDerivationClient, ResetRequest, RewindRequest, SealRequest,
 };
 
 pub(crate) mod rpc;

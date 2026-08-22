@@ -35,8 +35,14 @@ pub enum SealTaskError {
     /// condition between the previous seal updating the unsafe head and the build attributes
     /// being created. This build has been invalidated.
     ///
-    /// If not propagated to the original caller for handling (i.e. there was no original caller),
-    /// this should not happen and is a critical error.
+    /// When a caller is waiting on the task's channel, it hears this and rebuilds. Without one —
+    /// the consolidation path — the state that moved is real and expected: a deposits-only
+    /// replacement (the Holocene fallback, or an invalidation's replacement block) lands as the
+    /// new unsafe head underneath a consolidate task still queued with the pre-replacement
+    /// attributes. That stale work must be dropped and re-derived, which is a reset — the same
+    /// answer op-node gives when its queued attributes conflict with a moved pending-safe head
+    /// (`op-node/rollup/attributes/attributes.go:175-183`, a `ResetEvent`). Escalating it to
+    /// Critical instead kills the node over a state it recovers from by re-deriving.
     #[error("Unsafe head changed between build and seal")]
     UnsafeHeadChangedSinceBuild,
 }
@@ -47,11 +53,11 @@ impl EngineTaskError for SealTaskError {
             Self::PayloadInsertionFailed(inner) => inner.severity(),
             Self::GetPayloadFailed(_) => EngineTaskErrorSeverity::Temporary,
             Self::HoloceneInvalidFlush => EngineTaskErrorSeverity::Flush,
+            Self::UnsafeHeadChangedSinceBuild => EngineTaskErrorSeverity::Reset,
             Self::DepositOnlyPayloadReattemptFailed |
             Self::DepositOnlyPayloadFailed |
             Self::MpscSend(_) |
-            Self::ClockWentBackwards |
-            Self::UnsafeHeadChangedSinceBuild => EngineTaskErrorSeverity::Critical,
+            Self::ClockWentBackwards => EngineTaskErrorSeverity::Critical,
         }
     }
 }

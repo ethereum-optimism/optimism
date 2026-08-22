@@ -1,7 +1,7 @@
 //! A task to commit an externally built payload, answering the caller that requested it.
 
 use super::{CommitBlockError, CommitTaskError};
-use crate::{EngineClient, EngineState, EngineTaskExt, InsertTask};
+use crate::{EngineClient, EngineState, EngineTaskExt, InsertTask, SharedDenyList};
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -29,11 +29,33 @@ pub struct CommitTask<EngineClient_: EngineClient> {
     pub payload: OpExecutionPayloadEnvelope,
     /// Where the commit's outcome is delivered.
     pub result_tx: mpsc::Sender<Result<L2BlockInfo, CommitBlockError>>,
+    /// The super-authority deny list, when the node runs under one.
+    pub deny: Option<SharedDenyList>,
 }
 
 impl<EngineClient_: EngineClient> CommitTask<EngineClient_> {
     /// Runs the insert and reports what happened.
     async fn commit(&self, state: &mut EngineState) -> Result<L2BlockInfo, CommitBlockError> {
+        // A denied payload is refused before anything else is looked at: op-node's `CommitBlock`
+        // runs through `ProcessPayload`, whose deny check answers `ErrPayloadDenied` to the
+        // caller (`op-node/rollup/engine/payload_process.go:60-85`). A read error fails open and
+        // is logged, the posture that check takes at the same site.
+        if let Some(deny) = &self.deny {
+            match deny.is_denied(self.payload.block_number(), self.payload.block_hash()) {
+                Ok(true) => return Err(CommitBlockError::Denied),
+                Ok(false) => {}
+                Err(err) => {
+                    error!(
+                        target: "engine",
+                        %err,
+                        block_number = self.payload.block_number(),
+                        block_hash = %self.payload.block_hash(),
+                        "Failed to check the deny list, proceeding with the commit"
+                    );
+                }
+            }
+        }
+
         // The same admission rule the gossip path applies before its inserts
         // (`EngineTask::execute_inner`): a payload at or below the local-safe head must not
         // become the unsafe head. The gossip path drops such a payload silently; here the caller
@@ -127,6 +149,7 @@ mod tests {
             config,
             payload_at(3, B256::repeat_byte(2)),
             result_tx,
+            None,
         )));
 
         tokio::time::timeout(Duration::from_secs(1), task.execute(&mut state))
@@ -159,6 +182,7 @@ mod tests {
             config,
             payload_at(1, B256::ZERO),
             result_tx,
+            None,
         )));
 
         tokio::time::timeout(Duration::from_secs(1), task.execute(&mut EngineState::default()))

@@ -1,7 +1,8 @@
 //! A task to consolidate the engine state.
 
 use crate::{
-    ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, SynchronizeTask,
+    ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, SharedDenyList,
+    SynchronizeTask,
     state::{EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin},
     task_queue::build_and_seal,
 };
@@ -87,6 +88,12 @@ pub struct ConsolidateTask<EngineClient_: EngineClient> {
     pub cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
     pub input: ConsolidateInput,
+    /// The super-authority deny list, when the node runs under one.
+    ///
+    /// Consulted before an existing block is adopted as local-safe: a denied block must be reorged
+    /// out and rebuilt, never consolidated back in (op-node's
+    /// `op-node/rollup/attributes/attributes.go:241-256`).
+    pub deny: Option<SharedDenyList>,
 }
 
 impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
@@ -95,8 +102,9 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         client: Arc<EngineClient_>,
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
+        deny: Option<SharedDenyList>,
     ) -> Self {
-        Self { client, cfg, input }
+        Self { client, cfg, input, deny }
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
@@ -105,8 +113,15 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         state: &mut EngineState,
         attributes: &OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
-        build_and_seal(state, self.client.clone(), self.cfg.clone(), attributes.clone(), true)
-            .await?;
+        build_and_seal(
+            state,
+            self.client.clone(),
+            self.cfg.clone(),
+            attributes.clone(),
+            true,
+            self.deny.clone(),
+        )
+        .await?;
 
         Ok(())
     }
@@ -197,6 +212,43 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         let block_hash = block.header.hash;
 
         if self.input.is_consistent_with_block(&self.cfg, &block) {
+            // A denied block can re-enter the canonical chain via unsafe sync, and consolidation
+            // would then adopt it as local-safe without ever rebuilding it. Gate here too,
+            // forcing the build path on a deny — where the seal-time check turns the rebuild
+            // into the deposits-only replacement. The mirror of op-node's consolidation deny
+            // check (`op-node/rollup/attributes/attributes.go:241-256`), including its posture:
+            // a read error fails CLOSED — without a deny-list answer the block can be neither
+            // promoted nor reorged, so the task stalls and retries. Only the attributes path
+            // checks, as op-node's does: the delegation path carries no attributes a replacement
+            // could be built from.
+            let denied = if matches!(&self.input, ConsolidateInput::Attributes(_)) &&
+                let Some(deny) = &self.deny
+            {
+                deny.is_denied(block.header.number, block_hash).map_err(|err| {
+                    warn!(
+                        target: "engine",
+                        %err,
+                        block_number = block.header.number,
+                        block_hash = %block_hash,
+                        "Failed to check the deny list during consolidation; stalling rather \
+                         than promoting or reorging"
+                    );
+                    ConsolidateTaskError::DenyListUnavailable
+                })?
+            } else {
+                false
+            };
+            if denied {
+                warn!(
+                    target: "engine",
+                    block_number = block.header.number,
+                    block_hash = %block_hash,
+                    "Consolidated block is denied by the super authority; forcing a reorg to \
+                     build the replacement"
+                );
+                return self.reconcile_unsafe_to_local_safe(state).await;
+            }
+
             trace!(
                 target: "engine",
                 input = ?self.input,
