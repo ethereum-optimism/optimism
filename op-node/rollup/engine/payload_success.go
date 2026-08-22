@@ -35,7 +35,7 @@ func (e *EngineController) finalizePayload(ctx context.Context, ref eth.L2BlockR
 		e.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ref)
 		// Change the engine state to make the replacement block the cross-safe head of the chain,
 		// And continue syncing from there.
-		e.forceReset(ctx, ref, ref, ref, ref, e.Finalized(), false)
+		e.forceReset(ctx, ref, ref, ref, e.Finalized(), false)
 		e.emitter.Emit(ctx, InteropReplacedBlockEvent{
 			Envelope: envelope,
 			Ref:      ref.BlockRef(),
