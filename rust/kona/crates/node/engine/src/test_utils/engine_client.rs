@@ -41,6 +41,14 @@ pub struct MockEngineStorage {
     /// Storage for block responses by tag.
     pub l2_blocks_by_label: HashMap<BlockNumberOrTag, Block<OpTransaction>>,
 
+    /// Error messages `l2_block_by_label` answers with instead of a block, by tag.
+    pub l2_block_by_label_errors: HashMap<BlockNumberOrTag, String>,
+
+    /// How many `get_l2_block` calls fail with a transport error before the stored blocks are
+    /// served. Lets tests exercise retry paths over an execution layer that is unreachable at
+    /// first.
+    pub l2_block_transport_failures: usize,
+
     // Version-specific new_payload responses
     /// Storage for `new_payload_v1` responses.
     pub new_payload_v1_response: Option<PayloadStatus>,
@@ -137,6 +145,22 @@ impl MockEngineClientBuilder {
         block: Block<OpTransaction>,
     ) -> Self {
         self.storage.l2_blocks_by_label.insert(tag, block);
+        self
+    }
+
+    /// Makes `l2_block_by_label` answer `tag` with an RPC error carrying `message`.
+    pub fn with_l2_block_by_label_error(
+        mut self,
+        tag: BlockNumberOrTag,
+        message: impl Into<String>,
+    ) -> Self {
+        self.storage.l2_block_by_label_errors.insert(tag, message.into());
+        self
+    }
+
+    /// Makes the first `failures` calls to `get_l2_block` fail with a transport error.
+    pub fn with_l2_block_transport_failures(mut self, failures: usize) -> Self {
+        self.storage.l2_block_transport_failures = failures;
         self
     }
 
@@ -431,7 +455,13 @@ impl EngineClient for MockEngineClient {
                 let block_key = block_key.clone();
 
                 ProviderCall::BoxedFuture(Box::pin(async move {
-                    let storage_guard = storage.read().await;
+                    let mut storage_guard = storage.write().await;
+                    if storage_guard.l2_block_transport_failures > 0 {
+                        storage_guard.l2_block_transport_failures -= 1;
+                        return Err(TransportError::from(TransportErrorKind::custom_str(
+                            "execution layer unreachable",
+                        )));
+                    }
                     Ok(storage_guard.l2_blocks_by_id.get(&block_key).cloned())
                 }))
             }),
@@ -479,6 +509,11 @@ impl EngineClient for MockEngineClient {
         numtag: BlockNumberOrTag,
     ) -> Result<Option<Block<OpTransaction>>, EngineClientError> {
         let storage = self.storage.read().await;
+        if let Some(message) = storage.l2_block_by_label_errors.get(&numtag) {
+            return Err(EngineClientError::RpcError(TransportError::from(
+                TransportErrorKind::custom_str(message),
+            )));
+        }
         Ok(storage.l2_blocks_by_label.get(&numtag).cloned())
     }
 }
