@@ -280,7 +280,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EngineSyncStateUpdate, test_utils::MockEngineClient};
+    use crate::{
+        EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin, test_utils::MockEngineClient,
+    };
     use alloy_consensus::Block;
     use alloy_primitives::{B256, Bytes};
     use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
@@ -308,7 +310,7 @@ mod tests {
         let mut state = EngineState::default();
         state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
             unsafe_head: Some(head),
-            local_safe_head: Some(head),
+            local_safe_head: Some(LocalSafeHead::unpaired(head)),
             ..Default::default()
         });
         state
@@ -328,7 +330,15 @@ mod tests {
     ) -> InsertTask<MockEngineClient> {
         let config = Arc::new(RollupConfig::default());
         let client = Arc::new(MockEngineClient::builder().with_config(config.clone()).build());
-        InsertTask::new(client, config, payload, is_derived, Arc::new(crate::NoopBlockSink))
+        // These tests are about the unsafe-head admission check, which only reads whether the
+        // payload is local-safe at all, so an unpaired origin stands in for a derived payload.
+        InsertTask::new(
+            client,
+            config,
+            payload,
+            is_derived.then_some(LocalSafeOrigin::Unpaired),
+            Arc::new(crate::NoopBlockSink),
+        )
     }
 
     /// Records the blocks the engine hands over after a successful import.
@@ -380,7 +390,7 @@ mod tests {
             client,
             config,
             envelope,
-            false,
+            None,
             sink.clone(),
         )));
 
@@ -410,7 +420,7 @@ mod tests {
             client,
             config,
             OpExecutionPayloadEnvelope::V1(payload),
-            false,
+            None,
             Arc::new(crate::NoopBlockSink),
         )));
 

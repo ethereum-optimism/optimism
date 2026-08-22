@@ -78,6 +78,13 @@ impl TestAttributesBuilder {
         self
     }
 
+    /// Sets the L1 block the attributes were derived from
+    #[allow(dead_code)]
+    pub const fn with_derived_from(mut self, derived_from: BlockInfo) -> Self {
+        self.derived_from = Some(derived_from);
+        self
+    }
+
     /// Builds the `OpAttributesWithParent`
     pub fn build(self) -> OpAttributesWithParent {
         let attributes = OpPayloadAttributes {

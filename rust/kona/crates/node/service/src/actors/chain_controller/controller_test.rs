@@ -6,7 +6,8 @@ use crate::{
 };
 use alloy_primitives::B256;
 use kona_engine::{
-    Engine, EngineState, EngineSyncStateUpdate, NoopBlockSink, test_utils::MockEngineClient,
+    Engine, EngineState, EngineSyncStateUpdate, LocalSafeHead, NoopBlockSink,
+    test_utils::MockEngineClient,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -42,7 +43,7 @@ fn lagging_cross_engine(
     let mut state = *engine.state();
     state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
         unsafe_head: Some(local_safe),
-        local_safe_head: Some(local_safe),
+        local_safe_head: Some(LocalSafeHead::unpaired(local_safe)),
         finalized_head: Some(cross_safe),
     });
     state.sync_state = state.sync_state.apply_cross_safe_promotion(promoter.promote(cross_safe));

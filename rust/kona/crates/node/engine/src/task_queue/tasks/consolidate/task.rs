@@ -2,7 +2,9 @@
 
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
-    SynchronizeTask, state::EngineSyncStateUpdate, task_queue::build_and_seal,
+    SynchronizeTask,
+    state::{EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin},
+    task_queue::build_and_seal,
 };
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
@@ -33,6 +35,21 @@ impl From<OpAttributesWithParent> for ConsolidateInput {
 }
 
 impl ConsolidateInput {
+    /// The L1 origin to pair with a local-safe head written from this input.
+    ///
+    /// The delegation path carries a bare [`L2BlockInfo`] injected by the delegating derivation
+    /// actor, with no attributes and so no L1 origin to pair with — explicitly unpaired rather than
+    /// inheriting whatever origin the previous head had.
+    pub(super) const fn local_safe_origin(&self) -> LocalSafeOrigin {
+        match self {
+            Self::Attributes(attributes) => match attributes.derived_from {
+                Some(l1) => LocalSafeOrigin::DerivedFrom(l1),
+                None => LocalSafeOrigin::Unpaired,
+            },
+            Self::BlockInfo(_) => LocalSafeOrigin::Unpaired,
+        }
+    }
+
     /// Returns the block number for this consolidation input.
     const fn l2_block_number(&self) -> u64 {
         match self {
@@ -128,7 +145,9 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             self.cfg.clone(),
             EngineSyncStateUpdate {
                 unsafe_head: Some(*local_safe_l2),
-                local_safe_head: Some(*local_safe_l2),
+                // Reached only from the `BlockInfo` arm, where derivation is delegated and no L1
+                // origin accompanies the injected head.
+                local_safe_head: Some(LocalSafeHead::unpaired(*local_safe_l2)),
                 ..Default::default()
             },
         )
@@ -209,7 +228,10 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
 
                     // Apply a transient update to the local-safe head.
                     state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
-                        local_safe_head: Some(block_info),
+                        local_safe_head: Some(LocalSafeHead::new(
+                            block_info,
+                            self.input.local_safe_origin(),
+                        )),
                         ..Default::default()
                     });
 
@@ -234,7 +256,10 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                         Arc::clone(&self.client),
                         self.cfg.clone(),
                         EngineSyncStateUpdate {
-                            local_safe_head: Some(block_info),
+                            local_safe_head: Some(LocalSafeHead::new(
+                                block_info,
+                                self.input.local_safe_origin(),
+                            )),
                             ..Default::default()
                         },
                     )

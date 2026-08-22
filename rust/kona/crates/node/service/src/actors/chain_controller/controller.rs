@@ -290,9 +290,10 @@ where
                 let task = EngineTask::Insert(Box::new(InsertTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
+                    // The payload is not derived in this case. This is an unsafe block, so it
+                    // moves no local-safe head and has no L1 origin to pair with one.
                     *envelope,
-                    false, /* The payload is not derived in this case. This is an unsafe
-                            * block. */
+                    None, // The payload is not derived: an unsafe block moves no local-safe head.
                     Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);

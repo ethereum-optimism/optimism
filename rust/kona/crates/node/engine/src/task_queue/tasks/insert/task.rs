@@ -2,7 +2,7 @@
 
 use crate::{
     EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError, SynchronizeTask,
-    state::EngineSyncStateUpdate,
+    state::{EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin},
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -21,29 +21,38 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     rollup_config: Arc<RollupConfig>,
     /// The complete execution payload envelope.
     payload: OpExecutionPayloadEnvelope,
-    /// If the payload is local-safe this is true.
-    /// A payload is local-safe if it was derived from L1, rather than received over gossip.
-    is_payload_local_safe: bool,
+    /// The pairing to record if this payload advances the local-safe head, or [`None`] if it does
+    /// not.
+    ///
+    /// The two layers say different things. [`None`] means the payload is not local-safe at all —
+    /// it came over gossip or from the local sequencer, so it moves only the unsafe head.
+    /// [`Some`] means it was derived from L1 and is a local-safe write, and the
+    /// [`LocalSafeOrigin`] inside is the L1 key to record with it, which is
+    /// [`LocalSafeOrigin::Unpaired`] when the attributes carried no `derived_from`.
+    local_safe_origin: Option<LocalSafeOrigin>,
     /// Where to hand the decoded block once the engine has canonicalized it.
     block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
     /// Creates a new insert task.
+    ///
+    /// `local_safe_origin` is [`None`] for a payload that is not local-safe, and otherwise the L1
+    /// origin to pair with the local-safe head this insert installs.
     pub const fn new(
         client: Arc<EngineClient_>,
         rollup_config: Arc<RollupConfig>,
         payload: OpExecutionPayloadEnvelope,
-        is_attributes_derived: bool,
+        local_safe_origin: Option<LocalSafeOrigin>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self {
-            client,
-            rollup_config,
-            payload,
-            is_payload_local_safe: is_attributes_derived,
-            block_sink,
-        }
+        Self { client, rollup_config, payload, local_safe_origin, block_sink }
+    }
+
+    /// Whether this payload advances the local-safe head, i.e. whether it was derived from L1
+    /// rather than received over gossip or built locally.
+    const fn is_payload_local_safe(&self) -> bool {
+        self.local_safe_origin.is_some()
     }
 
     /// Checks the response of the `engine_newPayload` call.
@@ -91,7 +100,7 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
     pub(crate) fn descends_from_local_safe(&self, state: &EngineState) -> bool {
         // A derived payload is a local-safe write, not an unsafe one; it defines the head this
         // check compares against instead of being checked by it.
-        if self.is_payload_local_safe {
+        if self.is_payload_local_safe() {
             return true;
         }
 
@@ -162,7 +171,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
             self.rollup_config.clone(),
             EngineSyncStateUpdate {
                 unsafe_head: Some(new_unsafe_ref),
-                local_safe_head: self.is_payload_local_safe.then_some(new_unsafe_ref),
+                local_safe_head: self
+                    .local_safe_origin
+                    .map(|origin| LocalSafeHead::new(new_unsafe_ref, origin)),
                 ..Default::default()
             },
         )
