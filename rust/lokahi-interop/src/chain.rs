@@ -152,13 +152,16 @@ pub trait InteropChain: Debug + Send + Sync {
     async fn block_number_at_timestamp(&self, timestamp: u64) -> Result<u64, ChainError>;
 }
 
-/// The one write the verifier performs on a chain: taking it off a block it invalidated.
+/// The writes the verifier performs on a chain: taking it off a block it invalidated, and — when
+/// an L1 reorg revokes such an invalidation — putting it back onto a verified frontier.
 ///
-/// Everything else about the replacement is derivation's job. The invalidated output is archived
-/// before this is called — the archive doubles as the deny list — so once the chain is rewound
-/// onto the invalidated block's parent, derivation rebuilds the height from the same L1 batch
-/// data, the rebuild's hash hits the deny list, and a deposits-only block is built at the same
-/// height instead. This seam only rewinds.
+/// Everything else about a replacement or a re-derivation is derivation's job. For an
+/// invalidation, the invalidated output is archived before [`Self::rewind_off`] is called — the
+/// archive doubles as the deny list — so once the chain is rewound onto the invalidated block's
+/// parent, derivation rebuilds the height from the same L1 batch data, the rebuild's hash hits
+/// the deny list, and a deposits-only block is built at the same height instead. For an L1-reorg
+/// rewind, the revoked archive entries are pruned before [`Self::reset_to`] is called, so
+/// derivation rebuilds from the target without the denials. This seam only moves the chain.
 #[async_trait]
 pub trait RewindableChain: Debug + Send + Sync {
     /// Takes the chain off `invalidated`, rewinding it onto that block's parent, and returns
@@ -175,6 +178,24 @@ pub trait RewindableChain: Debug + Send + Sync {
     /// Every error is transient by the same contract as the read seams: the apply path retries
     /// the whole invalidation, which is idempotent end to end.
     async fn rewind_off(&self, invalidated: BlockNumHash) -> Result<bool, ChainError>;
+
+    /// Resets the chain onto `target`, making it the unsafe and local-safe head, and restarts
+    /// derivation from it.
+    ///
+    /// The L1-reorg counterpart of [`Self::rewind_off`], with a *named* landing block instead of
+    /// an invalidated one to step off: the verifier calls this when a rewind revoked archived
+    /// invalidations, whose deposits-only replacements were forced on the reorged basis and
+    /// stand canonical above `target` — derivation alone will not remove them, so the engine is
+    /// placed back on the last frontier that still holds and re-derives from there without the
+    /// pruned denials. The same placement op-supernode gives `RewindEngine` on its
+    /// chain-container interface (`op-supernode/supernode/chain_container/chain_container.go:749`,
+    /// called from `resetChainEnginesIfNeeded`,
+    /// `op-supernode/supernode/activity/interop/interop.go:1099-1122`).
+    ///
+    /// `target` is at or below every block the rewind dropped, where canonicality is untouched
+    /// by the reorg, so the call is idempotent and every error is transient: the apply path
+    /// retries the whole rewind.
+    async fn reset_to(&self, target: BlockNumHash) -> Result<(), ChainError>;
 }
 
 /// The L1 the chains derive from, as the verifier reads it.

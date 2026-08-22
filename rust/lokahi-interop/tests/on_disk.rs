@@ -11,8 +11,8 @@ use alloy_primitives::{B256, ChainId, U256};
 use kona_protocol::OutputRoot;
 use lokahi_interop::{
     ArchivedOutput, ChecksumArgs, ContainsQuery, InvalidHead, LogsDb, PendingTransition,
-    RoundResult, StoreError, StoredExecutingMessage, VerifiedResult, log_hash, open_log_store,
-    open_output_archive, open_verified_store,
+    RewindPlan, RoundResult, StoreError, StoredExecutingMessage, VerifiedResult, log_hash,
+    open_log_store, open_output_archive, open_verified_store,
 };
 use std::collections::BTreeMap;
 
@@ -62,12 +62,13 @@ fn the_verified_frontier_and_wal_slot_survive_a_restart() {
     // The WAL slot is what a restart mid-apply reads: the decision is still there to re-apply,
     // and it has not been mistaken for committed history.
     let pending = store.pending().unwrap().expect("pending transition");
-    assert_eq!(pending.result().verified.timestamp, 1002);
-    assert_eq!(pending.result().invalid_heads.len(), 1);
+    let result = pending.result().expect("an invalidation carries its round result");
+    assert_eq!(result.verified.timestamp, 1002);
+    assert_eq!(result.invalid_heads.len(), 1);
     assert!(!store.has(1002).unwrap());
 
     // Re-applying commits the frontier; only then is the slot cleared.
-    store.commit(&pending.result().verified).unwrap();
+    store.commit(&result.verified).unwrap();
     store.clear_pending().unwrap();
     assert_eq!(store.last_timestamp(), Some(1002));
     assert_eq!(store.pending().unwrap(), None);
@@ -99,10 +100,43 @@ fn a_commit_that_landed_before_its_wal_slot_cleared_replays_as_a_no_op() {
 
     // The recovery path re-drives the transition without having to know how far the last attempt
     // got, and only then clears the slot.
-    store.commit(&transition.result().verified).unwrap();
+    store
+        .commit(&transition.result().expect("an advance carries its round result").verified)
+        .unwrap();
     store.clear_pending().unwrap();
     assert_eq!(store.pending().unwrap(), None);
     assert_eq!(store.last_timestamp(), Some(1000));
+}
+
+/// A rewind plan in the WAL slot must survive a restart whole: a crash mid-rewind replays the
+/// plan that was decided — the previous frontier included — rather than re-deriving one from
+/// stores the first attempt already rewound.
+#[test]
+fn a_wal_rewind_plan_survives_a_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let transition = PendingTransition::Rewind(RewindPlan {
+        rewind_at_or_after: 1001,
+        reset_chains_to: Some(1000),
+        target_heads: Some(BTreeMap::from([(901, head(1000)), (902, head(1001))])),
+    });
+
+    {
+        let store = open_verified_store(dir.path()).unwrap();
+        store.commit(&verified_result(1000)).unwrap();
+        store.commit(&verified_result(1001)).unwrap();
+        store.set_pending(&transition).unwrap();
+        // The process dies here: after the slot write, before any side effect.
+        store.backend().close();
+    }
+
+    let store = open_verified_store(dir.path()).unwrap();
+    assert_eq!(store.pending().unwrap(), Some(transition));
+
+    // The replay drops the rewound frontier and only then clears the slot.
+    assert!(store.rewind(1001).unwrap());
+    store.clear_pending().unwrap();
+    assert_eq!(store.last_timestamp(), Some(1000));
+    assert_eq!(store.pending().unwrap(), None);
 }
 
 #[test]
