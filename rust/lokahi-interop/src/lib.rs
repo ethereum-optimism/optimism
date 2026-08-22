@@ -7,22 +7,43 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod archive;
+mod backfill;
+mod chain;
 mod checksum;
+mod decide;
 mod encoding;
 mod error;
 mod kv;
 mod logs;
 mod verified;
+mod verifier;
+mod verify;
 
 #[cfg(feature = "rocksdb")]
 mod rocks;
 
 pub use archive::{ArchivedOutput, OutputArchive};
+pub use backfill::{
+    BackfillRange, backfill_chain, backfill_window, chain_backfill_range, fetch_and_seal,
+    reconcile_tail, seal_indexed, verification_start,
+};
+pub use chain::{
+    BlockLogs, ChainAt, ChainError, InteropChain, L1Canonical, L1CanonicalExt, RoundError,
+};
 pub use checksum::{ChecksumArgs, MessageChecksum, log_hash, log_to_log_hash};
+pub use decide::{
+    ChainFrontier, Decision, RoundObservation, StepOutput, check_preconditions,
+    decide_verified_result,
+};
 pub use error::StoreError;
 pub use kv::{Entry, Kv, MemoryKv, WriteBatch};
 pub use logs::{BlockSeal, ContainsQuery, LogStore, LogsDb, OpenedBlock, StoredExecutingMessage};
 pub use verified::{InvalidHead, PendingTransition, RoundResult, VerifiedResult, VerifiedStore};
+pub use verifier::{Halted, Pace, Verifier, VerifierConfig, VerifierState};
+pub use verify::{
+    FrontierBlock, FrontierExecutingMessage, FrontierView, InvalidReason, LogStores, RoundVerdict,
+    RuleViolation, verify_round,
+};
 
 #[cfg(feature = "rocksdb")]
 pub use rocks::RocksKv;
