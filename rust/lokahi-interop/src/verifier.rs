@@ -411,7 +411,11 @@ impl<K: Kv> Verifier<K> {
     /// * **A frontier committed** — the store's first timestamp is authoritative and the frontier
     ///   has to stay contiguous, so a bound that has risen above the next timestamp is a real gap
     ///   in this node's history. That halts, as it does in op-supernode, but it halts *here*, with
-    ///   the gap named, rather than several reads later as a chain that cannot answer.
+    ///   the gap named, rather than several reads later as a chain that cannot answer. Naming a
+    ///   real gap leans on the stability half of the [`InteropChain::first_safe_head_timestamp`]
+    ///   contract: an earliest record that could still be overwritten in place answers "not ready"
+    ///   rather than a value, so a bound this reads is frozen and can only rise past the frontier
+    ///   by losing history, never by a write catching a read mid-flight.
     ///
     /// The second arm is also the resume path's only safe-head check. Resuming takes its start
     /// from the verified store — `last_verified + 1` — which consults no safe-head database at

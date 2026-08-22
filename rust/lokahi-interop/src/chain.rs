@@ -148,8 +148,17 @@ pub trait InteropChain: Debug + Send + Sync {
 
     /// The earliest timestamp this chain's safe-head history covers.
     ///
-    /// [`ChainError::NotReady`] means the chain has recorded no safe head yet, which is the normal
-    /// answer while a cold-starting node is still catching up.
+    /// The answer must be *stable*: a timestamp is only returned once no later write can move the
+    /// earliest record, so a caller may latch it, or hold a committed frontier against it, without
+    /// the bound rising underneath. A record that could still be superseded — kona's safe-head
+    /// database overwrites its newest record in place while the chain still derives from that
+    /// record's L1 block, and the earliest record is the newest one until derivation passes it —
+    /// is answered as [`ChainError::NotReady`], exactly as op-supernode's
+    /// `FirstSafeHeadTimestamp` answers `ErrSafeDBNotReady` for an entry its deriver has not
+    /// moved past (`op-supernode/supernode/chain_container/chain_container.go:527-555`).
+    ///
+    /// [`ChainError::NotReady`] also means the chain has recorded no safe head yet, which is the
+    /// normal answer while a cold-starting node is still catching up.
     async fn first_safe_head_timestamp(&self) -> Result<u64, ChainError>;
 
     /// The number of the block covering `timestamp`, flooring onto the preceding block when the

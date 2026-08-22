@@ -247,6 +247,13 @@ impl InteropChain for NodeChain {
     }
 
     async fn first_safe_head_timestamp(&self) -> Result<u64, ChainError> {
+        // Sampled before the first entry is read, mirroring op-supernode's
+        // `FirstSafeHeadTimestamp` (`op-supernode/supernode/chain_container/
+        // chain_container.go:527-555`), which samples `SyncStatus` before `FirstSafeHeadEntry`
+        // for the same reason: an origin already past the entry's L1 block proves the writes
+        // under that key had completed before the entry was read.
+        let state = self.query(EngineQueries::State).await?;
+
         let record = match self.safe_db.first_entry() {
             Ok(record) => record,
             // A cold-starting node has recorded nothing yet. This is the normal answer while its
@@ -254,7 +261,25 @@ impl InteropChain for NodeChain {
             Err(SafeDbError::NotFound) => return Err(ChainError::NotReady),
             Err(err) => return Err(ChainError::Unreachable(format!("safe-head database: {err}"))),
         };
-        Ok(self.timestamp_at_block_number(record.safe_head.number))
+
+        // The database is keyed by the L1 block the local-safe head was derived from, and
+        // `safe_head_updated` overwrites the entry under that key as later blocks derived from
+        // the same L1 block become safe. So while the chain still derives from the first entry's
+        // L1 block, the entry is a value in flight — its L2 half rises in place — and not a
+        // bound. Answering with it anyway is how the verifier halted on a gap that never
+        // existed: cold start read an early in-flight value, committed a frontier from it, the
+        // entry rose past that frontier, and the re-read bound then looked like history had been
+        // lost. The same wait also spans the startup engine reset, whose safe-head rewind can
+        // wipe a still-single-key database outright and refill it above a frontier committed too
+        // early. op-supernode answers `ErrSafeDBNotReady` until the entry is frozen, and so does
+        // this. An unpaired head — a reset walkback writes those — names no L1 block to compare
+        // against, and is the same wait: derivation brings the pairing back.
+        match state.sync_state.local_safe().derived_from_l1() {
+            Some(origin) if origin.number > record.l1.number => {
+                Ok(self.timestamp_at_block_number(record.safe_head.number))
+            }
+            _ => Err(ChainError::NotReady),
+        }
     }
 
     async fn block_number_at_timestamp(&self, timestamp: u64) -> Result<u64, ChainError> {
@@ -318,7 +343,9 @@ impl L1Canonical for L1Provider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kona_engine::{EngineState, EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin};
     use kona_genesis::ChainGenesis;
+    use kona_protocol::L2BlockInfo;
     use kona_safedb::{SafeDb, SafeHeadRecord};
     use std::sync::Arc;
     use url::Url;
@@ -390,6 +417,162 @@ mod tests {
             Arc::new(FailingSafeDb(err)),
             RootProvider::<Optimism>::new_http(Url::parse("http://127.0.0.1:1/").unwrap()),
         )
+    }
+
+    /// A safe-head database holding exactly one record, which `first_entry` answers with.
+    ///
+    /// The shape of the database while the deriver is still inside the first L1 block that
+    /// carried batches: one entry, keyed by that L1 block, and still being overwritten in place
+    /// as later L2 blocks derived from it become safe.
+    #[derive(Debug)]
+    struct OneEntrySafeDb(SafeHeadRecord);
+
+    impl SafeDb for OneEntrySafeDb {
+        fn enabled(&self) -> bool {
+            true
+        }
+
+        fn safe_head_updated(
+            &self,
+            _safe_head: kona_protocol::L2BlockInfo,
+            _l1_head: BlockNumHash,
+        ) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+
+        fn safe_head_reset(
+            &self,
+            _safe_head: kona_protocol::L2BlockInfo,
+        ) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+
+        fn safe_head_at_l1(&self, _l1_block_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
+            Ok(self.0)
+        }
+
+        fn first_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
+            Ok(self.0)
+        }
+
+        fn last_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
+            Ok(self.0)
+        }
+
+        fn l1_at_safe_head(&self, _target_l2_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
+            Ok(self.0)
+        }
+
+        fn close(&self) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+    }
+
+    /// An engine state whose local-safe head carries `origin`.
+    ///
+    /// Only the pairing matters to what is under test: the head's own numbers are arbitrary.
+    fn state_with_local_safe_origin(origin: LocalSafeOrigin) -> EngineState {
+        let mut state = EngineState::default();
+        state.sync_state = state.apply_sync_update(EngineSyncStateUpdate {
+            local_safe_head: Some(LocalSafeHead::new(L2BlockInfo::default(), origin)),
+            ..EngineSyncStateUpdate::NONE
+        });
+        state
+    }
+
+    /// A chain whose safe-head database holds exactly `record` and whose controller answers
+    /// engine-state queries with `state`.
+    ///
+    /// The responder answers every [`EngineQueries::State`] query and drops anything else, which
+    /// is all `first_safe_head_timestamp` sends.
+    fn chain_with_first_entry(record: SafeHeadRecord, state: EngineState) -> NodeChain {
+        let (queries, mut rx) = mpsc::channel::<ChainControllerRpcRequest>(4);
+        tokio::spawn(async move {
+            while let Some(ChainControllerRpcRequest(query)) = rx.recv().await {
+                if let EngineQueries::State(sender) = *query {
+                    let _ = sender.send(state);
+                }
+            }
+        });
+        NodeChain::new(
+            901,
+            RollupConfig {
+                block_time: 2,
+                genesis: ChainGenesis { l2_time: 1_000, ..Default::default() },
+                ..Default::default()
+            },
+            queries,
+            Arc::new(OneEntrySafeDb(record)),
+            RootProvider::<Optimism>::new_http(Url::parse("http://127.0.0.1:1/").unwrap()),
+        )
+    }
+
+    /// A first entry from L1 block 10, naming the L2 block at height 5 — timestamp `1_010` under
+    /// the two-second block time the chains here are built with.
+    fn first_entry_at_l1_10() -> SafeHeadRecord {
+        SafeHeadRecord {
+            l1: BlockNumHash { number: 10, hash: B256::ZERO },
+            safe_head: BlockNumHash { number: 5, hash: B256::ZERO },
+        }
+    }
+
+    /// An L1 block at `number`, as a local-safe origin.
+    fn derived_from_l1(number: u64) -> LocalSafeOrigin {
+        LocalSafeOrigin::DerivedFrom(BlockInfo { number, ..Default::default() })
+    }
+
+    /// While the local-safe head is still derived from the first entry's L1 block, the entry is
+    /// still being overwritten in place — its L2 value rises as more blocks derived from that L1
+    /// block become safe — so it is a value in flight, not a bound, and the answer is "not yet".
+    ///
+    /// Reading it anyway is how the verifier halted on a gap that never existed: cold start
+    /// latched an early in-flight value, the entry rose past the committed frontier, and the next
+    /// bound re-read looked like the history for the frontier's next timestamp was gone.
+    /// op-supernode's `FirstSafeHeadTimestamp` answers `ErrSafeDBNotReady` in this exact state
+    /// (`op-supernode/supernode/chain_container/chain_container.go:527-555`).
+    #[tokio::test]
+    async fn a_first_entry_still_in_flight_is_not_ready() {
+        let chain = chain_with_first_entry(
+            first_entry_at_l1_10(),
+            state_with_local_safe_origin(derived_from_l1(10)),
+        );
+        assert!(matches!(chain.first_safe_head_timestamp().await, Err(ChainError::NotReady)));
+    }
+
+    /// A local-safe head rewound behind the first entry's L1 block is the same in-flight state,
+    /// seen mid-reset: what the database will hold once derivation passes that L1 block again is
+    /// not knowable yet.
+    #[tokio::test]
+    async fn a_local_safe_head_behind_the_first_entry_is_not_ready() {
+        let chain = chain_with_first_entry(
+            first_entry_at_l1_10(),
+            state_with_local_safe_origin(derived_from_l1(9)),
+        );
+        assert!(matches!(chain.first_safe_head_timestamp().await, Err(ChainError::NotReady)));
+    }
+
+    /// An unpaired local-safe head names no L1 block to compare against. A reset walkback writes
+    /// those, and the next derived head restores the pairing, so this is a wait rather than an
+    /// answer built on a comparison that cannot be made.
+    #[tokio::test]
+    async fn an_unpaired_local_safe_head_is_not_ready() {
+        let chain = chain_with_first_entry(
+            first_entry_at_l1_10(),
+            state_with_local_safe_origin(LocalSafeOrigin::Unpaired),
+        );
+        assert!(matches!(chain.first_safe_head_timestamp().await, Err(ChainError::NotReady)));
+    }
+
+    /// Once the local-safe head derives from a later L1 block, every future record lands under a
+    /// later key, the first entry can never change again, and its timestamp is the stable lower
+    /// bound the verifier can hold against a committed frontier.
+    #[tokio::test]
+    async fn a_first_entry_the_deriver_moved_past_answers() {
+        let chain = chain_with_first_entry(
+            first_entry_at_l1_10(),
+            state_with_local_safe_origin(derived_from_l1(11)),
+        );
+        assert_eq!(chain.first_safe_head_timestamp().await.unwrap(), 1_010);
     }
 
     /// The recorded tip has not reached the height yet. The block *is* local-safe — that is why
