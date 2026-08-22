@@ -1,15 +1,17 @@
-//! Two chains, one `lokahi` process.
+//! Two chains, one `lokahi` process, one socket.
 //!
 //! This is the smoke test for the thing a supernode is for, run against the real binary: one
-//! process is given two chains, and each of them ends up answering on its own RPC socket with its
-//! own rollup config, while the process-wide admin RPC reports the set it was asked to host.
+//! process is given two chains, and each of them ends up answering under its own route on the one
+//! socket the process opened, with its own rollup config, while the root of that same socket
+//! reports the set it was asked to host.
 //!
 //! Deriving blocks needs a live L1 and a live execution layer per chain, which is what the
 //! devstack's lokahi component exists to provide (`op-devstack/sysgo/l2_cl_lokahi.go`). What the
 //! stubbed L1 here establishes is the part that needs no chain to be moving and that no unit test
 //! can reach: that two chains compose in one process without colliding, that a request lands on
-//! the chain whose port it was sent to, and that one chain's execution layer being unreachable
-//! neither stops the other chain nor takes the process down.
+//! the chain whose id is in the path it was sent to, that a chain the process does not host is a
+//! 404, and that one chain's execution layer being unreachable neither stops the other chain nor
+//! takes the process down.
 
 use jsonrpsee::{
     core::client::ClientT,
@@ -45,7 +47,7 @@ const CHAIN_B_NAME: &str = "unichain";
 const READY_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[tokio::test(flavor = "multi_thread")]
-async fn two_chains_answer_on_their_own_rpc_sockets() {
+async fn two_chains_answer_on_one_socket_under_their_own_routes() {
     let stub = Stub::start();
     let dir = tempfile::tempdir().expect("temp dir");
     let ports = Ports::allocate();
@@ -53,28 +55,36 @@ async fn two_chains_answer_on_their_own_rpc_sockets() {
 
     let node = Node::start(&dir.path().join("cfg.toml"), &toml);
 
-    // The admin RPC reports the set the process resolved from its configuration, which is what
-    // turns a mistake in that configuration into a failed assertion here rather than into a chain
-    // that quietly never started.
+    // The root of the socket reports the set the process resolved from its configuration, which is
+    // what turns a mistake in that configuration into a failed assertion here rather than into a
+    // chain that quietly never started. `rpcPath` is the whole answer to *where is chain N*: the
+    // caller is already talking to the socket.
     let hosted = node.admin().request::<Value, _>("lokahi_chains", rpc_params![]).await;
     let hosted = hosted.expect("the admin rpc did not answer lokahi_chains");
     let hosted = hosted.as_array().expect("lokahi_chains returns an array").clone();
     assert_eq!(hosted.len(), 2, "expected two hosted chains: {hosted:?}");
     assert_eq!(hosted[0]["chainId"], json!(CHAIN_A));
     assert_eq!(hosted[1]["chainId"], json!(CHAIN_B));
-    assert_eq!(hosted[0]["rpcAddr"], json!(format!("127.0.0.1:{}", ports.rpc_a)));
-    assert_eq!(hosted[1]["rpcAddr"], json!(format!("127.0.0.1:{}", ports.rpc_b)));
+    assert_eq!(hosted[0]["rpcPath"], json!(format!("/{CHAIN_A}")));
+    assert_eq!(hosted[1]["rpcPath"], json!(format!("/{CHAIN_B}")));
 
-    // Each chain answers for itself: the port a request goes to decides which chain replies, which
-    // is the whole addressing scheme of a lokahi supernode.
-    for (port, chain) in [(ports.rpc_a, CHAIN_A_NAME), (ports.rpc_b, CHAIN_B_NAME)] {
-        let config = await_rollup_config(port).await;
+    // Each chain answers for itself: the chain id in the path decides which chain replies, and
+    // both paths are on the one address the process logged. That is op-supernode's addressing,
+    // segment for segment, so a client is pointed at either implementation with the same URL.
+    for chain_id in [CHAIN_A, CHAIN_B] {
+        let name = if chain_id == CHAIN_A { CHAIN_A_NAME } else { CHAIN_B_NAME };
+        let config = await_rollup_config(&node.chain_url(chain_id)).await;
         assert_eq!(
             config["l2_chain_id"],
-            json!(chain),
-            "the server on port {port} answered for another chain: {config}"
+            json!(name),
+            "the route of chain {chain_id} answered for another chain: {config}"
         );
     }
+
+    // A chain id this process does not host is a 404, as it is in Go's router — not a hang and not
+    // an empty JSON-RPC error, so a caller that mistyped a chain id can tell.
+    let status = get_status(&format!("{}/999999", node.base())).await;
+    assert_eq!(status, 404, "an unhosted chain id must be a 404");
 
     // The two supernode query methods answer on the same socket. Nothing here derives, so what
     // this establishes is the wiring no unit test can reach: that both methods are registered
@@ -110,6 +120,50 @@ async fn two_chains_answer_on_their_own_rpc_sockets() {
         "an absent super root omits `data` rather than sending null: {superroot}"
     );
     assert_eq!(superroot["chain_ids"], json!([CHAIN_A.to_string(), CHAIN_B.to_string()]));
+
+    // Each chain's route answers `superroot_atTimestamp` for that one chain. This is the Go
+    // stack's addressing: op-node registers the `superroot` namespace on its RPC unconditionally
+    // (`op-node/node/node.go`, `registerAPIs`), so every route of the Go op-supernode serves the
+    // method — the root over the whole set, each chain's route over that chain alone. Real
+    // consumers dial the chain route for it: the devstack's per-chain proposers
+    // (`op-devstack/sysgo/singlechain_runtime.go`, `SuperRootRpcs = l2CL.UserRPC()`) and the
+    // anchor read when a game type is added (`op-devstack/sysgo/add_game_type.go`). A route built
+    // from kona's method set alone refuses the call with "Method not found", which is how those
+    // consumers failed against lokahi while the root answered.
+    for chain_id in [CHAIN_A, CHAIN_B] {
+        let client = HttpClientBuilder::default()
+            .build(node.chain_url(chain_id))
+            .expect("build a chain rpc client");
+        let superroot = client
+            .request::<Value, _>("superroot_atTimestamp", rpc_params!["0x7fffffff"])
+            .await
+            .unwrap_or_else(|err| {
+                panic!("the route of chain {chain_id} did not answer superroot_atTimestamp: {err}")
+            });
+        assert_eq!(
+            superroot["chain_ids"],
+            json!([chain_id.to_string()]),
+            "the route of chain {chain_id} must answer for exactly that chain: {superroot}"
+        );
+        assert_eq!(
+            superroot["optimistic_at_timestamp"],
+            json!({}),
+            "the chain has not derived that timestamp: {superroot}"
+        );
+        assert!(
+            superroot.get("data").is_none(),
+            "an absent super root omits `data` on a chain route too: {superroot}"
+        );
+
+        // The set-wide method stays off the chain route, as it is off op-node's RPC: what the
+        // whole chain set has derived is the root's answer, and a chain route that answered it
+        // would be a surface the Go supernode does not have.
+        let err = client.request::<Value, _>("supernode_syncStatus", rpc_params![]).await;
+        assert!(
+            err.is_err(),
+            "supernode_syncStatus must not answer on chain {chain_id}'s route: it is a root method"
+        );
+    }
 }
 
 /// One chain's execution layer being unreachable is that chain's problem.
@@ -127,9 +181,9 @@ async fn an_unreachable_execution_layer_does_not_stop_the_other_chain() {
 
     let mut node = Node::start(&dir.path().join("cfg.toml"), &toml);
 
-    for (port, chain) in [(ports.rpc_a, CHAIN_A_NAME), (ports.rpc_b, CHAIN_B_NAME)] {
-        let config = await_rollup_config(port).await;
-        assert_eq!(config["l2_chain_id"], json!(chain));
+    for (chain_id, name) in [(CHAIN_A, CHAIN_A_NAME), (CHAIN_B, CHAIN_B_NAME)] {
+        let config = await_rollup_config(&node.chain_url(chain_id)).await;
+        assert_eq!(config["l2_chain_id"], json!(name));
     }
 
     assert!(node.is_running(), "the supernode exited when one execution layer was unreachable");
@@ -137,9 +191,8 @@ async fn an_unreachable_execution_layer_does_not_stop_the_other_chain() {
 
 /// Renders a two-chain configuration file.
 ///
-/// The admin RPC asks for port 0 and the chains name concrete ports: kona binds each chain's server
-/// itself and never reports the address back, so a chain on port 0 would be unaddressable, whereas
-/// the admin RPC logs the port it was given.
+/// The one socket asks for port 0 and no chain names a port at all: a chain is a route on that
+/// socket, so the address the process logs is the address of every chain it hosts.
 fn config(dir: &Path, stub: &Stub, ports: &Ports, engine_a: &str, engine_b: &str) -> String {
     let jwt = dir.join("jwt.hex");
     std::fs::write(&jwt, format!("0x{}", "11".repeat(32))).expect("write the jwt secret");
@@ -154,17 +207,16 @@ beacon = "{stub}"
 datadir = "{datadir}"
 jwt-secret = "{jwt}"
 mode = "validator"
-rpc-addr = "127.0.0.1"
 rpc-enable-admin = true
 p2p-listen-ip = "127.0.0.1"
 
 [admin]
+rpc-addr = "127.0.0.1"
 rpc-port = 0
 
 [[chains]]
 l2-chain-id = {CHAIN_A}
 engine-rpc = "{engine_a}"
-rpc-port = {rpc_a}
 p2p-tcp-port = {tcp_a}
 p2p-udp-port = {udp_a}
 unsafe-block-signer = "0x1111111111111111111111111111111111111111"
@@ -172,7 +224,6 @@ unsafe-block-signer = "0x1111111111111111111111111111111111111111"
 [[chains]]
 l2-chain-id = {CHAIN_B}
 engine-rpc = "{engine_b}"
-rpc-port = {rpc_b}
 p2p-tcp-port = {tcp_b}
 p2p-udp-port = {udp_b}
 unsafe-block-signer = "0x2222222222222222222222222222222222222222"
@@ -180,8 +231,6 @@ unsafe-block-signer = "0x2222222222222222222222222222222222222222"
         stub = stub.url(),
         datadir = dir.join("data").display(),
         jwt = jwt.display(),
-        rpc_a = ports.rpc_a,
-        rpc_b = ports.rpc_b,
         tcp_a = ports.tcp_a,
         tcp_b = ports.tcp_b,
         udp_a = ports.udp_a,
@@ -191,11 +240,10 @@ unsafe-block-signer = "0x2222222222222222222222222222222222222222"
 
 /// The ports one run needs, taken from the OS so concurrent test binaries do not collide.
 ///
-/// All of them are reserved at once and only then released: allocating them one at a time would
-/// hand out the same port twice, because each is free again before the next is asked for.
+/// P2P only: the RPC is one socket on port 0, whose address the process logs. All of them are
+/// reserved at once and only then released: allocating them one at a time would hand out the same
+/// port twice, because each is free again before the next is asked for.
 struct Ports {
-    rpc_a: u16,
-    rpc_b: u16,
     tcp_a: u16,
     tcp_b: u16,
     udp_a: u16,
@@ -206,20 +254,18 @@ struct Ports {
 
 impl Ports {
     fn allocate() -> Self {
-        let reserved: Vec<TcpListener> = (0..7)
+        let reserved: Vec<TcpListener> = (0..5)
             .map(|_| TcpListener::bind("127.0.0.1:0").expect("reserve an ephemeral port"))
             .collect();
         let ports: Vec<u16> =
             reserved.iter().map(|l| l.local_addr().expect("local addr").port()).collect();
 
         Self {
-            rpc_a: ports[0],
-            rpc_b: ports[1],
-            tcp_a: ports[2],
-            tcp_b: ports[3],
-            udp_a: ports[4],
-            udp_b: ports[5],
-            closed: ports[6],
+            tcp_a: ports[0],
+            tcp_b: ports[1],
+            udp_a: ports[2],
+            udp_b: ports[3],
+            closed: ports[4],
         }
     }
 }
@@ -318,6 +364,8 @@ impl Stub {
 /// A running `lokahi` process, stopped when the test that started it ends.
 struct Node {
     child: Child,
+    /// The one address the process serves everything on.
+    base: String,
     admin: HttpClient,
 }
 
@@ -333,7 +381,10 @@ impl Node {
             .args(["node", "--config", path.to_str().expect("utf-8 path")])
             .env("KONA_LOG_STDOUT_FORMAT", "json")
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            // Inherited rather than dropped: a node that fails before it logs anything — a config
+            // the deserializer rejects, say — explains itself on stderr, and that explanation is
+            // the whole diagnosis. Dropping it leaves only "did not log its admin RPC address".
+            .stderr(Stdio::inherit())
             .spawn()
             .expect("start lokahi");
 
@@ -351,17 +402,28 @@ impl Node {
             }
         });
 
-        let admin =
+        let addr =
             rx.recv_timeout(READY_TIMEOUT).expect("lokahi did not log its admin RPC address");
-        let admin = HttpClientBuilder::default()
-            .build(format!("http://{admin}"))
-            .expect("build the admin rpc client");
+        let base = format!("http://{addr}");
+        let admin = HttpClientBuilder::default().build(&base).expect("build the admin rpc client");
 
-        Self { child, admin }
+        Self { child, base, admin }
     }
 
+    /// The supernode's own namespaces, at the root of its socket.
     const fn admin(&self) -> &HttpClient {
         &self.admin
+    }
+
+    /// The one address the process serves everything on.
+    fn base(&self) -> &str {
+        &self.base
+    }
+
+    /// Where chain `chain_id` answers: the supernode's address and the chain id as a path segment,
+    /// which is `op-supernode`'s addressing too (`multichain_supernode_runtime.go`).
+    fn chain_url(&self, chain_id: u64) -> String {
+        format!("{}/{chain_id}", self.base)
     }
 
     fn is_running(&mut self) -> bool {
@@ -412,22 +474,41 @@ async fn await_sync_status(node: &Node) -> Value {
     }
 }
 
-async fn await_rollup_config(port: u16) -> Value {
-    let client = HttpClientBuilder::default()
-        .build(format!("http://127.0.0.1:{port}"))
-        .expect("build a chain rpc client");
+async fn await_rollup_config(url: &str) -> Value {
+    let client = HttpClientBuilder::default().build(url).expect("build a chain rpc client");
     let deadline = Instant::now() + READY_TIMEOUT;
 
     loop {
         match client.request::<Value, _>("optimism_rollupConfig", rpc_params![]).await {
             Ok(config) => return config,
             Err(err) => {
-                assert!(
-                    Instant::now() < deadline,
-                    "the rpc server on port {port} never answered: {err}"
-                );
+                assert!(Instant::now() < deadline, "the route {url} never answered: {err}");
                 sleep(Duration::from_millis(200)).await;
             }
         }
     }
+}
+
+/// The status code of a bare POST to `url`, over a hand-rolled request so that the router's answer
+/// is read as HTTP rather than through a JSON-RPC client that would hide it.
+async fn get_status(url: &str) -> u16 {
+    let url = url.strip_prefix("http://").expect("an http url");
+    let (authority, path) = url.split_once('/').expect("a path to ask for");
+    let mut stream = TcpStream::connect(authority).expect("connect to the supernode");
+    let body = br#"{"jsonrpc":"2.0","id":1,"method":"optimism_rollupConfig","params":[]}"#;
+    let request = format!(
+        "POST /{path} HTTP/1.1\r\nhost: {authority}\r\ncontent-type: application/json\r\n\
+         content-length: {}\r\nconnection: close\r\n\r\n",
+        body.len()
+    );
+    stream.write_all(request.as_bytes()).expect("write the request head");
+    stream.write_all(body).expect("write the request body");
+
+    let mut status = String::new();
+    BufReader::new(stream).read_line(&mut status).expect("read the status line");
+    status
+        .split_whitespace()
+        .nth(1)
+        .and_then(|code| code.parse().ok())
+        .unwrap_or_else(|| panic!("unexpected status line: {status}"))
 }

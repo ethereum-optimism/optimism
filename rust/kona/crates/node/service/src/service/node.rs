@@ -8,6 +8,7 @@ use crate::{
     QueuedChainControllerDerivationClient, QueuedDerivationEngineClient, QueuedEngineRpcClient,
     QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
     QueuedSequencerEngineClient, RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
+    SharedRpcServerLauncher,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::{
         BufferImportedBlocks,
@@ -143,6 +144,14 @@ pub struct RollupNode {
     pub(crate) engine_config: EngineConfig,
     /// The [`RpcBuilder`] for the node.
     pub(crate) rpc_builder: Option<RpcBuilder>,
+    /// The launcher this chain's RPC module set is handed to, when the host supplies one.
+    ///
+    /// [`None`] — the standalone default — binds the module set to [`RpcBuilder::socket`] with
+    /// [`JsonrpseeServerLauncher`], which is a single-chain node's whole RPC. A multi-chain host
+    /// supplies its own launcher instead, so that N chains' module sets reach one socket rather
+    /// than N of them; [`RpcBuilder::socket`] is then unused, and whether an RPC is built at all
+    /// still follows the [`RpcBuilder`] above being present.
+    pub(crate) rpc_launcher: Option<SharedRpcServerLauncher>,
     /// The P2P [`NetworkConfig`] for the node.
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] for the node.
@@ -232,7 +241,11 @@ type ConfiguredSequencerActor = SequencerActor<
 >;
 
 /// Concrete type of the rpc actor used by `RollupNode`.
-type ConfiguredRpcActor = RpcActor<JsonrpseeServerLauncher>;
+///
+/// The launcher is shared and object-safe rather than the concrete [`JsonrpseeServerLauncher`], so
+/// that a host which routes N chains onto one socket does not make this type — or the composition
+/// that returns it — generic over the launcher it chose.
+type ConfiguredRpcActor = RpcActor<SharedRpcServerLauncher>;
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -492,7 +505,10 @@ impl RollupNode {
         }
 
         let restarts_remaining = config.restart_count();
-        let launcher = JsonrpseeServerLauncher::new(config);
+        let launcher: SharedRpcServerLauncher = self
+            .rpc_launcher
+            .clone()
+            .unwrap_or_else(|| Arc::new(JsonrpseeServerLauncher::new(config)));
         let handle = launcher
             .launch(modules.clone())
             .await

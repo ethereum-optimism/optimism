@@ -38,10 +38,11 @@ pub(crate) struct LokahiConfig {
     /// configured" rather than as a missing field.
     #[serde(default)]
     pub(crate) chains: Vec<ChainSettings>,
-    /// The supernode-level admin/test RPC, when the file asks for one.
+    /// The socket the supernode serves its RPC on, when the file asks for one.
     ///
-    /// Absent means the supernode exposes no process-wide surface at all, which is what a
-    /// production deployment wants: everything an operator needs is on the chains' own RPCs.
+    /// Absent means the supernode exposes no RPC at all: the chains are served on this socket too,
+    /// so there is no second place for them to go. A supernode configured this way follows its
+    /// chains and gossips, and answers nothing.
     pub(crate) admin: Option<AdminSettings>,
     /// The process-wide interop settings, when the file overrides any of them.
     pub(crate) interop: Option<InteropSettings>,
@@ -68,14 +69,18 @@ pub(crate) struct InteropSettings {
     pub(crate) activation_timestamp: Option<u64>,
 }
 
-/// The supernode-level admin/test RPC's settings.
+/// The supernode's RPC socket.
+///
+/// One socket serves everything: the supernode's own namespaces at `/`, and each hosted chain's
+/// node RPC at `/<l2-chain-id>`. So this is not only the admin surface's address — it is the
+/// address of the whole process, and the one a caller has to be told.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub(crate) struct AdminSettings {
-    /// The address the admin RPC listens on. Loopback by default: this is a control surface, so
-    /// it does not become reachable off the host by leaving a field out.
+    /// The address the supernode listens on. Loopback by default: the admin surface is a control
+    /// surface, so it does not become reachable off the host by leaving a field out.
     pub(crate) rpc_addr: Option<IpAddr>,
-    /// The port the admin RPC listens on. `0` lets the OS choose, and the chosen port is logged.
+    /// The port the supernode listens on. `0` lets the OS choose, and the chosen port is logged.
     pub(crate) rpc_port: u16,
 }
 
@@ -160,11 +165,7 @@ pub(crate) struct ChainSettings {
     /// A chain that names it directly gets exactly that directory; otherwise the chain gets
     /// `<datadir>/<l2-chain-id>`, so one `[defaults]` entry gives every chain its own directory.
     pub(crate) datadir: Option<PathBuf>,
-    /// The address this chain's RPC server listens on.
-    pub(crate) rpc_addr: Option<IpAddr>,
-    /// The port this chain's RPC server listens on.
-    pub(crate) rpc_port: Option<u16>,
-    /// Whether to expose the admin namespace on this chain's RPC server.
+    /// Whether to expose the admin namespace on this chain's RPC route.
     pub(crate) rpc_enable_admin: Option<bool>,
     /// The address this chain's P2P stack listens on.
     pub(crate) p2p_listen_ip: Option<IpAddr>,
@@ -190,7 +191,7 @@ pub(crate) struct ResolvedConfig {
     /// A boxed slice rather than a `Vec`: the chain set is fixed once the file is read, and a
     /// collection that cannot grow says so in the type.
     pub(crate) chains: Box<[ResolvedChain]>,
-    /// The socket the supernode-level admin RPC listens on, if one is configured.
+    /// The socket the supernode serves its RPC on, if one is configured.
     pub(crate) admin_rpc: Option<SocketAddr>,
     /// The directory the process-wide interop stores live under, when one can be named.
     ///
@@ -230,9 +231,7 @@ pub(crate) struct ResolvedChain {
     pub(crate) sequencer: Option<SequencerSettings>,
     /// The directory this chain's state lives under.
     pub(crate) datadir: PathBuf,
-    /// The socket this chain's RPC server listens on.
-    pub(crate) rpc_socket: SocketAddr,
-    /// Whether to expose the admin namespace on this chain's RPC server.
+    /// Whether to expose the admin namespace on this chain's RPC route.
     pub(crate) rpc_enable_admin: bool,
     /// The address this chain's P2P stack listens on.
     pub(crate) p2p_listen_ip: IpAddr,
@@ -327,17 +326,6 @@ pub(crate) enum ConfigError {
         /// The address both chains claimed.
         address: String,
     },
-    /// The admin RPC would listen on a socket a chain's RPC server already claimed.
-    #[error(
-        "the admin rpc would listen on {address}, which is chain {chain_id}'s rpc socket: give \
-         the admin rpc its own port"
-    )]
-    AdminAddressCollision {
-        /// The chain that claimed the socket.
-        chain_id: u64,
-        /// The socket both would bind.
-        address: String,
-    },
     /// A chain is configured to sequence but has no key to sign with.
     #[error(
         "chain {chain_id} is configured to sequence but has no sequencer-key-path: a sequencing \
@@ -382,7 +370,9 @@ impl LokahiConfig {
     /// A chain's own value wins over the default; a setting with no value from either layer is an
     /// error unless the node can do without it. The checks are what N chains in one process makes
     /// possible to get wrong and a single-chain node cannot: the same chain configured twice, two
-    /// chains sharing a port, two chains sharing a data directory.
+    /// chains sharing a P2P port, two chains sharing a data directory. There is no RPC port among
+    /// them, because a chain does not have one: the whole process has one socket and a chain is a
+    /// route on it.
     pub(crate) fn resolve(self) -> Result<ResolvedConfig, ConfigError> {
         let Self { l1, defaults, chains, admin, interop } = self;
 
@@ -404,7 +394,6 @@ impl LokahiConfig {
                 admin.rpc_port,
             )
         });
-        check_admin_socket(admin_rpc, &resolved)?;
 
         let interop_datadir = defaults.datadir.as_ref().map(|dir| dir.join(INTEROP_DIR));
         let interop_activation_override = interop.and_then(|interop| interop.activation_timestamp);
@@ -436,8 +425,6 @@ impl LokahiConfig {
         required(engine_rpc.is_some(), "engine-rpc")?;
         let jwt_secret = chain.jwt_secret.clone().or_else(|| defaults.jwt_secret.clone());
         required(jwt_secret.is_some(), "jwt-secret")?;
-        let rpc_port = chain.rpc_port.or(defaults.rpc_port);
-        required(rpc_port.is_some(), "rpc-port")?;
         let p2p_tcp_port = chain.p2p_tcp_port.or(defaults.p2p_tcp_port);
         required(p2p_tcp_port.is_some(), "p2p-tcp-port")?;
         let p2p_udp_port = chain.p2p_udp_port.or(defaults.p2p_udp_port);
@@ -457,11 +444,6 @@ impl LokahiConfig {
             PathBuf::from,
         );
 
-        let rpc_addr = chain
-            .rpc_addr
-            .or(defaults.rpc_addr)
-            .unwrap_or_else(|| IpAddr::from(Ipv4Addr::LOCALHOST));
-
         let mode = chain.mode.or(defaults.mode).unwrap_or(NodeMode::Validator);
         let sequencer = Self::resolve_sequencer(l2_chain_id, mode, &chain, defaults)?;
 
@@ -473,7 +455,6 @@ impl LokahiConfig {
             trust_l2_rpc: chain.trust_l2_rpc.or(defaults.trust_l2_rpc).unwrap_or_default(),
             sequencer,
             datadir,
-            rpc_socket: SocketAddr::new(rpc_addr, rpc_port.expect("checked above")),
             rpc_enable_admin: chain
                 .rpc_enable_admin
                 .or(defaults.rpc_enable_admin)
@@ -571,7 +552,6 @@ fn check_unique(chains: &[ResolvedChain]) -> Result<(), ConfigError> {
         }
 
         let listeners = [
-            ("the rpc socket", chain.rpc_socket.to_string()),
             (
                 "the p2p tcp port",
                 SocketAddr::new(chain.p2p_listen_ip, chain.p2p_tcp_port).to_string(),
@@ -599,27 +579,6 @@ fn check_unique(chains: &[ResolvedChain]) -> Result<(), ConfigError> {
     }
 
     Ok(())
-}
-
-/// Reports an admin RPC socket that a chain's RPC server has already claimed.
-///
-/// Same reason as the per-chain checks: two servers on one socket surfaces as an address-in-use
-/// after one of them is already up, and which one wins depends on start order. Port 0 is exempt —
-/// it is a request for any free port, not a claim on one.
-fn check_admin_socket(
-    admin_rpc: Option<SocketAddr>,
-    chains: &[ResolvedChain],
-) -> Result<(), ConfigError> {
-    let Some(admin_rpc) = admin_rpc.filter(|socket| socket.port() != 0) else {
-        return Ok(());
-    };
-
-    chains.iter().find(|chain| chain.rpc_socket == admin_rpc).map_or(Ok(()), |chain| {
-        Err(ConfigError::AdminAddressCollision {
-            chain_id: chain.l2_chain_id,
-            address: admin_rpc.to_string(),
-        })
-    })
 }
 
 /// Deserializes a [`NodeMode`] from its name.
@@ -654,7 +613,6 @@ mod tests {
             datadir = "/var/lib/lokahi"
             jwt-secret = "/etc/lokahi/jwt.hex"
             engine-rpc = "http://localhost:9551"
-            rpc-port = 9545
             p2p-tcp-port = 9222
             p2p-udp-port = 9222
 
@@ -696,7 +654,6 @@ mod tests {
             datadir = "/var/lib/lokahi"
             jwt-secret = "/etc/lokahi/jwt.hex"
             engine-rpc = "http://localhost:9551"
-            rpc-port = 9545
             p2p-tcp-port = 9222
             p2p-udp-port = 9222
 
@@ -744,7 +701,6 @@ mod tests {
         assert_eq!(chain.l2_chain_id, 901);
         assert_eq!(chain.engine_rpc.as_str(), "http://localhost:9551/");
         assert_eq!(chain.jwt_secret, PathBuf::from("/etc/lokahi/jwt.hex"));
-        assert_eq!(chain.rpc_socket.port(), 9545);
         assert_eq!(chain.mode(), NodeMode::Validator);
         assert_eq!(chain.sequencer, None);
     }
@@ -841,8 +797,8 @@ mod tests {
 
             {}{}
             "#,
-            chain("l2-chain-id = 901\nmode = \"sequencer\"\nrpc-port = 9545\np2p-tcp-port = 9222"),
-            chain("l2-chain-id = 902\nrpc-port = 9555\np2p-tcp-port = 9232\np2p-udp-port = 9232"),
+            chain("l2-chain-id = 901\nmode = \"sequencer\"\np2p-tcp-port = 9222"),
+            chain("l2-chain-id = 902\np2p-tcp-port = 9232\np2p-udp-port = 9232"),
         );
 
         let resolved = LokahiConfig::parse(&file).expect("parses").resolve().expect("resolves");
@@ -860,8 +816,8 @@ mod tests {
     fn a_shared_data_directory_is_split_per_chain() {
         let resolved = config(&format!(
             "{}{}",
-            chain("l2-chain-id = 901\nrpc-port = 9545\np2p-tcp-port = 9222\np2p-udp-port = 9222"),
-            chain("l2-chain-id = 902\nrpc-port = 9555\np2p-tcp-port = 9232\np2p-udp-port = 9232"),
+            chain("l2-chain-id = 901\np2p-tcp-port = 9222\np2p-udp-port = 9222"),
+            chain("l2-chain-id = 902\np2p-tcp-port = 9232\np2p-udp-port = 9232"),
         ))
         .resolve()
         .expect("resolves");
@@ -887,7 +843,7 @@ mod tests {
     #[test]
     fn a_chain_entry_needs_a_chain_id() {
         assert_eq!(
-            config(&chain("rpc-port = 9545")).resolve().expect_err("no chain id"),
+            config(&chain("p2p-tcp-port = 9222")).resolve().expect_err("no chain id"),
             ConfigError::MissingChainId { index: 0 }
         );
     }
@@ -904,7 +860,6 @@ mod tests {
             [[chains]]
             l2-chain-id = 901
             jwt-secret = "/etc/lokahi/jwt.hex"
-            rpc-port = 9545
             p2p-tcp-port = 9222
             p2p-udp-port = 9222
         "#;
@@ -920,7 +875,7 @@ mod tests {
         let entries = format!(
             "{}{}",
             chain("l2-chain-id = 901"),
-            chain("l2-chain-id = 901\nrpc-port = 9555\np2p-tcp-port = 9232\np2p-udp-port = 9232"),
+            chain("l2-chain-id = 901\np2p-tcp-port = 9232\np2p-udp-port = 9232"),
         );
 
         assert_eq!(
@@ -930,7 +885,9 @@ mod tests {
     }
 
     /// Two chains inheriting the same port from `[defaults]` is the mistake the overlay makes easy,
-    /// so it is caught at startup rather than as an address-in-use from one chain's RPC server.
+    /// so it is caught at startup rather than as an address-in-use from one chain's gossip. The
+    /// RPC is not among the listeners a chain can collide on any more: the process has one socket
+    /// and a chain is a route on it.
     #[test]
     fn two_chains_cannot_share_a_listener() {
         let entries = format!("{}{}", chain("l2-chain-id = 901"), chain("l2-chain-id = 902"));
@@ -941,8 +898,8 @@ mod tests {
             ConfigError::AddressCollision {
                 first: 901,
                 second: 902,
-                what: "the rpc socket",
-                address: "127.0.0.1:9545".to_string(),
+                what: "the p2p tcp port",
+                address: "0.0.0.0:9222".to_string(),
             }
         );
     }
@@ -953,7 +910,7 @@ mod tests {
             "{}{}",
             chain("l2-chain-id = 901\ndatadir = \"/srv/shared\""),
             chain(
-                "l2-chain-id = 902\ndatadir = \"/srv/shared\"\nrpc-port = 9555\np2p-tcp-port = 9232\np2p-udp-port = 9232"
+                "l2-chain-id = 902\ndatadir = \"/srv/shared\"\np2p-tcp-port = 9232\np2p-udp-port = 9232"
             ),
         );
 
@@ -987,6 +944,28 @@ mod tests {
         assert!(error.to_string().contains("rpc-prot"), "unexpected error: {error}");
     }
 
+    /// A chain does not have a port: the supernode has one socket and a chain is a route on it. A
+    /// file still naming `rpc-port` per chain is rejected rather than quietly ignored, so an
+    /// operator carrying an old file over is told the setting is gone instead of getting a chain
+    /// on an address nothing serves.
+    #[test]
+    fn a_chain_may_not_name_an_rpc_port() {
+        let error = LokahiConfig::parse(
+            r#"
+            [l1]
+            eth-rpc = "http://localhost:8545"
+            beacon = "http://localhost:5052"
+
+            [[chains]]
+            l2-chain-id = 901
+            rpc-port = 9545
+            "#,
+        )
+        .expect_err("rpc-port is not a chain setting");
+
+        assert!(error.to_string().contains("rpc-port"), "unexpected error: {error}");
+    }
+
     /// The documented example is parsed here so it cannot drift from what the code accepts.
     #[test]
     fn the_example_configuration_resolves() {
@@ -1003,8 +982,8 @@ mod tests {
         assert_eq!(resolved.chains[1].mode(), NodeMode::Sequencer);
     }
 
-    /// A file that says nothing about `[admin]` gets no process-wide surface at all, which is what
-    /// a production deployment wants: the chains' own RPCs are the operator interface.
+    /// A file that says nothing about `[admin]` gets no RPC at all — the chains are served on that
+    /// socket too, so there is no second place for them to go.
     #[test]
     fn the_admin_rpc_is_off_unless_it_is_asked_for() {
         let resolved = config(&chain("l2-chain-id = 901")).resolve().expect("resolves");
@@ -1021,24 +1000,8 @@ mod tests {
         assert_eq!(resolved.admin_rpc, Some("127.0.0.1:9600".parse().unwrap()));
     }
 
-    /// The same reason the per-chain listeners are checked: an overlap surfaces as an
-    /// address-in-use after one of the two servers is already up.
-    #[test]
-    fn the_admin_rpc_cannot_take_a_chains_rpc_socket() {
-        let mut file = config(&chain("l2-chain-id = 901"));
-        file.admin = Some(AdminSettings { rpc_addr: None, rpc_port: 9545 });
-
-        assert_eq!(
-            file.resolve().expect_err("admin socket collision"),
-            ConfigError::AdminAddressCollision {
-                chain_id: 901,
-                address: "127.0.0.1:9545".to_string(),
-            }
-        );
-    }
-
-    /// Port 0 asks the OS for a free port rather than claiming one, so it cannot collide with a
-    /// chain even when a chain is also on 0.
+    /// Port 0 asks the OS for a free port, which is how a harness starts a supernode without
+    /// having to pick one: the port it got is logged.
     #[test]
     fn the_admin_rpc_may_ask_the_os_for_a_port() {
         let mut file = config(&chain("l2-chain-id = 901"));

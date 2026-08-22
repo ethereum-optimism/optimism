@@ -4,7 +4,8 @@ use crate::{
     admin,
     config::{L1Settings, ResolvedChain, ResolvedConfig, SequencerSettings},
     interop::{ChainInterop, HostedChain, InteropActor, InteropTestHandle},
-    query::{QueryChain, QueryHandle},
+    query::{ChainRouteQueries, QueryChain, QueryHandle},
+    rpc::SupernodeRpc,
 };
 use alloy_primitives::{Address, B256};
 use alloy_provider::RootProvider;
@@ -61,7 +62,10 @@ pub(crate) struct Supernode {
     l1_chain_config: L1ChainConfig,
     /// The chains, with their rollup configs loaded. Fixed: a boxed slice cannot grow.
     chains: Box<[Chain]>,
-    /// The supernode-level admin RPC's socket, if one is configured.
+    /// The socket the supernode serves everything on, if one is configured.
+    ///
+    /// [`None`] is a supernode with no RPC at all: the chains' own method sets are served on this
+    /// socket too, so there is no second place for them to go.
     admin_rpc: Option<SocketAddr>,
     /// The chains as configured, kept for the admin RPC to answer from.
     configured: Box<[ResolvedChain]>,
@@ -225,10 +229,14 @@ impl Supernode {
         // before composition without the API ever answering for a chain set that does not exist.
         let queries = QueryHandle::default();
         let interop_test = InteropTestHandle::default();
-        let _admin = match admin_rpc {
-            Some(socket) => Some(
-                admin::serve(socket, &configured, queries.clone(), interop_test.clone()).await?,
-            ),
+        let rpc = match admin_rpc {
+            Some(socket) => {
+                let rpc =
+                    SupernodeRpc::bind(socket, configured.iter().map(|chain| chain.l2_chain_id))
+                        .await?;
+                rpc.set_root(admin::module(&configured, queries.clone(), interop_test.clone())?);
+                Some(rpc)
+            }
             None => None,
         };
 
@@ -242,6 +250,24 @@ impl Supernode {
             let datadir = chain.settings.datadir.clone();
             let rollup_config = chain.rollup_config.clone();
             let interop_state = chain.interop.clone();
+
+            // The chain's own route serves `superroot_atTimestamp` for that one chain, over the
+            // same reads as the set-wide answer at the root. This mirrors the Go op-supernode's
+            // routes, whose virtual op-nodes each register a `superroot` namespace of their own;
+            // the devstack's per-chain proposers and game-anchor reads dial the chain route for
+            // it. Deposited before composing, because kona registers the route *while* the chain
+            // composes; like the root's query API, the methods exist first and are handed their
+            // chain below, once it exists.
+            let route_queries = ChainRouteQueries::default();
+            if let Some(rpc) = rpc.as_ref() {
+                rpc.add_chain_methods(
+                    chain_id,
+                    route_queries.clone().into_rpc_module().with_context(|| {
+                        format!("failed to build the route query API of chain {chain_id}")
+                    })?,
+                );
+            }
+
             let ComposedChain {
                 actors: chain_actors,
                 l1_watcher_ports,
@@ -250,7 +276,7 @@ impl Supernode {
                 l1_query_tx,
                 cross_safe_promoter,
             } = chain
-                .compose(&l1, &l1_chain_config)
+                .compose(&l1, &l1_chain_config, rpc.as_ref())
                 .await
                 .with_context(|| format!("failed to compose the actors of chain {chain_id}"))?;
 
@@ -260,16 +286,24 @@ impl Supernode {
             // local-safe head itself and reports a timestamp behind it as unavailable history —
             // which is what it is. Interop turns that recording on, and every consumer of these
             // methods runs against an interop cluster.
-            query_chains.push(QueryChain::new(
-                chain_id,
-                Arc::new(rollup_config.clone()),
-                QueuedEngineRpcClient::new(controller_rpc_request_tx.clone()),
-                l1_query_tx,
-                interop_state.as_ref().map_or_else(
-                    || Arc::new(DisabledDatabase) as SharedSafeDb,
-                    |state| state.safe_db.clone(),
-                ),
-            ));
+            let shared_rollup_config = Arc::new(rollup_config.clone());
+            let safe_db = interop_state.as_ref().map_or_else(
+                || Arc::new(DisabledDatabase) as SharedSafeDb,
+                |state| state.safe_db.clone(),
+            );
+            let query_chain = || {
+                QueryChain::new(
+                    chain_id,
+                    Arc::clone(&shared_rollup_config),
+                    QueuedEngineRpcClient::new(controller_rpc_request_tx.clone()),
+                    l1_query_tx.clone(),
+                    safe_db.clone(),
+                )
+            };
+            query_chains.push(query_chain());
+
+            // Past this point the chain exists, so its route's query API can answer for it.
+            route_queries.compose(query_chain());
 
             // A promoter exists exactly when the chain was composed with an externally fed
             // cross-safe head, which is exactly when interop is on. Taking it here is what makes
@@ -377,10 +411,15 @@ impl Chain {
     }
 
     /// Builds this chain's node and composes its actor group.
+    ///
+    /// `rpc` is the supernode's socket, and [`None`] when the configuration asked for none: the
+    /// chain's method set is then not built at all, which is what kona does for a single-chain
+    /// node started without an RPC.
     async fn compose(
         self,
         l1: &L1Settings,
         l1_chain_config: &L1ChainConfig,
+        rpc: Option<&SupernodeRpc>,
     ) -> Result<ComposedChain> {
         let Self { settings, rollup_config, dependency_set, interop } = self;
         let external_cross_safe = interop.is_some();
@@ -427,7 +466,10 @@ impl Chain {
             target: "lokahi",
             chain_id = settings.l2_chain_id,
             mode = %settings.mode(),
-            rpc = %settings.rpc_socket,
+            rpc = %rpc.map_or_else(
+                || "none".to_owned(),
+                |rpc| format!("{}/{}", rpc.addr(), settings.l2_chain_id),
+            ),
             datadir = %settings.datadir.display(),
             "Configured chain"
         );
@@ -438,11 +480,18 @@ impl Chain {
             settings.trust_l2_rpc,
             engine_config,
             p2p_config,
-            Some(rpc_builder(&settings)),
+            rpc.map(|rpc| rpc_builder(&settings, rpc.addr())),
         )
         .with_dependency_set(dependency_set)
         .with_external_cross_safe(external_cross_safe)
         .with_safe_db(safe_db);
+
+        // The chain's method set goes to the supernode's router rather than to a socket of its
+        // own. kona still builds it, so it is the same method set a single-chain node serves.
+        let builder = match rpc.map(|rpc| rpc.launcher(settings.l2_chain_id)) {
+            Some(launcher) => builder.with_rpc_launcher(launcher),
+            None => builder,
+        };
 
         // Left unset on a chain this supernode only validates. The builder then falls back to
         // `SequencerConfig::default()`, which is only ever read by the sequencer actor — and a
@@ -555,15 +604,20 @@ impl From<&SequencerSettings> for SequencerConfig {
     }
 }
 
-/// The RPC server configuration for one chain.
+/// The RPC configuration for one chain.
 ///
-/// Each chain answers on its own socket, so a caller addresses a chain by the port it asks on and
-/// every chain keeps the method names a single-chain node has. The admin API's persisted state
-/// lives in the chain's own data directory for the same reason.
-fn rpc_builder(settings: &ResolvedChain) -> RpcBuilder {
+/// Every chain answers under `/<l2-chain-id>` on the supernode's one socket, so a caller addresses
+/// a chain by the path it asks on and every chain keeps the method names a single-chain node has.
+/// The admin API's persisted state lives in the chain's own data directory for the same reason.
+///
+/// `socket` is the supernode's socket, which is where this method set is in fact served — the
+/// chain's launcher routes rather than binds, so nothing here opens it a second time.
+/// `no_restart` because a route is not a socket that can be lost: it is removed exactly once, when
+/// the chain is torn down, and there is nothing to relaunch it onto.
+fn rpc_builder(settings: &ResolvedChain, socket: SocketAddr) -> RpcBuilder {
     RpcBuilder {
-        no_restart: false,
-        socket: settings.rpc_socket,
+        no_restart: true,
+        socket,
         enable_admin: settings.rpc_enable_admin,
         admin_persistence: Some(settings.datadir.join(ADMIN_STATE_FILE)),
         ws_enabled: false,
@@ -845,7 +899,6 @@ mod tests {
             trust_l2_rpc: false,
             sequencer: None,
             datadir: dir.join(l2_chain_id.to_string()),
-            rpc_socket: SocketAddr::new(IpAddr::from(Ipv4Addr::LOCALHOST), port),
             rpc_enable_admin: false,
             p2p_listen_ip: IpAddr::from(Ipv4Addr::LOCALHOST),
             p2p_tcp_port: port + 1,
