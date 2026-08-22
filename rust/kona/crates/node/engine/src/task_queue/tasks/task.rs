@@ -328,7 +328,69 @@ mod tests {
     ) -> InsertTask<MockEngineClient> {
         let config = Arc::new(RollupConfig::default());
         let client = Arc::new(MockEngineClient::builder().with_config(config.clone()).build());
-        InsertTask::new(client, config, payload, is_derived)
+        InsertTask::new(client, config, payload, is_derived, Arc::new(crate::NoopBlockSink))
+    }
+
+    /// Records the blocks the engine hands over after a successful import.
+    #[derive(Debug, Default)]
+    struct RecordingSink(std::sync::Mutex<Vec<(alloy_primitives::B256, u64)>>);
+
+    impl crate::ImportedBlockSink for RecordingSink {
+        fn block_imported(
+            &self,
+            block: op_alloy_consensus::OpBlock,
+            info: kona_protocol::L2BlockInfo,
+        ) {
+            self.0.lock().unwrap().push((info.block_info.hash, block.header.number));
+        }
+    }
+
+    #[tokio::test]
+    async fn imported_blocks_are_handed_to_the_block_sink() {
+        let payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
+        let envelope = OpExecutionPayloadEnvelope::V1(payload);
+        // Pin genesis to this block so the L2BlockInfo can be built without an L1-info deposit.
+        // The engine hashes the block it reconstructs from the payload, so key off that.
+        let imported: op_alloy_consensus::OpBlock =
+            envelope.clone().try_into_block().expect("payload converts to a block");
+        let imported_hash = imported.header.hash_slow();
+        let config = Arc::new(RollupConfig {
+            genesis: kona_genesis::ChainGenesis {
+                l2: alloy_eips::BlockNumHash { hash: imported_hash, number: 0 },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(config.clone())
+                .with_new_payload_v1_response(valid())
+                .with_fork_choice_updated_v2_response(
+                    alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
+                )
+                .with_fork_choice_updated_v3_response(
+                    alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
+                )
+                .build(),
+        );
+
+        let sink = Arc::new(RecordingSink::default());
+        let task = EngineTask::Insert(Box::new(InsertTask::new(
+            client,
+            config,
+            envelope,
+            false,
+            sink.clone(),
+        )));
+
+        task.execute(&mut EngineState::default()).await.unwrap();
+
+        assert_eq!(
+            sink.0.lock().unwrap().as_slice(),
+            &[(imported_hash, 0)],
+            "a successfully imported block must reach the sink"
+        );
     }
 
     #[tokio::test]
@@ -349,6 +411,7 @@ mod tests {
             config,
             OpExecutionPayloadEnvelope::V1(payload),
             false,
+            Arc::new(crate::NoopBlockSink),
         )));
 
         tokio::time::timeout(Duration::from_secs(1), task.execute(&mut EngineState::default()))
