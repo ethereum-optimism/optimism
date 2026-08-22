@@ -147,6 +147,11 @@ cd rust
 just deny
 ```
 
+When auditing behavior controlled by Cargo features, match the production package selection. The
+Rust image recipe builds several binaries in one Cargo invocation, so features can be unified across
+selected workspace roots; a `cargo tree -p <binary>` run may not describe the resulting image. Use
+the package list in `melange/op-stack-rust.yaml` when optional transports or TLS backends matter.
+
 ## Before Every Commit
 
 Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.

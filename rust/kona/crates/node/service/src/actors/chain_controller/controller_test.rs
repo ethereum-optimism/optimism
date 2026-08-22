@@ -80,6 +80,7 @@ async fn lockstep_confirmation_carries_local_safe_not_cross_safe() {
         None,
         request_rx,
         Arc::new(DisabledDatabase),
+        Arc::new(kona_engine::NoopBlockSink),
     );
 
     // The actor drains, pushes the confirmation, then waits for a request; closing the channel
@@ -196,6 +197,7 @@ fn recording_controller(
         None,
         request_rx,
         safe_db,
+        Arc::new(kona_engine::NoopBlockSink),
     )
 }
 
