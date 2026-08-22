@@ -62,6 +62,8 @@ pub struct ResetRequest {
 /// This is the unsafe-block import the gossip path performs fire-and-forget
 /// ([`ChainControllerRequest::ProcessUnsafeL2Block`]), with a result channel: op-node's
 /// `CommitBlock` returns the `engine_newPayload` verdict to its caller, so this does too.
+///
+/// [`ChainControllerRequest::ProcessUnsafeL2Block`]: crate::ChainControllerRequest::ProcessUnsafeL2Block
 #[derive(Debug)]
 pub struct CommitRequest {
     /// The payload to commit.

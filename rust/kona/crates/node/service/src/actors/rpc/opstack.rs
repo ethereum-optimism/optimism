@@ -5,7 +5,8 @@
 //!
 //! - `openBlockV1` is op-node's `EngineController::OpenBlock` (`op-node/rollup/engine/api.go`): a
 //!   direct `engine_forkchoiceUpdated` on the chain's execution layer, head at the given parent and
-//!   the given attributes, returning the build job's [`PayloadId`].
+//!   the given attributes, returning the build job's
+//!   [`PayloadId`](alloy_rpc_types_engine::PayloadId).
 //! - `cancelBlockV1` and `sealBlockV1` are `CancelBlock`/`SealBlock`: a direct `engine_getPayload`,
 //!   versioned by the job's timestamp. Sealing does *not* canonicalize the block — that is
 //!   `commitBlockV1`'s job, exactly as in op-node.
