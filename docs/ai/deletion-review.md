@@ -72,12 +72,44 @@ reintroduces the staleness.
   deleted. Delete them with the producer.
 - **Dead parameters**: values threaded through interfaces that nothing reads after the
   removal — shrink the signatures in the same PR.
+- **Orphaned duplicates**: the deleted code may have been the only reason a *local
+  duplicate* of an upstream type or helper existed (a re-declared error type, a copied
+  parser). Symbol greps for the deleted names miss these; ask what the deleted code
+  justified, not just what it referenced.
 - **Vacuous tests**: an assertion on a removed field can start comparing zero-to-zero
   and pass forever. Prefer making the removed concept an explicit error over returning
-  a zero value.
+  a zero value. When a removed assertion is *replaced*, prove the replacement can fail:
+  temporarily invert the property it guards (e.g. add `deny_unknown_fields` to test a
+  lenient-parse contract) and watch it go red — a test that cannot fail by construction
+  (asserting what the type system already guarantees) protects nothing.
 - **Wire compatibility**: removed RPC/JSON fields parse as zero values in lenient
   clients — trace what each in-repo consumer does with that zero, and disclose the
   removal (breaking-change marker + migration note) for out-of-repo readers.
+
+## Dependency and workspace fallout
+
+Deletions reach build metadata in ways no compiler or clippy run flags — every green
+check stays silent on all of the following:
+
+- **Orphaned dependencies**: deleting a file or module can strip a crate's last use of
+  a dependency. Grep for every symbol the deleted file imported — all of them, no
+  "certainly still used" shortcuts — and run the unused-dependency gate
+  (`cargo +nightly udeps --release --workspace --all-features --all-targets`, the CI
+  command) locally; it is the only check that catches this class.
+- **Feature-forwarding removal**: when the removed dependency carried entries in the
+  crate's `[features]` lists (`"dep/feature"` forwards), verify each downstream
+  consumer enables the forwarded features itself — the one that silently relied on the
+  transitive enable is the finding.
+- **Stale feature-list strings**: `"dep/feature"` entries whose enabling code was
+  deleted survive symbol greps (they name the dependency, not the symbol) and no
+  tooling flags them. Sweep `[features]` sections for the deleted crate and feature
+  names explicitly.
+- **Separate-workspace lockfiles**: workspaces that path-depend on a changed crate
+  (e.g. the SP1 guest programs workspace) resolve independently. Regenerate their
+  lockfiles (CI gates on freshness — `just lock-sp1-guest` /
+  `just check-sp1-guest-lock`) and compile the affected consumers **under that
+  workspace's own resolution** (`--manifest-path`), not the root workspace's; a crate
+  that relied on a now-gone transitive feature enable only fails there.
 
 ## False-positive traps
 
