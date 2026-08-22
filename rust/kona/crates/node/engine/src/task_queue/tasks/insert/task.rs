@@ -1,7 +1,7 @@
 //! A task to insert an unsafe payload into the execution engine.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, InsertTaskError, SynchronizeTask,
+    EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError, SynchronizeTask,
     state::{EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin},
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
@@ -30,6 +30,8 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     /// [`LocalSafeOrigin`] inside is the L1 key to record with it, which is
     /// [`LocalSafeOrigin::Unpaired`] when the attributes carried no `derived_from`.
     local_safe_origin: Option<LocalSafeOrigin>,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
@@ -42,8 +44,9 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
         rollup_config: Arc<RollupConfig>,
         payload: OpExecutionPayloadEnvelope,
         local_safe_origin: Option<LocalSafeOrigin>,
+        block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, rollup_config, payload, local_safe_origin }
+        Self { client, rollup_config, payload, local_safe_origin, block_sink }
     }
 
     /// Whether this payload advances the local-safe head, i.e. whether it was derived from L1
@@ -176,6 +179,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         )
         .execute(state)
         .await?;
+
+        // The block is now canonical, so anything reading the L2 chain locally can rely on it.
+        self.block_sink.block_imported(block, new_unsafe_ref);
 
         let total_duration = time_start.elapsed();
 
