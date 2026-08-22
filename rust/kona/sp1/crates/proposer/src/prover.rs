@@ -10,7 +10,7 @@ use alloy_primitives::B256;
 use anyhow::{Context, Result, bail};
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use sp1_sdk::{
-    CpuProver, Elf, NetworkProver, ProveRequest, Prover, ProvingKey, SP1ProofMode,
+    Elf, LightProver, NetworkProver, ProveRequest, Prover, ProvingKey, SP1ProofMode,
     SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey,
     network::{
         NetworkMode,
@@ -63,12 +63,13 @@ impl std::fmt::Debug for ProofKeys {
     }
 }
 
-/// Runs the SP1 proving-key setup for both of a prestate's programs. Setup
-/// is CPU-bound and takes tens of seconds per ELF; the SDK dispatches the
-/// heavy work internally, but callers must still not hold any lock across
-/// this await.
+/// Runs lightweight SP1 key setup for both of a prestate's programs.
+///
+/// Network proving only needs each ELF and its verifying key. Using the light
+/// prover avoids initializing the local CPU proving machinery and its proving
+/// keys, which are not used by network proof requests.
 pub async fn setup_proof_keys(programs: &PrestatePrograms) -> Result<ProofKeys> {
-    let prover = CpuProver::new().await;
+    let prover = LightProver::new().await;
     let range_pk = prover
         .setup(Elf::Dynamic(programs.range_elf.clone().into()))
         .await

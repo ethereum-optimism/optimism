@@ -57,6 +57,11 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 			st.data.LocalSafeL2 = x.SafeL2Head
 		}
 		st.data.FinalizedL2 = x.FinalizedL2Head
+	case engine.UnsafeUpdateEvent:
+		// Not redundant with ForkchoiceUpdateEvent: during EL sync the engine answers the
+		// forkchoice update with SYNCING, so no ForkchoiceUpdateEvent is emitted and this
+		// is the only event tracking the unsafe head.
+		st.data.UnsafeL2 = x.Ref
 	case engine.PendingSafeUpdateEvent:
 		st.data.UnsafeL2 = x.Unsafe
 		st.data.PendingSafeL2 = x.PendingSafe
@@ -72,7 +77,6 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.data.CurrentL1 = eth.L1BlockRef{}
 	case engine.EngineResetConfirmedEvent:
 		st.data.UnsafeL2 = x.LocalUnsafe
-		st.data.CrossUnsafeL2 = x.CrossUnsafe
 		st.data.LocalSafeL2 = x.LocalSafe
 		st.data.SafeL2 = x.CrossSafe
 		st.data.FinalizedL2 = x.Finalized
@@ -142,17 +146,6 @@ func (st *StatusTracker) SyncStatus() *eth.SyncStatus {
 // L1Head is a helper function; the L1 head is closely monitored for confirmation-distance logic.
 func (st *StatusTracker) L1Head() eth.L1BlockRef {
 	return st.SyncStatus().HeadL1
-}
-
-func (st *StatusTracker) OnCrossUnsafeUpdate(ctx context.Context, crossUnsafe eth.L2BlockRef, localUnsafe eth.L2BlockRef) {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-
-	st.log.Debug("Cross unsafe head updated", "cross_unsafe", crossUnsafe, "local_unsafe", localUnsafe)
-	st.data.CrossUnsafeL2 = crossUnsafe
-	st.data.UnsafeL2 = localUnsafe
-
-	st.UpdateSyncStatus()
 }
 
 func (st *StatusTracker) OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef) {
