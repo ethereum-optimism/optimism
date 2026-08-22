@@ -4,7 +4,7 @@ use crate::{
     admin,
     config::{L1Settings, ResolvedChain, ResolvedConfig, SequencerSettings},
     interop::{ChainInterop, HostedChain, InteropActor, InteropTestHandle},
-    query::{QueryChain, QueryHandle},
+    query::{ChainRouteQueries, QueryChain, QueryHandle},
     rpc::SupernodeRpc,
 };
 use alloy_primitives::{Address, B256};
@@ -250,6 +250,24 @@ impl Supernode {
             let datadir = chain.settings.datadir.clone();
             let rollup_config = chain.rollup_config.clone();
             let interop_state = chain.interop.clone();
+
+            // The chain's own route serves `superroot_atTimestamp` for that one chain, over the
+            // same reads as the set-wide answer at the root. This mirrors the Go op-supernode's
+            // routes, whose virtual op-nodes each register a `superroot` namespace of their own;
+            // the devstack's per-chain proposers and game-anchor reads dial the chain route for
+            // it. Deposited before composing, because kona registers the route *while* the chain
+            // composes; like the root's query API, the methods exist first and are handed their
+            // chain below, once it exists.
+            let route_queries = ChainRouteQueries::default();
+            if let Some(rpc) = rpc.as_ref() {
+                rpc.add_chain_methods(
+                    chain_id,
+                    route_queries.clone().into_rpc_module().with_context(|| {
+                        format!("failed to build the route query API of chain {chain_id}")
+                    })?,
+                );
+            }
+
             let ComposedChain {
                 actors: chain_actors,
                 l1_watcher_ports,
@@ -268,16 +286,24 @@ impl Supernode {
             // local-safe head itself and reports a timestamp behind it as unavailable history —
             // which is what it is. Interop turns that recording on, and every consumer of these
             // methods runs against an interop cluster.
-            query_chains.push(QueryChain::new(
-                chain_id,
-                Arc::new(rollup_config.clone()),
-                QueuedEngineRpcClient::new(controller_rpc_request_tx.clone()),
-                l1_query_tx,
-                interop_state.as_ref().map_or_else(
-                    || Arc::new(DisabledDatabase) as SharedSafeDb,
-                    |state| state.safe_db.clone(),
-                ),
-            ));
+            let shared_rollup_config = Arc::new(rollup_config.clone());
+            let safe_db = interop_state.as_ref().map_or_else(
+                || Arc::new(DisabledDatabase) as SharedSafeDb,
+                |state| state.safe_db.clone(),
+            );
+            let query_chain = || {
+                QueryChain::new(
+                    chain_id,
+                    Arc::clone(&shared_rollup_config),
+                    QueuedEngineRpcClient::new(controller_rpc_request_tx.clone()),
+                    l1_query_tx.clone(),
+                    safe_db.clone(),
+                )
+            };
+            query_chains.push(query_chain());
+
+            // Past this point the chain exists, so its route's query API can answer for it.
+            route_queries.compose(query_chain());
 
             // A promoter exists exactly when the chain was composed with an externally fed
             // cross-safe head, which is exactly when interop is on. Taking it here is what makes

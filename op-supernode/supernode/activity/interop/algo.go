@@ -152,7 +152,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 // verifyExecutingMessage verifies a single executing message by checking:
 //  1. The initiating message exists in the source chain's database
 //  2. The initiating message's timestamp is not greater than the executing block's timestamp
-//  3. The initiating message hasn't expired (timestamp + messageExpiryWindow >= executing timestamp)
+//  3. The initiating message hasn't expired (executing timestamp - timestamp <= messageExpiryWindow)
 //  4. Neither the executing block nor the initiating block falls in its chain's interop
 //     activation block (interop must be active for at least one full block on both sides)
 func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *messages.ExecutingMessage, view *frontierVerificationView) error {
@@ -188,10 +188,10 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 			execMsg.Timestamp, executingTimestamp, ErrTimestampViolation)
 	}
 
-	// Verify the message hasn't expired: initiating timestamp + messageExpiryWindow must be >= executing timestamp
-	if execMsg.Timestamp+i.messageExpiryWindow < executingTimestamp {
-		return fmt.Errorf("initiating timestamp %d + expiry %d < executing timestamp %d: %w",
-			execMsg.Timestamp, i.messageExpiryWindow, executingTimestamp, ErrMessageExpired)
+	// Verify the message hasn't expired: the message age must not exceed messageExpiryWindow.
+	if executingTimestamp-execMsg.Timestamp > i.messageExpiryWindow {
+		return fmt.Errorf("executing timestamp %d - initiating timestamp %d > expiry %d: %w",
+			executingTimestamp, execMsg.Timestamp, i.messageExpiryWindow, ErrMessageExpired)
 	}
 
 	// Build the query for the initiating message

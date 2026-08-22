@@ -194,6 +194,100 @@ impl QueryHandle {
     }
 }
 
+/// The handle a chain's own route holds on query state that does not exist when the route's
+/// methods are declared: `superroot_atTimestamp` for that one chain.
+///
+/// This is the Go stack's addressing, mirrored. op-node registers the `superroot` namespace on
+/// its RPC unconditionally (`op-node/node/node.go`, `registerAPIs`), so every route of the Go
+/// op-supernode answers `superroot_atTimestamp`: the root serves the whole set's super root, and
+/// each chain's route serves that chain's own — op-node's single-chain implementation
+/// (`op-node/node/superroot_api.go`), which is what dispute infrastructure pointed at one chain
+/// reads. kona-node has no such namespace, so a lokahi route built from kona's methods alone
+/// refused the call with "Method not found" — and the consumers that dial a chain route for it
+/// are real: the devstack's per-chain proposers (`op-devstack/sysgo/singlechain_runtime.go` sets
+/// `SuperRootRpcs` to the chain CL's own URL) and the anchor read when a game type is added
+/// (`op-devstack/sysgo/add_game_type.go`).
+///
+/// A [`OnceLock`] behind the module for the same reason [`QueryHandle`] is one behind the root's:
+/// kona registers the chain's route while the chain composes, so the module must be deposited
+/// before composition — before the queues it answers from exist. A call landing in that window is
+/// answered with [`QueryError::Starting`] rather than with an unregistered method.
+///
+/// The set-wide `supernode_syncStatus` is deliberately *not* served here: op-node's RPC has no
+/// `supernode` namespace, so a chain route that answered it would be a surface the Go supernode
+/// does not have.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ChainRouteQueries(Arc<OnceLock<QueryChain>>);
+
+impl ChainRouteQueries {
+    /// Publishes the composed chain's reads to the route's RPC methods.
+    pub(crate) fn compose(&self, chain: QueryChain) {
+        if self.0.set(chain).is_err() {
+            // Unreachable: each chain composes once. Reported rather than panicked on, because a
+            // route that is already answering correctly should not be stopped by it.
+            warn!(target: "lokahi", "A chain route's query API was composed twice; keeping the first");
+        }
+    }
+
+    /// Returns the composed chain, or says the supernode is still starting.
+    fn state(&self) -> Result<&QueryChain, QueryError> {
+        self.0.get().ok_or(QueryError::Starting)
+    }
+
+    /// Builds the RPC module serving the chain route's `superroot` namespace from this handle.
+    pub(crate) fn into_rpc_module(
+        self,
+    ) -> Result<RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+        let mut module = RpcModule::new(());
+        module.merge(SuperrootQueryApiServer::into_rpc(ChainRouteQuery { handle: self }))?;
+        Ok(module)
+    }
+}
+
+/// The server behind one chain route's `superroot` namespace.
+#[derive(Debug)]
+struct ChainRouteQuery {
+    /// The chain this route answers for.
+    handle: ChainRouteQueries,
+}
+
+impl ChainRouteQuery {
+    /// Answers `superroot_atTimestamp` for the one chain, as op-node answers it.
+    ///
+    /// op-node's `superrootAPI.atTimestamp` consults no verifier — a single-chain node has none —
+    /// so its answer is always the optimistic single-chain super root: the chain's output at the
+    /// timestamp, paired with the L1 block its safe-head history says made it safe, or an
+    /// omit-chain response when the chain has not derived that far. That is exactly the root's
+    /// handoff branch specialised to one chain, so it is composed from the same pieces: the same
+    /// [`QueryChain`] reads, the same [`Aggregate`] arithmetic (a minimum over one), and the same
+    /// [`WireSuperRootData::from_handoff`] composition, which keeps the wire shape and the
+    /// commitment bit-identical to what the root would state for a set of one.
+    async fn at_timestamp(&self, timestamp: u64) -> Result<WireSuperRootAtTimestamp, QueryError> {
+        let chain = self.handle.state()?;
+        let mut statuses = BTreeMap::new();
+        statuses.insert(chain.chain_id(), chain.sync_status().await?);
+        let aggregate = Aggregate::of(statuses);
+
+        let mut optimistic = BTreeMap::new();
+        if let Some(output) = chain.optimistic_at(timestamp).await? {
+            optimistic.insert(chain.chain_id(), output);
+        }
+
+        let data = WireSuperRootData::from_handoff(timestamp, &aggregate, &optimistic);
+        Ok(WireSuperRootAtTimestamp::new(&aggregate, &optimistic, aggregate.current_l1, data))
+    }
+}
+
+#[async_trait::async_trait]
+impl SuperrootQueryApiServer for ChainRouteQuery {
+    async fn superroot_at_timestamp(
+        &self,
+        timestamp: WireU64,
+    ) -> RpcResult<WireSuperRootAtTimestamp> {
+        Ok(self.at_timestamp(timestamp.0).await?)
+    }
+}
+
 /// The server behind both namespaces.
 #[derive(Debug, Clone)]
 struct QueryRpc {
