@@ -1,6 +1,8 @@
 //! Contains an online derivation pipeline.
 
-use crate::{AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider};
+use crate::{
+    AlloyChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider,
+};
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use core::fmt::Debug;
@@ -19,10 +21,10 @@ type OnlinePolledDerivationPipeline = DerivationPipeline<
     PolledAttributesQueueStage<
         OnlineDataProvider,
         AlloyChainProvider,
-        AlloyL2ChainProvider,
+        BufferedAlloyL2ChainProvider,
         OnlineAttributesBuilder,
     >,
-    AlloyL2ChainProvider,
+    BufferedAlloyL2ChainProvider,
 >;
 
 /// An RPC-backed Ethereum data source.
@@ -31,7 +33,8 @@ type OnlineDataProvider =
 
 /// An RPC-backed payload attributes builder for the `AttributesQueue` stage of the derivation
 /// pipeline.
-type OnlineAttributesBuilder = StatefulAttributesBuilder<AlloyChainProvider, AlloyL2ChainProvider>;
+type OnlineAttributesBuilder =
+    StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider>;
 
 /// An online derivation pipeline.
 #[derive(Debug)]
@@ -52,7 +55,7 @@ impl OnlinePipeline {
         _l1_origin: BlockInfo,
         blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
         chain_provider: AlloyChainProvider,
-        l2_chain_provider: AlloyL2ChainProvider,
+        l2_chain_provider: BufferedAlloyL2ChainProvider,
         dependency_set: Option<Arc<DependencySet>>,
     ) -> PipelineResult<Self> {
         let mut pipeline = Self::new_polled(
@@ -83,7 +86,7 @@ impl OnlinePipeline {
         l1_cfg: Arc<L1ChainConfig>,
         blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
         chain_provider: AlloyChainProvider,
-        l2_chain_provider: AlloyL2ChainProvider,
+        l2_chain_provider: BufferedAlloyL2ChainProvider,
         dependency_set: Option<Arc<DependencySet>>,
     ) -> Self {
         let attributes = StatefulAttributesBuilder::new(
