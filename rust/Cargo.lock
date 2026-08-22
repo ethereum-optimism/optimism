@@ -7368,6 +7368,7 @@ dependencies = [
  "kona-providers-alloy",
  "kona-providers-local",
  "kona-rpc",
+ "kona-safedb",
  "kona-sources",
  "libp2p",
  "libp2p-stream",
@@ -8544,6 +8545,7 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 name = "lokahi"
 version = "0.1.0"
 dependencies = [
+ "alloy-eips 2.1.1",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-types-engine",
@@ -8561,10 +8563,14 @@ dependencies = [
  "kona-interop",
  "kona-node-service",
  "kona-peers",
+ "kona-protocol",
  "kona-providers-alloy",
  "kona-registry",
  "kona-rpc",
+ "kona-safedb",
  "libp2p",
+ "lokahi-interop",
+ "op-alloy-network",
  "op-version",
  "serde",
  "serde_json",

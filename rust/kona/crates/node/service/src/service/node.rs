@@ -20,7 +20,7 @@ use alloy_primitives::Address;
 use alloy_provider::RootProvider;
 use jsonrpsee::RpcModule;
 use kona_derive::StatefulAttributesBuilder;
-use kona_engine::{Engine, EngineState, OpEngineClient};
+use kona_engine::{CrossSafePromoter, Engine, EngineState, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_gossip::P2pRpcRequest;
 use kona_interop::DependencySet;
@@ -35,6 +35,7 @@ use kona_rpc::{
     L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
     RpcBuilder, WsRPC, WsServer,
 };
+use kona_safedb::SharedSafeDb;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{ops::Not as _, sync::Arc, time::Duration};
@@ -155,6 +156,19 @@ pub struct RollupNode {
     /// Mirrors op-node's `--interop.dependency-set`.
     /// [`StatefulAttributesBuilder`] constructor panics otherwise.
     pub(crate) dependency_set: Option<Arc<DependencySet>>,
+    /// Whether this chain's cross-safe head is fed by an external cross-chain verifier.
+    ///
+    /// `false` is the standalone default, under which every local-safe advance is trivially
+    /// cross-safe. `true` hands the resulting [`CrossSafePromoter`] back to the host through
+    /// [`ComposedChain::cross_safe_promoter`], and the cross-safe head then moves only on the
+    /// promotions that promoter mints — so a host that sets this and never promotes deliberately
+    /// holds the chain's `safeBlockHash` where it is.
+    pub(crate) external_cross_safe: bool,
+    /// The safe-head database this chain's controller records local-safe advances into.
+    ///
+    /// [`kona_safedb::DisabledDatabase`] for a host that does not need the history: its writes
+    /// are no-ops, so nothing branches on whether recording is on.
+    pub(crate) safe_db: SharedSafeDb,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -307,13 +321,26 @@ impl RollupNode {
         controller_rpc_request_rx: mpsc::Receiver<ChainControllerRpcRequest>,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
-    ) -> (ConfiguredChainController, ConfiguredChainControllerRpcActor) {
+    ) -> (ConfiguredChainController, ConfiguredChainControllerRpcActor, Option<CrossSafePromoter>)
+    {
         // Engine-internal watches; not visible outside this helper.
         let engine_state =
             EngineState { chain_id: self.config.l2_chain_id.id(), ..Default::default() };
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
         let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
-        let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
+        // At most one promoter per engine, and only when a verifier is there to hold it: a chain
+        // composed without one keeps the trivial local-safe feed, so this is the single switch
+        // between standalone and interop cross-safety.
+        let (engine, cross_safe_promoter) = if self.external_cross_safe {
+            let (engine, promoter) = Engine::with_external_cross_safe(
+                engine_state,
+                engine_state_tx,
+                engine_queue_length_tx,
+            );
+            (engine, Some(promoter))
+        } else {
+            (Engine::new(engine_state, engine_state_tx, engine_queue_length_tx), None)
+        };
 
         let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
 
@@ -327,6 +354,7 @@ impl RollupNode {
             engine,
             unsafe_head_tx_opt,
             controller_request_rx,
+            self.safe_db.clone(),
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
 
@@ -338,7 +366,7 @@ impl RollupNode {
             controller_rpc_request_rx,
         );
 
-        (actor, rpc_actor)
+        (actor, rpc_actor, cross_safe_promoter)
     }
 
     /// Selects between the standard and delegate derivation actor implementations and constructs
@@ -516,12 +544,13 @@ impl RollupNode {
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
-        let (chain_controller, chain_controller_rpc_actor) = self.build_chain_controller_actors(
-            controller_request_rx,
-            controller_rpc_request_rx,
-            derivation_actor_request_tx.clone(),
-            unsafe_head_tx,
-        );
+        let (chain_controller, chain_controller_rpc_actor, cross_safe_promoter) = self
+            .build_chain_controller_actors(
+                controller_request_rx,
+                controller_rpc_request_rx,
+                derivation_actor_request_tx.clone(),
+                unsafe_head_tx,
+            );
 
         let derivation = self
             .build_derivation_actor(controller_request_tx.clone(), derivation_actor_request_rx)
@@ -547,7 +576,7 @@ impl RollupNode {
         );
 
         let sequencer_actor = self.build_sequencer(
-            controller_request_tx,
+            controller_request_tx.clone(),
             gossip_payload_tx,
             unsafe_head_rx,
             l1_head_updates_rx,
@@ -559,7 +588,7 @@ impl RollupNode {
 
         let rpc = self
             .build_rpc_actor(
-                controller_rpc_request_tx,
+                controller_rpc_request_tx.clone(),
                 sequencer_admin_client,
                 p2p_rpc_tx,
                 network_admin_tx,
@@ -585,6 +614,9 @@ impl RollupNode {
                 l1_query_rx,
                 l1_head_updates_tx,
             },
+            controller_request_tx,
+            controller_rpc_request_tx,
+            cross_safe_promoter,
         })
     }
 
@@ -619,7 +651,7 @@ impl RollupNode {
         // Single umbrella cancellation token owned by `run_actors`.
         let cancellation = CancellationToken::new();
 
-        let ComposedChain { mut actors, l1_watcher_ports } = self.compose().await?;
+        let ComposedChain { mut actors, l1_watcher_ports, .. } = self.compose().await?;
         actors.push(self.l1_config.l1_watcher(vec![l1_watcher_ports])?.boxed());
 
         run_actors(cancellation, actors).await
