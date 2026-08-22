@@ -343,6 +343,28 @@ func TestUpdaterValidityInvariants(t *testing.T) {
 			expectedStatus: []jobStatus{jobStatusTimestampMismatch},
 		},
 		{
+			// Executing exactly at the end of the window is still valid; only a strictly
+			// larger gap expires.
+			name:           "valid exactly at expiry boundary",
+			origin:         common.HexToAddress("0xabc"),
+			initTimestamp:  1000,
+			execTimestamp:  1000 + 604800,
+			blockTime:      1000,
+			expiryWindow:   604800,
+			payload:        validHash,
+			expectedStatus: []jobStatus{jobStatusValid},
+		},
+		{
+			name:           "valid with timestamps near max uint64",
+			origin:         common.HexToAddress("0xabc"),
+			initTimestamp:  ^uint64(0) - 10,
+			execTimestamp:  ^uint64(0),
+			blockTime:      ^uint64(0) - 10,
+			expiryWindow:   604800,
+			payload:        validHash,
+			expectedStatus: []jobStatus{jobStatusValid},
+		},
+		{
 			name:           "expired beyond window",
 			origin:         common.HexToAddress("0xabc"),
 			initTimestamp:  1000,
