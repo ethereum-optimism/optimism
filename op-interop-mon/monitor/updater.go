@@ -243,7 +243,7 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 		job.UpdateStatus(jobStatusInvalid)
 		return
 	}
-	if job.executingTimestamp > job.initiating.Timestamp+t.messageExpiryWindow {
+	if job.executingTimestamp-job.initiating.Timestamp > t.messageExpiryWindow {
 		t.log.Warn("executing message is expired",
 			"executing_ts", job.executingTimestamp, "initiating_ts", job.initiating.Timestamp, "window", t.messageExpiryWindow)
 		job.UpdateStatus(jobStatusExpired)
