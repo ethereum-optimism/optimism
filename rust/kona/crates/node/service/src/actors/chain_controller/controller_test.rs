@@ -7,7 +7,8 @@ use crate::{
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use kona_engine::{
-    Engine, EngineState, EngineSyncStateUpdate, LocalSafeHead, test_utils::MockEngineClient,
+    Engine, EngineState, EngineSyncStateUpdate, LocalSafeHead, NoopBlockSink,
+    test_utils::MockEngineClient,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -81,7 +82,7 @@ async fn lockstep_confirmation_carries_local_safe_not_cross_safe() {
         request_rx,
         Arc::new(DisabledDatabase),
         None,
-        Arc::new(kona_engine::NoopBlockSink),
+        Arc::new(NoopBlockSink),
     );
 
     // The actor drains, pushes the confirmation, then waits for a request; closing the channel
@@ -199,7 +200,7 @@ fn recording_controller(
         request_rx,
         safe_db,
         None,
-        Arc::new(kona_engine::NoopBlockSink),
+        Arc::new(NoopBlockSink),
     )
 }
 
