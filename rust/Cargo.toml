@@ -74,6 +74,7 @@ members = [
 
   # Lokahi
   "lokahi/",
+  "lokahi-interop/",
 ]
 default-members = [
   "kona/bin/host",
@@ -308,6 +309,9 @@ kona-proof-interop = { path = "kona/crates/proof/proof-interop", version = "0.2.
 kona-cli = { path = "kona/crates/utilities/cli", version = "0.3.2", default-features = false }
 kona-serde = { path = "kona/crates/utilities/serde", version = "0.2.2", default-features = false }
 kona-macros = { path = "kona/crates/utilities/macros", version = "0.1.2", default-features = false }
+
+# ==================== LOKAHI INTERNAL CRATES ====================
+lokahi-interop = { path = "lokahi-interop", version = "0.1.0", default-features = false }
 
 # ==================== KONA SP1 INTERNAL CRATES ====================
 kona-sp1-client-utils = { path = "kona/sp1/crates/client" }
