@@ -779,7 +779,7 @@ fn validate_block_gas(
     Ok(())
 }
 
-/// UPSTREAM-MIRROR(delegate): alloy-evm@0.37.1 `alloy_evm::eth::block::EthBlockExecutor`
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.37.1 `alloy_evm::eth::block::EthBlockExecutor`
 ///
 /// Mirrors upstream's `BlockExecutor` impl, reusing its `EthTxResult` for the inner result
 /// but reimplementing every method. Known divergences to re-confirm on each bump: upstream

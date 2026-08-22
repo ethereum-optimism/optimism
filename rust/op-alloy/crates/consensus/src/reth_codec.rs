@@ -5,6 +5,7 @@
 //! - Receipt codecs: `crates/storage/codecs/src/alloy/optimism.rs`
 //!
 //! UPSTREAM-MIRROR(port): reth@v1.11.3 `reth_codecs::alloy::transaction::optimism`
+//! UPSTREAM-MIRROR(port): reth@v1.11.3 `reth_codecs::alloy::optimism`
 //!
 //! Differences from upstream:
 //! - `CompactOpReceipt` uses `Vec<Log>` instead of `Cow<'a, Vec<Log>>` because the crates.io
