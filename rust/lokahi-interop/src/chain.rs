@@ -20,9 +20,14 @@ use std::fmt::Debug;
 
 /// Why an observation could not be answered *yet*.
 ///
-/// Every variant here is transient: ask again and the answer may differ. A permanent inability to
+/// Every variant here is retried: ask again and the answer may differ. A permanent inability to
 /// answer is not an error but a verdict — [`ChainAt::HistoryUnavailable`] — so that the one
 /// condition which stops the verifier for good has exactly one spelling.
+///
+/// "Retried" and "transient" come apart in exactly one place: [`ChainAt::BeforeGenesis`] is
+/// reported through [`Self::Unreachable`] even though re-asking cannot change it, because
+/// op-supernode backs off there rather than halting and lokahi mirrors op-supernode. See the
+/// round loop's handling of that verdict.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ChainError {
     /// The source cannot answer yet: it is still syncing, or has not recorded what was asked for.
@@ -38,7 +43,8 @@ pub enum ChainError {
 /// These are the four verdicts of the engine's local-safe-at-timestamp query, carried through to
 /// the round loop rather than flattened into "an answer or no answer". The round loop treats them
 /// very differently: [`Self::NotYet`] is waited out, [`Self::HistoryUnavailable`] halts the
-/// verifier, and [`Self::BeforeGenesis`] means the chain set and the verification start disagree.
+/// verifier, and [`Self::BeforeGenesis`] means the chain set and the verification start disagree
+/// — which is retried with a warning rather than halted, because op-supernode retries it too.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChainAt {
     /// The chain's local-safe block at the timestamp, and the L1 block it was derived from.
@@ -54,7 +60,10 @@ pub enum ChainAt {
     /// recorded on this node and cannot be recovered. Permanent.
     HistoryUnavailable,
     /// No block of this chain carries that timestamp, because the chain did not exist yet.
-    /// Permanent.
+    ///
+    /// Unrecoverable in the sense that re-asking cannot change the answer — only a corrected
+    /// chain set or verification start can — but *not* a halt: op-supernode logs and backs off
+    /// on the same condition, so the round loop retries it and warns on every attempt.
     BeforeGenesis,
 }
 
@@ -139,8 +148,17 @@ pub trait InteropChain: Debug + Send + Sync {
 
     /// The earliest timestamp this chain's safe-head history covers.
     ///
-    /// [`ChainError::NotReady`] means the chain has recorded no safe head yet, which is the normal
-    /// answer while a cold-starting node is still catching up.
+    /// The answer must be *stable*: a timestamp is only returned once no later write can move the
+    /// earliest record, so a caller may latch it, or hold a committed frontier against it, without
+    /// the bound rising underneath. A record that could still be superseded — kona's safe-head
+    /// database overwrites its newest record in place while the chain still derives from that
+    /// record's L1 block, and the earliest record is the newest one until derivation passes it —
+    /// is answered as [`ChainError::NotReady`], exactly as op-supernode's
+    /// `FirstSafeHeadTimestamp` answers `ErrSafeDBNotReady` for an entry its deriver has not
+    /// moved past (`op-supernode/supernode/chain_container/chain_container.go:527-555`).
+    ///
+    /// [`ChainError::NotReady`] also means the chain has recorded no safe head yet, which is the
+    /// normal answer while a cold-starting node is still catching up.
     async fn first_safe_head_timestamp(&self) -> Result<u64, ChainError>;
 
     /// The number of the block covering `timestamp`, flooring onto the preceding block when the

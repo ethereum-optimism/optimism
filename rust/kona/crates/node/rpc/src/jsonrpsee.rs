@@ -1,6 +1,6 @@
 //! The Optimism RPC API using `jsonrpsee`
 
-use crate::{OutputResponse, SafeHeadResponse, health::HealthzResponse};
+use crate::{DependencySetResponse, OutputResponse, SafeHeadResponse, health::HealthzResponse};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use core::net::IpAddr;
@@ -50,6 +50,15 @@ pub trait RollupNodeApi {
     /// Get the software version.
     #[method(name = "version")]
     async fn op_version(&self) -> RpcResult<String>;
+
+    /// Get the interop dependency set this chain was configured with.
+    ///
+    /// op-node's `nodeAPI.DependencySet` (`op-node/node/api.go:178`), and the method the
+    /// test-sequencer's standard builder fetches from a chain's CL whenever that chain schedules
+    /// Lagoon (`op-test-sequencer/.../standardbuilder/config.go:68`). A chain with no dependency
+    /// set configured answers not-found, as op-node does.
+    #[method(name = "dependencySet")]
+    async fn op_dependency_set(&self) -> RpcResult<DependencySetResponse>;
 }
 
 /// The opp2p namespace handles peer interactions.

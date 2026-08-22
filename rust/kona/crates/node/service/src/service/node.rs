@@ -477,6 +477,7 @@ impl RollupNode {
                     l1_watcher_queries_tx,
                     self.config.l2_chain_id.id(),
                 )
+                .with_dependency_set(self.dependency_set.clone())
                 .into_rpc(),
             )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;

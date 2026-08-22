@@ -81,6 +81,8 @@ struct FakeChain {
     first_safe_head: RwLock<Option<u64>>,
     /// When set, the chain reports that the L1 pairing at or below this timestamp is gone.
     history_gap: RwLock<bool>,
+    /// When set, the chain reports that its genesis is later than the round's timestamp.
+    before_genesis: RwLock<bool>,
 }
 
 impl FakeChain {
@@ -100,6 +102,7 @@ impl FakeChain {
             local_safe_through: RwLock::new(200),
             first_safe_head: RwLock::new(Some(START)),
             history_gap: RwLock::new(false),
+            before_genesis: RwLock::new(false),
         }
     }
 
@@ -118,6 +121,10 @@ impl FakeChain {
     fn set_history_gap(&self, gap: bool) {
         *self.history_gap.write().unwrap() = gap;
     }
+
+    fn set_before_genesis(&self, before: bool) {
+        *self.before_genesis.write().unwrap() = before;
+    }
 }
 
 #[async_trait]
@@ -131,11 +138,22 @@ impl InteropChain for FakeChain {
     }
 
     async fn local_safe_at(&self, timestamp: u64) -> Result<ChainAt, ChainError> {
-        if timestamp < self.config.genesis.l2_time {
+        if timestamp < self.config.genesis.l2_time || *self.before_genesis.read().unwrap() {
             return Ok(ChainAt::BeforeGenesis);
         }
         if *self.history_gap.read().unwrap() {
             return Ok(ChainAt::HistoryUnavailable);
+        }
+        // What the real safe-head database does, which this fake used to skip. `l1_at_safe_head`
+        // walks back from the tip and answers `L1AtSafeHeadUnavailable` — the permanent verdict —
+        // for a block below its earliest record, and `L1AtSafeHeadNotFound` — a retry — when it
+        // holds nothing at all (`kona/crates/node/safedb/src/safe_db.rs:170-198`). Answering
+        // `Derived` for any timestamp with a block, as this did, is why a start left below a
+        // chain's earliest record read as healthy here and halted in production.
+        match *self.first_safe_head.read().unwrap() {
+            Some(first) if timestamp < first => return Ok(ChainAt::HistoryUnavailable),
+            None => return Ok(ChainAt::NotYet),
+            Some(_) => {}
         }
         if timestamp > *self.local_safe_through.read().unwrap() {
             return Ok(ChainAt::NotYet);
@@ -580,6 +598,95 @@ async fn a_missing_l1_pairing_halts_the_verifier() {
     world.chain_a.set_history_gap(false);
     assert!(verifier.step().await.is_err());
     assert_eq!(verifier.verified().last_timestamp(), Some(START));
+}
+
+/// A timestamp below a chain's genesis cannot resolve by waiting, but it is still not a halt.
+///
+/// op-supernode reaches the same condition through `TargetBlockNumber`, whose plain error its
+/// interop activity logs and backs off on rather than halting, and lokahi mirrors op-supernode.
+/// The round makes no progress and warns every attempt, but the verifier stays alive and picks
+/// straight back up once the disagreement is resolved.
+#[tokio::test]
+async fn a_timestamp_below_a_chains_genesis_is_retried_rather_than_halting() {
+    let world = World::new();
+    let mut verifier = world.verifier();
+    run(&mut verifier, 2).await;
+
+    world.chain_a.set_before_genesis(true);
+    let pace = verifier.step().await.expect("a pre-genesis timestamp must not halt the verifier");
+    assert_eq!(pace, Pace::Retry);
+    assert_eq!(verifier.state(), VerifierState::Running);
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+
+    // Still alive, and still not advancing, for as long as the disagreement stands.
+    assert_eq!(verifier.step().await.unwrap(), Pace::Retry);
+    assert_eq!(verifier.state(), VerifierState::Running);
+
+    // Once the chain set and the start agree again, the loop carries on where it stopped.
+    world.chain_a.set_before_genesis(false);
+    assert_eq!(verifier.step().await.unwrap(), Pace::Immediate);
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+}
+
+/// A safe-head database wiped by a derivation reset and refilled higher must not be terminal.
+///
+/// `safe_head_reset` deletes every entry when the reset target is at or before the first one, and
+/// deliberately re-records nothing (`kona/crates/node/safedb/src/safe_db.rs:100-121`); the
+/// database then refills from wherever derivation now is. The wipe on its own was always
+/// survivable, because an empty database is a retry. What halted the verifier for good was the
+/// refill coming back *above* the start cold start had latched, leaving every round asking below
+/// the earliest record. op-supernode never latches — it re-reads `FirstSafeHeadTimestamp` on
+/// every backoff pass (`op-node/rollup/interop/log_backfill.go:71`, `:85-95`) — so neither does
+/// lokahi now, and while nothing is committed the start follows the history up instead.
+#[tokio::test]
+async fn a_safe_head_history_that_moves_up_before_any_commit_raises_the_start() {
+    let world = World::new();
+    let mut verifier = world.verifier();
+
+    // Cold start chooses a start from the history as it stands, and commits nothing yet.
+    assert_eq!(verifier.step().await.unwrap(), Pace::Immediate);
+    assert_eq!(verifier.verification_start(), Some(START));
+    assert_eq!(verifier.verified().last_timestamp(), None);
+
+    // A derivation reset at or before the earliest record wipes the database outright. Nothing
+    // can be paired while it holds nothing, and the round simply waits.
+    world.chain_a.set_first_safe_head(None);
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+    assert_eq!(verifier.state(), VerifierState::Running);
+    assert_eq!(verifier.verification_start(), Some(START));
+
+    // It refills from where derivation now is, above the start already chosen. This is the step
+    // that used to halt the verifier permanently.
+    world.chain_a.set_first_safe_head(Some(START + 20));
+    assert_eq!(verifier.step().await.unwrap(), Pace::Immediate);
+    assert_eq!(verifier.state(), VerifierState::Running);
+    assert_eq!(verifier.verification_start(), Some(START + 20));
+
+    // And it verifies from the timestamp the history can actually answer for, rather than from
+    // one no chain can.
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 20));
+    assert_eq!(verifier.step().await.unwrap(), Pace::Immediate);
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 21));
+}
+
+/// Once a frontier is committed the start cannot move, so the same gap is correctly terminal.
+///
+/// This is the resume path's check as much as the running one's: resuming takes `last_verified +
+/// 1` from the verified store and consults no safe-head database at all, and the startup coverage
+/// check reads only the log stores. The frontier has to stay contiguous, so a history that no
+/// longer reaches the next timestamp is a real gap — named here, at the bound, rather than
+/// several reads later as a chain that cannot answer.
+#[tokio::test]
+async fn a_safe_head_history_that_moves_up_after_a_commit_halts_with_the_gap_named() {
+    let world = World::new();
+    let mut verifier = world.verifier();
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+
+    world.chain_a.set_first_safe_head(Some(START + 20));
+    let halted = verifier.step().await.expect_err("a committed frontier cannot skip a gap");
+    assert!(halted.reason.contains("must continue from"), "{}", halted.reason);
+    assert_eq!(verifier.state(), VerifierState::Halted);
 }
 
 #[tokio::test]
