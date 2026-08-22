@@ -17,6 +17,7 @@ use std::sync::Arc;
 use tower::ServiceBuilder;
 use url::Url;
 
+use kona_engine::SharedDenyList;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_providers_alloy::OnlineBeaconClient;
@@ -82,6 +83,8 @@ pub struct RollupNodeBuilder {
     pub external_cross_safe: bool,
     /// The safe-head database the chain controller records local-safe advances into.
     pub safe_db: SharedSafeDb,
+    /// The super-authority deny list the engine consults, when the node runs under one.
+    pub deny_list: Option<SharedDenyList>,
 }
 
 impl RollupNodeBuilder {
@@ -107,6 +110,7 @@ impl RollupNodeBuilder {
             dependency_set: None,
             external_cross_safe: false,
             safe_db: Arc::new(DisabledDatabase),
+            deny_list: None,
         }
     }
 
@@ -137,6 +141,15 @@ impl RollupNodeBuilder {
     /// itself. Left unset, the recording writes are no-ops.
     pub fn with_safe_db(self, safe_db: SharedSafeDb) -> Self {
         Self { safe_db, ..self }
+    }
+
+    /// Sets the super-authority deny list on the [`RollupNodeBuilder`].
+    ///
+    /// The engine consults it before adopting or inserting blocks, and it is what turns a
+    /// post-invalidation rebuild into the deposits-only replacement. A node built without one
+    /// denies nothing.
+    pub fn with_deny_list(self, deny_list: Option<SharedDenyList>) -> Self {
+        Self { deny_list, ..self }
     }
 
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
@@ -248,6 +261,7 @@ impl RollupNodeBuilder {
             dependency_set: self.dependency_set,
             external_cross_safe: self.external_cross_safe,
             safe_db: self.safe_db,
+            deny_list: self.deny_list,
         }
     }
 }

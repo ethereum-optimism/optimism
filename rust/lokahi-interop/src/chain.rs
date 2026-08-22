@@ -1,13 +1,17 @@
-//! The observation seam: everything the round loop reads, and nothing it writes.
+//! The observation seam: everything the round loop reads — and the one write an applied
+//! invalidation makes.
 //!
 //! One trait per source. [`InteropChain`] is one L2 chain as the verifier sees it — a chain
 //! controller for the safety snapshot, and a read-only execution layer for receipts and outputs.
 //! [`L1Canonical`] is the L1 they all derive from, consulted only to ask whether a block the
 //! verifier already relied on is still canonical.
 //!
-//! Both traits are deliberately narrow and read-only. The round loop's only writes go to the
-//! stores in this crate and, in a later phase, to the single cross-safe promotion entry point —
-//! never through here.
+//! Both of those are deliberately narrow and read-only: the round loop's reads go through them,
+//! its store writes stay in this crate, and its promotions go through the single cross-safe
+//! promotion entry point. The exception is [`RewindableChain`], the seam an applied
+//! [`Decision::Invalidate`](crate::Decision::Invalidate) rewinds a chain through — the same
+//! placement op-supernode gives `InvalidateBlock` on its chain-container interface
+//! (`op-supernode/supernode/chain_container/invalidation.go:385`).
 
 use crate::error::StoreError;
 use alloy_eips::BlockNumHash;
@@ -146,6 +150,31 @@ pub trait InteropChain: Debug + Send + Sync {
     /// The number of the block covering `timestamp`, flooring onto the preceding block when the
     /// timestamp falls between two of them.
     async fn block_number_at_timestamp(&self, timestamp: u64) -> Result<u64, ChainError>;
+}
+
+/// The one write the verifier performs on a chain: taking it off a block it invalidated.
+///
+/// Everything else about the replacement is derivation's job. The invalidated output is archived
+/// before this is called — the archive doubles as the deny list — so once the chain is rewound
+/// onto the invalidated block's parent, derivation rebuilds the height from the same L1 batch
+/// data, the rebuild's hash hits the deny list, and a deposits-only block is built at the same
+/// height instead. This seam only rewinds.
+#[async_trait]
+pub trait RewindableChain: Debug + Send + Sync {
+    /// Takes the chain off `invalidated`, rewinding it onto that block's parent, and returns
+    /// whether a rewind was performed.
+    ///
+    /// `Ok(false)` means the chain is already off the block — its canonical block at that height
+    /// exists and differs — which is the crash-replay acknowledgement: a write-ahead-logged
+    /// invalidation re-applied after a restart finds the replacement already in place and has
+    /// nothing left to rewind. A height with *no* canonical block is not that case; it is a
+    /// partially applied rewind, and the implementation must drive it to completion rather than
+    /// skip it (op-supernode's `InvalidateBlock`,
+    /// `op-supernode/supernode/chain_container/invalidation.go:438-455`).
+    ///
+    /// Every error is transient by the same contract as the read seams: the apply path retries
+    /// the whole invalidation, which is idempotent end to end.
+    async fn rewind_off(&self, invalidated: BlockNumHash) -> Result<bool, ChainError>;
 }
 
 /// The L1 the chains derive from, as the verifier reads it.

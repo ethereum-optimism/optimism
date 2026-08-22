@@ -2,7 +2,7 @@
 
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
-    SynchronizeTask,
+    SharedDenyList, SynchronizeTask,
     state::{EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin},
     task_queue::build_and_seal,
 };
@@ -88,6 +88,12 @@ pub struct ConsolidateTask<EngineClient_: EngineClient> {
     pub cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
     pub input: ConsolidateInput,
+    /// The super-authority deny list, when the node runs under one.
+    ///
+    /// Consulted before an existing block is adopted as local-safe: a denied block must be reorged
+    /// out and rebuilt, never consolidated back in (op-node's
+    /// `op-node/rollup/attributes/attributes.go:241-256`).
+    pub deny: Option<SharedDenyList>,
     /// Where to hand the decoded block once the engine has canonicalized it.
     pub block_sink: Arc<dyn ImportedBlockSink>,
 }
@@ -98,9 +104,10 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         client: Arc<EngineClient_>,
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
+        deny: Option<SharedDenyList>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, cfg, input, block_sink }
+        Self { client, cfg, input, deny, block_sink }
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
@@ -115,6 +122,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             self.cfg.clone(),
             attributes.clone(),
             true,
+            self.deny.clone(),
             self.block_sink.clone(),
         )
         .await?;
@@ -208,6 +216,43 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         let block_hash = block.header.hash;
 
         if self.input.is_consistent_with_block(&self.cfg, &block) {
+            // A denied block can re-enter the canonical chain via unsafe sync, and consolidation
+            // would then adopt it as local-safe without ever rebuilding it. Gate here too,
+            // forcing the build path on a deny — where the seal-time check turns the rebuild
+            // into the deposits-only replacement. The mirror of op-node's consolidation deny
+            // check (`op-node/rollup/attributes/attributes.go:241-256`), including its posture:
+            // a read error fails CLOSED — without a deny-list answer the block can be neither
+            // promoted nor reorged, so the task stalls and retries. Only the attributes path
+            // checks, as op-node's does: the delegation path carries no attributes a replacement
+            // could be built from.
+            let denied = if matches!(&self.input, ConsolidateInput::Attributes(_)) &&
+                let Some(deny) = &self.deny
+            {
+                deny.is_denied(block.header.number, block_hash).map_err(|err| {
+                    warn!(
+                        target: "engine",
+                        %err,
+                        block_number = block.header.number,
+                        block_hash = %block_hash,
+                        "Failed to check the deny list during consolidation; stalling rather \
+                         than promoting or reorging"
+                    );
+                    ConsolidateTaskError::DenyListUnavailable
+                })?
+            } else {
+                false
+            };
+            if denied {
+                warn!(
+                    target: "engine",
+                    block_number = block.header.number,
+                    block_hash = %block_hash,
+                    "Consolidated block is denied by the super authority; forcing a reorg to \
+                     build the replacement"
+                );
+                return self.reconcile_unsafe_to_local_safe(state).await;
+            }
+
             trace!(
                 target: "engine",
                 input = ?self.input,
@@ -321,6 +366,48 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
     //   heads. If the injected head is ahead of the ChainController's unsafe head, we reconcile the
     //   unsafe chain up to it instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+        // Attributes that no longer sit on the local-safe head are stale and are dropped, the
+        // mirror of op-node's queued-attributes check against the pending-safe head
+        // (`op-node/rollup/attributes/attributes.go:156-182`). The drop is not an error case:
+        // op-node's comment reads "This is expected after successful processing of these
+        // attributes", and that is exactly how the deposits-only fallback ends. Both the Holocene
+        // invalid-payload retry and an invalidation's replacement import a block *for* these
+        // attributes and advance local-safe past their parent, while the consolidate task itself
+        // returns the flush signal as an error — which [`crate::Engine::drain`] answers by keeping
+        // the task queued for retry. Without this drop, the retried task re-consolidates the same
+        // attributes against the replacement it just imported, mismatches, deterministically
+        // rebuilds the denied block, and replaces it again, forever — post-replacement
+        // consolidation livelocks instead of converging.
+        //
+        // A parent at the local-safe *height* whose hash is not the local-safe head is the other
+        // arm of op-node's check (`attributes.go:172-182`): reorg inconsistency, answered with a
+        // reset rather than a drop.
+        if let ConsolidateInput::Attributes(attributes) = &self.input {
+            let local_safe = state.sync_state.local_safe_head().block_info;
+            let parent = attributes.parent.block_info;
+            if parent.number != local_safe.number {
+                debug!(
+                    target: "engine",
+                    parent_number = parent.number,
+                    parent_hash = %parent.hash,
+                    local_safe_number = local_safe.number,
+                    local_safe_hash = %local_safe.hash,
+                    "Dropping stale consolidation attributes; the local-safe head moved past them"
+                );
+                return Ok(());
+            }
+            if parent.hash != local_safe.hash {
+                warn!(
+                    target: "engine",
+                    parent_number = parent.number,
+                    parent_hash = %parent.hash,
+                    local_safe_hash = %local_safe.hash,
+                    "Consolidation attributes parent conflicts with the local-safe head"
+                );
+                return Err(ConsolidateTaskError::ParentConflictsWithLocalSafe);
+            }
+        }
+
         // Derivation drives consolidation, so the comparison is against the *local*-safe head.
         // Reading cross-safe here would re-consolidate already-consolidated blocks whenever
         // cross-safe lags local-safe under interop.
@@ -389,8 +476,13 @@ mod tests {
             ..Default::default()
         };
         let sink = Arc::new(RecordingSink::default());
-        let task =
-            ConsolidateTask::new(client, cfg, ConsolidateInput::BlockInfo(safe_l2), sink.clone());
+        let task = ConsolidateTask::new(
+            client,
+            cfg,
+            ConsolidateInput::BlockInfo(safe_l2),
+            None,
+            sink.clone(),
+        );
 
         task.consolidate(&mut EngineState::default()).await.unwrap();
 

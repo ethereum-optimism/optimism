@@ -12,19 +12,32 @@
 //! which case nothing was started, or finds the decision and re-applies it. Every side effect an
 //! applied decision has is therefore idempotent.
 //!
-//! ## What this phase applies
+//! ## What is applied
 //!
-//! Only [`Decision::Wait`] and [`Decision::Advance`]. A round that reaches
-//! [`Decision::Invalidate`] or [`Decision::Rewind`] logs it and makes no progress — the verified
-//! frontier simply stops, which holds cross-safety where it is instead of promoting a block the
-//! verifier believes is wrong. Nothing is written to the WAL for a decision that cannot be
-//! applied: a slot holding an unappliable transition would wedge the node on every restart.
+//! [`Decision::Wait`], [`Decision::Advance`] — and, when the verifier is built with the
+//! replacement routes ([`Verifier::with_replacements`]), [`Decision::Invalidate`]. Applying an
+//! invalidation archives each invalid block's output preimage — the archive doubles as the deny
+//! list the chain's engine consults — and rewinds the chain onto the block's parent; derivation
+//! then rebuilds the height from the same L1 batch data, the rebuild hits the deny list, and a
+//! deposits-only replacement is built at the same height. The frontier itself does not move: the
+//! next round re-verifies the same timestamp against the replaced chain, exactly as op-supernode's
+//! `applyPendingTransition` does for `DecisionInvalidate`
+//! (`op-supernode/supernode/activity/interop/interop.go`).
+//!
+//! [`Decision::Rewind`] — the response to a committed frontier whose L1 basis reorged away — is
+//! still not applied: the round logs it and makes no progress, which holds cross-safety where it
+//! is. A verifier built *without* replacement routes treats [`Decision::Invalidate`] the same
+//! way. In both cases nothing is written to the WAL for a decision that cannot be applied: a slot
+//! holding an unappliable transition would wedge the node on every restart.
 
 use crate::{
+    archive::{ArchivedOutput, OutputArchive},
     backfill::{
         backfill_chain, backfill_window, chain_backfill_range, fetch_and_seal, verification_start,
     },
-    chain::{ChainAt, ChainError, InteropChain, L1Canonical, L1CanonicalExt, RoundError},
+    chain::{
+        ChainAt, ChainError, InteropChain, L1Canonical, L1CanonicalExt, RewindableChain, RoundError,
+    },
     decide::{
         ChainFrontier, Decision, RoundObservation, StepOutput, check_preconditions,
         decide_verified_result,
@@ -104,6 +117,21 @@ pub struct Halted {
     pub reason: String,
 }
 
+/// One chain's invalidation route: the archive its invalidated outputs are recorded in, and the
+/// seam that rewinds it.
+///
+/// The archive doubles as the deny list the chain's engine consults, which is what turns the
+/// post-rewind rebuild into a deposits-only replacement — the same one record op-supernode keeps
+/// (its deny list *is* its invalidated-output store, one entry of payload hash, decision
+/// timestamp, state root and message-passer storage root).
+#[derive(Debug)]
+pub struct ChainReplacement<K> {
+    /// The chain's invalidated-output archive.
+    pub archive: Arc<OutputArchive<K>>,
+    /// The rewind seam over the chain.
+    pub chain: Arc<dyn RewindableChain>,
+}
+
 /// The timestamp-lockstep interop verifier.
 ///
 /// Owns the stores it writes and the read-only seams it observes through. One instance per
@@ -119,6 +147,11 @@ pub struct Verifier<K> {
     l1: Arc<dyn L1Canonical>,
     /// The verified frontier and the WAL slot.
     verified: VerifiedStore<K>,
+    /// Each chain's invalidation route, when this verifier applies invalidations.
+    ///
+    /// Empty on a verifier built without [`Verifier::with_replacements`], which then holds the
+    /// frontier on a [`Decision::Invalidate`] instead of applying it.
+    replacements: BTreeMap<ChainId, ChainReplacement<K>>,
     /// Each chain's log store.
     stores: LogStores,
     /// The configuration.
@@ -208,6 +241,7 @@ impl<K: Kv> Verifier<K> {
             rollup_configs,
             l1,
             verified,
+            replacements: BTreeMap::new(),
             stores,
             config,
             start,
@@ -216,6 +250,26 @@ impl<K: Kv> Verifier<K> {
             pause_at: None,
             backfill_attempts: 0,
         })
+    }
+
+    /// Wires the invalidation routes, one per chain, making this verifier apply
+    /// [`Decision::Invalidate`] rather than hold on it.
+    ///
+    /// Every chain of the verifier must have a route: an invalidation names the chains it found
+    /// invalid only at decision time, and a chain that could be verified but not rewound would
+    /// turn an applied decision into a permanent error mid-apply.
+    pub fn with_replacements(
+        mut self,
+        replacements: BTreeMap<ChainId, ChainReplacement<K>>,
+    ) -> Result<Self, RoundError> {
+        if let Some(missing) = self.chains.keys().find(|id| !replacements.contains_key(id)) {
+            return Err(RoundError::Invariant(format!(
+                "chain {missing} has no invalidation route: every chain the verifier follows must \
+                 have one, or a block it finds invalid could not be replaced"
+            )));
+        }
+        self.replacements = replacements;
+        Ok(self)
     }
 
     /// Returns where the verifier is in its lifecycle.
@@ -421,6 +475,14 @@ impl<K: Kv> Verifier<K> {
                 self.verified.set_pending(&pending)?;
                 self.apply(pending).await
             }
+            Decision::Invalidate if !self.replacements.is_empty() => {
+                let pending = PendingTransition::Invalidate(output.result);
+                // Durable before the first side effect, cleared after the last — and the archive
+                // write inside the apply is driven from this slot on every replay, so a crash
+                // between here and the rewind cannot lose the invalidated output.
+                self.verified.set_pending(&pending)?;
+                self.apply(pending).await
+            }
             decision @ (Decision::Invalidate | Decision::Rewind) => {
                 Self::hold(decision, observation.next_timestamp, &output);
                 Ok(false)
@@ -428,7 +490,8 @@ impl<K: Kv> Verifier<K> {
         }
     }
 
-    /// Records a decision this phase does not apply.
+    /// Records a decision this verifier does not apply: a rewind, or an invalidation on a
+    /// verifier built without replacement routes.
     ///
     /// The timestamp comes from the observation rather than from the result: a rewind carries no
     /// result, so reading it there would report zero.
@@ -438,7 +501,7 @@ impl<K: Kv> Verifier<K> {
             %decision,
             timestamp,
             chains = ?output.result.invalid_heads.keys().collect::<Vec<_>>(),
-            "Interop verification reached a decision this phase does not apply; the verified \
+            "Interop verification reached a decision this verifier does not apply; the verified \
              frontier holds where it is"
         );
     }
@@ -617,12 +680,72 @@ impl<K: Kv> Verifier<K> {
     async fn apply(&mut self, pending: PendingTransition) -> Result<bool, RoundError> {
         match pending {
             PendingTransition::Advance(result) => self.apply_advance(result).await,
-            PendingTransition::Invalidate(result) => Err(RoundError::Permanent(format!(
-                "the write-ahead log holds an invalidation at timestamp {} that this build cannot \
-                 apply; it was written by a later version",
-                result.verified.timestamp
-            ))),
+            PendingTransition::Invalidate(result) => self.apply_invalidate(result).await,
         }
+    }
+
+    /// Archives each invalid head's output and rewinds its chain, then clears the WAL slot.
+    ///
+    /// The frontier is deliberately not committed: the round found these blocks invalid, so
+    /// nothing about this timestamp is verified. The next round re-verifies the same timestamp
+    /// against the replaced chain, which is what op-supernode's `applyPendingTransition` does for
+    /// `DecisionInvalidate` (`op-supernode/supernode/activity/interop/interop.go`) — it too
+    /// invalidates, resumes, and returns without committing.
+    ///
+    /// Order within a chain matters and is op-supernode's (`InvalidateBlock`,
+    /// `op-supernode/supernode/chain_container/invalidation.go:392-465`): the archive record —
+    /// its deny list — is durable *before* the rewind, so no window exists in which the chain is
+    /// off the block but nothing stops derivation from rebuilding it verbatim. Both side effects
+    /// are idempotent, and both run on every crash replay: in particular the archive write is
+    /// unconditional, because a replay may find the block already replaced and skip the rewind —
+    /// skipping the write there too would lose the output roots permanently, and a missing
+    /// archive entry fails silently at the optimistic superroot branch.
+    ///
+    /// A failed rewind leaves the slot in place — "transition preserved for retry" — and costs a
+    /// backoff; every [`ChainError`] is transient by contract.
+    async fn apply_invalidate(&self, result: RoundResult) -> Result<bool, RoundError> {
+        let decision_timestamp = result.verified.timestamp;
+
+        for (&chain_id, invalid) in &result.invalid_heads {
+            // No parent exists to rewind onto, and no round can decide this: block one of any
+            // chain is the earliest verifiable block, so a slot naming height zero is damage, not
+            // a decision to retry.
+            if invalid.block.number == 0 {
+                return Err(RoundError::Permanent(format!(
+                    "chain {chain_id}: the genesis block cannot be invalidated: it has no parent \
+                     to rewind onto"
+                )));
+            }
+            let replacement = self.replacements.get(&chain_id).ok_or_else(|| {
+                RoundError::Invariant(format!("chain {chain_id} has no invalidation route"))
+            })?;
+
+            // The archive doubles as the deny list, so this write is what turns derivation's
+            // rebuild of the height into the deposits-only replacement — and what the optimistic
+            // superroot branch serves for this height ever after.
+            replacement.archive.record(
+                invalid.block.number,
+                ArchivedOutput { output_root: invalid.output_root(), decision_timestamp },
+            )?;
+
+            let rewound = replacement
+                .chain
+                .rewind_off(invalid.block)
+                .await
+                .map_err(|source| RoundError::chain(chain_id, source))?;
+            warn!(
+                target: "lokahi_interop",
+                chain_id,
+                number = invalid.block.number,
+                hash = %invalid.block.hash,
+                decision_timestamp,
+                rewound,
+                "Applied an invalidation: archived the block's output and took the chain off it"
+            );
+        }
+
+        self.verified.clear_pending()?;
+        Ok(false)
     }
 
     /// Seals the round's blocks, commits its frontier, and clears the WAL slot.

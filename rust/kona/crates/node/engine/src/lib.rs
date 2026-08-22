@@ -58,6 +58,9 @@ pub use attributes::{AttributesMatch, AttributesMismatch};
 mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
+mod deny;
+pub use deny::{DenyList, DenyListReadError, SharedDenyList};
+
 mod client;
 pub use client::{
     EngineClient, EngineClientBuilder, EngineClientError, EngineRpcClient, HyperAuthClient,

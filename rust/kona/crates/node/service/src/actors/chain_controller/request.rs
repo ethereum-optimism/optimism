@@ -56,6 +56,24 @@ pub struct ResetRequest {
     pub result_tx: mpsc::Sender<ChainControllerClientResult<()>>,
 }
 
+/// A request to rewind the chain onto `parent`, disowning every block above it.
+///
+/// This is the engine half of applying a block invalidation: the interop verifier has decided the
+/// block above `parent` is invalid, recorded it on the deny list, and now needs the chain off it so
+/// derivation can rebuild the height — where the deny list turns the rebuild into a deposits-only
+/// replacement. Unlike [`ResetRequest`], which discovers its landing point by walkback, the target
+/// here is fixed by the caller: the parent of the invalidated block, which op-supernode's
+/// `RewindEngine` likewise receives rather than derives
+/// (`op-supernode/supernode/chain_container/chain_container.go:749`).
+#[derive(Debug)]
+pub struct RewindRequest {
+    /// The block the chain must sit on once the rewind completes: the parent of the invalidated
+    /// block.
+    pub parent: L2BlockInfo,
+    /// The channel on which the result, successful or not, will be sent.
+    pub result_tx: mpsc::Sender<ChainControllerClientResult<()>>,
+}
+
 /// A request to commit an externally built payload as the chain's unsafe head, answering the
 /// caller: `opstack_commitBlockV1`'s write.
 ///

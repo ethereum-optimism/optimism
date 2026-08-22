@@ -81,6 +81,7 @@ async fn lockstep_confirmation_carries_local_safe_not_cross_safe() {
         None,
         request_rx,
         Arc::new(DisabledDatabase),
+        None,
         Arc::new(NoopBlockSink),
     );
 
@@ -198,7 +199,8 @@ fn recording_controller(
         None,
         request_rx,
         safe_db,
-        Arc::new(kona_engine::NoopBlockSink),
+        None,
+        Arc::new(NoopBlockSink),
     )
 }
 

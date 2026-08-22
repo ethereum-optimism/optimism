@@ -3,7 +3,7 @@
 use crate::{
     admin,
     config::{L1Settings, ResolvedChain, ResolvedConfig, SequencerSettings},
-    interop::{ChainInterop, HostedChain, InteropActor, InteropTestHandle},
+    interop::{ArchiveDenyList, ChainInterop, HostedChain, InteropActor, InteropTestHandle},
     query::{ChainRouteQueries, QueryChain, QueryHandle},
     rpc::SupernodeRpc,
 };
@@ -106,6 +106,12 @@ struct ChainInteropState {
     /// request to that port is rejected, and the chain has no second, unauthenticated endpoint
     /// configured.
     el: RootProvider<Optimism>,
+    /// The chain's invalidated-output archive, doubling as the deny list its engine consults.
+    ///
+    /// Opened here so the chain controller (which reads it on every derived seal, every
+    /// consolidation and the unsafe-ingestion gate) and the interop verifier (which writes an
+    /// applied invalidation into it) are handed the same handle by construction.
+    archive: Arc<lokahi_interop::RocksOutputArchive>,
 }
 
 impl Supernode {
@@ -318,6 +324,7 @@ impl Supernode {
                     queries: controller_rpc_request_tx,
                     requests: controller_request_tx,
                     promoter,
+                    archive: state.archive,
                 });
             }
 
@@ -400,6 +407,7 @@ impl Chain {
             format!("failed to create the data directory {}", self.settings.datadir.display())
         })?;
         let safe_db = ChainInterop::open_safe_db(&self.settings.datadir)?;
+        let archive = ChainInterop::open_archive(&self.settings.datadir)?;
 
         let jwt_secret = load_jwt_secret(&self.settings.jwt_secret)?;
         let el = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
@@ -407,7 +415,7 @@ impl Chain {
             jwt_secret,
         );
 
-        Ok(Self { interop: Some(ChainInteropState { safe_db, el }), ..self })
+        Ok(Self { interop: Some(ChainInteropState { safe_db, el, archive }), ..self })
     }
 
     /// Builds this chain's node and composes its actor group.
@@ -423,6 +431,11 @@ impl Chain {
     ) -> Result<ComposedChain> {
         let Self { settings, rollup_config, dependency_set, interop } = self;
         let external_cross_safe = interop.is_some();
+        // The archive read as the engine's deny list, present exactly when interop is: without a
+        // verifier nothing is ever denied, and the engine composed with `None` checks nothing.
+        let deny_list = interop.as_ref().map(|state| {
+            Arc::new(ArchiveDenyList::new(state.archive.clone())) as kona_engine::SharedDenyList
+        });
         let safe_db = interop
             .map_or_else(|| Arc::new(DisabledDatabase) as SharedSafeDb, |state| state.safe_db);
 
@@ -484,7 +497,8 @@ impl Chain {
         )
         .with_dependency_set(dependency_set)
         .with_external_cross_safe(external_cross_safe)
-        .with_safe_db(safe_db);
+        .with_safe_db(safe_db)
+        .with_deny_list(deny_list);
 
         // The chain's method set goes to the supernode's router rather than to a socket of its
         // own. kona still builds it, so it is the same method set a single-chain node serves.

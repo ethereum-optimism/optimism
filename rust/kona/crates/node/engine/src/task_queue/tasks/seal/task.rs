@@ -4,6 +4,7 @@ use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
     InsertTask,
     InsertTaskError::{self},
+    SharedDenyList,
     state::LocalSafeOrigin,
     task_queue::build_and_seal,
 };
@@ -60,6 +61,13 @@ pub struct SealTask<EngineClient_: EngineClient> {
     /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
     /// or the [`SealTaskError`] that occurred during processing.
     pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
+    /// The super-authority deny list, when the node runs under one.
+    ///
+    /// Consulted after the payload is sealed and before it is inserted: a denied derived payload
+    /// is replaced by a deposits-only build at the same height rather than inserted, which is how
+    /// an invalidated block's replacement comes into being (op-node's
+    /// `op-node/rollup/engine/payload_process.go:56-85`).
+    pub deny: Option<SharedDenyList>,
     /// Where to hand the decoded block once the engine has canonicalized it.
     pub block_sink: Arc<dyn ImportedBlockSink>,
 }
@@ -166,6 +174,66 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
         state: &mut EngineState,
         payload: OpExecutionPayloadEnvelope,
     ) -> Result<L2BlockInfo, SealTaskError> {
+        // A denied derived payload is not inserted; the deposits-only replacement is built at the
+        // same height instead. The deny list records blocks a super authority invalidated, and a
+        // derived rebuild of such a height reproduces the invalid block byte for byte — this
+        // check is what turns that rebuild into the replacement, mirroring op-node's deny check
+        // before `NewPayload` (`op-node/rollup/engine/payload_process.go:56-85`). A read error
+        // fails open and is logged at error level, the posture that site takes: a wedged engine
+        // is worse than looping invalidation until the store heals. Deposits-only attributes are
+        // exempt — their payload *is* the replacement.
+        if self.is_attributes_derived &&
+            !self.attributes.is_deposits_only() &&
+            let Some(deny) = &self.deny
+        {
+            match deny.is_denied(payload.block_number(), payload.block_hash()) {
+                Ok(true) => {
+                    warn!(
+                        target: "engine",
+                        block_number = payload.block_number(),
+                        block_hash = %payload.block_hash(),
+                        "Sealed payload is denied by the super authority; building the \
+                         deposits-only replacement"
+                    );
+                    let deposits_only_attrs = self.attributes.as_deposits_only();
+                    return match build_and_seal(
+                        state,
+                        self.engine.clone(),
+                        self.cfg.clone(),
+                        deposits_only_attrs,
+                        self.is_attributes_derived,
+                        self.deny.clone(),
+                        self.block_sink.clone(),
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            info!(
+                                target: "engine",
+                                "Successfully imported the deposits-only replacement"
+                            );
+                            // The same signal as the Holocene fallback below: the rest of the
+                            // channel is flushed, which is what op-node's
+                            // `DepositsOnlyAttributes` does too (`aq.prev.FlushChannel()`,
+                            // `op-node/rollup/derive/attributes_queue.go:167`).
+                            Err(SealTaskError::HoloceneInvalidFlush)
+                        }
+                        Err(_) => Err(SealTaskError::DepositOnlyPayloadReattemptFailed),
+                    };
+                }
+                Ok(false) => {}
+                Err(err) => {
+                    error!(
+                        target: "engine",
+                        %err,
+                        block_number = payload.block_number(),
+                        block_hash = %payload.block_hash(),
+                        "Failed to check the deny list, proceeding with the payload"
+                    );
+                }
+            }
+        }
+
         // Insert the new block into the engine.
         let new_block_ref = match InsertTask::new(
             Arc::clone(&self.engine),
@@ -200,6 +268,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                     self.cfg.clone(),
                     deposits_only_attrs.clone(),
                     self.is_attributes_derived,
+                    self.deny.clone(),
                     self.block_sink.clone(),
                 )
                 .await
@@ -296,12 +365,24 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
 
         let unsafe_block_info = state.sync_state.unsafe_head().block_info;
         let parent_block_info = self.attributes.parent.block_info;
+        let head_moved = unsafe_block_info.hash != parent_block_info.hash ||
+            unsafe_block_info.number != parent_block_info.number;
 
-        let build_is_stale = self.coupling == BuildSealCoupling::Detached &&
-            (unsafe_block_info.hash != parent_block_info.hash ||
-                unsafe_block_info.number != parent_block_info.number);
-
-        let res = if build_is_stale {
+        // The stale-head guard applies only to seals detached from the build that produced
+        // them, which are the sequencer's jobs — op-node scopes its equivalent the same way
+        // (`!attrs.IsDerived()`, `op-node/rollup/engine/build_start.go:62-68`, `ErrStaleBuild`):
+        // a sequencer job whose parent is no longer the unsafe head is stale work to drop, and
+        // the caller rebuilds on the new head.
+        //
+        // An atomic build-and-seal is different: consolidation forces it on the *local-safe*
+        // parent precisely when the unsafe chain ahead of it has to be reorged out (a
+        // mismatching or denied block), so its parent legitimately differs from the unsafe
+        // head. Importing the block is what performs that reorg — op-node only warns there
+        // (`build_start.go:73-77`) and snaps the unsafe head onto the built block afterwards
+        // (`tryUpdateUnsafe`, `op-node/rollup/engine/engine_controller.go:1210-1217`), which
+        // [`InsertTask`] mirrors. Failing such a seal instead resets derivation, which
+        // re-derives the same attributes and livelocks the node.
+        let res = if head_moved && self.coupling == BuildSealCoupling::Detached {
             info!(
                 target: "engine",
                 unsafe_block_info = ?unsafe_block_info,
@@ -310,6 +391,15 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
             );
             Err(SealTaskError::UnsafeHeadChangedSinceBuild)
         } else {
+            if head_moved {
+                warn!(
+                    target: "engine",
+                    unsafe_block_info = ?unsafe_block_info,
+                    parent_block_info = ?parent_block_info,
+                    "Derived seal parent is not the unsafe head; importing the block reorgs the \
+                     unsafe chain onto it"
+                );
+            }
             // Seal the block and import it into the engine.
             self.seal_and_canonicalize_block(state).await
         };

@@ -26,7 +26,8 @@ use kona_genesis::RollupConfig;
 use kona_node_service::{ChainControllerRequest, ChainControllerRpcRequest};
 use kona_safedb::{SafeDatabase, SharedSafeDb};
 use lokahi_interop::{
-    InteropChain, LogStores, RocksKv, Verifier, VerifierConfig, open_log_store, open_verified_store,
+    ChainReplacement, InteropChain, LogStores, RewindableChain, RocksKv, RocksOutputArchive,
+    Verifier, VerifierConfig, open_log_store, open_output_archive, open_verified_store,
 };
 use op_alloy_network::Optimism;
 use std::{
@@ -38,7 +39,7 @@ use tracing::info;
 use url::Url;
 
 pub(crate) use actor::InteropActor;
-pub(crate) use chain::{L1Provider, NodeChain};
+pub(crate) use chain::{ArchiveDenyList, ChainRewindRoute, L1Provider, NodeChain};
 pub(crate) use query::{
     InteropQueryError, InteropReader, InteropStatus, SealedBlocks, Verdict, VerifiedAt,
 };
@@ -76,10 +77,16 @@ pub(crate) struct ChainInterop {
     pub(crate) el: RootProvider<Optimism>,
     /// The chain controller's read-only query channel.
     pub(crate) queries: mpsc::Sender<ChainControllerRpcRequest>,
-    /// The chain controller's request channel, which applies promotions.
+    /// The chain controller's request channel, which applies promotions and rewinds.
     pub(crate) requests: mpsc::Sender<ChainControllerRequest>,
     /// The capability to promote this chain's cross-safe head.
     pub(crate) promoter: CrossSafePromoter,
+    /// The chain's invalidated-output archive, which its engine reads as the deny list.
+    ///
+    /// The same handle the chain controller was composed with: the verifier writes an
+    /// invalidation into it and the engine's deny checks read it, so the two cannot be looking at
+    /// different stores.
+    pub(crate) archive: Arc<RocksOutputArchive>,
 }
 
 impl ChainInterop {
@@ -92,6 +99,19 @@ impl ChainInterop {
         let db = SafeDatabase::new(&path)
             .with_context(|| format!("failed to open the safe-head database {}", path.display()))?;
         Ok(Arc::new(db))
+    }
+
+    /// Opens the invalidated-output archive in one chain's data directory.
+    ///
+    /// Per chain like the safe-head database — the deny list it doubles as is a per-chain
+    /// question — but unlike everything else in the chain's directory it is NOT re-derivable:
+    /// the output preimages it holds die with the replaced blocks. Its directory is separable
+    /// for backup on purpose.
+    pub(crate) fn open_archive(datadir: &Path) -> Result<Arc<RocksOutputArchive>> {
+        let archive = open_output_archive(datadir).with_context(|| {
+            format!("failed to open the invalidated-output archive under {}", datadir.display())
+        })?;
+        Ok(Arc::new(archive))
     }
 }
 
@@ -231,6 +251,7 @@ impl InteropActor {
         let mut stores: LogStores = LogStores::new();
         let mut routes = Vec::with_capacity(chains.len());
         let mut observed: Vec<Arc<dyn InteropChain>> = Vec::with_capacity(chains.len());
+        let mut replacements = std::collections::BTreeMap::new();
 
         for chain in chains {
             let chain_id = chain.chain_id;
@@ -254,6 +275,19 @@ impl InteropActor {
                 chain.el,
             ));
             observed.push(node_chain.clone());
+            // The invalidation route: the archive the chain's engine already reads as its deny
+            // list, and a rewind seam writing through the same controller queue promotions go
+            // through.
+            replacements.insert(
+                chain_id,
+                ChainReplacement {
+                    archive: chain.archive,
+                    chain: Arc::new(ChainRewindRoute::new(
+                        node_chain.clone(),
+                        chain.requests.clone(),
+                    )) as Arc<dyn RewindableChain>,
+                },
+            );
             routes.push(ChainRoute {
                 chain: node_chain,
                 promoter: chain.promoter,
@@ -269,6 +303,7 @@ impl InteropActor {
             stores,
             VerifierConfig::new(activation_timestamp),
         )
+        .and_then(|verifier| verifier.with_replacements(replacements))
         .map_err(|err| anyhow::anyhow!("failed to build the interop verifier: {err}"))?;
 
         info!(
@@ -510,6 +545,7 @@ mod store_tests {
         Ok(ChainInterop {
             chain_id,
             safe_db: ChainInterop::open_safe_db(&datadir)?,
+            archive: ChainInterop::open_archive(&datadir)?,
             datadir,
             rollup_config: RollupConfig {
                 block_time: 2,

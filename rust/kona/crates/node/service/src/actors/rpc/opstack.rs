@@ -345,7 +345,10 @@ where
                 plain_error(format!("failed to update engine forkchoice: {err}"))
             }
             CommitBlockError::Insert(err) => plain_error(format!("invalid payload: {err}")),
-            err @ CommitBlockError::DoesNotDescendFromLocalSafe => {
+            // op-node answers `ErrPayloadDenied` as a plain error from `CommitBlock` too: the
+            // caller's payload is well-formed, it is just a block the super authority has ruled
+            // out.
+            err @ (CommitBlockError::DoesNotDescendFromLocalSafe | CommitBlockError::Denied) => {
                 plain_error(format!("failed to insert payload: {err}"))
             }
         })

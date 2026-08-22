@@ -1,7 +1,7 @@
 //! Utility functions for task execution.
 
 use super::{BuildSealCoupling, BuildTask, BuildTaskError, EngineTaskExt, SealTask, SealTaskError};
-use crate::{EngineClient, EngineState, ImportedBlockSink};
+use crate::{EngineClient, EngineState, ImportedBlockSink, SharedDenyList};
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
 use std::sync::Arc;
@@ -33,6 +33,7 @@ pub(in crate::task_queue) enum BuildAndSealError {
 /// * `cfg` - The rollup configuration
 /// * `attributes` - The payload attributes to build
 /// * `is_attributes_derived` - Whether the attributes were derived or created by the sequencer
+/// * `deny` - The super-authority deny list the seal consults, when the node runs under one
 /// * `block_sink` - Where to hand the built block once the engine has canonicalized it
 pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
     state: &mut EngineState,
@@ -40,6 +41,7 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
     cfg: Arc<RollupConfig>,
     attributes: OpAttributesWithParent,
     is_attributes_derived: bool,
+    deny: Option<SharedDenyList>,
     block_sink: Arc<dyn ImportedBlockSink>,
 ) -> Result<(), BuildAndSealError> {
     // Execute the build task
@@ -61,6 +63,7 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
         is_attributes_derived,
         BuildSealCoupling::Atomic,
         None,
+        deny,
         block_sink,
     )
     .execute(state)
