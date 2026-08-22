@@ -68,12 +68,12 @@ func TestLokahiSyncStatusDecodesIntoGoTypes(t *testing.T) {
 	require.Equal(t, uint64(3), a.LocalSafeL2.SequenceNumber, "l2 refs carry their seq number")
 	require.Equal(t, uint64(898), a.LocalSafeL2.L1Origin.Number, "l1origin decodes")
 
-	// Two fields of eth.SyncStatus have no counterpart in kona's, so they decode as zero. That
+	// One field of eth.SyncStatus has no counterpart in kona's, so it decodes as zero. That
 	// is the same thing a Go consumer sees reading a kona-node's own optimism_syncStatus, and it
-	// is recorded here so a future consumer that starts depending on them finds this test rather
-	// than a silent zero.
+	// is recorded here so a future consumer that starts depending on it finds this test rather
+	// than a silent zero. (CrossUnsafeL2 used to be asserted the same way, until #22555 removed
+	// the cross-unsafe chain-head notion from eth.SyncStatus itself.)
 	require.Zero(t, a.PendingSafeL2.Number, "kona tracks no pending-safe head")
-	require.Zero(t, a.CrossUnsafeL2.Number, "kona tracks no cross-unsafe head")
 }
 
 // TestLokahiSuperRootDecodesIntoGoTypes checks the superroot_atTimestamp response, and

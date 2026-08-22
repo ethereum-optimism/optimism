@@ -1,7 +1,8 @@
 //! A task for importing a block that has already been started.
 use super::SealTaskError;
 use crate::{
-    EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, InsertTask,
+    EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
+    InsertTask,
     InsertTaskError::{self},
     SharedDenyList,
     state::LocalSafeOrigin,
@@ -15,6 +16,18 @@ use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Instant};
 use tokio::sync::mpsc;
+
+/// How a [`SealTask`] is coupled to the build that produced its payload.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BuildSealCoupling {
+    /// Build and seal run inside the same engine task, so no other task can advance the unsafe
+    /// head between them. The unsafe-head staleness check is skipped: a derivation-driven reorg
+    /// legitimately seals a payload whose parent differs from the current unsafe head.
+    Atomic,
+    /// The seal is enqueued as a task separate from its build, so another task may advance the
+    /// unsafe head in between, invalidating the built payload as stale.
+    Detached,
+}
 
 /// Task for block sealing and canonicalization.
 ///
@@ -30,6 +43,7 @@ use tokio::sync::mpsc;
 /// [`InsertTask`]: crate::InsertTask
 /// [`InsertTaskError`]: crate::InsertTaskError
 #[derive(Debug, Clone, Constructor)]
+#[allow(clippy::too_many_arguments)] // the derived constructor takes one field each
 pub struct SealTask<EngineClient_: EngineClient> {
     /// The engine API client.
     pub engine: Arc<EngineClient_>,
@@ -41,6 +55,8 @@ pub struct SealTask<EngineClient_: EngineClient> {
     pub attributes: OpAttributesWithParent,
     /// Whether or not the payload was derived, or created by the sequencer.
     pub is_attributes_derived: bool,
+    /// How this seal is coupled to the build that produced `payload_id`.
+    pub coupling: BuildSealCoupling,
     /// An optional sender to convey success/failure result of the built
     /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
     /// or the [`SealTaskError`] that occurred during processing.
@@ -52,6 +68,8 @@ pub struct SealTask<EngineClient_: EngineClient> {
     /// an invalidated block's replacement comes into being (op-node's
     /// `op-node/rollup/engine/payload_process.go:56-85`).
     pub deny: Option<SharedDenyList>,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
@@ -185,6 +203,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                         deposits_only_attrs,
                         self.is_attributes_derived,
                         self.deny.clone(),
+                        self.block_sink.clone(),
                     )
                     .await
                     {
@@ -221,6 +240,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
             self.cfg.clone(),
             payload,
             self.local_safe_origin(),
+            Arc::clone(&self.block_sink),
         )
         .execute(state)
         .await
@@ -249,6 +269,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                     deposits_only_attrs.clone(),
                     self.is_attributes_derived,
                     self.deny.clone(),
+                    self.block_sink.clone(),
                 )
                 .await
                 {
@@ -347,20 +368,21 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
         let head_moved = unsafe_block_info.hash != parent_block_info.hash ||
             unsafe_block_info.number != parent_block_info.number;
 
-        // The stale-head guard is scoped to sequencer builds, exactly as op-node scopes its
-        // equivalent (`!attrs.IsDerived()`, `op-node/rollup/engine/build_start.go:62-68`,
-        // `ErrStaleBuild`): a sequencer job whose parent is no longer the unsafe head is stale
-        // work to drop, and the caller rebuilds on the new head.
+        // The stale-head guard applies only to seals detached from the build that produced
+        // them, which are the sequencer's jobs — op-node scopes its equivalent the same way
+        // (`!attrs.IsDerived()`, `op-node/rollup/engine/build_start.go:62-68`, `ErrStaleBuild`):
+        // a sequencer job whose parent is no longer the unsafe head is stale work to drop, and
+        // the caller rebuilds on the new head.
         //
-        // A derived build is different: consolidation forces it on the *local-safe* parent
-        // precisely when the unsafe chain ahead of it has to be reorged out (a mismatching or
-        // denied block), so its parent legitimately differs from the unsafe head. Importing the
-        // block is what performs that reorg — op-node only warns there
+        // An atomic build-and-seal is different: consolidation forces it on the *local-safe*
+        // parent precisely when the unsafe chain ahead of it has to be reorged out (a
+        // mismatching or denied block), so its parent legitimately differs from the unsafe
+        // head. Importing the block is what performs that reorg — op-node only warns there
         // (`build_start.go:73-77`) and snaps the unsafe head onto the built block afterwards
         // (`tryUpdateUnsafe`, `op-node/rollup/engine/engine_controller.go:1210-1217`), which
-        // [`InsertTask`] mirrors. Failing the derived seal instead resets derivation, which
+        // [`InsertTask`] mirrors. Failing such a seal instead resets derivation, which
         // re-derives the same attributes and livelocks the node.
-        let res = if head_moved && !self.is_attributes_derived {
+        let res = if head_moved && self.coupling == BuildSealCoupling::Detached {
             info!(
                 target: "engine",
                 unsafe_block_info = ?unsafe_block_info,

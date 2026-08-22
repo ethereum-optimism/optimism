@@ -127,7 +127,13 @@ mod deny {
             .with_config(cfg.clone())
             .with_l2_block_by_label(BlockNumberOrTag::Number(attributes.block_number()), block)
             .build();
-        ConsolidateTask::new(Arc::new(client), cfg, ConsolidateInput::from(attributes), Some(deny))
+        ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::from(attributes),
+            Some(deny),
+            Arc::new(crate::NoopBlockSink),
+        )
     }
 
     /// The control: an undenied matching block is adopted as local-safe without any rebuild.
@@ -207,7 +213,7 @@ mod stale {
     fn bare_task(input: ConsolidateInput) -> ConsolidateTask<crate::test_utils::MockEngineClient> {
         let cfg = Arc::new(RollupConfig::default());
         let client = test_engine_client_builder().with_config(cfg.clone()).build();
-        ConsolidateTask::new(Arc::new(client), cfg, input, None)
+        ConsolidateTask::new(Arc::new(client), cfg, input, None, Arc::new(crate::NoopBlockSink))
     }
 
     /// A state whose local-safe head is `head` and whose unsafe head matches it.
