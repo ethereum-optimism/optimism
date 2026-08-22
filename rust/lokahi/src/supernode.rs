@@ -649,6 +649,7 @@ fn rpc_builder(settings: &ResolvedChain, socket: SocketAddr) -> RpcBuilder {
         admin_persistence: Some(settings.datadir.join(ADMIN_STATE_FILE)),
         ws_enabled: false,
         dev_enabled: false,
+        experimental_opstack: settings.experimental_opstack_api,
     }
 }
 
@@ -958,6 +959,7 @@ mod tests {
             sequencer: None,
             datadir: dir.join(l2_chain_id.to_string()),
             rpc_enable_admin: false,
+            experimental_opstack_api: false,
             p2p_listen_ip: IpAddr::from(Ipv4Addr::LOCALHOST),
             p2p_tcp_port: port + 1,
             p2p_udp_port: port + 1,

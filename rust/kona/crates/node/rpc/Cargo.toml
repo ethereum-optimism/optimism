@@ -65,6 +65,7 @@ metrics = { workspace = true, optional = true }
 serde_json.workspace = true
 # `macros` and `rt` are test-only: the crate itself needs no runtime, only `tokio::sync`.
 tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+alloy-consensus.workspace = true
 
 [features]
 default = []

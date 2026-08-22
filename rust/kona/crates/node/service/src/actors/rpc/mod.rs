@@ -10,6 +10,9 @@ pub use launcher::{
 mod engine_rpc_client;
 pub use engine_rpc_client::QueuedEngineRpcClient;
 
+mod opstack;
+pub use opstack::OpStackRpc;
+
 mod error;
 pub use error::RpcActorError;
 

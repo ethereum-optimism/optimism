@@ -18,6 +18,9 @@ pub struct RpcBuilder {
     pub ws_enabled: bool,
     /// Enable development RPC endpoints
     pub dev_enabled: bool,
+    /// Enable the experimental `opstack` block-building namespace, op-node's
+    /// `--experimental.sequencer-api`.
+    pub experimental_opstack: bool,
 }
 
 impl RpcBuilder {
@@ -34,6 +37,11 @@ impl RpcBuilder {
     /// Returns whether development RPC endpoints are enabled
     pub const fn dev_enabled(&self) -> bool {
         self.dev_enabled
+    }
+
+    /// Returns whether the experimental `opstack` block-building namespace is enabled.
+    pub const fn opstack_enabled(&self) -> bool {
+        self.experimental_opstack
     }
 
     /// Returns the socket address of the [`RpcBuilder`].

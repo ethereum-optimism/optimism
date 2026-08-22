@@ -9,7 +9,7 @@ use crate::{
     QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
     QueuedSequencerEngineClient, RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
     SharedRpcServerLauncher,
-    actors::{BlockStream, QueuedUnsafePayloadGossipClient},
+    actors::{BlockStream, PayloadToPublish, QueuedUnsafePayloadGossipClient, rpc::OpStackRpc},
     service::{
         composition::{ComposedChain, L1WatcherPorts},
         spawn::{BoxedNodeActor, IntoBoxedNodeActor, run_actors},
@@ -31,12 +31,11 @@ use kona_providers_alloy::{
 };
 use kona_rpc::{
     AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
-    L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
-    RpcBuilder, WsRPC, WsServer,
+    L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, OpStackApiServer, P2pRpc,
+    RollupNodeApiServer, RollupRpc, RpcBuilder, WsRPC, WsServer,
 };
 use kona_safedb::SharedSafeDb;
 use op_alloy_network::Optimism;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{ops::Not as _, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
@@ -397,7 +396,7 @@ impl RollupNode {
     fn build_sequencer(
         &self,
         controller_request_tx: mpsc::Sender<ChainControllerRequest>,
-        gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+        gossip_payload_tx: mpsc::Sender<PayloadToPublish>,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
         sequencer_admin_api_rx: mpsc::Receiver<crate::SequencerAdminQuery>,
@@ -437,13 +436,18 @@ impl RollupNode {
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
+    // The same shape as the sequencer actor's constructor, and for the same reason: this is the
+    // one place the node's channels meet the modules they serve.
+    #[allow(clippy::too_many_arguments)]
     async fn build_rpc_actor(
         &self,
+        controller_request_tx: mpsc::Sender<ChainControllerRequest>,
         controller_rpc_request_tx: mpsc::Sender<ChainControllerRpcRequest>,
         sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
         p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
         network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
+        gossip_payload_tx: mpsc::Sender<PayloadToPublish>,
     ) -> Result<Option<ConfiguredRpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
@@ -485,6 +489,20 @@ impl RollupNode {
             modules
                 .merge(WsRPC::new(engine_rpc_client.clone()).into_rpc())
                 .map_err(|e| format!("Failed to register ws module: {e:?}"))?;
+        }
+        // The experimental block-building namespace, registered exactly when op-node registers
+        // its own (`registerAPIs`, gated on `ExperimentalOPStackAPI`).
+        if config.opstack_enabled() {
+            let opstack = OpStackRpc::new(
+                self.config.clone(),
+                Arc::new(self.engine_config.clone().build_engine_client()),
+                engine_rpc_client.clone(),
+                controller_request_tx,
+                gossip_payload_tx,
+            );
+            modules
+                .merge(opstack.into_rpc())
+                .map_err(|e| format!("Failed to register opstack module: {e:?}"))?;
         }
 
         let restarts_remaining = config.restart_count();
@@ -536,8 +554,7 @@ impl RollupNode {
         let (signer_tx, signer_rx) = mpsc::channel::<Address>(16);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
         let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
-        let (gossip_payload_tx, gossip_payload_rx) =
-            mpsc::channel::<OpExecutionPayloadEnvelope>(256);
+        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel::<PayloadToPublish>(256);
         // watch channels
         let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
@@ -576,7 +593,7 @@ impl RollupNode {
 
         let sequencer_actor = self.build_sequencer(
             controller_request_tx.clone(),
-            gossip_payload_tx,
+            gossip_payload_tx.clone(),
             unsafe_head_rx,
             l1_head_updates_rx,
             sequencer_admin_api_rx,
@@ -587,11 +604,13 @@ impl RollupNode {
 
         let rpc = self
             .build_rpc_actor(
+                controller_request_tx.clone(),
                 controller_rpc_request_tx.clone(),
                 sequencer_admin_client,
                 p2p_rpc_tx,
                 network_admin_tx,
                 l1_query_tx.clone(),
+                gossip_payload_tx,
             )
             .await?;
 

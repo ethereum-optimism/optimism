@@ -2,10 +2,12 @@
 //!
 //! [`Engine`]: crate::Engine
 
-use super::{BuildTask, ConsolidateTask, FinalizeTask, InsertTask, PromoteCrossSafeTask};
+use super::{
+    BuildTask, CommitTask, ConsolidateTask, FinalizeTask, InsertTask, PromoteCrossSafeTask,
+};
 use crate::{
-    BuildTaskError, ConsolidateTaskError, EngineClient, EngineState, FinalizeTaskError,
-    InsertTaskError, PromoteCrossSafeTaskError,
+    BuildTaskError, CommitTaskError, ConsolidateTaskError, EngineClient, EngineState,
+    FinalizeTaskError, InsertTaskError, PromoteCrossSafeTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -62,6 +64,9 @@ pub enum EngineTaskErrors {
     /// An error that occurred while inserting a block into the engine.
     #[error(transparent)]
     Insert(#[from] InsertTaskError),
+    /// An error that occurred while committing an externally built block.
+    #[error(transparent)]
+    Commit(#[from] CommitTaskError),
     /// An error that occurred while building a block.
     #[error(transparent)]
     Build(#[from] BuildTaskError),
@@ -83,6 +88,7 @@ impl EngineTaskError for EngineTaskErrors {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::Insert(inner) => inner.severity(),
+            Self::Commit(inner) => inner.severity(),
             Self::Build(inner) => inner.severity(),
             Self::Seal(inner) => inner.severity(),
             Self::Consolidate(inner) => inner.severity(),
@@ -99,6 +105,10 @@ impl EngineTaskError for EngineTaskErrors {
 pub enum EngineTask<EngineClient_: EngineClient> {
     /// Inserts an unsafe payload into the execution engine.
     Insert(Box<InsertTask<EngineClient_>>),
+    /// Commits an externally built payload, answering the caller that requested it.
+    ///
+    /// An insert with an answer: `opstack_commitBlockV1`'s write. Ordered with [`Self::Insert`].
+    Commit(Box<CommitTask<EngineClient_>>),
     /// Begins building a new block with the given attributes, producing a new payload ID.
     Build(Box<BuildTask<EngineClient_>>),
     /// Seals the block with the given payload ID and attributes, inserting it into the execution
@@ -129,6 +139,9 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
                     "Dropping unsafe payload that does not descend from the local-safe head"
                 );
             }
+            // The commit task applies the same admission rule itself and answers the caller with
+            // the refusal, so it takes no guard arm here.
+            Self::Commit(task) => task.execute(state).await?,
             Self::Insert(task) => match task.execute(state).await {
                 // INVALID is terminal for an externally sourced unsafe payload. Drop it so the
                 // queue can process competing or subsequent payloads instead of retrying forever.
@@ -155,6 +168,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
     const fn task_metrics_label(&self) -> &'static str {
         match self {
             Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,
+            Self::Commit(_) => crate::Metrics::COMMIT_TASK_LABEL,
             Self::Consolidate(_) => crate::Metrics::CONSOLIDATE_TASK_LABEL,
             Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
             Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
@@ -169,6 +183,7 @@ impl<EngineClient_: EngineClient> PartialEq for EngineTask<EngineClient_> {
         matches!(
             (self, other),
             (Self::Insert(_), Self::Insert(_)) |
+                (Self::Commit(_), Self::Commit(_)) |
                 (Self::Build(_), Self::Build(_)) |
                 (Self::Seal(_), Self::Seal(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
@@ -203,6 +218,7 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
         match (self, other) {
             // Same variant cases
             (Self::Insert(_), Self::Insert(_)) |
+            (Self::Commit(_), Self::Commit(_)) |
             (Self::Consolidate(_), Self::Consolidate(_)) |
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
@@ -220,6 +236,10 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
             // InsertUnsafe tasks are prioritized over Consolidate and Finalize tasks
             (Self::Insert(_), _) => Ordering::Greater,
             (_, Self::Insert(_)) => Ordering::Less,
+
+            // Commit tasks are inserts with an answer: right below Insert, above Consolidate.
+            (Self::Commit(_), _) => Ordering::Greater,
+            (_, Self::Commit(_)) => Ordering::Less,
 
             // Consolidate tasks are prioritized over PromoteCrossSafe and Finalize tasks
             (Self::Consolidate(_), _) => Ordering::Greater,

@@ -42,6 +42,15 @@ pub struct RpcArgs {
     /// Enables development RPC endpoints for engine state introspection
     #[arg(long = "rpc.dev-enabled", default_value = "false", env = "KONA_NODE_RPC_DEV_ENABLED")]
     pub dev_enabled: bool,
+    /// Enables the experimental `opstack` block-building namespace, op-node's
+    /// `--experimental.sequencer-api`: the RPC surface the op-test-sequencer drives block
+    /// building through.
+    #[arg(
+        long = "rpc.experimental-opstack-api",
+        default_value = "false",
+        env = "KONA_NODE_RPC_EXPERIMENTAL_OPSTACK_API"
+    )]
+    pub experimental_opstack: bool,
 }
 
 impl Default for RpcArgs {
@@ -64,6 +73,7 @@ impl From<RpcArgs> for Option<RpcBuilder> {
             admin_persistence: args.admin_persistence,
             ws_enabled: args.ws_enabled,
             dev_enabled: args.dev_enabled,
+            experimental_opstack: args.experimental_opstack,
         })
     }
 }
@@ -82,6 +92,7 @@ mod tests {
     #[case::disable_rpc_alias(&["--rpc.port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
     #[case::disable_rpc(&["--rpc.enable-admin"], |args: &mut RpcArgs| { args.enable_admin = true; })]
     #[case::disable_rpc(&["--rpc.admin-state", "/"], |args: &mut RpcArgs| { args.admin_persistence = Some(PathBuf::from("/")); })]
+    #[case::experimental_opstack(&["--rpc.experimental-opstack-api"], |args: &mut RpcArgs| { args.experimental_opstack = true; })]
     fn test_parse_rpc_args(#[case] args: &[&str], #[case] mutate: impl Fn(&mut RpcArgs)) {
         let args = [&["kona-node"], args].concat();
         let cli = RpcArgs::parse_from(args);

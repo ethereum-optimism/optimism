@@ -7629,6 +7629,7 @@ dependencies = [
 name = "kona-rpc"
 version = "0.3.2"
 dependencies = [
+ "alloy-consensus 2.1.1",
  "alloy-eips 2.1.1",
  "alloy-primitives",
  "alloy-rpc-client",
