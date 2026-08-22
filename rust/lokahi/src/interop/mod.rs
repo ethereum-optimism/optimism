@@ -15,6 +15,7 @@
 
 mod actor;
 mod chain;
+mod query;
 
 use alloy_primitives::ChainId;
 use alloy_provider::RootProvider;
@@ -37,6 +38,7 @@ use url::Url;
 
 pub(crate) use actor::InteropActor;
 pub(crate) use chain::{L1Provider, NodeChain};
+pub(crate) use query::{InteropQueryError, InteropReader, Verdict, VerifiedAt};
 
 use actor::ChainRoute;
 

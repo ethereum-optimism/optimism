@@ -49,6 +49,15 @@ pub struct ComposedChain {
     /// chain's own JSON-RPC server reads them through, rather than through a second view of the
     /// engine state that could disagree with it.
     pub controller_rpc_request_tx: mpsc::Sender<ChainControllerRpcRequest>,
+    /// The chain's L1 query channel, answered by whichever L1 watcher was attached to this
+    /// chain's [`L1WatcherPorts`].
+    ///
+    /// Handed out for the same reason as [`Self::controller_rpc_request_tx`]: a multi-chain host
+    /// answers questions about the whole set — a supernode's sync status is the per-chain sync
+    /// status aggregated — and the L1 half of one chain's sync status is only knowable through
+    /// this channel. Reading it here means the host and the chain's own `optimism_syncStatus`
+    /// report the same L1 progress rather than two views that can disagree.
+    pub l1_query_tx: mpsc::Sender<L1WatcherQueries>,
     /// The capability to promote this chain's cross-safe head, when the chain was composed with
     /// an externally fed one.
     ///

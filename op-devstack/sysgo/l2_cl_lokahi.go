@@ -16,9 +16,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 )
 
@@ -93,12 +95,31 @@ type LokahiSupernode struct {
 	args     []string
 
 	// adminRPC is the process-wide admin/test RPC, discovered from the startup log line.
+	// It is also where the supernode query API answers: supernode_syncStatus and
+	// superroot_atTimestamp are statements about the whole chain set, so they are served by
+	// the process rather than by any one chain's socket.
 	adminRPC string
 	// chains keeps the hosted chains in configuration order.
 	chains []*lokahiChainCL
 
+	// queryAPI is the client for the supernode query API, built on first use, and
+	// queryAPIAddr is the address it was built for. Both are needed rather than just the
+	// client: lokahi asks for port 0 for its process-wide RPC, so a restart hands out a new
+	// port, and a client held across one would keep dialling a dead one. The chains avoid
+	// this with a proxy per chain; this endpoint is discovered from a log line instead, so
+	// the address is compared and the client is rebuilt when it moves.
+	queryAPI     *sources.SuperNodeClient
+	queryAPIAddr string
+
 	sub *SubProcess
 }
+
+// LokahiSupernode serves the supernode query API, which is the read-only surface every
+// consumer of a supernode uses: op-proposer and op-challenger read superroot_atTimestamp,
+// and the devstack DSL's SuperRootSource reads both methods through this interface.
+var _ interface {
+	QueryAPI() apis.SupernodeQueryAPI
+} = (*LokahiSupernode)(nil)
 
 // lokahiChainCL addresses one chain of a running lokahi supernode.
 //
@@ -125,6 +146,36 @@ func (c *lokahiChainCL) ChainID() eth.ChainID { return c.chainID }
 
 // AdminRPC is the process-wide admin/test RPC of the supernode.
 func (n *LokahiSupernode) AdminRPC() string { return n.adminRPC }
+
+// QueryRPC is the endpoint the supernode query API answers on.
+//
+// The same socket as AdminRPC, named separately because they are different contracts: the
+// admin namespace is lokahi's own and may change with lokahi, while the query API is the
+// wire op-supernode defines and its consumers depend on. A preset wiring lokahi in as a
+// stack.Supernode hands this to the frontend, not AdminRPC.
+func (n *LokahiSupernode) QueryRPC() string { return n.adminRPC }
+
+// QueryAPI returns the supernode query API of the running process.
+//
+// The client is op-service/sources.SuperNodeClient — the same one the in-process Go
+// supernode is read through — so nothing about these two RPCs is reimplemented for lokahi
+// on the Go side. Whether the answers match is a question about what lokahi serves, which
+// is where it belongs, rather than about two Go clients agreeing.
+// It is safe to call across a Stop/Start: the returned client is rebuilt whenever the
+// process-wide RPC comes back on a different port.
+func (n *LokahiSupernode) QueryAPI() apis.SupernodeQueryAPI {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().NotEmpty(n.adminRPC, "lokahi has no query RPC address yet")
+	if n.queryAPI == nil || n.queryAPIAddr != n.adminRPC {
+		rpcCl, err := client.NewRPC(n.p.Ctx(), n.logger, n.adminRPC, client.WithLazyDial())
+		n.p.Require().NoError(err, "dial the lokahi supernode query API")
+		n.queryAPI, n.queryAPIAddr = sources.NewSuperNodeClient(rpcCl), n.adminRPC
+		// Bound to this client, so a client replaced after a restart is still closed once.
+		n.p.Cleanup(n.queryAPI.Close)
+	}
+	return n.queryAPI
+}
 
 // ChainCL returns the L2CLNode addressing the chain at index i, in configuration order.
 func (n *LokahiSupernode) ChainCL(i int) L2CLNode { return n.chains[i] }
