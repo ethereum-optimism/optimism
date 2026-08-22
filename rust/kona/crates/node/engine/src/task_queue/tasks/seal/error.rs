@@ -31,18 +31,18 @@ pub enum SealTaskError {
     /// The clock went backwards.
     #[error("The clock went backwards")]
     ClockWentBackwards,
-    /// Unsafe head changed between build and seal. This likely means that there was some race
-    /// condition between the previous seal updating the unsafe head and the build attributes
-    /// being created. This build has been invalidated.
+    /// Unsafe head changed between build and seal on a *sequencer* build: the job's parent is no
+    /// longer the unsafe head, so the job is stale work. This mirrors op-node's `ErrStaleBuild`
+    /// (`op-node/rollup/engine/build_start.go:62-68`), which is likewise scoped to sequencer
+    /// builds (`!attrs.IsDerived()`).
     ///
-    /// When a caller is waiting on the task's channel, it hears this and rebuilds. Without one —
-    /// the consolidation path — the state that moved is real and expected: a deposits-only
-    /// replacement (the Holocene fallback, or an invalidation's replacement block) lands as the
-    /// new unsafe head underneath a consolidate task still queued with the pre-replacement
-    /// attributes. That stale work must be dropped and re-derived, which is a reset — the same
-    /// answer op-node gives when its queued attributes conflict with a moved pending-safe head
-    /// (`op-node/rollup/attributes/attributes.go:175-183`, a `ResetEvent`). Escalating it to
-    /// Critical instead kills the node over a state it recovers from by re-deriving.
+    /// The sequencer waits on the task's channel, hears this, and rebuilds on the new head.
+    /// Derived builds never produce it: consolidation forces them on the local-safe parent
+    /// exactly when the unsafe chain ahead has to be reorged out, so their parent legitimately
+    /// differs from the unsafe head and the seal proceeds — failing them instead resets
+    /// derivation, which re-derives the same attributes and livelocks. Should a sequencer build
+    /// ever run without a channel, the severity is a reset — dropping the stale work — never
+    /// Critical, which killed the node over a state it recovers from by re-deriving.
     #[error("Unsafe head changed between build and seal")]
     UnsafeHeadChangedSinceBuild,
 }

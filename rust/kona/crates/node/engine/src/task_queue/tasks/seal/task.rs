@@ -344,10 +344,23 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
 
         let unsafe_block_info = state.sync_state.unsafe_head().block_info;
         let parent_block_info = self.attributes.parent.block_info;
+        let head_moved = unsafe_block_info.hash != parent_block_info.hash ||
+            unsafe_block_info.number != parent_block_info.number;
 
-        let res = if unsafe_block_info.hash != parent_block_info.hash ||
-            unsafe_block_info.number != parent_block_info.number
-        {
+        // The stale-head guard is scoped to sequencer builds, exactly as op-node scopes its
+        // equivalent (`!attrs.IsDerived()`, `op-node/rollup/engine/build_start.go:62-68`,
+        // `ErrStaleBuild`): a sequencer job whose parent is no longer the unsafe head is stale
+        // work to drop, and the caller rebuilds on the new head.
+        //
+        // A derived build is different: consolidation forces it on the *local-safe* parent
+        // precisely when the unsafe chain ahead of it has to be reorged out (a mismatching or
+        // denied block), so its parent legitimately differs from the unsafe head. Importing the
+        // block is what performs that reorg — op-node only warns there
+        // (`build_start.go:73-77`) and snaps the unsafe head onto the built block afterwards
+        // (`tryUpdateUnsafe`, `op-node/rollup/engine/engine_controller.go:1210-1217`), which
+        // [`InsertTask`] mirrors. Failing the derived seal instead resets derivation, which
+        // re-derives the same attributes and livelocks the node.
+        let res = if head_moved && !self.is_attributes_derived {
             info!(
                 target: "engine",
                 unsafe_block_info = ?unsafe_block_info,
@@ -356,6 +369,15 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
             );
             Err(SealTaskError::UnsafeHeadChangedSinceBuild)
         } else {
+            if head_moved {
+                warn!(
+                    target: "engine",
+                    unsafe_block_info = ?unsafe_block_info,
+                    parent_block_info = ?parent_block_info,
+                    "Derived seal parent is not the unsafe head; importing the block reorgs the \
+                     unsafe chain onto it"
+                );
+            }
             // Seal the block and import it into the engine.
             self.seal_and_canonicalize_block(state).await
         };
