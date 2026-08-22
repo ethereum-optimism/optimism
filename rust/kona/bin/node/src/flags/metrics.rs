@@ -18,6 +18,7 @@ pub fn init_unified_metrics(args: &MetricsArgs, l2_chain_id: u64) -> anyhow::Res
         kona_node_service::Metrics::init(l2_chain_id);
         kona_derive::Metrics::init(l2_chain_id);
         kona_providers_alloy::Metrics::init(l2_chain_id);
+        kona_providers_local::Metrics::init(l2_chain_id);
         gauge!(
             "kona_node_info",
             &[

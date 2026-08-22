@@ -5,10 +5,10 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, CommitTask, ConsolidateInput, ConsolidateTask, CrossSafePromotion, Engine,
-    EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
-    FinalizeTask, InsertTask, L2ForkchoiceState, LocalSafeHead, PromoteCrossSafeTask, SealTask,
-    SharedDenyList,
+    BuildSealCoupling, BuildTask, CommitTask, ConsolidateInput, ConsolidateTask,
+    CrossSafePromotion, Engine, EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
+    FinalizeBlockId, FinalizeTask, ImportedBlockSink, InsertTask, L2ForkchoiceState, LocalSafeHead,
+    PromoteCrossSafeTask, SealTask, SharedDenyList,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -80,6 +80,9 @@ where
     last_local_safe_head_sent: L2BlockInfo,
     /// The safe-head database this controller records local-safe advances into.
     safe_db: SharedSafeDb,
+    /// Where to hand every imported block, so the derivation providers can read it locally
+    /// instead of fetching it back from the execution layer.
+    block_sink: Arc<dyn ImportedBlockSink>,
     /// The last pairing written to [`Self::safe_db`], so an unchanged head is not rewritten.
     ///
     /// Cleared by a reset: the rewind that follows re-opens L1 block numbers this controller has
@@ -117,7 +120,7 @@ where
     DerivationClient: ChainControllerDerivationClient + 'static,
 {
     /// Constructs a new [`ChainController`] from the params.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // the constructor takes one argument per field
     pub fn new(
         client: Arc<EngineClient_>,
         config: Arc<RollupConfig>,
@@ -127,6 +130,7 @@ where
         inbound_request_rx: mpsc::Receiver<ChainControllerRequest>,
         safe_db: SharedSafeDb,
         deny: Option<SharedDenyList>,
+        block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
         Self {
             client,
@@ -138,6 +142,7 @@ where
             unsafe_head_tx,
             inbound_request_rx,
             safe_db,
+            block_sink,
             last_recorded: None,
             deny,
             unsafe_deny_gated: false,
@@ -484,6 +489,7 @@ where
                     self.rollup.clone(),
                     local_safe_signal,
                     self.deny.clone(),
+                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }
@@ -518,6 +524,7 @@ where
                     // moves no local-safe head and has no L1 origin to pair with one.
                     *envelope,
                     None,
+                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }
@@ -529,6 +536,7 @@ where
                     envelope,
                     result_tx,
                     self.deny.clone(),
+                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }
@@ -588,8 +596,12 @@ where
                     attributes,
                     // The payload is not derived in this case.
                     false,
+                    // The sequencer seals in a separate request from the build that started the
+                    // job, so the unsafe-head staleness check applies.
+                    BuildSealCoupling::Detached,
                     Some(result_tx),
                     self.deny.clone(),
+                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }

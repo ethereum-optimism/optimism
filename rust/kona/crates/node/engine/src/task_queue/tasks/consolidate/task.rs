@@ -1,8 +1,8 @@
 //! A task to consolidate the engine state.
 
 use crate::{
-    ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, SharedDenyList,
-    SynchronizeTask,
+    ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
+    SharedDenyList, SynchronizeTask,
     state::{EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin},
     task_queue::build_and_seal,
 };
@@ -94,6 +94,8 @@ pub struct ConsolidateTask<EngineClient_: EngineClient> {
     /// out and rebuilt, never consolidated back in (op-node's
     /// `op-node/rollup/attributes/attributes.go:241-256`).
     pub deny: Option<SharedDenyList>,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
@@ -103,8 +105,9 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
         deny: Option<SharedDenyList>,
+        block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, cfg, input, deny }
+        Self { client, cfg, input, deny, block_sink }
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
@@ -120,6 +123,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             attributes.clone(),
             true,
             self.deny.clone(),
+            self.block_sink.clone(),
         )
         .await?;
 
@@ -255,11 +259,16 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                 block_hash = %block_hash,
                 "Consolidating engine state",
             );
-            match L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &self.cfg.genesis) {
+            let consensus_block =
+                block.into_consensus().map_transactions(|t| t.inner.inner.into_inner());
+            match L2BlockInfo::from_block_and_genesis(&consensus_block, &self.cfg.genesis) {
                 // Only issue a forkchoice update if the attributes are the last in the span
                 // batch. This is an optimization to avoid sending a FCU
                 // call for every block in the span batch.
                 Ok(block_info) if !self.input.is_attributes_last_in_span() => {
+                    // The next attributes built are this block's child, and ask for its config.
+                    self.block_sink.block_imported(consensus_block, block_info);
+
                     let total_duration = global_start.elapsed();
 
                     // Apply a transient update to the local-safe head.
@@ -283,6 +292,9 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                     return Ok(());
                 }
                 Ok(block_info) => {
+                    // The next attributes built are this block's child, and ask for its config.
+                    self.block_sink.block_imported(consensus_block, block_info);
+
                     let fcu_start = Instant::now();
 
                     SynchronizeTask::new(
@@ -412,5 +424,68 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
         } else {
             self.reconcile_unsafe_to_local_safe(state).await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ImportedBlockSink, test_utils::MockEngineClient};
+    use alloy_eips::{BlockNumHash, BlockNumberOrTag};
+    use alloy_primitives::B256;
+    use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
+    use kona_genesis::ChainGenesis;
+    use kona_protocol::BlockInfo;
+
+    /// Records the blocks the engine hands over after consolidating.
+    #[derive(Debug, Default)]
+    struct RecordingSink(std::sync::Mutex<Vec<B256>>);
+
+    impl ImportedBlockSink for RecordingSink {
+        fn block_imported(&self, _: op_alloy_consensus::OpBlock, info: L2BlockInfo) {
+            self.0.lock().unwrap().push(info.block_info.hash);
+        }
+    }
+
+    #[tokio::test]
+    async fn consolidated_blocks_are_handed_to_the_block_sink() {
+        // Consolidation reads the unsafe block in full to compare it against the derived
+        // attributes; the next attributes built ask for this same block's system config, so it
+        // must reach the sink rather than being dropped.
+        let header = RpcHeader::new(alloy_consensus::Header::default());
+        let block_hash = header.hash;
+        let block = RpcBlock::new(header, BlockTransactions::Full(vec![]));
+
+        // Pin genesis to this block so its L2BlockInfo needs no L1-info deposit.
+        let cfg = Arc::new(RollupConfig {
+            genesis: ChainGenesis {
+                l2: BlockNumHash { hash: block_hash, number: 0 },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(cfg.clone())
+                .with_l2_block_by_label(BlockNumberOrTag::Number(0), block)
+                .build(),
+        );
+
+        let safe_l2 = L2BlockInfo {
+            block_info: BlockInfo { hash: block_hash, number: 0, ..Default::default() },
+            ..Default::default()
+        };
+        let sink = Arc::new(RecordingSink::default());
+        let task = ConsolidateTask::new(
+            client,
+            cfg,
+            ConsolidateInput::BlockInfo(safe_l2),
+            None,
+            sink.clone(),
+        );
+
+        task.consolidate(&mut EngineState::default()).await.unwrap();
+
+        assert_eq!(sink.0.lock().unwrap().as_slice(), &[block_hash]);
     }
 }

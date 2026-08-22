@@ -11,6 +11,7 @@ use crate::{
     SharedRpcServerLauncher,
     actors::{BlockStream, PayloadToPublish, QueuedUnsafePayloadGossipClient, rpc::OpStackRpc},
     service::{
+        BufferImportedBlocks,
         composition::{ComposedChain, L1WatcherPorts},
         spawn::{BoxedNodeActor, IntoBoxedNodeActor, run_actors},
     },
@@ -26,9 +27,10 @@ use kona_gossip::P2pRpcRequest;
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
-    AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider,
-    OnlinePipeline,
+    AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
+    OnlineBlobProvider, OnlinePipeline,
 };
+use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
     L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, OpStackApiServer, P2pRpc,
@@ -41,6 +43,12 @@ use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
+/// How many recently imported blocks to keep for the local L2 lookups.
+///
+/// Every lookup served from here is for the block being built on top of, which the engine recorded
+/// one step earlier. The size absorbs what lands in between — gossiped unsafe blocks keep
+/// arriving, and on a sequencer the two builders ask about different heads.
+pub(super) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
@@ -149,6 +157,9 @@ pub struct RollupNode {
     pub(crate) sequencer_config: SequencerConfig,
     /// Optional derivation delegate provider.
     pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
+    /// Blocks the engine has imported, shared with the derivation providers so they can be read
+    /// locally instead of fetched back from the execution layer.
+    pub(crate) l2_block_buffer: BufferedL2Provider,
     /// The interop dependency set for this chain.
     /// Mirrors op-node's `--interop.dependency-set`.
     /// [`StatefulAttributesBuilder`] constructor panics otherwise.
@@ -223,7 +234,7 @@ type ConfiguredChainControllerRpcActor =
 
 /// Concrete type of the sequencer actor used by `RollupNode`.
 type ConfiguredSequencerActor = SequencerActor<
-    StatefulAttributesBuilder<AlloyChainProvider, AlloyL2ChainProvider>,
+    StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider>,
     ConductorClient,
     L1OriginSelector<DelayedL1OriginSelectorProvider>,
     QueuedSequencerEngineClient,
@@ -256,18 +267,21 @@ impl RollupNode {
     /// Returns the sequencer builder for the node.
     fn create_attributes_builder(
         &self,
-    ) -> StatefulAttributesBuilder<AlloyChainProvider, AlloyL2ChainProvider> {
+    ) -> StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider> {
         let l1_derivation_provider = AlloyChainProvider::new_with_trust(
             self.l1_config.engine_provider.clone(),
             DERIVATION_PROVIDER_CACHE_SIZE,
             self.l1_config.trust_rpc,
             self.config.l2_chain_id.id(),
         );
-        let l2_derivation_provider = AlloyL2ChainProvider::new_with_trust(
-            self.l2_provider.clone(),
-            self.config.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l2_trust_rpc,
+        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
+            self.l2_block_buffer.clone(),
+            AlloyL2ChainProvider::new_with_trust(
+                self.l2_provider.clone(),
+                self.config.clone(),
+                DERIVATION_PROVIDER_CACHE_SIZE,
+                self.l2_trust_rpc,
+            ),
         );
 
         StatefulAttributesBuilder::new(
@@ -287,11 +301,14 @@ impl RollupNode {
             self.l1_config.trust_rpc,
             self.config.l2_chain_id.id(),
         );
-        let l2_derivation_provider = AlloyL2ChainProvider::new_with_trust(
-            self.l2_provider.clone(),
-            self.config.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l2_trust_rpc,
+        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
+            self.l2_block_buffer.clone(),
+            AlloyL2ChainProvider::new_with_trust(
+                self.l2_provider.clone(),
+                self.config.clone(),
+                DERIVATION_PROVIDER_CACHE_SIZE,
+                self.l2_trust_rpc,
+            ),
         );
 
         OnlinePipeline::new_polled(
@@ -353,6 +370,7 @@ impl RollupNode {
             controller_request_rx,
             self.safe_db.clone(),
             self.deny_list.clone(),
+            Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
 
         let rpc_actor = ChainControllerRpcActor::new(
