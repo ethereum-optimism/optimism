@@ -372,6 +372,51 @@ impl lokahi_interop::RewindableChain for ChainRewindRoute {
 
         Ok(true)
     }
+
+    /// Resets the chain onto `target` — the last verified frontier that still stands — after an
+    /// L1-reorg rewind pruned the archive entries denying the blocks above it. The same
+    /// controller rewind request an invalidation uses carries it: the engine lands on `target` as
+    /// its unsafe and local-safe head, the safe-head records above it are dropped, and derivation
+    /// restarts from it — this time without the revoked denials, so it rebuilds what the new L1
+    /// actually carries. op-supernode's `RewindEngine`
+    /// (`op-supernode/supernode/chain_container/chain_container.go:749`) is the same operation on
+    /// its chain-container interface.
+    async fn reset_to(&self, target: BlockNumHash) -> Result<(), ChainError> {
+        // The target sits at or below everything the rewind dropped, where canonicality is
+        // untouched, so reading it back by number answers the same block on every retry. A
+        // mismatch is a chain mid-move: re-observed and retried, like every other transient.
+        let block = self.chain.block_at(target.number).await?;
+        if block.block_info.number != target.number || block.block_info.hash != target.hash {
+            debug!(
+                target: "lokahi_interop",
+                number = target.number,
+                asked = %target.hash,
+                found = %block.block_info.hash,
+                "The canonical block at the reset height is not the frontier the plan named yet"
+            );
+            return Err(ChainError::NotReady);
+        }
+
+        let (result_tx, mut result_rx) = mpsc::channel(1);
+        self.requests
+            .send(ChainControllerRequest::Rewind(Box::new(RewindRequest {
+                parent: block,
+                result_tx,
+            })))
+            .await
+            .map_err(|_| {
+                ChainError::Unreachable("the chain controller is not accepting requests".into())
+            })?;
+        result_rx
+            .recv()
+            .await
+            .ok_or_else(|| {
+                ChainError::Unreachable("the chain controller dropped the reset request".into())
+            })?
+            .map_err(|err| ChainError::Unreachable(format!("reset failed: {err}")))?;
+
+        Ok(())
+    }
 }
 
 /// The invalidated-output archive, read as the deny list the chain's engine consults.
