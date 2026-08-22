@@ -440,7 +440,7 @@ where
     /// confirmation so the reset re-runs; this controller has no such re-trigger, and the cost
     /// here is history queries below the first recorded advance failing as they did before the
     /// seed existed.)
-    pub(super) async fn seed_genesis_safe_head(&mut self, l2_safe_head: L2BlockInfo) {
+    pub(super) async fn seed_genesis_safe_head(&self, l2_safe_head: L2BlockInfo) {
         if !self.safe_db.enabled() || l2_safe_head.block_info.id() != self.rollup.genesis.l2 {
             return;
         }

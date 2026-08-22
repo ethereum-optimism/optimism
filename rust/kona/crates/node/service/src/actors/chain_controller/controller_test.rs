@@ -354,7 +354,7 @@ fn seeding_controller(
 #[tokio::test]
 async fn a_reset_to_genesis_seeds_the_database_with_genesis_at_l1_zero() {
     let db = RecordingSafeDb::enabled();
-    let mut controller = seeding_controller(db.clone());
+    let controller = seeding_controller(db.clone());
 
     controller.seed_genesis_safe_head(block(0)).await;
 
@@ -373,7 +373,7 @@ async fn a_reset_to_genesis_seeds_the_database_with_genesis_at_l1_zero() {
 #[tokio::test]
 async fn a_reset_above_genesis_seeds_nothing() {
     let db = RecordingSafeDb::enabled();
-    let mut controller = seeding_controller(db.clone());
+    let controller = seeding_controller(db.clone());
 
     controller.seed_genesis_safe_head(block(4)).await;
 
@@ -384,7 +384,7 @@ async fn a_reset_above_genesis_seeds_nothing() {
 #[tokio::test]
 async fn a_disabled_database_is_not_seeded() {
     let db = RecordingSafeDb::disabled();
-    let mut controller = seeding_controller(db.clone());
+    let controller = seeding_controller(db.clone());
 
     controller.seed_genesis_safe_head(block(0)).await;
 
