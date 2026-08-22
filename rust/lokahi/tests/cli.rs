@@ -89,6 +89,60 @@ fn two_chains_sharing_a_port_are_rejected() {
     assert!(stderr.contains("902"), "the second chain is not named: {stderr}");
 }
 
+/// A chain told to sequence with nothing to sign with is rejected before any actor starts, rather
+/// than running as a sequencer whose every block is dropped by its peers.
+#[test]
+fn a_sequencing_chain_without_a_key_is_rejected() {
+    let output = run_node_with_config(
+        r#"
+        [l1]
+        eth-rpc = "http://localhost:8545"
+        beacon = "http://localhost:5052"
+
+        [defaults]
+        engine-rpc = "http://localhost:9551"
+        jwt-secret = "/etc/lokahi/jwt.hex"
+        rpc-port = 9545
+        p2p-tcp-port = 9222
+        p2p-udp-port = 9222
+
+        [[chains]]
+        l2-chain-id = 901
+        mode = "sequencer"
+        "#,
+    );
+
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("sequencer-key-path"), "unexpected error: {stderr}");
+}
+
+/// The other half of the same rule: a chain that only validates may not carry the settings only a
+/// sequencer reads, so a configuration cannot say two things about one chain.
+#[test]
+fn a_validating_chain_with_sequencer_settings_is_rejected() {
+    let output = run_node_with_config(
+        r#"
+        [l1]
+        eth-rpc = "http://localhost:8545"
+        beacon = "http://localhost:5052"
+
+        [defaults]
+        engine-rpc = "http://localhost:9551"
+        jwt-secret = "/etc/lokahi/jwt.hex"
+        rpc-port = 9545
+        p2p-tcp-port = 9222
+        p2p-udp-port = 9222
+
+        [[chains]]
+        l2-chain-id = 901
+        sequencer-key-path = "/etc/lokahi/901.key"
+        "#,
+    );
+
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("does not sequence"), "unexpected error: {stderr}");
+}
+
 #[test]
 fn short_version_flag_reports_one_line() {
     let output = run(&["-V"]);

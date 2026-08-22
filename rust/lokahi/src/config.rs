@@ -80,6 +80,13 @@ pub(crate) struct L1Settings {
 /// The subdirectory of the default data directory holding the process-wide interop stores.
 pub(crate) const INTEROP_DIR: &str = "interop";
 
+/// How many L1 blocks a sequencer keeps away from the L1 head by default when it picks an L1
+/// origin.
+///
+/// kona-node's `--sequencer.l1-confs` default, so a chain sequences the same distance behind the
+/// L1 head under a supernode as it does under a single-chain node.
+const DEFAULT_SEQUENCER_L1_CONFS: u64 = 4;
+
 /// One chain's settings, as written in the file.
 ///
 /// Every field is optional: the same type is both the `[defaults]` layer and a `[[chains]]`
@@ -102,6 +109,29 @@ pub(crate) struct ChainSettings {
     /// Whether this chain is sequenced or validated by this supernode.
     #[serde(default, deserialize_with = "deserialize_mode")]
     pub(crate) mode: Option<NodeMode>,
+    /// The file holding the key this chain signs the blocks it gossips with.
+    ///
+    /// Required once the chain sequences, and rejected on a chain that does not: see
+    /// [`SequencerSettings`].
+    ///
+    /// A path rather than the key itself. kona-node also accepts `--p2p.sequencer.key` because a
+    /// command line has nowhere else to put it; a supernode already configures itself from a file,
+    /// and inlining the keys would make that one file the secret of every chain it hosts.
+    ///
+    /// A key is generated at this path when no file is there yet, as everywhere else in the stack
+    /// that names a key by a path — so a mistyped path yields a working sequencer whose blocks no
+    /// peer accepts, caught only by the unsafe-block-signer warning at startup.
+    pub(crate) sequencer_key_path: Option<PathBuf>,
+    /// Whether this chain's sequencer starts stopped, to be started over the admin API.
+    pub(crate) sequencer_stopped: Option<bool>,
+    /// How many L1 blocks this chain's sequencer keeps away from the L1 head when it picks an L1
+    /// origin.
+    pub(crate) sequencer_l1_confs: Option<u64>,
+    /// Whether this chain's sequencer runs in recovery mode, building empty blocks that strictly
+    /// advance the L1 origin.
+    pub(crate) sequencer_recover: Option<bool>,
+    /// The conductor RPC this chain's sequencer coordinates leadership through, if any.
+    pub(crate) conductor_rpc: Option<Url>,
     /// The directory this chain's state lives under.
     ///
     /// A chain that names it directly gets exactly that directory; otherwise the chain gets
@@ -163,8 +193,14 @@ pub(crate) struct ResolvedChain {
     pub(crate) jwt_secret: PathBuf,
     /// Whether to trust the chain's L2 RPC responses without verifying them.
     pub(crate) trust_l2_rpc: bool,
-    /// Whether this chain is sequenced or validated by this supernode.
-    pub(crate) mode: NodeMode,
+    /// How this chain sequences, or [`None`] when this supernode only validates it.
+    ///
+    /// This [`Option`] *is* the chain's mode: [`Self::mode`] reads it rather than a second field
+    /// that could disagree with it. A sequencing chain has to have a key to sign the blocks it
+    /// gossips, so "sequences" and "has the settings sequencing needs" are one state, decided
+    /// while the file is being resolved, rather than a mode flag that the compose step then has to
+    /// re-check.
+    pub(crate) sequencer: Option<SequencerSettings>,
     /// The directory this chain's state lives under.
     pub(crate) datadir: PathBuf,
     /// The socket this chain's RPC server listens on.
@@ -183,6 +219,42 @@ pub(crate) struct ResolvedChain {
     pub(crate) bootnodes: Vec<String>,
     /// A dependency-set file for this chain, if one is configured.
     pub(crate) interop_dependency_set: Option<PathBuf>,
+}
+
+impl ResolvedChain {
+    /// Whether this supernode sequences this chain or validates it.
+    ///
+    /// Derived from [`Self::sequencer`] rather than stored: there is one place a chain's mode is
+    /// decided, so there is no combination of fields that says both.
+    pub(crate) const fn mode(&self) -> NodeMode {
+        match self.sequencer {
+            Some(_) => NodeMode::Sequencer,
+            None => NodeMode::Validator,
+        }
+    }
+}
+
+/// What one chain's sequencer needs, resolved.
+///
+/// Present exactly on the chains this supernode sequences. The fields mirror kona-node's
+/// sequencer flags, so a chain sequences under a supernode the way it sequences under a
+/// single-chain node; what is per-chain here is a flag per chain there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SequencerSettings {
+    /// The file holding the key this chain signs the blocks it gossips with.
+    ///
+    /// Still a path at this point: resolution touches no files. Loading the key — or generating
+    /// one, when the file is not there yet — happens where the signer is built, and a file that
+    /// exists but does not hold a key is a startup error raised there.
+    pub(crate) key_path: PathBuf,
+    /// Whether the sequencer starts stopped, to be started over the admin API.
+    pub(crate) stopped: bool,
+    /// How many L1 blocks the sequencer keeps away from the L1 head when it picks an L1 origin.
+    pub(crate) l1_confs: u64,
+    /// Whether the sequencer runs in recovery mode.
+    pub(crate) recover: bool,
+    /// The conductor RPC the sequencer coordinates leadership through, if any.
+    pub(crate) conductor_rpc: Option<Url>,
 }
 
 /// The ways a configuration file can fail to describe a runnable supernode.
@@ -238,6 +310,26 @@ pub(crate) enum ConfigError {
         chain_id: u64,
         /// The socket both would bind.
         address: String,
+    },
+    /// A chain is configured to sequence but has no key to sign with.
+    #[error(
+        "chain {chain_id} is configured to sequence but has no sequencer-key-path: a sequencing \
+         chain signs the blocks it gossips, and a peer drops a block it cannot attribute"
+    )]
+    SequencerWithoutKey {
+        /// The sequencing chain with no key.
+        chain_id: u64,
+    },
+    /// A chain that does not sequence states a setting only a sequencer uses.
+    #[error(
+        "chain {chain_id} sets {field} but does not sequence: set mode = \"sequencer\" on the \
+         chain, or drop the setting"
+    )]
+    SequencerSettingWithoutSequencing {
+        /// The chain that stated the setting.
+        chain_id: u64,
+        /// The name of the setting, as written in the file.
+        field: &'static str,
     },
     /// Two chains would keep their state in the same directory.
     #[error("chains {first} and {second} both use the data directory {path}")]
@@ -336,13 +428,16 @@ impl LokahiConfig {
             .or(defaults.rpc_addr)
             .unwrap_or_else(|| IpAddr::from(Ipv4Addr::LOCALHOST));
 
+        let mode = chain.mode.or(defaults.mode).unwrap_or(NodeMode::Validator);
+        let sequencer = Self::resolve_sequencer(l2_chain_id, mode, &chain, defaults)?;
+
         Ok(ResolvedChain {
             l2_chain_id,
             rollup_config: chain.rollup_config.clone().or_else(|| defaults.rollup_config.clone()),
             engine_rpc: engine_rpc.expect("checked above"),
             jwt_secret: jwt_secret.expect("checked above"),
             trust_l2_rpc: chain.trust_l2_rpc.or(defaults.trust_l2_rpc).unwrap_or_default(),
-            mode: chain.mode.or(defaults.mode).unwrap_or(NodeMode::Validator),
+            sequencer,
             datadir,
             rpc_socket: SocketAddr::new(rpc_addr, rpc_port.expect("checked above")),
             rpc_enable_admin: chain
@@ -361,6 +456,66 @@ impl LokahiConfig {
                 .interop_dependency_set
                 .or_else(|| defaults.interop_dependency_set.clone()),
         })
+    }
+
+    /// Resolves the sequencer settings of a chain in `mode`, and checks that the two agree.
+    ///
+    /// The two ways they can disagree are both operator mistakes that would otherwise surface long
+    /// after startup: a chain told to sequence with no key would build blocks and gossip none of
+    /// them, and a chain given sequencer settings that does not sequence would run as a validator
+    /// while its configuration says otherwise.
+    ///
+    /// Only settings the chain's *own* entry states make the second case an error. `[defaults]` is
+    /// a base rather than a statement about any one chain — the same reason a shared `datadir`
+    /// there is split per chain — so a mixed set can put `sequencer-l1-confs` in `[defaults]` and
+    /// still have chains that only validate.
+    fn resolve_sequencer(
+        chain_id: u64,
+        mode: NodeMode,
+        chain: &ChainSettings,
+        defaults: &ChainSettings,
+    ) -> Result<Option<SequencerSettings>, ConfigError> {
+        if mode.is_validator() {
+            if let Some(field) = chain.stated_sequencer_setting() {
+                return Err(ConfigError::SequencerSettingWithoutSequencing { chain_id, field });
+            }
+            return Ok(None);
+        }
+
+        let key_path = chain
+            .sequencer_key_path
+            .clone()
+            .or_else(|| defaults.sequencer_key_path.clone())
+            .ok_or(ConfigError::SequencerWithoutKey { chain_id })?;
+
+        Ok(Some(SequencerSettings {
+            key_path,
+            stopped: chain.sequencer_stopped.or(defaults.sequencer_stopped).unwrap_or_default(),
+            l1_confs: chain
+                .sequencer_l1_confs
+                .or(defaults.sequencer_l1_confs)
+                .unwrap_or(DEFAULT_SEQUENCER_L1_CONFS),
+            recover: chain.sequencer_recover.or(defaults.sequencer_recover).unwrap_or_default(),
+            conductor_rpc: chain.conductor_rpc.clone().or_else(|| defaults.conductor_rpc.clone()),
+        }))
+    }
+}
+
+impl ChainSettings {
+    /// The name of a sequencer-only setting this entry states, if it states one.
+    ///
+    /// Used to reject the settings on a chain that does not sequence; which one is named does not
+    /// matter beyond pointing the operator at the line to look at.
+    fn stated_sequencer_setting(&self) -> Option<&'static str> {
+        [
+            ("sequencer-key-path", self.sequencer_key_path.is_some()),
+            ("sequencer-stopped", self.sequencer_stopped.is_some()),
+            ("sequencer-l1-confs", self.sequencer_l1_confs.is_some()),
+            ("sequencer-recover", self.sequencer_recover.is_some()),
+            ("conductor-rpc", self.conductor_rpc.is_some()),
+        ]
+        .into_iter()
+        .find_map(|(field, stated)| stated.then_some(field))
     }
 }
 
@@ -489,7 +644,8 @@ mod tests {
         assert_eq!(chain.engine_rpc.as_str(), "http://localhost:9551/");
         assert_eq!(chain.jwt_secret, PathBuf::from("/etc/lokahi/jwt.hex"));
         assert_eq!(chain.rpc_socket.port(), 9545);
-        assert_eq!(chain.mode, NodeMode::Validator);
+        assert_eq!(chain.mode(), NodeMode::Validator);
+        assert_eq!(chain.sequencer, None);
     }
 
     #[test]
@@ -499,6 +655,7 @@ mod tests {
             l2-chain-id = 901
             engine-rpc = "http://localhost:7777"
             mode = "sequencer"
+            sequencer-key-path = "/etc/lokahi/901-sequencer.key"
             "#,
         ))
         .resolve()
@@ -506,7 +663,96 @@ mod tests {
 
         let chain = &resolved.chains[0];
         assert_eq!(chain.engine_rpc.as_str(), "http://localhost:7777/");
-        assert_eq!(chain.mode, NodeMode::Sequencer);
+        assert_eq!(chain.mode(), NodeMode::Sequencer);
+    }
+
+    /// A sequencing chain gets kona-node's sequencer defaults, so it sequences under a supernode
+    /// the way it sequences under a single-chain node.
+    #[test]
+    fn a_sequencing_chain_takes_kona_nodes_sequencer_defaults() {
+        let resolved = config(&chain(
+            r#"
+            l2-chain-id = 901
+            mode = "sequencer"
+            sequencer-key-path = "/etc/lokahi/901-sequencer.key"
+            "#,
+        ))
+        .resolve()
+        .expect("resolves");
+
+        assert_eq!(
+            resolved.chains[0].sequencer,
+            Some(SequencerSettings {
+                key_path: PathBuf::from("/etc/lokahi/901-sequencer.key"),
+                stopped: false,
+                l1_confs: DEFAULT_SEQUENCER_L1_CONFS,
+                recover: false,
+                conductor_rpc: None,
+            })
+        );
+    }
+
+    /// The mistake that would otherwise surface as a chain building blocks and gossiping none of
+    /// them: a sequencer with nothing to sign with.
+    #[test]
+    fn a_sequencing_chain_needs_a_key() {
+        assert_eq!(
+            config(&chain("l2-chain-id = 901\nmode = \"sequencer\""))
+                .resolve()
+                .expect_err("no key"),
+            ConfigError::SequencerWithoutKey { chain_id: 901 }
+        );
+    }
+
+    /// The other direction: settings that only a sequencer reads, on a chain that only validates.
+    /// Left to run, the chain would validate while its configuration says it sequences.
+    #[test]
+    fn a_validating_chain_cannot_state_a_sequencer_setting() {
+        assert_eq!(
+            config(&chain("l2-chain-id = 901\nsequencer-l1-confs = 2"))
+                .resolve()
+                .expect_err("sequencer setting on a validator"),
+            ConfigError::SequencerSettingWithoutSequencing {
+                chain_id: 901,
+                field: "sequencer-l1-confs",
+            }
+        );
+    }
+
+    /// One supernode can sequence one chain and validate another, which is the arrangement a
+    /// mixed cluster runs: the sequencer settings shared in `[defaults]` reach the chain that
+    /// sequences and are ignored by the chain that does not.
+    #[test]
+    fn one_supernode_can_sequence_one_chain_and_validate_another() {
+        let file = format!(
+            r#"
+            [l1]
+            eth-rpc = "http://localhost:8545"
+            beacon = "http://localhost:5052"
+
+            [defaults]
+            datadir = "/var/lib/lokahi"
+            jwt-secret = "/etc/lokahi/jwt.hex"
+            engine-rpc = "http://localhost:9551"
+            p2p-udp-port = 9222
+            sequencer-key-path = "/etc/lokahi/sequencer.key"
+            sequencer-l1-confs = 2
+
+            {}{}
+            "#,
+            chain("l2-chain-id = 901\nmode = \"sequencer\"\nrpc-port = 9545\np2p-tcp-port = 9222"),
+            chain("l2-chain-id = 902\nrpc-port = 9555\np2p-tcp-port = 9232\np2p-udp-port = 9232"),
+        );
+
+        let resolved = LokahiConfig::parse(&file).expect("parses").resolve().expect("resolves");
+
+        assert_eq!(resolved.chains[0].mode(), NodeMode::Sequencer);
+        assert_eq!(
+            resolved.chains[0].sequencer.as_ref().map(|sequencer| sequencer.l1_confs),
+            Some(2)
+        );
+        assert_eq!(resolved.chains[1].mode(), NodeMode::Validator);
+        assert_eq!(resolved.chains[1].sequencer, None);
     }
 
     #[test]
@@ -652,6 +898,8 @@ mod tests {
         assert_eq!(resolved.chains[0].l2_chain_id, 901);
         assert_eq!(resolved.chains[1].l2_chain_id, 902);
         assert!(resolved.chains.iter().all(|chain| chain.rpc_enable_admin));
+        assert_eq!(resolved.chains[0].mode(), NodeMode::Validator);
+        assert_eq!(resolved.chains[1].mode(), NodeMode::Sequencer);
     }
 
     /// A file that says nothing about `[admin]` gets no process-wide surface at all, which is what

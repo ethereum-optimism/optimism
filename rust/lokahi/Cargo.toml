@@ -34,6 +34,7 @@ kona-protocol.workspace = true
 kona-registry.workspace = true
 kona-rpc.workspace = true
 kona-safedb = { workspace = true, features = ["rocksdb"] }
+kona-sources.workspace = true
 
 # The interop verifier, with the on-disk stores it keeps its state in.
 lokahi-interop = { workspace = true, features = ["rocksdb"] }
@@ -43,6 +44,8 @@ alloy-eips.workspace = true
 alloy-primitives = { workspace = true, features = ["serde"] }
 alloy-provider.workspace = true
 alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
 
 # op-alloy
 op-alloy-network.workspace = true
