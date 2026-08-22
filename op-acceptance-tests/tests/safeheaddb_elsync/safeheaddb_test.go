@@ -83,7 +83,15 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	// assertions.go:387:             	Error:      	Expected value not to be nil.
 	// assertions.go:387:             	Test:       	TestNotTruncateDatabaseOnRestartWithExistingDatabase
 	// assertions.go:387:             	Messages:   	no safe head data available at L1 block 4
-	sysgo.SkipOnKonaNode(t, "not supported")
+	// The reason is structural, not a bug in this test: kona-node has no safe-head database
+	// to preserve. `NodeBuilder` defaults `safe_db` to `DisabledDatabase`
+	// (rust/kona/crates/node/service/src/service/builder.rs:105) and the only caller of
+	// `with_safe_db` in the tree is lokahi (rust/lokahi/src/supernode.rs:473), so the
+	// kona-node binary never opens one and SafeDBPath above is not plumbed to it at all.
+	// Un-skipping this needs kona-node to grow the database first; until then the
+	// truncate-and-refill semantics it would cover are pinned at the database layer by
+	// kona-safedb's own `a_wipe_and_refill_moves_the_floor_up_permanently`.
+	sysgo.SkipOnKonaNode(t, "kona-node opens no safe-head database (builder defaults to DisabledDatabase)")
 	sys := newSingleChainMultiNodeELSync(t)
 
 	dsl.CheckAll(t,
