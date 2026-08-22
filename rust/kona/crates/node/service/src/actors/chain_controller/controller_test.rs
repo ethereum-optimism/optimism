@@ -309,3 +309,84 @@ fn a_disabled_database_is_never_written_to() {
     assert!(db.updates().is_empty(), "a disabled database records nothing");
     assert!(db.resets().is_empty(), "a disabled database rewinds nothing");
 }
+
+/// A controller over an engine client that knows the L1 genesis block, for the genesis-seed
+/// tests. The default rollup config puts L2 genesis at `block(0)`.
+fn seeding_controller(
+    safe_db: SharedSafeDb,
+) -> ChainController<MockEngineClient, MockChainControllerDerivationClient> {
+    let cfg = Arc::new(RollupConfig::default());
+    let (_request_tx, request_rx) = mpsc::channel::<ChainControllerRequest>(1);
+    let (state_tx, _state_rx) = watch::channel(EngineState::default());
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let l1_genesis: alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction> =
+        alloy_rpc_types_eth::Block {
+            header: alloy_rpc_types_eth::Header {
+                hash: B256::repeat_byte(0xaa),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+    ChainController::new(
+        Arc::new(
+            MockEngineClient::builder()
+                .with_config(cfg.clone())
+                .with_l1_block(alloy_eips::BlockId::Number(0.into()), l1_genesis)
+                .build(),
+        ),
+        cfg,
+        MockChainControllerDerivationClient::new(),
+        Engine::new(EngineState::default(), state_tx, len_tx),
+        None,
+        request_rx,
+        safe_db,
+        None,
+        Arc::new(kona_engine::NoopBlockSink),
+    )
+}
+
+/// A reset that lands the local-safe head at L2 genesis records genesis as safe from L1 block 0 —
+/// op-node's `onEngineConfirmedReset` (`op-node/rollup/driver/sync_deriver.go:204-220`). This
+/// entry is the safe-head database's floor: without it, `l1_at_safe_head` below the first
+/// post-reset advance answers `L1AtSafeHeadUnavailable`, and every `superroot_atTimestamp` for
+/// those heights fails for good — which is exactly how the fault-proof suites failed against a
+/// supernode that had derived the whole chain itself.
+#[tokio::test]
+async fn a_reset_to_genesis_seeds_the_database_with_genesis_at_l1_zero() {
+    let db = RecordingSafeDb::enabled();
+    let mut controller = seeding_controller(db.clone());
+
+    controller.seed_genesis_safe_head(block(0)).await;
+
+    let updates = db.updates();
+    assert_eq!(updates.len(), 1, "genesis must be recorded");
+    assert_eq!(updates[0].safe_head, block(0).block_info.id());
+    assert_eq!(
+        updates[0].l1,
+        BlockNumHash { number: 0, hash: B256::repeat_byte(0xaa) },
+        "the record pairs genesis with the real L1 block 0, as op-node's does"
+    );
+}
+
+/// A reset that lands anywhere above genesis seeds nothing: the walkback found real derived
+/// history, and only genesis is safe by definition.
+#[tokio::test]
+async fn a_reset_above_genesis_seeds_nothing() {
+    let db = RecordingSafeDb::enabled();
+    let mut controller = seeding_controller(db.clone());
+
+    controller.seed_genesis_safe_head(block(4)).await;
+
+    assert!(db.updates().is_empty(), "only a genesis landing is safe by definition");
+}
+
+/// A disabled database is not seeded — same posture as the recorder and the rewind.
+#[tokio::test]
+async fn a_disabled_database_is_not_seeded() {
+    let db = RecordingSafeDb::disabled();
+    let mut controller = seeding_controller(db.clone());
+
+    controller.seed_genesis_safe_head(block(0)).await;
+
+    assert!(db.updates().is_empty(), "a disabled database records nothing");
+}

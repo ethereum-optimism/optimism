@@ -22,23 +22,23 @@ pub enum LocalSafeAtTimestamp {
     /// Distinct from [`Self::BehindHead`] on purpose: both are "not in the live state", but this
     /// one is permanent and not a history lookup.
     BeforeGenesis,
-    /// The timestamp is ahead of the local-safe head: the block it names has not been derived from
-    /// L1 yet, and may not exist yet at all.
+    /// The timestamp names a block ahead of the local-safe head: it has not been derived from L1
+    /// yet, and may not exist yet at all.
     ///
     /// The corresponding op-supernode answer is `LocalSafeBlockAtTimestamp`'s `ethereum.NotFound`,
     /// which callers back off and retry on.
     NotLocalSafeYet,
-    /// The timestamp is the local-safe head's own, so the answer is that head together with the L1
-    /// origin recorded for it.
+    /// The timestamp falls on the local-safe head's own block, so the answer is that head together
+    /// with the L1 origin recorded for it.
     ///
     /// The origin may be [`crate::LocalSafeOrigin::Unpaired`]: whoever wrote the head held no L1
     /// key for it (a reset walkback, or the derivation-delegation path). That is an answer, not a
     /// missing one, and it stays visible here rather than being flattened into a defaulted
     /// [`kona_protocol::BlockInfo`] that would read as "derived from block 0".
     Head(LocalSafeHead),
-    /// The timestamp is behind the local-safe head. The block it names is local-safe — safety is
-    /// monotone along the canonical chain — but the live state records the L1 origin only of the
-    /// head, so answering which L1 block *this* one became safe at is a history lookup.
+    /// The timestamp names a block behind the local-safe head. That block is local-safe — safety
+    /// is monotone along the canonical chain — but the live state records the L1 origin only of
+    /// the head, so answering which L1 block *this* one became safe at is a history lookup.
     ///
     /// A stale origin is never substituted: the head's L1 key describes the head, and handing it
     /// out for an ancestor is exactly the silently-wrong answer this query exists to avoid.
@@ -97,29 +97,37 @@ impl EngineState {
     /// `borrow` of the state watch — gets an answer with no window inside it. The head and its L1
     /// origin come out of [`EngineSyncState::local_safe`], which is itself a paired read.
     ///
-    /// The comparison is on timestamps rather than on a block number computed from the requested
-    /// timestamp. op-node's `TargetBlockNumber` floors an unaligned timestamp onto the preceding
-    /// block, which for a timestamp just past the head would return the head as the answer; here
-    /// only a timestamp that *is* the head's is answered with the head's pairing, and anything
-    /// else is reported as ahead or behind. Interop's timestamps are block-aligned across the
-    /// dependency set, so the two agree wherever the answer matters, and where they differ this
-    /// one declines to attach the head's L1 key to a block that is not the head.
+    /// The timestamp resolves to a block number by op-node's `TargetBlockNumber` arithmetic
+    /// (`op-node/rollup/types.go:237`): block spacing is fixed by the rollup config from genesis
+    /// onwards, and an unaligned timestamp floors onto the preceding block. That flooring is
+    /// load-bearing, and it is op-supernode's behaviour: super roots exist at every second, and
+    /// `LocalSafeBlockAtTimestamp` (`op-supernode/supernode/chain_container/chain_container.go`)
+    /// answers a timestamp between two blocks — or one second past the head — with the flooring
+    /// block, so a chain without a block at that second contributes its preceding block rather
+    /// than being reported as not-derived-yet. Classifying by raw timestamp instead is how a
+    /// verifier facing a boundary timestamp on a slower chain waits forever for a block whose
+    /// schedule never produces it.
     pub const fn local_safe_snapshot_at(
         &self,
         rollup: &RollupConfig,
         timestamp: u64,
     ) -> LocalSafeSnapshot {
         let local_safe = self.sync_state.local_safe();
-        let head_timestamp = local_safe.head.block_info.timestamp;
 
         let local_safe_at = if timestamp < rollup.genesis.l2_time {
             LocalSafeAtTimestamp::BeforeGenesis
-        } else if timestamp > head_timestamp {
-            LocalSafeAtTimestamp::NotLocalSafeYet
-        } else if timestamp < head_timestamp {
-            LocalSafeAtTimestamp::BehindHead
         } else {
-            LocalSafeAtTimestamp::Head(local_safe)
+            let block_time = if rollup.block_time == 0 { 1 } else { rollup.block_time };
+            let target =
+                rollup.genesis.l2.number + (timestamp - rollup.genesis.l2_time) / block_time;
+            let head_number = local_safe.head.block_info.number;
+            if target > head_number {
+                LocalSafeAtTimestamp::NotLocalSafeYet
+            } else if target < head_number {
+                LocalSafeAtTimestamp::BehindHead
+            } else {
+                LocalSafeAtTimestamp::Head(local_safe)
+            }
         };
 
         LocalSafeSnapshot {
@@ -138,11 +146,13 @@ mod tests {
     use kona_genesis::{ChainGenesis, RollupConfig};
     use kona_protocol::{BlockInfo, L2BlockInfo};
 
-    /// L2 genesis at timestamp 90, so a request below it is out of range rather than history.
+    /// L2 genesis is block 0 at timestamp 80 with a two-second block time, so the head fixture —
+    /// block 10 at timestamp 100 — sits exactly where the config arithmetic puts it, and a request
+    /// below 80 is out of range rather than history.
     fn rollup() -> RollupConfig {
         RollupConfig {
             block_time: 2,
-            genesis: ChainGenesis { l2_time: 90, ..Default::default() },
+            genesis: ChainGenesis { l2_time: 80, ..Default::default() },
             ..Default::default()
         }
     }
@@ -216,6 +226,22 @@ mod tests {
         assert_eq!(snapshot.local_safe_at.head(), None);
     }
 
+    /// A timestamp one second past the head, where the schedule puts no block, floors onto the
+    /// head — op-supernode's `LocalSafeBlockAtTimestamp` through `TargetBlockNumber`. Super roots
+    /// exist at every second, and a two-second chain asked about an odd second must contribute
+    /// its preceding block. Answering `NotLocalSafeYet` here is a wait for a block the schedule
+    /// never produces: the interop verifier stalls at that boundary for good, and the superroot
+    /// API omits the chain from its optimistic branch at every unaligned second.
+    #[test]
+    fn an_unaligned_timestamp_past_the_head_floors_onto_the_head() {
+        let snapshot = state().local_safe_snapshot_at(&rollup(), 101);
+
+        assert_eq!(
+            snapshot.local_safe_at,
+            LocalSafeAtTimestamp::Head(LocalSafeHead::derived_from(l2(10, 100), l1(5)))
+        );
+    }
+
     /// Behind the head the block is local-safe, but its origin is history rather than the head's
     /// origin.
     #[test]
@@ -226,12 +252,21 @@ mod tests {
         assert_eq!(snapshot.local_safe_at.head(), None);
     }
 
+    /// An unaligned timestamp between two blocks behind the head floors onto the earlier block,
+    /// which lives in history like any other block behind the head.
+    #[test]
+    fn an_unaligned_timestamp_behind_the_head_is_a_history_lookup() {
+        let snapshot = state().local_safe_snapshot_at(&rollup(), 99);
+
+        assert_eq!(snapshot.local_safe_at, LocalSafeAtTimestamp::BehindHead);
+    }
+
     /// Below L2 genesis there is no block at all, which is not the same as one whose origin has to
     /// be looked up: a consumer that conflated the two would report a history gap for a request
     /// that was simply out of range.
     #[test]
     fn a_timestamp_below_genesis_is_not_a_history_lookup() {
-        let snapshot = state().local_safe_snapshot_at(&rollup(), 80);
+        let snapshot = state().local_safe_snapshot_at(&rollup(), 70);
 
         assert_eq!(snapshot.local_safe_at, LocalSafeAtTimestamp::BeforeGenesis);
         assert_ne!(snapshot.local_safe_at, LocalSafeAtTimestamp::BehindHead);

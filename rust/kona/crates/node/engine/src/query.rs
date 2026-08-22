@@ -174,9 +174,11 @@ mod tests {
     use kona_protocol::{BlockInfo, L2BlockInfo};
 
     fn rollup() -> Arc<RollupConfig> {
+        // Genesis is block 0 at timestamp 80 with a two-second block time, so the block-number
+        // fixtures below sit exactly where the config arithmetic puts them.
         Arc::new(RollupConfig {
             block_time: 2,
-            genesis: ChainGenesis { l2_time: 90, ..Default::default() },
+            genesis: ChainGenesis { l2_time: 80, ..Default::default() },
             ..Default::default()
         })
     }
