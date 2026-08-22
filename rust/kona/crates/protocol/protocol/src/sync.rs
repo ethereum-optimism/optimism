@@ -64,6 +64,26 @@ mod tests {
     use super::*;
     use alloy_primitives::b256;
 
+    /// There is a single unsafe head, so the sync status carries no cross-unsafe field.
+    #[test]
+    fn test_sync_status_serializes_without_cross_unsafe() {
+        let status = SyncStatus {
+            current_l1: BlockInfo::default(),
+            current_l1_finalized: BlockInfo::default(),
+            head_l1: BlockInfo::default(),
+            safe_l1: BlockInfo::default(),
+            finalized_l1: BlockInfo::default(),
+            unsafe_l2: L2BlockInfo::default(),
+            safe_l2: L2BlockInfo::default(),
+            finalized_l2: L2BlockInfo::default(),
+            local_safe_l2: L2BlockInfo::default(),
+        };
+
+        let json = serde_json::to_value(&status).unwrap();
+        assert!(json.get("unsafe_l2").is_some());
+        assert!(json.get("cross_unsafe_l2").is_none());
+    }
+
     /// A CL that still reports `cross_unsafe_l2` must stay parseable. `DerivationDelegateClient`
     /// reads `optimism_syncStatus` from an arbitrary external node, and op-nodes predating the
     /// field's removal — plus third-party implementations — still send it. This only works

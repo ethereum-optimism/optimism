@@ -3,5 +3,8 @@
 mod core;
 pub use core::{Engine, EngineResetError};
 
+#[cfg(test)]
+mod core_test;
+
 mod tasks;
 pub use tasks::*;

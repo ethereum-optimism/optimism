@@ -141,10 +141,12 @@ impl EngineSyncState {
     /// [`EngineSyncStateUpdate`] cannot express a cross-safe move, so
     /// [`Self::apply_update`] carries the cross-safe head through — but the local-safe head it is
     /// carried past can move *backwards*, and cross-safe is local-safe *and* cross-verified, so it
-    /// cannot outrank it. Two writers rewind local-safe:
+    /// cannot outrank it. Three writers rewind local-safe:
     ///
     /// - [`Engine::reset`] installs the [`find_starting_forkchoice`] walkback point, deliberately
     ///   at least a sequencing window behind the unsafe head.
+    /// - [`Engine::reset_to`] installs whatever heads its caller hands it, which may be behind the
+    ///   engine's current ones.
     /// - `ConsolidateTask::reconcile_to_local_safe_head` installs the injected local-safe block as
     ///   both the local-safe and the unsafe head.
     ///
@@ -160,6 +162,7 @@ impl EngineSyncState {
     /// of damage rather than maintain the invariant at its source.
     ///
     /// [`Engine::reset`]: crate::Engine::reset
+    /// [`Engine::reset_to`]: crate::Engine::reset_to
     /// [`find_starting_forkchoice`]: crate::find_starting_forkchoice
     fn hold_cross_safe_at(&self, local_safe_head: L2BlockInfo) -> L2BlockInfo {
         if self.cross_safe_head.block_info.number <= local_safe_head.block_info.number {
