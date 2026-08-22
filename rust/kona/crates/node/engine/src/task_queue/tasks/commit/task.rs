@@ -1,7 +1,7 @@
 //! A task to commit an externally built payload, answering the caller that requested it.
 
 use super::{CommitBlockError, CommitTaskError};
-use crate::{EngineClient, EngineState, EngineTaskExt, InsertTask};
+use crate::{EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTask};
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -29,6 +29,10 @@ pub struct CommitTask<EngineClient_: EngineClient> {
     pub payload: OpExecutionPayloadEnvelope,
     /// Where the commit's outcome is delivered.
     pub result_tx: mpsc::Sender<Result<L2BlockInfo, CommitBlockError>>,
+    /// Where the decoded block goes once the engine has canonicalized it, same as any other
+    /// insert: a committed block is an imported block, and consumers reading imported blocks
+    /// (e.g. the system-config lookup) must see the commit path's blocks too.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl<EngineClient_: EngineClient> CommitTask<EngineClient_> {
@@ -38,8 +42,13 @@ impl<EngineClient_: EngineClient> CommitTask<EngineClient_> {
         // (`EngineTask::execute_inner`): a payload at or below the local-safe head must not
         // become the unsafe head. The gossip path drops such a payload silently; here the caller
         // hears the refusal.
-        let insert =
-            InsertTask::new(Arc::clone(&self.engine), self.cfg.clone(), self.payload.clone(), None);
+        let insert = InsertTask::new(
+            Arc::clone(&self.engine),
+            self.cfg.clone(),
+            self.payload.clone(),
+            None,
+            Arc::clone(&self.block_sink),
+        );
         if !insert.descends_from_local_safe(state) {
             return Err(CommitBlockError::DoesNotDescendFromLocalSafe);
         }
@@ -74,7 +83,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for CommitTask<EngineClient_> {
 mod tests {
     use super::*;
     use crate::{
-        EngineSyncStateUpdate, LocalSafeHead, task_queue::tasks::task::EngineTask,
+        EngineSyncStateUpdate, LocalSafeHead, NoopBlockSink, task_queue::tasks::task::EngineTask,
         test_utils::MockEngineClient,
     };
     use alloy_consensus::Block;
@@ -127,6 +136,7 @@ mod tests {
             config,
             payload_at(3, B256::repeat_byte(2)),
             result_tx,
+            Arc::new(NoopBlockSink),
         )));
 
         tokio::time::timeout(Duration::from_secs(1), task.execute(&mut state))
@@ -159,6 +169,7 @@ mod tests {
             config,
             payload_at(1, B256::ZERO),
             result_tx,
+            Arc::new(NoopBlockSink),
         )));
 
         tokio::time::timeout(Duration::from_secs(1), task.execute(&mut EngineState::default()))

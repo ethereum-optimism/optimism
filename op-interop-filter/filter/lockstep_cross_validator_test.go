@@ -485,14 +485,13 @@ func TestValidateMessageTiming(t *testing.T) {
 			errContains:         "not before inclusion",
 		},
 		{
-			name:                "invalid: overflow in expiry calculation",
+			name:                "valid: timestamps near max uint64",
 			initTimestamp:       ^uint64(0) - 10, // near max uint64
 			inclusionTimestamp:  ^uint64(0),
-			messageExpiryWindow: 100, // will overflow
+			messageExpiryWindow: 100, // age is 10, well inside the window
 			timeout:             0,
 			execTimestamp:       0,
-			wantErr:             true,
-			errContains:         "overflow in expiry calculation",
+			wantErr:             false,
 		},
 		{
 			name:                "invalid: message expired at inclusion",
@@ -505,14 +504,14 @@ func TestValidateMessageTiming(t *testing.T) {
 			errContains:         "expired",
 		},
 		{
-			name:                "invalid: timeout overflow",
+			name:                "invalid: already past the window at execution",
 			initTimestamp:       100,
 			inclusionTimestamp:  150,
 			messageExpiryWindow: 100,
 			timeout:             ^uint64(0),      // max uint64
-			execTimestamp:       ^uint64(0) - 10, // will overflow when added to timeout
+			execTimestamp:       ^uint64(0) - 10, // age at execution already past the window
 			wantErr:             true,
-			errContains:         "overflow in max exec timestamp",
+			errContains:         "expire before timeout",
 		},
 		{
 			name:                "invalid: expires before timeout deadline",
@@ -532,6 +531,35 @@ func TestValidateMessageTiming(t *testing.T) {
 			timeout:             50,  // maxExecTs = 150 + 50 = 200
 			execTimestamp:       150, // 200 >= 200, valid (equal is ok)
 			wantErr:             false,
+		},
+		{
+			name:                "valid: timestamps near max uint64 with timeout",
+			initTimestamp:       ^uint64(0) - 5,
+			inclusionTimestamp:  ^uint64(0),
+			messageExpiryWindow: 100,
+			timeout:             10, // fits in the remaining lifetime
+			execTimestamp:       ^uint64(0) - 5,
+			wantErr:             false,
+		},
+		{
+			name:                "invalid: one second past the expiry window",
+			initTimestamp:       100,
+			inclusionTimestamp:  201,
+			messageExpiryWindow: 100,
+			timeout:             0,
+			execTimestamp:       0,
+			wantErr:             true,
+			errContains:         "expired",
+		},
+		{
+			name:                "invalid: exec timestamp before initiating message",
+			initTimestamp:       100,
+			inclusionTimestamp:  150,
+			messageExpiryWindow: 100,
+			timeout:             50,
+			execTimestamp:       99,
+			wantErr:             true,
+			errContains:         "before initiating message timestamp",
 		},
 	}
 
