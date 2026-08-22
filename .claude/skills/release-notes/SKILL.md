@@ -1,6 +1,6 @@
 ---
 name: release-notes
-description: Turn a raw `just release-notes` draft into a published, house-style release note for an OP Stack component (op-node, op-batcher, op-supernode, kona-node, op-proposer, op-challenger, op-reth, op-deployer). Cuts PRs that never reach the component's binary, then replaces the raw PR list with a curated change list grouped by theme, under a standard Overview sentence giving the upgrade recommendation. Use when asked to write, polish, tidy, or finalize release notes, to clean up a draft GitHub release, or to prepare notes before publishing a release.
+description: Write the release notes for an OP Stack component using the house style. Use when asked to write, polish, tidy, or finalize release notes, to clean up a draft GitHub release, or to prepare notes before publishing a release.
 ---
 
 # Release notes
