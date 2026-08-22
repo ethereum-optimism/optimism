@@ -155,6 +155,15 @@ impl<T: CommsClient + Send + Sync> BatchValidationProvider for OracleL2ChainProv
             .map_err(OracleProviderError::BlockInfo)
     }
 
+    async fn l2_block_info_by_hash(&mut self, hash: B256) -> Result<L2BlockInfo, Self::Error> {
+        // A hash addresses the header directly, sparing the walk back from the safe head that a
+        // lookup by number requires.
+        let block = self.block_from_header(self.header_by_hash(hash)?, hash).await?;
+
+        L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
+            .map_err(OracleProviderError::BlockInfo)
+    }
+
     async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         // Fetch the header for the given block number.
         let header = self.header_by_number(number).await?;

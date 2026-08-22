@@ -242,6 +242,22 @@ impl BatchValidationProvider for BufferedL2Provider {
 
         Ok(cached_block.l2_block_info)
     }
+
+    async fn l2_block_info_by_hash(&mut self, hash: B256) -> Result<L2BlockInfo, Self::Error> {
+        let cached_block = self.buffer.get_block_by_hash(hash);
+
+        #[cfg(feature = "metrics")]
+        {
+            use crate::Metrics;
+            if cached_block.is_some() {
+                kona_macros::inc!(gauge, Metrics::BUFFERED_PROVIDER_CACHE_HITS, "method" => "l2_block_info_by_hash");
+            } else {
+                kona_macros::inc!(gauge, Metrics::BUFFERED_PROVIDER_CACHE_MISSES, "method" => "l2_block_info_by_hash");
+            }
+        }
+
+        Ok(cached_block.ok_or(BufferedProviderError::BlockHashNotFound(hash))?.l2_block_info)
+    }
 }
 
 /// Errors that can occur in the buffered provider
