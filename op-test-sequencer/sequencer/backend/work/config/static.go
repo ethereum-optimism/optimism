@@ -34,8 +34,11 @@ func (c *Ensemble) Load(ctx context.Context) (work.Starter, error) {
 var _ work.Starter = (*Ensemble)(nil)
 
 // Start sets up the configured group of builders.
-func (c *Ensemble) Start(ctx context.Context, opts *work.StartOpts) (ensemble *work.Ensemble, errResult error) {
-	ensemble = new(work.Ensemble)
+// The first result is deliberately unnamed: the error paths below return a nil ensemble,
+// and the cleanup defer must keep closing the partially started services rather than
+// the nil value those returns would otherwise assign to a named result.
+func (c *Ensemble) Start(ctx context.Context, opts *work.StartOpts) (_ *work.Ensemble, errResult error) {
+	ensemble := new(work.Ensemble)
 	defer func() {
 		if errResult == nil {
 			return
