@@ -312,9 +312,9 @@ mod tests {
     use lokahi_interop::{ArchivedOutput, open_output_archive};
     use tokio::sync::mpsc;
 
-    /// The genesis timestamp of the fixture chain: block 0 at 1_787_416_188, two-second blocks.
+    /// The genesis timestamp of the fixture chain: block 0 at `1_787_416_188`, two-second blocks.
     ///
-    /// Chosen so block 1 carries 1_787_416_190 — the exact query the fault-proof suites open
+    /// Chosen so block 1 carries `1_787_416_190` — the exact query the fault-proof suites open
     /// with, whose failure text is pinned verbatim below.
     const GENESIS_TIME: u64 = 1_787_416_188;
 

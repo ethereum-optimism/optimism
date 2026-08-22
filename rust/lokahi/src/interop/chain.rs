@@ -576,7 +576,7 @@ mod tests {
 
     /// Genesis is safe at L1 block 0 by definition, and the answer must not depend on the
     /// database — op-supernode's guard (`virtual_node.go:263-269`) short-circuits before its
-    /// SafeDB lookup. The database here answers every read with the *permanent* error, so
+    /// `SafeDB` lookup. The database here answers every read with the *permanent* error, so
     /// without the guard this verdict would be [`ChainAt::HistoryUnavailable`] — the one that
     /// halts the verifier — for the very timestamp verification starts from when interop
     /// activates at genesis.
