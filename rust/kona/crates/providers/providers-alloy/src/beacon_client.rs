@@ -10,7 +10,7 @@ use alloy_primitives::{B256, FixedBytes};
 use async_trait::async_trait;
 use c_kzg::Blob;
 use reqwest::{self, Client};
-use std::{boxed::Box, collections::HashMap, format, string::String, sync::Arc, vec::Vec};
+use std::{boxed::Box, format, string::String, sync::Arc, vec::Vec};
 use thiserror::Error;
 
 /// The config spec engine api method.
