@@ -73,12 +73,11 @@ fn the_deposits_only_fallback_keeps_the_origin() {
     );
 }
 
-/// An unsafe head that moved between build and seal is expected state on the consolidation path —
-/// during invalidation recovery the deposits-only replacement moves it under the queued task —
-/// and the recovery is a reset that drops the stale work, not a crash. op-node handles the same
-/// condition by emitting a `ResetEvent` ("pending safe head changed ... conflicting with queued
-/// safe attributes", `op-node/rollup/attributes/attributes.go:175-183`); escalating it to
-/// Critical instead kills the node.
+/// A stale sequencer build — the only path that produces this error — is dropped and rebuilt via
+/// the task's channel; if one ever runs without a channel, the recovery is a reset that drops the
+/// stale work, not a crash. op-node treats the same condition as recoverable (`ErrStaleBuild`,
+/// `op-node/rollup/engine/build_start.go:62-68`); escalating it to Critical instead kills the
+/// node.
 #[test]
 fn a_changed_unsafe_head_is_a_reset_not_a_crash() {
     use crate::{EngineTaskError, EngineTaskErrorSeverity, SealTaskError};
@@ -258,5 +257,146 @@ mod deny {
 
         task.execute(&mut state).await.expect("an underived seal is not gated here");
         assert!(deny.queries().is_empty());
+    }
+}
+
+/// The stale-head guard, and its scope. op-node drops a build whose parent is no longer the
+/// unsafe head only for *sequencer* jobs (`!attrs.IsDerived()`, `ErrStaleBuild`,
+/// `op-node/rollup/engine/build_start.go:62-68`). A derived build is forced by consolidation on
+/// the local-safe parent exactly when the unsafe chain ahead of it must be reorged out, so its
+/// parent legitimately differs from the unsafe head: op-node proceeds (a warning at
+/// `build_start.go:73-77`) and the import snaps the unsafe head onto the built block
+/// (`tryUpdateUnsafe`, `op-node/rollup/engine/engine_controller.go:1210-1217`). Guarding derived
+/// seals too is a livelock: the seal fails, the engine resets derivation, derivation re-derives
+/// the same attributes onto the same local-safe parent, and the loop repeats — the
+/// post-replacement `Consolidate(SealTaskFailed(UnsafeHeadChangedSinceBuild))` reset storm of
+/// `TestReorgInitExecMsg`.
+mod stale_head {
+    use crate::{
+        EngineState, EngineSyncStateUpdate, EngineTaskExt, LocalSafeHead, SealTask, SealTaskError,
+        test_utils::{TestAttributesBuilder, test_engine_client_builder},
+    };
+    use alloy_primitives::{B256, U256};
+    use alloy_rpc_types_engine::{
+        ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2, ExecutionPayloadV1, ForkchoiceUpdated,
+        PayloadId, PayloadStatus, PayloadStatusEnum,
+    };
+    use kona_genesis::{ChainGenesis, RollupConfig};
+    use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+    use op_alloy_consensus::{OpBlock, OpTxEnvelope};
+    use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+    use std::sync::Arc;
+
+    /// The payload every `engine_getPayload` answers with: an empty block at height 1.
+    fn sealed_payload() -> ExecutionPayloadV1 {
+        let mut payload =
+            ExecutionPayloadV1::from_block_slow(&alloy_consensus::Block::<OpTxEnvelope>::default());
+        payload.block_number = 1;
+        payload
+    }
+
+    /// The hash the sealed payload decodes to, for asserting where the unsafe head lands.
+    fn sealed_hash() -> B256 {
+        let block: OpBlock =
+            OpExecutionPayloadEnvelope::V1(sealed_payload()).try_into_block().unwrap();
+        block.header.hash_slow()
+    }
+
+    /// A rollup config whose genesis is the sealed payload's block, so the insert can decode it
+    /// without an L1-info transaction.
+    fn cfg() -> Arc<RollupConfig> {
+        Arc::new(RollupConfig {
+            genesis: ChainGenesis {
+                l2: alloy_eips::BlockNumHash { number: 1, hash: sealed_hash() },
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+    }
+
+    /// Attributes on the default parent (block 0) — the local-safe head a forced derived rebuild
+    /// is built on.
+    fn attributes() -> OpAttributesWithParent {
+        TestAttributesBuilder::new().with_derived_from(super::l1(7)).build()
+    }
+
+    /// An engine state whose unsafe head has moved past the attributes' parent — the state a
+    /// forced derived rebuild always seals under, and a sequencer job only reaches when it has
+    /// gone stale.
+    fn state_with_unsafe_ahead(attributes: &OpAttributesWithParent) -> EngineState {
+        let mut state = EngineState::default();
+        state.sync_state = state.apply_sync_update(EngineSyncStateUpdate {
+            unsafe_head: Some(L2BlockInfo {
+                block_info: BlockInfo {
+                    number: 5,
+                    hash: B256::repeat_byte(0xaa),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+            local_safe_head: Some(LocalSafeHead::unpaired(attributes.parent)),
+            ..Default::default()
+        });
+        state
+    }
+
+    /// A seal task over a mock EL that seals and inserts successfully.
+    fn seal_task(is_derived: bool) -> SealTask<crate::test_utils::MockEngineClient> {
+        let cfg = cfg();
+        let engine = test_engine_client_builder()
+            .with_config(cfg.clone())
+            .with_execution_payload_v2(ExecutionPayloadEnvelopeV2 {
+                execution_payload: ExecutionPayloadFieldV2::V1(sealed_payload()),
+                block_value: U256::ZERO,
+            })
+            .with_new_payload_v1_response(PayloadStatus::new(PayloadStatusEnum::Valid, None))
+            .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(PayloadStatus::new(
+                PayloadStatusEnum::Valid,
+                None,
+            )))
+            .build();
+        SealTask {
+            engine: Arc::new(engine),
+            cfg,
+            payload_id: PayloadId::new([1u8; 8]),
+            attributes: attributes(),
+            is_attributes_derived: is_derived,
+            result_tx: None,
+            deny: None,
+        }
+    }
+
+    /// The thrash reproduction: after an invalidation's replacement lands, the sequencer extends
+    /// the new unsafe chain while consolidation forces a derived rebuild on the local-safe
+    /// parent. That seal must proceed and converge — the import reorgs the unsafe head onto the
+    /// derived block — not error out into a derivation reset that re-derives the same attributes
+    /// forever.
+    #[tokio::test]
+    async fn a_derived_rebuild_seals_under_a_moved_unsafe_head() {
+        let task = seal_task(true);
+        let mut state = state_with_unsafe_ahead(&task.attributes);
+
+        task.execute(&mut state).await.expect("the derived rebuild must converge, not loop");
+
+        let unsafe_head = state.sync_state.unsafe_head().block_info;
+        assert_eq!(unsafe_head.number, 1, "the import reorgs the unsafe chain onto the rebuild");
+        assert_eq!(unsafe_head.hash, sealed_hash());
+        assert_eq!(state.sync_state.local_safe_head().block_info.hash, sealed_hash());
+    }
+
+    /// The guard the scope keeps: a sequencer job whose parent is no longer the unsafe head is
+    /// stale work, dropped without touching the engine (op-node's `ErrStaleBuild`,
+    /// `build_start.go:62-68`).
+    #[tokio::test]
+    async fn a_stale_sequencer_build_is_still_dropped() {
+        let task = seal_task(false);
+        let mut state = state_with_unsafe_ahead(&task.attributes);
+
+        let err = task.execute(&mut state).await.expect_err("stale sequencer work is dropped");
+        assert!(matches!(err, SealTaskError::UnsafeHeadChangedSinceBuild), "{err:?}");
+
+        let unsafe_head = state.sync_state.unsafe_head().block_info;
+        assert_eq!(unsafe_head.number, 5, "nothing was imported");
+        assert_eq!(unsafe_head.hash, B256::repeat_byte(0xaa));
     }
 }
