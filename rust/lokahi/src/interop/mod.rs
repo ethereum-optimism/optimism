@@ -335,7 +335,10 @@ impl InteropActor {
 /// an override: op-supernode's is an independent setting whose default stays the protocol window
 /// (`interop.go:34-37`), and backfilling more than a shrunken window costs nothing while
 /// backfilling less would leave sealed history short of what a resumed verifier checks for.
-fn verifier_config(activation_timestamp: u64, message_expiry_window: Option<u64>) -> VerifierConfig {
+const fn verifier_config(
+    activation_timestamp: u64,
+    message_expiry_window: Option<u64>,
+) -> VerifierConfig {
     let mut config = VerifierConfig::new(activation_timestamp);
     if let Some(window) = message_expiry_window {
         config.message_expiry_window = window;
