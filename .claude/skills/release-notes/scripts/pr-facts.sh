@@ -77,7 +77,7 @@ resolve_rust() {
 
 case "$component" in
     '') ;;
-    kona-*|op-reth|op-rbuilder|rollup-boost)
+    kona-*|op-reth)
         if resolve_rust; then mode=rust; fi ;;
     *)
         if resolve_go; then mode=go; fi ;;

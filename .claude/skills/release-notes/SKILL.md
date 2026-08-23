@@ -13,8 +13,7 @@ only changes that reach the binary appear at all.
 The raw list is replaced, not annotated. Read `reference/house-style.md` before writing and
 `reference/triage.md` before pruning.
 
-This skill does not create or finalize tags; see the `op-challenger-release` /
-`op-proposer-release` skills for that.
+This skill does not create or finalize tags.
 
 ## 1. Establish the target
 
@@ -80,7 +79,7 @@ The substance of the job. Replace PR titles with grouped, self-contained entries
   most often, and the PR descriptions you just read will pull you the wrong way
 - omit pure internal churn entirely
 - reference PRs as bare `(#NNNNN)`; no `by @author`
-- mention each PR exactly once
+- only mention a PR more than once if it included multiple logical changes which are worth describing separately
 
 ## 6. Write the Overview
 
@@ -124,11 +123,6 @@ Then set the compare link's base to the previous **finalized** tag.
 
 ## 9. Review before applying
 
-Check no PR is described twice — the curated style has no raw list to fall back on:
-
-```bash
-grep -oE '#[0-9]{4,6}' /tmp/<component>-notes.md | sort | uniq -d
-```
 
 **[USER REVIEW]** Show the proposed notes in full **and the drop list** — every pruned PR
 with its tag and a few words on why. A wrongly pruned PR is invisible in the rendered note,
@@ -149,7 +143,6 @@ This changes only the body, leaving draft/published state alone. Confirm with
 
 - A change under `op-service/` or `op-core/` can change a component's behaviour. Never prune
   on directory name alone; that is what step 3 is for.
-- Check a judgment call against history by regenerating a published release's raw draft:
-  `GITHUB_TOKEN=$(gh auth token) just release-notes op-node v1.19.3 v1.19.4`.
+- Check a judgment call against history by examining recent releases for the same component.
 - Never overwrite a draft a human has curated. If the body carries hand-written prose or
   commented-out bullets, propose specific edits instead of replacing it.
