@@ -105,12 +105,15 @@ impl<'a> MessageRules<'a> {
 
     /// Message expiry invariant: the initiating message must be no more than the configured
     /// message expiry window (in seconds) in the past, relative to the executing message.
+    ///
+    /// Callers must run [`Self::check_message_ordering`] first: the subtraction relies on its
+    /// guarantee that `initiating_timestamp <= executing_timestamp`.
     pub fn check_message_expiry<E: Debug>(
         &self,
         initiating_timestamp: u64,
         executing_timestamp: u64,
     ) -> Result<(), MessageGraphError<E>> {
-        (initiating_timestamp >= executing_timestamp.saturating_sub(self.message_expiry_window))
+        (executing_timestamp - initiating_timestamp <= self.message_expiry_window)
             .then_some(())
             .ok_or(MessageGraphError::MessageExpired { initiating_timestamp, executing_timestamp })
     }
