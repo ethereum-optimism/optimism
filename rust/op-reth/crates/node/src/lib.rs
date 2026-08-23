@@ -22,7 +22,7 @@ pub mod args;
 pub mod engine;
 pub use engine::OpEngineTypes;
 
-/// Canonical head metrics mirroring op-geth's `chain/head/*` metrics.
+/// Canonical head metrics
 pub mod head_metrics;
 pub use head_metrics::{OpChainHeadMetrics, maintain_chain_head_metrics};
 

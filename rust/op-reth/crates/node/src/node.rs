@@ -710,7 +710,7 @@ where
             ..
         } = self;
 
-        // Publish op-geth's `chain/head/*` gas and fee metrics for the canonical head.
+        // Publish gas and fee metrics for the canonical head.
         ctx.node.task_executor().spawn_critical_task(
             "op chain head metrics",
             crate::maintain_chain_head_metrics(ctx.node.provider().canonical_state_stream()),

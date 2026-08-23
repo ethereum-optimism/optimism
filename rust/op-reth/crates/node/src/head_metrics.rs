@@ -1,10 +1,4 @@
-//! Canonical head metrics mirroring the `chain/head/*` metrics exposed by op-geth.
-//!
-//! op-geth reports the gas and fee attributes of the canonical head from its
-//! `updateOptimismBlockMetrics` hook. op-reth is meant to be a superset of op-geth, so it publishes
-//! the same measurements under the same names, modulo the global `reth_` prefix that reth's
-//! Prometheus recorder applies: op-geth's `chain_head_basefee` is op-reth's
-//! `reth_chain_head_basefee`.
+//! Canonical head metrics mirroring the `chain/head/*` 
 //!
 //! The block height counterparts (`chain_head_block`, `chain_head_safe`, `chain_head_finalized`)
 //! already exist upstream as `reth_blockchain_tree_canonical_chain_height`,
