@@ -686,6 +686,7 @@ mod tests {
     /// is all `first_safe_head_timestamp` sends.
     fn chain_with_first_entry(record: SafeHeadRecord, state: EngineState) -> NodeChain {
         let (queries, mut rx) = mpsc::channel::<ChainControllerRpcRequest>(4);
+        let (l1_queries, _l1_rx) = mpsc::channel(1);
         tokio::spawn(async move {
             while let Some(ChainControllerRpcRequest(query)) = rx.recv().await {
                 if let EngineQueries::State(sender) = *query {
@@ -701,6 +702,7 @@ mod tests {
                 ..Default::default()
             },
             queries,
+            l1_queries,
             Arc::new(OneEntrySafeDb(record)),
             RootProvider::<Optimism>::new_http(Url::parse("http://127.0.0.1:1/").unwrap()),
         )
