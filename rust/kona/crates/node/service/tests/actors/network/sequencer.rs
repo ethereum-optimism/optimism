@@ -1,3 +1,5 @@
+use kona_node_service::PayloadToPublish;
+
 use crate::actors::{
     generator::{block_builder::PayloadVersion, seed::SEED_GENERATOR_BUILDER},
     network::mocks::builder::TestNetworkBuilder,
@@ -21,7 +23,7 @@ async fn test_sequencer_network_conn() -> anyhow::Result<()> {
 
     let envelope = seed_generator.random_valid_payload(PayloadVersion::V1)?;
 
-    sequencer_network.gossip_payload_tx.send(envelope.clone()).await?;
+    sequencer_network.gossip_payload_tx.send(PayloadToPublish::Unsigned(envelope.clone())).await?;
 
     let block = validator_network
         .blocks_rx
@@ -66,7 +68,7 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
 
     let envelope = seed_generator.random_valid_payload(PayloadVersion::V1)?;
 
-    sequencer_network.gossip_payload_tx.send(envelope.clone()).await?;
+    sequencer_network.gossip_payload_tx.send(PayloadToPublish::Unsigned(envelope.clone())).await?;
 
     // Check that the block propagates to all networks.
     for network in &mut validator_networks {

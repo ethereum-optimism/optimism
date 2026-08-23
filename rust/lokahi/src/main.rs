@@ -8,6 +8,7 @@ mod config;
 mod interop;
 mod metrics;
 mod query;
+mod rpc;
 mod supernode;
 mod version;
 

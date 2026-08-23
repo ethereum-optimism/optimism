@@ -1,13 +1,17 @@
-//! The observation seam: everything the round loop reads, and nothing it writes.
+//! The observation seam: everything the round loop reads — and the one write an applied
+//! invalidation makes.
 //!
 //! One trait per source. [`InteropChain`] is one L2 chain as the verifier sees it — a chain
 //! controller for the safety snapshot, and a read-only execution layer for receipts and outputs.
 //! [`L1Canonical`] is the L1 they all derive from, consulted only to ask whether a block the
 //! verifier already relied on is still canonical.
 //!
-//! Both traits are deliberately narrow and read-only. The round loop's only writes go to the
-//! stores in this crate and, in a later phase, to the single cross-safe promotion entry point —
-//! never through here.
+//! Both of those are deliberately narrow and read-only: the round loop's reads go through them,
+//! its store writes stay in this crate, and its promotions go through the single cross-safe
+//! promotion entry point. The exception is [`RewindableChain`], the seam an applied
+//! [`Decision::Invalidate`](crate::Decision::Invalidate) rewinds a chain through — the same
+//! placement op-supernode gives `InvalidateBlock` on its chain-container interface
+//! (`op-supernode/supernode/chain_container/invalidation.go:385`).
 
 use crate::error::StoreError;
 use alloy_eips::BlockNumHash;
@@ -20,9 +24,14 @@ use std::fmt::Debug;
 
 /// Why an observation could not be answered *yet*.
 ///
-/// Every variant here is transient: ask again and the answer may differ. A permanent inability to
+/// Every variant here is retried: ask again and the answer may differ. A permanent inability to
 /// answer is not an error but a verdict — [`ChainAt::HistoryUnavailable`] — so that the one
 /// condition which stops the verifier for good has exactly one spelling.
+///
+/// "Retried" and "transient" come apart in exactly one place: [`ChainAt::BeforeGenesis`] is
+/// reported through [`Self::Unreachable`] even though re-asking cannot change it, because
+/// op-supernode backs off there rather than halting and lokahi mirrors op-supernode. See the
+/// round loop's handling of that verdict.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ChainError {
     /// The source cannot answer yet: it is still syncing, or has not recorded what was asked for.
@@ -38,7 +47,8 @@ pub enum ChainError {
 /// These are the four verdicts of the engine's local-safe-at-timestamp query, carried through to
 /// the round loop rather than flattened into "an answer or no answer". The round loop treats them
 /// very differently: [`Self::NotYet`] is waited out, [`Self::HistoryUnavailable`] halts the
-/// verifier, and [`Self::BeforeGenesis`] means the chain set and the verification start disagree.
+/// verifier, and [`Self::BeforeGenesis`] means the chain set and the verification start disagree
+/// — which is retried with a warning rather than halted, because op-supernode retries it too.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChainAt {
     /// The chain's local-safe block at the timestamp, and the L1 block it was derived from.
@@ -54,7 +64,10 @@ pub enum ChainAt {
     /// recorded on this node and cannot be recovered. Permanent.
     HistoryUnavailable,
     /// No block of this chain carries that timestamp, because the chain did not exist yet.
-    /// Permanent.
+    ///
+    /// Unrecoverable in the sense that re-asking cannot change the answer — only a corrected
+    /// chain set or verification start can — but *not* a halt: op-supernode logs and backs off
+    /// on the same condition, so the round loop retries it and warns on every attempt.
     BeforeGenesis,
 }
 
@@ -139,13 +152,79 @@ pub trait InteropChain: Debug + Send + Sync {
 
     /// The earliest timestamp this chain's safe-head history covers.
     ///
-    /// [`ChainError::NotReady`] means the chain has recorded no safe head yet, which is the normal
-    /// answer while a cold-starting node is still catching up.
+    /// The answer must be *stable*: a timestamp is only returned once no later write can move the
+    /// earliest record, so a caller may latch it, or hold a committed frontier against it, without
+    /// the bound rising underneath. A record that could still be superseded — kona's safe-head
+    /// database overwrites its newest record in place while the chain still derives from that
+    /// record's L1 block, and the earliest record is the newest one until derivation passes it —
+    /// is answered as [`ChainError::NotReady`], exactly as op-supernode's
+    /// `FirstSafeHeadTimestamp` answers `ErrSafeDBNotReady` for an entry its deriver has not
+    /// moved past (`op-supernode/supernode/chain_container/chain_container.go:527-555`).
+    ///
+    /// [`ChainError::NotReady`] also means the chain has recorded no safe head yet, which is the
+    /// normal answer while a cold-starting node is still catching up.
     async fn first_safe_head_timestamp(&self) -> Result<u64, ChainError>;
 
     /// The number of the block covering `timestamp`, flooring onto the preceding block when the
     /// timestamp falls between two of them.
     async fn block_number_at_timestamp(&self, timestamp: u64) -> Result<u64, ChainError>;
+
+    /// The L1 block this chain's derivation has considered up to — its sync status `currentL1`.
+    ///
+    /// The round loop folds this into the verifier's own L1 progress so that progress keeps
+    /// moving while the frontier waits: op-supernode refreshes its `currentL1` from the minimum
+    /// of every chain's `SyncStatus().CurrentL1` on each waiting round
+    /// (`refreshCurrentL1OnWait`, `op-supernode/supernode/activity/interop/interop.go:558-570`,
+    /// via `collectCurrentL1`, `:1125-1140`) and caps a committed frontier's L1 inclusion at the
+    /// same minimum (`:908-922`). A chain that has not derived anything yet answers the zero
+    /// block, which is what its own sync status reports then.
+    async fn current_l1(&self) -> Result<BlockNumHash, ChainError>;
+}
+
+/// The writes the verifier performs on a chain: taking it off a block it invalidated, and — when
+/// an L1 reorg revokes such an invalidation — putting it back onto a verified frontier.
+///
+/// Everything else about a replacement or a re-derivation is derivation's job. For an
+/// invalidation, the invalidated output is archived before [`Self::rewind_off`] is called — the
+/// archive doubles as the deny list — so once the chain is rewound onto the invalidated block's
+/// parent, derivation rebuilds the height from the same L1 batch data, the rebuild's hash hits
+/// the deny list, and a deposits-only block is built at the same height instead. For an L1-reorg
+/// rewind, the revoked archive entries are pruned before [`Self::reset_to`] is called, so
+/// derivation rebuilds from the target without the denials. This seam only moves the chain.
+#[async_trait]
+pub trait RewindableChain: Debug + Send + Sync {
+    /// Takes the chain off `invalidated`, rewinding it onto that block's parent, and returns
+    /// whether a rewind was performed.
+    ///
+    /// `Ok(false)` means the chain is already off the block — its canonical block at that height
+    /// exists and differs — which is the crash-replay acknowledgement: a write-ahead-logged
+    /// invalidation re-applied after a restart finds the replacement already in place and has
+    /// nothing left to rewind. A height with *no* canonical block is not that case; it is a
+    /// partially applied rewind, and the implementation must drive it to completion rather than
+    /// skip it (op-supernode's `InvalidateBlock`,
+    /// `op-supernode/supernode/chain_container/invalidation.go:438-455`).
+    ///
+    /// Every error is transient by the same contract as the read seams: the apply path retries
+    /// the whole invalidation, which is idempotent end to end.
+    async fn rewind_off(&self, invalidated: BlockNumHash) -> Result<bool, ChainError>;
+
+    /// Resets the chain onto `target`, making it the unsafe and local-safe head, and restarts
+    /// derivation from it.
+    ///
+    /// The L1-reorg counterpart of [`Self::rewind_off`], with a *named* landing block instead of
+    /// an invalidated one to step off: the verifier calls this when a rewind revoked archived
+    /// invalidations, whose deposits-only replacements were forced on the reorged basis and
+    /// stand canonical above `target` — derivation alone will not remove them, so the engine is
+    /// placed back on the last frontier that still holds and re-derives from there without the
+    /// pruned denials. The same placement op-supernode gives `RewindEngine` on its
+    /// chain-container interface (`op-supernode/supernode/chain_container/chain_container.go:749`,
+    /// called from `resetChainEnginesIfNeeded`,
+    /// `op-supernode/supernode/activity/interop/interop.go:1099-1122`).
+    ///
+    /// `target` is at or below every block the rewind dropped, where canonicality is untouched
+    /// by the reorg, so the call is idempotent and every error is transient: the apply path
+    /// retries the whole rewind.
+    async fn reset_to(&self, target: BlockNumHash) -> Result<(), ChainError>;
 }
 
 /// The L1 the chains derive from, as the verifier reads it.

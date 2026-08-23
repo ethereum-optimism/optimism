@@ -20,7 +20,8 @@ pub use error::NetworkBuilderError;
 
 mod gossip;
 pub use gossip::{
-    QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
+    PayloadToPublish, QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient,
+    UnsafePayloadGossipClientError,
 };
 
 mod handler;

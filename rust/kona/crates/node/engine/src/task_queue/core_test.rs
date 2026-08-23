@@ -300,6 +300,100 @@ async fn reset_still_discovers_its_start_point_by_walkback() {
     );
 }
 
+/// An execution layer that cannot answer the walkback yet — unreachable, still starting up — is
+/// retried rather than surfaced: op-node re-runs a failed `FindL2Heads` through its step backoff
+/// forever (`op-node/rollup/engine/engine_controller.go:1423-1432`,
+/// `op-node/rollup/driver/step_scheduling_deriver.go:97-109`), while returning the error here
+/// killed the requesting actor — and with it the node — over a transient condition. The client
+/// below fails its first two L2 block reads with a transport error and then serves the chain; the
+/// reset must ride the failures out and land on the discovered head.
+#[tokio::test]
+async fn reset_retries_the_walkback_while_the_execution_layer_is_unreachable() {
+    let header = alloy_consensus::Header { number: 0, ..Default::default() };
+    let genesis_hash = header.hash_slow();
+    let cfg = Arc::new(RollupConfig {
+        genesis: ChainGenesis {
+            l2: BlockNumHash { number: 0, hash: genesis_hash },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let genesis = L2BlockInfo {
+        block_info: BlockInfo {
+            number: 0,
+            hash: genesis_hash,
+            parent_hash: B256::ZERO,
+            timestamp: 0,
+        },
+        ..Default::default()
+    };
+
+    let genesis_block: alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction> =
+        alloy_rpc_types_eth::Block {
+            header: alloy_rpc_types_eth::Header {
+                hash: genesis_hash,
+                inner: header,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+    let client = Arc::new(
+        test_engine_client_builder()
+            .with_config(cfg.clone())
+            .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(PayloadStatus::new(
+                PayloadStatusEnum::Valid,
+                None,
+            )))
+            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), genesis_block.clone())
+            .with_l2_block(BlockId::Number(0.into()), genesis_block)
+            .with_l1_block(BlockId::Hash(B256::ZERO.into()), Default::default())
+            .with_l2_block_transport_failures(2)
+            .build(),
+    );
+
+    let mut walking = engine(TestEngineStateBuilder::new().build());
+    let landed = walking
+        .reset(client.clone(), cfg)
+        .await
+        .expect("the reset must retry through the transport failures rather than surface them");
+
+    assert_eq!(landed, genesis, "the reset must land on the discovered head after retrying");
+}
+
+/// A reset mutates the engine state outside `drain`, so it has to publish the state watch itself.
+/// Every reader served through the watch — the RPC actor's queries, and the interop verifier's
+/// observations through them — would otherwise keep seeing the heads from before the reset until
+/// some unrelated task happened to succeed. That staleness is what held the interop verifier on an
+/// invalidated block after its rewind: the chain was off the block, but the watch still answered
+/// with it, and every round failed on the mismatch. (op-supernode's readers take the chain
+/// container's live state under lock, so they cannot lag a rewind at all.)
+#[tokio::test]
+async fn reset_to_publishes_the_state_watch() {
+    let cfg = Arc::new(RollupConfig::default());
+    let client = walkback_blind_client(cfg.clone());
+    let (genesis, b1, b2, b3) = (block(0), block(1), block(2), block(3));
+
+    let initial = TestEngineStateBuilder::new()
+        .with_unsafe_head(b3)
+        .with_local_safe_head(b3)
+        .with_finalized_head(genesis)
+        .build();
+    let (state_tx, state_rx) = watch::channel(initial);
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let mut targeted = Engine::new(initial, state_tx, len_tx);
+
+    let target = L2ForkchoiceState { un_safe: b2, local_safe: b1, finalized: genesis };
+    targeted.reset_to(client, cfg, target).await.expect("targeted reset");
+
+    let published = *state_rx.borrow();
+    assert_eq!(
+        published.sync_state.local_safe_head(),
+        b1,
+        "the watch must reflect the reset heads, not the heads from before it"
+    );
+    assert_eq!(published.sync_state, targeted.state().sync_state);
+}
+
 /// A reset installs a walkback point found by traversing the L2 chain, not one derived from L1, so
 /// it has no L1 key to pair with the head it writes — and the pairing it supersedes describes a
 /// head the engine is no longer on. Recording the new head as unpaired is what invalidates it: a

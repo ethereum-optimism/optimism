@@ -81,6 +81,7 @@ async fn lockstep_confirmation_carries_local_safe_not_cross_safe() {
         None,
         request_rx,
         Arc::new(DisabledDatabase),
+        None,
         Arc::new(NoopBlockSink),
     );
 
@@ -88,6 +89,223 @@ async fn lockstep_confirmation_carries_local_safe_not_cross_safe() {
     // ends the step.
     drop(request_tx);
     assert!(matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)));
+}
+
+/// The first step performs the startup engine reset, op-node's `initialReset`
+/// (`op-node/rollup/derive/pipeline.go:181-190`,
+/// `op-node/rollup/engine/engine_controller.go:1423-1432`): the walkback discovers the execution
+/// layer's heads, and a `VALID` answer to its forkchoice update marks EL sync finished — so
+/// derivation starts against an EL that already has a consistent chain, instead of waiting for a
+/// gossiped payload that a stalled or reset EL can never validate.
+#[tokio::test]
+async fn startup_reset_probes_the_el_and_starts_derivation_on_a_consistent_chain() {
+    use alloy_eips::{BlockId, BlockNumberOrTag};
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use kona_derive::Signal;
+    use kona_genesis::ChainGenesis;
+
+    // A chain whose only block is genesis, hashed for real so the walkback's consensus-decoded
+    // blocks match the rollup genesis.
+    let header = alloy_consensus::Header { number: 0, ..Default::default() };
+    let genesis_hash = header.hash_slow();
+    let cfg = Arc::new(RollupConfig {
+        genesis: ChainGenesis {
+            l2: BlockNumHash { number: 0, hash: genesis_hash },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let genesis = L2BlockInfo {
+        block_info: BlockInfo {
+            number: 0,
+            hash: genesis_hash,
+            parent_hash: B256::ZERO,
+            timestamp: 0,
+        },
+        ..Default::default()
+    };
+    // The transaction type is inferred from `with_l2_block`'s signature.
+    let genesis_block = alloy_rpc_types_eth::Block {
+        header: alloy_rpc_types_eth::Header {
+            hash: genesis_hash,
+            inner: header,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    // The finalized label answers (with genesis), so the EL counts as past its initial sync and
+    // the probe runs. A fresh EL would report no finalized block and be left to the gossip
+    // bootstrap instead — covered below.
+    let client = Arc::new(
+        MockEngineClient::builder()
+            .with_config(cfg.clone())
+            .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(PayloadStatus::new(
+                PayloadStatusEnum::Valid,
+                None,
+            )))
+            .with_l2_block_by_label(BlockNumberOrTag::Finalized, genesis_block.clone())
+            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), genesis_block.clone())
+            .with_l2_block(BlockId::Number(0.into()), genesis_block)
+            .with_l1_block(BlockId::Hash(B256::ZERO.into()), Default::default())
+            .build(),
+    );
+
+    let mut derivation_client = MockChainControllerDerivationClient::new();
+    derivation_client
+        .expect_send_signal()
+        .withf(|signal| matches!(signal, Signal::Reset(_)))
+        .times(1)
+        .returning(|_| Ok(()));
+    // The `VALID` forkchoice answer marks EL sync finished, and the very same step must tell
+    // derivation to start.
+    derivation_client
+        .expect_notify_sync_completed()
+        .withf(move |head: &L2BlockInfo| *head == genesis)
+        .times(1)
+        .returning(|_| Ok(()));
+    derivation_client.expect_send_new_engine_local_safe_head().returning(|_| Ok(()));
+
+    let (state_tx, _state_rx) = watch::channel(EngineState::default());
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let engine = Engine::new(EngineState::default(), state_tx, len_tx);
+
+    let (request_tx, request_rx) = mpsc::channel::<ChainControllerRequest>(1);
+    let mut actor = ChainController::new(
+        client,
+        cfg,
+        derivation_client,
+        engine,
+        None,
+        request_rx,
+        Arc::new(DisabledDatabase),
+        None,
+        Arc::new(NoopBlockSink),
+    );
+
+    // One step: startup reset, drain (which sees the flip and notifies derivation), then the
+    // closed channel ends it.
+    drop(request_tx);
+    assert!(matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)));
+}
+
+/// An execution layer that reports no finalized block has never been driven past genesis — its
+/// initial EL sync is still pending (op-node's discriminator,
+/// `op-node/rollup/engine/engine_controller.go:597-624`) — so the startup reset is skipped
+/// entirely: probing it would answer `VALID` for its own genesis, wrongly mark EL sync finished,
+/// and cut off the gossip bootstrap that is supposed to point the EL at the tip (the
+/// `TestSyncUnsafeBecomesSafe` / `TestSequencerRestart` regression). The client below could serve
+/// the whole walkback; the missing finalized label alone must hold the probe back.
+#[tokio::test]
+async fn the_startup_reset_is_skipped_while_the_el_reports_no_finalized_block() {
+    use alloy_eips::{BlockId, BlockNumberOrTag};
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use kona_genesis::ChainGenesis;
+
+    let header = alloy_consensus::Header { number: 0, ..Default::default() };
+    let genesis_hash = header.hash_slow();
+    let cfg = Arc::new(RollupConfig {
+        genesis: ChainGenesis {
+            l2: BlockNumHash { number: 0, hash: genesis_hash },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let genesis_block = alloy_rpc_types_eth::Block {
+        header: alloy_rpc_types_eth::Header {
+            hash: genesis_hash,
+            inner: header,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    // Everything the walkback needs — except the finalized label.
+    let client = Arc::new(
+        MockEngineClient::builder()
+            .with_config(cfg.clone())
+            .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(PayloadStatus::new(
+                PayloadStatusEnum::Valid,
+                None,
+            )))
+            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), genesis_block.clone())
+            .with_l2_block(BlockId::Number(0.into()), genesis_block)
+            .with_l1_block(BlockId::Hash(B256::ZERO.into()), Default::default())
+            .build(),
+    );
+
+    // No expectations: a skipped startup reset must reach neither the reset signal nor the
+    // sync-completed notification — the gossip bootstrap stays in charge.
+    let derivation_client = MockChainControllerDerivationClient::new();
+
+    let (state_tx, state_rx) = watch::channel(EngineState::default());
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let engine = Engine::new(EngineState::default(), state_tx, len_tx);
+
+    let (request_tx, request_rx) = mpsc::channel::<ChainControllerRequest>(1);
+    let mut actor = ChainController::new(
+        client,
+        cfg,
+        derivation_client,
+        engine,
+        None,
+        request_rx,
+        Arc::new(DisabledDatabase),
+        None,
+        Arc::new(NoopBlockSink),
+    );
+
+    drop(request_tx);
+    assert!(matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)));
+    assert!(
+        !state_rx.borrow().el_sync_finished,
+        "an EL with no finalized block must be left to the gossip EL-sync bootstrap"
+    );
+}
+
+/// When the walkback cannot complete — here the mock serves the finalized label but nothing the
+/// walkback needs — the startup reset is best-effort: the controller falls back to the
+/// gossip-driven EL-sync bootstrap instead of dying, and derivation is not told to start.
+#[tokio::test]
+async fn a_failed_startup_reset_falls_back_to_the_gossip_bootstrap() {
+    use alloy_eips::BlockNumberOrTag;
+
+    let cfg = Arc::new(RollupConfig::default());
+    let client = Arc::new(
+        MockEngineClient::builder()
+            .with_config(cfg.clone())
+            .with_l2_block_by_label(
+                BlockNumberOrTag::Finalized,
+                alloy_rpc_types_eth::Block::default(),
+            )
+            .build(),
+    );
+
+    // No expectations: a failed startup reset must reach neither the reset signal nor the
+    // sync-completed notification. (The default state's local-safe head is unchanged, so no
+    // lockstep update is sent either.)
+    let derivation_client = MockChainControllerDerivationClient::new();
+
+    let (state_tx, _state_rx) = watch::channel(EngineState::default());
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let engine = Engine::new(EngineState::default(), state_tx, len_tx);
+
+    let (request_tx, request_rx) = mpsc::channel::<ChainControllerRequest>(1);
+    let mut actor = ChainController::new(
+        client,
+        cfg,
+        derivation_client,
+        engine,
+        None,
+        request_rx,
+        Arc::new(DisabledDatabase),
+        None,
+        Arc::new(NoopBlockSink),
+    );
+
+    drop(request_tx);
+    assert!(
+        matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)),
+        "a walkback the EL cannot serve must not be a startup failure"
+    );
 }
 
 /// A [`SafeDb`] that remembers what it was asked to do, and can be made to fail.
@@ -198,7 +416,8 @@ fn recording_controller(
         None,
         request_rx,
         safe_db,
-        Arc::new(kona_engine::NoopBlockSink),
+        None,
+        Arc::new(NoopBlockSink),
     )
 }
 
@@ -307,4 +526,85 @@ fn a_disabled_database_is_never_written_to() {
 
     assert!(db.updates().is_empty(), "a disabled database records nothing");
     assert!(db.resets().is_empty(), "a disabled database rewinds nothing");
+}
+
+/// A controller over an engine client that knows the L1 genesis block, for the genesis-seed
+/// tests. The default rollup config puts L2 genesis at `block(0)`.
+fn seeding_controller(
+    safe_db: SharedSafeDb,
+) -> ChainController<MockEngineClient, MockChainControllerDerivationClient> {
+    let cfg = Arc::new(RollupConfig::default());
+    let (_request_tx, request_rx) = mpsc::channel::<ChainControllerRequest>(1);
+    let (state_tx, _state_rx) = watch::channel(EngineState::default());
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let l1_genesis: alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction> =
+        alloy_rpc_types_eth::Block {
+            header: alloy_rpc_types_eth::Header {
+                hash: B256::repeat_byte(0xaa),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+    ChainController::new(
+        Arc::new(
+            MockEngineClient::builder()
+                .with_config(cfg.clone())
+                .with_l1_block(alloy_eips::BlockId::Number(0.into()), l1_genesis)
+                .build(),
+        ),
+        cfg,
+        MockChainControllerDerivationClient::new(),
+        Engine::new(EngineState::default(), state_tx, len_tx),
+        None,
+        request_rx,
+        safe_db,
+        None,
+        Arc::new(NoopBlockSink),
+    )
+}
+
+/// A reset that lands the local-safe head at L2 genesis records genesis as safe from L1 block 0 —
+/// op-node's `onEngineConfirmedReset` (`op-node/rollup/driver/sync_deriver.go:204-220`). This
+/// entry is the safe-head database's floor: without it, `l1_at_safe_head` below the first
+/// post-reset advance answers `L1AtSafeHeadUnavailable`, and every `superroot_atTimestamp` for
+/// those heights fails for good — which is exactly how the fault-proof suites failed against a
+/// supernode that had derived the whole chain itself.
+#[tokio::test]
+async fn a_reset_to_genesis_seeds_the_database_with_genesis_at_l1_zero() {
+    let db = RecordingSafeDb::enabled();
+    let controller = seeding_controller(db.clone());
+
+    controller.seed_genesis_safe_head(block(0)).await;
+
+    let updates = db.updates();
+    assert_eq!(updates.len(), 1, "genesis must be recorded");
+    assert_eq!(updates[0].safe_head, block(0).block_info.id());
+    assert_eq!(
+        updates[0].l1,
+        BlockNumHash { number: 0, hash: B256::repeat_byte(0xaa) },
+        "the record pairs genesis with the real L1 block 0, as op-node's does"
+    );
+}
+
+/// A reset that lands anywhere above genesis seeds nothing: the walkback found real derived
+/// history, and only genesis is safe by definition.
+#[tokio::test]
+async fn a_reset_above_genesis_seeds_nothing() {
+    let db = RecordingSafeDb::enabled();
+    let controller = seeding_controller(db.clone());
+
+    controller.seed_genesis_safe_head(block(4)).await;
+
+    assert!(db.updates().is_empty(), "only a genesis landing is safe by definition");
+}
+
+/// A disabled database is not seeded — same posture as the recorder and the rewind.
+#[tokio::test]
+async fn a_disabled_database_is_not_seeded() {
+    let db = RecordingSafeDb::disabled();
+    let controller = seeding_controller(db.clone());
+
+    controller.seed_genesis_safe_head(block(0)).await;
+
+    assert!(db.updates().is_empty(), "a disabled database records nothing");
 }

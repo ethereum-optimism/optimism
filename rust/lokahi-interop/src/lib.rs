@@ -28,7 +28,8 @@ pub use backfill::{
     reconcile_tail, seal_indexed, verification_start,
 };
 pub use chain::{
-    BlockLogs, ChainAt, ChainError, InteropChain, L1Canonical, L1CanonicalExt, RoundError,
+    BlockLogs, ChainAt, ChainError, InteropChain, L1Canonical, L1CanonicalExt, RewindableChain,
+    RoundError,
 };
 pub use checksum::{ChecksumArgs, MessageChecksum, log_hash, log_to_log_hash};
 pub use decide::{
@@ -38,8 +39,10 @@ pub use decide::{
 pub use error::StoreError;
 pub use kv::{Entry, Kv, MemoryKv, WriteBatch};
 pub use logs::{BlockSeal, ContainsQuery, LogStore, LogsDb, OpenedBlock, StoredExecutingMessage};
-pub use verified::{InvalidHead, PendingTransition, RoundResult, VerifiedResult, VerifiedStore};
-pub use verifier::{Halted, Pace, Verifier, VerifierConfig, VerifierState};
+pub use verified::{
+    InvalidHead, PendingTransition, RewindPlan, RoundResult, VerifiedResult, VerifiedStore,
+};
+pub use verifier::{ChainReplacement, Halted, Pace, Verifier, VerifierConfig, VerifierState};
 pub use verify::{
     FrontierBlock, FrontierExecutingMessage, FrontierView, InvalidReason, LogStores, RoundVerdict,
     RuleViolation, verify_round,

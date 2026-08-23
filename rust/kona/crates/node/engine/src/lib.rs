@@ -44,11 +44,12 @@ extern crate tracing;
 
 mod task_queue;
 pub use task_queue::{
-    BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
-    ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask,
-    FinalizeTaskError, InsertTask, InsertTaskError, PromoteCrossSafeTask,
-    PromoteCrossSafeTaskError, SealTask, SealTaskError, SynchronizeTask, SynchronizeTaskError,
+    BuildSealCoupling, BuildTask, BuildTaskError, CommitBlockError, CommitTask, CommitTaskError,
+    ConsolidateInput, ConsolidateTask, ConsolidateTaskError, Engine, EngineBuildError,
+    EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors,
+    EngineTaskExt, FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask, InsertTaskError,
+    PromoteCrossSafeTask, PromoteCrossSafeTaskError, SealTask, SealTaskError, SynchronizeTask,
+    SynchronizeTaskError,
 };
 
 mod attributes;
@@ -56,6 +57,9 @@ pub use attributes::{AttributesMatch, AttributesMismatch};
 
 mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
+
+mod deny;
+pub use deny::{DenyList, DenyListReadError, SharedDenyList};
 
 mod client;
 pub use client::{

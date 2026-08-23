@@ -10,7 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
@@ -69,6 +72,60 @@ func TestLokahiConfigCarriesTheRequestedInteropActivation(t *testing.T) {
 	require.Contains(t, rendered, "[interop]", "an interop table must be written")
 	require.Contains(t, rendered, fmt.Sprintf("activation-timestamp = %d", activation),
 		"the requested activation must reach lokahi verbatim")
+}
+
+// Every hosted chain serves the experimental opstack block-building namespace, because
+// op-supernode's virtual op-nodes do (makeNodeCfg sets ExperimentalOPStackAPI on all of them):
+// the test sequencer drives block building through opstack_* on each chain's route.
+func TestLokahiConfigEnablesTheOpstackNamespace(t *testing.T) {
+	cfg := lokahiSupernodeConfig{
+		l1Net:        &L1Network{genesis: &core.Genesis{Config: params.MainnetChainConfig}},
+		l1ELRPC:      "http://127.0.0.1:8545",
+		l1BeaconAddr: "http://127.0.0.1:5052",
+	}
+	rendered := lokahiConfigFile(newGateT(), t.TempDir(), cfg, nil)
+
+	require.Contains(t, rendered, "experimental-opstack-api = true",
+		"the devstack must turn the opstack namespace on, as it does on op-supernode")
+}
+
+// The devnet L1 finalizes within seconds, and both SuperRootMigrator tests budget 150s for the
+// supernode's first finalized advance. op-node sees it in time because the devstack hands it a
+// 2-second L1EpochPollInterval; lokahi has to be handed the same cadence, or kona's 60-second
+// default leaves first finality (~126s in) unobserved until the ~180s poll.
+func TestLokahiConfigMatchesOpNodesEpochPollInterval(t *testing.T) {
+	cfg := lokahiSupernodeConfig{
+		l1Net:        &L1Network{genesis: &core.Genesis{Config: params.MainnetChainConfig}},
+		l1ELRPC:      "http://127.0.0.1:8545",
+		l1BeaconAddr: "http://127.0.0.1:5052",
+	}
+	rendered := lokahiConfigFile(newGateT(), t.TempDir(), cfg, nil)
+
+	require.Contains(t, rendered, fmt.Sprintf("epoch-poll-interval = %d", lokahiL1EpochPollSeconds),
+		"lokahi must poll L1 finality on the cadence the devstack hands op-node")
+}
+
+// A chain's P2P listeners ask the kernel for ephemeral ports rather than being handed a port the
+// harness picked ahead of time: a reserved port is free again before lokahi binds it, and under
+// parallel tests another component can take it in that window — the discovery service dies on
+// the collision and takes the whole node with it. Port 0 is how startMixedKonaNode runs
+// kona-node and how newDevstackP2PConfig runs op-node, so lokahi must be launched the same way.
+func TestLokahiChainEntryBindsEphemeralP2PPorts(t *testing.T) {
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+	chain := lokahiSupernodeChain{
+		net: &L2Network{
+			chainID:   eth.ChainIDFromUInt64(901),
+			rollupCfg: &rollup.Config{},
+			keys:      keys,
+		},
+		el: &stubEL{engineRPC: "http://127.0.0.1:9551"},
+	}
+
+	entry := lokahiChainEntry(newGateT(), t.TempDir(), chain, lokahiSupernodeConfig{})
+
+	require.Contains(t, entry, "p2p-tcp-port = 0", "gossip must bind an ephemeral port")
+	require.Contains(t, entry, "p2p-udp-port = 0", "discovery must bind an ephemeral port")
 }
 
 // A preset that requests no activation must not write the table at all, so a node that was not

@@ -8,7 +8,8 @@ use crate::{
     QueuedChainControllerDerivationClient, QueuedDerivationEngineClient, QueuedEngineRpcClient,
     QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
     QueuedSequencerEngineClient, RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
-    actors::{BlockStream, QueuedUnsafePayloadGossipClient},
+    SharedRpcServerLauncher,
+    actors::{BlockStream, PayloadToPublish, QueuedUnsafePayloadGossipClient, rpc::OpStackRpc},
     service::{
         BufferImportedBlocks,
         composition::{ComposedChain, L1WatcherPorts},
@@ -20,7 +21,7 @@ use alloy_primitives::Address;
 use alloy_provider::RootProvider;
 use jsonrpsee::RpcModule;
 use kona_derive::StatefulAttributesBuilder;
-use kona_engine::{CrossSafePromoter, Engine, EngineState, OpEngineClient};
+use kona_engine::{CrossSafePromoter, Engine, EngineState, OpEngineClient, SharedDenyList};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_gossip::P2pRpcRequest;
 use kona_interop::DependencySet;
@@ -32,12 +33,11 @@ use kona_providers_alloy::{
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
-    L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
-    RpcBuilder, WsRPC, WsServer,
+    L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, OpStackApiServer, P2pRpc,
+    RollupNodeApiServer, RollupRpc, RpcBuilder, WsRPC, WsServer,
 };
 use kona_safedb::SharedSafeDb;
 use op_alloy_network::Optimism;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{ops::Not as _, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
@@ -50,7 +50,6 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// arriving, and on a sequencer the two builders ask about different heads.
 pub(super) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
-const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
 /// The configuration for the L1 chain.
 #[derive(Debug, Clone)]
@@ -63,9 +62,22 @@ pub struct L1Config {
     pub beacon_client: OnlineBeaconClient,
     /// The L1 engine provider.
     pub engine_provider: RootProvider,
+    /// How often to poll the L1 for epoch updates — the finalized-block changes L2 finality is
+    /// driven from.
+    ///
+    /// The counterpart of op-node's `--l1.epoch-poll-interval`, which paces its safe/finalized
+    /// block polls (`op-node/node/node.go:371-375`); kona's L1 watcher has no safe-block stream,
+    /// so this paces the finalized stream alone. Defaults to
+    /// [`Self::DEFAULT_L1_EPOCH_POLL_INTERVAL`]. A devnet wants this at the seconds op-node's
+    /// devstack uses (2s), or first L1 finality is only observed a poll — up to a minute — late.
+    pub l1_epoch_poll_interval: Duration,
 }
 
 impl L1Config {
+    /// The default [`Self::l1_epoch_poll_interval`]: L1 finality moves at most once per epoch, so
+    /// polling it once a minute is enough on a production L1.
+    pub const DEFAULT_L1_EPOCH_POLL_INTERVAL: Duration = Duration::from_secs(60);
+
     /// Builds the one L1 watcher a host runs, serving every chain whose [`L1WatcherPorts`] are
     /// given.
     ///
@@ -99,7 +111,7 @@ impl L1Config {
         let finalized_stream = BlockStream::new_as_stream(
             self.engine_provider.clone(),
             BlockNumberOrTag::Finalized,
-            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+            self.l1_epoch_poll_interval,
         )?;
 
         let chains = chains
@@ -143,6 +155,14 @@ pub struct RollupNode {
     pub(crate) engine_config: EngineConfig,
     /// The [`RpcBuilder`] for the node.
     pub(crate) rpc_builder: Option<RpcBuilder>,
+    /// The launcher this chain's RPC module set is handed to, when the host supplies one.
+    ///
+    /// [`None`] — the standalone default — binds the module set to [`RpcBuilder::socket`] with
+    /// [`JsonrpseeServerLauncher`], which is a single-chain node's whole RPC. A multi-chain host
+    /// supplies its own launcher instead, so that N chains' module sets reach one socket rather
+    /// than N of them; [`RpcBuilder::socket`] is then unused, and whether an RPC is built at all
+    /// still follows the [`RpcBuilder`] above being present.
+    pub(crate) rpc_launcher: Option<SharedRpcServerLauncher>,
     /// The P2P [`NetworkConfig`] for the node.
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] for the node.
@@ -169,6 +189,8 @@ pub struct RollupNode {
     /// [`kona_safedb::DisabledDatabase`] for a host that does not need the history: its writes
     /// are no-ops, so nothing branches on whether recording is on.
     pub(crate) safe_db: SharedSafeDb,
+    /// The super-authority deny list the engine consults, when the node runs under one.
+    pub(crate) deny_list: Option<SharedDenyList>,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -232,7 +254,11 @@ type ConfiguredSequencerActor = SequencerActor<
 >;
 
 /// Concrete type of the rpc actor used by `RollupNode`.
-type ConfiguredRpcActor = RpcActor<JsonrpseeServerLauncher>;
+///
+/// The launcher is shared and object-safe rather than the concrete [`JsonrpseeServerLauncher`], so
+/// that a host which routes N chains onto one socket does not make this type — or the composition
+/// that returns it — generic over the launcher it chose.
+type ConfiguredRpcActor = RpcActor<SharedRpcServerLauncher>;
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -355,6 +381,7 @@ impl RollupNode {
             unsafe_head_tx_opt,
             controller_request_rx,
             self.safe_db.clone(),
+            self.deny_list.clone(),
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
 
@@ -402,7 +429,7 @@ impl RollupNode {
     fn build_sequencer(
         &self,
         controller_request_tx: mpsc::Sender<ChainControllerRequest>,
-        gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+        gossip_payload_tx: mpsc::Sender<PayloadToPublish>,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
         sequencer_admin_api_rx: mpsc::Receiver<crate::SequencerAdminQuery>,
@@ -442,13 +469,18 @@ impl RollupNode {
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
+    // The same shape as the sequencer actor's constructor, and for the same reason: this is the
+    // one place the node's channels meet the modules they serve.
+    #[allow(clippy::too_many_arguments)]
     async fn build_rpc_actor(
         &self,
+        controller_request_tx: mpsc::Sender<ChainControllerRequest>,
         controller_rpc_request_tx: mpsc::Sender<ChainControllerRpcRequest>,
         sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
         p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
         network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
+        gossip_payload_tx: mpsc::Sender<PayloadToPublish>,
     ) -> Result<Option<ConfiguredRpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
@@ -477,6 +509,7 @@ impl RollupNode {
                     l1_watcher_queries_tx,
                     self.config.l2_chain_id.id(),
                 )
+                .with_dependency_set(self.dependency_set.clone())
                 .into_rpc(),
             )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
@@ -490,9 +523,26 @@ impl RollupNode {
                 .merge(WsRPC::new(engine_rpc_client.clone()).into_rpc())
                 .map_err(|e| format!("Failed to register ws module: {e:?}"))?;
         }
+        // The experimental block-building namespace, registered exactly when op-node registers
+        // its own (`registerAPIs`, gated on `ExperimentalOPStackAPI`).
+        if config.opstack_enabled() {
+            let opstack = OpStackRpc::new(
+                self.config.clone(),
+                Arc::new(self.engine_config.clone().build_engine_client()),
+                engine_rpc_client.clone(),
+                controller_request_tx,
+                gossip_payload_tx,
+            );
+            modules
+                .merge(opstack.into_rpc())
+                .map_err(|e| format!("Failed to register opstack module: {e:?}"))?;
+        }
 
         let restarts_remaining = config.restart_count();
-        let launcher = JsonrpseeServerLauncher::new(config);
+        let launcher: SharedRpcServerLauncher = self
+            .rpc_launcher
+            .clone()
+            .unwrap_or_else(|| Arc::new(JsonrpseeServerLauncher::new(config)));
         let handle = launcher
             .launch(modules.clone())
             .await
@@ -537,8 +587,7 @@ impl RollupNode {
         let (signer_tx, signer_rx) = mpsc::channel::<Address>(16);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
         let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
-        let (gossip_payload_tx, gossip_payload_rx) =
-            mpsc::channel::<OpExecutionPayloadEnvelope>(256);
+        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel::<PayloadToPublish>(256);
         // watch channels
         let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
@@ -577,7 +626,7 @@ impl RollupNode {
 
         let sequencer_actor = self.build_sequencer(
             controller_request_tx.clone(),
-            gossip_payload_tx,
+            gossip_payload_tx.clone(),
             unsafe_head_rx,
             l1_head_updates_rx,
             sequencer_admin_api_rx,
@@ -588,11 +637,13 @@ impl RollupNode {
 
         let rpc = self
             .build_rpc_actor(
+                controller_request_tx.clone(),
                 controller_rpc_request_tx.clone(),
                 sequencer_admin_client,
                 p2p_rpc_tx,
                 network_admin_tx,
                 l1_query_tx.clone(),
+                gossip_payload_tx,
             )
             .await?;
 

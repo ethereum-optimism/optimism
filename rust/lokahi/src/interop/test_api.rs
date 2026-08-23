@@ -4,7 +4,7 @@
 //! pause, resume, status, and one chain's sealed range. They are what an acceptance test needs in
 //! order to observe a running verifier deterministically — hold it still, watch it cold-start,
 //! check what backfill covered — and they are process-wide questions, which is why they live here
-//! rather than on a chain's own socket.
+//! rather than on a chain's own route.
 //!
 //! The Go counterpart is `apis.SupernodeInteropTestAPI` (`op-service/apis/supernode.go`), which
 //! the in-process Go op-supernode implements by calling itself and lokahi implements by serving

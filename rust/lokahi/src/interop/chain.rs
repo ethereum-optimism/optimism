@@ -13,14 +13,17 @@ use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::{B256, ChainId, Log};
 use alloy_provider::{Provider, RootProvider};
 use async_trait::async_trait;
-use kona_engine::EngineQueries;
+use kona_engine::{DenyList, DenyListReadError, EngineQueries};
 use kona_genesis::RollupConfig;
-use kona_node_service::ChainControllerRpcRequest;
+use kona_node_service::{ChainControllerRequest, ChainControllerRpcRequest, RewindRequest};
 use kona_protocol::{BlockInfo, L2BlockInfo, OutputRoot};
+use kona_rpc::{L1WatcherQueries, L1WatcherQuerySender};
 use kona_safedb::{SafeDbError, SharedSafeDb};
-use lokahi_interop::{BlockLogs, ChainAt, ChainError, InteropChain, L1Canonical};
+use lokahi_interop::{
+    BlockLogs, ChainAt, ChainError, InteropChain, L1Canonical, RocksOutputArchive,
+};
 use op_alloy_network::Optimism;
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
 
@@ -41,10 +44,28 @@ pub(crate) struct NodeChain {
     rollup_config: RollupConfig,
     /// The chain controller's read-only query queue.
     queries: mpsc::Sender<ChainControllerRpcRequest>,
+    /// The L1 watcher's query channel for this chain, which answers its derivation L1 progress.
+    l1_queries: L1WatcherQuerySender,
     /// The safe-head database the chain's controller records local-safe advances into.
     safe_db: SharedSafeDb,
     /// A read-only execution-layer provider, for block contents.
     el: RootProvider<Optimism>,
+}
+
+/// The one slice of an `eth_getBlockReceipts` entry the verifier consumes: the logs.
+///
+/// Deliberately not alloy's typed receipt. That type requires the spec-mandated `from` field,
+/// and a receipt served without it — a non-conformant execution layer; the sync-tester harness
+/// round-tripped receipts through geth's consensus type, which carries no `from` at all — then
+/// fails deserialization outright, wedging verification on data the verifier never reads. The
+/// Go stack cannot be wedged this way: op-node and op-supervisor fetch receipts into that same
+/// lossy geth type (`op-service/sources/receipts_rpc.go:96`), so a receipt shape the Go verifier
+/// accepts must not stall this one. Everything but the logs is ignored.
+#[derive(Debug, serde::Deserialize)]
+struct ReceiptLogs {
+    /// The receipt's logs, in emission order.
+    #[serde(default)]
+    logs: Vec<Log>,
 }
 
 impl Debug for NodeChain {
@@ -60,10 +81,11 @@ impl NodeChain {
         chain_id: ChainId,
         rollup_config: RollupConfig,
         queries: mpsc::Sender<ChainControllerRpcRequest>,
+        l1_queries: L1WatcherQuerySender,
         safe_db: SharedSafeDb,
         el: RootProvider<Optimism>,
     ) -> Self {
-        Self { chain_id, rollup_config, queries, safe_db, el }
+        Self { chain_id, rollup_config, queries, l1_queries, safe_db, el }
     }
 
     /// Sends one [`EngineQueries`] to the chain controller's RPC peer and awaits its answer.
@@ -101,6 +123,17 @@ impl NodeChain {
         .map(|(block, _output, _state)| block)
     }
 
+    /// Returns the chain's current local-safe head, as the engine state reports it.
+    ///
+    /// The cross-safe fall-throughs read it: pre-activation the local-safe head *is* the
+    /// promotion target — op-node's `SafeL2Head` returns it for the `VerifierHeadPreActivation`
+    /// source (`op-node/rollup/engine/engine_controller.go:232-233`) — and the anchor branch is
+    /// bounded by it. Answered from the same engine-state watch every other query reads, so the
+    /// promotion and the chain's own `optimism_syncStatus` cannot describe different heads.
+    pub(crate) async fn local_safe_head(&self) -> Result<L2BlockInfo, ChainError> {
+        self.query(EngineQueries::State).await.map(|state| state.sync_state.local_safe_head())
+    }
+
     /// Resolves the pairing of the L2 block at `timestamp` from recorded history.
     ///
     /// Reached only when the live engine state answered
@@ -114,6 +147,19 @@ impl NodeChain {
     /// block", which is what cross-safety means, is therefore never told more than is true.
     async fn behind_head(&self, timestamp: u64) -> Result<ChainAt, ChainError> {
         let number = self.block_number_at_timestamp(timestamp).await?;
+
+        // Genesis L2 is trivially safe at L1 block 0, answered before the database is consulted —
+        // op-supernode's own guard (`op-supernode/supernode/chain_container/virtual_node/
+        // virtual_node.go:263-269`). It uses block 0 rather than the L2 genesis's L1 origin
+        // because the dispute contracts may predate that origin, allowing games anchored to
+        // earlier L1 heads; the zero hash is what its `eth.BlockID{Number: 0}` carries.
+        if number == self.rollup_config.genesis.l2.number {
+            return Ok(ChainAt::Derived {
+                block: self.rollup_config.genesis.l2,
+                l1: BlockNumHash { number: 0, hash: B256::ZERO },
+            });
+        }
+
         let record = match self.safe_db.l1_at_safe_head(number) {
             Ok(record) => record,
             // The recorded tip has not reached this height. Transient by construction: this is a
@@ -145,7 +191,7 @@ impl NodeChain {
     }
 
     /// Returns this chain's canonical block at `number`, as the verifier's block shape.
-    async fn block_info_at(&self, number: u64) -> Result<BlockInfo, ChainError> {
+    pub(crate) async fn block_info_at(&self, number: u64) -> Result<BlockInfo, ChainError> {
         // Only the header is read: the round needs the block's identity and timestamp, and its
         // logs come from the receipts rather than from the transaction list.
         let block = self
@@ -205,21 +251,21 @@ impl InteropChain for NodeChain {
             return Err(ChainError::NotReady);
         }
 
-        let receipts = self
+        // Asked raw and read through [`ReceiptLogs`] rather than through alloy's typed receipt:
+        // the typed shape hard-fails on a receipt without a `from` field, which this verifier
+        // neither reads nor needs. See [`ReceiptLogs`] for the posture.
+        let receipts: Option<Vec<ReceiptLogs>> = self
             .el
-            .get_block_receipts(BlockId::Hash(block.hash.into()))
+            .client()
+            .request("eth_getBlockReceipts", (BlockId::Hash(block.hash.into()),))
             .await
-            .map_err(|err| ChainError::Unreachable(format!("eth_getBlockReceipts: {err}")))?
-            .ok_or(ChainError::NotReady)?;
+            .map_err(|err| ChainError::Unreachable(format!("eth_getBlockReceipts: {err}")))?;
+        let receipts = receipts.ok_or(ChainError::NotReady)?;
 
         // Receipts come in transaction order and each one's logs in emission order, so flattening
         // reproduces the block's global log index sequence — which is what an initiating
         // message's index is meaningful against.
-        let logs = receipts
-            .iter()
-            .flat_map(|receipt| receipt.inner.logs())
-            .map(|log| log.inner.clone())
-            .collect::<Vec<Log>>();
+        let logs = receipts.into_iter().flat_map(|receipt| receipt.logs).collect::<Vec<Log>>();
 
         Ok(BlockLogs { block: info, logs })
     }
@@ -258,6 +304,21 @@ impl InteropChain for NodeChain {
         // it. Integer division is the flooring the trait asks for.
         Ok(genesis.l2.number + elapsed / self.rollup_config.block_time.max(1))
     }
+
+    async fn current_l1(&self) -> Result<BlockNumHash, ChainError> {
+        let (sender, receiver) = oneshot::channel();
+        self.l1_queries.send(L1WatcherQueries::L1State(sender)).await.map_err(|_| {
+            ChainError::Unreachable("the L1 watcher is not accepting queries".into())
+        })?;
+        let state = receiver
+            .await
+            .map_err(|_| ChainError::Unreachable("the L1 watcher did not answer".into()))?;
+        // A chain whose derivation has not consumed any L1 block yet reports the zero block —
+        // the same zero its own `optimism_syncStatus` reports for `current_l1` then
+        // (`kona/crates/node/rpc/src/rollup.rs:58`), and the zero op-supernode's
+        // `collectCurrentL1` folds into its minimum for such a chain.
+        Ok(state.current_l1.map(|block| block.id()).unwrap_or_default())
+    }
 }
 
 impl NodeChain {
@@ -269,6 +330,169 @@ impl NodeChain {
         let genesis = &self.rollup_config.genesis;
         genesis.l2_time +
             number.saturating_sub(genesis.l2.number) * self.rollup_config.block_time.max(1)
+    }
+}
+
+/// The rewind seam over one composed chain: the write half of applying an invalidation.
+///
+/// Reads through the same [`NodeChain`] the verifier observes with, and writes through the chain
+/// controller's request channel — the only writer of the chain's heads — so the rewind is ordered
+/// with everything else that moves them.
+pub(crate) struct ChainRewindRoute {
+    /// The chain, for reading what it currently carries at the invalidated height.
+    chain: Arc<NodeChain>,
+    /// The chain controller's request channel, which applies the rewind.
+    requests: mpsc::Sender<ChainControllerRequest>,
+}
+
+impl Debug for ChainRewindRoute {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ChainRewindRoute").field("chain", &self.chain).finish_non_exhaustive()
+    }
+}
+
+impl ChainRewindRoute {
+    /// Builds the rewind seam over one composed chain.
+    pub(crate) const fn new(
+        chain: Arc<NodeChain>,
+        requests: mpsc::Sender<ChainControllerRequest>,
+    ) -> Self {
+        Self { chain, requests }
+    }
+}
+
+#[async_trait]
+impl lokahi_interop::RewindableChain for ChainRewindRoute {
+    /// The decision structure is op-supernode's `InvalidateBlock`
+    /// (`op-supernode/supernode/chain_container/invalidation.go:438-465`): a canonical block at
+    /// the height that is *not* the invalidated one means the replacement already stands, and the
+    /// rewind is skipped; a missing block is a partially applied rewind from a previous crash and
+    /// is driven to completion; only the invalidated block itself still standing starts a fresh
+    /// rewind.
+    async fn rewind_off(&self, invalidated: BlockNumHash) -> Result<bool, ChainError> {
+        match self.chain.block_info_at(invalidated.number).await {
+            Ok(info) if info.hash != invalidated.hash => {
+                debug!(
+                    target: "lokahi_interop",
+                    number = invalidated.number,
+                    invalidated = %invalidated.hash,
+                    canonical = %info.hash,
+                    "The canonical block differs from the invalidated one; no rewind needed"
+                );
+                return Ok(false);
+            }
+            // Still canonical: rewind. Or no canonical block at the height at all — a prior
+            // crashed attempt may have left it that way, so the rewind is driven to completion
+            // rather than skipped.
+            Ok(_) | Err(ChainError::NotReady) => {}
+            Err(err) => return Err(err),
+        }
+
+        // The forkchoice target needs the parent as a full `L2BlockInfo`, and the chain is the
+        // authority on what that block is. Read at apply time rather than captured at decision
+        // time: canonicality below the invalidated height is untouched by the rewind, so the
+        // canonical block at `number - 1` is the invalidated block's parent on every retry.
+        let parent = self.chain.block_at(invalidated.number - 1).await?;
+        if parent.block_info.number != invalidated.number - 1 {
+            return Err(ChainError::Unreachable(format!(
+                "asked for block {} and was answered with block {}",
+                invalidated.number - 1,
+                parent.block_info.number
+            )));
+        }
+
+        let (result_tx, mut result_rx) = mpsc::channel(1);
+        self.requests
+            .send(ChainControllerRequest::Rewind(Box::new(RewindRequest { parent, result_tx })))
+            .await
+            .map_err(|_| {
+                ChainError::Unreachable("the chain controller is not accepting requests".into())
+            })?;
+        result_rx
+            .recv()
+            .await
+            .ok_or_else(|| {
+                ChainError::Unreachable("the chain controller dropped the rewind request".into())
+            })?
+            .map_err(|err| ChainError::Unreachable(format!("rewind failed: {err}")))?;
+
+        Ok(true)
+    }
+
+    /// Resets the chain onto `target` — the last verified frontier that still stands — after an
+    /// L1-reorg rewind pruned the archive entries denying the blocks above it. The same
+    /// controller rewind request an invalidation uses carries it: the engine lands on `target` as
+    /// its unsafe and local-safe head, the safe-head records above it are dropped, and derivation
+    /// restarts from it — this time without the revoked denials, so it rebuilds what the new L1
+    /// actually carries. op-supernode's `RewindEngine`
+    /// (`op-supernode/supernode/chain_container/chain_container.go:749`) is the same operation on
+    /// its chain-container interface.
+    async fn reset_to(&self, target: BlockNumHash) -> Result<(), ChainError> {
+        // The target sits at or below everything the rewind dropped, where canonicality is
+        // untouched, so reading it back by number answers the same block on every retry. A
+        // mismatch is a chain mid-move: re-observed and retried, like every other transient.
+        let block = self.chain.block_at(target.number).await?;
+        if block.block_info.number != target.number || block.block_info.hash != target.hash {
+            debug!(
+                target: "lokahi_interop",
+                number = target.number,
+                asked = %target.hash,
+                found = %block.block_info.hash,
+                "The canonical block at the reset height is not the frontier the plan named yet"
+            );
+            return Err(ChainError::NotReady);
+        }
+
+        let (result_tx, mut result_rx) = mpsc::channel(1);
+        self.requests
+            .send(ChainControllerRequest::Rewind(Box::new(RewindRequest {
+                parent: block,
+                result_tx,
+            })))
+            .await
+            .map_err(|_| {
+                ChainError::Unreachable("the chain controller is not accepting requests".into())
+            })?;
+        result_rx
+            .recv()
+            .await
+            .ok_or_else(|| {
+                ChainError::Unreachable("the chain controller dropped the reset request".into())
+            })?
+            .map_err(|err| ChainError::Unreachable(format!("reset failed: {err}")))?;
+
+        Ok(())
+    }
+}
+
+/// The invalidated-output archive, read as the deny list the chain's engine consults.
+///
+/// One record serves both: the archive keeps the invalidated block's output preimage for the
+/// optimistic superroot branch, and its existence at a `(height, hash)` is the denial — the same
+/// doubling op-supernode's deny list does, whose records carry the output preimage fields too.
+#[derive(Debug)]
+pub(crate) struct ArchiveDenyList {
+    /// The archive backing the answers.
+    archive: Arc<RocksOutputArchive>,
+}
+
+impl ArchiveDenyList {
+    /// Builds the deny-list view over a chain's archive.
+    pub(crate) const fn new(archive: Arc<RocksOutputArchive>) -> Self {
+        Self { archive }
+    }
+}
+
+impl DenyList for ArchiveDenyList {
+    fn is_denied(&self, number: u64, hash: B256) -> Result<bool, DenyListReadError> {
+        self.archive
+            .get(number, hash)
+            .map(|output| output.is_some())
+            .map_err(|err| DenyListReadError(err.to_string()))
+    }
+
+    fn max_denied_height(&self) -> Result<Option<u64>, DenyListReadError> {
+        self.archive.max_height().map_err(|err| DenyListReadError(err.to_string()))
     }
 }
 
@@ -312,6 +536,57 @@ mod tests {
     use kona_safedb::{SafeDb, SafeHeadRecord};
     use std::sync::Arc;
     use url::Url;
+
+    /// The receipt shape the sync-tester harness served in CI: geth's consensus `types.Receipt`
+    /// marshaled back out, with no `from`/`to` fields (job 5518771; the sync tester round-tripped
+    /// the upstream EL's receipts through that lossy type). Alloy's typed receipt hard-fails on
+    /// it ("missing field `from`"), which wedged every verification round for the full test
+    /// budget. [`ReceiptLogs`] must accept it and surface exactly the logs — the only part of a
+    /// receipt the verifier reads — the way the Go stack's geth-typed fetch always has
+    /// (`op-service/sources/receipts_rpc.go:96`).
+    #[test]
+    fn receipts_without_a_from_field_still_yield_their_logs() {
+        let captured = r#"[{
+            "type": "0x7e",
+            "status": "0x1",
+            "cumulativeGasUsed": "0xa878",
+            "logsBloom": "0x0",
+            "logs": [{
+                "address": "0x4200000000000000000000000000000000000015",
+                "topics": ["0x32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f"],
+                "data": "0x0102",
+                "blockNumber": "0x1",
+                "transactionHash": "0x0d9d9d1c9c103b2f31a4c8b426bd75d9b7c908d0a353f38343a4785ec2b74e4b",
+                "transactionIndex": "0x0",
+                "blockHash": "0x0d9d9d1c9c103b2f31a4c8b426bd75d9b7c908d0a353f38343a4785ec2b74e4b",
+                "logIndex": "0x0",
+                "removed": false
+            }],
+            "transactionHash": "0x0d9d9d1c9c103b2f31a4c8b426bd75d9b7c908d0a353f38343a4785ec2b74e4b",
+            "contractAddress": null,
+            "gasUsed": "0xa878",
+            "effectiveGasPrice": "0x0",
+            "blockHash": "0x0d9d9d1c9c103b2f31a4c8b426bd75d9b7c908d0a353f38343a4785ec2b74e4b",
+            "blockNumber": "0x1",
+            "transactionIndex": "0x0",
+            "depositNonce": "0x1",
+            "depositReceiptVersion": "0x1",
+            "l1GasPrice": "0x1",
+            "l1GasUsed": "0x0",
+            "l1Fee": "0x0"
+        }]"#;
+
+        let receipts: Vec<ReceiptLogs> =
+            serde_json::from_str(captured).expect("a receipt without `from` must deserialize");
+        let logs = receipts.into_iter().flat_map(|receipt| receipt.logs).collect::<Vec<Log>>();
+
+        assert_eq!(logs.len(), 1, "the one log must survive the lenient read");
+        assert_eq!(
+            logs[0].address,
+            alloy_primitives::address!("0x4200000000000000000000000000000000000015")
+        );
+        assert_eq!(logs[0].data.topics().len(), 1);
+    }
 
     /// A safe-head database that answers every read with one chosen error.
     ///
@@ -362,13 +637,61 @@ mod tests {
         }
     }
 
-    /// A chain whose history reads all fail with `err`.
+    /// A safe-head database holding exactly one record, as the genesis seed leaves a cold
+    /// database after the first engine reset. Every other read fails, so a code path that
+    /// consults anything beyond the first entry fails the test that drove it.
+    #[derive(Debug)]
+    struct SeededSafeDb(SafeHeadRecord);
+
+    impl SafeDb for SeededSafeDb {
+        fn enabled(&self) -> bool {
+            true
+        }
+
+        fn safe_head_updated(
+            &self,
+            _safe_head: kona_protocol::L2BlockInfo,
+            _l1_head: BlockNumHash,
+        ) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+
+        fn safe_head_reset(
+            &self,
+            _safe_head: kona_protocol::L2BlockInfo,
+        ) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+
+        fn safe_head_at_l1(&self, _l1_block_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
+            Err(SafeDbError::NotFound)
+        }
+
+        fn first_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
+            Ok(self.0)
+        }
+
+        fn last_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
+            Ok(self.0)
+        }
+
+        fn l1_at_safe_head(&self, _target_l2_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
+            Err(SafeDbError::NotFound)
+        }
+
+        fn close(&self) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+    }
+
+    /// A chain reading its history through `safe_db`, with no engine behind its query channels.
     ///
     /// The execution layer is never reached: every case below is decided before the block hash is
     /// looked up, which is itself part of what is being asserted — a chain whose history is gone
     /// must not be waiting on an RPC to find that out.
-    fn chain_with(err: fn() -> SafeDbError) -> NodeChain {
+    fn chain_over(safe_db: Arc<dyn SafeDb + Send + Sync>) -> NodeChain {
         let (queries, _rx) = mpsc::channel(1);
+        let (l1_queries, _l1_rx) = mpsc::channel(1);
         NodeChain::new(
             901,
             RollupConfig {
@@ -377,9 +700,15 @@ mod tests {
                 ..Default::default()
             },
             queries,
-            Arc::new(FailingSafeDb(err)),
+            l1_queries,
+            safe_db,
             RootProvider::<Optimism>::new_http(Url::parse("http://127.0.0.1:1/").unwrap()),
         )
+    }
+
+    /// A chain whose history reads all fail with `err`.
+    fn chain_with(err: fn() -> SafeDbError) -> NodeChain {
+        chain_over(Arc::new(FailingSafeDb(err)))
     }
 
     /// The recorded tip has not reached the height yet. The block *is* local-safe — that is why
@@ -421,6 +750,32 @@ mod tests {
         assert!(matches!(chain.behind_head(1_100).await, Err(ChainError::Unreachable(_))));
     }
 
+    /// Interop cold start blocks on this question for every chain, so the answer must not wait on
+    /// anything beyond the first recorded entry — here the genesis pairing the chain controller
+    /// seeds at its first engine reset (`seed_genesis_safe_head`), behind query channels nothing
+    /// answers. Requiring more — e.g. that derivation has already moved past the entry's L1
+    /// block — re-opens the cold-start window `TestSupernodeInterop_SafeHeadProgression`'s
+    /// startup pause scan races: a verifier still cold-starting answers `superroot_atTimestamp`
+    /// from the optimistic handoff branch, and the scan then overshoots the pause point.
+    #[tokio::test]
+    async fn cold_start_needs_only_the_first_recorded_entry() {
+        let genesis_seed = SafeHeadRecord {
+            l1: BlockNumHash { number: 0, hash: B256::ZERO },
+            safe_head: BlockNumHash::default(),
+        };
+        let chain = chain_over(Arc::new(SeededSafeDb(genesis_seed)));
+        assert_eq!(chain.first_safe_head_timestamp().await.unwrap(), 1_000);
+
+        // A first entry above genesis answers the same way: its own block's timestamp, with no
+        // requirement on how far derivation has moved since.
+        let later = SafeHeadRecord {
+            l1: BlockNumHash { number: 7, hash: B256::ZERO },
+            safe_head: BlockNumHash { number: 3, hash: B256::ZERO },
+        };
+        let chain = chain_over(Arc::new(SeededSafeDb(later)));
+        assert_eq!(chain.first_safe_head_timestamp().await.unwrap(), 1_006);
+    }
+
     /// Timestamps between two blocks floor onto the earlier one, which is the block that carries
     /// them as far as a round is concerned.
     #[tokio::test]
@@ -439,6 +794,25 @@ mod tests {
     async fn a_timestamp_before_genesis_answers_with_genesis() {
         let chain = chain_with(|| SafeDbError::NotFound);
         assert_eq!(chain.block_number_at_timestamp(1).await.unwrap(), 0);
+    }
+
+    /// Genesis is safe at L1 block 0 by definition, and the answer must not depend on the
+    /// database — op-supernode's guard (`virtual_node.go:263-269`) short-circuits before its
+    /// `SafeDB` lookup. The database here answers every read with the *permanent* error, so
+    /// without the guard this verdict would be [`ChainAt::HistoryUnavailable`] — the one that
+    /// halts the verifier — for the very timestamp verification starts from when interop
+    /// activates at genesis.
+    #[tokio::test]
+    async fn genesis_is_safe_at_l1_block_zero_without_consulting_history() {
+        let chain = chain_with(|| SafeDbError::L1AtSafeHeadUnavailable);
+
+        let genesis = ChainAt::Derived {
+            block: BlockNumHash::default(),
+            l1: BlockNumHash { number: 0, hash: B256::ZERO },
+        };
+        // The genesis timestamp itself, and an unaligned timestamp flooring onto genesis.
+        assert_eq!(chain.behind_head(1_000).await.unwrap(), genesis);
+        assert_eq!(chain.behind_head(1_001).await.unwrap(), genesis);
     }
 
     /// The two directions have to agree, or the timestamp cold start picks from a chain's first

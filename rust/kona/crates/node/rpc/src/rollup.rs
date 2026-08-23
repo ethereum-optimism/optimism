@@ -9,13 +9,13 @@ use jsonrpsee::{
     types::{ErrorCode, ErrorObject},
 };
 use kona_engine::EngineState;
-use kona_genesis::RollupConfig;
+use kona_genesis::{DependencySet, RollupConfig};
 use kona_protocol::SyncStatus;
 use std::fmt::Debug;
 
 use crate::{
-    EngineRpcClient, L1State, L1WatcherQueries, OutputResponse, RollupNodeApiServer,
-    SafeHeadResponse, l1_watcher::L1WatcherQuerySender,
+    DependencySetResponse, EngineRpcClient, L1State, L1WatcherQueries, OutputResponse,
+    RollupNodeApiServer, SafeHeadResponse, l1_watcher::L1WatcherQuerySender,
 };
 
 /// `RollupRpc`
@@ -29,6 +29,11 @@ pub struct RollupRpc<EngineRpcClient_> {
     pub l1_watcher_sender: L1WatcherQuerySender,
     /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
     pub chain_id_label: std::sync::Arc<str>,
+    /// The interop dependency set this chain was configured with, when it has one.
+    ///
+    /// [`None`] is the answer, not a missing input: a chain that schedules no interop has no
+    /// dependency set to serve, and op-node reports that as not-found rather than as an empty set.
+    pub dependency_set: Option<std::sync::Arc<DependencySet>>,
 }
 
 impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
@@ -45,7 +50,19 @@ impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
             engine_client,
             l1_watcher_sender,
             chain_id_label: kona_macros::chain_id_label(chain_id),
+            dependency_set: None,
         }
+    }
+
+    /// Attaches the dependency set `optimism_dependencySet` answers from.
+    ///
+    /// Separate from [`Self::new`] so that a caller which only reads sync status — the supernode
+    /// query API does — is not made to supply one.
+    pub fn with_dependency_set(
+        self,
+        dependency_set: Option<std::sync::Arc<DependencySet>>,
+    ) -> Self {
+        Self { dependency_set, ..self }
     }
 
     // Important note: we zero-out the fields that can't be derived yet to follow op-node's
@@ -129,11 +146,103 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
         self.engine_client.get_config().await
     }
 
+    async fn op_dependency_set(&self) -> RpcResult<DependencySetResponse> {
+        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_dependencySet", kona_macros::CHAIN_ID_LABEL => self.chain_id_label.clone());
+
+        // op-node returns `ethereum.NotFound` when no set is configured, and the Go callers that
+        // ask for one only ask on a chain that schedules Lagoon — so the error is the answer for a
+        // chain that does not, rather than a failure to serve the method.
+        self.dependency_set.as_deref().map(DependencySetResponse::from).ok_or_else(|| {
+            ErrorObject::owned(ErrorCode::InternalError.code(), "not found", None::<()>)
+        })
+    }
+
     async fn op_version(&self) -> RpcResult<String> {
         kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_version", kona_macros::CHAIN_ID_LABEL => self.chain_id_label.clone());
 
         const RPC_VERSION: &str = env!("CARGO_PKG_VERSION");
 
         return Ok(RPC_VERSION.to_string());
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::zero_sized_map_values)]
+mod tests {
+    use super::*;
+    use kona_engine::LocalSafeSnapshot;
+    use kona_genesis::ChainDependency;
+    use kona_protocol::{L2BlockInfo, OutputRoot};
+    use std::{collections::BTreeMap, sync::Arc};
+    use tokio::sync::watch;
+
+    /// An engine client that answers nothing.
+    ///
+    /// `optimism_dependencySet` is a statement about how the chain was configured, not about what
+    /// it has derived, so it must be answerable without reaching the engine at all — which is what
+    /// this stub asserts by making any such reach panic.
+    #[derive(Debug, Clone)]
+    struct NoEngine;
+
+    #[async_trait]
+    impl EngineRpcClient for NoEngine {
+        async fn get_config(&self) -> RpcResult<RollupConfig> {
+            unimplemented!("the dependency set is not read from the engine")
+        }
+        async fn get_state(&self) -> RpcResult<EngineState> {
+            unimplemented!("the dependency set is not read from the engine")
+        }
+        async fn output_at_block(
+            &self,
+            _block: BlockNumberOrTag,
+        ) -> RpcResult<(L2BlockInfo, OutputRoot, EngineState)> {
+            unimplemented!("the dependency set is not read from the engine")
+        }
+        async fn local_safe_snapshot_at(&self, _timestamp: u64) -> RpcResult<LocalSafeSnapshot> {
+            unimplemented!("the dependency set is not read from the engine")
+        }
+        async fn dev_get_task_queue_length(&self) -> RpcResult<usize> {
+            unimplemented!("the dependency set is not read from the engine")
+        }
+        async fn dev_subscribe_to_engine_queue_length(&self) -> RpcResult<watch::Receiver<usize>> {
+            unimplemented!("the dependency set is not read from the engine")
+        }
+        async fn dev_subscribe_to_engine_state(&self) -> RpcResult<watch::Receiver<EngineState>> {
+            unimplemented!("the dependency set is not read from the engine")
+        }
+    }
+
+    fn rollup_rpc(dependency_set: Option<DependencySet>) -> RollupRpc<NoEngine> {
+        let (l1_watcher_sender, _rx) = tokio::sync::mpsc::channel(1);
+        RollupRpc::new(NoEngine, l1_watcher_sender, 901)
+            .with_dependency_set(dependency_set.map(Arc::new))
+    }
+
+    /// A configured chain serves its set, in op-node's wire shape.
+    #[tokio::test]
+    async fn serves_the_configured_dependency_set() {
+        let rpc = rollup_rpc(Some(DependencySet {
+            dependencies: BTreeMap::from([(901, ChainDependency {}), (902, ChainDependency {})]),
+            override_message_expiry_window: None,
+        }));
+
+        let response = rpc.op_dependency_set().await.expect("a configured chain answers");
+
+        assert_eq!(
+            serde_json::to_value(&response).unwrap(),
+            serde_json::json!({"dependencies": {"901": {}, "902": {}}}),
+        );
+    }
+
+    /// A chain with no set configured reports not-found, which is what op-node's
+    /// `nodeAPI.DependencySet` returns through `ethereum.NotFound`.
+    #[tokio::test]
+    async fn reports_not_found_without_a_dependency_set() {
+        let err = rollup_rpc(None)
+            .op_dependency_set()
+            .await
+            .expect_err("a chain with no set configured has nothing to serve");
+
+        assert_eq!(err.message(), "not found");
     }
 }

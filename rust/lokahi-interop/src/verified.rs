@@ -68,6 +68,28 @@ impl RoundResult {
     }
 }
 
+/// The rewind transition persisted in the WAL: what to drop, and where the chains land.
+///
+/// The explicit-plan shape is op-supernode's `RewindPlan`
+/// (`op-supernode/supernode/activity/interop/types.go:54-66`): the plan names what the decision
+/// measured, so a crash replay applies what was decided rather than re-deciding against a world
+/// the reorg has since changed further.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RewindPlan {
+    /// The timestamp verified results are dropped from, inclusive: the committed frontier whose
+    /// L1 basis reorged away.
+    pub rewind_at_or_after: u64,
+    /// The timestamp every chain's engine is reset onto, set when archived invalidations at or
+    /// after [`Self::rewind_at_or_after`] are being revoked — their deposits-only replacements
+    /// were forced on the reorged basis, and derivation alone will not put the original blocks
+    /// back while a replacement is canonical. [`None`] leaves the engines alone: with no
+    /// invalidation revoked, the chains' own derivation absorbs the L1 reorg.
+    pub reset_chains_to: Option<u64>,
+    /// The previous verified frontier, which the log stores rewind onto. [`None`] when no
+    /// earlier frontier is retained: the rewind then clears the stores entirely.
+    pub target_heads: Option<BTreeMap<ChainId, BlockNumHash>>,
+}
+
 /// The effectful decision recorded in the WAL slot while it is being applied.
 ///
 /// Only decisions with durable side effects are ever written here — a round that decides to wait
@@ -78,13 +100,17 @@ pub enum PendingTransition {
     Advance(RoundResult),
     /// Invalidate this round's invalid heads and advance the rest.
     Invalidate(RoundResult),
+    /// Drop the committed frontiers whose L1 basis reorged away.
+    Rewind(RewindPlan),
 }
 
 impl PendingTransition {
-    /// Returns the round result the transition carries.
-    pub const fn result(&self) -> &RoundResult {
+    /// Returns the round result the transition carries, or [`None`] for a rewind, which is
+    /// decided from the committed frontier rather than from a round's verification result.
+    pub const fn result(&self) -> Option<&RoundResult> {
         match self {
-            Self::Advance(result) | Self::Invalidate(result) => result,
+            Self::Advance(result) | Self::Invalidate(result) => Some(result),
+            Self::Rewind(_) => None,
         }
     }
 }
@@ -375,19 +401,32 @@ fn take_verified_body(cursor: &mut Cursor<'_>) -> Result<VerifiedResult, StoreEr
 mod decision_tag {
     pub(super) const ADVANCE: u8 = 1;
     pub(super) const INVALIDATE: u8 = 2;
+    pub(super) const REWIND: u8 = 3;
 }
 
 /// Encodes a [`PendingTransition`].
+///
+/// An advance or invalidation:
 ///
 /// ```text
 /// version (1) | decision tag (1) | verified body | invalid count (4)
 ///   | invalid count * ( chain id (8) | number (8) | hash (32) | state root (32)
 ///                       | message passer storage root (32) )
 /// ```
+///
+/// A rewind:
+///
+/// ```text
+/// version (1) | decision tag (1) | rewind at or after (8)
+///   | has reset (1) | [ reset chains to (8) ]
+///   | has targets (1) | [ head count (4) | head count * ( chain id (8) | number (8)
+///                                                         | hash (32) ) ]
+/// ```
 fn encode_pending(pending: &PendingTransition) -> Result<Vec<u8>, StoreError> {
     let (tag, result) = match pending {
         PendingTransition::Advance(result) => (decision_tag::ADVANCE, result),
         PendingTransition::Invalidate(result) => (decision_tag::INVALIDATE, result),
+        PendingTransition::Rewind(plan) => return encode_pending_rewind(plan),
     };
     let invalid_count = u32::try_from(result.invalid_heads.len())
         .map_err(|_| StoreError::Conflict("too many invalid heads in one transition"))?;
@@ -406,6 +445,37 @@ fn encode_pending(pending: &PendingTransition) -> Result<Vec<u8>, StoreError> {
     Ok(sink.into_vec())
 }
 
+/// Encodes the rewind arm of a [`PendingTransition`]. Layout in [`encode_pending`]'s docs.
+fn encode_pending_rewind(plan: &RewindPlan) -> Result<Vec<u8>, StoreError> {
+    let head_count = plan.target_heads.as_ref().map_or(0, BTreeMap::len);
+    let head_count_u32 = u32::try_from(head_count)
+        .map_err(|_| StoreError::Conflict("too many chains in one rewind plan"))?;
+    let mut sink = Sink::with_capacity(25 + head_count * 48);
+    sink.put_u8(FORMAT_VERSION);
+    sink.put_u8(decision_tag::REWIND);
+    sink.put_u64(plan.rewind_at_or_after);
+    match plan.reset_chains_to {
+        Some(reset_to) => {
+            sink.put_u8(1);
+            sink.put_u64(reset_to);
+        }
+        None => sink.put_u8(0),
+    }
+    match &plan.target_heads {
+        Some(heads) => {
+            sink.put_u8(1);
+            sink.put_u32(head_count_u32);
+            for (chain_id, head) in heads {
+                sink.put_u64(*chain_id);
+                sink.put_u64(head.number);
+                sink.put_b256(head.hash);
+            }
+        }
+        None => sink.put_u8(0),
+    }
+    Ok(sink.into_vec())
+}
+
 /// Decodes a [`PendingTransition`] written by [`encode_pending`].
 fn decode_pending(raw: &[u8]) -> Result<PendingTransition, StoreError> {
     let mut cursor = Cursor::new(raw, "pending transition");
@@ -414,6 +484,11 @@ fn decode_pending(raw: &[u8]) -> Result<PendingTransition, StoreError> {
         return Err(StoreError::UnsupportedVersion { expected: FORMAT_VERSION, actual: version });
     }
     let tag = cursor.take_u8()?;
+    if tag == decision_tag::REWIND {
+        let plan = take_rewind_plan(&mut cursor)?;
+        cursor.finish()?;
+        return Ok(PendingTransition::Rewind(plan));
+    }
     let verified = take_verified_body(&mut cursor)?;
     let invalid_count = cursor.take_u32()?;
     let mut invalid_heads = BTreeMap::new();
@@ -436,6 +511,33 @@ fn decode_pending(raw: &[u8]) -> Result<PendingTransition, StoreError> {
         decision_tag::INVALIDATE => Ok(PendingTransition::Invalidate(result)),
         _ => Err(StoreError::DataCorruption("pending transition: unknown decision tag")),
     }
+}
+
+/// Decodes the rewind arm written by [`encode_pending_rewind`].
+fn take_rewind_plan(cursor: &mut Cursor<'_>) -> Result<RewindPlan, StoreError> {
+    let rewind_at_or_after = cursor.take_u64()?;
+    let reset_chains_to = match cursor.take_u8()? {
+        0 => None,
+        1 => Some(cursor.take_u64()?),
+        _ => return Err(StoreError::DataCorruption("rewind plan: reset flag")),
+    };
+    let target_heads = match cursor.take_u8()? {
+        0 => None,
+        1 => {
+            let head_count = cursor.take_u32()?;
+            let mut heads = BTreeMap::new();
+            for _ in 0..head_count {
+                let chain_id = cursor.take_u64()?;
+                let head = BlockNumHash { number: cursor.take_u64()?, hash: cursor.take_b256()? };
+                if heads.insert(chain_id, head).is_some() {
+                    return Err(StoreError::DataCorruption("rewind plan: duplicate chain"));
+                }
+            }
+            Some(heads)
+        }
+        _ => return Err(StoreError::DataCorruption("rewind plan: target flag")),
+    };
+    Ok(RewindPlan { rewind_at_or_after, reset_chains_to, target_heads })
 }
 
 #[cfg(test)]
@@ -564,7 +666,7 @@ mod tests {
         });
         store.set_pending(&advance).unwrap();
         assert_eq!(store.pending().unwrap(), Some(advance.clone()));
-        assert!(advance.result().is_valid());
+        assert!(advance.result().unwrap().is_valid());
         store.clear_pending().unwrap();
 
         let invalidate = PendingTransition::Invalidate(RoundResult {
@@ -580,10 +682,33 @@ mod tests {
         });
         store.set_pending(&invalidate).unwrap();
         assert_eq!(store.pending().unwrap(), Some(invalidate.clone()));
-        assert!(!invalidate.result().is_valid());
+        assert!(!invalidate.result().unwrap().is_valid());
 
         store.clear_pending().unwrap();
         assert_eq!(store.pending().unwrap(), None);
+    }
+
+    /// Every shape a rewind plan can take survives the WAL slot: the full-rewind plan with
+    /// nothing optional, the engine-resetting one, and the one carrying the previous frontier.
+    #[test]
+    fn a_rewind_plan_round_trips_through_the_wal_slot() {
+        let store = store();
+        for plan in [
+            RewindPlan { rewind_at_or_after: 100, reset_chains_to: None, target_heads: None },
+            RewindPlan { rewind_at_or_after: 100, reset_chains_to: Some(99), target_heads: None },
+            RewindPlan {
+                rewind_at_or_after: 100,
+                reset_chains_to: Some(99),
+                target_heads: Some(BTreeMap::from([(901, head(9)), (902, head(10))])),
+            },
+        ] {
+            let pending = PendingTransition::Rewind(plan);
+            // A rewind is decided from the committed frontier, not from a verification result.
+            assert_eq!(pending.result(), None);
+            store.set_pending(&pending).unwrap();
+            assert_eq!(store.pending().unwrap(), Some(pending));
+            store.clear_pending().unwrap();
+        }
     }
 
     #[test]

@@ -24,9 +24,11 @@ use anyhow::{Context, Result, bail};
 use kona_engine::CrossSafePromoter;
 use kona_genesis::RollupConfig;
 use kona_node_service::{ChainControllerRequest, ChainControllerRpcRequest};
+use kona_rpc::L1WatcherQuerySender;
 use kona_safedb::{SafeDatabase, SharedSafeDb};
 use lokahi_interop::{
-    InteropChain, LogStores, RocksKv, Verifier, VerifierConfig, open_log_store, open_verified_store,
+    ChainReplacement, InteropChain, LogStores, RewindableChain, RocksKv, RocksOutputArchive,
+    Verifier, VerifierConfig, open_log_store, open_output_archive, open_verified_store,
 };
 use op_alloy_network::Optimism;
 use std::{
@@ -38,7 +40,7 @@ use tracing::info;
 use url::Url;
 
 pub(crate) use actor::InteropActor;
-pub(crate) use chain::{L1Provider, NodeChain};
+pub(crate) use chain::{ArchiveDenyList, ChainRewindRoute, L1Provider, NodeChain};
 pub(crate) use query::{
     InteropQueryError, InteropReader, InteropStatus, SealedBlocks, Verdict, VerifiedAt,
 };
@@ -76,10 +78,18 @@ pub(crate) struct ChainInterop {
     pub(crate) el: RootProvider<Optimism>,
     /// The chain controller's read-only query channel.
     pub(crate) queries: mpsc::Sender<ChainControllerRpcRequest>,
-    /// The chain controller's request channel, which applies promotions.
+    /// The L1 watcher's query channel for this chain, which answers its derivation L1 progress.
+    pub(crate) l1_queries: L1WatcherQuerySender,
+    /// The chain controller's request channel, which applies promotions and rewinds.
     pub(crate) requests: mpsc::Sender<ChainControllerRequest>,
     /// The capability to promote this chain's cross-safe head.
     pub(crate) promoter: CrossSafePromoter,
+    /// The chain's invalidated-output archive, which its engine reads as the deny list.
+    ///
+    /// The same handle the chain controller was composed with: the verifier writes an
+    /// invalidation into it and the engine's deny checks read it, so the two cannot be looking at
+    /// different stores.
+    pub(crate) archive: Arc<RocksOutputArchive>,
 }
 
 impl ChainInterop {
@@ -92,6 +102,19 @@ impl ChainInterop {
         let db = SafeDatabase::new(&path)
             .with_context(|| format!("failed to open the safe-head database {}", path.display()))?;
         Ok(Arc::new(db))
+    }
+
+    /// Opens the invalidated-output archive in one chain's data directory.
+    ///
+    /// Per chain like the safe-head database — the deny list it doubles as is a per-chain
+    /// question — but unlike everything else in the chain's directory it is NOT re-derivable:
+    /// the output preimages it holds die with the replaced blocks. Its directory is separable
+    /// for backup on purpose.
+    pub(crate) fn open_archive(datadir: &Path) -> Result<Arc<RocksOutputArchive>> {
+        let archive = open_output_archive(datadir).with_context(|| {
+            format!("failed to open the invalidated-output archive under {}", datadir.display())
+        })?;
+        Ok(Arc::new(archive))
     }
 }
 
@@ -210,6 +233,7 @@ impl InteropActor {
         interop_datadir: Option<&Path>,
         l1_eth_rpc: &Url,
         activation_timestamp: u64,
+        message_expiry_window: Option<u64>,
         chains: Vec<ChainInterop>,
     ) -> Result<Self> {
         let interop_datadir = interop_datadir.ok_or_else(|| {
@@ -231,6 +255,7 @@ impl InteropActor {
         let mut stores: LogStores = LogStores::new();
         let mut routes = Vec::with_capacity(chains.len());
         let mut observed: Vec<Arc<dyn InteropChain>> = Vec::with_capacity(chains.len());
+        let mut replacements = std::collections::BTreeMap::new();
 
         for chain in chains {
             let chain_id = chain.chain_id;
@@ -250,10 +275,24 @@ impl InteropActor {
                 chain_id,
                 chain.rollup_config,
                 chain.queries,
+                chain.l1_queries,
                 chain.safe_db,
                 chain.el,
             ));
             observed.push(node_chain.clone());
+            // The invalidation route: the archive the chain's engine already reads as its deny
+            // list, and a rewind seam writing through the same controller queue promotions go
+            // through.
+            replacements.insert(
+                chain_id,
+                ChainReplacement {
+                    archive: chain.archive,
+                    chain: Arc::new(ChainRewindRoute::new(
+                        node_chain.clone(),
+                        chain.requests.clone(),
+                    )) as Arc<dyn RewindableChain>,
+                },
+            );
             routes.push(ChainRoute {
                 chain: node_chain,
                 promoter: chain.promoter,
@@ -267,8 +306,9 @@ impl InteropActor {
             l1,
             verified,
             stores,
-            VerifierConfig::new(activation_timestamp),
+            verifier_config(activation_timestamp, message_expiry_window),
         )
+        .and_then(|verifier| verifier.with_replacements(replacements))
         .map_err(|err| anyhow::anyhow!("failed to build the interop verifier: {err}"))?;
 
         info!(
@@ -281,6 +321,29 @@ impl InteropActor {
 
         Ok(Self::new(verifier, routes))
     }
+}
+
+/// The verifier's configuration for an activation timestamp and the dependency set's
+/// message-expiry window.
+///
+/// The window comes from the dependency set — op-supernode reads it off the first virtual-node
+/// config that has one (`op-supernode/supernode/supernode.go:121-127`), and its `Interop`
+/// substitutes the protocol default for an absent or zero value
+/// (`op-supernode/supernode/activity/interop/interop.go:279-281`); kona's
+/// `DependencySet::get_message_expiry_window` applies the same substitution, so the [`None`] here
+/// is only a set with no dependency set at all. The backfill depth deliberately does *not* follow
+/// an override: op-supernode's is an independent setting whose default stays the protocol window
+/// (`interop.go:34-37`), and backfilling more than a shrunken window costs nothing while
+/// backfilling less would leave sealed history short of what a resumed verifier checks for.
+const fn verifier_config(
+    activation_timestamp: u64,
+    message_expiry_window: Option<u64>,
+) -> VerifierConfig {
+    let mut config = VerifierConfig::new(activation_timestamp);
+    if let Some(window) = message_expiry_window {
+        config.message_expiry_window = window;
+    }
+    config
 }
 
 #[cfg(test)]
@@ -506,10 +569,12 @@ mod store_tests {
     fn chain(chain_id: ChainId, datadir: PathBuf) -> Result<ChainInterop> {
         std::fs::create_dir_all(&datadir)?;
         let (queries, _queries_rx) = mpsc::channel(1);
+        let (l1_queries, _l1_queries_rx) = mpsc::channel(1);
         let (requests, _requests_rx) = mpsc::channel(1);
         Ok(ChainInterop {
             chain_id,
             safe_db: ChainInterop::open_safe_db(&datadir)?,
+            archive: ChainInterop::open_archive(&datadir)?,
             datadir,
             rollup_config: RollupConfig {
                 block_time: 2,
@@ -519,6 +584,7 @@ mod store_tests {
             },
             el: RootProvider::<Optimism>::new_http(url::Url::parse("http://127.0.0.1:1/").unwrap()),
             queries,
+            l1_queries,
             requests,
             promoter: promoter(),
         })
@@ -541,7 +607,7 @@ mod store_tests {
         ];
 
         let l1 = url::Url::parse("http://127.0.0.1:1/").unwrap();
-        let actor = InteropActor::build(Some(&interop_dir), &l1, ACTIVATION, chains);
+        let actor = InteropActor::build(Some(&interop_dir), &l1, ACTIVATION, None, chains);
         assert!(actor.is_ok(), "{:?}", actor.err());
 
         assert!(interop_dir.join(VERIFIED_DIR).is_dir(), "the verified store is process-wide");
@@ -566,7 +632,27 @@ mod store_tests {
         let chains = vec![chain(901, root.path().join("901")).expect("chain 901")];
 
         let l1 = url::Url::parse("http://127.0.0.1:1/").unwrap();
-        let err = InteropActor::build(None, &l1, ACTIVATION, chains).expect_err("must be rejected");
+        let err =
+            InteropActor::build(None, &l1, ACTIVATION, None, chains).expect_err("must be rejected");
         assert!(err.to_string().contains("`[defaults]`"), "{err}");
+    }
+
+    /// The dependency set's message-expiry window reaches the verifier's rules — that is where a
+    /// devstack override like `WithMessageExpiryWindow(12)` travels — while the backfill depth
+    /// keeps the protocol default, which is op-supernode's independent setting
+    /// (`op-supernode/supernode/activity/interop/interop.go:34-37`).
+    #[test]
+    fn the_dependency_sets_expiry_window_reaches_the_verifier() {
+        let defaults = verifier_config(ACTIVATION, None);
+        assert_eq!(defaults, VerifierConfig::new(ACTIVATION));
+
+        let overridden = verifier_config(ACTIVATION, Some(12));
+        assert_eq!(overridden.message_expiry_window, 12);
+        assert_eq!(overridden.activation_timestamp, ACTIVATION);
+        assert_eq!(
+            overridden.log_backfill_depth,
+            VerifierConfig::new(ACTIVATION).log_backfill_depth,
+            "the backfill depth is an independent setting and keeps its default"
+        );
     }
 }

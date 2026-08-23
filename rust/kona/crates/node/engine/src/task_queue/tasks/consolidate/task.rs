@@ -2,7 +2,7 @@
 
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
-    SynchronizeTask,
+    SharedDenyList, SynchronizeTask,
     state::{EngineSyncStateUpdate, LocalSafeHead, LocalSafeOrigin},
     task_queue::build_and_seal,
 };
@@ -32,6 +32,26 @@ impl From<OpAttributesWithParent> for ConsolidateInput {
     fn from(v: OpAttributesWithParent) -> Self {
         Self::Attributes(Box::new(v))
     }
+}
+
+/// Whether an RPC failure from the unsafe-block fetch heuristically says the block is absent
+/// rather than the fetch having failed.
+///
+/// A correct execution-layer implementation answers a block-by-number request for a block it does
+/// not have with an empty result, never an error, so this only hardens against wrong
+/// implementations — the mirror of op-node's `MaybeAsNotFoundErr`
+/// (`op-service/eth/errors.go:10-27`), which wraps every payload fetch
+/// (`op-service/sources/eth_client.go:269-274`). The string set here is a superset of op-node's
+/// ("block not found" / "header not found" / "unknown block", all covered by the bare
+/// "not found"): op-node only reaches this fetch for blocks its payload queue proved attachable,
+/// while this engine adopts optimistic unsafe heads to drive EL sync and so *does* fetch ahead of
+/// the EL — against a wrong implementation that answers the miss with a bare `not found` error
+/// (op-service's own sync tester, `op-sync-tester/synctester/backend/sync_tester.go:183-187`),
+/// classifying it as a fetch failure would retry an impossible fetch forever instead of taking
+/// the miss split below.
+fn is_block_not_found_rpc_error(err: &crate::EngineClientError) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("not found") || msg.contains("unknown block")
 }
 
 impl ConsolidateInput {
@@ -88,6 +108,12 @@ pub struct ConsolidateTask<EngineClient_: EngineClient> {
     pub cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
     pub input: ConsolidateInput,
+    /// The super-authority deny list, when the node runs under one.
+    ///
+    /// Consulted before an existing block is adopted as local-safe: a denied block must be reorged
+    /// out and rebuilt, never consolidated back in (op-node's
+    /// `op-node/rollup/attributes/attributes.go:241-256`).
+    pub deny: Option<SharedDenyList>,
     /// Where to hand the decoded block once the engine has canonicalized it.
     pub block_sink: Arc<dyn ImportedBlockSink>,
 }
@@ -98,9 +124,10 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         client: Arc<EngineClient_>,
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
+        deny: Option<SharedDenyList>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, cfg, input, block_sink }
+        Self { client, cfg, input, deny, block_sink }
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
@@ -115,6 +142,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             self.cfg.clone(),
             attributes.clone(),
             true,
+            self.deny.clone(),
             self.block_sink.clone(),
         )
         .await?;
@@ -186,6 +214,31 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         }
     }
 
+    /// Maps a fetch miss of the unsafe block to consolidate against onto op-node's split
+    /// (`op-node/rollup/attributes/attributes.go:204-221`): while the engine's initial EL sync is
+    /// in flight the miss is a paced stall — the EL simply has not filled the height in yet, and a
+    /// reset would re-target it away from its sync target — and after EL sync it is a reset, so
+    /// the walkback realigns the unsafe head with what the execution layer actually has instead of
+    /// retrying a fetch that can never succeed.
+    fn missing_unsafe_block(&self, state: &EngineState, block_num: u64) -> ConsolidateTaskError {
+        if state.el_sync_finished {
+            warn!(
+                target: "engine",
+                block_num,
+                "Unsafe L2 block missing for consolidation; requesting a reset to realign with \
+                 the execution layer"
+            );
+            ConsolidateTaskError::MissingUnsafeL2Block(block_num)
+        } else {
+            debug!(
+                target: "engine",
+                block_num,
+                "Waiting for EL sync to fill in the unsafe L2 block for consolidation"
+            );
+            ConsolidateTaskError::AwaitingELSyncUnsafeL2Block(block_num)
+        }
+    }
+
     /// Attempts consolidation on the engine state.
     pub async fn consolidate(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
         let global_start = Instant::now();
@@ -195,9 +248,12 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         let fetch_start = Instant::now();
         let block = match self.client.l2_block_by_label(block_num.into()).await {
             Ok(Some(block)) => block,
-            Ok(None) => {
-                warn!(target: "engine", "Received `None` block for {}", block_num);
-                return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
+            Ok(None) => return Err(self.missing_unsafe_block(state, block_num)),
+            // An error response that says the block is absent is the same miss, only surfaced by
+            // a non-conforming EL implementation; op-node folds it into the not-found branch too
+            // (`op-service/eth/errors.go:10-27`).
+            Err(err) if is_block_not_found_rpc_error(&err) => {
+                return Err(self.missing_unsafe_block(state, block_num));
             }
             Err(_) => {
                 warn!(target: "engine", "Failed to fetch unsafe l2 block for consolidation");
@@ -208,6 +264,43 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         let block_hash = block.header.hash;
 
         if self.input.is_consistent_with_block(&self.cfg, &block) {
+            // A denied block can re-enter the canonical chain via unsafe sync, and consolidation
+            // would then adopt it as local-safe without ever rebuilding it. Gate here too,
+            // forcing the build path on a deny — where the seal-time check turns the rebuild
+            // into the deposits-only replacement. The mirror of op-node's consolidation deny
+            // check (`op-node/rollup/attributes/attributes.go:241-256`), including its posture:
+            // a read error fails CLOSED — without a deny-list answer the block can be neither
+            // promoted nor reorged, so the task stalls and retries. Only the attributes path
+            // checks, as op-node's does: the delegation path carries no attributes a replacement
+            // could be built from.
+            let denied = if matches!(&self.input, ConsolidateInput::Attributes(_)) &&
+                let Some(deny) = &self.deny
+            {
+                deny.is_denied(block.header.number, block_hash).map_err(|err| {
+                    warn!(
+                        target: "engine",
+                        %err,
+                        block_number = block.header.number,
+                        block_hash = %block_hash,
+                        "Failed to check the deny list during consolidation; stalling rather \
+                         than promoting or reorging"
+                    );
+                    ConsolidateTaskError::DenyListUnavailable
+                })?
+            } else {
+                false
+            };
+            if denied {
+                warn!(
+                    target: "engine",
+                    block_number = block.header.number,
+                    block_hash = %block_hash,
+                    "Consolidated block is denied by the super authority; forcing a reorg to \
+                     build the replacement"
+                );
+                return self.reconcile_unsafe_to_local_safe(state).await;
+            }
+
             trace!(
                 target: "engine",
                 input = ?self.input,
@@ -321,6 +414,48 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
     //   heads. If the injected head is ahead of the ChainController's unsafe head, we reconcile the
     //   unsafe chain up to it instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+        // Attributes that no longer sit on the local-safe head are stale and are dropped, the
+        // mirror of op-node's queued-attributes check against the pending-safe head
+        // (`op-node/rollup/attributes/attributes.go:156-182`). The drop is not an error case:
+        // op-node's comment reads "This is expected after successful processing of these
+        // attributes", and that is exactly how the deposits-only fallback ends. Both the Holocene
+        // invalid-payload retry and an invalidation's replacement import a block *for* these
+        // attributes and advance local-safe past their parent, while the consolidate task itself
+        // returns the flush signal as an error — which [`crate::Engine::drain`] answers by keeping
+        // the task queued for retry. Without this drop, the retried task re-consolidates the same
+        // attributes against the replacement it just imported, mismatches, deterministically
+        // rebuilds the denied block, and replaces it again, forever — post-replacement
+        // consolidation livelocks instead of converging.
+        //
+        // A parent at the local-safe *height* whose hash is not the local-safe head is the other
+        // arm of op-node's check (`attributes.go:172-182`): reorg inconsistency, answered with a
+        // reset rather than a drop.
+        if let ConsolidateInput::Attributes(attributes) = &self.input {
+            let local_safe = state.sync_state.local_safe_head().block_info;
+            let parent = attributes.parent.block_info;
+            if parent.number != local_safe.number {
+                debug!(
+                    target: "engine",
+                    parent_number = parent.number,
+                    parent_hash = %parent.hash,
+                    local_safe_number = local_safe.number,
+                    local_safe_hash = %local_safe.hash,
+                    "Dropping stale consolidation attributes; the local-safe head moved past them"
+                );
+                return Ok(());
+            }
+            if parent.hash != local_safe.hash {
+                warn!(
+                    target: "engine",
+                    parent_number = parent.number,
+                    parent_hash = %parent.hash,
+                    local_safe_hash = %local_safe.hash,
+                    "Consolidation attributes parent conflicts with the local-safe head"
+                );
+                return Err(ConsolidateTaskError::ParentConflictsWithLocalSafe);
+            }
+        }
+
         // Derivation drives consolidation, so the comparison is against the *local*-safe head.
         // Reading cross-safe here would re-consolidate already-consolidated blocks whenever
         // cross-safe lags local-safe under interop.
@@ -360,6 +495,83 @@ mod tests {
         }
     }
 
+    /// A consolidate task over a client with no block at the fetched height.
+    fn task_without_block(block_num: u64) -> ConsolidateTask<MockEngineClient> {
+        task_with_client(
+            block_num,
+            MockEngineClient::builder().with_config(Arc::new(RollupConfig::default())).build(),
+        )
+    }
+
+    fn task_with_client(
+        block_num: u64,
+        client: MockEngineClient,
+    ) -> ConsolidateTask<MockEngineClient> {
+        let safe_l2 = L2BlockInfo {
+            block_info: BlockInfo { number: block_num, ..Default::default() },
+            ..Default::default()
+        };
+        ConsolidateTask::new(
+            Arc::new(client),
+            Arc::new(RollupConfig::default()),
+            ConsolidateInput::BlockInfo(safe_l2),
+            None,
+            Arc::new(crate::NoopBlockSink),
+        )
+    }
+
+    /// A missing unsafe block is answered along op-node's split
+    /// (`op-node/rollup/attributes/attributes.go:204-221`): a paced temporary stall while the
+    /// initial EL sync is still filling the height in, and a reset once EL sync has finished —
+    /// so the walkback realigns the unsafe head instead of the same fetch being retried forever.
+    #[tokio::test]
+    async fn missing_unsafe_block_stalls_during_el_sync_and_resets_after() {
+        use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
+
+        let task = task_without_block(4);
+
+        let mut state = EngineState { el_sync_finished: false, ..Default::default() };
+        let err = task.consolidate(&mut state).await.unwrap_err();
+        assert!(matches!(err, ConsolidateTaskError::AwaitingELSyncUnsafeL2Block(4)));
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Temporary);
+
+        state.el_sync_finished = true;
+        let err = task.consolidate(&mut state).await.unwrap_err();
+        assert!(matches!(err, ConsolidateTaskError::MissingUnsafeL2Block(4)));
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Reset);
+    }
+
+    /// An RPC error that heuristically says the block is absent is folded into the same miss
+    /// split, hardening against non-conforming execution layers exactly as op-node's
+    /// `MaybeAsNotFoundErr` does (`op-service/eth/errors.go:10-27`); any other RPC failure stays
+    /// a plain temporary fetch failure (`op-node/rollup/attributes/attributes.go:222-227`).
+    #[tokio::test]
+    async fn not_found_rpc_errors_map_to_the_miss_split() {
+        use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
+
+        let mut state = EngineState { el_sync_finished: true, ..Default::default() };
+
+        for message in ["block not found", "HEADER NOT FOUND", "Unknown block 0x4", "not found"] {
+            let client = MockEngineClient::builder()
+                .with_config(Arc::new(RollupConfig::default()))
+                .with_l2_block_by_label_error(BlockNumberOrTag::Number(4), message)
+                .build();
+            let err = task_with_client(4, client).consolidate(&mut state).await.unwrap_err();
+            assert!(
+                matches!(err, ConsolidateTaskError::MissingUnsafeL2Block(4)),
+                "{message} must map to the miss split, got {err:?}"
+            );
+        }
+
+        let client = MockEngineClient::builder()
+            .with_config(Arc::new(RollupConfig::default()))
+            .with_l2_block_by_label_error(BlockNumberOrTag::Number(4), "connection refused")
+            .build();
+        let err = task_with_client(4, client).consolidate(&mut state).await.unwrap_err();
+        assert!(matches!(err, ConsolidateTaskError::FailedToFetchUnsafeL2Block));
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Temporary);
+    }
+
     #[tokio::test]
     async fn consolidated_blocks_are_handed_to_the_block_sink() {
         // Consolidation reads the unsafe block in full to compare it against the derived
@@ -389,8 +601,13 @@ mod tests {
             ..Default::default()
         };
         let sink = Arc::new(RecordingSink::default());
-        let task =
-            ConsolidateTask::new(client, cfg, ConsolidateInput::BlockInfo(safe_l2), sink.clone());
+        let task = ConsolidateTask::new(
+            client,
+            cfg,
+            ConsolidateInput::BlockInfo(safe_l2),
+            None,
+            sink.clone(),
+        );
 
         task.consolidate(&mut EngineState::default()).await.unwrap();
 

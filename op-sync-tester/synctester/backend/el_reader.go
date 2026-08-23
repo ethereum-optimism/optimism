@@ -15,13 +15,19 @@ import (
 // ReadOnlyELBackend defines the minimal, read-only execution layer
 // interface used by the sync tester and its mock backends.
 // The interface exposes two flavors of block accessors:
-//   - JSON-returning methods (GetBlockByNumberJSON, GetBlockByHashJSON)
-//     which return the raw RPC payload exactly as delivered by the EL.
+//   - JSON-returning methods (GetBlockByNumberJSON, GetBlockByHashJSON,
+//     GetBlockReceiptsJSON) which return the raw RPC payload exactly as
+//     delivered by the EL.
 //     These are useful for relaying the response from read-only exec layer directly
 //   - Typed methods (GetBlockByNumber, GetBlockByHash) which decode
 //     the RPC response into geth *types.Block for structured
 //     inspection in code.
-//   - Additional helpers include GetBlockReceipts and ChainId
+//   - Additional helpers include ChainId
+//
+// Receipts are only ever relayed raw: a typed round-trip through geth's
+// consensus types.Receipt strips the `from`/`to` fields the execution-apis
+// spec requires (geth's type does not carry them), which breaks clients that
+// require them — alloy's TransactionReceipt among them.
 //
 // Implementation wraps ethclient.Client to forward RPC
 // calls. For testing, a mock implementation can be provided to return
@@ -31,7 +37,7 @@ type ReadOnlyELBackend interface {
 	GetBlockByHashJSON(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error)
 	GetBlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error)
 	GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
-	GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error)
+	GetBlockReceiptsJSON(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (json.RawMessage, error)
 	ChainId(ctx context.Context) (hexutil.Big, error)
 }
 
@@ -69,8 +75,12 @@ func (g *ELReader) GetBlockByHash(ctx context.Context, hash common.Hash) (*types
 	return g.c.BlockByHash(ctx, hash)
 }
 
-func (g *ELReader) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
-	return g.c.BlockReceipts(ctx, blockNrOrHash)
+func (g *ELReader) GetBlockReceiptsJSON(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := g.c.Client().CallContext(ctx, &raw, "eth_getBlockReceipts", blockNrOrHash); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }
 
 func (g *ELReader) ChainId(ctx context.Context) (hexutil.Big, error) {

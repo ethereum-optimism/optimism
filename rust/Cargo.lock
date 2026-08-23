@@ -7630,6 +7630,7 @@ dependencies = [
 name = "kona-rpc"
 version = "0.3.2"
 dependencies = [
+ "alloy-consensus 2.1.1",
  "alloy-eips 2.1.1",
  "alloy-primitives",
  "alloy-rpc-client",
@@ -8555,6 +8556,8 @@ dependencies = [
  "async-trait",
  "clap",
  "discv5 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "http 1.4.0",
+ "hyper",
  "jsonrpsee",
  "kona-cli",
  "kona-derive",
@@ -8582,6 +8585,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "toml",
+ "tower 0.5.3",
  "tracing",
  "url",
 ]

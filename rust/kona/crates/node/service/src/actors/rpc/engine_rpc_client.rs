@@ -158,7 +158,13 @@ mod tests {
     /// pairing survives the round trip.
     #[tokio::test]
     async fn the_client_reaches_the_local_safe_snapshot_through_the_rpc_actor() {
-        let cfg = Arc::new(RollupConfig::default());
+        // Genesis is block 0 at timestamp 80 with a two-second block time, so the head fixture —
+        // block 10 at timestamp 100 — sits exactly where the config arithmetic puts it.
+        let cfg = Arc::new(RollupConfig {
+            block_time: 2,
+            genesis: kona_genesis::ChainGenesis { l2_time: 80, ..Default::default() },
+            ..Default::default()
+        });
         let state = TestEngineStateBuilder::new()
             .with_unsafe_head(l2(12, 104))
             .with_local_safe_head(l2(10, 100))

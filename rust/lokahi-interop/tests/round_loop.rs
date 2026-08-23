@@ -13,8 +13,9 @@ use kona_genesis::{ChainGenesis, HardForkConfig, Predeploys, RollupConfig};
 use kona_interop::{ExecutingMessage, MessageIdentifier};
 use kona_protocol::{BlockInfo, OutputRoot};
 use lokahi_interop::{
-    BlockLogs, ChainAt, ChainError, ChecksumArgs, InteropChain, L1Canonical, LogStore, LogStores,
-    LogsDb, MemoryKv, Pace, PendingTransition, RoundResult, VerifiedResult, VerifiedStore,
+    ArchivedOutput, BlockLogs, ChainAt, ChainError, ChainReplacement, ChecksumArgs, InteropChain,
+    InvalidHead, L1Canonical, LogStore, LogStores, LogsDb, MemoryKv, OutputArchive, Pace,
+    PendingTransition, RewindPlan, RewindableChain, RoundResult, VerifiedResult, VerifiedStore,
     Verifier, VerifierConfig, VerifierState, log_to_log_hash,
 };
 use std::{
@@ -81,6 +82,8 @@ struct FakeChain {
     first_safe_head: RwLock<Option<u64>>,
     /// When set, the chain reports that the L1 pairing at or below this timestamp is gone.
     history_gap: RwLock<bool>,
+    /// The L1 block this chain's derivation has considered up to.
+    current_l1: RwLock<BlockNumHash>,
 }
 
 impl FakeChain {
@@ -100,6 +103,9 @@ impl FakeChain {
             local_safe_through: RwLock::new(200),
             first_safe_head: RwLock::new(Some(START)),
             history_gap: RwLock::new(false),
+            // Well ahead of every block's own pairing, so the advance-time cap is a no-op unless
+            // a test lowers it.
+            current_l1: RwLock::new(l1_at(200)),
         }
     }
 
@@ -117,6 +123,10 @@ impl FakeChain {
 
     fn set_history_gap(&self, gap: bool) {
         *self.history_gap.write().unwrap() = gap;
+    }
+
+    fn set_current_l1(&self, block: BlockNumHash) {
+        *self.current_l1.write().unwrap() = block;
     }
 }
 
@@ -175,6 +185,10 @@ impl InteropChain for FakeChain {
         // Timestamps equal block numbers in this world.
         Ok(timestamp)
     }
+
+    async fn current_l1(&self) -> Result<BlockNumHash, ChainError> {
+        Ok(*self.current_l1.read().unwrap())
+    }
 }
 
 /// The L1, with every block canonical unless a test says otherwise.
@@ -186,6 +200,12 @@ struct FakeL1 {
 impl FakeL1 {
     fn reorg(&self, number: u64) {
         self.reorged.write().unwrap().push(number);
+    }
+
+    /// The reorg settles: the canonical block at `number` is the expected one again, as it is
+    /// once the chains re-derive on the new L1 — this world's blocks carry fixed L1 pairings.
+    fn restore(&self, number: u64) {
+        self.reorged.write().unwrap().retain(|&n| n != number);
     }
 }
 
@@ -230,25 +250,137 @@ fn executing_log(
     Log { address: Predeploys::CROSS_L2_INBOX, data: message.encode_log_data() }
 }
 
+/// The rewind seam over a fake chain, recording every invocation.
+///
+/// A real rewind takes the chain back onto the invalidated block's parent; here that is modelled
+/// as the chain's local-safe coverage dropping below the invalidated height, so the next round
+/// observes `NotYet` until the test installs the replacement block the way derivation would.
+#[derive(Debug)]
+struct FakeRewind {
+    chain: Arc<FakeChain>,
+    /// Every block `rewind_off` was invoked for, in order.
+    calls: RwLock<Vec<BlockNumHash>>,
+    /// Every target `reset_to` was invoked for, in order.
+    resets: RwLock<Vec<BlockNumHash>>,
+    /// When set, the chain reports it is already off the block: no rewind happens.
+    already_replaced: RwLock<bool>,
+    /// When set, every rewind attempt fails transiently.
+    unreachable: RwLock<bool>,
+}
+
+impl FakeRewind {
+    const fn new(chain: Arc<FakeChain>) -> Self {
+        Self {
+            chain,
+            calls: RwLock::new(Vec::new()),
+            resets: RwLock::new(Vec::new()),
+            already_replaced: RwLock::new(false),
+            unreachable: RwLock::new(false),
+        }
+    }
+
+    fn calls(&self) -> Vec<BlockNumHash> {
+        self.calls.read().unwrap().clone()
+    }
+
+    fn resets(&self) -> Vec<BlockNumHash> {
+        self.resets.read().unwrap().clone()
+    }
+
+    fn set_already_replaced(&self, already: bool) {
+        *self.already_replaced.write().unwrap() = already;
+    }
+
+    fn set_unreachable(&self, unreachable: bool) {
+        *self.unreachable.write().unwrap() = unreachable;
+    }
+}
+
+#[async_trait]
+impl RewindableChain for FakeRewind {
+    async fn rewind_off(&self, invalidated: BlockNumHash) -> Result<bool, ChainError> {
+        self.calls.write().unwrap().push(invalidated);
+        if *self.unreachable.read().unwrap() {
+            return Err(ChainError::Unreachable("the chain controller is down".into()));
+        }
+        if *self.already_replaced.read().unwrap() {
+            return Ok(false);
+        }
+        self.chain.set_local_safe_through(invalidated.number - 1);
+        Ok(true)
+    }
+
+    async fn reset_to(&self, target: BlockNumHash) -> Result<(), ChainError> {
+        self.resets.write().unwrap().push(target);
+        if *self.unreachable.read().unwrap() {
+            return Err(ChainError::Unreachable("the chain controller is down".into()));
+        }
+        // A real reset lands the engine on the target and re-derives from there; here derivation
+        // is instantaneous, so the chain's coverage snaps back to where it was.
+        self.chain.set_local_safe_through(200);
+        Ok(())
+    }
+}
+
 /// The whole world under test.
 struct World {
     chain_a: Arc<FakeChain>,
     chain_b: Arc<FakeChain>,
     l1: Arc<FakeL1>,
     stores: BTreeMap<ChainId, Arc<LogStore<MemoryKv>>>,
+    archives: BTreeMap<ChainId, Arc<OutputArchive<MemoryKv>>>,
+    rewinds: BTreeMap<ChainId, Arc<FakeRewind>>,
 }
 
 impl World {
     fn new() -> Self {
+        let chain_a = Arc::new(FakeChain::new(CHAIN_A));
+        let chain_b = Arc::new(FakeChain::new(CHAIN_B));
         Self {
-            chain_a: Arc::new(FakeChain::new(CHAIN_A)),
-            chain_b: Arc::new(FakeChain::new(CHAIN_B)),
+            rewinds: BTreeMap::from([
+                (CHAIN_A, Arc::new(FakeRewind::new(chain_a.clone()))),
+                (CHAIN_B, Arc::new(FakeRewind::new(chain_b.clone()))),
+            ]),
+            chain_a,
+            chain_b,
             l1: Arc::new(FakeL1::default()),
             stores: [CHAIN_A, CHAIN_B]
                 .into_iter()
                 .map(|id| (id, Arc::new(LogStore::new(id, MemoryKv::new()).unwrap())))
                 .collect(),
+            archives: [CHAIN_A, CHAIN_B]
+                .into_iter()
+                .map(|id| (id, Arc::new(OutputArchive::new(MemoryKv::new()))))
+                .collect(),
         }
+    }
+
+    /// The invalidation routes over this world's chains.
+    fn replacements(&self) -> BTreeMap<ChainId, ChainReplacement<MemoryKv>> {
+        [CHAIN_A, CHAIN_B]
+            .into_iter()
+            .map(|id| {
+                (
+                    id,
+                    ChainReplacement {
+                        archive: self.archives[&id].clone(),
+                        chain: self.rewinds[&id].clone() as Arc<dyn RewindableChain>,
+                    },
+                )
+            })
+            .collect()
+    }
+
+    /// A verifier that applies invalidations, wired the way a supernode wires it.
+    fn replacing_verifier(&self) -> Verifier<MemoryKv> {
+        self.replacing_verifier_with(VerifiedStore::new(MemoryKv::new()).unwrap())
+    }
+
+    /// A replacing verifier over a prepared verified store.
+    fn replacing_verifier_with(&self, verified: VerifiedStore<MemoryKv>) -> Verifier<MemoryKv> {
+        self.verifier_of(verified, self.config())
+            .with_replacements(self.replacements())
+            .expect("every chain has a route")
     }
 
     fn log_stores(&self) -> LogStores {
@@ -410,6 +542,48 @@ async fn a_chain_that_has_not_reached_the_timestamp_makes_the_round_wait() {
     assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
 }
 
+/// A waiting round refreshes the verifier's L1 progress from the chains, so it keeps tracking L1
+/// while the chains produce no new timestamps — op-supernode's `refreshCurrentL1OnWait`
+/// (`op-supernode/supernode/activity/interop/interop.go:558-570`). Without it, `current_l1`
+/// freezes at the last committed frontier's inclusion, and every consumer gating on "the
+/// supernode has fully processed L1 block X" — the challenger trace provider's gate in the
+/// acceptance tests — waits forever on an idle cluster.
+#[tokio::test]
+async fn a_waiting_round_refreshes_the_l1_progress_from_the_chains() {
+    let world = World::new();
+    world.chain_b.set_local_safe_through(START);
+    let mut verifier = world.verifier();
+
+    // Cold start, one advancing round at START, then a wait: chain B has no block at START + 1.
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.current_l1(), Some(l1_at(START)));
+
+    // The chains' derivation keeps following L1 while no new L2 timestamp appears.
+    world.chain_a.set_current_l1(l1_at(150));
+    world.chain_b.set_current_l1(l1_at(140));
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+
+    // The minimum over the chains, not the maximum: L1 is fully processed only up to the block
+    // every chain has considered (op-supernode's `collectCurrentL1`, `interop.go:1125-1140`).
+    assert_eq!(verifier.current_l1(), Some(l1_at(140)));
+}
+
+/// An advancing round publishes the frontier's L1 inclusion capped at the lowest L1 block any
+/// chain has processed — op-supernode's commit-time cap (`interop.go:908-922`): the inclusion is
+/// the *highest* per-chain L1 block, so publishing it uncapped would claim progress a lagging
+/// chain has not made.
+#[tokio::test]
+async fn an_advance_caps_the_l1_progress_at_the_chains_minimum() {
+    let world = World::new();
+    // Chain B's derivation idles behind the L1 block chain A derived the frontier from.
+    world.chain_b.set_current_l1(l1_at(START - 5));
+    let mut verifier = world.verifier();
+
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.verified().get(START).unwrap().l1_inclusion, l1_at(START));
+    assert_eq!(verifier.current_l1(), Some(l1_at(START - 5)));
+}
+
 #[tokio::test]
 async fn a_valid_cross_chain_message_advances_the_frontier() {
     let world = World::new();
@@ -537,8 +711,10 @@ async fn a_message_referencing_a_chain_outside_the_set_holds_the_frontier() {
 }
 
 #[tokio::test]
-async fn a_reorged_committed_l1_inclusion_holds_the_frontier() {
+async fn a_reorged_committed_l1_inclusion_holds_the_frontier_without_replacement_routes() {
     let world = World::new();
+    // Built without replacement routes: this verifier cannot prune archives or move engines, so
+    // it holds the decision rather than applying it — and writes nothing to the WAL.
     let mut verifier = world.verifier();
 
     run(&mut verifier, 2).await;
@@ -547,9 +723,197 @@ async fn a_reorged_committed_l1_inclusion_holds_the_frontier() {
     // The L1 block the committed frontier rests on is no longer canonical.
     world.l1.reorg(l1_at(START).number);
     assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
-    // The frontier is neither advanced nor — in this phase — rewound.
+    // The frontier is neither advanced nor rewound.
     assert_eq!(verifier.verified().last_timestamp(), Some(START));
     assert_eq!(verifier.verified().pending().unwrap(), None);
+}
+
+/// An L1 reorg beneath the committed frontier drops it: the round decides `Rewind`, the verified
+/// results at or after the reorged basis are removed, and the log stores land back on the
+/// previous frontier — op-supernode's `applyRewindPlan`
+/// (`op-supernode/supernode/activity/interop/interop.go:1032-1096`). With no archived
+/// invalidation revoked, the chains' engines are left alone: their own derivation absorbs the L1
+/// reorg (`shouldResetEnginesOnRewind`, `interop.go:1019-1030`, answers false).
+#[tokio::test]
+async fn a_reorged_committed_l1_inclusion_rewinds_the_verified_frontier() {
+    let world = World::new();
+    let mut verifier = world.replacing_verifier();
+
+    run(&mut verifier, 3).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+
+    // The L1 block the latest committed frontier rests on is no longer canonical.
+    world.l1.reorg(l1_at(START + 1).number);
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+
+    // The frontier at the reorged basis is gone; the one before it stands. The slot is cleared,
+    // and the L1 cursor no longer describes dropped progress (op-supernode zeroes it,
+    // `interop.go:783-785`).
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+    assert_eq!(verifier.verified().pending().unwrap(), None);
+    assert_eq!(verifier.current_l1(), None);
+
+    // The log stores rewound onto the previous verified frontier.
+    for chain_id in [CHAIN_A, CHAIN_B] {
+        assert_eq!(
+            world.store(chain_id).latest_sealed_block(),
+            Some(BlockNumHash { number: START, hash: block_hash(chain_id, START) }),
+        );
+    }
+
+    // No invalidation was revoked, so no engine was touched.
+    assert!(world.rewinds[&CHAIN_A].resets().is_empty());
+    assert!(world.rewinds[&CHAIN_B].resets().is_empty());
+
+    // Once the chains have re-derived on the new L1, the same timestamp verifies again.
+    world.l1.restore(l1_at(START + 1).number);
+    run(&mut verifier, 1).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+}
+
+/// A rewind that revokes archived invalidations resets every chain's engine onto the previous
+/// verified frontier: the deposits-only replacements those invalidations forced were built on
+/// the reorged basis and stand canonical, so derivation alone will not put the original blocks
+/// back — op-supernode's `shouldResetEnginesOnRewind` (`interop.go:1019-1030`) and
+/// `resetChainEnginesIfNeeded` (`interop.go:1099-1122`), which walks *every* chain, not only the
+/// ones with revoked entries. The revoked archive entries are pruned; earlier ones, whose basis
+/// still stands, are kept (`PruneDeniedAtOrAfterTimestamp`,
+/// `op-supernode/supernode/chain_container/invalidation.go:490-502`).
+#[tokio::test]
+async fn a_rewind_revoking_an_invalidation_prunes_the_archive_and_resets_every_engine() {
+    let world = World::new();
+    let mut verifier = world.replacing_verifier();
+
+    run(&mut verifier, 3).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+
+    // An invalidation decided at the frontier's timestamp on the basis about to reorg away, and
+    // an earlier one whose basis still stands.
+    let archived = |number: u64, decision_timestamp: u64| ArchivedOutput {
+        output_root: OutputRoot::from_parts(
+            B256::repeat_byte(0xaa),
+            B256::repeat_byte(0xbb),
+            block_hash(CHAIN_B, number),
+        ),
+        decision_timestamp,
+    };
+    world.archives[&CHAIN_B].record(START + 1, archived(START + 1, START + 1)).unwrap();
+    world.archives[&CHAIN_B].record(START, archived(START, START)).unwrap();
+
+    world.l1.reorg(l1_at(START + 1).number);
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+    assert_eq!(verifier.verified().pending().unwrap(), None);
+
+    // The revoked entry is gone; the earlier one stands.
+    assert!(world.archives[&CHAIN_B].at(START + 1).unwrap().is_empty());
+    assert_eq!(world.archives[&CHAIN_B].at(START).unwrap().len(), 1);
+
+    // Every chain's engine was reset onto its previous verified head, the archived chain or not.
+    for chain_id in [CHAIN_A, CHAIN_B] {
+        assert_eq!(
+            world.rewinds[&chain_id].resets(),
+            vec![BlockNumHash { number: START, hash: block_hash(chain_id, START) }],
+        );
+    }
+}
+
+/// Rewinding the only committed frontier is op-supernode's full rewind (`buildRewindPlan`'s
+/// `lastTS <= first` branch, `interop.go:948-960`): nothing verified remains, so nothing sealed
+/// can be relied on either, and the log stores are cleared rather than rewound
+/// (`applyRewindPlan`, `interop.go:1066-1075`).
+#[tokio::test]
+async fn a_rewind_of_the_only_committed_frontier_clears_the_log_stores() {
+    let world = World::new();
+    let mut verifier = world.replacing_verifier();
+
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+    assert!(world.store(CHAIN_A).latest_sealed_block().is_some());
+
+    world.l1.reorg(l1_at(START).number);
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+
+    assert_eq!(verifier.verified().last_timestamp(), None);
+    assert_eq!(verifier.verified().pending().unwrap(), None);
+    assert_eq!(world.store(CHAIN_A).latest_sealed_block(), None);
+    assert_eq!(world.store(CHAIN_B).latest_sealed_block(), None);
+
+    // The loop recovers: the start re-verifies on the new L1.
+    world.l1.restore(l1_at(START).number);
+    run(&mut verifier, 1).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+}
+
+/// A failed engine reset preserves the write-ahead slot, so the rewind is retried whole and
+/// finishes on a later round — "transition preserved for retry", the posture op-supernode's
+/// apply errors get (`interop.go:786-788`).
+#[tokio::test]
+async fn a_failed_rewind_keeps_the_transition_pending_and_retries_it() {
+    let world = World::new();
+    let mut verifier = world.replacing_verifier();
+
+    run(&mut verifier, 3).await;
+
+    // A revoked invalidation forces the engine resets, and the first chain's controller is down.
+    world.archives[&CHAIN_B]
+        .record(
+            START + 1,
+            ArchivedOutput {
+                output_root: OutputRoot::from_parts(
+                    B256::repeat_byte(0xaa),
+                    B256::repeat_byte(0xbb),
+                    block_hash(CHAIN_B, START + 1),
+                ),
+                decision_timestamp: START + 1,
+            },
+        )
+        .unwrap();
+    world.rewinds[&CHAIN_A].set_unreachable(true);
+    world.l1.reorg(l1_at(START + 1).number);
+
+    assert_eq!(verifier.step().await.unwrap(), Pace::Retry);
+    // The store rewind already landed and stands; the slot still names the whole plan.
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+    assert!(matches!(verifier.verified().pending().unwrap(), Some(PendingTransition::Rewind(_))));
+
+    world.rewinds[&CHAIN_A].set_unreachable(false);
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+    assert_eq!(verifier.verified().pending().unwrap(), None);
+    // The failed attempt asked chain A and stopped; the retry asked both.
+    assert_eq!(world.rewinds[&CHAIN_A].resets().len(), 2);
+    assert_eq!(world.rewinds[&CHAIN_B].resets().len(), 1);
+}
+
+/// A full rewind that crashed after emptying the verified store leaves a rewind slot and no
+/// committed frontier. Its replay must run before cold start backfills — replaying after would
+/// clear the log stores backfill just filled.
+#[tokio::test]
+async fn a_wal_rewind_over_an_empty_store_is_replayed_before_cold_start() {
+    let world = World::new();
+    let verified = VerifiedStore::new(MemoryKv::new()).unwrap();
+    verified
+        .set_pending(&PendingTransition::Rewind(RewindPlan {
+            rewind_at_or_after: START,
+            reset_chains_to: None,
+            target_heads: None,
+        }))
+        .unwrap();
+
+    let mut verifier = world.replacing_verifier_with(verified);
+    assert_eq!(verifier.state(), VerifierState::ColdStart);
+
+    // The first step replays the slot and nothing else.
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+    assert_eq!(verifier.verified().pending().unwrap(), None);
+    assert_eq!(verifier.state(), VerifierState::ColdStart);
+
+    // Only then does cold start choose a start, backfill, and verify — and the backfilled window
+    // behind the start survives, which it would not had the replay run after it.
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START));
+    assert!(world.store(CHAIN_A).first_sealed_block().unwrap().timestamp < START);
 }
 
 #[tokio::test]
@@ -982,4 +1346,201 @@ async fn the_activation_timestamp_and_the_log_stores_are_readable() {
     // A chain id neither fake chain has: an unfollowed chain has no store, which is how the
     // test-control surface tells "nothing sealed yet" from "not a chain I verify".
     assert!(verifier.logs(CHAIN_A + CHAIN_B).is_none(), "an unfollowed chain has no store");
+}
+
+// ---------------------------------------------------------------------------
+// Applying `Decision::Invalidate`: the deposits-only block replacement flow.
+//
+// The verifier's half of the replacement is exactly two side effects, in this order: archive the
+// invalidated block's output preimage (the archive doubles as the deny list the chain's engine
+// consults), then rewind the chain onto the block's parent. Derivation rebuilds the height, the
+// rebuild hits the deny list, and a deposits-only block replaces the invalid one — mirroring
+// op-supernode's `applyPendingTransition` for `DecisionInvalidate`
+// (`op-supernode/supernode/activity/interop/interop.go`) and `InvalidateBlock`
+// (`op-supernode/supernode/chain_container/invalidation.go`).
+// ---------------------------------------------------------------------------
+
+/// The block chain B carries at `START + 2`, which the tests below invalidate.
+fn invalid_b_block() -> BlockNumHash {
+    BlockNumHash { number: START + 2, hash: block_hash(CHAIN_B, START + 2) }
+}
+
+/// Drives a replacing verifier to the invalidation at `START + 2`: chain B executes a message
+/// whose referenced initiating log does not exist on chain A.
+fn world_with_an_invalid_message_at_start_plus_2() -> World {
+    let world = World::new();
+    let initiating = initiating_log(3);
+    world.chain_b.set_block(FakeBlock::with_logs(
+        START + 2,
+        vec![executing_log(CHAIN_A, &initiating, START + 1, 0, START + 1)],
+    ));
+    world
+}
+
+#[tokio::test]
+async fn an_invalid_message_archives_the_output_and_rewinds_the_chain() {
+    let world = world_with_an_invalid_message_at_start_plus_2();
+    let mut verifier = world.replacing_verifier();
+
+    // Cold start, 110, 111 advance; the round at 112 invalidates and applies it.
+    run(&mut verifier, 4).await;
+
+    // The frontier does not move on an invalidation: the same timestamp is re-verified against
+    // the replaced chain, so nothing is committed for 112.
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 1));
+    // The apply ran to completion: the WAL slot is cleared and the verifier keeps running.
+    assert_eq!(verifier.verified().pending().unwrap(), None);
+    assert_eq!(verifier.state(), VerifierState::Running);
+
+    // Side effect one, and durably first: the invalidated output is archived with the decision
+    // timestamp and the preimage fields the optimistic superroot branch serves after the block is
+    // gone. This record is the deny list — without it derivation would rebuild the same block.
+    let archived = world.archives[&CHAIN_B]
+        .get(START + 2, invalid_b_block().hash)
+        .unwrap()
+        .expect("the invalidated output is archived");
+    assert_eq!(archived.decision_timestamp, START + 2);
+    assert_eq!(archived.output_root.state_root, B256::repeat_byte(0xaa));
+    assert_eq!(archived.output_root.bridge_storage_root, B256::repeat_byte(0xbb));
+
+    // Side effect two: the chain was rewound off the invalidated block — and only that chain.
+    assert_eq!(world.rewinds[&CHAIN_B].calls(), vec![invalid_b_block()]);
+    assert!(world.rewinds[&CHAIN_A].calls().is_empty(), "the valid chain is not rewound");
+    assert!(world.archives[&CHAIN_A].at(START + 2).unwrap().is_empty());
+
+    // Derivation's half, modelled: a deposits-only replacement lands at the same height and the
+    // chain answers for the timestamp again. The round loop then advances through it.
+    world.chain_b.set_block(FakeBlock::empty(START + 2));
+    world.chain_b.set_local_safe_through(200);
+    run(&mut verifier, 2).await;
+    assert_eq!(verifier.verified().last_timestamp(), Some(START + 3));
+}
+
+/// The #22540 crash-replay hazard, pinned: a write-ahead-logged invalidation replayed onto a
+/// chain that already replaced the block must still write the archive. The "already replaced,
+/// just ack" branch skips the *rewind*, never the archive record — a replay that skipped the
+/// write and then cleared the slot would lose the roots permanently, and a missing archive entry
+/// is silent: the optimistic superroot branch would serve the replacement block's output as a
+/// well-formed but wrong answer.
+#[tokio::test]
+async fn a_replayed_invalidation_still_archives_when_the_rewind_is_skipped() {
+    let world = World::new();
+    let verified = VerifiedStore::new(MemoryKv::new()).unwrap();
+
+    // Fill the log stores the way the crashed run would have.
+    {
+        let mut warm = world.verifier_with(VerifiedStore::new(MemoryKv::new()).unwrap());
+        warm.step().await.unwrap();
+    }
+
+    // The slot a crash left behind: an invalidation of chain B's block at START, decided but not
+    // yet applied — and, by the time this process looks, already replaced on the chain.
+    let invalid = InvalidHead {
+        block: BlockNumHash { number: START, hash: block_hash(CHAIN_B, START) },
+        state_root: B256::repeat_byte(0xaa),
+        message_passer_storage_root: B256::repeat_byte(0xbb),
+    };
+    verified
+        .set_pending(&PendingTransition::Invalidate(RoundResult {
+            verified: VerifiedResult {
+                timestamp: START,
+                l1_inclusion: l1_at(START),
+                l2_heads: BTreeMap::from([
+                    (CHAIN_A, BlockNumHash { number: START, hash: block_hash(CHAIN_A, START) }),
+                    (CHAIN_B, invalid.block),
+                ]),
+            },
+            invalid_heads: BTreeMap::from([(CHAIN_B, invalid)]),
+        }))
+        .unwrap();
+    world.rewinds[&CHAIN_B].set_already_replaced(true);
+
+    let mut verifier = world.replacing_verifier_with(verified);
+    verifier.step().await.unwrap();
+
+    // The archive write happened even though the rewind had nothing to do.
+    let archived = world.archives[&CHAIN_B]
+        .get(START, invalid.block.hash)
+        .unwrap()
+        .expect("the replayed invalidation still archives the output");
+    assert_eq!(archived.decision_timestamp, START);
+    // The rewind was asked and answered "already off the block".
+    assert_eq!(world.rewinds[&CHAIN_B].calls(), vec![invalid.block]);
+    // The slot is cleared, and the invalidation committed no frontier.
+    assert_eq!(verifier.verified().pending().unwrap(), None);
+    assert_eq!(verifier.verified().last_timestamp(), None);
+}
+
+/// A rewind that fails transiently preserves the write-ahead slot, so the apply is retried whole
+/// — op-supernode's "invalidation failed, transition preserved for retry on restart". The archive
+/// write from the failed attempt stands; re-recording it on the retry is a no-op.
+#[tokio::test]
+async fn a_failed_rewind_keeps_the_invalidation_pending_and_retries_it() {
+    let world = world_with_an_invalid_message_at_start_plus_2();
+    world.rewinds[&CHAIN_B].set_unreachable(true);
+    let mut verifier = world.replacing_verifier();
+
+    let paces = run(&mut verifier, 4).await;
+    assert_eq!(paces[3], Pace::Retry, "a failed apply is a transient round failure");
+    assert!(
+        matches!(verifier.verified().pending().unwrap(), Some(PendingTransition::Invalidate(_))),
+        "the transition is preserved for retry"
+    );
+    // The archive write preceded the rewind and stands.
+    assert!(world.archives[&CHAIN_B].get(START + 2, invalid_b_block().hash).unwrap().is_some());
+
+    // The chain heals; the pending transition is applied before anything else is observed.
+    world.rewinds[&CHAIN_B].set_unreachable(false);
+    assert_eq!(verifier.step().await.unwrap(), Pace::Idle);
+    assert_eq!(verifier.verified().pending().unwrap(), None);
+    assert_eq!(world.rewinds[&CHAIN_B].calls(), vec![invalid_b_block(); 2]);
+}
+
+/// Genesis has no parent to rewind onto, so an invalidation naming height zero is a permanent
+/// halt with the cause named — not a rewind attempt (op-supernode's `InvalidateBlock` refuses
+/// height 0 the same way, `invalidation.go:398-400`).
+#[tokio::test]
+async fn an_invalidation_of_genesis_halts_rather_than_rewinding() {
+    let world = World::new();
+    let verified = VerifiedStore::new(MemoryKv::new()).unwrap();
+    {
+        let mut warm = world.verifier_with(VerifiedStore::new(MemoryKv::new()).unwrap());
+        warm.step().await.unwrap();
+    }
+    let invalid = InvalidHead {
+        block: BlockNumHash { number: 0, hash: block_hash(CHAIN_B, 0) },
+        state_root: B256::repeat_byte(0xaa),
+        message_passer_storage_root: B256::repeat_byte(0xbb),
+    };
+    verified
+        .set_pending(&PendingTransition::Invalidate(RoundResult {
+            verified: VerifiedResult {
+                timestamp: START,
+                l1_inclusion: l1_at(START),
+                l2_heads: BTreeMap::from([(CHAIN_B, invalid.block)]),
+            },
+            invalid_heads: BTreeMap::from([(CHAIN_B, invalid)]),
+        }))
+        .unwrap();
+
+    let mut verifier = world.replacing_verifier_with(verified);
+    let halted = verifier.step().await.expect_err("genesis cannot be invalidated");
+    assert!(halted.reason.contains("genesis"), "{}", halted.reason);
+    assert!(world.rewinds[&CHAIN_B].calls().is_empty(), "no rewind is attempted");
+}
+
+/// A verifier whose chain set is wider than its routes is refused at construction: an
+/// invalidation names its chains only at decision time, and a chain that could be verified but
+/// not rewound would turn an applied decision into a permanent error mid-apply.
+#[tokio::test]
+async fn a_chain_without_an_invalidation_route_is_refused_at_construction() {
+    let world = World::new();
+    let mut routes = world.replacements();
+    routes.remove(&CHAIN_B);
+    let err = world
+        .verifier()
+        .with_replacements(routes)
+        .expect_err("a partial route set must be refused")
+        .to_string();
+    assert!(err.contains("no invalidation route"), "{err}");
 }

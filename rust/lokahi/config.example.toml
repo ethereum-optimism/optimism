@@ -9,9 +9,14 @@ eth-rpc = "http://localhost:8545"
 beacon = "http://localhost:5052"
 # A devnet L1 is not in the registry, so its chain config comes from a file.
 chain-config = "/etc/lokahi/l1-genesis.json"
+# How often, in seconds, to poll the L1 for epoch updates (finalized-block changes) — op-node's
+# `--l1.epoch-poll-interval`. Unset keeps kona's default of one poll a minute, which suits a
+# production L1; a devnet whose L1 finalizes in seconds sets this to match.
+# epoch-poll-interval = 2
 
-# The supernode-level admin/test RPC. Omit the table to expose no process-wide surface at all;
-# everything an operator needs is on the chains' own RPCs below. Port 0 asks the OS for a free port,
+# The supernode's RPC socket. One socket serves everything: these namespaces at `/`, and each chain
+# below at `/<l2-chain-id>` — the same addressing op-supernode serves. Omit the table to expose no
+# RPC at all; the chains have nowhere else to be served from. Port 0 asks the OS for a free port,
 # which the supernode then logs — that is how a test harness that launched the process finds it.
 [admin]
 rpc-addr = "127.0.0.1"
@@ -32,14 +37,15 @@ rpc-port = 9500
 datadir = "/var/lib/lokahi"
 jwt-secret = "/etc/lokahi/jwt.hex"
 mode = "validator"
-rpc-addr = "127.0.0.1"
 rpc-enable-admin = true
+# The experimental `opstack` block-building namespace on each chain's route, op-node's
+# `--experimental.sequencer-api`. Off unless a test sequencer is meant to drive the chain.
+# experimental-opstack-api = true
 
 [[chains]]
 l2-chain-id = 901
 rollup-config = "/etc/lokahi/rollup-901.json"
 engine-rpc = "http://localhost:9551"
-rpc-port = 9545
 p2p-tcp-port = 9222
 p2p-udp-port = 9222
 unsafe-block-signer = "0x1111111111111111111111111111111111111111"
@@ -55,7 +61,6 @@ unsafe-block-signer = "0x1111111111111111111111111111111111111111"
 l2-chain-id = 902
 rollup-config = "/etc/lokahi/rollup-902.json"
 engine-rpc = "http://localhost:9561"
-rpc-port = 9555
 p2p-tcp-port = 9232
 p2p-udp-port = 9232
 unsafe-block-signer = "0x2222222222222222222222222222222222222222"

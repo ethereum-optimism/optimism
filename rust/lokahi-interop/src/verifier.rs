@@ -12,19 +12,42 @@
 //! which case nothing was started, or finds the decision and re-applies it. Every side effect an
 //! applied decision has is therefore idempotent.
 //!
-//! ## What this phase applies
+//! ## What is applied
 //!
-//! Only [`Decision::Wait`] and [`Decision::Advance`]. A round that reaches
-//! [`Decision::Invalidate`] or [`Decision::Rewind`] logs it and makes no progress — the verified
-//! frontier simply stops, which holds cross-safety where it is instead of promoting a block the
-//! verifier believes is wrong. Nothing is written to the WAL for a decision that cannot be
-//! applied: a slot holding an unappliable transition would wedge the node on every restart.
+//! [`Decision::Wait`], [`Decision::Advance`] — and, when the verifier is built with the
+//! replacement routes ([`Verifier::with_replacements`]), [`Decision::Invalidate`]. Applying an
+//! invalidation archives each invalid block's output preimage — the archive doubles as the deny
+//! list the chain's engine consults — and rewinds the chain onto the block's parent; derivation
+//! then rebuilds the height from the same L1 batch data, the rebuild hits the deny list, and a
+//! deposits-only replacement is built at the same height. The frontier itself does not move: the
+//! next round re-verifies the same timestamp against the replaced chain, exactly as op-supernode's
+//! `applyPendingTransition` does for `DecisionInvalidate`
+//! (`op-supernode/supernode/activity/interop/interop.go`).
+//!
+//! [`Decision::Rewind`] — the response to a committed frontier whose L1 basis reorged away — is
+//! applied by the same routes: the verified results at or after that frontier's timestamp are
+//! dropped, archived invalidations decided on the reorged basis are pruned (revoking their deny
+//! entries), the log stores rewind onto the previous verified frontier (or clear entirely when
+//! none is retained), and — only when an invalidation was revoked — every chain's engine is reset
+//! onto that frontier, because the deposits-only replacement a revoked invalidation forced is
+//! canonical and derivation alone will not remove it. This is op-supernode's `applyRewindPlan`
+//! (`op-supernode/supernode/activity/interop/interop.go:1032-1122`), plan-building included
+//! (`buildRewindPlan`, `:930-981`).
+//!
+//! A verifier built *without* replacement routes ([`Verifier::with_replacements`]) applies
+//! neither [`Decision::Invalidate`] nor [`Decision::Rewind`]: the round logs the decision and
+//! makes no progress, which holds cross-safety where it is. Nothing is written to the WAL for a
+//! decision that cannot be applied: a slot holding an unappliable transition would wedge the node
+//! on every restart.
 
 use crate::{
+    archive::{ArchivedOutput, OutputArchive},
     backfill::{
         backfill_chain, backfill_window, chain_backfill_range, fetch_and_seal, verification_start,
     },
-    chain::{ChainAt, ChainError, InteropChain, L1Canonical, L1CanonicalExt, RoundError},
+    chain::{
+        ChainAt, ChainError, InteropChain, L1Canonical, L1CanonicalExt, RewindableChain, RoundError,
+    },
     decide::{
         ChainFrontier, Decision, RoundObservation, StepOutput, check_preconditions,
         decide_verified_result,
@@ -32,7 +55,9 @@ use crate::{
     error::StoreError,
     kv::Kv,
     logs::LogsDb,
-    verified::{InvalidHead, PendingTransition, RoundResult, VerifiedResult, VerifiedStore},
+    verified::{
+        InvalidHead, PendingTransition, RewindPlan, RoundResult, VerifiedResult, VerifiedStore,
+    },
     verify::{FrontierBlock, FrontierView, LogStores, RoundVerdict, verify_round},
 };
 use alloy_eips::BlockNumHash;
@@ -104,6 +129,21 @@ pub struct Halted {
     pub reason: String,
 }
 
+/// One chain's invalidation route: the archive its invalidated outputs are recorded in, and the
+/// seam that rewinds it.
+///
+/// The archive doubles as the deny list the chain's engine consults, which is what turns the
+/// post-rewind rebuild into a deposits-only replacement — the same one record op-supernode keeps
+/// (its deny list *is* its invalidated-output store, one entry of payload hash, decision
+/// timestamp, state root and message-passer storage root).
+#[derive(Debug)]
+pub struct ChainReplacement<K> {
+    /// The chain's invalidated-output archive.
+    pub archive: Arc<OutputArchive<K>>,
+    /// The rewind seam over the chain.
+    pub chain: Arc<dyn RewindableChain>,
+}
+
 /// The timestamp-lockstep interop verifier.
 ///
 /// Owns the stores it writes and the read-only seams it observes through. One instance per
@@ -119,6 +159,11 @@ pub struct Verifier<K> {
     l1: Arc<dyn L1Canonical>,
     /// The verified frontier and the WAL slot.
     verified: VerifiedStore<K>,
+    /// Each chain's invalidation route, when this verifier applies invalidations.
+    ///
+    /// Empty on a verifier built without [`Verifier::with_replacements`], which then holds the
+    /// frontier on a [`Decision::Invalidate`] instead of applying it.
+    replacements: BTreeMap<ChainId, ChainReplacement<K>>,
     /// Each chain's log store.
     stores: LogStores,
     /// The configuration.
@@ -175,9 +220,13 @@ impl<K: Kv> Verifier<K> {
         // A slot in the WAL is also a resume: it is written only after cold start has finished, so
         // its timestamp is a start the verifier already chose. Re-running cold start instead would
         // pick a start from today's safe heads while a transition for the old one sits unapplied.
+        // A rewind slot carries no such timestamp — over an empty store it *means* everything was
+        // dropped — so cold start runs again once the slot has been replayed (see `step`).
         let start = match verified.last_timestamp() {
             Some(last) => Some(last + 1),
-            None => verified.pending()?.map(|pending| pending.result().verified.timestamp),
+            None => verified
+                .pending()?
+                .and_then(|pending| pending.result().map(|result| result.verified.timestamp)),
         };
         if let Some(start) = start {
             info!(
@@ -208,6 +257,7 @@ impl<K: Kv> Verifier<K> {
             rollup_configs,
             l1,
             verified,
+            replacements: BTreeMap::new(),
             stores,
             config,
             start,
@@ -216,6 +266,26 @@ impl<K: Kv> Verifier<K> {
             pause_at: None,
             backfill_attempts: 0,
         })
+    }
+
+    /// Wires the invalidation routes, one per chain, making this verifier apply
+    /// [`Decision::Invalidate`] rather than hold on it.
+    ///
+    /// Every chain of the verifier must have a route: an invalidation names the chains it found
+    /// invalid only at decision time, and a chain that could be verified but not rewound would
+    /// turn an applied decision into a permanent error mid-apply.
+    pub fn with_replacements(
+        mut self,
+        replacements: BTreeMap<ChainId, ChainReplacement<K>>,
+    ) -> Result<Self, RoundError> {
+        if let Some(missing) = self.chains.keys().find(|id| !replacements.contains_key(id)) {
+            return Err(RoundError::Invariant(format!(
+                "chain {missing} has no invalidation route: every chain the verifier follows must \
+                 have one, or a block it finds invalid could not be replaced"
+            )));
+        }
+        self.replacements = replacements;
+        Ok(self)
     }
 
     /// Returns where the verifier is in its lifecycle.
@@ -291,13 +361,15 @@ impl<K: Kv> Verifier<K> {
     }
 
     /// Returns the L1 block the verifier has considered up to, or [`None`] before the first
-    /// advance.
+    /// refresh.
     ///
-    /// This is the highest L1 block any chain's verified block was derived from. op-supernode
-    /// additionally caps it at the lowest L1 block *any* chain has derived from, so the value is
-    /// safe to publish on its own rather than only once aggregated. That cap needs the L1 half of
-    /// each chain's sync status, which the L1 watcher owns and this seam does not carry; until it
-    /// does, a consumer must combine this with its own view by taking the minimum.
+    /// On an advancing round this is the frontier's L1 inclusion, capped at the lowest L1 block
+    /// any chain has derived from, so the value is individually safe rather than only once
+    /// aggregated (op-supernode's commit-time cap,
+    /// `op-supernode/supernode/activity/interop/interop.go:908-922`). On a waiting round it is
+    /// refreshed to that same per-chain minimum, so it keeps tracking L1 while the chains produce
+    /// no new timestamps (`refreshCurrentL1OnWait`, `interop.go:558-570`) — the consumers gating
+    /// on "the supernode has fully processed L1 block X" depend on exactly that.
     pub const fn current_l1(&self) -> Option<BlockNumHash> {
         self.current_l1
     }
@@ -313,10 +385,16 @@ impl<K: Kv> Verifier<K> {
             return Err(Halted { reason: reason.clone() });
         }
 
-        let outcome = if self.start.is_none() {
-            self.advance_cold_start().await
-        } else {
-            self.progress().await
+        // A slot left over from a previous run is applied before anything else — even before cold
+        // start: the world the decision was made against is gone, but the decision was already
+        // committed to. In particular a full rewind that crashed mid-apply leaves a rewind slot
+        // over an empty verified store, and its replay must run before cold start backfills, or
+        // the replay's store clear would wipe what backfill just wrote.
+        let outcome = match self.verified.pending() {
+            Err(err) => Err(err.into()),
+            Ok(Some(pending)) => self.apply(pending).await,
+            Ok(None) if self.start.is_none() => self.advance_cold_start().await,
+            Ok(None) => self.progress().await,
         };
 
         match outcome {
@@ -397,13 +475,10 @@ impl<K: Kv> Verifier<K> {
     }
 
     /// Runs one verification round, returning whether the verified frontier advanced.
+    ///
+    /// Runs with no transition in flight: a leftover WAL slot is applied by [`Self::step`] before
+    /// this is reached.
     async fn progress(&mut self) -> Result<bool, RoundError> {
-        // A slot left over from a previous run is applied before anything is observed: the world
-        // it was decided against is gone, but the decision was already committed to.
-        if let Some(pending) = self.verified.pending()? {
-            return self.apply(pending).await;
-        }
-
         let observation = self.observe().await?;
         let output = match check_preconditions(&observation) {
             Some(early) => early,
@@ -414,10 +489,39 @@ impl<K: Kv> Verifier<K> {
         };
 
         match output.decision {
-            Decision::Wait => Ok(false),
+            Decision::Wait => {
+                self.refresh_current_l1_on_wait().await;
+                Ok(false)
+            }
             Decision::Advance => {
                 let pending = PendingTransition::Advance(output.result);
                 // Durable before the first side effect, cleared after the last.
+                self.verified.set_pending(&pending)?;
+                self.apply(pending).await
+            }
+            Decision::Invalidate if !self.replacements.is_empty() => {
+                let pending = PendingTransition::Invalidate(output.result);
+                // Durable before the first side effect, cleared after the last — and the archive
+                // write inside the apply is driven from this slot on every replay, so a crash
+                // between here and the rewind cannot lose the invalidated output.
+                self.verified.set_pending(&pending)?;
+                self.apply(pending).await
+            }
+            Decision::Rewind if !self.replacements.is_empty() => {
+                // The observation sets `l1_needs_rewind` only after reading the committed
+                // frontier, so its absence here is a broken invariant rather than a case.
+                let last = observation.last_verified.as_ref().ok_or_else(|| {
+                    RoundError::Invariant(
+                        "a rewind was decided without a committed frontier".into(),
+                    )
+                })?;
+                let plan = self.build_rewind_plan(last)?;
+                let pending = PendingTransition::Rewind(plan);
+                // Durable before the first side effect, cleared after the last. The plan itself —
+                // the previous frontier and whether the engines move — is decided *before* the
+                // stores change, so a crash replay applies what was decided rather than
+                // re-deriving a plan from stores the first attempt already rewound
+                // (op-supernode WALs its `RewindPlan` the same way, `interop.go:732-740`).
                 self.verified.set_pending(&pending)?;
                 self.apply(pending).await
             }
@@ -428,7 +532,8 @@ impl<K: Kv> Verifier<K> {
         }
     }
 
-    /// Records a decision this phase does not apply.
+    /// Records a decision this verifier does not apply: a rewind or an invalidation, on a
+    /// verifier built without replacement routes.
     ///
     /// The timestamp comes from the observation rather than from the result: a rewind carries no
     /// result, so reading it there would report zero.
@@ -438,9 +543,52 @@ impl<K: Kv> Verifier<K> {
             %decision,
             timestamp,
             chains = ?output.result.invalid_heads.keys().collect::<Vec<_>>(),
-            "Interop verification reached a decision this phase does not apply; the verified \
+            "Interop verification reached a decision this verifier does not apply; the verified \
              frontier holds where it is"
         );
+    }
+
+    /// Refreshes the verifier's L1 progress from the chains, on a round that decided to wait.
+    ///
+    /// op-supernode's `refreshCurrentL1OnWait`
+    /// (`op-supernode/supernode/activity/interop/interop.go:558-570`): a waiting round means the
+    /// chains have produced no new timestamp, but their derivation keeps following L1, and the
+    /// verifier's published progress has to follow it too — consumers gate on "the supernode has
+    /// fully processed L1 block X", and a `current_l1` frozen at the last committed frontier's
+    /// inclusion would hold them forever on an idle cluster. A chain that cannot answer keeps the
+    /// existing value, exactly as op-supernode treats a failed collection on wait: non-fatal,
+    /// logged, retried by the next round.
+    async fn refresh_current_l1_on_wait(&mut self) {
+        match self.collect_current_l1().await {
+            Ok(Some(lowest)) => self.current_l1 = Some(lowest),
+            Ok(None) => {}
+            Err(err) => {
+                debug!(
+                    target: "lokahi_interop",
+                    %err,
+                    "Failed to collect the chains' L1 progress on a waiting round"
+                );
+            }
+        }
+    }
+
+    /// Returns the lowest L1 block any chain's derivation has considered up to.
+    ///
+    /// op-supernode's `collectCurrentL1`
+    /// (`op-supernode/supernode/activity/interop/interop.go:1125-1140`): the minimum over the
+    /// chains' sync-status `currentL1`s, which is the L1 height every chain is known to have
+    /// processed. [`None`] only over an empty chain set, which construction does not produce.
+    async fn collect_current_l1(&self) -> Result<Option<BlockNumHash>, RoundError> {
+        let mut lowest: Option<BlockNumHash> = None;
+        for (&chain_id, chain) in &self.chains {
+            let block =
+                chain.current_l1().await.map_err(|source| RoundError::chain(chain_id, source))?;
+            lowest = Some(match lowest {
+                Some(current) if current.number <= block.number => current,
+                _ => block,
+            });
+        }
+        Ok(lowest)
     }
 
     /// Observes every chain and the L1 once.
@@ -617,12 +765,254 @@ impl<K: Kv> Verifier<K> {
     async fn apply(&mut self, pending: PendingTransition) -> Result<bool, RoundError> {
         match pending {
             PendingTransition::Advance(result) => self.apply_advance(result).await,
-            PendingTransition::Invalidate(result) => Err(RoundError::Permanent(format!(
-                "the write-ahead log holds an invalidation at timestamp {} that this build cannot \
-                 apply; it was written by a later version",
-                result.verified.timestamp
-            ))),
+            PendingTransition::Invalidate(result) => self.apply_invalidate(result).await,
+            PendingTransition::Rewind(plan) => self.apply_rewind(plan).await,
         }
+    }
+
+    /// Builds the plan for rewinding off a committed frontier whose L1 basis reorged away.
+    ///
+    /// op-supernode's `buildRewindPlan` (`op-supernode/supernode/activity/interop/interop.go:
+    /// 930-981`): everything at or after the last verified timestamp is dropped; the engines are
+    /// reset — onto the timestamp one before it — only when an archived invalidation decided at
+    /// or after that timestamp exists (`shouldResetEnginesOnRewind`, `:1019-1030`); and the log
+    /// stores' landing frontier is the previous verified result, or nothing when the last
+    /// timestamp is also the first retained one, which makes the rewind a full one.
+    ///
+    /// Any failure here aborts the round before the WAL is written, and the decision is
+    /// re-evaluated next round — the same posture as op-supernode, whose build failures return
+    /// without persisting a transition.
+    fn build_rewind_plan(&self, last: &VerifiedResult) -> Result<RewindPlan, RoundError> {
+        let rewind_at_or_after = last.timestamp;
+
+        let mut reset_engines = false;
+        for replacement in self.replacements.values() {
+            if replacement.archive.has_at_or_after(rewind_at_or_after)? {
+                reset_engines = true;
+                break;
+            }
+        }
+        let reset_chains_to = if reset_engines {
+            // Unreachable through the round loop: an archived decision timestamp is a verified
+            // round's, and verification starts at or after activation, which is past zero.
+            Some(rewind_at_or_after.checked_sub(1).ok_or_else(|| {
+                RoundError::Invariant("cannot reset the chains behind timestamp zero".into())
+            })?)
+        } else {
+            None
+        };
+
+        let first = self.verified.first_timestamp().ok_or_else(|| {
+            RoundError::Invariant("a rewind was decided with nothing committed".into())
+        })?;
+        let target_heads = if rewind_at_or_after <= first {
+            // No earlier frontier is retained, so everything goes: op-supernode's full-rewind
+            // branch, which clears the log stores rather than rewinding them onto a frontier.
+            None
+        } else {
+            Some(self.verified.get(rewind_at_or_after - 1)?.l2_heads)
+        };
+
+        Ok(RewindPlan { rewind_at_or_after, reset_chains_to, target_heads })
+    }
+
+    /// Drops what was verified on the reorged basis, then clears the WAL slot.
+    ///
+    /// The order is op-supernode's `applyRewindPlan` (`op-supernode/supernode/activity/interop/
+    /// interop.go:1032-1096`): the verified results at or after the rewound timestamp go first;
+    /// then each chain's archive is pruned of outputs whose invalidation was decided at or after
+    /// it — the archive is the deny list, so this revokes denials whose basis no longer stands —
+    /// then the log stores rewind onto the previous verified frontier (or clear entirely on a
+    /// full rewind); and only after everything above succeeded are the engines reset, when the
+    /// plan says an invalidation was revoked. The pruning must precede the engine move, so no
+    /// window exists in which derivation rebuilds a block that is still denied by a revoked
+    /// decision.
+    ///
+    /// Nothing is committed and no progress is reported: the next round re-observes from the new
+    /// frontier, on the new L1. A failure anywhere leaves the WAL slot in place and costs a
+    /// backoff — every side effect here is idempotent, so the retry re-applies the plan whole.
+    /// (op-supernode records per-chain failures and joins them at the end; the slot-preserving
+    /// retry of the whole idempotent plan is the same recovery, reached on the first failure.)
+    async fn apply_rewind(&mut self, plan: RewindPlan) -> Result<bool, RoundError> {
+        // The cursor described progress on frontiers that are being dropped. op-supernode zeroes
+        // it before applying (`interop.go:783-785`); the next advance re-establishes it.
+        self.current_l1 = None;
+
+        if plan.reset_chains_to.is_some() && self.replacements.is_empty() {
+            // A replay on a verifier built without routes cannot move the engines the plan says
+            // must move, and silently skipping them would leave denied-and-revoked replacements
+            // canonical forever.
+            return Err(RoundError::Invariant(
+                "a write-ahead rewind requires the chains reset, but this verifier has no \
+                 replacement routes"
+                    .into(),
+            ));
+        }
+
+        self.verified.rewind(plan.rewind_at_or_after)?;
+
+        for (&chain_id, replacement) in &self.replacements {
+            let removed = replacement.archive.prune_at_or_after(plan.rewind_at_or_after)?;
+            if !removed.is_empty() {
+                warn!(
+                    target: "lokahi_interop",
+                    chain_id,
+                    ?removed,
+                    "Pruned archived outputs whose invalidation basis was reorged out"
+                );
+            }
+        }
+
+        match &plan.target_heads {
+            // A full rewind: nothing verified remains, so nothing sealed can be relied on either.
+            None => {
+                for store in self.stores.values() {
+                    store.clear()?;
+                }
+            }
+            Some(heads) => {
+                for (chain_id, head) in heads {
+                    let Some(store) = self.stores.get(chain_id) else { continue };
+                    // op-supernode's guards (`interop.go:1080-1086`): nothing sealed, already on
+                    // the landing head, or behind it — nothing to rewind. A store *at* the head's
+                    // height on a different block falls through, and the store's own conflict
+                    // check names it.
+                    if let Some(latest) = store.latest_sealed_block() &&
+                        latest != *head &&
+                        latest.number >= head.number
+                    {
+                        info!(
+                            target: "lokahi_interop",
+                            chain_id,
+                            from = ?latest,
+                            to = ?head,
+                            "Rewinding the log store onto the previous verified frontier"
+                        );
+                        store.rewind(*head)?;
+                    }
+                }
+            }
+        }
+
+        if plan.reset_chains_to.is_some() {
+            self.reset_chains(&plan).await?;
+        }
+
+        self.verified.clear_pending()?;
+        warn!(
+            target: "lokahi_interop",
+            timestamp = plan.rewind_at_or_after,
+            engines_reset = plan.reset_chains_to.is_some(),
+            "Rewound the verified frontier: its L1 basis was reorged out"
+        );
+        Ok(false)
+    }
+
+    /// Resets every chain's engine onto the rewind's landing frontier.
+    ///
+    /// All chains, not only those with revoked invalidations — op-supernode's
+    /// `resetChainEnginesIfNeeded` walks every chain (`interop.go:1099-1122`): the frontier is
+    /// verified as a set, so the set lands together. The target is the plan's recorded head for
+    /// the chain; on a full rewind there is no recorded frontier, so the target is resolved from
+    /// the chain as the block covering the reset timestamp — what op-supernode's
+    /// `captureRewindPayloadsAtTimestamp` does (`interop.go:1002-1016`). Resolution reads below
+    /// everything the reorg touched, so it answers the same block on every replay.
+    async fn reset_chains(&self, plan: &RewindPlan) -> Result<(), RoundError> {
+        let Some(reset_to) = plan.reset_chains_to else { return Ok(()) };
+        for (&chain_id, replacement) in &self.replacements {
+            let target = match plan.target_heads.as_ref().and_then(|heads| heads.get(&chain_id)) {
+                Some(head) => *head,
+                None => {
+                    let chain = self.chain(chain_id)?;
+                    let number = chain
+                        .block_number_at_timestamp(reset_to)
+                        .await
+                        .map_err(|source| RoundError::chain(chain_id, source))?;
+                    let output = chain
+                        .output_at(number)
+                        .await
+                        .map_err(|source| RoundError::chain(chain_id, source))?;
+                    BlockNumHash { number, hash: output.block_hash }
+                }
+            };
+            replacement
+                .chain
+                .reset_to(target)
+                .await
+                .map_err(|source| RoundError::chain(chain_id, source))?;
+            warn!(
+                target: "lokahi_interop",
+                chain_id,
+                number = target.number,
+                hash = %target.hash,
+                "Reset the chain onto the last verified frontier after revoking invalidations"
+            );
+        }
+        Ok(())
+    }
+
+    /// Archives each invalid head's output and rewinds its chain, then clears the WAL slot.
+    ///
+    /// The frontier is deliberately not committed: the round found these blocks invalid, so
+    /// nothing about this timestamp is verified. The next round re-verifies the same timestamp
+    /// against the replaced chain, which is what op-supernode's `applyPendingTransition` does for
+    /// `DecisionInvalidate` (`op-supernode/supernode/activity/interop/interop.go`) — it too
+    /// invalidates, resumes, and returns without committing.
+    ///
+    /// Order within a chain matters and is op-supernode's (`InvalidateBlock`,
+    /// `op-supernode/supernode/chain_container/invalidation.go:392-465`): the archive record —
+    /// its deny list — is durable *before* the rewind, so no window exists in which the chain is
+    /// off the block but nothing stops derivation from rebuilding it verbatim. Both side effects
+    /// are idempotent, and both run on every crash replay: in particular the archive write is
+    /// unconditional, because a replay may find the block already replaced and skip the rewind —
+    /// skipping the write there too would lose the output roots permanently, and a missing
+    /// archive entry fails silently at the optimistic superroot branch.
+    ///
+    /// A failed rewind leaves the slot in place — "transition preserved for retry" — and costs a
+    /// backoff; every [`ChainError`] is transient by contract.
+    async fn apply_invalidate(&self, result: RoundResult) -> Result<bool, RoundError> {
+        let decision_timestamp = result.verified.timestamp;
+
+        for (&chain_id, invalid) in &result.invalid_heads {
+            // No parent exists to rewind onto, and no round can decide this: block one of any
+            // chain is the earliest verifiable block, so a slot naming height zero is damage, not
+            // a decision to retry.
+            if invalid.block.number == 0 {
+                return Err(RoundError::Permanent(format!(
+                    "chain {chain_id}: the genesis block cannot be invalidated: it has no parent \
+                     to rewind onto"
+                )));
+            }
+            let replacement = self.replacements.get(&chain_id).ok_or_else(|| {
+                RoundError::Invariant(format!("chain {chain_id} has no invalidation route"))
+            })?;
+
+            // The archive doubles as the deny list, so this write is what turns derivation's
+            // rebuild of the height into the deposits-only replacement — and what the optimistic
+            // superroot branch serves for this height ever after.
+            replacement.archive.record(
+                invalid.block.number,
+                ArchivedOutput { output_root: invalid.output_root(), decision_timestamp },
+            )?;
+
+            let rewound = replacement
+                .chain
+                .rewind_off(invalid.block)
+                .await
+                .map_err(|source| RoundError::chain(chain_id, source))?;
+            warn!(
+                target: "lokahi_interop",
+                chain_id,
+                number = invalid.block.number,
+                hash = %invalid.block.hash,
+                decision_timestamp,
+                rewound,
+                "Applied an invalidation: archived the block's output and took the chain off it"
+            );
+        }
+
+        self.verified.clear_pending()?;
+        Ok(false)
     }
 
     /// Seals the round's blocks, commits its frontier, and clears the WAL slot.
@@ -640,7 +1030,27 @@ impl<K: Kv> Verifier<K> {
 
         self.verified.commit(&result.verified)?;
         self.verified.clear_pending()?;
-        self.current_l1 = Some(l1_inclusion);
+
+        // The frontier's L1 inclusion is the *highest* L1 block any chain derived this timestamp
+        // from, so it can exceed what another chain has processed. Cap it at the lowest L1 block
+        // every chain has considered, so the published value is individually safe rather than
+        // only safe once aggregated — op-supernode's commit-time cap
+        // (`op-supernode/supernode/activity/interop/interop.go:908-922`), with the same fallback:
+        // a failed collection keeps the inclusion and warns.
+        let mut current_l1 = l1_inclusion;
+        match self.collect_current_l1().await {
+            Ok(Some(lowest)) if lowest.number < current_l1.number => current_l1 = lowest,
+            Ok(_) => {}
+            Err(err) => {
+                warn!(
+                    target: "lokahi_interop",
+                    %err,
+                    "Failed to collect the chains' L1 progress on advance; publishing the \
+                     frontier's L1 inclusion"
+                );
+            }
+        }
+        self.current_l1 = Some(current_l1);
 
         info!(
             target: "lokahi_interop",

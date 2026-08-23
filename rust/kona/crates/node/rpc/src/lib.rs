@@ -21,10 +21,19 @@ pub use config::RpcBuilder;
 mod net;
 pub use net::P2pRpc;
 
+mod opstack;
+#[cfg(feature = "client")]
+pub use opstack::OpStackApiClient;
+pub use opstack::{
+    BUILD_ERR_CODE_INVALID_INPUT, BUILD_ERR_CODE_OTHER, BUILD_ERR_CODE_PRESTATE,
+    BUILD_ERR_CODE_TEMPORARY, BUILD_ERR_CODE_UNKNOWN_PAYLOAD, OpStackApiServer, OpStackBlockId,
+    PayloadInfo, SignedExecutionPayloadEnvelope,
+};
+
 mod p2p;
 
 mod response;
-pub use response::SafeHeadResponse;
+pub use response::{DependencySetResponse, SafeHeadResponse};
 
 mod output;
 pub use output::OutputResponse;

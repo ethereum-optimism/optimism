@@ -1,8 +1,8 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{
-    EngineConfig, NetworkConfig, RollupNode, SequencerConfig, actors::DerivationDelegateClient,
-    service::node::L1Config,
+    EngineConfig, NetworkConfig, RollupNode, SequencerConfig, SharedRpcServerLauncher,
+    actors::DerivationDelegateClient, service::node::L1Config,
 };
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
@@ -17,6 +17,7 @@ use std::sync::Arc;
 use tower::ServiceBuilder;
 use url::Url;
 
+use kona_engine::SharedDenyList;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_providers_alloy::OnlineBeaconClient;
@@ -52,6 +53,11 @@ pub struct L1ConfigBuilder {
     /// The duration in seconds of an L1 slot. This can be used to hardcode a fixed slot
     /// duration if the l1-beacon's slot configuration is not available.
     pub slot_duration_override: Option<u64>,
+    /// How often, in seconds, to poll the L1 for epoch updates (finalized-block changes).
+    ///
+    /// op-node's `--l1.epoch-poll-interval`. `None` keeps
+    /// [`L1Config::DEFAULT_L1_EPOCH_POLL_INTERVAL`].
+    pub l1_epoch_poll_interval: Option<u64>,
 }
 
 /// The [`RollupNodeBuilder`] is used to construct a [`RollupNode`] service.
@@ -69,6 +75,8 @@ pub struct RollupNodeBuilder {
     pub p2p_config: NetworkConfig,
     /// An RPC Configuration.
     pub rpc_config: Option<RpcBuilder>,
+    /// The launcher this chain's RPC module set is handed to, when the host supplies one.
+    pub rpc_launcher: Option<SharedRpcServerLauncher>,
     /// The [`SequencerConfig`].
     pub sequencer_config: Option<SequencerConfig>,
     /// Optional configuration for Derivation Delegate mode.
@@ -80,6 +88,8 @@ pub struct RollupNodeBuilder {
     pub external_cross_safe: bool,
     /// The safe-head database the chain controller records local-safe advances into.
     pub safe_db: SharedSafeDb,
+    /// The super-authority deny list the engine consults, when the node runs under one.
+    pub deny_list: Option<SharedDenyList>,
 }
 
 impl RollupNodeBuilder {
@@ -99,11 +109,13 @@ impl RollupNodeBuilder {
             engine_config,
             p2p_config,
             rpc_config,
+            rpc_launcher: None,
             sequencer_config: None,
             derivation_delegate_config: None,
             dependency_set: None,
             external_cross_safe: false,
             safe_db: Arc::new(DisabledDatabase),
+            deny_list: None,
         }
     }
 
@@ -136,6 +148,15 @@ impl RollupNodeBuilder {
         Self { safe_db, ..self }
     }
 
+    /// Sets the super-authority deny list on the [`RollupNodeBuilder`].
+    ///
+    /// The engine consults it before adopting or inserting blocks, and it is what turns a
+    /// post-invalidation rebuild into the deposits-only replacement. A node built without one
+    /// denies nothing.
+    pub fn with_deny_list(self, deny_list: Option<SharedDenyList>) -> Self {
+        Self { deny_list, ..self }
+    }
+
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
     pub fn with_engine_config(self, engine_config: EngineConfig) -> Self {
         Self { engine_config, ..self }
@@ -144,6 +165,22 @@ impl RollupNodeBuilder {
     /// Sets the [`RpcBuilder`] on the [`RollupNodeBuilder`].
     pub fn with_rpc_config(self, rpc_config: Option<RpcBuilder>) -> Self {
         Self { rpc_config, ..self }
+    }
+
+    /// Hands this chain's RPC module set to `rpc_launcher` instead of binding it to
+    /// [`RpcBuilder::socket`].
+    ///
+    /// Set by a multi-chain host, which serves every chain's module set from one socket and routes
+    /// to them by chain id: N chains each binding their own socket is N addresses for one process,
+    /// and there is only one address for a caller to have been told about. The
+    /// [`RpcBuilder`] still decides *whether* an RPC is built and which
+    /// namespaces it carries; only where it is served changes.
+    ///
+    /// Left unset, the module set is bound to its own socket by
+    /// [`JsonrpseeServerLauncher`](crate::JsonrpseeServerLauncher), which is standalone
+    /// kona-node's behaviour and stays byte-identical.
+    pub fn with_rpc_launcher(self, rpc_launcher: SharedRpcServerLauncher) -> Self {
+        Self { rpc_launcher: Some(rpc_launcher), ..self }
     }
 
     /// Appends the [`SequencerConfig`] to the builder.
@@ -183,6 +220,10 @@ impl RollupNodeBuilder {
             trust_rpc: self.l1_config_builder.trust_rpc,
             beacon_client: l1_beacon,
             engine_provider: RootProvider::new_http(self.l1_config_builder.rpc_url.clone()),
+            l1_epoch_poll_interval: self
+                .l1_config_builder
+                .l1_epoch_poll_interval
+                .map_or(L1Config::DEFAULT_L1_EPOCH_POLL_INTERVAL, std::time::Duration::from_secs),
         };
 
         let jwt_secret = self.engine_config.l2_jwt_secret;
@@ -222,12 +263,14 @@ impl RollupNodeBuilder {
             l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,
+            rpc_launcher: self.rpc_launcher,
             p2p_config,
             sequencer_config,
             derivation_delegate_provider,
             dependency_set: self.dependency_set,
             external_cross_safe: self.external_cross_safe,
             safe_db: self.safe_db,
+            deny_list: self.deny_list,
         }
     }
 }

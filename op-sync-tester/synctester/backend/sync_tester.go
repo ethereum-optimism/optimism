@@ -106,15 +106,20 @@ func (s *SyncTester) ListSessions(ctx context.Context) ([]string, error) {
 	return ids, nil
 }
 
-func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
-	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) ([]*types.Receipt, error) {
+// GetBlockReceipts relays the raw eth_getBlockReceipts payload from the read-only EL, the same
+// way the block accessors relay raw block JSON. A typed round-trip through geth's consensus
+// types.Receipt would strip the `from`/`to` fields the execution-apis spec requires (geth's type
+// does not carry them), breaking clients that require them — alloy's TransactionReceipt among
+// them. The session gate only needs the block number, which is read out of the raw payload.
+func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (json.RawMessage, error) {
+	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (json.RawMessage, error) {
 		logger.Debug("GetBlockReceipts", "blockNrOrHash", blockNrOrHash)
 		number, isNumber := blockNrOrHash.Number()
 		var err error
-		var receipts []*types.Receipt
+		var raw json.RawMessage
 		if !isNumber {
 			// hash
-			receipts, err = s.elReader.GetBlockReceipts(ctx, blockNrOrHash)
+			raw, err = s.elReader.GetBlockReceiptsJSON(ctx, blockNrOrHash)
 			if err != nil {
 				return nil, err
 			}
@@ -123,21 +128,32 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 			if target, err = s.checkBlockNumber(number, session, logger); err != nil {
 				return nil, err
 			}
-			receipts, err = s.elReader.GetBlockReceipts(ctx, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(target)))
+			raw, err = s.elReader.GetBlockReceiptsJSON(ctx, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(target)))
 			if err != nil {
 				return nil, err
 			}
 		}
-		if len(receipts) == 0 {
-			// Genesis legitimately has no receipts.
-			return receipts, nil
+		// Read only the block number out of the payload for the session gate, leaving the
+		// receipts themselves exactly as the EL served them.
+		var metas []struct {
+			BlockNumber *hexutil.Big `json:"blockNumber"`
 		}
-		target := bigs.Uint64Strict(receipts[0].BlockNumber)
+		if err := json.Unmarshal(raw, &metas); err != nil {
+			return nil, fmt.Errorf("malformed eth_getBlockReceipts response from read-only EL: %w", err)
+		}
+		if len(metas) == 0 {
+			// Genesis legitimately has no receipts.
+			return raw, nil
+		}
+		if metas[0].BlockNumber == nil {
+			return nil, fmt.Errorf("eth_getBlockReceipts response from read-only EL is missing blockNumber")
+		}
+		target := bigs.Uint64Strict(metas[0].BlockNumber.ToInt())
 		if target > session.CurrentState.Latest {
 			logger.Warn("Requested block is ahead of sync tester state", "requested", target)
 			return nil, ethereum.NotFound
 		}
-		return receipts, nil
+		return raw, nil
 	})
 }
 

@@ -31,12 +31,18 @@ pub enum SealTaskError {
     /// The clock went backwards.
     #[error("The clock went backwards")]
     ClockWentBackwards,
-    /// Unsafe head changed between build and seal. This likely means that there was some race
-    /// condition between the previous seal updating the unsafe head and the build attributes
-    /// being created. This build has been invalidated.
+    /// Unsafe head changed between build and seal on a *sequencer* build: the job's parent is no
+    /// longer the unsafe head, so the job is stale work. This mirrors op-node's `ErrStaleBuild`
+    /// (`op-node/rollup/engine/build_start.go:62-68`), which is likewise scoped to sequencer
+    /// builds (`!attrs.IsDerived()`).
     ///
-    /// If not propagated to the original caller for handling (i.e. there was no original caller),
-    /// this should not happen and is a critical error.
+    /// The sequencer waits on the task's channel, hears this, and rebuilds on the new head.
+    /// Derived builds never produce it: consolidation forces them on the local-safe parent
+    /// exactly when the unsafe chain ahead has to be reorged out, so their parent legitimately
+    /// differs from the unsafe head and the seal proceeds — failing them instead resets
+    /// derivation, which re-derives the same attributes and livelocks. Should a sequencer build
+    /// ever run without a channel, the severity is a reset — dropping the stale work — never
+    /// Critical, which killed the node over a state it recovers from by re-deriving.
     #[error("Unsafe head changed between build and seal")]
     UnsafeHeadChangedSinceBuild,
 }
@@ -47,11 +53,11 @@ impl EngineTaskError for SealTaskError {
             Self::PayloadInsertionFailed(inner) => inner.severity(),
             Self::GetPayloadFailed(_) => EngineTaskErrorSeverity::Temporary,
             Self::HoloceneInvalidFlush => EngineTaskErrorSeverity::Flush,
+            Self::UnsafeHeadChangedSinceBuild => EngineTaskErrorSeverity::Reset,
             Self::DepositOnlyPayloadReattemptFailed |
             Self::DepositOnlyPayloadFailed |
             Self::MpscSend(_) |
-            Self::ClockWentBackwards |
-            Self::UnsafeHeadChangedSinceBuild => EngineTaskErrorSeverity::Critical,
+            Self::ClockWentBackwards => EngineTaskErrorSeverity::Critical,
         }
     }
 }
