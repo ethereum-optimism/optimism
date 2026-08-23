@@ -183,9 +183,9 @@ impl InteropActor {
     ///    with it finalization, which kona's `FinalizeTask` clamps at cross-safe — would sit at
     ///    genesis until activation, however far away activation is.
     /// 2. **Verified** — a frontier is committed: promote the verified tip, exactly as before.
-    /// 3. **Anchor** — active but nothing verified yet: promote the canonical block at `activation
-    ///    - 1` (which `block_number_at_timestamp` floors to genesis when activation is at or before
-    ///    it), bounded by the local-safe head — op-node's `resolveAnchorAsSafe`
+    /// 3. **Anchor** — active but nothing verified yet: promote the canonical block one second
+    ///    before activation (`block_number_at_timestamp` floors that onto genesis when activation
+    ///    is at or before it), bounded by the local-safe head — op-node's `resolveAnchorAsSafe`
     ///    (`engine_controller.go:273-290`).
     ///
     /// A chain whose head or block cannot be read right now is left for the next round.
