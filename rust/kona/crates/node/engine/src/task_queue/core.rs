@@ -14,6 +14,15 @@ use std::{collections::BinaryHeap, sync::Arc};
 use thiserror::Error;
 use tokio::sync::watch::Sender;
 
+/// The delay before the first retry of a walkback the execution layer failed to answer.
+///
+/// Doubled per attempt up to [`SYNC_START_RETRY_MAX_DELAY`], the shape of op-node's step backoff
+/// (`op-service/retry/strategies.go:49-55`).
+const SYNC_START_RETRY_BASE_DELAY: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// The ceiling for the walkback retry backoff.
+const SYNC_START_RETRY_MAX_DELAY: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// How many times [`Engine::reset_to`] puts its forkchoice update on the wire before giving up.
 ///
 /// [`Engine::reset`] can retry forever because every attempt re-runs the walkback and may land on
@@ -126,7 +135,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         // Clear any outstanding tasks to prepare for the reset.
         self.clear();
 
-        let mut start = find_starting_forkchoice(&config, client.as_ref()).await?;
+        let mut start = Self::find_starting_forkchoice_with_retry(&config, &client).await?;
 
         // Retry to synchronize the engine until we succeed or a critical error occurs. Each retry
         // re-runs the walkback rather than reusing `start`: the previous start point is the thing
@@ -137,7 +146,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
                 EngineTaskErrorSeverity::Flush |
                 EngineTaskErrorSeverity::Reset => {
                     warn!(target: "engine", ?err, "Forkchoice update failed during reset. Trying again...");
-                    start = find_starting_forkchoice(&config, client.as_ref()).await?;
+                    start = Self::find_starting_forkchoice_with_retry(&config, &client).await?;
                 }
                 EngineTaskErrorSeverity::Critical => {
                     return Err(EngineResetError::Forkchoice(err));
@@ -152,6 +161,45 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         );
 
         Ok(start.local_safe)
+    }
+
+    /// Runs the [`find_starting_forkchoice`] walkback, retrying — with an exponential backoff —
+    /// the failures that say the execution layer could not answer rather than what its answer
+    /// was: RPC errors, transport included, since the EL may simply not be reachable yet.
+    ///
+    /// op-node never dies on those: a failed `FindL2Heads` re-emits the reset event and the step
+    /// scheduler retries it with backoff, forever
+    /// (`op-node/rollup/engine/engine_controller.go:1423-1432`,
+    /// `op-node/rollup/driver/sync_deriver.go:225-230`,
+    /// `op-node/rollup/driver/step_scheduling_deriver.go:97-109`). Returning the error instead
+    /// killed the requesting actor — and with it the node — when the execution layer was merely
+    /// unavailable at startup. Content answers stay errors: a block the EL says it does not have
+    /// and config-shape mismatches (a wrong genesis hash, inconsistent sequence numbers) are
+    /// facts about the chain, and the caller decides what they mean.
+    async fn find_starting_forkchoice_with_retry(
+        config: &Arc<RollupConfig>,
+        client: &Arc<EngineClient_>,
+    ) -> Result<L2ForkchoiceState, SyncStartError> {
+        let mut attempts: u32 = 0;
+        loop {
+            match find_starting_forkchoice(config, client.as_ref()).await {
+                Err(err @ SyncStartError::RpcError(_)) => {
+                    let delay = SYNC_START_RETRY_BASE_DELAY
+                        .saturating_mul(1 << attempts.min(7))
+                        .min(SYNC_START_RETRY_MAX_DELAY);
+                    attempts += 1;
+                    warn!(
+                        target: "engine",
+                        ?err,
+                        ?delay,
+                        attempts,
+                        "The execution layer could not answer the sync-start walkback; retrying"
+                    );
+                    tokio::time::sleep(delay).await;
+                }
+                result => return result,
+            }
+        }
     }
 
     /// Resets the engine to `target`, skipping the [`find_starting_forkchoice`] walkback.
@@ -216,7 +264,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         config: &Arc<RollupConfig>,
         target: L2ForkchoiceState,
     ) -> Result<(), SynchronizeTaskError> {
-        SynchronizeTask::new(
+        let result = SynchronizeTask::new(
             client.clone(),
             config.clone(),
             EngineSyncStateUpdate {
@@ -230,7 +278,16 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             },
         )
         .execute(&mut self.state)
-        .await
+        .await;
+        // A reset moves the heads outside `drain`, so the watch has to be told here — otherwise
+        // every reader served through it (the RPC actor's queries, and the interop verifier's
+        // observations through them) keeps seeing the heads from before the reset. The Go
+        // supernode has no second copy to go stale: its readers take the chain container's own
+        // state under lock (`op-supernode/supernode/chain_container/chain_container.go`), so a
+        // rewind is visible to the next verifier round immediately — mirrored here by publishing
+        // on every state mutation, failed attempts included.
+        self.state_sender.send_replace(self.state);
+        result
     }
 
     /// Clears the task queue.
@@ -245,10 +302,19 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         while let Some(task) = self.tasks.peek() {
             // Execute the task
-            task.execute(&mut self.state).await?;
+            let result = task.execute(&mut self.state).await;
 
-            // Update the state and notify the chain controller.
+            // Update the state and notify the chain controller — on failure too: a task may
+            // mutate the state and *then* return an error. The seal task does exactly that when
+            // a derived payload is denied — it imports the deposits-only replacement, moving the
+            // local-safe head, and then signals `HoloceneInvalidFlush` so the rest of the channel
+            // is flushed. Skipping the publish there leaves every watch reader (the RPC actor's
+            // queries, and the interop verifier observing through them) on the invalidated block
+            // until some later task happens to succeed, which stalls cross-safety behind an
+            // unrelated event. op-supernode's readers take the live state under lock and cannot
+            // lag it; publishing on every execution is the same guarantee for the watch.
             self.state_sender.send_replace(self.state);
+            result?;
 
             // Pop the task from the queue now that it's been executed.
             self.tasks.pop();

@@ -271,6 +271,15 @@ impl Supernode {
         let mut interop_chains: Vec<ChainInterop> = Vec::with_capacity(chains.len());
         let mut query_chains: Vec<QueryChain> = Vec::with_capacity(chains.len());
 
+        // The verifier's message-expiry window comes from the dependency set, off the first chain
+        // that has one — op-supernode reads it the same way
+        // (`op-supernode/supernode/supernode.go:121-127`), and the accessor substitutes the
+        // protocol default for an absent or zero override.
+        let message_expiry_window = chains
+            .iter()
+            .find_map(|chain| chain.dependency_set.as_ref())
+            .map(|dependency_set| dependency_set.get_message_expiry_window());
+
         for chain in chains {
             let chain_id = chain.settings.l2_chain_id;
             let datadir = chain.settings.datadir.clone();
@@ -346,6 +355,7 @@ impl Supernode {
                     safe_db,
                     el: state.el,
                     queries: controller_rpc_request_tx,
+                    l1_queries: l1_query_tx,
                     requests: controller_request_tx,
                     promoter,
                     archive: state.archive,
@@ -388,6 +398,7 @@ impl Supernode {
                 interop_datadir.as_deref(),
                 &l1.eth_rpc,
                 activation,
+                message_expiry_window,
                 interop_chains,
             )?;
             let reader = interop.attach_queries(activation);

@@ -34,6 +34,26 @@ impl From<OpAttributesWithParent> for ConsolidateInput {
     }
 }
 
+/// Whether an RPC failure from the unsafe-block fetch heuristically says the block is absent
+/// rather than the fetch having failed.
+///
+/// A correct execution-layer implementation answers a block-by-number request for a block it does
+/// not have with an empty result, never an error, so this only hardens against wrong
+/// implementations — the mirror of op-node's `MaybeAsNotFoundErr`
+/// (`op-service/eth/errors.go:10-27`), which wraps every payload fetch
+/// (`op-service/sources/eth_client.go:269-274`). The string set here is a superset of op-node's
+/// ("block not found" / "header not found" / "unknown block", all covered by the bare
+/// "not found"): op-node only reaches this fetch for blocks its payload queue proved attachable,
+/// while this engine adopts optimistic unsafe heads to drive EL sync and so *does* fetch ahead of
+/// the EL — against a wrong implementation that answers the miss with a bare `not found` error
+/// (op-service's own sync tester, `op-sync-tester/synctester/backend/sync_tester.go:183-187`),
+/// classifying it as a fetch failure would retry an impossible fetch forever instead of taking
+/// the miss split below.
+fn is_block_not_found_rpc_error(err: &crate::EngineClientError) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("not found") || msg.contains("unknown block")
+}
+
 impl ConsolidateInput {
     /// The L1 origin to pair with a local-safe head written from this input.
     ///
@@ -194,6 +214,31 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         }
     }
 
+    /// Maps a fetch miss of the unsafe block to consolidate against onto op-node's split
+    /// (`op-node/rollup/attributes/attributes.go:204-221`): while the engine's initial EL sync is
+    /// in flight the miss is a paced stall — the EL simply has not filled the height in yet, and a
+    /// reset would re-target it away from its sync target — and after EL sync it is a reset, so
+    /// the walkback realigns the unsafe head with what the execution layer actually has instead of
+    /// retrying a fetch that can never succeed.
+    fn missing_unsafe_block(&self, state: &EngineState, block_num: u64) -> ConsolidateTaskError {
+        if state.el_sync_finished {
+            warn!(
+                target: "engine",
+                block_num,
+                "Unsafe L2 block missing for consolidation; requesting a reset to realign with \
+                 the execution layer"
+            );
+            ConsolidateTaskError::MissingUnsafeL2Block(block_num)
+        } else {
+            debug!(
+                target: "engine",
+                block_num,
+                "Waiting for EL sync to fill in the unsafe L2 block for consolidation"
+            );
+            ConsolidateTaskError::AwaitingELSyncUnsafeL2Block(block_num)
+        }
+    }
+
     /// Attempts consolidation on the engine state.
     pub async fn consolidate(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
         let global_start = Instant::now();
@@ -203,9 +248,12 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         let fetch_start = Instant::now();
         let block = match self.client.l2_block_by_label(block_num.into()).await {
             Ok(Some(block)) => block,
-            Ok(None) => {
-                warn!(target: "engine", "Received `None` block for {}", block_num);
-                return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
+            Ok(None) => return Err(self.missing_unsafe_block(state, block_num)),
+            // An error response that says the block is absent is the same miss, only surfaced by
+            // a non-conforming EL implementation; op-node folds it into the not-found branch too
+            // (`op-service/eth/errors.go:10-27`).
+            Err(err) if is_block_not_found_rpc_error(&err) => {
+                return Err(self.missing_unsafe_block(state, block_num));
             }
             Err(_) => {
                 warn!(target: "engine", "Failed to fetch unsafe l2 block for consolidation");
@@ -445,6 +493,83 @@ mod tests {
         fn block_imported(&self, _: op_alloy_consensus::OpBlock, info: L2BlockInfo) {
             self.0.lock().unwrap().push(info.block_info.hash);
         }
+    }
+
+    /// A consolidate task over a client with no block at the fetched height.
+    fn task_without_block(block_num: u64) -> ConsolidateTask<MockEngineClient> {
+        task_with_client(
+            block_num,
+            MockEngineClient::builder().with_config(Arc::new(RollupConfig::default())).build(),
+        )
+    }
+
+    fn task_with_client(
+        block_num: u64,
+        client: MockEngineClient,
+    ) -> ConsolidateTask<MockEngineClient> {
+        let safe_l2 = L2BlockInfo {
+            block_info: BlockInfo { number: block_num, ..Default::default() },
+            ..Default::default()
+        };
+        ConsolidateTask::new(
+            Arc::new(client),
+            Arc::new(RollupConfig::default()),
+            ConsolidateInput::BlockInfo(safe_l2),
+            None,
+            Arc::new(crate::NoopBlockSink),
+        )
+    }
+
+    /// A missing unsafe block is answered along op-node's split
+    /// (`op-node/rollup/attributes/attributes.go:204-221`): a paced temporary stall while the
+    /// initial EL sync is still filling the height in, and a reset once EL sync has finished —
+    /// so the walkback realigns the unsafe head instead of the same fetch being retried forever.
+    #[tokio::test]
+    async fn missing_unsafe_block_stalls_during_el_sync_and_resets_after() {
+        use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
+
+        let task = task_without_block(4);
+
+        let mut state = EngineState { el_sync_finished: false, ..Default::default() };
+        let err = task.consolidate(&mut state).await.unwrap_err();
+        assert!(matches!(err, ConsolidateTaskError::AwaitingELSyncUnsafeL2Block(4)));
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Temporary);
+
+        state.el_sync_finished = true;
+        let err = task.consolidate(&mut state).await.unwrap_err();
+        assert!(matches!(err, ConsolidateTaskError::MissingUnsafeL2Block(4)));
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Reset);
+    }
+
+    /// An RPC error that heuristically says the block is absent is folded into the same miss
+    /// split, hardening against non-conforming execution layers exactly as op-node's
+    /// `MaybeAsNotFoundErr` does (`op-service/eth/errors.go:10-27`); any other RPC failure stays
+    /// a plain temporary fetch failure (`op-node/rollup/attributes/attributes.go:222-227`).
+    #[tokio::test]
+    async fn not_found_rpc_errors_map_to_the_miss_split() {
+        use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
+
+        let mut state = EngineState { el_sync_finished: true, ..Default::default() };
+
+        for message in ["block not found", "HEADER NOT FOUND", "Unknown block 0x4", "not found"] {
+            let client = MockEngineClient::builder()
+                .with_config(Arc::new(RollupConfig::default()))
+                .with_l2_block_by_label_error(BlockNumberOrTag::Number(4), message)
+                .build();
+            let err = task_with_client(4, client).consolidate(&mut state).await.unwrap_err();
+            assert!(
+                matches!(err, ConsolidateTaskError::MissingUnsafeL2Block(4)),
+                "{message} must map to the miss split, got {err:?}"
+            );
+        }
+
+        let client = MockEngineClient::builder()
+            .with_config(Arc::new(RollupConfig::default()))
+            .with_l2_block_by_label_error(BlockNumberOrTag::Number(4), "connection refused")
+            .build();
+        let err = task_with_client(4, client).consolidate(&mut state).await.unwrap_err();
+        assert!(matches!(err, ConsolidateTaskError::FailedToFetchUnsafeL2Block));
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Temporary);
     }
 
     #[tokio::test]

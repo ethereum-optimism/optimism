@@ -13,9 +13,24 @@ use crate::{
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use async_trait::async_trait;
 use derive_more::Display;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, time::Duration};
 use thiserror::Error;
-use tokio::task::yield_now;
+
+/// The delay before the first retry of a task that failed with a temporary error.
+///
+/// op-node paces every step retry through an exponential backoff
+/// (`op-node/rollup/driver/step_scheduling_deriver.go:97-109`, `op-service/retry/strategies.go`,
+/// `retry.Exponential()`: `2^attempt` seconds capped at 10s), so a condition that does not clear
+/// — an execution layer mid-sync, an unreachable RPC — costs a handful of log lines per second at
+/// worst. An unpaced retry loop here re-ran the failing task as fast as the engine RPC round trip
+/// allowed (thousands of attempts per second against an in-process test EL), emitting a
+/// client-side and a server-side warning per attempt. Same strategy, scaled to a smaller base so
+/// a one-off engine blip costs milliseconds rather than seconds.
+const TEMPORARY_RETRY_BASE_DELAY: Duration = Duration::from_millis(100);
+
+/// The ceiling for the temporary-retry backoff, matching op-node's
+/// (`op-service/retry/strategies.go:49-55`).
+const TEMPORARY_RETRY_MAX_DELAY: Duration = Duration::from_secs(10);
 
 /// The severity of an engine task error.
 ///
@@ -260,6 +275,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), Self::Error> {
         // Retry the task until it succeeds or a critical error occurs.
+        let mut attempts: u32 = 0;
         while let Err(e) = self.execute_inner(state).await {
             let severity = e.severity();
 
@@ -273,10 +289,17 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 
             match severity {
                 EngineTaskErrorSeverity::Temporary => {
-                    trace!(target: "engine", "{e}");
-
-                    // Yield the task to allow other tasks to execute to avoid starvation.
-                    yield_now().await;
+                    // Exponentially backed-off retry, mirroring op-node's step pacing: a
+                    // temporary condition that does not clear must not be re-probed as fast as
+                    // the RPC round trip allows. The sleep also yields, letting other work on
+                    // the runtime proceed.
+                    let exponent = attempts.min(7);
+                    attempts += 1;
+                    let delay = TEMPORARY_RETRY_BASE_DELAY
+                        .saturating_mul(1 << exponent)
+                        .min(TEMPORARY_RETRY_MAX_DELAY);
+                    trace!(target: "engine", ?delay, attempts, "{e}");
+                    tokio::time::sleep(delay).await;
                 }
                 EngineTaskErrorSeverity::Critical => {
                     error!(target: "engine", "{e}");
@@ -493,6 +516,60 @@ mod tests {
         let payload = payload_at(3, B256::repeat_byte(2));
         assert!(!insert_task(payload.clone(), false).descends_from_local_safe(&state));
         assert!(insert_task(payload, true).descends_from_local_safe(&state));
+    }
+
+    /// Temporary failures are retried with an exponential backoff, mirroring op-node's step
+    /// pacing (`op-node/rollup/driver/step_scheduling_deriver.go:97-109`): the condition below
+    /// clears on the third attempt, and the clock must show the first two retries were actually
+    /// delayed rather than spun through back-to-back.
+    #[tokio::test]
+    async fn temporary_failures_are_retried_with_backoff() {
+        use crate::{ConsolidateInput, ConsolidateTask};
+        use alloy_eips::BlockNumberOrTag;
+        use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
+
+        // A consolidation whose unsafe-block fetch fails twice with a transport error before the
+        // block is served — pinned to genesis so the consolidated block decodes without an
+        // L1-info deposit.
+        let header = RpcHeader::new(alloy_consensus::Header::default());
+        let block_hash = header.hash;
+        let block = RpcBlock::new(header, BlockTransactions::Full(vec![]));
+        let config = Arc::new(RollupConfig {
+            genesis: kona_genesis::ChainGenesis {
+                l2: alloy_eips::BlockNumHash { hash: block_hash, number: 0 },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(config.clone())
+                .with_l2_block_by_label(BlockNumberOrTag::Number(0), block)
+                .with_l2_block_transport_failures(2)
+                .build(),
+        );
+        let safe_l2 = L2BlockInfo {
+            block_info: BlockInfo { hash: block_hash, number: 0, ..Default::default() },
+            ..Default::default()
+        };
+        let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+            client,
+            config,
+            ConsolidateInput::BlockInfo(safe_l2),
+            None,
+            Arc::new(crate::NoopBlockSink),
+        )));
+        let mut state = state_at(l2_block(1));
+
+        let started = std::time::Instant::now();
+        task.execute(&mut state).await.expect("the fetch succeeds on the third attempt");
+
+        assert!(
+            started.elapsed() >= Duration::from_millis(300),
+            "two temporary failures must cost the first two backoff delays (100ms + 200ms), \
+             got {:?}",
+            started.elapsed()
+        );
     }
 
     /// The rejection is terminal: the payload is dropped before the `engine_newPayload` round trip

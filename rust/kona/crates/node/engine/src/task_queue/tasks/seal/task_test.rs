@@ -307,6 +307,37 @@ mod deny {
         assert_eq!(sync.local_safe_head().block_info.number, 1);
     }
 
+    /// The replacement import has to reach the state *watch* even though the task errors: the
+    /// flush signal comes back after the deposits-only block was imported and the local-safe head
+    /// moved, and `Engine::drain` publishes the watch on failures too. Without that, every reader
+    /// served through the watch — the RPC actor's queries, and the interop verifier observing
+    /// through them — keeps seeing the invalidated block as the local-safe head until some
+    /// unrelated task succeeds, and every verification round in between fails on the mismatch
+    /// between that stale head and the canonical replacement. (op-supernode has no second state
+    /// copy to go stale: its readers take the chain container's live state under lock.)
+    #[tokio::test]
+    async fn a_failed_task_still_publishes_the_state_watch() {
+        let payload = sealed_payload();
+        let deny = StaticDenyList::denying([(1, payload.block_hash)]);
+        let task = seal_task_with_deny(deny.clone());
+        let state = state_on_parent(&task.attributes);
+
+        let (state_tx, state_rx) = tokio::sync::watch::channel(state);
+        let (len_tx, _len_rx) = tokio::sync::watch::channel(0usize);
+        let mut engine = crate::Engine::new(state, state_tx, len_tx);
+        engine.enqueue(crate::EngineTask::Seal(Box::new(task)));
+
+        engine.drain().await.expect_err("the flush signal is the outcome");
+
+        let published = heads(&state_rx.borrow());
+        assert_eq!(
+            published.local_safe_head().block_info.number,
+            1,
+            "the watch must carry the imported replacement, not the pre-seal heads"
+        );
+        assert_eq!(published, heads(engine.state()), "the watch must match the live state");
+    }
+
     /// An undenied payload takes the ordinary path: consulted, admitted, inserted.
     #[tokio::test]
     async fn an_undenied_payload_is_inserted_normally() {

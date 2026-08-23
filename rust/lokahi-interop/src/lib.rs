@@ -39,7 +39,9 @@ pub use decide::{
 pub use error::StoreError;
 pub use kv::{Entry, Kv, MemoryKv, WriteBatch};
 pub use logs::{BlockSeal, ContainsQuery, LogStore, LogsDb, OpenedBlock, StoredExecutingMessage};
-pub use verified::{InvalidHead, PendingTransition, RoundResult, VerifiedResult, VerifiedStore};
+pub use verified::{
+    InvalidHead, PendingTransition, RewindPlan, RoundResult, VerifiedResult, VerifiedStore,
+};
 pub use verifier::{ChainReplacement, Halted, Pace, Verifier, VerifierConfig, VerifierState};
 pub use verify::{
     FrontierBlock, FrontierExecutingMessage, FrontierView, InvalidReason, LogStores, RoundVerdict,
