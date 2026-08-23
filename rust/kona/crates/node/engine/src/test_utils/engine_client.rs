@@ -44,9 +44,9 @@ pub struct MockEngineStorage {
     /// Error messages `l2_block_by_label` answers with instead of a block, by tag.
     pub l2_block_by_label_errors: HashMap<BlockNumberOrTag, String>,
 
-    /// How many `get_l2_block` calls fail with a transport error before the stored blocks are
-    /// served. Lets tests exercise retry paths over an execution layer that is unreachable at
-    /// first.
+    /// How many L2 block reads (`get_l2_block` and `l2_block_by_label`) fail with a transport
+    /// error before the stored blocks are served. Lets tests exercise retry paths over an
+    /// execution layer that is unreachable at first.
     pub l2_block_transport_failures: usize,
 
     // Version-specific new_payload responses
@@ -158,7 +158,7 @@ impl MockEngineClientBuilder {
         self
     }
 
-    /// Makes the first `failures` calls to `get_l2_block` fail with a transport error.
+    /// Makes the first `failures` L2 block reads fail with a transport error.
     pub fn with_l2_block_transport_failures(mut self, failures: usize) -> Self {
         self.storage.l2_block_transport_failures = failures;
         self
@@ -508,6 +508,15 @@ impl EngineClient for MockEngineClient {
         &self,
         numtag: BlockNumberOrTag,
     ) -> Result<Option<Block<OpTransaction>>, EngineClientError> {
+        {
+            let mut storage = self.storage.write().await;
+            if storage.l2_block_transport_failures > 0 {
+                storage.l2_block_transport_failures -= 1;
+                return Err(EngineClientError::RpcError(TransportError::from(
+                    TransportErrorKind::custom_str("execution layer unreachable"),
+                )));
+            }
+        }
         let storage = self.storage.read().await;
         if let Some(message) = storage.l2_block_by_label_errors.get(&numtag) {
             return Err(EngineClientError::RpcError(TransportError::from(
