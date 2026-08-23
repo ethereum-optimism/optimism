@@ -1,4 +1,4 @@
-//! Canonical head metrics mirroring the `chain/head/*`
+//! Canonical head metrics.
 //!
 //! The block height counterparts (`chain_head_block`, `chain_head_safe`, `chain_head_finalized`)
 //! already exist upstream as `reth_blockchain_tree_canonical_chain_height`,
