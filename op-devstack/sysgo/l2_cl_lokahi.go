@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -233,18 +232,11 @@ func startLokahiSupernode(t devtest.T, cfg lokahiSupernodeConfig) *LokahiSuperno
 	dir := t.TempDirWithPrefix("l2-cl-lokahi")
 	logger := t.Logger().New("component", "lokahi")
 
-	// Every listener the process needs is reserved at once and only then released:
-	// allocating them one at a time would hand out the same port twice, because each is
-	// free again before the next is asked for. Two per chain, both P2P: a chain has no RPC
-	// port of its own any more, it is a route on the supernode's one socket.
-	ports := reservePorts(t, 2*len(cfg.chains))
-
 	chains := make([]*lokahiChainCL, len(cfg.chains))
 	entries := make([]string, len(cfg.chains))
 	for i, chain := range cfg.chains {
-		tcpPort, udpPort := ports[2*i], ports[2*i+1]
 		chains[i] = &lokahiChainCL{chainID: chain.net.ChainID()}
-		entries[i] = lokahiChainEntry(t, dir, chain, cfg, tcpPort, udpPort)
+		entries[i] = lokahiChainEntry(t, dir, chain, cfg)
 	}
 
 	configPath := filepath.Join(dir, "lokahi.toml")
@@ -530,7 +522,6 @@ func lokahiChainEntry(
 	dir string,
 	chain lokahiSupernodeChain,
 	cfg lokahiSupernodeConfig,
-	tcpPort, udpPort int,
 ) string {
 	require := t.Require()
 	chainID := eth.EvilChainIDToUInt64(chain.net.ChainID())
@@ -546,7 +537,14 @@ func lokahiChainEntry(
 	// kona speaks the engine API over HTTP; the devstack EL advertises a websocket URL for it.
 	fmt.Fprintf(&b, "engine-rpc = %q\njwt-secret = %q\n",
 		strings.ReplaceAll(chain.el.EngineRPC(), "ws://", "http://"), chain.el.JWTPath())
-	fmt.Fprintf(&b, "p2p-tcp-port = %d\np2p-udp-port = %d\n", tcpPort, udpPort)
+	// Port 0 on both P2P listeners: the kernel assigns a free port at bind time, the same way
+	// startMixedKonaNode runs kona-node (KONA_NODE_P2P_LISTEN_TCP_PORT=0) and
+	// newDevstackP2PConfig runs op-node. Reserving a concrete port here and releasing it before
+	// lokahi binds loses a race under parallel tests: another test's component can take the
+	// port in that window, and a discovery service that cannot bind kills the whole node.
+	// Nothing needs to know the port ahead of time — peering reads the bound addresses back
+	// out of opp2p_self.
+	b.WriteString("p2p-tcp-port = 0\np2p-udp-port = 0\n")
 	// Stated rather than read from L1. kona-node resolves the unsafe block signer from the
 	// chain's SystemConfig contract when it is not given one; lokahi's configuration has no
 	// such path, and a devnet chain is not in the superchain registry either, so the devstack
@@ -595,22 +593,6 @@ func lokahiEnv() []string {
 		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
 		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 	}
-}
-
-// reservePorts returns n ports nothing is listening on.
-func reservePorts(t devtest.T, n int) []int {
-	listeners := make([]net.Listener, 0, n)
-	ports := make([]int, 0, n)
-	for range n {
-		l, err := net.Listen("tcp", "127.0.0.1:0")
-		t.Require().NoError(err, "reserve an ephemeral port")
-		listeners = append(listeners, l)
-		ports = append(ports, l.Addr().(*net.TCPAddr).Port)
-	}
-	for _, l := range listeners {
-		_ = l.Close()
-	}
-	return ports
 }
 
 // var assertion for the seam the presets reach lokahi through. It is here rather than beside the

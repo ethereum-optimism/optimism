@@ -564,17 +564,17 @@ fn check_unique(chains: &[ResolvedChain]) -> Result<(), ConfigError> {
             return Err(ConfigError::DuplicateChain { chain_id: id });
         }
 
-        let listeners = [
-            (
-                "the p2p tcp port",
-                SocketAddr::new(chain.p2p_listen_ip, chain.p2p_tcp_port).to_string(),
-            ),
-            (
-                "the p2p udp port",
-                SocketAddr::new(chain.p2p_listen_ip, chain.p2p_udp_port).to_string(),
-            ),
-        ];
-        for (what, address) in listeners {
+        let listeners =
+            [("the p2p tcp port", chain.p2p_tcp_port), ("the p2p udp port", chain.p2p_udp_port)];
+        for (what, port) in listeners {
+            // Port 0 is a request for an ephemeral port, not an address: the kernel hands
+            // every bind its own port, so two chains both saying 0 cannot collide. This is
+            // how the devstack configures lokahi's P2P listeners, the same way it runs
+            // kona-node.
+            if port == 0 {
+                continue;
+            }
+            let address = SocketAddr::new(chain.p2p_listen_ip, port).to_string();
             if let Some(&first) = sockets.get(&(what, address.clone())) {
                 return Err(ConfigError::AddressCollision { first, second: id, what, address });
             }
@@ -915,6 +915,22 @@ mod tests {
                 address: "0.0.0.0:9222".to_string(),
             }
         );
+    }
+
+    /// Port 0 asks the kernel for an ephemeral port, so every chain saying 0 gets its own
+    /// socket — the address they appear to share is not one either of them will listen on.
+    /// This is how the devstack runs lokahi (and kona-node) under parallel tests: a concrete
+    /// port picked ahead of time can be taken by another process before the node binds it.
+    #[test]
+    fn ephemeral_p2p_ports_are_not_a_collision() {
+        let entries = format!(
+            "{}{}",
+            chain("l2-chain-id = 901\np2p-tcp-port = 0\np2p-udp-port = 0"),
+            chain("l2-chain-id = 902\np2p-tcp-port = 0\np2p-udp-port = 0"),
+        );
+
+        let resolved = config(&entries).resolve().expect("port 0 is ephemeral, not shared");
+        assert_eq!(resolved.chains.len(), 2);
     }
 
     #[test]
