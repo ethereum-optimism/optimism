@@ -86,6 +86,22 @@ func TestLokahiConfigEnablesTheOpstackNamespace(t *testing.T) {
 		"the devstack must turn the opstack namespace on, as it does on op-supernode")
 }
 
+// The devnet L1 finalizes within seconds, and both SuperRootMigrator tests budget 150s for the
+// supernode's first finalized advance. op-node sees it in time because the devstack hands it a
+// 2-second L1EpochPollInterval; lokahi has to be handed the same cadence, or kona's 60-second
+// default leaves first finality (~126s in) unobserved until the ~180s poll.
+func TestLokahiConfigMatchesOpNodesEpochPollInterval(t *testing.T) {
+	cfg := lokahiSupernodeConfig{
+		l1Net:        &L1Network{genesis: &core.Genesis{Config: params.MainnetChainConfig}},
+		l1ELRPC:      "http://127.0.0.1:8545",
+		l1BeaconAddr: "http://127.0.0.1:5052",
+	}
+	rendered := lokahiConfigFile(newGateT(), t.TempDir(), cfg, nil)
+
+	require.Contains(t, rendered, fmt.Sprintf("epoch-poll-interval = %d", lokahiL1EpochPollSeconds),
+		"lokahi must poll L1 finality on the cadence the devstack hands op-node")
+}
+
 // A preset that requests no activation must not write the table at all, so a node that was not
 // told one keeps reading its activation from the rollup configs -- the default path, unchanged.
 func TestLokahiConfigOmitsInteropWhenNoActivationIsRequested(t *testing.T) {

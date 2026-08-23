@@ -43,6 +43,14 @@ const lokahiAdminBoundMessage = "Admin RPC server bound to address"
 // the L1 head; kona-node's own default of 4 is meant for a production L1.
 const lokahiSequencerL1Confs = 2
 
+// lokahiL1EpochPollSeconds is how often, in seconds, lokahi polls the L1 for epoch updates —
+// the finalized-block changes L2 finality is driven from. It matches the 2-second
+// L1EpochPollInterval the devstack hands every op-node it configures
+// (multichain_supernode_runtime.go, singlechain_build.go), so lokahi observes the devnet L1's
+// fast finality on the same cadence; kona's own default of one poll a minute is meant for a
+// production L1, where finality moves at most once per epoch.
+const lokahiL1EpochPollSeconds = 2
+
 // lokahiSupernodeChain is one chain the supernode must host: the L2 network whose rollup
 // config drives derivation, and the EL that chain's node advances.
 type lokahiSupernodeChain struct {
@@ -500,8 +508,8 @@ func lokahiConfigFile(t devtest.T, dir string, cfg lokahiSupernodeConfig, entrie
 	t.Require().NoError(os.WriteFile(l1CfgPath, l1CfgData, 0o640), "must write the l1 chain config")
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "[l1]\neth-rpc = %q\nbeacon = %q\nchain-config = %q\n\n",
-		cfg.l1ELRPC, cfg.l1BeaconAddr, l1CfgPath)
+	fmt.Fprintf(&b, "[l1]\neth-rpc = %q\nbeacon = %q\nchain-config = %q\nepoch-poll-interval = %d\n\n",
+		cfg.l1ELRPC, cfg.l1BeaconAddr, l1CfgPath, lokahiL1EpochPollSeconds)
 	// Loopback and port 0: the harness reads the port back out of the startup log.
 	fmt.Fprintf(&b, "[admin]\nrpc-addr = \"127.0.0.1\"\nrpc-port = 0\n\n")
 	// The activation the preset computed, passed on rather than rederived. lokahi normally reads

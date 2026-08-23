@@ -37,6 +37,17 @@ pub struct L1ClientArgs {
         env = "KONA_NODE_L1_SLOT_DURATION_OVERRIDE"
     )]
     pub l1_slot_duration_override: Option<u64>,
+    /// Poll interval, in seconds, for retrieving new L1 epoch updates such as finalized block
+    /// changes.
+    ///
+    /// op-node's `--l1.epoch-poll-interval`. Defaults to 60 seconds when unset — L1 finality
+    /// moves at most once per epoch; a devnet with fast finality wants this lower.
+    #[arg(
+        long,
+        visible_alias = "l1.epoch-poll-interval",
+        env = "KONA_NODE_L1_EPOCH_POLL_INTERVAL"
+    )]
+    pub l1_epoch_poll_interval: Option<u64>,
 }
 
 impl Default for L1ClientArgs {
@@ -46,6 +57,7 @@ impl Default for L1ClientArgs {
             l1_trust_rpc: DEFAULT_L1_TRUST_RPC,
             l1_beacon: Url::parse("http://localhost:5052").unwrap(),
             l1_slot_duration_override: None,
+            l1_epoch_poll_interval: None,
         }
     }
 }
