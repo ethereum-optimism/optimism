@@ -123,7 +123,6 @@ Then set the compare link's base to the previous **finalized** tag.
 
 ## 9. Review before applying
 
-
 **[USER REVIEW]** Show the proposed notes in full **and the drop list** — every pruned PR
 with its tag and a few words on why. A wrongly pruned PR is invisible in the rendered note,
 so present it as a list to check.

@@ -134,9 +134,14 @@ grep -rl '<fork>_time' superchain-registry/superchain/configs/mainnet/
 grep -rl '<fork>_time' superchain-registry/superchain/configs/sepolia/
 ```
 
-For anything not expressed as a hardfork — dispute game types, features behind a
-`DevFeatures` bit — there is no equivalent lookup, so ask the release manager rather than
-guessing.
+For a `DevFeatures` bit, the default is the answer: anything behind a DevFeature that isn't
+forced to `true` should be considered disabled and not yet in production — we ship the
+defaults for feature toggles. `docs/ai/devfeatures.md` lists them; today only
+`SuperRootGamesMigration` is default-on, so everything else behind a bit is dormant unless a
+chain has explicitly set it.
+
+For anything expressed neither as a hardfork nor a DevFeature — dispute game types, say —
+there is no equivalent lookup, so ask the release manager rather than guessing.
 
 - If the change does nothing for *this component*, and only matters to another consumer of
   the shared code, **cut it entirely**.
@@ -165,7 +170,8 @@ the raw list is being replaced. Say what changed and why an operator cares:
 cannot observe was rearranged. The one exception is a release that would otherwise have an
 empty change list, where one summarising line is more honest than publishing nothing.
 
-**Mention each PR exactly once.** There is no separate raw list to fall back on.
+**Only mention a PR more than once** if it included multiple logical changes worth
+describing separately.
 
 **Reference PRs as bare `(#NNNNN)`** at the end of the entry — GitHub links them
 automatically in release bodies. Drop `by @author`.
