@@ -7,7 +7,7 @@ use alloy_provider::Provider;
 use async_trait::async_trait;
 use futures::{
     Stream, StreamExt,
-    future::{select_all, try_join_all},
+    future::{join_all, select_all, try_join_all},
 };
 use kona_protocol::BlockInfo;
 use kona_rpc::{L1State, L1WatcherQueries};
@@ -146,13 +146,14 @@ where
                 )
                 .await?;
                 // Fetch every chain's system config logs together, so the latency is one round
-                // trip rather than N and one chain's failing request does not stop the others'
-                // from being made. The first error still aborts the round, and the signer updates
-                // already delivered stay delivered.
-                try_join_all(self.chains.iter().map(|chain| {
+                // trip rather than N. A failed fetch is logged and skipped by the chain it
+                // belongs to: a transient L1 RPC error on one chain must neither stop the other
+                // chains' updates nor the watcher itself — op-node keeps running through such
+                // errors, so a multi-chain host must too.
+                join_all(self.chains.iter().map(|chain| {
                     chain.process_system_config_logs(&self.l1_provider, head_block_info)
                 }))
-                .await?;
+                .await;
 
                 Ok(())
             }
@@ -617,6 +618,101 @@ mod tests {
         assert!(
             asserter.read_q().is_empty(),
             "the arm made fewer provider reads than the three responses queued for it"
+        );
+    }
+
+    /// A transient `eth_getLogs` failure on one chain is not actor-fatal: `step` returns `Ok`,
+    /// the healthy chains still receive their signer updates for that head, and the failed chain
+    /// is served again on the next head.
+    ///
+    /// This mirrors op-node, whose runtime-config reloader logs a failed unsafe-block-signer read
+    /// from L1 and waits for the next interval instead of stopping the node. Before this
+    /// behaviour, one chain's transient L1 RPC error made `step` return `Err`, which cancelled
+    /// every actor and took the whole (multi-chain) node down.
+    #[tokio::test]
+    async fn transient_get_logs_failure_on_one_chain_is_not_fatal() {
+        const CHAINS: u8 = 3;
+        const FAILING: usize = 1;
+
+        let asserter = Asserter::new();
+        let (chains, mut handles) = test_chains(CHAINS, |_| {
+            let mut client = MockL1WatcherDerivationClient::new();
+            // Both heads are fanned out to every chain, failed log fetch or not.
+            client.expect_send_new_l1_head().times(2).returning(|_| Ok(()));
+            client
+        });
+
+        // First head: the failing chain's log request is answered with a transport error, the
+        // others with their signer updates.
+        for index in 0..CHAINS {
+            if index as usize == FAILING {
+                asserter.push_failure_msg("connection reset by peer");
+            } else {
+                asserter.push_success(&vec![signer_update_log(chain_at(index), signer_at(index))]);
+            }
+        }
+        // Second head: every chain's log request succeeds.
+        for index in 0..CHAINS {
+            asserter.push_success(&vec![signer_update_log(chain_at(index), signer_at(index))]);
+        }
+
+        let (mut actor, _latest_head_rx) = actor(asserter, vec![head(7), head(8)], vec![], chains);
+
+        actor
+            .step()
+            .await
+            .expect("a transient L1 RPC failure on one chain must not stop the watcher");
+
+        for (index, handle) in handles.iter_mut().enumerate() {
+            if index == FAILING {
+                assert!(
+                    handle.signer_rx.try_recv().is_err(),
+                    "the chain whose log fetch failed cannot have received an update"
+                );
+            } else {
+                assert_eq!(
+                    handle.signer_rx.try_recv().expect("healthy chain's signer update"),
+                    signer_at(index as u8),
+                    "chain {index} was not served while another chain's L1 RPC failed"
+                );
+            }
+        }
+
+        // The watcher keeps stepping: the next head serves every chain again, including the one
+        // whose fetch failed.
+        actor.step().await.expect("step over the next head");
+        for (index, handle) in handles.iter_mut().enumerate() {
+            assert_eq!(
+                handle.signer_rx.try_recv().expect("signer update after the failure"),
+                signer_at(index as u8),
+                "chain {index} did not recover on the next head"
+            );
+        }
+    }
+
+    /// A standalone kona-node — the watcher serving a single chain — also survives a transient
+    /// `eth_getLogs` failure and picks the chain back up on the next head.
+    #[tokio::test]
+    async fn single_chain_watcher_survives_transient_get_logs_failure() {
+        let asserter = Asserter::new();
+        let (chains, mut handles) = test_chains(1, |_| {
+            let mut client = MockL1WatcherDerivationClient::new();
+            client.expect_send_new_l1_head().times(2).returning(|_| Ok(()));
+            client
+        });
+
+        asserter.push_failure_msg("request timed out");
+        asserter.push_success(&vec![signer_update_log(chain_at(0), signer_at(0))]);
+
+        let (mut actor, _latest_head_rx) = actor(asserter, vec![head(7), head(8)], vec![], chains);
+
+        actor.step().await.expect("a transient L1 RPC failure must not stop a single-chain node");
+        assert!(handles[0].signer_rx.try_recv().is_err(), "the failed fetch produced no update");
+
+        actor.step().await.expect("step over the next head");
+        assert_eq!(
+            handles[0].signer_rx.try_recv().expect("signer update after the failure"),
+            signer_at(0),
         );
     }
 }

@@ -78,26 +78,36 @@ where
 
     /// Reads this chain's system config logs from the given L1 head block and forwards any unsafe
     /// block signer update they carry to this chain's network actor.
+    ///
+    /// Never fails: a failed log fetch is logged and this head's logs are skipped for this chain,
+    /// so a transient L1 RPC error neither stops the watcher (and with it the node) nor the other
+    /// chains' updates. This mirrors op-node, whose runtime-config reloader treats a failed
+    /// unsafe-block-signer read from L1 as a warning and waits for the next reload interval —
+    /// missing an update is explicitly not critical there.
     pub(super) async fn process_system_config_logs(
         &self,
         l1_provider: &impl Provider,
         head_block_info: BlockInfo,
-    ) -> Result<(), L1WatcherActorError<BlockInfo>> {
+    ) {
         let filter_address = self.rollup_config.l1_system_config_address;
-        let logs = l1_provider
+        let logs = match l1_provider
             .get_logs(
                 &alloy_rpc_types_eth::Filter::new()
                     .address(filter_address)
                     .select(head_block_info.hash),
             )
             .await
-            .inspect_err(|e| {
-                error!(
+        {
+            Ok(logs) => logs,
+            Err(e) => {
+                warn!(
                     target: "l1_watcher",
                     chain_id = self.chain_id(),
-                    "Error fetching system config logs: {e}"
+                    "Error fetching system config logs, skipping this head's logs: {e}"
                 );
-            })?;
+                return;
+            }
+        };
         let ecotone_active = self.rollup_config.is_ecotone_active(head_block_info.timestamp);
         for log in logs {
             let sys_cfg_log = SystemConfigLog::new(log.into(), ecotone_active);
@@ -119,7 +129,5 @@ where
                 }
             }
         }
-
-        Ok(())
     }
 }
