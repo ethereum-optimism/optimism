@@ -50,8 +50,7 @@ const READY_TIMEOUT: Duration = Duration::from_secs(60);
 async fn two_chains_answer_on_one_socket_under_their_own_routes() {
     let stub = Stub::start();
     let dir = tempfile::tempdir().expect("temp dir");
-    let ports = Ports::allocate();
-    let toml = config(dir.path(), &stub, &ports, &stub.url(), &stub.url());
+    let toml = config(dir.path(), &stub, &stub.url(), &stub.url());
 
     let node = Node::start(&dir.path().join("cfg.toml"), &toml);
 
@@ -59,8 +58,7 @@ async fn two_chains_answer_on_one_socket_under_their_own_routes() {
     // what turns a mistake in that configuration into a failed assertion here rather than into a
     // chain that quietly never started. `rpcPath` is the whole answer to *where is chain N*: the
     // caller is already talking to the socket.
-    let hosted = node.admin().request::<Value, _>("lokahi_chains", rpc_params![]).await;
-    let hosted = hosted.expect("the admin rpc did not answer lokahi_chains");
+    let hosted = await_hosted_chains(&node).await;
     let hosted = hosted.as_array().expect("lokahi_chains returns an array").clone();
     assert_eq!(hosted.len(), 2, "expected two hosted chains: {hosted:?}");
     assert_eq!(hosted[0]["chainId"], json!(CHAIN_A));
@@ -175,9 +173,8 @@ async fn two_chains_answer_on_one_socket_under_their_own_routes() {
 async fn an_unreachable_execution_layer_does_not_stop_the_other_chain() {
     let stub = Stub::start();
     let dir = tempfile::tempdir().expect("temp dir");
-    let ports = Ports::allocate();
-    let closed = format!("http://127.0.0.1:{}", ports.closed);
-    let toml = config(dir.path(), &stub, &ports, &closed, &stub.url());
+    let closed = format!("http://127.0.0.1:{}", closed_port());
+    let toml = config(dir.path(), &stub, &closed, &stub.url());
 
     let mut node = Node::start(&dir.path().join("cfg.toml"), &toml);
 
@@ -193,7 +190,7 @@ async fn an_unreachable_execution_layer_does_not_stop_the_other_chain() {
 ///
 /// The one socket asks for port 0 and no chain names a port at all: a chain is a route on that
 /// socket, so the address the process logs is the address of every chain it hosts.
-fn config(dir: &Path, stub: &Stub, ports: &Ports, engine_a: &str, engine_b: &str) -> String {
+fn config(dir: &Path, stub: &Stub, engine_a: &str, engine_b: &str) -> String {
     let jwt = dir.join("jwt.hex");
     std::fs::write(&jwt, format!("0x{}", "11".repeat(32))).expect("write the jwt secret");
 
@@ -217,57 +214,35 @@ rpc-port = 0
 [[chains]]
 l2-chain-id = {CHAIN_A}
 engine-rpc = "{engine_a}"
-p2p-tcp-port = {tcp_a}
-p2p-udp-port = {udp_a}
+p2p-tcp-port = 0
+p2p-udp-port = 0
 unsafe-block-signer = "0x1111111111111111111111111111111111111111"
 
 [[chains]]
 l2-chain-id = {CHAIN_B}
 engine-rpc = "{engine_b}"
-p2p-tcp-port = {tcp_b}
-p2p-udp-port = {udp_b}
+p2p-tcp-port = 0
+p2p-udp-port = 0
 unsafe-block-signer = "0x2222222222222222222222222222222222222222"
 "#,
         stub = stub.url(),
         datadir = dir.join("data").display(),
         jwt = jwt.display(),
-        tcp_a = ports.tcp_a,
-        tcp_b = ports.tcp_b,
-        udp_a = ports.udp_a,
-        udp_b = ports.udp_b,
     )
 }
 
-/// The ports one run needs, taken from the OS so concurrent test binaries do not collide.
+/// A port nothing listens on, for the chain whose execution layer must be unreachable.
 ///
-/// P2P only: the RPC is one socket on port 0, whose address the process logs. All of them are
-/// reserved at once and only then released: allocating them one at a time would hand out the same
-/// port twice, because each is free again before the next is asked for.
-struct Ports {
-    tcp_a: u16,
-    tcp_b: u16,
-    udp_a: u16,
-    udp_b: u16,
-    /// A port nothing listens on, for the chain whose execution layer must be unreachable.
-    closed: u16,
-}
-
-impl Ports {
-    fn allocate() -> Self {
-        let reserved: Vec<TcpListener> = (0..5)
-            .map(|_| TcpListener::bind("127.0.0.1:0").expect("reserve an ephemeral port"))
-            .collect();
-        let ports: Vec<u16> =
-            reserved.iter().map(|l| l.local_addr().expect("local addr").port()).collect();
-
-        Self {
-            tcp_a: ports[0],
-            tcp_b: ports[1],
-            udp_a: ports[2],
-            udp_b: ports[3],
-            closed: ports[4],
-        }
-    }
+/// The P2P listeners need no reservation like this: they ask for port 0 in the configuration and
+/// the kernel assigns each bind its own port, so concurrent test binaries cannot collide. This one
+/// cannot say 0 — it has to be a concrete port that stays closed — so it is taken from the OS and
+/// released, accepting the small window in which something else could claim it.
+fn closed_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .expect("reserve an ephemeral port")
+        .local_addr()
+        .expect("local addr")
+        .port()
 }
 
 /// The L1, the beacon API and both engine APIs, on one socket.
@@ -457,6 +432,26 @@ fn admin_addr(line: &str) -> Option<SocketAddr> {
 /// refused with "the supernode is still starting" rather than answered for an empty chain set, so
 /// this retries. A namespace that is not registered at all fails here instead, with the method
 /// name in the error.
+/// Asks for the hosted chain set until the socket serves it: the admin address is logged when the
+/// socket is bound, which is a moment before the supernode's own methods are registered on it, so
+/// the first call of a fast test can land in that gap and be answered 404.
+async fn await_hosted_chains(node: &Node) -> Value {
+    let deadline = Instant::now() + READY_TIMEOUT;
+
+    loop {
+        match node.admin().request::<Value, _>("lokahi_chains", rpc_params![]).await {
+            Ok(hosted) => return hosted,
+            Err(err) => {
+                assert!(
+                    Instant::now() < deadline,
+                    "the admin rpc never answered lokahi_chains: {err}"
+                );
+                sleep(Duration::from_millis(200)).await;
+            }
+        }
+    }
+}
+
 async fn await_sync_status(node: &Node) -> Value {
     let deadline = Instant::now() + READY_TIMEOUT;
 
