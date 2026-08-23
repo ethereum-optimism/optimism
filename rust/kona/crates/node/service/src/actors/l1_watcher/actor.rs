@@ -25,8 +25,13 @@ enum L1WatcherEvent {
     Head(Option<BlockInfo>),
     /// A new finalized L1 block, or `None` if the finalized stream ended.
     Finalized(Option<BlockInfo>),
-    /// A query for the chain at the given index, or `None` if its query channel closed.
-    Query(usize, Option<L1WatcherQueries>),
+    /// A query for one chain.
+    Query {
+        /// The index of the queried chain in the actor's chain vec.
+        index: usize,
+        /// The query, or `None` if the chain's query channel closed.
+        query: Option<L1WatcherQueries>,
+    },
 }
 
 /// An L1 chain watcher that checks for L1 block updates over RPC.
@@ -50,15 +55,8 @@ where
     head_stream: BlockStream,
     /// A stream over the finalized block accepted as canonical.
     finalized_stream: BlockStream,
-    /// The chains served by this watcher. Never empty.
+    /// The chains served by this watcher, rotated as their queries are served. Never empty.
     chains: Vec<L1WatcherChain<L1WatcherDerivationClient_>>,
-    /// The chain whose query channel is polled first on the next step.
-    ///
-    /// The query fan-in polls the chains in a fixed order and takes the first that is ready, so
-    /// without this cursor a chain whose query channel is never empty would starve the chains
-    /// after it. Advancing it past whichever chain was served makes each chain take its turn at
-    /// the front. Always a valid index into `chains`.
-    next_chain: usize,
 }
 
 impl<BlockStream, L1Provider, L1WatcherDerivationClient_>
@@ -81,23 +79,13 @@ where
     ) -> Self {
         assert!(!chains.is_empty(), "the L1 watcher must serve at least one chain");
 
-        Self {
-            l1_provider,
-            latest_head: l1_head_updates_tx,
-            head_stream,
-            finalized_stream,
-            chains,
-            next_chain: 0,
-        }
+        Self { l1_provider, latest_head: l1_head_updates_tx, head_stream, finalized_stream, chains }
     }
 
     /// Reads the L1 view answered by [`L1WatcherQueries::L1State`] from the L1 provider.
     ///
-    /// Takes the provider rather than `&self` deliberately. `step` is behind `#[async_trait]`, so
-    /// its future must be `Send`, and holding `&Self` across an await would additionally require
-    /// `Self: Sync` and so `BlockStream: Sync` — which the head and finalized streams cannot
-    /// satisfy, being `async_stream` blocks over alloy's `PollerStream`. Borrowing the provider
-    /// alone is enough: `Provider` is itself `Sync`.
+    /// Takes the provider rather than `&self`. `step` sits behind `#[async_trait]`, so a `&Self`
+    /// held across an await would need `BlockStream: Sync`, which the two streams do not satisfy.
     async fn l1_state(l1_provider: &L1Provider, current_l1: Option<BlockInfo>) -> L1State {
         let read = move |tag: BlockId, what: &'static str| async move {
             match l1_provider.get_block(tag).await {
@@ -110,13 +98,8 @@ where
             .map(|block| block.into_consensus().into())
         };
 
-        // Issued together: this runs inline in `step`, so three serial round-trips would park the
-        // watcher - and with it every chain's head and finalized fan-out - for the whole query.
-        // The arm is entered once per chain's RPC frontend, so the stall would grow with N.
-        //
-        // `join!` polls its futures in the order written on the first poll: its rotator starts at
-        // zero skips and only advances on later wakes, by which point all three requests are
-        // already in flight. So the requests are still issued latest, then finalized, then safe.
+        // Issued together: this runs inline in `step`. Three serial round trips would park the
+        // watcher, and with it every chain's head and finalized fan-out.
         let (head_l1, finalized_l1, safe_l1) = tokio::join!(
             read(BlockId::latest(), "latest"),
             read(BlockId::finalized(), "finalized"),
@@ -138,24 +121,13 @@ where
     type Error = L1WatcherActorError<BlockInfo>;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        // `select_all` polls its futures in the order it is given them and returns the first that
-        // is ready, and `select!`'s randomisation only covers the three arms below, not the chains
-        // inside one of them. Handing it `self.chains` in index order would therefore let a chain
-        // whose query channel is never empty starve every chain after it. Start the round at
-        // `next_chain` instead, so each chain is polled first in turn. With a single chain the
-        // rotation is the identity.
-        let chain_count = self.chains.len();
-        let round_start = self.next_chain;
-        let (before, from_cursor) = self.chains.split_at_mut(round_start);
-        let rotated = from_cursor.iter_mut().chain(before.iter_mut());
-
         let event = select! {
             new_head = self.head_stream.next() => L1WatcherEvent::Head(new_head),
             new_finalized = self.finalized_stream.next() => L1WatcherEvent::Finalized(new_finalized),
             // `select_all` panics on an empty iterator, which `new` rules out.
-            (query, rotated_index, _) = select_all(
-                rotated.map(|chain| Box::pin(chain.inbound_queries.recv()))
-            ) => L1WatcherEvent::Query((round_start + rotated_index) % chain_count, query),
+            (query, index, _) = select_all(
+                self.chains.iter_mut().map(|chain| Box::pin(chain.inbound_queries.recv()))
+            ) => L1WatcherEvent::Query { index, query },
         };
 
         match event {
@@ -166,21 +138,17 @@ where
                 // Send the head update event to all consumers.
                 self.latest_head.send_replace(Some(head_block_info));
 
-                // Fan the head out to every chain before the log queries below, so that a slow
-                // query for one chain does not hold up derivation on the others. The sends are
-                // started together rather than awaited one at a time: each chain's derivation
-                // actor has its own bounded request queue, so awaiting them in sequence would let
-                // one chain whose queue is full park the whole watcher, and while parked no other
-                // chain receives L1 updates and no chain's queries are served. The first error
-                // still aborts the round, and the heads already delivered stay delivered.
+                // Fan out to every chain before the log queries below. Each derivation queue is
+                // bounded, so serial awaits let one full queue park the watcher and stall every
+                // other chain.
                 try_join_all(
                     self.chains.iter().map(|chain| chain.send_new_l1_head(head_block_info)),
                 )
                 .await?;
-                // Fetch every chain's system config logs together, so that the round-trip
-                // latency is one request rather than N and one chain's failing request does not
-                // stop the others' from being made. The first error still aborts the round, and
-                // the signer updates already delivered stay delivered.
+                // Fetch every chain's system config logs together, so the latency is one round
+                // trip rather than N and one chain's failing request does not stop the others'
+                // from being made. The first error still aborts the round, and the signer updates
+                // already delivered stay delivered.
                 try_join_all(self.chains.iter().map(|chain| {
                     chain.process_system_config_logs(&self.l1_provider, head_block_info)
                 }))
@@ -200,17 +168,12 @@ where
 
                 Ok(())
             }
-            L1WatcherEvent::Query(chain_index, Some(query)) => {
-                // The chain just served goes to the back of the polling order.
-                self.next_chain = (chain_index + 1) % chain_count;
-
-                let chain_id = self.chains[chain_index].chain_id();
+            L1WatcherEvent::Query { index, query: Some(query) } => {
+                let chain_id = self.chains[index].chain_id();
 
                 match query {
                     L1WatcherQueries::Config(sender) => {
-                        if let Err(e) =
-                            sender.send((*self.chains[chain_index].rollup_config).clone())
-                        {
+                        if let Err(e) = sender.send((*self.chains[index].rollup_config).clone()) {
                             warn!(target: "l1_watcher", chain_id, error = ?e, "Failed to send L1 config to the query sender");
                         }
                     }
@@ -224,13 +187,14 @@ where
                     }
                 }
 
+                // The chain just served is polled last next time.
+                self.chains.rotate_left(index + 1);
+
                 Ok(())
             }
-            L1WatcherEvent::Query(chain_index, None) => {
-                // This stops the watcher for every chain, so name the chain that caused it. The
-                // index is in range by construction: it is taken modulo `chain_count`, and `new`
-                // rules out an empty `chains`.
-                error!(target: "l1_watcher", chain_id = self.chains[chain_index].chain_id(), "L1 watcher query channel closed unexpectedly, exiting query processor task.");
+            L1WatcherEvent::Query { index, query: None } => {
+                // This stops the watcher for every chain, so name the chain that caused it.
+                error!(target: "l1_watcher", chain_id = self.chains[index].chain_id(), "L1 watcher query channel closed unexpectedly, exiting query processor task.");
                 Err(L1WatcherActorError::StreamEnded)
             }
         }
@@ -328,6 +292,14 @@ mod tests {
         )
     }
 
+    /// Builds `count` chains via [`test_chain`], the client of each built by `client`.
+    fn test_chains<Client>(
+        count: u8,
+        mut client: impl FnMut(u8) -> Client,
+    ) -> (Vec<L1WatcherChain<Client>>, Vec<ChainHandles>) {
+        (0..count).map(|i| test_chain(i, client(i))).unzip()
+    }
+
     /// Builds an actor over `chains` whose head stream yields `heads` and whose finalized stream
     /// yields `finalized`, then pends forever so it never races the branch under test.
     fn actor<Client: L1WatcherDerivationClient>(
@@ -361,10 +333,7 @@ mod tests {
 
         let block = head(7);
         let asserter = Asserter::new();
-        let mut chains = Vec::new();
-        let mut handles = Vec::new();
-
-        for index in 0..CHAINS {
+        let (chains, mut handles) = test_chains(CHAINS, |index| {
             let mut client = MockL1WatcherDerivationClient::new();
             client
                 .expect_send_new_l1_head()
@@ -375,10 +344,8 @@ mod tests {
 
             asserter.push_success(&vec![signer_update_log(chain_at(index), signer_at(index))]);
 
-            let (chain, handle) = test_chain(index, client);
-            chains.push(chain);
-            handles.push(handle);
-        }
+            client
+        });
 
         let (mut actor, latest_head_rx) = actor(asserter, vec![block], vec![], chains);
         actor.step().await.expect("step");
@@ -399,10 +366,7 @@ mod tests {
         const CHAINS: u8 = 3;
 
         let block = head(9);
-        let mut chains = Vec::new();
-        let mut handles = Vec::new();
-
-        for index in 0..CHAINS {
+        let (chains, handles) = test_chains(CHAINS, |_| {
             let mut client = MockL1WatcherDerivationClient::new();
             client
                 .expect_send_finalized_l1_block()
@@ -410,11 +374,8 @@ mod tests {
                 .withf(move |b| *b == block)
                 .returning(|_| Ok(()));
             client.expect_send_new_l1_head().times(0);
-
-            let (chain, handle) = test_chain(index, client);
-            chains.push(chain);
-            handles.push(handle);
-        }
+            client
+        });
 
         let (mut actor, _latest_head_rx) = actor(Asserter::new(), vec![], vec![block], chains);
         actor.step().await.expect("step");
@@ -469,27 +430,17 @@ mod tests {
 
         let started = Arc::new(AtomicUsize::new(0));
         let asserter = Asserter::new();
-        let mut chains = Vec::new();
-        let mut handles = Vec::new();
         let mut observed = Vec::new();
 
-        for index in 0..CHAINS {
+        let (chains, handles) = test_chains(CHAINS, |_| {
             // Only the head fan-out reaches the log queries; the finalized case leaves these
             // responses unread.
             asserter.push_success(&Vec::<RpcLog>::new());
 
             let chain_observed = Arc::new(AtomicUsize::new(0));
-            let (chain, handle) = test_chain(
-                index,
-                ConcurrencyProbeClient {
-                    started: Arc::clone(&started),
-                    observed: Arc::clone(&chain_observed),
-                },
-            );
-            chains.push(chain);
-            handles.push(handle);
-            observed.push(chain_observed);
-        }
+            observed.push(Arc::clone(&chain_observed));
+            ConcurrencyProbeClient { started: Arc::clone(&started), observed: chain_observed }
+        });
 
         let (mut actor, _latest_head_rx) = actor(asserter, heads, finalized, chains);
         actor.step().await.expect("step");
@@ -524,19 +475,12 @@ mod tests {
     async fn query_polling_rotates_across_chains() {
         const CHAINS: u8 = 3;
 
-        let mut chains = Vec::new();
-        let mut handles = Vec::new();
-        for index in 0..CHAINS {
-            let (chain, handle) = test_chain(index, MockL1WatcherDerivationClient::new());
-            chains.push(chain);
-            handles.push(handle);
-        }
-
+        let (chains, handles) = test_chains(CHAINS, |_| MockL1WatcherDerivationClient::new());
         let (mut actor, _latest_head_rx) = actor(Asserter::new(), vec![], vec![], chains);
 
-        // Keep chain 0's channel non-empty for the whole test: with a fixed 0..N poll order it
-        // wins every round and no other chain is ever reached.
-        let _chain_0_rxs = (0..4)
+        // Keep chain 0's channel non-empty for the whole test: with a fixed poll order it would
+        // win every round and no other chain would ever be reached.
+        let mut chain_0_rxs = (0..4)
             .map(|_| {
                 let (tx, rx) = oneshot::channel();
                 handles[0].query_tx.try_send(L1WatcherQueries::Config(tx)).unwrap();
@@ -544,20 +488,51 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let (tx, mut chain_1_rx) = oneshot::channel();
-        handles[1].query_tx.try_send(L1WatcherQueries::Config(tx)).unwrap();
+        let mut waiting_rxs = [1usize, 2].map(|chain| {
+            let (tx, rx) = oneshot::channel();
+            handles[chain].query_tx.try_send(L1WatcherQueries::Config(tx)).unwrap();
+            rx
+        });
 
-        // Chain 0 takes the first round; the rotation must then hand the next one to chain 1.
-        actor.step().await.expect("step");
-        actor.step().await.expect("step");
+        // Chain 0 takes the first round; the rotation must then hand one round to chain 1 and
+        // one to chain 2 before chain 0 gets another turn. The last two steps go back to chain 0:
+        // by then it sits at the end of the rotated order, so serving it exercises the
+        // `rotate_left(len)` edge.
+        for _ in 0..5 {
+            actor.step().await.expect("step");
+        }
 
-        assert_eq!(
-            chain_1_rx
-                .try_recv()
-                .expect("chain 1's query was starved by chain 0's non-empty channel")
-                .l1_system_config_address,
-            chain_at(1),
-        );
+        for (index, rx) in waiting_rxs.iter_mut().enumerate() {
+            let chain = index as u8 + 1;
+            assert_eq!(
+                rx.try_recv()
+                    .unwrap_or_else(|_| panic!(
+                        "chain {chain}'s query was starved by chain 0's non-empty channel"
+                    ))
+                    .l1_system_config_address,
+                chain_at(chain),
+            );
+        }
+
+        // Steps 1, 4 and 5 each served one of chain 0's queries; the fourth is still queued.
+        let answered =
+            chain_0_rxs.iter_mut().map(|rx| rx.try_recv().is_ok()).filter(|&ok| ok).count();
+        assert_eq!(answered, 3, "chain 0 was not served on exactly the rounds it was due");
+    }
+
+    /// A closed query channel stops the watcher: `step` returns
+    /// [`L1WatcherActorError::StreamEnded`].
+    #[tokio::test]
+    async fn closed_query_channel_ends_the_stream() {
+        const CHAINS: u8 = 3;
+
+        let (chains, mut handles) = test_chains(CHAINS, |_| MockL1WatcherDerivationClient::new());
+        let (mut actor, _latest_head_rx) = actor(Asserter::new(), vec![], vec![], chains);
+
+        // Drop one chain's query sender; its `recv` then resolves to `None`.
+        drop(handles.remove(1));
+
+        assert!(matches!(actor.step().await, Err(L1WatcherActorError::StreamEnded)));
     }
 
     /// A config query is answered with the rollup config of the chain it was sent to.
@@ -565,14 +540,7 @@ mod tests {
     async fn config_query_is_answered_per_chain() {
         const CHAINS: u8 = 3;
 
-        let mut chains = Vec::new();
-        let mut handles = Vec::new();
-        for index in 0..CHAINS {
-            let (chain, handle) = test_chain(index, MockL1WatcherDerivationClient::new());
-            chains.push(chain);
-            handles.push(handle);
-        }
-
+        let (chains, handles) = test_chains(CHAINS, |_| MockL1WatcherDerivationClient::new());
         let (mut actor, _latest_head_rx) = actor(Asserter::new(), vec![], vec![], chains);
 
         for index in 0..CHAINS {
@@ -596,8 +564,7 @@ mod tests {
     /// drained queue that exactly three reads are made. The tags themselves are *not* covered:
     /// [`Asserter`] answers from its queue without looking at the request, so swapping
     /// `BlockId::finalized()` for `BlockId::safe()` in the arm keeps every response in the same
-    /// position and this test still passes. Catching that needs a transport that routes on
-    /// params, which is more harness than this one query is worth.
+    /// position and this test still passes.
     #[tokio::test]
     async fn l1_state_query_is_answered_with_the_head_and_every_tag() {
         const CHAINS: u8 = 3;
@@ -605,20 +572,15 @@ mod tests {
 
         let block = head(7);
         let asserter = Asserter::new();
-        let mut chains = Vec::new();
-        let mut handles = Vec::new();
-
-        for index in 0..CHAINS {
+        let (chains, handles) = test_chains(CHAINS, |_| {
             let mut client = MockL1WatcherDerivationClient::new();
             client.expect_send_new_l1_head().times(1).returning(|_| Ok(()));
 
             // No config updates: this test is about the query arm, not the log fan-out.
             asserter.push_success(&Vec::<RpcLog>::new());
 
-            let (chain, handle) = test_chain(index, client);
-            chains.push(chain);
-            handles.push(handle);
-        }
+            client
+        });
 
         let (mut actor, _latest_head_rx) = actor(asserter.clone(), vec![block], vec![], chains);
 

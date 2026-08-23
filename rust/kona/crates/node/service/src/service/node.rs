@@ -320,7 +320,6 @@ impl RollupNode {
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
         )?;
 
-        // A standalone kona-node is the N=1 case of the multi-chain watcher.
         let chain = L1WatcherChain::new(
             self.config.clone(),
             QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
