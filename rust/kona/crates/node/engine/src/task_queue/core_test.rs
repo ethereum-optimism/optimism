@@ -300,6 +300,66 @@ async fn reset_still_discovers_its_start_point_by_walkback() {
     );
 }
 
+/// An execution layer that cannot answer the walkback yet — unreachable, still starting up — is
+/// retried rather than surfaced: op-node re-runs a failed `FindL2Heads` through its step backoff
+/// forever (`op-node/rollup/engine/engine_controller.go:1423-1432`,
+/// `op-node/rollup/driver/step_scheduling_deriver.go:97-109`), while returning the error here
+/// killed the requesting actor — and with it the node — over a transient condition. The client
+/// below fails its first two L2 block reads with a transport error and then serves the chain; the
+/// reset must ride the failures out and land on the discovered head.
+#[tokio::test]
+async fn reset_retries_the_walkback_while_the_execution_layer_is_unreachable() {
+    let header = alloy_consensus::Header { number: 0, ..Default::default() };
+    let genesis_hash = header.hash_slow();
+    let cfg = Arc::new(RollupConfig {
+        genesis: ChainGenesis {
+            l2: BlockNumHash { number: 0, hash: genesis_hash },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let genesis = L2BlockInfo {
+        block_info: BlockInfo {
+            number: 0,
+            hash: genesis_hash,
+            parent_hash: B256::ZERO,
+            timestamp: 0,
+        },
+        ..Default::default()
+    };
+
+    let genesis_block: alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction> =
+        alloy_rpc_types_eth::Block {
+            header: alloy_rpc_types_eth::Header {
+                hash: genesis_hash,
+                inner: header,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+    let client = Arc::new(
+        test_engine_client_builder()
+            .with_config(cfg.clone())
+            .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(PayloadStatus::new(
+                PayloadStatusEnum::Valid,
+                None,
+            )))
+            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), genesis_block.clone())
+            .with_l2_block(BlockId::Number(0.into()), genesis_block)
+            .with_l1_block(BlockId::Hash(B256::ZERO.into()), Default::default())
+            .with_l2_block_transport_failures(2)
+            .build(),
+    );
+
+    let mut walking = engine(TestEngineStateBuilder::new().build());
+    let landed = walking
+        .reset(client.clone(), cfg)
+        .await
+        .expect("the reset must retry through the transport failures rather than surface them");
+
+    assert_eq!(landed, genesis, "the reset must land on the discovered head after retrying");
+}
+
 /// A reset mutates the engine state outside `drain`, so it has to publish the state watch itself.
 /// Every reader served through the watch — the RPC actor's queries, and the interop verifier's
 /// observations through them — would otherwise keep seeing the heads from before the reset until

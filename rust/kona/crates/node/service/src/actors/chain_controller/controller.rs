@@ -96,6 +96,10 @@ where
     /// mode.
     unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
 
+    /// Whether the startup engine reset has been attempted, so the first step performs it exactly
+    /// once. See [`Self::startup_reset`].
+    startup_reset_attempted: bool,
+
     /// The [`RollupConfig`] used to build tasks.
     rollup: Arc<RollupConfig>,
     /// An [`EngineClient`] used for creating engine tasks.
@@ -147,6 +151,43 @@ where
             last_recorded: None,
             deny,
             unsafe_deny_gated: false,
+            startup_reset_attempted: false,
+        }
+    }
+
+    /// The startup engine reset: discover the execution layer's actual heads by walkback and put
+    /// the initial forkchoice update on the wire, before anything else drives the engine.
+    ///
+    /// op-node does this in every sync mode — its derivation pipeline runs `initialReset` at
+    /// startup and the engine controller answers with a `FindL2Heads` walkback and a force reset
+    /// (`op-node/rollup/derive/pipeline.go:181-190, 224-…`,
+    /// `op-node/rollup/engine/engine_controller.go:1423-1432`). The forkchoice update it sends
+    /// doubles as the EL-sync probe: a `VALID` answer marks EL sync finished, so derivation starts
+    /// against an execution layer that already has a consistent chain (op-node's CL-sync steady
+    /// state) instead of waiting for a gossiped payload to say so — a wait that never ends against
+    /// an execution layer that cannot advance on its own, which is exactly the sync-tester
+    /// verifier restarted against a reset session while the sequencer is far ahead. A `SYNCING`
+    /// answer marks nothing, and the gossip-driven EL-sync bootstrap stays in charge exactly as
+    /// before (op-node's EL-sync regime).
+    ///
+    /// Best-effort: an execution layer this reset cannot complete against — a walkback the EL
+    /// cannot serve mid-sync, a forkchoice update it refuses — is not a startup failure. The
+    /// engine falls back to the gossip bootstrap, and whatever condition blocked the reset
+    /// surfaces again on the path that hits it next. (RPC-level unreachability is retried inside
+    /// [`Engine::reset`] itself, so a merely-late EL delays this reset rather than skipping it.)
+    async fn startup_reset(&mut self) -> Result<(), ChainControllerError> {
+        info!(target: "engine", "Performing the startup engine reset");
+        match self.reset().await {
+            Err(ChainControllerError::EngineReset(err)) => {
+                warn!(
+                    target: "engine",
+                    ?err,
+                    "The startup engine reset did not complete; falling back to the unsafe-gossip \
+                     EL-sync bootstrap"
+                );
+                Ok(())
+            }
+            result => result,
         }
     }
 
@@ -513,6 +554,14 @@ where
     type Error = ChainControllerError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
+        // The first step performs the startup engine reset, before any request is taken: the
+        // walkback discovers the execution layer's heads, and its forkchoice update doubles as
+        // the EL-sync probe. See `Self::startup_reset`.
+        if !self.startup_reset_attempted {
+            self.startup_reset_attempted = true;
+            self.startup_reset().await?;
+        }
+
         // Attempt to drain all outstanding tasks from the engine queue before adding new ones.
         self.drain()
             .await

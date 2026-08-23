@@ -91,6 +91,132 @@ async fn lockstep_confirmation_carries_local_safe_not_cross_safe() {
     assert!(matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)));
 }
 
+/// The first step performs the startup engine reset, op-node's `initialReset`
+/// (`op-node/rollup/derive/pipeline.go:181-190`,
+/// `op-node/rollup/engine/engine_controller.go:1423-1432`): the walkback discovers the execution
+/// layer's heads, and a `VALID` answer to its forkchoice update marks EL sync finished — so
+/// derivation starts against an EL that already has a consistent chain, instead of waiting for a
+/// gossiped payload that a stalled or reset EL can never validate.
+#[tokio::test]
+async fn startup_reset_probes_the_el_and_starts_derivation_on_a_consistent_chain() {
+    use alloy_eips::{BlockId, BlockNumberOrTag};
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use kona_derive::Signal;
+    use kona_genesis::ChainGenesis;
+
+    // A chain whose only block is genesis, hashed for real so the walkback's consensus-decoded
+    // blocks match the rollup genesis.
+    let header = alloy_consensus::Header { number: 0, ..Default::default() };
+    let genesis_hash = header.hash_slow();
+    let cfg = Arc::new(RollupConfig {
+        genesis: ChainGenesis {
+            l2: BlockNumHash { number: 0, hash: genesis_hash },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let genesis = L2BlockInfo {
+        block_info: BlockInfo {
+            number: 0,
+            hash: genesis_hash,
+            parent_hash: B256::ZERO,
+            timestamp: 0,
+        },
+        ..Default::default()
+    };
+    // The transaction type is inferred from `with_l2_block`'s signature.
+    let genesis_block = alloy_rpc_types_eth::Block {
+        header: alloy_rpc_types_eth::Header { hash: genesis_hash, inner: header, ..Default::default() },
+        ..Default::default()
+    };
+    let client = Arc::new(
+        MockEngineClient::builder()
+            .with_config(cfg.clone())
+            .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(PayloadStatus::new(
+                PayloadStatusEnum::Valid,
+                None,
+            )))
+            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), genesis_block.clone())
+            .with_l2_block(BlockId::Number(0.into()), genesis_block)
+            .with_l1_block(BlockId::Hash(B256::ZERO.into()), Default::default())
+            .build(),
+    );
+
+    let mut derivation_client = MockChainControllerDerivationClient::new();
+    derivation_client
+        .expect_send_signal()
+        .withf(|signal| matches!(signal, Signal::Reset(_)))
+        .times(1)
+        .returning(|_| Ok(()));
+    // The `VALID` forkchoice answer marks EL sync finished, and the very same step must tell
+    // derivation to start.
+    derivation_client
+        .expect_notify_sync_completed()
+        .withf(move |head: &L2BlockInfo| *head == genesis)
+        .times(1)
+        .returning(|_| Ok(()));
+    derivation_client.expect_send_new_engine_local_safe_head().returning(|_| Ok(()));
+
+    let (state_tx, _state_rx) = watch::channel(EngineState::default());
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let engine = Engine::new(EngineState::default(), state_tx, len_tx);
+
+    let (request_tx, request_rx) = mpsc::channel::<ChainControllerRequest>(1);
+    let mut actor = ChainController::new(
+        client,
+        cfg,
+        derivation_client,
+        engine,
+        None,
+        request_rx,
+        Arc::new(DisabledDatabase),
+        None,
+        Arc::new(NoopBlockSink),
+    );
+
+    // One step: startup reset, drain (which sees the flip and notifies derivation), then the
+    // closed channel ends it.
+    drop(request_tx);
+    assert!(matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)));
+}
+
+/// When the walkback cannot complete — here the mock serves no blocks at all — the startup reset
+/// is best-effort: the controller falls back to the gossip-driven EL-sync bootstrap instead of
+/// dying, and derivation is not told to start.
+#[tokio::test]
+async fn a_failed_startup_reset_falls_back_to_the_gossip_bootstrap() {
+    let cfg = Arc::new(RollupConfig::default());
+    let client = Arc::new(MockEngineClient::builder().with_config(cfg.clone()).build());
+
+    // No expectations: a failed startup reset must reach neither the reset signal nor the
+    // sync-completed notification. (The default state's local-safe head is unchanged, so no
+    // lockstep update is sent either.)
+    let derivation_client = MockChainControllerDerivationClient::new();
+
+    let (state_tx, _state_rx) = watch::channel(EngineState::default());
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let engine = Engine::new(EngineState::default(), state_tx, len_tx);
+
+    let (request_tx, request_rx) = mpsc::channel::<ChainControllerRequest>(1);
+    let mut actor = ChainController::new(
+        client,
+        cfg,
+        derivation_client,
+        engine,
+        None,
+        request_rx,
+        Arc::new(DisabledDatabase),
+        None,
+        Arc::new(NoopBlockSink),
+    );
+
+    drop(request_tx);
+    assert!(
+        matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)),
+        "a walkback the EL cannot serve must not be a startup failure"
+    );
+}
+
 /// A [`SafeDb`] that remembers what it was asked to do, and can be made to fail.
 ///
 /// The recording half is the point: the contract this controller has to keep — one record per
