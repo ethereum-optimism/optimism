@@ -53,6 +53,11 @@ pub struct L1ConfigBuilder {
     /// The duration in seconds of an L1 slot. This can be used to hardcode a fixed slot
     /// duration if the l1-beacon's slot configuration is not available.
     pub slot_duration_override: Option<u64>,
+    /// How often, in seconds, to poll the L1 for epoch updates (finalized-block changes).
+    ///
+    /// op-node's `--l1.epoch-poll-interval`. `None` keeps
+    /// [`L1Config::DEFAULT_L1_EPOCH_POLL_INTERVAL`].
+    pub l1_epoch_poll_interval: Option<u64>,
 }
 
 /// The [`RollupNodeBuilder`] is used to construct a [`RollupNode`] service.
@@ -215,6 +220,10 @@ impl RollupNodeBuilder {
             trust_rpc: self.l1_config_builder.trust_rpc,
             beacon_client: l1_beacon,
             engine_provider: RootProvider::new_http(self.l1_config_builder.rpc_url.clone()),
+            l1_epoch_poll_interval: self
+                .l1_config_builder
+                .l1_epoch_poll_interval
+                .map_or(L1Config::DEFAULT_L1_EPOCH_POLL_INTERVAL, std::time::Duration::from_secs),
         };
 
         let jwt_secret = self.engine_config.l2_jwt_secret;

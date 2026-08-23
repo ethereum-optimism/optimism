@@ -123,6 +123,17 @@ impl NodeChain {
         .map(|(block, _output, _state)| block)
     }
 
+    /// Returns the chain's current local-safe head, as the engine state reports it.
+    ///
+    /// The cross-safe fall-throughs read it: pre-activation the local-safe head *is* the
+    /// promotion target — op-node's `SafeL2Head` returns it for the `VerifierHeadPreActivation`
+    /// source (`op-node/rollup/engine/engine_controller.go:232-233`) — and the anchor branch is
+    /// bounded by it. Answered from the same engine-state watch every other query reads, so the
+    /// promotion and the chain's own `optimism_syncStatus` cannot describe different heads.
+    pub(crate) async fn local_safe_head(&self) -> Result<L2BlockInfo, ChainError> {
+        self.query(EngineQueries::State).await.map(|state| state.sync_state.local_safe_head())
+    }
+
     /// Resolves the pairing of the L2 block at `timestamp` from recorded history.
     ///
     /// Reached only when the live engine state answered
@@ -626,12 +637,59 @@ mod tests {
         }
     }
 
-    /// A chain whose history reads all fail with `err`.
+    /// A safe-head database holding exactly one record, as the genesis seed leaves a cold
+    /// database after the first engine reset. Every other read fails, so a code path that
+    /// consults anything beyond the first entry fails the test that drove it.
+    #[derive(Debug)]
+    struct SeededSafeDb(SafeHeadRecord);
+
+    impl SafeDb for SeededSafeDb {
+        fn enabled(&self) -> bool {
+            true
+        }
+
+        fn safe_head_updated(
+            &self,
+            _safe_head: kona_protocol::L2BlockInfo,
+            _l1_head: BlockNumHash,
+        ) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+
+        fn safe_head_reset(
+            &self,
+            _safe_head: kona_protocol::L2BlockInfo,
+        ) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+
+        fn safe_head_at_l1(&self, _l1_block_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
+            Err(SafeDbError::NotFound)
+        }
+
+        fn first_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
+            Ok(self.0)
+        }
+
+        fn last_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
+            Ok(self.0)
+        }
+
+        fn l1_at_safe_head(&self, _target_l2_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
+            Err(SafeDbError::NotFound)
+        }
+
+        fn close(&self) -> Result<(), SafeDbError> {
+            Ok(())
+        }
+    }
+
+    /// A chain reading its history through `safe_db`, with no engine behind its query channels.
     ///
     /// The execution layer is never reached: every case below is decided before the block hash is
     /// looked up, which is itself part of what is being asserted — a chain whose history is gone
     /// must not be waiting on an RPC to find that out.
-    fn chain_with(err: fn() -> SafeDbError) -> NodeChain {
+    fn chain_over(safe_db: Arc<dyn SafeDb + Send + Sync>) -> NodeChain {
         let (queries, _rx) = mpsc::channel(1);
         let (l1_queries, _l1_rx) = mpsc::channel(1);
         NodeChain::new(
@@ -643,9 +701,14 @@ mod tests {
             },
             queries,
             l1_queries,
-            Arc::new(FailingSafeDb(err)),
+            safe_db,
             RootProvider::<Optimism>::new_http(Url::parse("http://127.0.0.1:1/").unwrap()),
         )
+    }
+
+    /// A chain whose history reads all fail with `err`.
+    fn chain_with(err: fn() -> SafeDbError) -> NodeChain {
+        chain_over(Arc::new(FailingSafeDb(err)))
     }
 
     /// The recorded tip has not reached the height yet. The block *is* local-safe — that is why
@@ -685,6 +748,32 @@ mod tests {
     async fn a_broken_store_is_a_failed_read() {
         let chain = chain_with(|| SafeDbError::Closed);
         assert!(matches!(chain.behind_head(1_100).await, Err(ChainError::Unreachable(_))));
+    }
+
+    /// Interop cold start blocks on this question for every chain, so the answer must not wait on
+    /// anything beyond the first recorded entry — here the genesis pairing the chain controller
+    /// seeds at its first engine reset (`seed_genesis_safe_head`), behind query channels nothing
+    /// answers. Requiring more — e.g. that derivation has already moved past the entry's L1
+    /// block — re-opens the cold-start window `TestSupernodeInterop_SafeHeadProgression`'s
+    /// startup pause scan races: a verifier still cold-starting answers `superroot_atTimestamp`
+    /// from the optimistic handoff branch, and the scan then overshoots the pause point.
+    #[tokio::test]
+    async fn cold_start_needs_only_the_first_recorded_entry() {
+        let genesis_seed = SafeHeadRecord {
+            l1: BlockNumHash { number: 0, hash: B256::ZERO },
+            safe_head: BlockNumHash::default(),
+        };
+        let chain = chain_over(Arc::new(SeededSafeDb(genesis_seed)));
+        assert_eq!(chain.first_safe_head_timestamp().await.unwrap(), 1_000);
+
+        // A first entry above genesis answers the same way: its own block's timestamp, with no
+        // requirement on how far derivation has moved since.
+        let later = SafeHeadRecord {
+            l1: BlockNumHash { number: 7, hash: B256::ZERO },
+            safe_head: BlockNumHash { number: 3, hash: B256::ZERO },
+        };
+        let chain = chain_over(Arc::new(SeededSafeDb(later)));
+        assert_eq!(chain.first_safe_head_timestamp().await.unwrap(), 1_006);
     }
 
     /// Timestamps between two blocks floor onto the earlier one, which is the block that carries

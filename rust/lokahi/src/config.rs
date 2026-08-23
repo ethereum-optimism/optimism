@@ -103,6 +103,14 @@ pub(crate) struct L1Settings {
     pub(crate) chain_config: Option<PathBuf>,
     /// A fixed L1 slot duration, for when the beacon API's configuration is not available.
     pub(crate) slot_duration_override: Option<u64>,
+    /// How often, in seconds, to poll the L1 for epoch updates — the finalized-block changes L2
+    /// finality is driven from.
+    ///
+    /// op-node's `--l1.epoch-poll-interval`, shared by every chain because the L1 is followed once
+    /// for the whole process. Unset keeps kona's default of one poll a minute, which suits a
+    /// production L1; a devnet whose L1 finalizes in seconds sets this to match, or first finality
+    /// is only observed up to a minute late.
+    pub(crate) epoch_poll_interval: Option<u64>,
 }
 
 /// The subdirectory of the default data directory holding the process-wide interop stores.
@@ -699,6 +707,38 @@ mod tests {
         )
         .expect_err("an unknown interop key is not accepted");
         assert!(err.to_string().contains("activation-time"), "{err}");
+    }
+
+    /// The L1 epoch poll interval is an `[l1]` setting — the L1 is followed once for the whole
+    /// process — and is optional: unset keeps kona's production default. The devstack sets it to
+    /// the 2 seconds it hands op-node as `L1EpochPollInterval`, so lokahi observes the devnet
+    /// L1's fast finality on the same cadence op-node does.
+    #[test]
+    fn the_l1_epoch_poll_interval_is_optional_and_read_from_the_l1_table() {
+        let unset = config(&chain("l2-chain-id = 901")).resolve().expect("resolves");
+        assert_eq!(unset.l1.epoch_poll_interval, None);
+
+        let resolved = LokahiConfig::parse(
+            r#"
+            [l1]
+            eth-rpc = "http://localhost:8545"
+            beacon = "http://localhost:5052"
+            epoch-poll-interval = 2
+
+            [defaults]
+            jwt-secret = "/etc/lokahi/jwt.hex"
+            engine-rpc = "http://localhost:9551"
+            p2p-tcp-port = 9222
+            p2p-udp-port = 9222
+
+            [[chains]]
+            l2-chain-id = 901
+            "#,
+        )
+        .expect("parses")
+        .resolve()
+        .expect("resolves");
+        assert_eq!(resolved.l1.epoch_poll_interval, Some(2));
     }
 
     /// A chain entry naming only what the test is about.

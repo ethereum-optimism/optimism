@@ -295,6 +295,7 @@ impl NodeCommand {
             beacon: self.l1_rpc_args.l1_beacon.clone(),
             rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             slot_duration_override: self.l1_rpc_args.l1_slot_duration_override,
+            l1_epoch_poll_interval: self.l1_rpc_args.l1_epoch_poll_interval,
         };
 
         // If metrics are enabled, initialize the global cli metrics.
