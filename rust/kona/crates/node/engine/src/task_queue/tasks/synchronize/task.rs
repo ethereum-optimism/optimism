@@ -92,6 +92,22 @@ impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
                 Ok(())
             }
             PayloadStatusEnum::Syncing => {
+                if state.el_sync_finished {
+                    // Once the initial EL sync is done, a `SYNCING` answer means the execution
+                    // layer cannot canonicalize the head this update carries. op-node accepts
+                    // only `VALID` here (`op-node/rollup/engine/engine_controller.go:586-595`)
+                    // and answers with a reset that re-discovers the EL's actual chain state
+                    // (`engine_controller.go:700-706`); adopting the head anyway detaches the
+                    // forkchoice from the chain the EL has, and derivation then consolidates
+                    // against unsafe blocks the EL cannot serve — the permanent stall the
+                    // sync-tester verifier suite caught.
+                    warn!(
+                        target: "engine",
+                        "Forkchoice update returned SYNCING after EL sync finished; not adopting \
+                         the heads"
+                    );
+                    return Err(SynchronizeTaskError::ForkchoiceUpdatedSyncing);
+                }
                 // If we're not building a new payload, we're driving EL sync.
                 debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
                 Ok(())

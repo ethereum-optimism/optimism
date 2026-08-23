@@ -5,3 +5,6 @@ pub use task::InsertTask;
 
 mod error;
 pub use error::InsertTaskError;
+
+#[cfg(test)]
+mod task_test;

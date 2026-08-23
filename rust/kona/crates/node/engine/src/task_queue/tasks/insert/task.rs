@@ -115,6 +115,38 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
             _ => true,
         }
     }
+
+    /// Whether this payload is applicable to the engine's current unsafe head, i.e. whether it
+    /// directly extends it.
+    ///
+    /// Checked only once the initial EL sync has finished. While it is in flight, any admitted
+    /// payload may be inserted: pushing the gossiped tip at the execution layer is what drives
+    /// EL sync, op-node's EL-sync regime (`op-node/rollup/driver/sync_deriver.go:102-115`,
+    /// `engine_controller.go:571-583`).
+    ///
+    /// Past EL sync, op-node never inserts a payload that does not sit directly on the unsafe
+    /// head: gossip goes into a payload queue and only the next applicable payload is processed
+    /// (`op-node/rollup/engine/engine_controller.go:1343-1352`), precisely so a height gap cannot
+    /// re-trigger EL-sync behaviour and detach the forkchoice from the chain the EL has. This
+    /// engine has no payload buffer, so the no-buffer analog is to drop the non-attaching payload:
+    /// gossip re-delivers the tip every block, and derivation force-builds the gap
+    /// (`op-node/rollup/attributes/attributes.go:185-193`), after which fresh tips attach again.
+    ///
+    /// A derived payload is a local-safe write and defines the head instead of extending it, and
+    /// an engine without an unsafe head yet has nothing to attach to; both are admitted.
+    pub(crate) fn extends_engine_unsafe_head(&self, state: &EngineState) -> bool {
+        if self.is_payload_local_safe() || !state.el_sync_finished {
+            return true;
+        }
+
+        let unsafe_head = state.sync_state.unsafe_head();
+        if unsafe_head == L2BlockInfo::default() {
+            return true;
+        }
+
+        self.payload.block_number() == unsafe_head.block_info.number + 1 &&
+            self.payload.parent_hash() == unsafe_head.block_info.hash
+    }
 }
 
 #[async_trait]
