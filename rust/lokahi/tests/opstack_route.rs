@@ -43,8 +43,7 @@ const READY_TIMEOUT: Duration = Duration::from_secs(60);
 async fn the_opstack_namespace_stays_off_without_its_flag() {
     let stub = Stub::start();
     let dir = tempfile::tempdir().expect("temp dir");
-    let ports = Ports::allocate();
-    let toml = config(dir.path(), &stub, &ports, false);
+    let toml = config(dir.path(), &stub, false);
 
     let node = Node::start(&dir.path().join("cfg.toml"), &toml);
     let chain = node.chain_client(CHAIN);
@@ -62,8 +61,7 @@ async fn the_opstack_namespace_stays_off_without_its_flag() {
 async fn the_opstack_namespace_answers_on_the_chains_route() {
     let stub = Stub::start();
     let dir = tempfile::tempdir().expect("temp dir");
-    let ports = Ports::allocate();
-    let toml = config(dir.path(), &stub, &ports, true);
+    let toml = config(dir.path(), &stub, true);
 
     let node = Node::start(&dir.path().join("cfg.toml"), &toml);
     let chain = node.chain_client(CHAIN);
@@ -188,7 +186,7 @@ async fn await_route(client: &HttpClient) {
 }
 
 /// Renders a one-chain configuration, with the opstack namespace on or off.
-fn config(dir: &Path, stub: &Stub, ports: &Ports, opstack: bool) -> String {
+fn config(dir: &Path, stub: &Stub, opstack: bool) -> String {
     let jwt = dir.join("jwt.hex");
     std::fs::write(&jwt, format!("0x{}", "11".repeat(32))).expect("write the jwt secret");
 
@@ -213,33 +211,14 @@ rpc-port = 0
 [[chains]]
 l2-chain-id = {CHAIN}
 engine-rpc = "{stub}"
-p2p-tcp-port = {tcp}
-p2p-udp-port = {udp}
+p2p-tcp-port = 0
+p2p-udp-port = 0
 unsafe-block-signer = "0x1111111111111111111111111111111111111111"
 "#,
         stub = stub.url(),
         datadir = dir.join("data").display(),
         jwt = jwt.display(),
-        tcp = ports.tcp,
-        udp = ports.udp,
     )
-}
-
-/// The P2P ports one run needs, taken from the OS so concurrent test binaries do not collide.
-struct Ports {
-    tcp: u16,
-    udp: u16,
-}
-
-impl Ports {
-    fn allocate() -> Self {
-        let reserved: Vec<TcpListener> = (0..2)
-            .map(|_| TcpListener::bind("127.0.0.1:0").expect("reserve an ephemeral port"))
-            .collect();
-        let ports: Vec<u16> =
-            reserved.iter().map(|l| l.local_addr().expect("local addr").port()).collect();
-        Self { tcp: ports[0], udp: ports[1] }
-    }
 }
 
 /// The L1, the beacon API and the chain's engine API, on one socket, answering `null` to every

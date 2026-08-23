@@ -10,7 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
@@ -100,6 +103,29 @@ func TestLokahiConfigMatchesOpNodesEpochPollInterval(t *testing.T) {
 
 	require.Contains(t, rendered, fmt.Sprintf("epoch-poll-interval = %d", lokahiL1EpochPollSeconds),
 		"lokahi must poll L1 finality on the cadence the devstack hands op-node")
+}
+
+// A chain's P2P listeners ask the kernel for ephemeral ports rather than being handed a port the
+// harness picked ahead of time: a reserved port is free again before lokahi binds it, and under
+// parallel tests another component can take it in that window — the discovery service dies on
+// the collision and takes the whole node with it. Port 0 is how startMixedKonaNode runs
+// kona-node and how newDevstackP2PConfig runs op-node, so lokahi must be launched the same way.
+func TestLokahiChainEntryBindsEphemeralP2PPorts(t *testing.T) {
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+	chain := lokahiSupernodeChain{
+		net: &L2Network{
+			chainID:   eth.ChainIDFromUInt64(901),
+			rollupCfg: &rollup.Config{},
+			keys:      keys,
+		},
+		el: &stubEL{engineRPC: "http://127.0.0.1:9551"},
+	}
+
+	entry := lokahiChainEntry(newGateT(), t.TempDir(), chain, lokahiSupernodeConfig{})
+
+	require.Contains(t, entry, "p2p-tcp-port = 0", "gossip must bind an ephemeral port")
+	require.Contains(t, entry, "p2p-udp-port = 0", "discovery must bind an ephemeral port")
 }
 
 // A preset that requests no activation must not write the table at all, so a node that was not
