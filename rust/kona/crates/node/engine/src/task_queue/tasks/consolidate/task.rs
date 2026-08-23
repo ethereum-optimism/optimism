@@ -525,8 +525,7 @@ mod tests {
 
         let task = task_without_block(4);
 
-        let mut state = EngineState::default();
-        state.el_sync_finished = false;
+        let mut state = EngineState { el_sync_finished: false, ..Default::default() };
         let err = task.consolidate(&mut state).await.unwrap_err();
         assert!(matches!(err, ConsolidateTaskError::AwaitingELSyncUnsafeL2Block(4)));
         assert_eq!(err.severity(), EngineTaskErrorSeverity::Temporary);
@@ -545,8 +544,7 @@ mod tests {
     async fn not_found_rpc_errors_map_to_the_miss_split() {
         use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
 
-        let mut state = EngineState::default();
-        state.el_sync_finished = true;
+        let mut state = EngineState { el_sync_finished: true, ..Default::default() };
 
         for message in ["block not found", "HEADER NOT FOUND", "Unknown block 0x4"] {
             let client = MockEngineClient::builder()

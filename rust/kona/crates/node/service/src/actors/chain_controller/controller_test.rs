@@ -126,7 +126,11 @@ async fn startup_reset_probes_the_el_and_starts_derivation_on_a_consistent_chain
     };
     // The transaction type is inferred from `with_l2_block`'s signature.
     let genesis_block = alloy_rpc_types_eth::Block {
-        header: alloy_rpc_types_eth::Header { hash: genesis_hash, inner: header, ..Default::default() },
+        header: alloy_rpc_types_eth::Header {
+            hash: genesis_hash,
+            inner: header,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let client = Arc::new(

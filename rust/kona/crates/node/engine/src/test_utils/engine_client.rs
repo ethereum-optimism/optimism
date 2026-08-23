@@ -159,7 +159,7 @@ impl MockEngineClientBuilder {
     }
 
     /// Makes the first `failures` L2 block reads fail with a transport error.
-    pub fn with_l2_block_transport_failures(mut self, failures: usize) -> Self {
+    pub const fn with_l2_block_transport_failures(mut self, failures: usize) -> Self {
         self.storage.l2_block_transport_failures = failures;
         self
     }

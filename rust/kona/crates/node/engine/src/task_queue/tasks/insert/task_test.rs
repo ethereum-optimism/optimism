@@ -81,7 +81,13 @@ fn insert_task(
     cfg: Arc<RollupConfig>,
     payload: OpExecutionPayloadEnvelope,
 ) -> EngineTask<MockEngineClient> {
-    EngineTask::Insert(Box::new(InsertTask::new(client, cfg, payload, None, Arc::new(NoopBlockSink))))
+    EngineTask::Insert(Box::new(InsertTask::new(
+        client,
+        cfg,
+        payload,
+        None,
+        Arc::new(NoopBlockSink),
+    )))
 }
 
 /// A state whose heads sit at `head`, with EL sync in the given phase.
@@ -103,8 +109,7 @@ fn state_at(head: L2BlockInfo, el_sync_finished: bool) -> EngineState {
 async fn a_far_ahead_gossip_payload_is_dropped_after_el_sync() {
     let payload = payload_at(10, B256::repeat_byte(0xaa));
     let cfg = cfg_for(&payload);
-    let client =
-        Arc::new(test_engine_client_builder().with_config(cfg.clone()).build());
+    let client = Arc::new(test_engine_client_builder().with_config(cfg.clone()).build());
     let mut state = state_at(block(1), true);
 
     tokio::time::timeout(
@@ -185,8 +190,13 @@ fn only_directly_extending_payloads_attach_after_el_sync() {
     for (number, parent, el_sync_finished, applicable) in cases {
         let payload = payload_at(number, parent);
         let cfg = cfg_for(&payload);
-        let task =
-            InsertTask::new(syncing_client(cfg.clone()), cfg, payload, None, Arc::new(NoopBlockSink));
+        let task = InsertTask::new(
+            syncing_client(cfg.clone()),
+            cfg,
+            payload,
+            None,
+            Arc::new(NoopBlockSink),
+        );
         assert_eq!(
             task.extends_engine_unsafe_head(&state_at(head, el_sync_finished)),
             applicable,
@@ -203,7 +213,6 @@ fn gossip_is_applicable_without_an_unsafe_head() {
     let cfg = cfg_for(&payload);
     let task =
         InsertTask::new(syncing_client(cfg.clone()), cfg, payload, None, Arc::new(NoopBlockSink));
-    let mut state = EngineState::default();
-    state.el_sync_finished = true;
+    let state = EngineState { el_sync_finished: true, ..Default::default() };
     assert!(task.extends_engine_unsafe_head(&state));
 }
