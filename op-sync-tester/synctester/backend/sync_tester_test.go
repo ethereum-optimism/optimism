@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -12,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/frontend"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -30,8 +30,8 @@ type MockELReader struct {
 	BlocksByHash   map[common.Hash]*json.RawMessage
 	BlocksByNumber map[rpc.BlockNumber]*json.RawMessage
 
-	ReceiptsByHash   map[common.Hash][]*types.Receipt
-	ReceiptsByNumber map[rpc.BlockNumber][]*types.Receipt
+	ReceiptsByHash   map[common.Hash]json.RawMessage
+	ReceiptsByNumber map[rpc.BlockNumber]json.RawMessage
 
 	Latest    *json.RawMessage
 	Safe      *json.RawMessage
@@ -43,8 +43,8 @@ func NewMockELReader(chainID eth.ChainID) *MockELReader {
 		ChainID:          hexutil.Big(*chainID.ToBig()),
 		BlocksByHash:     make(map[common.Hash]*json.RawMessage),
 		BlocksByNumber:   make(map[rpc.BlockNumber]*json.RawMessage),
-		ReceiptsByHash:   make(map[common.Hash][]*types.Receipt),
-		ReceiptsByNumber: make(map[rpc.BlockNumber][]*types.Receipt),
+		ReceiptsByHash:   make(map[common.Hash]json.RawMessage),
+		ReceiptsByNumber: make(map[rpc.BlockNumber]json.RawMessage),
 	}
 }
 
@@ -76,7 +76,7 @@ func (m *MockELReader) GetBlockByHash(ctx context.Context, hash common.Hash) (*t
 	return nil, nil
 }
 
-func (m *MockELReader) GetBlockReceipts(ctx context.Context, bnh rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
+func (m *MockELReader) GetBlockReceiptsJSON(ctx context.Context, bnh rpc.BlockNumberOrHash) (json.RawMessage, error) {
 	hash, isHash := bnh.Hash()
 	if isHash {
 		receipts, ok := m.ReceiptsByHash[hash]
@@ -339,12 +339,17 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 	}
 }
 
+// makeRawReceipts builds a spec-shaped eth_getBlockReceipts payload for block `n`, including the
+// `from`/`to` fields a real execution layer serves. The receipts path relays this raw, so what
+// goes into the mock here is exactly what a client must get back.
+func makeRawReceipts(n uint64) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(
+		`[{"type":"0x7e","status":"0x1","blockNumber":"%s","from":"0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001","to":"0x4200000000000000000000000000000000000015","logs":[]}]`,
+		hexutil.Uint64(n).String()))
+}
+
 func TestSyncTester_GetBlockReceipts(t *testing.T) {
-	makeReceipts := func(n uint64) []*types.Receipt {
-		r := new(types.Receipt)
-		r.BlockNumber = new(big.Int).SetUint64(n)
-		return []*types.Receipt{r}
-	}
+	makeReceipts := makeRawReceipts
 	type testCase struct {
 		name            string
 		session         *eth.SyncTesterSession
@@ -466,16 +471,49 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			if tc.session != nil {
 				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
-			recs, err := st.GetBlockReceipts(ctx, tc.arg)
+			raw, err := st.GetBlockReceipts(ctx, tc.arg)
 			if tc.wantErrContains != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
-			require.NotNil(t, recs)
+			require.NotNil(t, raw)
+			var recs []struct {
+				BlockNumber *hexutil.Big `json:"blockNumber"`
+			}
+			require.NoError(t, json.Unmarshal(raw, &recs))
 			require.GreaterOrEqual(t, len(recs), 1)
-			require.EqualValues(t, tc.wantFirstBN, bigs.Uint64Strict(recs[0].BlockNumber))
+			require.EqualValues(t, tc.wantFirstBN, bigs.Uint64Strict(recs[0].BlockNumber.ToInt()))
 		})
+	}
+}
+
+// The receipts the sync tester serves must be the raw payload from the read-only EL, `from`/`to`
+// included: the execution-apis spec requires them and alloy-based clients (lokahi's interop
+// verifier) hard-fail deserialization without `from`. The previous typed round-trip through
+// geth's consensus types.Receipt — which has no such fields — silently stripped them, wedging
+// every alloy consumer while the Go clients (which ignore extra fields) kept working.
+func TestSyncTester_GetBlockReceipts_RelaysFromAndTo(t *testing.T) {
+	el := NewMockELReader(eth.ChainIDFromUInt64(1))
+	el.ReceiptsByNumber[rpc.BlockNumber(5)] = makeRawReceipts(5)
+	st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
+	sess := &eth.SyncTesterSession{
+		SessionID:    uuid.New().String(),
+		CurrentState: eth.FCUState{Latest: 10, Safe: 8, Finalized: 6},
+	}
+	ctx := session.WithSyncTesterSession(context.Background(), sess)
+
+	// Through the backend and through the RPC frontend: both must relay the payload untouched.
+	fe := frontend.NewEthFrontend(st)
+	for name, get := range map[string]func() (json.RawMessage, error){
+		"backend":  func() (json.RawMessage, error) { return st.GetBlockReceipts(ctx, rpc.BlockNumberOrHashWithNumber(5)) },
+		"frontend": func() (json.RawMessage, error) { return fe.GetBlockReceipts(ctx, rpc.BlockNumberOrHashWithNumber(5)) },
+	} {
+		raw, err := get()
+		require.NoError(t, err, name)
+		require.JSONEq(t, string(makeRawReceipts(5)), string(raw), "%s must relay the EL payload untouched", name)
+		require.Contains(t, string(raw), `"from"`, "%s response must keep the from field", name)
+		require.Contains(t, string(raw), `"to"`, "%s response must keep the to field", name)
 	}
 }
