@@ -123,6 +123,17 @@ impl NodeChain {
         .map(|(block, _output, _state)| block)
     }
 
+    /// Returns the chain's current local-safe head, as the engine state reports it.
+    ///
+    /// The cross-safe fall-throughs read it: pre-activation the local-safe head *is* the
+    /// promotion target — op-node's `SafeL2Head` returns it for the `VerifierHeadPreActivation`
+    /// source (`op-node/rollup/engine/engine_controller.go:232-233`) — and the anchor branch is
+    /// bounded by it. Answered from the same engine-state watch every other query reads, so the
+    /// promotion and the chain's own `optimism_syncStatus` cannot describe different heads.
+    pub(crate) async fn local_safe_head(&self) -> Result<L2BlockInfo, ChainError> {
+        self.query(EngineQueries::State).await.map(|state| state.sync_state.local_safe_head())
+    }
+
     /// Resolves the pairing of the L2 block at `timestamp` from recorded history.
     ///
     /// Reached only when the live engine state answered
