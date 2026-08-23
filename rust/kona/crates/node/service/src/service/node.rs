@@ -50,7 +50,6 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// arriving, and on a sequencer the two builders ask about different heads.
 pub(super) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
-const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
 /// The configuration for the L1 chain.
 #[derive(Debug, Clone)]
@@ -63,9 +62,22 @@ pub struct L1Config {
     pub beacon_client: OnlineBeaconClient,
     /// The L1 engine provider.
     pub engine_provider: RootProvider,
+    /// How often to poll the L1 for epoch updates — the finalized-block changes L2 finality is
+    /// driven from.
+    ///
+    /// The counterpart of op-node's `--l1.epoch-poll-interval`, which paces its safe/finalized
+    /// block polls (`op-node/node/node.go:371-375`); kona's L1 watcher has no safe-block stream,
+    /// so this paces the finalized stream alone. Defaults to
+    /// [`Self::DEFAULT_L1_EPOCH_POLL_INTERVAL`]. A devnet wants this at the seconds op-node's
+    /// devstack uses (2s), or first L1 finality is only observed a poll — up to a minute — late.
+    pub l1_epoch_poll_interval: Duration,
 }
 
 impl L1Config {
+    /// The default [`Self::l1_epoch_poll_interval`]: L1 finality moves at most once per epoch, so
+    /// polling it once a minute is enough on a production L1.
+    pub const DEFAULT_L1_EPOCH_POLL_INTERVAL: Duration = Duration::from_secs(60);
+
     /// Builds the one L1 watcher a host runs, serving every chain whose [`L1WatcherPorts`] are
     /// given.
     ///
@@ -99,7 +111,7 @@ impl L1Config {
         let finalized_stream = BlockStream::new_as_stream(
             self.engine_provider.clone(),
             BlockNumberOrTag::Finalized,
-            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+            self.l1_epoch_poll_interval,
         )?;
 
         let chains = chains

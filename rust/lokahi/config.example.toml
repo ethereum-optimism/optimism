@@ -9,6 +9,10 @@ eth-rpc = "http://localhost:8545"
 beacon = "http://localhost:5052"
 # A devnet L1 is not in the registry, so its chain config comes from a file.
 chain-config = "/etc/lokahi/l1-genesis.json"
+# How often, in seconds, to poll the L1 for epoch updates (finalized-block changes) — op-node's
+# `--l1.epoch-poll-interval`. Unset keeps kona's default of one poll a minute, which suits a
+# production L1; a devnet whose L1 finalizes in seconds sets this to match.
+# epoch-poll-interval = 2
 
 # The supernode's RPC socket. One socket serves everything: these namespaces at `/`, and each chain
 # below at `/<l2-chain-id>` — the same addressing op-supernode serves. Omit the table to expose no

@@ -382,6 +382,9 @@ impl Supernode {
             trust_rpc: l1.trust_rpc,
             beacon_client: beacon_client(&l1),
             engine_provider: RootProvider::new_http(l1.eth_rpc.clone()),
+            l1_epoch_poll_interval: l1
+                .epoch_poll_interval
+                .map_or(L1Config::DEFAULT_L1_EPOCH_POLL_INTERVAL, std::time::Duration::from_secs),
         };
         actors.push(l1_config.l1_watcher(watcher_ports).map_err(|e| anyhow!(e))?.boxed());
 
@@ -516,6 +519,7 @@ impl OpenChain {
             beacon: l1.beacon.clone(),
             rpc_url: l1.eth_rpc.clone(),
             slot_duration_override: l1.slot_duration_override,
+            l1_epoch_poll_interval: l1.epoch_poll_interval,
         };
 
         let p2p_config = network_config(&settings, &rollup_config, sequencer)?;
@@ -1021,6 +1025,7 @@ mod tests {
                 trust_rpc: false,
                 chain_config: None,
                 slot_duration_override: None,
+                epoch_poll_interval: None,
             },
             chains: chains.into_boxed_slice(),
             admin_rpc: None,
