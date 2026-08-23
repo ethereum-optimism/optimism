@@ -8,7 +8,7 @@ gotestsum = "1.12.3"
 mockery = "2.53.6"
 rust = [
   { version = "1.95.0", components = "clippy,rustfmt,llvm-tools", targets = "riscv32imac-unknown-none-elf,wasm32-unknown-unknown,wasm32-wasip1" },
-  { version = "nightly-2026-08-18", components = "rustfmt,clippy" },
+  { version = "nightly-2026-08-22", components = "rustfmt,clippy" },
 ]
 python = "3.12.13"
 uv = "0.5.5"
