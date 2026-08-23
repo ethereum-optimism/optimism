@@ -118,8 +118,12 @@ fn upgrade_gas_to_strip(rollup_config: &RollupConfig, block_timestamp: u64) -> u
     0
 }
 
-/// Returns the one-time upgrade gas a NUT-bundle fork adds to its activation block. Forks without a
-/// NUT bundle (everything before Karst) add none.
+/// Returns the one-time NUT-bundle upgrade gas attributed to a fork's activation block for
+/// system-config reconstruction: the bundle's own gas budget, the amount op-node's
+/// `UpgradeGas` reports (`op-node/rollup/derive/upgrade_transaction.go:158-168`). Forks without
+/// a NUT bundle (everything before Karst) add none. Variant-dependent activation extras (the
+/// Interop wrappers a multi-chain dependency set adds) are deliberately not counted, mirroring
+/// op-node's strip.
 ///
 /// [`OpHardfork`] is `#[non_exhaustive]`, so an exhaustive match that fails to compile when a new
 /// fork is added is not possible here; the `upgrade_gas_covers_known_forks` test guards instead,
@@ -127,7 +131,19 @@ fn upgrade_gas_to_strip(rollup_config: &RollupConfig, block_timestamp: u64) -> u
 pub fn upgrade_gas(fork: OpHardfork) -> u64 {
     match fork {
         OpHardfork::Karst => Hardforks::KARST.upgrade_gas(),
-        OpHardfork::Lagoon => Hardforks::LAGOON.upgrade_gas(),
+        // The NUT-bundle gas only, NOT `Lagoon::upgrade_gas()`: the Interop activation block's
+        // extra gas is variant-dependent — the setFeature and ETHLiquidity funding wrappers (and
+        // their gas) are only added for chains in a multi-chain dependency set — but the strip
+        // side has no dependency-set knowledge and op-node's does not either: its
+        // `upgradeGasToStrip` subtracts `UpgradeGas(forks.Lagoon)`, the bundle's own gas
+        // (`op-node/rollup/derive/payload_util.go:62-80`,
+        // `op-node/rollup/derive/upgrade_transaction.go:158-168`), matching what its attributes
+        // builder adds for a single-chain set
+        // (`op-node/rollup/derive/interop_activation_transactions.go:37-61`). Stripping the
+        // full multi-chain amount here instead reconstructed a gas limit 150k below the real one
+        // on single-chain interop, and every attribute set built from the activation block's
+        // config was then rejected by the execution layer ("gaslimit mismatch").
+        OpHardfork::Lagoon => Hardforks::LAGOON.upgrade_gas_for_activation(false),
         _ => 0,
     }
 }
@@ -341,6 +357,53 @@ mod tests {
         assert_eq!(config.gas_limit, BASE_GAS_LIMIT, "Karst upgrade gas must be stripped");
     }
 
+    /// The single-chain round trip that wedged the sync-tester activation tests: the attributes
+    /// builder adds `upgrade_gas_for_activation(false)` to the Interop activation block of a
+    /// single-chain dependency set (as op-node's does,
+    /// `op-node/rollup/derive/interop_activation_transactions.go:37-61`), so reconstructing the
+    /// system config from that block must strip exactly that amount and land back on the
+    /// steady-state limit — not 150k below it, which is what stripping the multi-chain amount
+    /// produced, poisoning every subsequently built attribute set ("gaslimit mismatch:
+    /// attr=59850000, header=60000000").
+    #[test]
+    fn test_to_system_config_round_trips_single_chain_lagoon_activation_gas() {
+        const BASE_GAS_LIMIT: u64 = 60_000_000;
+        let single_chain_gas = Hardforks::LAGOON.upgrade_gas_for_activation(false);
+        let (karst_time, lagoon_time) = (0u64, 100u64);
+        let block = OpBlock {
+            header: alloy_consensus::Header {
+                number: 1,
+                timestamp: lagoon_time,
+                // The activation block of a single-chain dependency set carries base + the
+                // bundle-only upgrade gas.
+                gas_limit: BASE_GAS_LIMIT + single_chain_gas,
+                // Jovian extra data: version 0x01 + denominator + elasticity + minBaseFee.
+                extra_data: bytes!("010000beef0000babe0000000000000000"),
+                ..Default::default()
+            },
+            body: alloy_consensus::BlockBody {
+                transactions: vec![op_alloy_consensus::OpTxEnvelope::Deposit(
+                    alloy_primitives::Sealed::new(op_alloy_consensus::TxDeposit {
+                        input: alloy_primitives::Bytes::from(&RAW_ISTHMUS_INFO_TX),
+                        ..Default::default()
+                    }),
+                )],
+                ..Default::default()
+            },
+        };
+        let rollup_config = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig { lagoon_time: Some(lagoon_time), ..karst_at(karst_time) },
+            ..Default::default()
+        };
+        assert!(rollup_config.is_fork_activation_block(OpHardfork::Lagoon, block.header.timestamp));
+        let config = to_system_config(&block, &rollup_config).unwrap();
+        assert_eq!(
+            config.gas_limit, BASE_GAS_LIMIT,
+            "the reconstructed limit must round-trip the single-chain activation gas"
+        );
+    }
+
     #[test]
     fn test_to_system_config_keeps_karst_upgrade_gas() {
         const BASE_GAS_LIMIT: u64 = 30_000_000;
@@ -382,7 +445,16 @@ mod tests {
     #[test]
     fn test_upgrade_gas_to_strip() {
         let karst_gas = Hardforks::KARST.upgrade_gas();
-        let lagoon_gas = Hardforks::LAGOON.upgrade_gas();
+        // The strip side is dependency-set-blind, so it must subtract exactly what op-node's
+        // does: the Lagoon NUT bundle's own gas, without the multi-chain-only setFeature and
+        // ETHLiquidity wrappers (`op-node/rollup/derive/payload_util.go:62-80` subtracting
+        // `UpgradeGas(forks.Lagoon)`, the bundle total). Stripping the full multi-chain amount
+        // under-reconstructed the gas limit by 150k on single-chain interop chains.
+        let lagoon_gas = Hardforks::LAGOON.upgrade_gas_for_activation(false);
+        assert!(
+            lagoon_gas < Hardforks::LAGOON.upgrade_gas(),
+            "the multi-chain activation amount must not be the strip amount"
+        );
         let (karst_time, lagoon_time) = (1000u64, 2000u64);
         let cfg = RollupConfig {
             block_time: 2,

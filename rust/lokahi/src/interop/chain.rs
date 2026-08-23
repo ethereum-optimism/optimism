@@ -52,6 +52,22 @@ pub(crate) struct NodeChain {
     el: RootProvider<Optimism>,
 }
 
+/// The one slice of an `eth_getBlockReceipts` entry the verifier consumes: the logs.
+///
+/// Deliberately not alloy's typed receipt. That type requires the spec-mandated `from` field,
+/// and a receipt served without it — a non-conformant execution layer; the sync-tester harness
+/// round-tripped receipts through geth's consensus type, which carries no `from` at all — then
+/// fails deserialization outright, wedging verification on data the verifier never reads. The
+/// Go stack cannot be wedged this way: op-node and op-supervisor fetch receipts into that same
+/// lossy geth type (`op-service/sources/receipts_rpc.go:96`), so a receipt shape the Go verifier
+/// accepts must not stall this one. Everything but the logs is ignored.
+#[derive(Debug, serde::Deserialize)]
+struct ReceiptLogs {
+    /// The receipt's logs, in emission order.
+    #[serde(default)]
+    logs: Vec<Log>,
+}
+
 impl Debug for NodeChain {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // The provider and the queue render as noise; which chain this is, is the useful part.
@@ -224,21 +240,21 @@ impl InteropChain for NodeChain {
             return Err(ChainError::NotReady);
         }
 
-        let receipts = self
+        // Asked raw and read through [`ReceiptLogs`] rather than through alloy's typed receipt:
+        // the typed shape hard-fails on a receipt without a `from` field, which this verifier
+        // neither reads nor needs. See [`ReceiptLogs`] for the posture.
+        let receipts: Option<Vec<ReceiptLogs>> = self
             .el
-            .get_block_receipts(BlockId::Hash(block.hash.into()))
+            .client()
+            .request("eth_getBlockReceipts", (BlockId::Hash(block.hash.into()),))
             .await
-            .map_err(|err| ChainError::Unreachable(format!("eth_getBlockReceipts: {err}")))?
-            .ok_or(ChainError::NotReady)?;
+            .map_err(|err| ChainError::Unreachable(format!("eth_getBlockReceipts: {err}")))?;
+        let receipts = receipts.ok_or(ChainError::NotReady)?;
 
         // Receipts come in transaction order and each one's logs in emission order, so flattening
         // reproduces the block's global log index sequence — which is what an initiating
         // message's index is meaningful against.
-        let logs = receipts
-            .iter()
-            .flat_map(|receipt| receipt.inner.logs())
-            .map(|log| log.inner.clone())
-            .collect::<Vec<Log>>();
+        let logs = receipts.into_iter().flat_map(|receipt| receipt.logs).collect::<Vec<Log>>();
 
         Ok(BlockLogs { block: info, logs })
     }
@@ -509,6 +525,57 @@ mod tests {
     use kona_safedb::{SafeDb, SafeHeadRecord};
     use std::sync::Arc;
     use url::Url;
+
+    /// The receipt shape the sync-tester harness served in CI: geth's consensus `types.Receipt`
+    /// marshaled back out, with no `from`/`to` fields (job 5518771; the sync tester round-tripped
+    /// the upstream EL's receipts through that lossy type). Alloy's typed receipt hard-fails on
+    /// it ("missing field `from`"), which wedged every verification round for the full test
+    /// budget. [`ReceiptLogs`] must accept it and surface exactly the logs — the only part of a
+    /// receipt the verifier reads — the way the Go stack's geth-typed fetch always has
+    /// (`op-service/sources/receipts_rpc.go:96`).
+    #[test]
+    fn receipts_without_a_from_field_still_yield_their_logs() {
+        let captured = r#"[{
+            "type": "0x7e",
+            "status": "0x1",
+            "cumulativeGasUsed": "0xa878",
+            "logsBloom": "0x0",
+            "logs": [{
+                "address": "0x4200000000000000000000000000000000000015",
+                "topics": ["0x32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f"],
+                "data": "0x0102",
+                "blockNumber": "0x1",
+                "transactionHash": "0x0d9d9d1c9c103b2f31a4c8b426bd75d9b7c908d0a353f38343a4785ec2b74e4b",
+                "transactionIndex": "0x0",
+                "blockHash": "0x0d9d9d1c9c103b2f31a4c8b426bd75d9b7c908d0a353f38343a4785ec2b74e4b",
+                "logIndex": "0x0",
+                "removed": false
+            }],
+            "transactionHash": "0x0d9d9d1c9c103b2f31a4c8b426bd75d9b7c908d0a353f38343a4785ec2b74e4b",
+            "contractAddress": null,
+            "gasUsed": "0xa878",
+            "effectiveGasPrice": "0x0",
+            "blockHash": "0x0d9d9d1c9c103b2f31a4c8b426bd75d9b7c908d0a353f38343a4785ec2b74e4b",
+            "blockNumber": "0x1",
+            "transactionIndex": "0x0",
+            "depositNonce": "0x1",
+            "depositReceiptVersion": "0x1",
+            "l1GasPrice": "0x1",
+            "l1GasUsed": "0x0",
+            "l1Fee": "0x0"
+        }]"#;
+
+        let receipts: Vec<ReceiptLogs> =
+            serde_json::from_str(captured).expect("a receipt without `from` must deserialize");
+        let logs = receipts.into_iter().flat_map(|receipt| receipt.logs).collect::<Vec<Log>>();
+
+        assert_eq!(logs.len(), 1, "the one log must survive the lenient read");
+        assert_eq!(
+            logs[0].address,
+            alloy_primitives::address!("0x4200000000000000000000000000000000000015")
+        );
+        assert_eq!(logs[0].data.topics().len(), 1);
+    }
 
     /// A safe-head database that answers every read with one chosen error.
     ///

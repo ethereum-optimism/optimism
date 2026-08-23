@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -31,7 +30,7 @@ func (e *EthFrontend) GetBlockByHash(ctx context.Context, hash common.Hash, full
 	return e.b.GetBlockByHash(ctx, hash, fullTx)
 }
 
-func (e *EthFrontend) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
+func (e *EthFrontend) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (json.RawMessage, error) {
 	return e.b.GetBlockReceipts(ctx, blockNrOrHash)
 }
 

@@ -92,7 +92,16 @@ impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
                 Ok(())
             }
             PayloadStatusEnum::Syncing => {
-                // If we're not building a new payload, we're driving EL sync.
+                // A `SYNCING` answer is accepted and the heads are adopted, in the initial EL
+                // sync and afterwards: this engine has no reqresp sync client and no unsafe
+                // payload buffer, so pointing the execution layer at the gossiped tip is its
+                // *only* unsafe-chain catch-up channel — op-node's EL-sync regime
+                // (`op-node/rollup/engine/engine_controller.go:587-594`,
+                // `op-node/rollup/driver/sync_deriver.go:102-115`), kept past the initial sync
+                // because a verifier that falls behind (a restart, a dropped peer) re-enters it.
+                // The head this adopts may name blocks the EL cannot serve yet; consolidation
+                // answers that fetch miss with op-node's stall/reset split rather than retrying
+                // it forever (see `ConsolidateTaskError::MissingUnsafeL2Block`).
                 debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
                 Ok(())
             }
