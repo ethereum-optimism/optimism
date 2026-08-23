@@ -170,12 +170,31 @@ where
     /// answer marks nothing, and the gossip-driven EL-sync bootstrap stays in charge exactly as
     /// before (op-node's EL-sync regime).
     ///
+    /// The reset only runs against an execution layer that reports a finalized block. An EL
+    /// without one has never been driven past its genesis state — its initial EL sync is still
+    /// pending, and probing it would answer `VALID` for its own genesis, wrongly marking EL sync
+    /// finished and cutting off the gossip bootstrap that is supposed to point it at the tip.
+    /// The discriminator is op-node's own: `initializeUnknowns` reads a missing finalized block
+    /// as "no finalized block yet — EL sync has not completed"
+    /// (`op-node/rollup/engine/engine_controller.go:597-624`), and EL-sync mode is only entered
+    /// "if there is no finalized block" (`engine_controller.go:29`).
+    ///
     /// Best-effort: an execution layer this reset cannot complete against — a walkback the EL
     /// cannot serve mid-sync, a forkchoice update it refuses — is not a startup failure. The
     /// engine falls back to the gossip bootstrap, and whatever condition blocked the reset
-    /// surfaces again on the path that hits it next. (RPC-level unreachability is retried inside
-    /// [`Engine::reset`] itself, so a merely-late EL delays this reset rather than skipping it.)
+    /// surfaces again on the path that hits it next. (RPC-level unreachability is retried, both
+    /// in the finalized-block read here and inside [`Engine::reset`] itself, so a merely-late EL
+    /// delays this reset rather than skipping it.)
     async fn startup_reset(&mut self) -> Result<(), ChainControllerError> {
+        if !self.el_reports_finalized_block().await {
+            info!(
+                target: "engine",
+                "The execution layer reports no finalized block yet; skipping the startup engine \
+                 reset and awaiting EL sync via unsafe gossip"
+            );
+            return Ok(());
+        }
+
         info!(target: "engine", "Performing the startup engine reset");
         match self.reset().await {
             Err(ChainControllerError::EngineReset(err)) => {
@@ -188,6 +207,55 @@ where
                 Ok(())
             }
             result => result,
+        }
+    }
+
+    /// Whether the execution layer reports a finalized block, retrying — with an exponential
+    /// backoff — while it cannot answer at all.
+    ///
+    /// A missing finalized block is a definitive answer (`false`), whether it arrives as an empty
+    /// result or as the non-standard not-found error some execution layers return for the
+    /// finalized label before anything is finalized — the same shapes op-node folds together
+    /// (`op-node/rollup/engine/engine_controller.go:611-624`,
+    /// `op-service/eth/errors.go:10-27`). A transport failure is no answer, and startup must not
+    /// guess: a merely-late execution layer is waited for, the way op-node's startup loops its
+    /// engine reads.
+    async fn el_reports_finalized_block(&self) -> bool {
+        /// The delay before the first retry, doubled per attempt up to
+        /// [`STARTUP_PROBE_RETRY_MAX_DELAY`].
+        const STARTUP_PROBE_RETRY_BASE_DELAY: std::time::Duration =
+            std::time::Duration::from_millis(250);
+        /// The ceiling for the retry backoff.
+        const STARTUP_PROBE_RETRY_MAX_DELAY: std::time::Duration =
+            std::time::Duration::from_secs(10);
+
+        let mut attempts: u32 = 0;
+        loop {
+            match self.client.l2_block_by_label(BlockNumberOrTag::Finalized).await {
+                Ok(Some(_)) => return true,
+                Ok(None) => return false,
+                Err(err) => {
+                    let msg = err.to_string().to_lowercase();
+                    if msg.contains("block not found") ||
+                        msg.contains("header not found") ||
+                        msg.contains("unknown block")
+                    {
+                        return false;
+                    }
+                    let delay = STARTUP_PROBE_RETRY_BASE_DELAY
+                        .saturating_mul(1 << attempts.min(7))
+                        .min(STARTUP_PROBE_RETRY_MAX_DELAY);
+                    attempts += 1;
+                    warn!(
+                        target: "engine",
+                        ?err,
+                        ?delay,
+                        attempts,
+                        "The execution layer could not answer the finalized-block read; retrying"
+                    );
+                    tokio::time::sleep(delay).await;
+                }
+            }
         }
     }
 

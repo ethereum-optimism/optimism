@@ -41,12 +41,17 @@ impl From<OpAttributesWithParent> for ConsolidateInput {
 /// not have with an empty result, never an error, so this only hardens against wrong
 /// implementations — the mirror of op-node's `MaybeAsNotFoundErr`
 /// (`op-service/eth/errors.go:10-27`), which wraps every payload fetch
-/// (`op-service/sources/eth_client.go:269-274`), string set included.
+/// (`op-service/sources/eth_client.go:269-274`). The string set here is a superset of op-node's
+/// ("block not found" / "header not found" / "unknown block", all covered by the bare
+/// "not found"): op-node only reaches this fetch for blocks its payload queue proved attachable,
+/// while this engine adopts optimistic unsafe heads to drive EL sync and so *does* fetch ahead of
+/// the EL — against a wrong implementation that answers the miss with a bare `not found` error
+/// (op-service's own sync tester, `op-sync-tester/synctester/backend/sync_tester.go:183-187`),
+/// classifying it as a fetch failure would retry an impossible fetch forever instead of taking
+/// the miss split below.
 fn is_block_not_found_rpc_error(err: &crate::EngineClientError) -> bool {
     let msg = err.to_string().to_lowercase();
-    msg.contains("block not found") ||
-        msg.contains("header not found") ||
-        msg.contains("unknown block")
+    msg.contains("not found") || msg.contains("unknown block")
 }
 
 impl ConsolidateInput {
@@ -546,7 +551,7 @@ mod tests {
 
         let mut state = EngineState { el_sync_finished: true, ..Default::default() };
 
-        for message in ["block not found", "HEADER NOT FOUND", "Unknown block 0x4"] {
+        for message in ["block not found", "HEADER NOT FOUND", "Unknown block 0x4", "not found"] {
             let client = MockEngineClient::builder()
                 .with_config(Arc::new(RollupConfig::default()))
                 .with_l2_block_by_label_error(BlockNumberOrTag::Number(4), message)

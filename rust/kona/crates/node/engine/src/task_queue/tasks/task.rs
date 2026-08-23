@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     BuildTaskError, CommitTaskError, ConsolidateTaskError, EngineClient, EngineState,
-    FinalizeTaskError, InsertTaskError, PromoteCrossSafeTaskError, SynchronizeTaskError,
+    FinalizeTaskError, InsertTaskError, PromoteCrossSafeTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -154,20 +154,6 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
                     "Dropping unsafe payload that does not descend from the local-safe head"
                 );
             }
-            // Past the initial EL sync, a gossiped payload that does not directly extend the
-            // unsafe head is also terminal: op-node only ever inserts the next applicable payload
-            // from its queue (`op-node/rollup/engine/engine_controller.go:1343-1352`), so a height
-            // gap never re-triggers EL-sync behaviour. This queue has no payload buffer and gossip
-            // re-delivers the tip every block, so the payload is dropped and derivation
-            // force-builds the gap. See `InsertTask::extends_engine_unsafe_head`.
-            Self::Insert(task) if !task.extends_engine_unsafe_head(state) => {
-                warn!(
-                    target: "engine",
-                    number = task.payload_block_number(),
-                    unsafe_head = state.sync_state.unsafe_head().block_info.number,
-                    "Dropping unsafe payload that does not extend the unsafe head"
-                );
-            }
             // The commit task applies the same admission rule itself and answers the caller with
             // the refusal, so it takes no guard arm here.
             Self::Commit(task) => task.execute(state).await?,
@@ -178,22 +164,6 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
                     status @ PayloadStatusEnum::Invalid { .. },
                 )) => {
                     warn!(target: "engine", %status, "Dropping invalid unsafe payload");
-                }
-                // A `SYNCING` answer to the canonicalizing forkchoice update, after EL sync has
-                // finished, means the execution layer cannot canonicalize this payload's
-                // ancestry. op-node does not adopt such a head and does not reset in the insert
-                // path either (`op-node/rollup/engine/engine_controller.go:873-879`) — it keeps
-                // the payload queued until the forkchoice changes. This queue has no payload
-                // buffer and gossip keeps re-delivering the tip, so the payload is dropped rather
-                // than retried ahead of every other task.
-                Err(InsertTaskError::ForkchoiceUpdateFailed(
-                    SynchronizeTaskError::ForkchoiceUpdatedSyncing,
-                )) => {
-                    warn!(
-                        target: "engine",
-                        number = task.payload_block_number(),
-                        "Dropping unsafe payload the synced execution layer answered SYNCING for"
-                    );
                 }
                 Err(err) => return Err(err.into()),
                 Ok(_) => {}

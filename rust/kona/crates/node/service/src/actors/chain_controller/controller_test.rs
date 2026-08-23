@@ -133,6 +133,9 @@ async fn startup_reset_probes_the_el_and_starts_derivation_on_a_consistent_chain
         },
         ..Default::default()
     };
+    // The finalized label answers (with genesis), so the EL counts as past its initial sync and
+    // the probe runs. A fresh EL would report no finalized block and be left to the gossip
+    // bootstrap instead — covered below.
     let client = Arc::new(
         MockEngineClient::builder()
             .with_config(cfg.clone())
@@ -140,6 +143,7 @@ async fn startup_reset_probes_the_el_and_starts_derivation_on_a_consistent_chain
                 PayloadStatusEnum::Valid,
                 None,
             )))
+            .with_l2_block_by_label(BlockNumberOrTag::Finalized, genesis_block.clone())
             .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), genesis_block.clone())
             .with_l2_block(BlockId::Number(0.into()), genesis_block)
             .with_l1_block(BlockId::Hash(B256::ZERO.into()), Default::default())
@@ -184,13 +188,96 @@ async fn startup_reset_probes_the_el_and_starts_derivation_on_a_consistent_chain
     assert!(matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)));
 }
 
-/// When the walkback cannot complete — here the mock serves no blocks at all — the startup reset
-/// is best-effort: the controller falls back to the gossip-driven EL-sync bootstrap instead of
-/// dying, and derivation is not told to start.
+/// An execution layer that reports no finalized block has never been driven past genesis — its
+/// initial EL sync is still pending (op-node's discriminator,
+/// `op-node/rollup/engine/engine_controller.go:597-624`) — so the startup reset is skipped
+/// entirely: probing it would answer `VALID` for its own genesis, wrongly mark EL sync finished,
+/// and cut off the gossip bootstrap that is supposed to point the EL at the tip (the
+/// `TestSyncUnsafeBecomesSafe` / `TestSequencerRestart` regression). The client below could serve
+/// the whole walkback; the missing finalized label alone must hold the probe back.
+#[tokio::test]
+async fn the_startup_reset_is_skipped_while_the_el_reports_no_finalized_block() {
+    use alloy_eips::{BlockId, BlockNumberOrTag};
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use kona_genesis::ChainGenesis;
+
+    let header = alloy_consensus::Header { number: 0, ..Default::default() };
+    let genesis_hash = header.hash_slow();
+    let cfg = Arc::new(RollupConfig {
+        genesis: ChainGenesis {
+            l2: BlockNumHash { number: 0, hash: genesis_hash },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let genesis_block = alloy_rpc_types_eth::Block {
+        header: alloy_rpc_types_eth::Header {
+            hash: genesis_hash,
+            inner: header,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    // Everything the walkback needs — except the finalized label.
+    let client = Arc::new(
+        MockEngineClient::builder()
+            .with_config(cfg.clone())
+            .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(PayloadStatus::new(
+                PayloadStatusEnum::Valid,
+                None,
+            )))
+            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), genesis_block.clone())
+            .with_l2_block(BlockId::Number(0.into()), genesis_block)
+            .with_l1_block(BlockId::Hash(B256::ZERO.into()), Default::default())
+            .build(),
+    );
+
+    // No expectations: a skipped startup reset must reach neither the reset signal nor the
+    // sync-completed notification — the gossip bootstrap stays in charge.
+    let derivation_client = MockChainControllerDerivationClient::new();
+
+    let (state_tx, state_rx) = watch::channel(EngineState::default());
+    let (len_tx, _len_rx) = watch::channel(0usize);
+    let engine = Engine::new(EngineState::default(), state_tx, len_tx);
+
+    let (request_tx, request_rx) = mpsc::channel::<ChainControllerRequest>(1);
+    let mut actor = ChainController::new(
+        client,
+        cfg,
+        derivation_client,
+        engine,
+        None,
+        request_rx,
+        Arc::new(DisabledDatabase),
+        None,
+        Arc::new(NoopBlockSink),
+    );
+
+    drop(request_tx);
+    assert!(matches!(actor.step().await, Err(ChainControllerError::ChannelClosed)));
+    assert!(
+        !state_rx.borrow().el_sync_finished,
+        "an EL with no finalized block must be left to the gossip EL-sync bootstrap"
+    );
+}
+
+/// When the walkback cannot complete — here the mock serves the finalized label but nothing the
+/// walkback needs — the startup reset is best-effort: the controller falls back to the
+/// gossip-driven EL-sync bootstrap instead of dying, and derivation is not told to start.
 #[tokio::test]
 async fn a_failed_startup_reset_falls_back_to_the_gossip_bootstrap() {
+    use alloy_eips::BlockNumberOrTag;
+
     let cfg = Arc::new(RollupConfig::default());
-    let client = Arc::new(MockEngineClient::builder().with_config(cfg.clone()).build());
+    let client = Arc::new(
+        MockEngineClient::builder()
+            .with_config(cfg.clone())
+            .with_l2_block_by_label(
+                BlockNumberOrTag::Finalized,
+                alloy_rpc_types_eth::Block::default(),
+            )
+            .build(),
+    );
 
     // No expectations: a failed startup reset must reach neither the reset signal nor the
     // sync-completed notification. (The default state's local-safe head is unchanged, so no

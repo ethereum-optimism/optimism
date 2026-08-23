@@ -92,23 +92,16 @@ impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
                 Ok(())
             }
             PayloadStatusEnum::Syncing => {
-                if state.el_sync_finished {
-                    // Once the initial EL sync is done, a `SYNCING` answer means the execution
-                    // layer cannot canonicalize the head this update carries. op-node accepts
-                    // only `VALID` here (`op-node/rollup/engine/engine_controller.go:586-595`)
-                    // and answers with a reset that re-discovers the EL's actual chain state
-                    // (`engine_controller.go:700-706`); adopting the head anyway detaches the
-                    // forkchoice from the chain the EL has, and derivation then consolidates
-                    // against unsafe blocks the EL cannot serve — the permanent stall the
-                    // sync-tester verifier suite caught.
-                    warn!(
-                        target: "engine",
-                        "Forkchoice update returned SYNCING after EL sync finished; not adopting \
-                         the heads"
-                    );
-                    return Err(SynchronizeTaskError::ForkchoiceUpdatedSyncing);
-                }
-                // If we're not building a new payload, we're driving EL sync.
+                // A `SYNCING` answer is accepted and the heads are adopted, in the initial EL
+                // sync and afterwards: this engine has no reqresp sync client and no unsafe
+                // payload buffer, so pointing the execution layer at the gossiped tip is its
+                // *only* unsafe-chain catch-up channel — op-node's EL-sync regime
+                // (`op-node/rollup/engine/engine_controller.go:587-594`,
+                // `op-node/rollup/driver/sync_deriver.go:102-115`), kept past the initial sync
+                // because a verifier that falls behind (a restart, a dropped peer) re-enters it.
+                // The head this adopts may name blocks the EL cannot serve yet; consolidation
+                // answers that fetch miss with op-node's stall/reset split rather than retrying
+                // it forever (see `ConsolidateTaskError::MissingUnsafeL2Block`).
                 debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
                 Ok(())
             }

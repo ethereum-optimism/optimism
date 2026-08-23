@@ -529,12 +529,8 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
         SealTaskError::PayloadInsertionFailed(insert_err) => match &**insert_err {
             InsertTaskError::ForkchoiceUpdateFailed(synchronize_error) => match synchronize_error {
                 SynchronizeTaskError::FinalizedAheadOfUnsafe(_, _) => true,
-                // A post-EL-sync SYNCING answer asks for an engine reset (the execution layer
-                // lost the chain the sequencer is building on); the reset re-discovers the EL's
-                // heads and sequencing resumes from them, so it is not fatal here.
                 SynchronizeTaskError::ForkchoiceUpdateFailed(_) |
                 SynchronizeTaskError::InvalidForkchoiceState |
-                SynchronizeTaskError::ForkchoiceUpdatedSyncing |
                 SynchronizeTaskError::UnexpectedPayloadStatus(_) => false,
             },
             InsertTaskError::FromBlockError(_) | InsertTaskError::L2BlockInfoConstruction(_) => {
