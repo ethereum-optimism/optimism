@@ -64,6 +64,10 @@ func (c *PrepareConfig) Check() error {
 		return fmt.Errorf("l1 RPC URL must be specified")
 	}
 
+	if c.GenesisTimeOffset < standard.MinGenesisTimeOffsetSeconds {
+		return fmt.Errorf("genesis time offset must be at least %d seconds", standard.MinGenesisTimeOffsetSeconds)
+	}
+
 	return nil
 }
 
@@ -393,7 +397,6 @@ func predictChains(
 				return fmt.Errorf("failed to select anchor block for chain %s: %w", chain.ID.Hex(), err)
 			}
 
-			// TODO(#20916): A reasonable minimum will be enforced in the future, once the L2 deployment is benchmarked.
 			// Commit the anchor and the genesis time.
 			genesisTime = hexutil.Uint64(uint64(anchorBlock.Time) + genesisTimeOffset)
 			st.PinChainAnchor(chain.ID, anchorBlock, genesisTime)

@@ -41,6 +41,7 @@ targeting zkVMs must constrain that the incoming data is indeed valid, whereas f
 let chain_provider = ...;
 let l2_chain_provider = ...;
 let blob_provider = ...;
+let l1_origin = ...;
 
 let cfg = Arc::new(RollupConfig::default());
 let l1_cfg = Arc::new(L1ChainConfig::default());
@@ -57,14 +58,14 @@ let dap = EthereumDataSource::new_from_parts(
    cfg.as_ref()
 );
 
-// Construct a new derivation pipeline. `build_indexed` selects the
-// indexed traversal stage; `build_polled` selects polling traversal.
+// Construct a new derivation pipeline.
 let pipeline = PipelineBuilder::new()
    .rollup_config(cfg)
    .dap_source(dap)
    .l2_chain_provider(l2_chain_provider)
    .chain_provider(chain_provider)
    .builder(attributes)
+   .origin(l1_origin)
    .build_polled();
 ```
 
