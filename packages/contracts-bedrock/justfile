@@ -186,6 +186,28 @@ test-amsterdam *ARGS:
 test-l2 *ARGS:
   TEST_FILES="$(find test/L2 -name '*.t.sol')" just test {{ARGS}}
 
+# Enforces the EIP-7825 per-transaction gas cap (2^24) on every contract operation the
+# non-L2 suite exercises under the Amsterdam EVM. Runs the suite with forge's gas report
+# and fails if any src/ contract deployment or single call reaches GAS_CAP_BUFFER_PCT
+# (default 80%) of the cap; the buffer reserves headroom for intrinsic tx gas and an outer
+# caller such as a Gnosis Safe. Test failures do not fail this check directly — the report
+# still measures every successful call — but a call that itself reverts records no gas, so
+# an operation must pass its test to be measured. TEST_FILES narrows the scope as in `test`.
+# ARGS interpolate unquoted (see the note in `test`), so keep shell metachars like `|` out
+# of --match-test regexes.
+check-gas-cap *ARGS: build-go-ffi
+  #!/bin/bash
+  set -euo pipefail
+  export PATH="$(just _amsterdam-forge-dir):$PATH"
+  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol' -not -path 'test/L2/*')}"
+  REPORT=cache/gas-report-amsterdam.json
+  mkdir -p cache
+  echo "check-gas-cap: running the non-L2 suite under Amsterdam with the gas report enabled..."
+  FOUNDRY_MATCH_PATH="./{$(echo "$TEST_FILES" | paste -sd, -)}" \
+  FOUNDRY_EVM_VERSION=amsterdam \
+    forge test --gas-report --json {{ARGS}} > "$REPORT" || true
+  bash scripts/checks/check-gas-cap.sh "$REPORT"
+
 # Default block number for the forked upgrade path.
 # Block numbers are calculated deterministically based on the current day.
 # The block is set to approximately 00:00 UTC of the current day.
