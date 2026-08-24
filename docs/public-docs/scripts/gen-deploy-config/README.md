@@ -104,8 +104,8 @@ Per the ownership model in the Solutions repo's
 
 | Artifact | Author of record | Reviewer | Stale-reference triage |
 | --- | --- | --- | --- |
-| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions or @ethereum-optimism/monorepo-reviewers (via the `/docs/public-docs/` CODEOWNERS rule) | Author of record |
-| Generated snippet (`snippets/generated/deploy-config-schema.mdx`) | The pipeline — nobody hand-edits; `-check` fails on hand edits by construction | @ethereum-optimism/solutions or @ethereum-optimism/monorepo-reviewers review the automation's regeneration PRs | A snippet that can't be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
+| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/` CODEOWNERS rule) | Author of record |
+| Generated snippet (`snippets/generated/deploy-config-schema.mdx`) | The pipeline — nobody hand-edits; `-check` fails on hand edits by construction | @ethereum-optimism/solutions review the automation's regeneration PRs | A snippet that can't be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
 | Schema facts (`op-chain-ops/genesis` struct tags + doc comments) | Component engineers | Component team | Component team; the docs schema follows at the next finalized op-deployer release |
 
 Known residual gaps (accepted, by design):

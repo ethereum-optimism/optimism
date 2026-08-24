@@ -110,8 +110,8 @@ repo's `projects/docs-improver/plans/option-b-truth-from-source.md`:
 
 | Artifact | Author of record | Reviewer | Stale-reference triage |
 | --- | --- | --- | --- |
-| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions or @ethereum-optimism/monorepo-reviewers (via the `/docs/public-docs/` CODEOWNERS rule) | Author of record |
-| Generated pages (`node-operators/op-reth/cli/op-reth*`) and the nav fragment | The pipeline — nobody hand-edits; `--check` fails on hand edits by construction | @ethereum-optimism/solutions or @ethereum-optimism/monorepo-reviewers review the automation's regeneration PRs | A tree that cannot be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
+| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/` CODEOWNERS rule) | Author of record |
+| Generated pages (`node-operators/op-reth/cli/op-reth*`) and the nav fragment | The pipeline — nobody hand-edits; `--check` fails on hand edits by construction | @ethereum-optimism/solutions review the automation's regeneration PRs | A tree that cannot be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
 | CLI facts (`rust/op-reth` and the pinned upstream reth crates) | Component engineers | Component team | Component team; the docs tree follows at the next finalized release |
 
 Known residual gaps (accepted, by design):
