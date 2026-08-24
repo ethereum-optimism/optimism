@@ -1209,30 +1209,28 @@ jobs:
           patterns: <<parameters.check_changed_patterns>>
       - install-solc-compilers
       # Tests outside test/L2 run against the Amsterdam EVM version (see "Run tests"), which the
-      # mise-pinned forge does not know. Amsterdam support was reverted from foundry main
-      # (foundry-rs/foundry#16202), so no release binary exists; build the fixed commit from
-      # source once, cache it by commit, and let it shadow the pinned forge for this job.
+      # mise-pinned forge does not know. Amsterdam support was reverted from foundry main in
+      # foundry-rs/foundry#16202 and re-landed in #16204; this is the oldest nightly release
+      # carrying the fix. It shadows the pinned forge for this job via PATH.
       - restore_cache:
           name: Restore Amsterdam forge
           keys:
-            - amsterdam-forge-v1-f7a146835c0bfc74a86f153643495eccf75ee4cd
+            - amsterdam-forge-v2-nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105
       - run:
-          name: Install Amsterdam forge (foundry f7a1468)
+          name: Install Amsterdam forge (nightly 269c7255)
           command: |
-            DEST="$HOME/.amsterdam-foundry"
-            if [ ! -x "$DEST/bin/forge" ]; then
-              sudo apt-get update
-              sudo apt-get install -y --no-install-recommends clang pkg-config libssl-dev
-              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-              . "$HOME/.cargo/env"
-              cargo install --git https://github.com/foundry-rs/foundry --rev f7a146835c0bfc74a86f153643495eccf75ee4cd --locked --root "$DEST" forge
+            DEST="$HOME/.amsterdam-foundry/bin"
+            if [ ! -x "$DEST/forge" ]; then
+              mkdir -p "$DEST"
+              curl -fsSL --retry 5 --retry-delay 5 \
+                "https://github.com/foundry-rs/foundry/releases/download/nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105/foundry_nightly_linux_amd64.tar.gz" \
+                | tar -xz -C "$DEST" forge
             fi
-            echo "export PATH=$DEST/bin:\$PATH" >> "$BASH_ENV"
-            "$DEST/bin/forge" --version
-          no_output_timeout: 45m
+            echo "export PATH=$DEST:\$PATH" >> "$BASH_ENV"
+            "$DEST/forge" --version
       - save_cache:
           name: Save Amsterdam forge
-          key: amsterdam-forge-v1-f7a146835c0bfc74a86f153643495eccf75ee4cd
+          key: amsterdam-forge-v2-nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105
           paths:
             - ~/.amsterdam-foundry
       - run:
@@ -1293,28 +1291,26 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       # `just test` runs everything outside test/L2 against the Amsterdam EVM version, which
-      # needs the source-built f7a1468 forge (see contracts-bedrock-tests for details).
+      # needs an Amsterdam-capable forge nightly (see contracts-bedrock-tests for details).
       - restore_cache:
           name: Restore Amsterdam forge
           keys:
-            - amsterdam-forge-v1-f7a146835c0bfc74a86f153643495eccf75ee4cd
+            - amsterdam-forge-v2-nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105
       - run:
-          name: Install Amsterdam forge (foundry f7a1468)
+          name: Install Amsterdam forge (nightly 269c7255)
           command: |
-            DEST="$HOME/.amsterdam-foundry"
-            if [ ! -x "$DEST/bin/forge" ]; then
-              sudo apt-get update
-              sudo apt-get install -y --no-install-recommends clang pkg-config libssl-dev
-              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-              . "$HOME/.cargo/env"
-              cargo install --git https://github.com/foundry-rs/foundry --rev f7a146835c0bfc74a86f153643495eccf75ee4cd --locked --root "$DEST" forge
+            DEST="$HOME/.amsterdam-foundry/bin"
+            if [ ! -x "$DEST/forge" ]; then
+              mkdir -p "$DEST"
+              curl -fsSL --retry 5 --retry-delay 5 \
+                "https://github.com/foundry-rs/foundry/releases/download/nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105/foundry_nightly_linux_amd64.tar.gz" \
+                | tar -xz -C "$DEST" forge
             fi
-            echo "export PATH=$DEST/bin:\$PATH" >> "$BASH_ENV"
-            "$DEST/bin/forge" --version
-          no_output_timeout: 45m
+            echo "export PATH=$DEST:\$PATH" >> "$BASH_ENV"
+            "$DEST/forge" --version
       - save_cache:
           name: Save Amsterdam forge
-          key: amsterdam-forge-v1-f7a146835c0bfc74a86f153643495eccf75ee4cd
+          key: amsterdam-forge-v2-nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105
           paths:
             - ~/.amsterdam-foundry
       - run:

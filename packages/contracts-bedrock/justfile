@@ -86,8 +86,8 @@ _test-single *ARGS: build-go-ffi
 
 # Prints the directory of a forge binary that accepts `--evm-version amsterdam`, preferring
 # the one already on PATH, falling back to AMSTERDAM_FORGE. Callers prepend it to PATH.
-# Amsterdam support was reverted from foundry main (foundry-rs/foundry#16202), so there is
-# no release binary; it must be built from the fixed commit.
+# Amsterdam support was reverted from foundry main in foundry-rs/foundry#16202 and re-landed
+# in #16204; nightly-269c7255... is the oldest release binary carrying the fix.
 _amsterdam-forge-dir:
   #!/bin/bash
   set -euo pipefail
@@ -97,7 +97,7 @@ _amsterdam-forge-dir:
   fi
   if [ -z "${AMSTERDAM_FORGE:-}" ]; then
     echo "error: the forge on PATH rejects --evm-version amsterdam and AMSTERDAM_FORGE is unset" >&2
-    echo "  install one with: foundryup -C f7a146835c0bfc74a86f153643495eccf75ee4cd" >&2
+    echo "  install one with: foundryup -i nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105" >&2
     echo "  then: AMSTERDAM_FORGE=\$HOME/.foundry/bin/forge just test" >&2
     exit 1
   fi
