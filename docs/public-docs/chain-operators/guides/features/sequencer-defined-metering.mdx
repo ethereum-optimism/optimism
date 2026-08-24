@@ -32,7 +32,7 @@ clients derive the trailing PostExec transaction from L1 data like any other tra
 
 ## Protocol activation
 
-SDM is gated by the **Lagoon** hardfork. Before Lagoon, a PostExec transaction is invalid. At or
+SDM is gated by the [**Lagoon** hardfork](/op-stack/protocol/hardforks/lagoon). Before Lagoon, a PostExec transaction is invalid. At or
 after activation, an SDM-aware verifier accepts a structurally valid producer-supplied PostExec
 transaction and verifies its consensus effects.
 
@@ -50,6 +50,10 @@ never appends a PostExec transaction, even when Lagoon is active and
 `admin_setOperatorSdmOptIn(true)` has been called. The admin surface remains available for protocol
 compatibility and downstream producer integrations; it is not a policy-selection interface in
 stock `op-reth`.
+
+The opt-in state can be seeded at boot with the `--rollup.operator-sdm-opt-in` CLI flag or the
+`OP_RETH_OPERATOR_SDM_OPT_IN` environment variable; both take `true` or `false` and default to
+`false`. At runtime, `admin_setOperatorSdmOptIn` toggles the state and `admin_sdmStatus` reports it.
 
 The `op-reth-sdm-fixture` binary in the source tree is only a deterministic acceptance-test fixture.
 It is excluded from release packaging, images, and deployment manifests.
