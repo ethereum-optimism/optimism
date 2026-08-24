@@ -854,6 +854,12 @@ where
         Ok(Some(self.commit_transaction(output)))
     }
 
+    /// In Produce mode, this method does not snapshot or restore producer-policy state. A failing
+    /// transaction still records its fee-vault touches on the `transact_raw` error path, and a
+    /// successfully executed transaction does the same even if its commit is later declined.
+    /// Callers that may discard a candidate must snapshot and restore the policy themselves or use
+    /// [`execute_transaction_with_commit_condition`](Self::execute_transaction_with_commit_condition),
+    /// which restores the per-candidate snapshot on execution error and declined commit.
     fn execute_transaction_without_commit(
         &mut self,
         tx: impl ExecutableTx<Self>,
