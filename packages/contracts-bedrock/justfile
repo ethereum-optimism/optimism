@@ -73,8 +73,9 @@ clean:
 #                         TEST                         #
 ########################################################
 
-# Runs standard contract tests.
-test *ARGS: build-go-ffi
+# Runs a single forge test invocation. For callers that fully control the EVM version and
+# path scope (fork-test wrappers, the per-EVM passes of `test`). Most callers want `test`.
+_test-single *ARGS: build-go-ffi
   #!/bin/bash
   forge --version
   if [ -n "$JUNIT_TEST_PATH" ]; then
@@ -83,38 +84,84 @@ test *ARGS: build-go-ffi
     forge test {{ARGS}}
   fi
 
+# Prints the directory of a forge binary that accepts `--evm-version amsterdam`, preferring
+# the one already on PATH, falling back to AMSTERDAM_FORGE. Callers prepend it to PATH.
+# Amsterdam support was reverted from foundry main (foundry-rs/foundry#16202), so there is
+# no release binary; it must be built from the fixed commit.
+_amsterdam-forge-dir:
+  #!/bin/bash
+  set -euo pipefail
+  if forge config --evm-version amsterdam >/dev/null 2>&1; then
+    dirname "$(command -v forge)"
+    exit 0
+  fi
+  if [ -z "${AMSTERDAM_FORGE:-}" ]; then
+    echo "error: the forge on PATH rejects --evm-version amsterdam and AMSTERDAM_FORGE is unset" >&2
+    echo "  install one with: foundryup -C f7a146835c0bfc74a86f153643495eccf75ee4cd" >&2
+    echo "  then: AMSTERDAM_FORGE=\$HOME/.foundry/bin/forge just test" >&2
+    exit 1
+  fi
+  if [ ! -x "$AMSTERDAM_FORGE" ] || ! "$AMSTERDAM_FORGE" config --evm-version amsterdam >/dev/null 2>&1; then
+    echo "error: AMSTERDAM_FORGE does not accept --evm-version amsterdam: $AMSTERDAM_FORGE" >&2
+    exit 1
+  fi
+  cd "$(dirname "$AMSTERDAM_FORGE")" && pwd
+
+# Runs standard contract tests. Everything outside test/L2 runs against the Amsterdam EVM
+# version (Amsterdam activates on L1 only); test/L2 runs at the default EVM version.
+#
+# Env:
+# - TEST_FILES: optional newline-separated list of test files to run, relative to the
+#   package root (CI passes its timing-based shard); defaults to all of test/.
+# - JUNIT_TEST_DIR: optional; writes one JUnit XML per pass into this directory.
+# - AMSTERDAM_FORGE: forge binary accepting `--evm-version amsterdam`, needed when the one
+#   on PATH does not (see `_amsterdam-forge-dir`). Both passes run on the resolved binary.
+#
+# On failure each pass snapshots forge's failure cache (cache/test-failures) so `test-rerun`
+# can replay it under the matching EVM version.
+test *ARGS:
+  #!/bin/bash
+  set -euo pipefail
+  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol')}"
+  L1_FILES=$(echo "$TEST_FILES" | grep -v '^test/L2/' || true)
+  L2_FILES=$(echo "$TEST_FILES" | grep '^test/L2/' || true)
+  if [ -n "$L1_FILES" ]; then
+    AMSTERDAM_FORGE_DIR="$(just _amsterdam-forge-dir)"
+    export PATH="$AMSTERDAM_FORGE_DIR:$PATH"
+  fi
+  if [ -n "${JUNIT_TEST_DIR:-}" ]; then
+    mkdir -p "$JUNIT_TEST_DIR"
+  fi
+  rm -f cache/test-failures-amsterdam cache/test-failures-l2
+  status=0
+  # The path scope goes through FOUNDRY_MATCH_PATH, not --match-path: `{{{{ARGS}}` interpolates
+  # unquoted in `_test-single`, so the brace list would be brace-expanded by the shell there.
+  if [ -n "$L1_FILES" ]; then
+    FOUNDRY_MATCH_PATH="./{$(echo "$L1_FILES" | paste -sd, -)}" \
+    FOUNDRY_EVM_VERSION=amsterdam \
+    JUNIT_TEST_PATH="${JUNIT_TEST_DIR:+$JUNIT_TEST_DIR/results-amsterdam.xml}" \
+      just _test-single {{ARGS}} \
+      || { status=1; cp cache/test-failures cache/test-failures-amsterdam 2>/dev/null || true; }
+  fi
+  if [ -n "$L2_FILES" ]; then
+    FOUNDRY_MATCH_PATH="./{$(echo "$L2_FILES" | paste -sd, -)}" \
+    JUNIT_TEST_PATH="${JUNIT_TEST_DIR:+$JUNIT_TEST_DIR/results-l2.xml}" \
+      just _test-single {{ARGS}} \
+      || { status=1; cp cache/test-failures cache/test-failures-l2 2>/dev/null || true; }
+  fi
+  exit $status
+
 # Runs standard contract tests (developer mode).
 test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
 
-# Runs the full test suite against the Amsterdam EVM version.
-#
-# The pinned forge does not know the `amsterdam` target, so AMSTERDAM_FORGE must point at a
-# newer forge binary; its directory is prepended to PATH so `test` resolves that one.
+# Runs only the Amsterdam half of the suite (everything outside test/L2).
 test-amsterdam *ARGS:
-  #!/bin/bash
-  set -euo pipefail
+  TEST_FILES="$(find test -name '*.t.sol' -not -path 'test/L2/*')" just test {{ARGS}}
 
-  if [ -z "${AMSTERDAM_FORGE:-}" ]; then
-    echo "error: AMSTERDAM_FORGE is unset" >&2
-    echo "  point it at a forge binary supporting --evm-version amsterdam, e.g." >&2
-    echo "  AMSTERDAM_FORGE=\$HOME/.foundry/bin/forge just test-amsterdam" >&2
-    exit 1
-  fi
-
-  if [ ! -x "$AMSTERDAM_FORGE" ]; then
-    echo "error: AMSTERDAM_FORGE is not an executable file: $AMSTERDAM_FORGE" >&2
-    exit 1
-  fi
-
-  if ! "$AMSTERDAM_FORGE" config --evm-version amsterdam >/dev/null 2>&1; then
-    echo "error: $AMSTERDAM_FORGE rejects --evm-version amsterdam" >&2
-    "$AMSTERDAM_FORGE" --version >&2
-    exit 1
-  fi
-
-  export PATH="$(cd "$(dirname "$AMSTERDAM_FORGE")" && pwd):$PATH"
-  just test --evm-version amsterdam {{ARGS}}
+# Runs only the test/L2 suite, at the default EVM version (the L2 EVM is not changing).
+test-l2 *ARGS:
+  TEST_FILES="$(find test/L2 -name '*.t.sol')" just test {{ARGS}}
 
 # Default block number for the forked upgrade path.
 # Block numbers are calculated deterministically based on the current day.
@@ -199,9 +246,27 @@ test-upgrade-against-anvil *ARGS: build-go-ffi
   forge test {{ARGS}} \
   --match-path "test/{L1,dispute,cannon}/**"
 
-# Runs standard contract tests with rerun flag.
+# Runs standard contract tests with rerun flag, replaying each pass's failure snapshot from
+# `test` under its matching EVM version. Falls back to a plain rerun when no snapshots exist.
 test-rerun: build-go-ffi
-  forge test --rerun -vvv
+  #!/bin/bash
+  set -euo pipefail
+  found=0
+  if [ -f cache/test-failures-amsterdam ]; then
+    found=1
+    AMSTERDAM_FORGE_DIR="$(just _amsterdam-forge-dir)"
+    export PATH="$AMSTERDAM_FORGE_DIR:$PATH"
+    cp cache/test-failures-amsterdam cache/test-failures
+    FOUNDRY_EVM_VERSION=amsterdam forge test --rerun -vvv || true
+  fi
+  if [ -f cache/test-failures-l2 ]; then
+    found=1
+    cp cache/test-failures-l2 cache/test-failures
+    forge test --rerun -vvv || true
+  fi
+  if [ "$found" = 0 ]; then
+    forge test --rerun -vvv
+  fi
 
 # Runs standard contract tests with rerun flag (developer mode).
 test-dev-rerun: build-go-ffi
@@ -252,7 +317,7 @@ prepare-l2-upgrade-env *ARGS:
 # Runs L2 fork upgrade tests.
 # Usage: L2_FORK_RPC_URL=<url> just test-l2-fork-upgrade [ARGS]
 test-l2-fork-upgrade *ARGS:
-  just prepare-l2-upgrade-env "just test {{ARGS}}"
+  just prepare-l2-upgrade-env "just _test-single {{ARGS}}"
 
 test-l2-fork-upgrade-rerun *ARGS:
   just test-l2-fork-upgrade {{ARGS}} --rerun -vvvv
@@ -275,7 +340,7 @@ prepare-l2cm-activation-env *ARGS:
 # Runs L2CM activation (betanet fork) tests.
 # Usage: L2_FORK_RPC_URL=<url> L2_BLOCK_BEFORE_FORK=<block> NUT_BUNDLE_PATH=<path> just test-l2cm-activation-test [ARGS]
 test-l2cm-activation-test *ARGS:
-  just prepare-l2cm-activation-env "just test {{ARGS}}"
+  just prepare-l2cm-activation-env "just _test-single {{ARGS}}"
 
 test-l2cm-activation-test-rerun *ARGS:
   just test-l2cm-activation-test {{ARGS}} --rerun -vvvv

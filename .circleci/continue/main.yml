@@ -1208,6 +1208,33 @@ jobs:
       - check-changed:
           patterns: <<parameters.check_changed_patterns>>
       - install-solc-compilers
+      # Tests outside test/L2 run against the Amsterdam EVM version (see "Run tests"), which the
+      # mise-pinned forge does not know. Amsterdam support was reverted from foundry main
+      # (foundry-rs/foundry#16202), so no release binary exists; build the fixed commit from
+      # source once, cache it by commit, and let it shadow the pinned forge for this job.
+      - restore_cache:
+          name: Restore Amsterdam forge
+          keys:
+            - amsterdam-forge-v1-f7a146835c0bfc74a86f153643495eccf75ee4cd
+      - run:
+          name: Install Amsterdam forge (foundry f7a1468)
+          command: |
+            DEST="$HOME/.amsterdam-foundry"
+            if [ ! -x "$DEST/bin/forge" ]; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends clang pkg-config libssl-dev
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+              . "$HOME/.cargo/env"
+              cargo install --git https://github.com/foundry-rs/foundry --rev f7a146835c0bfc74a86f153643495eccf75ee4cd --locked --root "$DEST" forge
+            fi
+            echo "export PATH=$DEST/bin:\$PATH" >> "$BASH_ENV"
+            "$DEST/bin/forge" --version
+          no_output_timeout: 45m
+      - save_cache:
+          name: Save Amsterdam forge
+          key: amsterdam-forge-v1-f7a146835c0bfc74a86f153643495eccf75ee4cd
+          paths:
+            - ~/.amsterdam-foundry
       - run:
           name: Print dependencies
           command: just dep-status
@@ -1228,13 +1255,13 @@ jobs:
           features: <<parameters.features>>
       - run:
           name: Run tests
+          # `just test` partitions the list: everything outside test/L2 runs against the Amsterdam
+          # EVM version, test/L2 runs at the foundry.toml default (see the justfile recipe).
           command: |
             TEST_FILES=$(<<parameters.test_list>>)
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
-            TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
-            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            mkdir -p results
-            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
+            export TEST_FILES
+            JUNIT_TEST_DIR=results just test
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
@@ -1265,6 +1292,31 @@ jobs:
           checkout-method: full
           enable-mise-cache: true
       - install-contracts-dependencies
+      # `just test` runs everything outside test/L2 against the Amsterdam EVM version, which
+      # needs the source-built f7a1468 forge (see contracts-bedrock-tests for details).
+      - restore_cache:
+          name: Restore Amsterdam forge
+          keys:
+            - amsterdam-forge-v1-f7a146835c0bfc74a86f153643495eccf75ee4cd
+      - run:
+          name: Install Amsterdam forge (foundry f7a1468)
+          command: |
+            DEST="$HOME/.amsterdam-foundry"
+            if [ ! -x "$DEST/bin/forge" ]; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends clang pkg-config libssl-dev
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+              . "$HOME/.cargo/env"
+              cargo install --git https://github.com/foundry-rs/foundry --rev f7a146835c0bfc74a86f153643495eccf75ee4cd --locked --root "$DEST" forge
+            fi
+            echo "export PATH=$DEST/bin:\$PATH" >> "$BASH_ENV"
+            "$DEST/bin/forge" --version
+          no_output_timeout: 45m
+      - save_cache:
+          name: Save Amsterdam forge
+          key: amsterdam-forge-v1-f7a146835c0bfc74a86f153643495eccf75ee4cd
+          paths:
+            - ~/.amsterdam-foundry
       - run:
           name: Print dependencies
           command: just dep-status
@@ -1281,12 +1333,10 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Run heavy fuzz tests
-          command: |
-            mkdir -p results
-            just test
+          command: just test
           environment:
             FOUNDRY_PROFILE: ciheavy
-            JUNIT_TEST_PATH: results/results.xml
+            JUNIT_TEST_DIR: results
           working_directory: packages/contracts-bedrock
           no_output_timeout: 90m
       - run:
