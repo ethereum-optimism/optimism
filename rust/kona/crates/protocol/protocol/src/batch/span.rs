@@ -622,7 +622,7 @@ impl SpanBatch {
         if l1_origins.is_empty() {
             warn!(
                 target: "batch_span",
-                chain_id = self.chain_id,
+                chain_id = cfg.l2_chain_id.id(),
                 l1_origin_count = l1_origins.len(),
                 span_block_count = self.batches.len(),
                 safe_head_number = l2_safe_head.block_info.number,
@@ -690,7 +690,7 @@ impl SpanBatch {
             let batch_validity = if holocene_active { "past" } else { "drop" };
             warn!(
                 target: "batch_span",
-                chain_id = self.chain_id,
+                chain_id = cfg.l2_chain_id.id(),
                 span_start_timestamp,
                 span_final_timestamp,
                 safe_head_timestamp = l2_safe_head.block_info.timestamp,

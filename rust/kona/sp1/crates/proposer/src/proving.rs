@@ -207,7 +207,7 @@ where
 {
     let guest_span_start_timestamp = agreed_timestamp + 1;
     future
-        .instrument(tracing::info_span!(
+        .instrument(tracing::warn_span!(
             "proof_replay_chunk",
             derivation_mode = "proof_replay",
             chunk_index = index,
@@ -447,7 +447,7 @@ mod tests {
         BlockId, ChainId, ChainIdAndOutput, SuperRootResponseData, SuperV1,
     };
     use tracing::{
-        Event, Instrument, Metadata, Subscriber,
+        Event, Instrument, Level, Metadata, Subscriber,
         field::{Field, Visit},
         span::{Attributes, Id, Record},
     };
@@ -459,6 +459,7 @@ mod tests {
         name: String,
         parent: Option<u64>,
         fields: String,
+        level: Option<Level>,
     }
 
     #[derive(Debug, Default)]
@@ -496,6 +497,7 @@ mod tests {
             let mut span = CapturedSpan {
                 name: attributes.metadata().name().to_string(),
                 parent,
+                level: Some(*attributes.metadata().level()),
                 ..Default::default()
             };
             attributes.record(&mut FieldVisitor(&mut span.fields));
@@ -716,6 +718,7 @@ mod tests {
                 .find(|span| span.fields.contains(&format!("chunk_index={index} ")))
                 .unwrap();
             assert_eq!(chunk.name, "proof_replay_chunk");
+            assert_eq!(chunk.level, Some(Level::WARN));
             assert_eq!(capture.spans[&chunk.parent.unwrap()].name, "game");
             assert!(chunk.fields.contains("derivation_mode=\"proof_replay\""));
             assert!(chunk.fields.contains("chunk_count=2 "));
