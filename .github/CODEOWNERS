@@ -23,6 +23,9 @@
 # Public developer documentation
 /docs/public-docs/  @ethereum-optimism/solutions @ethereum-optimism/monorepo-reviewers
 
+# Docs automation stays with solutions
+/docs/public-docs/scripts/  @ethereum-optimism/solutions
+
 # CI workflows
 /.github/workflows/ @ethereum-optimism/cloud-security
 /.github/actions/   @ethereum-optimism/cloud-security

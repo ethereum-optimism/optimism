@@ -113,15 +113,15 @@ the gap between scheduled runs.
 
 ## Ownership
 
-Everything in this pipeline lives under `docs/public-docs/`, so it is covered
-by the existing CODEOWNERS rule
-(`/docs/public-docs/  @ethereum-optimism/solutions @ethereum-optimism/monorepo-reviewers`)
-— no dedicated entries are needed. Per the ownership model in the Solutions
-repo's `projects/docs-improver/plans/option-b-truth-from-source.md`:
+Everything in this pipeline lives under `docs/public-docs/`, and the generator
+code in this directory is owned by solutions via the CODEOWNERS rule
+(`/docs/public-docs/scripts/  @ethereum-optimism/solutions`). Per the ownership
+model in the Solutions repo's
+`projects/docs-improver/plans/option-b-truth-from-source.md`:
 
 | Artifact | Author of record | Reviewer | Stale-reference triage |
 | --- | --- | --- | --- |
-| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/` CODEOWNERS rule) | Author of record |
+| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/scripts/` CODEOWNERS rule) | Author of record |
 | Generated snippets (`snippets/generated/`) | The pipeline — nobody hand-edits; `-check` fails on hand edits by construction | @ethereum-optimism/solutions review the automation's regeneration PRs | A snippet that can't be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
 | Flag facts (each component's `flags/` package, op-service flag families) | Component engineers | Component team | Component team; the docs table follows at the next finalized release |
 
