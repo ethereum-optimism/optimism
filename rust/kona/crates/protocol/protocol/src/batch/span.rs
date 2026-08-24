@@ -959,6 +959,7 @@ mod tests {
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { holocene_time: Some(200), ..Default::default() },
+            l2_chain_id: 10.into(),
             ..Default::default()
         };
         let l1_blocks = vec![];
@@ -969,7 +970,7 @@ mod tests {
         };
         let inclusion_block = BlockInfo { number: 14, timestamp: 150, ..Default::default() };
         let mut fetcher: TestBatchValidator = TestBatchValidator::default();
-        let batch = SpanBatch { chain_id: 10, ..Default::default() };
+        let batch = SpanBatch::default();
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
             BatchValidity::Undecided
@@ -1156,7 +1157,7 @@ mod tests {
         let mut fetcher: TestBatchValidator = TestBatchValidator::default();
         let first = SpanBatchElement { epoch_num: 10, timestamp: 0, ..Default::default() };
         let last = SpanBatchElement { epoch_num: 10, timestamp: 10, ..Default::default() };
-        let batch = SpanBatch { chain_id: 10, batches: vec![first, last], ..Default::default() };
+        let batch = SpanBatch { batches: vec![first, last], ..Default::default() };
         for (holocene_time, expected_validity) in [
             (Some(26), BatchValidity::Drop(BatchDropReason::SpanBatchNoNewBlocksPreHolocene)),
             (Some(0), BatchValidity::Past),
@@ -1168,6 +1169,7 @@ mod tests {
                     ..Default::default()
                 },
                 block_time: 10,
+                l2_chain_id: 10.into(),
                 ..Default::default()
             };
             assert_eq!(
