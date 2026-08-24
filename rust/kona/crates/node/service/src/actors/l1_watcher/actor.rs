@@ -11,9 +11,22 @@ use futures::{
 };
 use kona_protocol::BlockInfo;
 use kona_rpc::{L1State, L1WatcherQueries};
-use tokio::{select, sync::watch};
+use std::time::Duration;
+use tokio::{
+    select,
+    sync::watch,
+    time::{Instant, Interval, MissedTickBehavior},
+};
 
 use super::{L1WatcherChain, L1WatcherDerivationClient};
+
+/// How often the watcher re-reads every chain's unsafe block signer straight from the L1
+/// `SystemConfig` contract, healing signer updates the per-head log path missed (a failed
+/// `eth_getLogs`, or a head the poll-based head stream skipped).
+///
+/// Mirrors the default of op-node's `l1.runtime-config-reload-interval`, whose periodic reload is
+/// op-node's only signer refresh mechanism.
+const UNSAFE_BLOCK_SIGNER_RECONCILE_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 /// The L1 update that a single step of the [`L1WatcherActor`] observed.
 ///
@@ -32,6 +45,8 @@ enum L1WatcherEvent {
         /// The query, or `None` if the chain's query channel closed.
         query: Option<L1WatcherQueries>,
     },
+    /// The periodic unsafe block signer reconciliation is due.
+    ReconcileSigners,
 }
 
 /// An L1 chain watcher that checks for L1 block updates over RPC.
@@ -40,6 +55,10 @@ enum L1WatcherEvent {
 /// update is fanned out to each chain's derivation actor. The system config log filter and the
 /// unsafe block signer updates are per chain. A standalone kona-node runs this with a single
 /// chain.
+///
+/// Besides the per-head system config log path, the watcher periodically reconciles every chain's
+/// unsafe block signer against the L1 `SystemConfig` contract's storage, healing updates the log
+/// path missed.
 #[derive(Debug)]
 pub struct L1WatcherActor<BlockStream, L1Provider, L1WatcherDerivationClient_>
 where
@@ -57,6 +76,9 @@ where
     finalized_stream: BlockStream,
     /// The chains served by this watcher, rotated as their queries are served. Never empty.
     chains: Vec<L1WatcherChain<L1WatcherDerivationClient_>>,
+    /// Ticks every [`UNSAFE_BLOCK_SIGNER_RECONCILE_INTERVAL`] to reconcile every chain's unsafe
+    /// block signer against the L1 `SystemConfig` contract.
+    signer_reconcile_interval: Interval,
 }
 
 impl<BlockStream, L1Provider, L1WatcherDerivationClient_>
@@ -69,7 +91,8 @@ where
     /// Instantiate a new [`L1WatcherActor`] serving the given chains.
     ///
     /// # Panics
-    /// Panics if `chains` is empty; a watcher without a chain to serve has nothing to do.
+    /// Panics if `chains` is empty; a watcher without a chain to serve has nothing to do. Also
+    /// panics outside of a Tokio runtime, which the reconciliation timer is registered with.
     pub fn new(
         l1_provider: L1Provider,
         l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
@@ -79,7 +102,22 @@ where
     ) -> Self {
         assert!(!chains.is_empty(), "the L1 watcher must serve at least one chain");
 
-        Self { l1_provider, latest_head: l1_head_updates_tx, head_stream, finalized_stream, chains }
+        // The first tick is delayed by a full interval: at startup there is no processed head to
+        // reconcile against yet, and the per-head log path is already live.
+        let mut signer_reconcile_interval = tokio::time::interval_at(
+            Instant::now() + UNSAFE_BLOCK_SIGNER_RECONCILE_INTERVAL,
+            UNSAFE_BLOCK_SIGNER_RECONCILE_INTERVAL,
+        );
+        signer_reconcile_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+
+        Self {
+            l1_provider,
+            latest_head: l1_head_updates_tx,
+            head_stream,
+            finalized_stream,
+            chains,
+            signer_reconcile_interval,
+        }
     }
 
     /// Reads the L1 view answered by [`L1WatcherQueries::L1State`] from the L1 provider.
@@ -128,6 +166,7 @@ where
             (query, index, _) = select_all(
                 self.chains.iter_mut().map(|chain| Box::pin(chain.inbound_queries.recv()))
             ) => L1WatcherEvent::Query { index, query },
+            _ = self.signer_reconcile_interval.tick() => L1WatcherEvent::ReconcileSigners,
         };
 
         match event {
@@ -190,6 +229,22 @@ where
 
                 // The chain just served is polled last next time.
                 self.chains.rotate_left(index + 1);
+
+                Ok(())
+            }
+            L1WatcherEvent::ReconcileSigners => {
+                // The reads are pinned to the latest processed head; before the first head there
+                // is nothing safe to pin to, and the registry-seeded signer still stands.
+                let head_block_info = *self.latest_head.borrow();
+                if let Some(head_block_info) = head_block_info {
+                    // Read every chain's slot together, and never fail: like the per-head log
+                    // fan-out above, a failed read on one chain must neither stop the other
+                    // chains' reconciliation nor the watcher itself.
+                    join_all(self.chains.iter().map(|chain| {
+                        chain.reconcile_unsafe_block_signer(&self.l1_provider, head_block_info)
+                    }))
+                    .await;
+                }
 
                 Ok(())
             }
@@ -265,6 +320,11 @@ mod tests {
             },
             ..Default::default()
         }
+    }
+
+    /// An `eth_getStorageAt` result carrying the given signer in the unsafe block signer slot.
+    fn signer_slot_value(signer: Address) -> U256 {
+        U256::from_be_bytes(signer.into_word().0)
     }
 
     /// An `eth_getBlockByNumber` result whose header fields identify which tag it answered.
@@ -713,6 +773,143 @@ mod tests {
         assert_eq!(
             handles[0].signer_rx.try_recv().expect("signer update after the failure"),
             signer_at(0),
+        );
+    }
+
+    /// The periodic reconciliation heals a signer update the per-head log path missed: a chain
+    /// whose `eth_getLogs` failed receives the current signer from the next reconciliation tick's
+    /// `eth_getStorageAt` read of its `SystemConfig` contract.
+    ///
+    /// Time is paused, so the 10-minute reconciliation interval elapses virtually as soon as a
+    /// step has nothing else to do. Like the log fan-out, the slot reads are issued concurrently
+    /// and answered from [`Asserter`]'s FIFO in poll order, so response `i` answers chain `i`.
+    #[tokio::test(start_paused = true)]
+    async fn reconciliation_tick_heals_a_missed_signer_update() {
+        const CHAINS: u8 = 3;
+        const FAILING: usize = 1;
+
+        let asserter = Asserter::new();
+        let (chains, mut handles) = test_chains(CHAINS, |_| {
+            let mut client = MockL1WatcherDerivationClient::new();
+            client.expect_send_new_l1_head().times(1).returning(|_| Ok(()));
+            client
+        });
+
+        // The head's log requests: the failing chain's signer update is lost to a transport
+        // error; the other chains see no update in this head.
+        for index in 0..CHAINS {
+            if index as usize == FAILING {
+                asserter.push_failure_msg("connection reset by peer");
+            } else {
+                asserter.push_success(&Vec::<RpcLog>::new());
+            }
+        }
+        // The reconciliation tick's slot reads: every chain reads its current signer.
+        for index in 0..CHAINS {
+            asserter.push_success(&signer_slot_value(signer_at(index)));
+        }
+
+        let (mut actor, _latest_head_rx) = actor(asserter, vec![head(7)], vec![], chains);
+
+        actor.step().await.expect("head step");
+        assert!(
+            handles[FAILING].signer_rx.try_recv().is_err(),
+            "the failed log fetch cannot have produced an update"
+        );
+
+        // The head stream now pends forever, so the next event is the reconciliation tick.
+        actor.step().await.expect("reconciliation step");
+        for (index, handle) in handles.iter_mut().enumerate() {
+            assert_eq!(
+                handle.signer_rx.try_recv().expect("reconciled signer"),
+                signer_at(index as u8),
+                "chain {index} did not receive its reconciled unsafe block signer"
+            );
+        }
+    }
+
+    /// A failed reconciliation slot read on one chain is not actor-fatal: `step` returns `Ok`,
+    /// the other chains are still reconciled on that tick, and the failed chain is healed by the
+    /// next tick.
+    #[tokio::test(start_paused = true)]
+    async fn failed_reconciliation_read_on_one_chain_is_not_fatal() {
+        const CHAINS: u8 = 3;
+        const FAILING: usize = 1;
+
+        let asserter = Asserter::new();
+        let (chains, mut handles) = test_chains(CHAINS, |_| {
+            let mut client = MockL1WatcherDerivationClient::new();
+            client.expect_send_new_l1_head().times(1).returning(|_| Ok(()));
+            client
+        });
+
+        // The head's log requests all come back empty; the reconciliation is what's under test.
+        for _ in 0..CHAINS {
+            asserter.push_success(&Vec::<RpcLog>::new());
+        }
+        // First reconciliation tick: the failing chain's slot read errors, the others succeed.
+        for index in 0..CHAINS {
+            if index as usize == FAILING {
+                asserter.push_failure_msg("request timed out");
+            } else {
+                asserter.push_success(&signer_slot_value(signer_at(index)));
+            }
+        }
+        // Second tick: every chain's slot read succeeds.
+        for index in 0..CHAINS {
+            asserter.push_success(&signer_slot_value(signer_at(index)));
+        }
+
+        let (mut actor, _latest_head_rx) = actor(asserter, vec![head(7)], vec![], chains);
+        actor.step().await.expect("head step");
+
+        actor.step().await.expect("a failed slot read on one chain must not stop the watcher");
+        for (index, handle) in handles.iter_mut().enumerate() {
+            if index == FAILING {
+                assert!(
+                    handle.signer_rx.try_recv().is_err(),
+                    "the chain whose slot read failed cannot have received an update"
+                );
+            } else {
+                assert_eq!(
+                    handle.signer_rx.try_recv().expect("healthy chain's reconciled signer"),
+                    signer_at(index as u8),
+                    "chain {index} was not reconciled while another chain's slot read failed"
+                );
+            }
+        }
+
+        // The next tick heals the chain whose read failed.
+        actor.step().await.expect("step over the next reconciliation tick");
+        for (index, handle) in handles.iter_mut().enumerate() {
+            assert_eq!(
+                handle.signer_rx.try_recv().expect("reconciled signer after the failure"),
+                signer_at(index as u8),
+                "chain {index} did not recover on the next reconciliation tick"
+            );
+        }
+    }
+
+    /// A reconciliation tick before the first processed head is a no-op: there is no block to pin
+    /// the slot reads to, and the registry-seeded signer still stands.
+    #[tokio::test(start_paused = true)]
+    async fn reconciliation_before_the_first_head_is_a_no_op() {
+        let (chains, mut handles) = test_chains(1, |_| MockL1WatcherDerivationClient::new());
+        let asserter = Asserter::new();
+        // A queued response that a (wrong) slot read would consume.
+        asserter.push_success(&signer_slot_value(signer_at(0)));
+
+        let (mut actor, _latest_head_rx) = actor(asserter.clone(), vec![], vec![], chains);
+
+        actor.step().await.expect("reconciliation step");
+        assert!(
+            handles[0].signer_rx.try_recv().is_err(),
+            "a reconciliation without a processed head cannot produce an update"
+        );
+        assert_eq!(
+            asserter.read_q().len(),
+            1,
+            "no provider read may be made before the first head"
         );
     }
 }
