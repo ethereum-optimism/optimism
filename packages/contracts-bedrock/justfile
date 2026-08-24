@@ -133,21 +133,44 @@ test *ARGS:
     mkdir -p "$JUNIT_TEST_DIR"
   fi
   rm -f cache/test-failures-amsterdam cache/test-failures-l2
+
+  # Snapshot the pass's failures for `test-rerun`. Forge writes cache/test-failures itself
+  # in normal mode but NOT in --junit mode, so there the snapshot is synthesized from the
+  # pass's JUnit XML in the same format.
+  snapshot_failures() { # <pass-name> <junit-xml-or-empty>
+    if [ -f cache/test-failures ]; then
+      cp cache/test-failures "cache/test-failures-$1"
+    elif [ -n "$2" ] && [ -f "$2" ]; then
+      python3 -c '
+  import sys, json, xml.etree.ElementTree as ET
+  root = ET.parse(sys.argv[1]).getroot()
+  fails = []
+  for ts in root.iter("testsuite"):
+      for tc in ts.iter("testcase"):
+          if tc.find("failure") is not None or tc.find("error") is not None:
+              fails.append({"contract": ts.get("name"), "test": tc.get("name", "").split("(")[0]})
+  print(json.dumps({"version": 1, "failures": fails}))
+  ' "$2" > "cache/test-failures-$1" || rm -f "cache/test-failures-$1"
+    fi
+  }
+
   status=0
   # The path scope goes through FOUNDRY_MATCH_PATH, not --match-path: `{{{{ARGS}}` interpolates
   # unquoted in `_test-single`, so the brace list would be brace-expanded by the shell there.
   if [ -n "$L1_FILES" ]; then
+    rm -f cache/test-failures
     FOUNDRY_MATCH_PATH="./{$(echo "$L1_FILES" | paste -sd, -)}" \
     FOUNDRY_EVM_VERSION=amsterdam \
     JUNIT_TEST_PATH="${JUNIT_TEST_DIR:+$JUNIT_TEST_DIR/results-amsterdam.xml}" \
       just _test-single {{ARGS}} \
-      || { status=1; cp cache/test-failures cache/test-failures-amsterdam 2>/dev/null || true; }
+      || { status=1; snapshot_failures amsterdam "${JUNIT_TEST_DIR:+$JUNIT_TEST_DIR/results-amsterdam.xml}"; }
   fi
   if [ -n "$L2_FILES" ]; then
+    rm -f cache/test-failures
     FOUNDRY_MATCH_PATH="./{$(echo "$L2_FILES" | paste -sd, -)}" \
     JUNIT_TEST_PATH="${JUNIT_TEST_DIR:+$JUNIT_TEST_DIR/results-l2.xml}" \
       just _test-single {{ARGS}} \
-      || { status=1; cp cache/test-failures cache/test-failures-l2 2>/dev/null || true; }
+      || { status=1; snapshot_failures l2 "${JUNIT_TEST_DIR:+$JUNIT_TEST_DIR/results-l2.xml}"; }
   fi
   exit $status
 
@@ -248,20 +271,30 @@ test-upgrade-against-anvil *ARGS: build-go-ffi
 
 # Runs standard contract tests with rerun flag, replaying each pass's failure snapshot from
 # `test` under its matching EVM version. Falls back to a plain rerun when no snapshots exist.
+# FOUNDRY_MATCH_PATH is scoped to the failing files so forge only compiles those.
 test-rerun: build-go-ffi
   #!/bin/bash
   set -euo pipefail
+  match_path_for() { # <failure-snapshot>
+    python3 -c '
+  import json, sys
+  files = sorted({f["contract"].split(":")[0] for f in json.load(open(sys.argv[1]))["failures"]})
+  print("./{" + ",".join(files) + "}")
+  ' "$1"
+  }
   found=0
   if [ -f cache/test-failures-amsterdam ]; then
     found=1
     AMSTERDAM_FORGE_DIR="$(just _amsterdam-forge-dir)"
     export PATH="$AMSTERDAM_FORGE_DIR:$PATH"
     cp cache/test-failures-amsterdam cache/test-failures
+    FOUNDRY_MATCH_PATH="$(match_path_for cache/test-failures-amsterdam)" \
     FOUNDRY_EVM_VERSION=amsterdam forge test --rerun -vvv || true
   fi
   if [ -f cache/test-failures-l2 ]; then
     found=1
     cp cache/test-failures-l2 cache/test-failures
+    FOUNDRY_MATCH_PATH="$(match_path_for cache/test-failures-l2)" \
     forge test --rerun -vvv || true
   fi
   if [ "$found" = 0 ]; then
