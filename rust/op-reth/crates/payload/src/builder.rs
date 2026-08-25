@@ -74,11 +74,15 @@ fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
     entries.iter().map(|entry| entry.gas_refund).sum()
 }
 
-fn build_post_exec_recovered_tx<Tx>(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<Tx>
+fn build_post_exec_recovered_tx<Tx>(
+    block_number: u64,
+    selected_base_fee_per_gas: u64,
+    entries: Vec<SDMGasEntry>,
+) -> Recovered<Tx>
 where
     Tx: From<Sealed<TxPostExec>>,
 {
-    let sealed = build_post_exec_tx(block_number, entries).seal_slow();
+    let sealed = build_post_exec_tx(block_number, selected_base_fee_per_gas, entries).seal_slow();
     Recovered::new_unchecked(Tx::from(sealed), Address::ZERO)
 }
 
@@ -95,6 +99,7 @@ where
 /// that no honest verifier can reproduce.
 fn try_include_post_exec_tx<Tx, Err>(
     block_number: u64,
+    selected_base_fee_per_gas: u64,
     entries: Vec<SDMGasEntry>,
     execute: impl FnOnce(Recovered<Tx>) -> Result<u64, Err>,
 ) -> Result<bool, PayloadBuilderError>
@@ -106,7 +111,8 @@ where
         return Ok(false);
     }
 
-    let post_exec_recovered = build_post_exec_recovered_tx(block_number, entries);
+    let post_exec_recovered =
+        build_post_exec_recovered_tx(block_number, selected_base_fee_per_gas, entries);
 
     execute(post_exec_recovered).map_err(|err| {
         warn!(target: "payload_builder", %err, "post-exec tx execution failed, aborting payload");
@@ -519,9 +525,10 @@ impl<Txs> OpBuilder<'_, Txs> {
         // appending would duplicate it. See `post_exec_mode`.
         let sdm_refund_gas = if produce_post_exec {
             let block_number = builder.evm_mut().block().number().saturating_to();
+            let selected_base_fee_per_gas = builder.evm_mut().block().basefee();
             let entries = builder.executor_mut().take_post_exec_entries();
             let refund_gas = self::sdm_refund_gas(&entries);
-            try_include_post_exec_tx(block_number, entries, |tx| {
+            try_include_post_exec_tx(block_number, selected_base_fee_per_gas, entries, |tx| {
                 builder.execute_transaction(tx).map(|g| g.tx_gas_used())
             })?;
             refund_gas

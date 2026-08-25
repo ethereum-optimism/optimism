@@ -25,7 +25,7 @@ fn append_post_exec_tx(
     block_number: u64,
     gas_refund_entries: Vec<SDMGasEntry>,
 ) {
-    let tx = build_post_exec_tx(block_number, gas_refund_entries);
+    let tx = build_post_exec_tx(block_number, 1, gas_refund_entries);
     let mut encoded = Vec::with_capacity(tx.eip2718_encoded_length());
     tx.encode_2718(&mut encoded);
     transactions.push(encoded.into());

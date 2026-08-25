@@ -153,7 +153,8 @@ fn convert_receipts_extracts_post_exec_gas_refund_from_embedded_payload() {
     let tx_1 =
         OpTransactionSigned::decode_2718(&mut TX_1_OP_MAINNET_BLOCK_124665056.as_slice()).unwrap();
     let post_exec = OpTransactionSigned::PostExec(
-        build_post_exec_tx(124665056, vec![SDMGasEntry { index: 1, gas_refund: 77 }]).seal_slow(),
+        build_post_exec_tx(124665056, 1, vec![SDMGasEntry { index: 1, gas_refund: 77 }])
+            .seal_slow(),
     );
 
     let block = SealedBlock::new_unhashed(Block::<OpTransactionSigned> {
@@ -402,7 +403,7 @@ fn blob_gas_used_zero_in_post_exec_receipt_post_lagoon() {
     const DA_FOOTPRINT_GAS_SCALAR: u16 = 100;
 
     let tx: OpTransactionSigned = OpTransactionSigned::PostExec(
-        build_post_exec_tx(1, vec![SDMGasEntry { index: 1, gas_refund: 77 }]).seal_slow(),
+        build_post_exec_tx(1, 1, vec![SDMGasEntry { index: 1, gas_refund: 77 }]).seal_slow(),
     );
 
     let mut l1_block_info = op_revm::L1BlockInfo {

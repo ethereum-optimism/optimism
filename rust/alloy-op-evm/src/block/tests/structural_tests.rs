@@ -3,7 +3,7 @@ use crate::post_exec::NullRefundPolicy;
 
 fn recovered_post_exec(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<OpTxEnvelope> {
     Recovered::new_unchecked(
-        OpTxEnvelope::PostExec(build_post_exec_tx(block_number, entries).seal_slow()),
+        OpTxEnvelope::PostExec(build_post_exec_tx(block_number, 1, entries).seal_slow()),
         Address::ZERO,
     )
 }
@@ -1079,6 +1079,7 @@ mod warm_set_leak {
         verifier.set_post_exec_mode(PostExecMode::Verify(PostExecPayload {
             version: 1,
             block_number: 0,
+            selected_base_fee_per_gas: 1,
             gas_refund_entries: entries,
         }));
         verifier.execute_transaction(&probe_tx()).expect("validator executes B");

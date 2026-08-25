@@ -49,7 +49,7 @@ fn post_exec_with_encoded(
     payload_entries: Vec<SDMGasEntry>,
 ) -> WithEncoded<OpTransactionSigned> {
     let tx =
-        OpTransactionSigned::from(build_post_exec_tx(block_number, payload_entries).seal_slow());
+        OpTransactionSigned::from(build_post_exec_tx(block_number, 1, payload_entries).seal_slow());
     let encoded = Bytes::from(tx.encoded_2718());
     WithEncoded::new(encoded, tx)
 }
@@ -110,12 +110,17 @@ fn interop_ctx(
     }
 }
 
-fn unwrap_post_exec(tx: Recovered<OpTransactionSigned>) -> (u8, u64, Vec<SDMGasEntry>) {
+fn unwrap_post_exec(tx: Recovered<OpTransactionSigned>) -> (u8, u64, u64, Vec<SDMGasEntry>) {
     let ty = tx.tx().ty();
     let OpTransactionSigned::PostExec(signed) = tx.into_inner() else {
         panic!("expected post-exec transaction");
     };
-    (ty, signed.inner().payload.block_number, signed.inner().payload.gas_refund_entries.clone())
+    (
+        ty,
+        signed.inner().payload.block_number,
+        signed.inner().payload.selected_base_fee_per_gas,
+        signed.inner().payload.gas_refund_entries.clone(),
+    )
 }
 
 fn payload_builder_ctx(
@@ -632,6 +637,7 @@ fn on_commit_reports_canonical_and_pre_refund_gas_separately_under_sdm_refund() 
     let post_exec_payload = PostExecPayload {
         version: POST_EXEC_PAYLOAD_VERSION,
         block_number: 1,
+        selected_base_fee_per_gas: 1,
         gas_refund_entries: entries(&[(0, REFUND)]),
     };
 
@@ -695,20 +701,24 @@ fn execute_best_transactions_respects_gas_limit_cap() {
 fn build_post_exec_recovered_tx_wraps_entries_in_post_exec_tx() {
     let block_number = 42;
     let payload_entries = entries(&[(3, 17), (5, 23)]);
-    let recovered =
-        build_post_exec_recovered_tx::<OpTransactionSigned>(block_number, payload_entries.clone());
+    let recovered = build_post_exec_recovered_tx::<OpTransactionSigned>(
+        block_number,
+        1,
+        payload_entries.clone(),
+    );
 
     assert_eq!(recovered.signer(), Address::ZERO);
-    let (ty, decoded_block, decoded_entries) = unwrap_post_exec(recovered);
+    let (ty, decoded_block, decoded_base_fee, decoded_entries) = unwrap_post_exec(recovered);
     assert_eq!(ty, op_alloy_consensus::POST_EXEC_TX_TYPE_ID);
     assert_eq!(decoded_block, block_number);
+    assert_eq!(decoded_base_fee, 1);
     assert_eq!(decoded_entries, payload_entries);
 }
 
 #[test]
 fn try_include_post_exec_tx_skips_when_no_entries() {
     let called = Cell::new(false);
-    let result = try_include_post_exec_tx::<OpTransactionSigned, _>(1, Vec::new(), |_tx| {
+    let result = try_include_post_exec_tx::<OpTransactionSigned, _>(1, 1, Vec::new(), |_tx| {
         called.set(true);
         Ok::<_, BlockExecutionError>(0)
     });
@@ -720,10 +730,11 @@ fn try_include_post_exec_tx_skips_when_no_entries() {
 fn try_include_post_exec_tx_executes_post_exec_tx_on_happy_path() {
     let block_number = 99;
     let payload_entries = entries(&[(0, 7)]);
-    let captured: Cell<Option<(u8, u64, Vec<SDMGasEntry>)>> = Cell::new(None);
+    let captured: Cell<Option<(u8, u64, u64, Vec<SDMGasEntry>)>> = Cell::new(None);
 
     let result = try_include_post_exec_tx::<OpTransactionSigned, _>(
         block_number,
+        1,
         payload_entries.clone(),
         |tx| {
             captured.set(Some(unwrap_post_exec(tx)));
@@ -732,9 +743,11 @@ fn try_include_post_exec_tx_executes_post_exec_tx_on_happy_path() {
     );
 
     assert!(matches!(result, Ok(true)));
-    let (ty, decoded_block, decoded_entries) = captured.take().expect("execute closure ran");
+    let (ty, decoded_block, decoded_base_fee, decoded_entries) =
+        captured.take().expect("execute closure ran");
     assert_eq!(ty, op_alloy_consensus::POST_EXEC_TX_TYPE_ID);
     assert_eq!(decoded_block, block_number);
+    assert_eq!(decoded_base_fee, 1);
     assert_eq!(decoded_entries, payload_entries);
 }
 
@@ -745,10 +758,15 @@ fn try_include_post_exec_tx_executes_post_exec_tx_on_happy_path() {
 #[test]
 fn try_include_post_exec_tx_aborts_when_execution_fails() {
     let called = Cell::new(false);
-    let result = try_include_post_exec_tx::<OpTransactionSigned, _>(1, entries(&[(0, 7)]), |_tx| {
-        called.set(true);
-        Err::<u64, _>(BlockExecutionError::msg("forced post-exec tx failure"))
-    });
+    let result = try_include_post_exec_tx::<OpTransactionSigned, _>(
+        1,
+        1,
+        entries(&[(0, 7)]),
+        |_tx| {
+            called.set(true);
+            Err::<u64, _>(BlockExecutionError::msg("forced post-exec tx failure"))
+        },
+    );
 
     assert!(called.get(), "execute must be invoked so its error can propagate");
     match result {

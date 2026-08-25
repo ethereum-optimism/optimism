@@ -504,6 +504,7 @@ mod tests {
                 transactions: vec![OpTransactionSigned::PostExec(
                     build_post_exec_tx(
                         tx_block_number,
+                        1,
                         vec![SDMGasEntry { index: 0, gas_refund: 1 }],
                     )
                     .seal_slow(),

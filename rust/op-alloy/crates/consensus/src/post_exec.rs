@@ -36,8 +36,8 @@ pub struct SDMGasEntry {
 
 /// Payload for the post-execution transaction.
 ///
-/// Today this only carries the SDM gas refund data, but additional post-exec fields may
-/// be added in the future.
+/// This carries the sequencer-selected base-fee commitment and SDM gas-refund data. Additional
+/// post-exec fields may be added in the future.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, RlpEncodable, RlpDecodable)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -49,6 +49,8 @@ pub struct PostExecPayload {
     /// This is included in the encoded post-exec transaction so otherwise identical
     /// payloads in different blocks produce distinct transaction hashes.
     pub block_number: u64,
+    /// Base fee per gas selected by the sequencer for the containing block.
+    pub selected_base_fee_per_gas: u64,
     /// Initial SDM gas refund entries keyed by transaction index.
     pub gas_refund_entries: Vec<SDMGasEntry>,
 }
@@ -62,6 +64,7 @@ impl<'a> arbitrary::Arbitrary<'a> for PostExecPayload {
         Ok(Self {
             version: POST_EXEC_PAYLOAD_VERSION,
             block_number: u64::arbitrary(u)?,
+            selected_base_fee_per_gas: u64::arbitrary(u)?,
             gas_refund_entries: <Vec<SDMGasEntry>>::arbitrary(u)?,
         })
     }
@@ -462,10 +465,15 @@ impl From<TxPostExec> for alloy_rpc_types_eth::TransactionRequest {
 }
 
 /// Build a post-execution transaction from a block number and refund entries.
-pub fn build_post_exec_tx(block_number: u64, gas_refund_entries: Vec<SDMGasEntry>) -> TxPostExec {
+pub fn build_post_exec_tx(
+    block_number: u64,
+    selected_base_fee_per_gas: u64,
+    gas_refund_entries: Vec<SDMGasEntry>,
+) -> TxPostExec {
     TxPostExec::new(PostExecPayload {
         version: POST_EXEC_PAYLOAD_VERSION,
         block_number,
+        selected_base_fee_per_gas,
         gas_refund_entries,
     })
 }
