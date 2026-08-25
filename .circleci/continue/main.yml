@@ -1209,9 +1209,9 @@ jobs:
           patterns: <<parameters.check_changed_patterns>>
       - install-solc-compilers
       # Tests outside test/L2 run against the Amsterdam EVM version (see "Run tests"), which the
-      # mise-pinned forge does not know. Amsterdam support was reverted from foundry main in
-      # foundry-rs/foundry#16202 and re-landed in #16204; this is the oldest nightly release
-      # carrying the fix. It shadows the pinned forge for this job via PATH.
+      # mise-pinned forge does not know — Amsterdam needs a forge nightly. nightly-269c7255 is
+      # the floor because the suite uses vm.skip in setUp, which older nightlies misreport as
+      # FAIL (fixed in foundry-rs/foundry#16204). It shadows the pinned forge via PATH.
       - restore_cache:
           name: Restore Amsterdam forge
           keys:
@@ -1291,7 +1291,7 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       # `just test` runs everything outside test/L2 against the Amsterdam EVM version, which
-      # needs an Amsterdam-capable forge nightly (see contracts-bedrock-tests for details).
+      # needs a forge nightly >= 269c7255 (see contracts-bedrock-tests for details).
       - restore_cache:
           name: Restore Amsterdam forge
           keys:

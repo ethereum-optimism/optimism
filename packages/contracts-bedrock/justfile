@@ -86,8 +86,8 @@ _test-single *ARGS: build-go-ffi
 
 # Prints the directory of a forge binary that accepts `--evm-version amsterdam`, preferring
 # the one already on PATH, falling back to AMSTERDAM_FORGE. Callers prepend it to PATH.
-# Amsterdam support was reverted from foundry main in foundry-rs/foundry#16202 and re-landed
-# in #16204; nightly-269c7255... is the oldest release binary carrying the fix.
+# Amsterdam needs a forge nightly. nightly-269c7255... is the floor because this suite uses
+# vm.skip in setUp, which older nightlies misreport as FAIL (fixed in foundry-rs/foundry#16204).
 _amsterdam-forge-dir:
   #!/bin/bash
   set -euo pipefail
