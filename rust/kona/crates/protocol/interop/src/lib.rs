@@ -11,6 +11,9 @@ extern crate alloc;
 mod graph;
 pub use graph::MessageGraph;
 
+mod rules;
+pub use rules::MessageRules;
+
 mod traits;
 pub use traits::InteropProvider;
 
