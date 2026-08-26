@@ -57,6 +57,10 @@ variable "OP_SUPERNODE_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "PROOFBATCH_SUBMITTER_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable "OP_INTEROP_FILTER_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -191,6 +195,19 @@ target "op-supernode" {
   target = "op-supernode-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supernode:${tag}"]
+}
+
+target "proofbatch-submitter" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    PROOFBATCH_SUBMITTER_VERSION = "${PROOFBATCH_SUBMITTER_VERSION}"
+  }
+  target = "proofbatch-submitter-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proofbatch-submitter:${tag}"]
 }
 
 target "op-interop-filter" {

@@ -8,13 +8,25 @@ _LDFLAGSSTRING := "'" + trim(
     "") + "'"
 
 BINARY := "./bin/op-supernode"
+SUBMITTER_BINARY := "./bin/proofbatch-submitter"
+INSPECT_BINARY := "./bin/proofbatch-inspect"
 
 # Build op-supernode binary
 op-supernode: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
 
+# Build proofbatch-submitter binary
+proofbatch-submitter: (go_build SUBMITTER_BINARY "./cmd/proofbatch-submitter" "-ldflags" _LDFLAGSSTRING)
+
+# This one takes no ldflags, unlike every other recipe here: the tool declares no
+# version symbols, and -X against a symbol that does not exist is silently a
+# no-op -- which reads, in a diff, like a version stamp is being applied.
+
+# Build proofbatch-inspect binary
+proofbatch-inspect: (go_build INSPECT_BINARY "./cmd/proofbatch-inspect")
+
 # Clean build artifacts
 clean:
-    rm -f {{BINARY}}
+    rm -f {{BINARY}} {{SUBMITTER_BINARY}} {{INSPECT_BINARY}}
 
 # Run tests
 test: (go_test "./...")

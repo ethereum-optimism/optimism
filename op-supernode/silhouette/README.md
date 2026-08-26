@@ -64,9 +64,10 @@ Measured against the upstream base this branch was cut from, `9104d734a9`:
 | Devstack + acceptance | 14 | 2,714 | 29 | The multi-process two-chain system and the 11-test v1 gate |
 | Contracts | 19 | 2,404 | 10 | The gated portal; the ETH net-flow solvency cap; the home-pinned bridge |
 | kona-derive | 3 | 36 | 2 | The op-stack blob payload decoder, exported for any kona-based reader |
-| Docs | 5 | 1,440 | 0 | This file, the trust model, the runbook, two specs |
+| Docs | 5 | 1,441 | 0 | This file, the trust model, the runbook, two specs |
+| Images | 3 | 50 | 1 | A bake target for the submitter, and the two build recipes behind it. The supernode's image already existed upstream |
 | Misc | 1 | 5 | 0 | `.gitignore` for locally-built binaries |
-| **Total** | **243** | **26,861** | **66** | |
+| **Total** | **246** | **26,912** | **67** | |
 
 **The number to look at first is 71.** A private chain in a public dependency set costs the
 consensus layer three files and two seams, both in the pattern of seams already there. Everything
