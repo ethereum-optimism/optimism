@@ -76,6 +76,11 @@ fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
     entries.iter().map(|entry| entry.gas_refund).sum()
 }
 
+/// Conservative growth reserved for one possible maximum-width refund entry, including RLP list
+/// prefix growth. Only normal transactions can produce entries, but reserving for every included
+/// transaction keeps admission simple and safely bounds the final payload.
+const MAX_POST_EXEC_BYTES_PER_TRANSACTION: u64 = 24;
+
 fn build_post_exec_recovered_tx<Tx>(
     block_number: u64,
     selected_base_fee_per_gas: u64,
@@ -492,6 +497,15 @@ impl<Txs> OpBuilder<'_, Txs> {
 
         // 2. execute sequencer transactions
         let mut info = ctx.execute_sequencer_transactions(&mut builder, None)?;
+        if append_post_exec {
+            let block_number = builder.evm_mut().block().number().saturating_to();
+            let empty_post_exec_size =
+                build_post_exec_tx(block_number, selected_base_fee_per_gas, Vec::new())
+                    .eip2718_encoded_length() as u64;
+            info.reserved_post_exec_bytes = empty_post_exec_size.saturating_add(
+                info.included_transactions.saturating_mul(MAX_POST_EXEC_BYTES_PER_TRANSACTION),
+            );
+        }
 
         // 3. if mem pool transactions are requested we execute them
         if !ctx.attributes().no_tx_pool() {
@@ -526,9 +540,25 @@ impl<Txs> OpBuilder<'_, Txs> {
                 Vec::new()
             };
             let refund_gas = self::sdm_refund_gas(&entries);
+            let post_exec_size =
+                build_post_exec_tx(block_number, selected_base_fee_per_gas, entries.clone())
+                    .eip2718_encoded_length() as u64;
+            let total_uncompressed_bytes =
+                info.cumulative_uncompressed_bytes.saturating_add(post_exec_size);
+            if let Some(max) = ctx.builder_config.max_uncompressed_block_size &&
+                total_uncompressed_bytes > max
+            {
+                return Err(PayloadBuilderError::other(
+                    OpPayloadBuilderError::PostExecExceedsMaxBlockSize {
+                        size: total_uncompressed_bytes,
+                        max,
+                    },
+                ));
+            }
             try_include_post_exec_tx(block_number, selected_base_fee_per_gas, entries, |tx| {
                 builder.execute_transaction(tx).map(|g| g.tx_gas_used())
             })?;
+            info.cumulative_uncompressed_bytes = total_uncompressed_bytes;
             refund_gas
         } else {
             0
@@ -734,6 +764,10 @@ pub struct ExecutionInfo {
     /// so far, in bytes. Bounds the block against the configured
     /// [`max_uncompressed_block_size`](crate::config::OpBuilderConfig::max_uncompressed_block_size).
     pub cumulative_uncompressed_bytes: u64,
+    /// Conservative space held for the mandatory trailing PostExec transaction.
+    pub reserved_post_exec_bytes: u64,
+    /// Number of transactions included before PostExec.
+    pub included_transactions: u64,
     /// Tracks fees from executed mempool transactions
     pub total_fees: U256,
 }
@@ -746,6 +780,8 @@ impl ExecutionInfo {
             cumulative_evm_gas_used: 0,
             cumulative_da_bytes_used: 0,
             cumulative_uncompressed_bytes: 0,
+            reserved_post_exec_bytes: 0,
+            included_transactions: 0,
             total_fees: U256::ZERO,
         }
     }
@@ -792,8 +828,16 @@ impl ExecutionInfo {
         // exceed the configured maximum. This keeps the built payload within the size assumed by
         // consensus-layer clients.
         if let Some(max_uncompressed_block_size) = max_uncompressed_block_size {
-            let total_uncompressed_bytes =
-                self.cumulative_uncompressed_bytes.saturating_add(tx_uncompressed_size);
+            let post_exec_growth = if self.reserved_post_exec_bytes == 0 {
+                0
+            } else {
+                MAX_POST_EXEC_BYTES_PER_TRANSACTION
+            };
+            let total_uncompressed_bytes = self
+                .cumulative_uncompressed_bytes
+                .saturating_add(tx_uncompressed_size)
+                .saturating_add(self.reserved_post_exec_bytes)
+                .saturating_add(post_exec_growth);
             if total_uncompressed_bytes > max_uncompressed_block_size {
                 return true;
             }
@@ -1121,6 +1165,7 @@ where
             // Count the sequencer tx towards the block's uncompressed size so the pool-tx
             // uncompressed-size check starts from the right total.
             info.cumulative_uncompressed_bytes += sequencer_tx.encode_2718_len() as u64;
+            info.included_transactions = info.included_transactions.saturating_add(1);
 
             // Record the successfully committed transaction for callers that want per-call
             // visibility.
@@ -1281,6 +1326,12 @@ where
             info.accumulate_gas(tx_gas_used, evm_gas_used);
             info.cumulative_da_bytes_used += tx_da_size;
             info.cumulative_uncompressed_bytes += tx_uncompressed_size;
+            info.included_transactions = info.included_transactions.saturating_add(1);
+            if info.reserved_post_exec_bytes != 0 {
+                info.reserved_post_exec_bytes = info
+                    .reserved_post_exec_bytes
+                    .saturating_add(MAX_POST_EXEC_BYTES_PER_TRANSACTION);
+            }
 
             // update and add to total fees
             info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);

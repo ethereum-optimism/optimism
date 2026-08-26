@@ -405,6 +405,13 @@ where
         self.pending_base_fee_quote(header).map(Some)
     }
 
+    fn fill_transaction_base_fee(
+        &self,
+        header: &ProviderHeader<Self::Provider>,
+    ) -> Result<Option<u64>, Self::Error> {
+        self.pending_base_fee_quote(header).map(Some)
+    }
+
     async fn gas_price(&self) -> Result<U256, Self::Error> {
         Ok(U256::from(self.latest_pending_base_fee()?) +
             LoadFee::suggested_priority_fee(self).await?)

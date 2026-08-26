@@ -9,12 +9,13 @@ use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_chain_state::ExecutedBlock;
 use reth_errors::RethError;
 use reth_evm::{
-    ConfigureEvm, Evm,
+    Evm,
     execute::{
         BlockAssembler, BlockAssemblerInput, BlockBuilder, BlockBuilderOutcome, BlockExecutor,
     },
 };
 use reth_execution_types::{BlockExecutionOutput, BlockExecutionResult};
+use reth_optimism_evm::{ConfigurePostExecEvm, PostExecMode};
 use reth_optimism_primitives::OpReceipt;
 use reth_primitives_traits::{
     AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy, Recovered, RecoveredBlock,
@@ -116,7 +117,7 @@ impl<N, EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider>
 where
     N: NodePrimitives,
     N::Receipt: FlashblockCachedReceipt,
-    EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
+    EvmConfig: ConfigurePostExecEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
     Provider: StateProviderFactory
         + BlockReaderIdExt<
             Header = HeaderTy<N>,
@@ -270,6 +271,9 @@ where
             None
         };
 
+        let selected_base_fee_per_gas = u64::try_from(args.base.base_fee_per_gas)
+            .map_err(|_| eyre::eyre!("flashblock base fee does not fit in u64"))?;
+
         // Build state with appropriate prestate
         // - Speculative builds use pending parent prestate
         // - Canonical cache-hit builds use cached prefix prestate
@@ -289,103 +293,110 @@ where
             State::builder().with_database(cached_db).with_bundle_update().build()
         };
 
-        let (execution_result, block, hashed_state, bundle) = if let Some(cached_prefix) =
-            cached_prefix
-        {
-            // Cached prefix execution model:
-            // - The cached bundle prestate already includes pre-execution state changes
-            //   (blockhash/beacon root updates, create2deployer), so we do NOT call
-            //   apply_pre_execution_changes() again.
-            // - The only pre-execution effect we need is set_state_clear_flag, which configures EVM
-            //   empty-account handling (OP Stack chains activate Spurious Dragon at genesis, so
-            //   this is always true).
-            // - Suffix transactions execute against the warm prestate.
-            // - Post-execution (finish()) runs once on the suffix executor, producing correct
-            //   results for the full block. For OP Stack post-merge, the
-            //   post_block_balance_increments are empty (no block rewards, no ommers, no
-            //   withdrawals passed), so finish() only seals execution state.
-            let attrs = args.base.clone().into();
-            let evm_env =
-                self.evm_config.next_evm_env(parent_header, &attrs).map_err(RethError::other)?;
-            let execution_ctx = self
-                .evm_config
-                .context_for_next_block(parent_header, attrs)
-                .map_err(RethError::other)?;
-
-            let evm = self.evm_config.evm_with_env(&mut state, evm_env);
-            let mut executor = self.evm_config.create_executor(evm, execution_ctx.clone());
-
-            for tx in transactions.iter().skip(cached_prefix.cached_tx_count).cloned() {
-                let _gas_used = executor.execute_transaction(tx)?;
-            }
-
-            let (evm, suffix_execution_result) = executor.finish()?;
-            let (db, evm_env) = evm.finish();
-            db.merge_transitions(BundleRetention::Reverts);
-
-            let execution_result =
-                Self::merge_cached_and_suffix_results(cached_prefix, suffix_execution_result);
-
-            let (hashed_state, state_root) = if args.compute_state_root {
-                trace!(target: "flashblocks", "Computing block state root");
-                let hashed_state = state_provider.hashed_post_state(&db.bundle_state);
-                let (state_root, _) = state_provider
-                    .state_root_with_updates(hashed_state.clone())
+        let (execution_result, block, hashed_state, bundle) =
+            if let Some(cached_prefix) = cached_prefix {
+                // Cached prefix execution model:
+                // - The cached bundle prestate already includes pre-execution state changes
+                //   (blockhash/beacon root updates, create2deployer), so we do NOT call
+                //   apply_pre_execution_changes() again.
+                // - The only pre-execution effect we need is set_state_clear_flag, which configures
+                //   EVM empty-account handling (OP Stack chains activate Spurious Dragon at
+                //   genesis, so this is always true).
+                // - Suffix transactions execute against the warm prestate.
+                // - Post-execution (finish()) runs once on the suffix executor, producing correct
+                //   results for the full block. For OP Stack post-merge, the
+                //   post_block_balance_increments are empty (no block rewards, no ommers, no
+                //   withdrawals passed), so finish() only seals execution state.
+                let attrs = args.base.clone().into();
+                let evm_env = self
+                    .evm_config
+                    .next_evm_env_with_base_fee(parent_header, &attrs, selected_base_fee_per_gas)
                     .map_err(RethError::other)?;
-                (hashed_state, state_root)
-            } else {
-                let noop_provider = NoopProvider::default();
-                let hashed_state = noop_provider.hashed_post_state(&db.bundle_state);
-                let (state_root, _) = noop_provider
-                    .state_root_with_updates(hashed_state.clone())
+                let execution_ctx = self
+                    .evm_config
+                    .context_for_next_block(parent_header, attrs)
                     .map_err(RethError::other)?;
-                (hashed_state, state_root)
-            };
-            let bundle = db.take_bundle();
 
-            let (block_transactions, senders): (Vec<_>, Vec<_>) =
-                transactions.iter().map(|tx| tx.1.clone().into_parts()).unzip();
-            let block = self
-                .evm_config
-                .block_assembler()
-                .assemble_block(BlockAssemblerInput::new(
-                    evm_env,
-                    execution_ctx,
-                    parent_header,
-                    block_transactions,
-                    &execution_result,
-                    &bundle,
-                    &state_provider,
-                    state_root,
-                    None,
-                ))
-                .map_err(RethError::other)?;
-            let block = RecoveredBlock::new_unhashed(block, senders);
+                let evm = self.evm_config.evm_with_env(&mut state, evm_env);
+                let mut executor = self.evm_config.create_executor(evm, execution_ctx.clone());
 
-            (execution_result, block, hashed_state, bundle)
-        } else {
-            let mut builder = self
-                .evm_config
-                .builder_for_next_block(&mut state, parent_header, args.base.clone().into())
-                .map_err(RethError::other)?;
+                for tx in transactions.iter().skip(cached_prefix.cached_tx_count).cloned() {
+                    let _gas_used = executor.execute_transaction(tx)?;
+                }
 
-            builder.apply_pre_execution_changes()?;
+                let (evm, suffix_execution_result) = executor.finish()?;
+                let (db, evm_env) = evm.finish();
+                db.merge_transitions(BundleRetention::Reverts);
 
-            for tx in transactions {
-                let _gas_used = builder.execute_transaction(tx)?;
-            }
+                let execution_result =
+                    Self::merge_cached_and_suffix_results(cached_prefix, suffix_execution_result);
 
-            let BlockBuilderOutcome { execution_result, block, hashed_state, .. } =
-                if args.compute_state_root {
+                let (hashed_state, state_root) = if args.compute_state_root {
                     trace!(target: "flashblocks", "Computing block state root");
-                    builder.finish(&state_provider, None)?
+                    let hashed_state = state_provider.hashed_post_state(&db.bundle_state);
+                    let (state_root, _) = state_provider
+                        .state_root_with_updates(hashed_state.clone())
+                        .map_err(RethError::other)?;
+                    (hashed_state, state_root)
                 } else {
-                    builder.finish(NoopProvider::default(), None)?
+                    let noop_provider = NoopProvider::default();
+                    let hashed_state = noop_provider.hashed_post_state(&db.bundle_state);
+                    let (state_root, _) = noop_provider
+                        .state_root_with_updates(hashed_state.clone())
+                        .map_err(RethError::other)?;
+                    (hashed_state, state_root)
                 };
-            let bundle = state.take_bundle();
+                let bundle = db.take_bundle();
 
-            (execution_result, block, hashed_state, bundle)
-        };
+                let (block_transactions, senders): (Vec<_>, Vec<_>) =
+                    transactions.iter().map(|tx| tx.1.clone().into_parts()).unzip();
+                let block = self
+                    .evm_config
+                    .block_assembler()
+                    .assemble_block(BlockAssemblerInput::new(
+                        evm_env,
+                        execution_ctx,
+                        parent_header,
+                        block_transactions,
+                        &execution_result,
+                        &bundle,
+                        &state_provider,
+                        state_root,
+                        None,
+                    ))
+                    .map_err(RethError::other)?;
+                let block = RecoveredBlock::new_unhashed(block, senders);
+
+                (execution_result, block, hashed_state, bundle)
+            } else {
+                let mut builder = self
+                    .evm_config
+                    .post_exec_builder_for_next_block(
+                        &mut state,
+                        parent_header,
+                        args.base.clone().into(),
+                        PostExecMode::Disabled,
+                        selected_base_fee_per_gas,
+                    )
+                    .map_err(RethError::other)?;
+
+                builder.apply_pre_execution_changes()?;
+
+                for tx in transactions {
+                    let _gas_used = builder.execute_transaction(tx)?;
+                }
+
+                let BlockBuilderOutcome { execution_result, block, hashed_state, .. } =
+                    if args.compute_state_root {
+                        trace!(target: "flashblocks", "Computing block state root");
+                        builder.finish(&state_provider, None)?
+                    } else {
+                        builder.finish(NoopProvider::default(), None)?
+                    };
+                let bundle = state.take_bundle();
+
+                (execution_result, block, hashed_state, bundle)
+            };
 
         // Update transaction cache if provided (only in canonical mode)
         if let Some(cache) = tx_cache &&
@@ -598,7 +609,9 @@ mod tests {
             gas_limit: 30_000_000,
             timestamp: latest.timestamp() + 2,
             extra_data: Default::default(),
-            base_fee_per_gas: U256::from(1_000_000_000u64),
+            // Deliberately differs from the parent-derived fee to prove flashblock replay uses the
+            // producer-provided value.
+            base_fee_per_gas: U256::from(777u64),
         };
         let base_parent_hash = base.parent_hash;
 
@@ -631,6 +644,15 @@ mod tests {
             .expect("first build is canonical");
 
         assert_eq!(first.pending_state.execution_outcome.result.receipts.len(), 2);
+        assert_eq!(
+            first
+                .pending_state
+                .sealed_header
+                .as_ref()
+                .expect("flashblock build seals a header")
+                .base_fee_per_gas(),
+            Some(777),
+        );
 
         let cached_hashes = vec![tx_a_hash, tx_b_hash];
         let (bundle, receipts, requests, gas_used, blob_gas_used, skip) = tx_cache

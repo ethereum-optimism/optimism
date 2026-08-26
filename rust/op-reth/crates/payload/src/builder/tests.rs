@@ -503,6 +503,12 @@ fn is_tx_over_limits_enforces_max_uncompressed_block_size() {
 
     // One byte over the limit is rejected (100 + 51 > 150).
     assert!(info.is_tx_over_limits(0, u64::MAX, None, None, 0, None, 51, Some(150)));
+
+    // A Lagoon build reserves both the current PostExec encoding and worst-case growth for the
+    // candidate transaction before admitting it.
+    info.reserved_post_exec_bytes = 10;
+    assert!(!info.is_tx_over_limits(0, u64::MAX, None, None, 0, None, 15, Some(149)));
+    assert!(info.is_tx_over_limits(0, u64::MAX, None, None, 0, None, 16, Some(149)));
 }
 
 #[test]

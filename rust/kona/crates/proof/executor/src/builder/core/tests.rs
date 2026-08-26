@@ -181,6 +181,8 @@ async fn post_exec_valid_empty_payload_matches_synthesized_commitment() {
     assert_eq!(outcome.header.state_root, baseline.header.state_root);
     assert_eq!(outcome.header.transactions_root, baseline.header.transactions_root);
     assert_eq!(outcome.header.receipts_root, baseline.header.receipts_root);
+    assert_eq!(outcome.transactions, baseline.transactions);
+    assert_eq!(baseline.transactions.last().and_then(|tx| tx.first()), Some(&0x7d));
 }
 
 #[tokio::test]

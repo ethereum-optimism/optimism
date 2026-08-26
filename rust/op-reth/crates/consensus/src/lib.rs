@@ -102,22 +102,14 @@ where
     }
 
     fn validate_block_pre_execution(&self, block: &SealedBlock<B>) -> Result<(), ConsensusError> {
-        // Check ommers hash
-        let ommers_hash = block.body().calculate_ommers_root();
-        if Some(block.ommers_hash()) != ommers_hash {
-            return Err(ConsensusError::BodyOmmersHashDiff(
-                GotExpected {
-                    got: ommers_hash.unwrap_or(EMPTY_OMMER_ROOT_HASH),
-                    expected: block.ommers_hash(),
-                }
-                .into(),
-            ));
-        }
-
-        // Check transaction root
-        if let Err(error) = block.ensure_transaction_root_valid() {
-            return Err(ConsensusError::BodyTransactionRootDiff(error.into()));
-        }
+        // Engine API imports enter through pre-execution validation rather than the separate
+        // body-against-header path used by downloaded blocks. Keep all body commitments,
+        // including Lagoon's selected base fee, identical on both paths.
+        validation::validate_body_against_header_op(
+            &self.chain_spec,
+            block.body(),
+            block.header(),
+        )?;
 
         // Check empty shanghai-withdrawals
         if self.chain_spec.is_canyon_active_at_timestamp(block.timestamp()) {
@@ -500,6 +492,36 @@ mod tests {
             ConsensusError::BlobGasUsedDiff(diff)
                 if diff.got == BLOB_GAS_USED + 1 && diff.expected == BLOB_GAS_USED
         ));
+    }
+
+    #[test]
+    fn test_pre_execution_rejects_missing_lagoon_post_exec() {
+        let chain_spec = OpChainSpecBuilder::default()
+            .lagoon_activated()
+            .genesis(OP_MAINNET.genesis.clone())
+            .chain(OP_MAINNET.chain)
+            .build();
+        let consensus = OpBeaconConsensus::new(Arc::new(chain_spec));
+        let transaction = mock_tx(0);
+        let header = Header {
+            base_fee_per_gas: Some(777),
+            withdrawals_root: Some(proofs::calculate_withdrawals_root(&[])),
+            blob_gas_used: Some(0),
+            transactions_root: proofs::calculate_transaction_root(std::slice::from_ref(
+                &transaction,
+            )),
+            timestamp: u64::MAX,
+            ..Default::default()
+        };
+        let body = BlockBody {
+            transactions: vec![transaction],
+            ommers: vec![],
+            withdrawals: Some(Withdrawals::default()),
+        };
+        let block = SealedBlock::seal_slow(alloy_consensus::Block { header, body });
+
+        let err = consensus.validate_block_pre_execution(&block).unwrap_err();
+        assert!(err.to_string().contains("missing post-exec transaction in Lagoon block"));
     }
 
     #[test]

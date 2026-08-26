@@ -17,6 +17,7 @@ use alloy_op_evm::{
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
 };
 use alloy_op_hardforks::OpHardforks;
+use alloy_primitives::Bytes;
 use core::fmt::Debug;
 use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
@@ -380,7 +381,11 @@ where
 
         // Update the parent block hash in the state database, preparing for the next block.
         self.trie_db.set_parent_block_header(header.clone());
-        Ok((header, ex_result).into())
+        Ok(BlockBuildingOutcome {
+            header,
+            execution_result: ex_result,
+            transactions: attrs.transactions.unwrap_or_default(),
+        })
     }
 }
 
@@ -395,14 +400,11 @@ pub struct BlockBuildingOutcome<Receipt> {
     pub header: Sealed<Header>,
     /// The block execution result.
     pub execution_result: BlockExecutionResult<Receipt>,
-}
-
-impl<Receipt> From<(Sealed<Header>, BlockExecutionResult<Receipt>)>
-    for BlockBuildingOutcome<Receipt>
-{
-    fn from((header, execution_result): (Sealed<Header>, BlockExecutionResult<Receipt>)) -> Self {
-        Self { header, execution_result }
-    }
+    /// Exact EIP-2718 transaction encodings committed by the block header.
+    ///
+    /// This may differ from the input attributes when deterministic Lagoon execution synthesizes
+    /// the mandatory trailing PostExec commitment.
+    pub transactions: Vec<Bytes>,
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 package sdm
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
@@ -24,8 +25,7 @@ func TestSDMDisabledNoRefunds(gt *testing.T) {
 	block, included, targetBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().GreaterOrEqual(len(included), 2, "target block must contain multiple user txs")
 
-	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
-	t.Require().Nil(postExecTx, "SDM-disabled sequencer must not include a post-exec tx")
+	assertEmptyPostExecCommitment(t, block, "SDM-disabled sequencer")
 
 	for _, receipt := range included {
 		refund, present := getOPGasRefund(t, sys.L2EL, receipt.TxHash)
@@ -43,8 +43,7 @@ func TestSDMOptInIsInertOnStockOpReth(gt *testing.T) {
 
 	block, included, targetBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().GreaterOrEqual(len(included), 2, "stock-null target block must contain user txs")
-	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
-	t.Require().Nil(postExecTx, "active and opted-in stock op-reth must not produce a post-exec tx")
+	assertEmptyPostExecCommitment(t, block, "active stock op-reth")
 	for _, receipt := range included {
 		refund, present := getOPGasRefund(t, sys.L2EL, receipt.TxHash)
 		t.Require().False(present, "stock-null receipt must omit opGasRefund")
@@ -54,8 +53,7 @@ func TestSDMOptInIsInertOnStockOpReth(gt *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		sdmtest.SetSDMEnabled(t, sys.L2EL, enabled)
 		probeBlock, probeReceipt := submitFixtureProbe(t, sys)
-		probePostExec, _ := sdmpkg.FindPostExecTransaction(probeBlock)
-		t.Require().Nil(probePostExec, "stock op-reth opt-in=%v must remain inert", enabled)
+		assertEmptyPostExecCommitment(t, probeBlock, fmt.Sprintf("stock op-reth opt-in=%v", enabled))
 		_, present := getOPGasRefund(t, sys.L2EL, probeReceipt.TxHash)
 		t.Require().False(present, "stock op-reth opt-in=%v receipt must omit opGasRefund", enabled)
 	}
@@ -100,8 +98,7 @@ func TestSDMFixtureOperatorOptInControlsProduction(gt *testing.T) {
 
 	sdmtest.SetSDMEnabled(t, sys.L2EL, false)
 	offBlock, offReceipt := submitFixtureProbe(t, sys)
-	offPostExec, _ := sdmpkg.FindPostExecTransaction(offBlock)
-	t.Require().Nil(offPostExec, "opt-in off must suppress fixture post-exec production")
+	assertEmptyPostExecCommitment(t, offBlock, "fixture opt-in off")
 	_, present := getOPGasRefund(t, sys.L2EL, offReceipt.TxHash)
 	t.Require().False(present, "opt-in off receipt must omit opGasRefund")
 
@@ -111,10 +108,19 @@ func TestSDMFixtureOperatorOptInControlsProduction(gt *testing.T) {
 
 	sdmtest.SetSDMEnabled(t, sys.L2EL, false)
 	offAgainBlock, offAgainReceipt := submitFixtureProbe(t, sys)
-	offAgainPostExec, _ := sdmpkg.FindPostExecTransaction(offAgainBlock)
-	t.Require().Nil(offAgainPostExec, "second opt-in off must suppress fixture post-exec production")
+	assertEmptyPostExecCommitment(t, offAgainBlock, "fixture opt-in off again")
 	_, present = getOPGasRefund(t, sys.L2EL, offAgainReceipt.TxHash)
 	t.Require().False(present, "second opt-in off receipt must omit opGasRefund")
+}
+
+func assertEmptyPostExecCommitment(t devtest.T, block *sdmpkg.RPCBlock, producer string) {
+	postExecTx, postExecPos := sdmpkg.FindPostExecTransaction(block)
+	t.Require().NotNil(postExecTx, "%s must include the Lagoon post-exec commitment", producer)
+	t.Require().Equal(len(block.Transactions)-1, postExecPos, "%s post-exec commitment must be trailing", producer)
+	payload, err := optypes.DecodePostExecPayload(postExecTx.Input)
+	t.Require().NoError(err, "%s post-exec commitment must decode", producer)
+	t.Require().Equal(uint64(block.Number), payload.BlockNumber, "%s commitment must match its block", producer)
+	t.Require().Empty(payload.GasRefundEntries, "%s must not commit SDM refunds", producer)
 }
 
 func submitFixtureProbe(t devtest.T, sys *sdmtest.RethSystem) (*sdmpkg.RPCBlock, *types.Receipt) {
