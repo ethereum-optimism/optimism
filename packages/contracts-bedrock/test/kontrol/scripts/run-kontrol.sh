@@ -141,6 +141,11 @@ if [ "$SCRIPT_TESTS" == true ]; then
     "OptimismPortal2Kontrol.prove_checkWithdrawal_trustsAnchorStateRegistry"
     "OptimismPortal2Kontrol.prove_ethLockbox_unlocksExactValue"
     "OptimismPortal2Kontrol.prove_ethLockbox_roundTripPreservesValue"
+    "DisputeGameStatusKontrol.prove_faultDisputeGame_challengerWinsIsTerminal"
+    "DisputeGameStatusKontrol.prove_permissionedDisputeGame_challengerWinsIsTerminal"
+    "DisputeGameStatusKontrol.prove_superFaultDisputeGame_challengerWinsIsTerminal"
+    "DisputeGameStatusKontrol.prove_zkDisputeGame_challengerWinsIsTerminal"
+    "DisputeGameStatusKontrol.prove_superPermissionedDisputeGame_challengerWinsStorageIsTerminal"
     "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused"
     "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused"
     "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused"
@@ -160,7 +165,7 @@ done
 max_depth=10000
 max_iterations=10000
 smt_timeout=100000
-max_workers=16 # Set to 16 since there are 16 proofs to run
+max_workers=16 # Cap parallel proof execution to avoid overloading CI workers.
 # workers is the minimum between max_workers and the length of test_list unless
 # no test arguments are provided, in which case we default to max_workers
 if [ "$CUSTOM_TESTS" == 0 ] && [ "$SCRIPT_TESTS" == false ]; then
