@@ -34,6 +34,26 @@ impl BaseFeePolicy for FixedBaseFeePolicy {
     }
 }
 
+#[derive(Debug)]
+struct SimulationBaseFeePolicy;
+
+impl BaseFeePolicy for SimulationBaseFeePolicy {
+    fn select_base_fee(&self, _input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
+        Ok(SELECTED_BASE_FEE)
+    }
+
+    fn quote_base_fee(&self, input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
+        if input.next_timestamp == 100 {
+            Ok(input.next_timestamp)
+        } else {
+            Err(BaseFeePolicyError::msg(format!(
+                "unexpected simulation timestamp {}",
+                input.next_timestamp
+            )))
+        }
+    }
+}
+
 #[tokio::test]
 async fn pending_rpc_and_txpool_use_selected_base_fee() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
@@ -106,6 +126,76 @@ async fn pending_rpc_and_txpool_use_selected_base_fee() -> eyre::Result<()> {
         )
         .await?;
     assert!(estimated >= U256::from(21_000));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn simulation_quotes_effective_timestamp_only_when_needed() -> eyre::Result<()> {
+    reth_tracing::init_test_tracing();
+
+    let genesis: Genesis = serde_json::from_str(include_str!("../assets/genesis.json"))?;
+    let chain_spec = Arc::new(
+        OpChainSpecBuilder::optimism_sepolia().genesis(genesis).lagoon_activated().build(),
+    );
+
+    let mut network_args = NetworkArgs::default().with_unused_ports();
+    network_args.discovery.discv5_port = Some(0);
+    network_args.discovery.discv5_port_ipv6 = Some(0);
+    let node_config = NodeConfig::test()
+        .map_chain(chain_spec)
+        .with_network(network_args)
+        .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
+    let op_node = OpNode::default().with_base_fee_policy(Arc::new(SimulationBaseFeePolicy));
+
+    let NodeHandle { node, node_exit_future: _ } =
+        NodeBuilder::new(node_config).testing_node(Runtime::test()).node(op_node).launch().await?;
+    let client = node.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
+
+    // Validation-disabled simulations do not need a sequencer fee quote.
+    let without_validation: Vec<serde_json::Value> = client
+        .request(
+            "eth_simulateV1",
+            rpc_params![json!({
+                "blockStateCalls": [{ "calls": [] }],
+                "validation": false
+            })],
+        )
+        .await?;
+    assert_eq!(without_validation.len(), 1);
+
+    // An explicit base fee also makes the policy irrelevant, even with validation enabled.
+    let explicit_fee: Vec<serde_json::Value> = client
+        .request(
+            "eth_simulateV1",
+            rpc_params![json!({
+                "blockStateCalls": [{
+                    "blockOverrides": {
+                        "time": "0x3",
+                        "baseFeePerGas": "0x2a"
+                    },
+                    "calls": []
+                }],
+                "validation": true
+            })],
+        )
+        .await?;
+    assert_eq!(explicit_fee[0]["baseFeePerGas"], json!("0x2a"));
+
+    // Without an explicit fee, the quote observes the sanitized simulation timestamp.
+    let quoted_fee: Vec<serde_json::Value> = client
+        .request(
+            "eth_simulateV1",
+            rpc_params![json!({
+                "blockStateCalls": [{
+                    "blockOverrides": { "time": "0x64" },
+                    "calls": []
+                }],
+                "validation": true
+            })],
+        )
+        .await?;
+    assert_eq!(quoted_fee[0]["baseFeePerGas"], json!("0x64"));
 
     Ok(())
 }
