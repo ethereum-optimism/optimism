@@ -1,0 +1,280 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_input",
+        "type": "string"
+      }
+    ],
+    "name": "deriveHashOnce",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "hashOnce_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract Safe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "enum Enum.Operation",
+            "name": "operation",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "safeTxGas",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "baseGas",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "gasToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address payable",
+            "name": "refundReceiver",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct UnorderedExecutionModule.ExecTransactionParams",
+        "name": "_params",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_hashOnce",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_signatures",
+        "type": "bytes"
+      }
+    ],
+    "name": "execute",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "returnData_",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract Safe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_txHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "executed",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "executed_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract Safe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "enum Enum.Operation",
+            "name": "operation",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "safeTxGas",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "baseGas",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "gasToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address payable",
+            "name": "refundReceiver",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct UnorderedExecutionModule.ExecTransactionParams",
+        "name": "_params",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_hashOnce",
+        "type": "uint256"
+      }
+    ],
+    "name": "transactionHash",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "txHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract Safe",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "txHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "TransactionExecuted",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnorderedExecutionModule_AlreadyExecuted",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "name": "UnorderedExecutionModule_ExecutionFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnorderedExecutionModule_HashOnceTooSmall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnorderedExecutionModule_InsufficientGas",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnorderedExecutionModule_InvalidSafeVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnorderedExecutionModule_ModuleNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnorderedExecutionModule_RefundNotSupported",
+    "type": "error"
+  }
+]
