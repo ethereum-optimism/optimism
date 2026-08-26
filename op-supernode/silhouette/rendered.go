@@ -27,7 +27,7 @@ import (
 //
 // Sharing the assembler is not tidiness. G2 D2.4's field list is normative across three
 // implementations, and a second copy of it in the shim would be a second chance to diverge from the
-// guest on a field nobody looks at until a hash disagrees.
+// prover on a field nobody looks at until a hash disagrees.
 //
 // What is REAL in a rendered header (fabrication class 1, served verbatim): parentHash, number,
 // timestamp, stateRoot, withdrawalsRoot (= the message-passer storage root), and — for proven

@@ -166,8 +166,8 @@ func (s *Shim) dropJobs() {
 // GetPayloadV4 assembles the envelope for an open build job. THE FAIL-STOP LIVES HERE.
 //
 // The block it describes must already be a fact: either PROVEN — its hash, state root and
-// message-passer root came off the wire inside something a SNARK committed to — or FORCED, computed
-// by the forced-extension convention that the guest and the superroot program compute identically.
+// message-passer root came off the wire, inside an accepted proof batch — or FORCED, computed
+// by the forced-extension convention that the prover and the superroot program compute identically.
 // There is no third kind. If neither holds, this returns an error and the chain's public rendering
 // stops, which is the entire point: derivation may never outrun the proof stream, and a shim that
 // invented a block would make the chain's public identity a claim by this process rather than by a

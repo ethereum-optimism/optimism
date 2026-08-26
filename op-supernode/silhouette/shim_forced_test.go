@@ -23,7 +23,7 @@ import (
 // that served only pre-recorded forced facts would stall the chain's public rendering precisely when
 // a dead prover is supposed to cost nothing. An engine that described whatever the pipeline asked for
 // would have no fail-stop at all. The resolution is that the shim computes the forced block through
-// the SHARED convention (the same code the guest is matched against) and refuses anything that does
+// the SHARED convention (the same code a prover is matched against) and refuses anything that does
 // not look like a window-expired forced block.
 //
 // These gates exercise both halves against the real stock generator.
@@ -50,7 +50,7 @@ func TestStockNodeForcesBlocksThroughTheShim(t *testing.T) {
 
 	// The forced facts the ENGINE computed must be exactly the ones the convention predicts. This is
 	// the cross-check that matters: ForcedExtension is what a resuming batch is chained against (G2's
-	// resumeHead) and what the guest and the superroot program compute, so the engine agreeing with it
+	// resumeHead) and what the prover and the superroot program compute, so the engine agreeing with it
 	// is what keeps three implementations on one chain.
 	provenHead, ok := e.facts.ByNumber(last.Number)
 	require.True(t, ok)

@@ -24,9 +24,10 @@ import (
 // The Cove proof-batch wire format is pinned by fixtures rather than by an implementation: the bytes
 // are the contract, and any second implementation is checked against them instead of against this
 // code. The corpus is a wire record, so it is language-agnostic and lives beside the codec that
-// reads it. What produced it — the prover-side Rust codec — is not on this branch; it is on
-// `karl/silhouette-guest`. These bytes are therefore the frozen record of the agreement rather than
-// a build output of either side, which is the only form that survives one side being absent.
+// reads it. What produced it — the prover-side codec — is not on this branch; the shelf branch that
+// carries it is named in ../silhouette/README.md §"What is deliberately not here". These bytes are
+// therefore the frozen record of the agreement rather than a build output of either side, which is
+// the only form that survives one side being absent.
 const fixtureDir = "testdata/proof-batch"
 
 type fixtureIndex struct {
@@ -34,8 +35,8 @@ type fixtureIndex struct {
 	Version int    `json:"version"`
 	// ExportPolicyHash / ExportPolicyV2Hash are the same fact under either name the generator
 	// might use; whichever is present is checked against this side's default policy. Accepting
-	// both is deliberate: the generator lives on another branch (`karl/silhouette-guest`), and a
-	// key rename is not worth a red cross-language gate.
+	// both is deliberate: the generator lives on a shelf branch, off this one, and a key rename is
+	// not worth a red cross-language gate.
 	ExportPolicyHash   common.Hash   `json:"exportPolicyHash"`
 	ExportPolicyV2Hash common.Hash   `json:"exportPolicyV2Hash"`
 	Cases              []fixtureCase `json:"cases"`
@@ -147,7 +148,7 @@ func requireFixtures(t *testing.T) {
 	_, err := os.Stat(filepath.Join(fixtureDir, "index.json"))
 	if errors.Is(err, fs.ErrNotExist) {
 		t.Skipf("canonical proof-batch fixtures are absent from %s; they are produced by the "+
-			"prover-side codec on karl/silhouette-guest, so cross-language verification is skipped", fixtureDir)
+			"prover-side codec on a shelf branch, so cross-language verification is skipped", fixtureDir)
 	}
 	require.NoError(t, err)
 }
@@ -174,7 +175,7 @@ func requireReadableFixtures(t *testing.T, idx *fixtureIndex) uint8 {
 	version := uint8(idx.Version) //nolint:gosec // a version byte; the range check is the next line
 	if _, err := argsFor(version); err != nil {
 		t.Skipf("proof-batch fixtures in %s are version %d, which this codec does not implement "+
-			"(it reads %d and %d); regenerate them from the prover-side codec on karl/silhouette-guest",
+			"(it reads %d and %d); regenerate them from the prover-side codec on the shelf branch",
 			fixtureDir, idx.Version, VersionV2, Version)
 	}
 	return version
@@ -189,7 +190,7 @@ func TestFixturesCoverCurrentVersion(t *testing.T) {
 	readFixtureJSON(t, "index.json", &idx)
 	if idx.Version != Version {
 		t.Skipf("the canonical fixtures are version %d; wire version %d (execMsgs) is pinned only by "+
-			"this side's own layout tests until the Rust crate regenerates the set. "+
+			"this side's own layout tests until the corpus is regenerated. "+
 			"Byte-identity for v%d is UNVERIFIED across languages.", idx.Version, Version, Version)
 	}
 	require.Equal(t, Version, idx.Version)
@@ -310,7 +311,7 @@ func TestFixtures(t *testing.T) {
 			}
 
 			// Byte-identity in the encoding direction too: this is what makes the Go submitter
-			// able to post batches the Rust prover side would produce identically.
+			// able to post batches a prover side would produce identically.
 			reEncoded, err := EncodeAs(&env.Batch, env.Proof, version)
 			require.NoError(t, err)
 			require.Equal(t, bin, reEncoded)

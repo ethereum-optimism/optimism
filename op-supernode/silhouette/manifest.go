@@ -66,7 +66,7 @@ func (m ManifestChain) LabelSource() (LabelSource, error) {
 
 // LoadManifest reads a silhouette manifest and every verifier config it names.
 //
-// Both halves are loaded here, at startup, rather than lazily at chain construction: a bad vkey
+// Both halves are loaded here, at startup, rather than lazily at chain construction: a bad config
 // path or an unparseable config is a reason not to start, and a supernode that discovered it while
 // bringing up its third chain would leave the first two running against a cluster it cannot join.
 func LoadManifest(path string) (*Manifest, error) {

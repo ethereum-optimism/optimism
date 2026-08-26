@@ -19,12 +19,12 @@ import (
 // proof batch, stock derivation force-generates empty blocks. That is DESIGNED liveness (PLAN.md,
 // DR-2): a dead prover can never stall the dependency set's cross-safe frontier. It also means the
 // verifier must be able to say exactly which blocks those are and exactly what they hash to,
-// because three implementations have to agree on it — this one, the Rust guest, and the superroot
+// because three implementations have to agree on it — this one, the prover, and the superroot
 // program — and because the shim EL's fail-stop guard serves proven-or-forced facts and nothing
-// else.
+// else. Only this one is on this branch; the other two are prover-side, on the shelf.
 //
 // The normative text is g-decisions.md G2 D2, corrected by G2 D7. This file is the executable form
-// of it, and the tests in forced_test.go are the executable spec the guest is matched against.
+// of it, and the tests in forced_test.go are the executable spec a prover is matched against.
 //
 // The one thing to hold on to while reading: a forced block is not an EVM block. It carries one
 // transaction that nothing ever executed, so it has a transaction and no receipt. State does not
@@ -44,7 +44,7 @@ import (
 // L1Headers is the L1 access forced-block computation needs: headers by number, on the canonical
 // chain this node follows. Nothing here reads receipts — a forced block has no deposits to derive
 // (DR-2) and the SystemConfig is frozen, so the L1 walk is headers-only, which is the same property
-// that makes the guest's L1 walk cheap.
+// that makes a prover's L1 walk cheap.
 type L1Headers interface {
 	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)

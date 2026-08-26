@@ -9,7 +9,7 @@
 // signed by the submitter key, acceptance rule 1 binds every accepted batch to that key, and so
 // posting a batch IS the operator putting their name on it. Nothing is proven and nothing pretends to
 // be — the proof slot goes out empty and a verifier in attested mode requires it to be. See
-// /home/main/op/silhouette/TRUST-MODEL.md.
+// op-supernode/silhouette/docs/TRUST-MODEL.md.
 //
 //	proofbatch-submitter --l1-eth-rpc … --private-key … --inbox 0x… --envelope batch.bin
 //	proofbatch-submitter --l1-eth-rpc … --private-key … --inbox 0x… \
@@ -138,7 +138,7 @@ var (
 		Name: "wire-version",
 		Usage: "REQUIRED. Proof-batch envelope version to post (2 = exports only; 3 = exports plus the " +
 			"import list the cross-safety judge validates). Must match what every verifier is " +
-			"configured to accept, and what the guest that produced the proofs commits to.",
+			"configured to accept, and what the prover that produced the proofs commits to.",
 		EnvVars: prefixEnvVars("WIRE_VERSION"),
 	}
 )

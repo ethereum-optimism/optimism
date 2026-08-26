@@ -32,7 +32,7 @@ import (
 //     a bug and it is not a gap in the implementation: it is what attestation means, and a system
 //     whose weakness lives only in a document is a system whose weakness will be forgotten.
 //
-// See /home/main/op/silhouette/TRUST-MODEL.md.
+// See op-supernode/silhouette/docs/TRUST-MODEL.md.
 
 // TestAttestedIsTheConfiguredProvingSystem is the label, stated once, so that every other assertion in
 // this package is known to be about the attested system.

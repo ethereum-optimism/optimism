@@ -10,10 +10,10 @@
 // beacon node, a fixture, or a submitter's own output, without credentials and without a chance of
 // touching a live cluster. The runbook's §10.2 pairs it with one curl.
 //
-// It VERIFIES NOTHING about the proof. Checking a SNARK is the verifier's job, it needs a verifying
-// key, and a tool that half-checked would be worse than one that plainly does not: everything printed
-// here is a claim read off the wire, and the whole value of the output is that it says what the
-// PROVER asserted rather than what anybody believes.
+// It VERIFIES NOTHING about the proof. Checking a proof is the verifier's job and needs a proving
+// system this tool has no part of, and a tool that half-checked would be worse than one that plainly
+// does not: everything printed here is a claim read off the wire, and the whole value of the output
+// is that it says what the PRODUCER asserted rather than what anybody believes.
 package main
 
 import (

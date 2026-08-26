@@ -102,7 +102,7 @@ type AssemblyConfig struct {
 // is that there is no batch data and there never will be — P's public history arrives as proofs, on
 // a different L1 address, read by a different code path — so any epoch this pipeline declares empty
 // is an epoch it invented. The committed finite window (DR-2) is a statement about the PROVEN
-// rendering of P, which the verifiers and the guest implement and which this value does not touch;
+// rendering of P, which the verifiers and the prover implement and which this value does not touch;
 // see the `committed` copy in Assemble.
 //
 // Why it is set here and not in the operator's rollup.json: a rollup.json is a file that gets

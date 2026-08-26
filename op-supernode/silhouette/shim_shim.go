@@ -40,7 +40,7 @@ import (
 // settlement claims, through code with no idea any of this is happening.
 //
 // THE HONEST PRICE (declared, not smoothed). This service speaks the execution vocabulary about
-// things that never happened. "VALID" means continuity plus a SNARK, not execution. The receipts
+// things that never happened. "VALID" means continuity plus acceptance, not execution. The receipts
 // root is the empty-receipts constant for a block that has a transaction. gasUsed is zero. The
 // headers deliberately do not re-hash to the hashes served alongside them. Three things keep that
 // from being a lie told to a machine that would believe it:

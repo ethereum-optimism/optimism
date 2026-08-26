@@ -24,7 +24,7 @@ import (
 //  2. deposit_contract_address points at the GATED portal. It is deployed and it reverts on deposit.
 //     The address must still be real and correct, because stock derivation reads deposit events from
 //     it — it just never finds any, which is what makes every epoch derive deposit-free by
-//     construction and the guest's L1 walk headers-only.
+//     construction and a prover's L1 walk headers-only.
 //  3. Every fork is active at genesis. That is what removes activation blocks, which in turn is what
 //     keeps a forced block single-transaction (an activation block would carry the fork's upgrade
 //     transactions and an inflated gas limit) — see G2 D2.1.
@@ -177,7 +177,7 @@ func RollupConfigFor(p SilhouetteParams) (*rollup.Config, error) {
 
 // checkSilhouetteInvariants asserts the properties the rest of the stack relies on. They are checked
 // rather than commented because each one, if violated, breaks something far away: a stock derivation
-// rule, the forced-extension convention, or the guest's headers-only L1 walk.
+// rule, the forced-extension convention, or a prover's headers-only L1 walk.
 func checkSilhouetteInvariants(cfg *rollup.Config) error {
 	// FINITE and short (DR-2). An infinite or very long window means a dead prover stalls P for that
 	// long; the whole forced-extension convention exists to bound it.

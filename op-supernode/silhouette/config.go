@@ -69,8 +69,8 @@ type Config struct {
 	// RollupConfigHash says WHICH chain a batch is about: without it, a valid proof of some other
 	// chain's derivation would be accepted as this one's history.
 	RollupConfigHash common.Hash `json:"rollupConfigHash"`
-	// DepSetHash is the dependency set the guest built interop attributes from. A batch derived
-	// under a different dep set is a different chain's history.
+	// DepSetHash is the dependency set the batch's interop attributes were built from. A batch
+	// derived under a different dep set is a different chain's history.
 	DepSetHash common.Hash `json:"depSetHash"`
 	// L1StartBlock is the first L1 block the SEQUENCER posture's proven-head tracker scans for proof
 	// batches. Zero means the anchor's L1 origin, which is the lowest block that can carry a batch
@@ -116,16 +116,16 @@ type Config struct {
 	// WireVersion is the proof-batch envelope version this verifier accepts. EXACTLY one, and zero
 	// means the codec's current version.
 	//
-	// One version rather than a set, and the reason is the vkey. A verifier's vkey pins the guest,
-	// the guest pins the object it commits to, and the object's version decides whether this node
+	// One version rather than a set, and the reason is the acceptance rule. A verifier's config pins
+	// the version it accepts, and that version decides whether this node
 	// CHECKS a proven chain's dependencies (v3, the import list is on the wire) or TRUSTS them (v2,
 	// the wire says nothing about imports). A node that accepted both would silently apply the weaker
 	// posture to a chain whose operator believes it is running the stronger one — the failure mode
 	// there is not "a batch was rejected", it is "nothing was checked and everything looked fine".
 	//
 	// So a v2→v3 rotation is TWO configured verifiers, each strict, not one lenient one. That is what
-	// makes a dark launch a comparison rather than a merge: the same L1, two inboxes, two vkeys, two
-	// wire versions, and every value on both sides diffable. See rotation/ROTATION-V3.md.
+	// makes a dark launch a comparison rather than a merge: the same L1, two inboxes, two configs, two
+	// wire versions, and every value on both sides diffable.
 	WireVersion uint8 `json:"wireVersion,omitempty"`
 	// L1ChainConfigPath supplies the settlement chain's config for an L1 that is not one of the
 	// public networks — a devnet, or a local cluster.
@@ -257,7 +257,7 @@ func (c *Config) checkProofType() error {
 		return fmt.Errorf("mockProofs is retired: name the proving system in words instead — "+
 			"proofType: %s. The mode it selected did not change and was never a stub: "+
 			"`mockProofs: true` is `proofType: %s`, v1's real proving system, and it is called that "+
-			"because that is what it is (see TRUST-MODEL.md)", proofTypeList(), ProofTypeAttested)
+			"because that is what it is (see docs/TRUST-MODEL.md)", proofTypeList(), ProofTypeAttested)
 	}
 	if c.ProofType == "" {
 		return fmt.Errorf("proofType is required (%s): the trust model is never a default", proofTypeList())
@@ -280,7 +280,7 @@ func (c *Config) checkProofType() error {
 }
 
 // Attested reports whether this verifier rests a batch's validity on the operator's attestation
-// rather than on a proof of the derivation. It is the trust model in one boolean; TRUST-MODEL.md is
+// rather than on a proof of the derivation. It is the trust model in one boolean; docs/TRUST-MODEL.md is
 // the same thing in prose.
 func (c *Config) Attested() bool { return c.ProofType == ProofTypeAttested }
 

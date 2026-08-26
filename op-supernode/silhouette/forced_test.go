@@ -17,7 +17,7 @@ import (
 )
 
 // These tests ARE the executable spec of the forced-extension convention (g-decisions.md G2 D2, as
-// corrected by G2 D7). The Rust guest and the superroot program must produce the same blocks, so
+// corrected by G2 D7). The prover and the superroot program must produce the same blocks, so
 // every expectation here is written as a closed-form value rather than as whatever the code happens
 // to return: a test that asserted "the same thing the implementation did" would agree with a wrong
 // implementation.
@@ -54,7 +54,7 @@ func forcedTestParams() ForcedParams {
 // The window predicate is `epoch.number + seq_window_size <= pipeline_origin`, evaluated against the
 // OLDEST buffered epoch, and forced blocks fill the current epoch up to the next epoch's L1
 // timestamp before the epoch advances by exactly one. The counts below are the arithmetic of that
-// rule with a 60-block window, 12-second L1 and 2-second L2, and they are the numbers the guest has
+// rule with a 60-block window, 12-second L1 and 2-second L2, and they are the numbers the prover has
 // to reproduce.
 func TestForcedExtensionWindowPredicate(t *testing.T) {
 	parent := provenParent()
@@ -221,7 +221,7 @@ func TestForcedBlockIdentitySTF(t *testing.T) {
 }
 
 // TestForcedBlockHeaderFields pins every remaining header field of a forced block. This is the
-// field-by-field table of G2 D2.4 as assertions; a guest that disagrees with any line here produces
+// field-by-field table of G2 D2.4 as assertions; a prover that disagrees with any line here produces
 // a different block hash and the convention breaks.
 func TestForcedBlockHeaderFields(t *testing.T) {
 	parent := provenParent()
@@ -248,7 +248,7 @@ func TestForcedBlockHeaderFields(t *testing.T) {
 
 	// G2 D7: the base fee is PINNED to the frozen SystemConfig's minimum, not computed by the stock
 	// formula. The stock formula needs parent.baseFee and parent.gasUsed, and neither is on the wire —
-	// so a verifier could not compute it while the guest could, which is exactly the asymmetry that
+	// so a verifier could not compute it while the prover could, which is exactly the asymmetry that
 	// would have shipped a silent divergence.
 	require.Equal(t, big.NewInt(0), h.BaseFee, "min base fee is 0 on this config")
 

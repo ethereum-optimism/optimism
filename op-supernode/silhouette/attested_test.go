@@ -135,9 +135,9 @@ func TestAttestedModeRefusesProofBytesAtTheAcceptancePath(t *testing.T) {
 // TestAttestedChainIsRenderedWithoutAProvingToolchain is the v1 pitch as an assertion.
 //
 // The claim is that a verifier of an attested silhouette chain holds no proving-system artefact of
-// any kind: no verifying key, no circuit key, no path to one. It is easy to believe and easy to lose
-// — a single config field added "so the flip is ready" would make every v1 deployment carry a vkey it
-// does not use and cannot check, and nothing would fail.
+// any kind: no proving-system key, no circuit artefact, no path to one. It is easy to believe and
+// easy to lose — a single config field added "so the flip is ready" would make every v1 deployment
+// carry a proving-system key it does not use and cannot check, and nothing would fail.
 func TestAttestedChainIsRenderedWithoutAProvingToolchain(t *testing.T) {
 	e := newTestEnv(t, l1GenesisNum+10)
 	require.NoError(t, e.cfg.Check())

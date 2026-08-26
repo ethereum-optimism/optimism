@@ -150,8 +150,8 @@ func TestPreV3WireLeavesDependenciesUnknown(t *testing.T) {
 }
 
 // TestVerifierAcceptsExactlyItsConfiguredWireVersion is the rotation's config gate, in both
-// directions. A verifier's vkey pins its guest and its guest pins the wire version, so a node that
-// read the other version would be applying a dependency posture its operator did not choose.
+// directions. A verifier's config pins the one wire version it accepts, so a node that read the
+// other version would be applying a dependency posture its operator did not choose.
 func TestVerifierAcceptsExactlyItsConfiguredWireVersion(t *testing.T) {
 	t.Run("a v3 node refuses a v2 batch", func(t *testing.T) {
 		e := newTestEnv(t, l1GenesisNum+10)

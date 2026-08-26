@@ -6,7 +6,7 @@
     1,
     2
   ],
-  "retiredCorpus": "../proof-batch-v2/ — the complete frozen v2 fixture tree, kept as the pre-rotation record. The test that reads it to prove the backwards version gate against real v2 bytes is the prover-side one, on karl/silhouette-guest; on this branch the tree is the record, and the version gate is covered by the flipped-byte case here (retired-version-0x02).",
+  "retiredCorpus": "../proof-batch-v2/ — the complete frozen v2 fixture tree, kept as the pre-rotation record. The test that reads it to prove the backwards version gate against real v2 bytes is prover-side, on the shelf branch named in op-supernode/silhouette/README.md; on this branch the tree is the record, and the version gate is covered by the flipped-byte case here (retired-version-0x02).",
   "exportPolicyLabel": "cove-export-v2:all-hashes",
   "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
   "exportPolicyV2Label": "cove-export-v2:all-hashes",

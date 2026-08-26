@@ -30,7 +30,7 @@ type Verifier interface {
 //
 // This is NOT a stub, and the naming carries the whole point: an attested batch is a claim the
 // operator has staked their identity on, and this node accepts it on that basis. What that does and
-// does not buy is written down in TRUST-MODEL.md — authenticity, structure and cross-chain import
+// does not buy is written down in docs/TRUST-MODEL.md — authenticity, structure and cross-chain import
 // consistency are real; state validity is not.
 //
 // The empty proof slot is enforced, and loudly. A batch carrying proof bytes is refused rather than

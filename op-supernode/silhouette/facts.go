@@ -29,9 +29,9 @@ const (
 //
 // It covers both kinds of block, and the distinction is load-bearing rather than cosmetic:
 //
-//   - a PROVEN block's roots and hash came off the wire inside something a SNARK committed to;
+//   - a PROVEN block's roots and hash came off the wire, inside an accepted proof batch;
 //   - a FORCED block's came from the forced-extension convention (G2 D2/D7), computed identically
-//     by this node, the guest and the superroot program.
+//     by this node, the producer and the superroot program.
 //
 // Those are the only two provenances that exist. G3's shim serves getPayload from this table and
 // fails stop on anything absent from it, so "proven-or-forced facts, nothing else" is enforced by
@@ -272,7 +272,7 @@ func (f *FactStore) CarrierOf(number uint64) (eth.BlockID, bool) {
 // L1 block below ref.Number has been processed". Forward progress makes this a no-op; a stock
 // pipeline reset makes it the correct rewind. There is no separate reset protocol and no reset hook
 // on the data-source interface, which is why acceptance stays a pure function of L1 — the same
-// property SPEC-PROOF-BATCH.md rule 4 already demands when it measures l1Head depth against the
+// property docs/SPEC-WIRE-V3.md rule 4 already demands when it measures l1Head depth against the
 // carrying block rather than the live head.
 //
 // Forced blocks are dropped with the batch they sat on top of: they are a function of the proven

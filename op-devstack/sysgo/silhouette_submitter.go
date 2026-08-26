@@ -507,7 +507,7 @@ func (s *ProofBatchSubmitter) blockExport(ctx context.Context, number uint64) (*
 		}
 	}
 	// THE IMPORT LIST (wire v3), through the SHARED canonical extraction rather than a second copy of
-	// it. The real guest does this in-circuit from the same receipts; this harness must not be able to
+	// it. A real prover does this in-circuit from the same receipts; this harness must not be able to
 	// produce an import list the node would not — filter, order, dedup and the abort-on-malformed rule
 	// all live in one place (proofbatch.ExecMsgsFromLogs).
 	imports, err := proofbatch.ExecMsgsFromLogs(logs)

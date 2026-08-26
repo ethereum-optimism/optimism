@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// TestV1ExampleConfigLoads keeps RUNNING-V1.md honest.
+// TestV1ExampleConfigLoads keeps docs/RUNNING-V1.md honest.
 //
 // The example under example/v1 is what a reader copies, so it is loaded through the SAME
 // LoadManifest/LoadConfig path the supernode uses at startup, with DisallowUnknownFields and Check

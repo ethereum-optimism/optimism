@@ -76,7 +76,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 	}
 
 	// Which of the configured chains, if any, are proof-carried. Loaded before any chain is built
-	// so an unparseable manifest or a missing verifying key stops the process rather than half of
+	// so an unparseable manifest or a missing verifier config stops the process rather than half of
 	// it. Nil manifest means no chain is a silhouette chain and every construction below is
 	// untouched.
 	var silhouettes *silhouette.Manifest

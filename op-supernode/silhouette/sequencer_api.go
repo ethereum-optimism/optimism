@@ -68,7 +68,7 @@ type ProvenHeadStatus struct {
 	// it is the one number that distinguishes "no proofs are landing" from "this node has stopped
 	// looking", which are the same symptom and different incidents.
 	TrackerCursor hexutil.Uint64 `json:"trackerCursor"`
-	// CommittedSeqWindowSize is the sequencing window the proofs, the guest and every verifier are
+	// CommittedSeqWindowSize is the sequencing window the proofs, the prover and every verifier are
 	// computed under, including the forced-extension convention this node applies.
 	CommittedSeqWindowSize hexutil.Uint64 `json:"committedSeqWindowSize"`
 	// PipelineSeqWindowSize is the window this node's OWN derivation pipeline runs with, which is

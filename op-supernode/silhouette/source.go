@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/proofbatch"
 )
 
-// The injected data source: the single seam that turns a ZK proof-batch posted on L1 into stock
+// The injected data source: the single seam that turns a proof batch posted on L1 into stock
 // OP-Stack derivation input.
 //
 // It sits exactly where a DA plugin sits, and it is the ONLY non-stock thing on the derivation path.
@@ -32,7 +32,7 @@ import (
 // not a parallel pipeline that imitates derivation, but real derivation fed a synthesised input.
 //
 // Reading order: OpenData rewinds chaining state to match the L1 cursor (G2 D5), the iterator does
-// the work lazily, accept applies SPEC-PROOF-BATCH.md's rules 1–5, and transcode turns accepted
+// the work lazily, accept applies docs/SPEC-WIRE-V3.md's acceptance rules 1-5, and transcode turns accepted
 // blocks into frames under the rendered-origin convention (G2 D4).
 
 // L1Source is the L1 access this source needs. Note what is absent: receipts. P takes no deposits
@@ -314,7 +314,7 @@ func isRetryable(err error) bool {
 
 func retryable(err error) error { return retryableError{err} }
 
-// accept applies SPEC-PROOF-BATCH.md's verifier acceptance rules and, only if all of them hold,
+// accept applies docs/SPEC-WIRE-V3.md's verifier acceptance rules and, only if all of them hold,
 // records the batch's facts and returns the channel frames it transcodes to.
 func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockRef, txHash common.Hash) ([]byte, error) {
 	// Rule 2: the envelope, at EXACTLY the version this node is configured for. The version is part
@@ -473,13 +473,13 @@ func (s *DataSource) resumeHead(ctx context.Context, head Fact, b *proofbatch.Pr
 	return tip, nil
 }
 
-// checkL1Head requires the L1 head the in-circuit derivation ran against to be a block on the chain
+// checkL1Head requires the L1 head the batch's own derivation ran against to be a block on the chain
 // this node follows, no deeper than the configured depth and no later than the block that carried
 // the batch.
 //
 // This is the whole of the batch's L1-side binding: everything the chain consumed from L1 was read
-// inside the circuit under this head, so pinning the head to this node's canonical chain pins all of
-// it. Depth is measured against the CARRYING block rather than this node's live head so that
+// under this head by whatever produced the batch, so pinning the head to this node's canonical chain
+// pins all of it. Depth is measured against the CARRYING block rather than this node's live head so
 // acceptance is a function of L1 alone — proven history is re-derived from l1StartBlock on every
 // restart, and a rule that referred to "now" would accept a batch on first sight and reject the same
 // batch on replay.

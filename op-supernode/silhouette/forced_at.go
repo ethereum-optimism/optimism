@@ -37,7 +37,7 @@ import (
 // The honest scope of that asymmetry is recorded as G3 D5. The stock pipeline downstream is the
 // authority on which blocks the chain gets — whatever it generates is what the chain gets — so the
 // engine's job is not to second-guess it but to refuse to invent a block the convention does not
-// define, and to compute the one it does define byte-identically to the guest and the superroot
+// define, and to compute the one it does define byte-identically to the prover and the superroot
 // program.
 func ForcedBlockAt(
 	ctx context.Context,

@@ -70,7 +70,7 @@ func testExecMsg() ExecMsg {
 
 // TestPublicValuesLayout pins the v3 ABI encoding against the layout the spec's Solidity struct
 // implies, written out word by word rather than produced by this codec. It is the standalone
-// counterpart to the cross-language fixtures: if the Rust set is not in the tree, this is still
+// counterpart to the cross-language fixtures: if the canonical set is not in the tree, this is still
 // what stops a field being added, reordered or re-typed unnoticed.
 //
 // The v3 half that needs pinning is not just "there is one more field": ExecMsg is a STATIC tuple
@@ -403,7 +403,7 @@ func TestOutputRootDerivation(t *testing.T) {
 }
 
 // TestPreimageHashing pins the preimage encoding: the emitting address, then the topics, then the
-// data — the plainest encoding that determines the log hash, chosen so the Rust side cannot drift
+// data — the plainest encoding that determines the log hash, chosen so a second implementation cannot drift
 // from it through a serialization format.
 func TestPreimageHashing(t *testing.T) {
 	log := &types.Log{
@@ -479,7 +479,7 @@ func TestDecodeRejections(t *testing.T) {
 		require.ErrorIs(t, err, ErrBadVersion)
 	})
 	// v2 is the version v3 replaced. A v3-configured node refuses it — the point of the rotation is
-	// that a node accepts exactly what its vkey pins — even though this codec can still read it.
+	// that a node accepts exactly what its config pins — even though this codec can still read it.
 	t.Run("version 2 against a v3 node", func(t *testing.T) {
 		bad := append([]byte{}, valid...)
 		bad[4] = VersionV2
@@ -921,7 +921,7 @@ func TestExecMsgSortKeyIsTotal(t *testing.T) {
 
 	// ...and the transposition trap, which is why this is worth a test rather than a comment: the
 	// CHECKSUM's packing swaps logIndex and timestamp relative to the identifier's declaration order
-	// (SPEC-WIRE-V3 §6). A key accidentally built in the checksum's order would order these two the
+	// (op-supernode/silhouette/docs/SPEC-WIRE-V3.md §6). A key accidentally built in the checksum's order would order these two the
 	// other way round, so they must not be interchangeable here.
 	byLogIdx, byTS := base, base
 	byLogIdx.Identifier.LogIndex, byLogIdx.Identifier.Timestamp = 9, 1

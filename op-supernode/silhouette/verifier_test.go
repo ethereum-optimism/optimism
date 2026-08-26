@@ -51,7 +51,7 @@ func TestProofTypeIsNeverADefault(t *testing.T) {
 	cfg.ProofType = ""
 	require.ErrorContains(t, cfg.Check(), "proofType is required")
 
-	cfg.ProofType = "sp1"
+	cfg.ProofType = "plonk"
 	require.ErrorContains(t, cfg.Check(), "unknown proofType")
 
 	// ...and a Config assembled in Go that skipped Check must not get a verifier by default either.
@@ -108,8 +108,8 @@ func TestMockProofsIsRetired(t *testing.T) {
 }
 
 // attestedTestConfig is a minimal valid v1 verifier config: two addresses, three commitments, an
-// anchor, and the proving system in words. Notably absent, and worth noticing: any vkey, any circuit
-// artifact, any path to a proving toolchain.
+// anchor, and the proving system in words. Notably absent, and worth noticing: any proving-system
+// key, any circuit artifact, any path to a proving toolchain.
 func attestedTestConfig() *Config {
 	return &Config{
 		L1ChainID:        11155111,

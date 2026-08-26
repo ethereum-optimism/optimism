@@ -156,7 +156,7 @@ func TestSequencerPostureDisarmsTheFrozenSafeHeadHazards(t *testing.T) {
 //
 // The disarm inflates the VIRTUAL NODE's sequencing window. The forced-extension convention is
 // computed from a sequencing window too — `epoch.Number + SeqWindowSize` against the pipeline origin
-// (forced.go) — and it is a PUBLIC rule: the guest, every verifier and this node must all compute the
+// (forced.go) — and it is a PUBLIC rule: the prover, every verifier and this node must all compute the
 // same forced blocks or they are describing different chains. If the proof-facing side read the
 // virtual node's config instead of a copy, the disarm would silently make the sequencer the only
 // node in the cluster that never computes a forced block, and the disagreement would surface as its

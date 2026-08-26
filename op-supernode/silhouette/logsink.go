@@ -78,7 +78,7 @@ var ErrForeignHistory = errors.New("log store holds foreign history")
 // the wire.
 //
 // This is the ingestion half of "a proven chain is a chain whose execution client is a verifier":
-// the chain's initiating messages come out of the object a SNARK committed to, not out of receipts
+// the chain's initiating messages come out of the accepted proof batch, not out of receipts
 // produced by re-executing it. Three properties are the design, and each is asserted by a test:
 //
 //   - EXPLICIT INDICES. Every log lands on the block-level index the wire names, with poison in the

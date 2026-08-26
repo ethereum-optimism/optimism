@@ -2,11 +2,11 @@
 // chain's prover posts to L1 blobs so that a verifier which does NOT derive that chain can still
 // cross-safe its messages.
 //
-// The authoritative spec is keccak-cove/SPEC-PROOF-BATCH.md. Two implementations build against it
-// (this one and the Rust prover-side codec in rust/kona/sp1/crates/proof-batch), so everything here
-// is byte-exact by construction: the public values are the ABI encoding the SP1 program commits
-// to, and the envelope framing is fixed-width big-endian. The Rust side owns the golden fixtures;
-// fixtures_test.go reads that one copy rather than mirroring it.
+// The authoritative spec is op-supernode/silhouette/docs/SPEC-WIRE-V3.md. Two implementations build against it
+// (this one and a prover-side codec, off this branch), so everything here is byte-exact by
+// construction: the public values are the ABI encoding a proving program commits to, and the
+// envelope framing is fixed-width big-endian. Neither implementation owns the format — the fixture
+// corpus in testdata does, and fixtures_test.go checks this code against it.
 //
 //	magic     "KCPB"          4 bytes
 //	version   0x03            1 byte
@@ -19,12 +19,12 @@
 //
 // v3 adds ONE field: each block's ExecMsgs, the executing messages that block consumed. v2 said
 // what a private chain EXPORTED and nothing about what it IMPORTED, which left its cross-chain
-// reads proof-trusted — the guest asserted them and the public network took its word. With the
+// reads proof-trusted — the prover asserted them and the public network took its word. With the
 // import list on the wire the claim becomes conditional and checkable ("P's STF is correct AND the
 // only cross-chain facts it assumed are exactly these"), so the public cross-safety machinery
 // validates a proven chain's dependencies exactly like a driven chain's.
 //
-// Both versions are decodable here, and that is deliberate: a v2→v3 rotation is a vkey rotation, so
+// Both versions are decodable here, and that is deliberate: a v2→v3 rotation is a config rotation, so
 // a verifier must be configurable to accept exactly one of them (see DecodeAs) rather than to guess.
 package proofbatch
 
@@ -109,8 +109,8 @@ type LogExport struct {
 	// Preimage is the log's content: its 20-byte emitting address followed by
 	// messages.LogToMessagePayload (the topics concatenated, then the data). It is empty unless
 	// the export policy includes preimages. When non-empty it MUST hash to Hash, which is
-	// checked in-guest and again at decode (see checkLogs), so a preimage-bearing batch cannot
-	// carry content that disagrees with the hash the proof committed to.
+	// checked proving-side and again at decode (see checkPreimages), so a preimage-bearing batch
+	// cannot carry content that disagrees with the hash the proof committed to.
 	Preimage []byte
 }
 
@@ -161,7 +161,7 @@ const execMsgKeyLen = 6 * 32
 // sorted by, and the only thing that makes "a set" a byte-exact object.
 //
 // It is the 192-byte ABI ENCODING of the six fields in DECLARATION order — each field in one 32-byte
-// big-endian word, origin left-padded (SPEC-WIRE-V3 D17):
+// big-endian word, origin left-padded (op-supernode/silhouette/docs/SPEC-WIRE-V3.md D17):
 //
 //	origin(32, left-padded) ‖ blockNumber(32) ‖ logIndex(32) ‖ timestamp(32) ‖ chainId(32) ‖ msgHash(32)
 //
@@ -211,7 +211,7 @@ func (e *ExecMsg) Executing() *messages.ExecutingMessage {
 
 // ExecMsgsFromLogs is the canonical extraction: one block's logs in, its wire import list out.
 //
-// It is the Go side of SPEC-WIRE-V3 §4, and it exists as one function because there must be exactly
+// It is the Go side of op-supernode/silhouette/docs/SPEC-WIRE-V3.md §4, and it exists as one function because there must be exactly
 // one answer to "what does this block import" for every Go producer — a harness that extracted its
 // own way would be testing agreement between two of this repo's opinions rather than agreement with
 // the format.
@@ -229,7 +229,7 @@ func (e *ExecMsg) Executing() *messages.ExecutingMessage {
 //     and the right topic but its body does not decode, that is not "no import here" — it is a block
 //     whose import list this code cannot determine, and continuing would silently commit to a set
 //     that omits a message the block really consumed. That omission is exactly what the conditional
-//     validity claim forbids. Pinned identically on the Rust side (G7R D4, which deliberately adopted
+//     validity claim forbids. Pinned identically on the proving side (G7R D4, which deliberately adopted
 //     the stricter of the two available decoders).
 func ExecMsgsFromLogs(logs []*types.Log) ([]ExecMsg, error) {
 	var out []ExecMsg
@@ -339,7 +339,7 @@ func (b *BlockExport) OutputRoot() common.Hash {
 // ProofBatch is the public values of a range proof: what the prover claims, and everything a
 // verifier needs to bind that claim to its own view of L1.
 //
-// Batch and deposit binding come from the in-circuit derivation itself — the proof derives the
+// Batch and deposit binding come from the derivation the batch claims — the prover derives the
 // range from L1 data under L1Head — so the only bindings left for a verifier are that L1Head is
 // really on its L1, and that the chain the prover derived (RollupConfigHash, DepSetHash) and the
 // filter it exported under (ExportPolicyHash) are the ones this node was configured for.
@@ -426,9 +426,9 @@ func checkExecMsgs(blk *BlockExport) error {
 // them (`buildCycleGraph`, `executingMessageBefore`), and wire v3 deliberately carries no position.
 // Admitting the class with invented positions could hide a real cycle or invent a false one, so the
 // class is refused instead — which makes the honest claim "a proven chain contributes no
-// same-timestamp executing messages" true by construction rather than by convention. The Rust lane
-// reached the same conclusion independently and from the other side (G7R D10, `SameTimestampEdgeRefused`
-// in the consolidation kernel), so the guest never PRODUCES one and a verifier never ACCEPTS one.
+// same-timestamp executing messages" true by construction rather than by convention. The proving
+// lane reached the same conclusion independently, from the other side (G7R D10, `SameTimestampEdgeRefused`
+// in its consolidation kernel), so a producer never PRODUCES one and a verifier never ACCEPTS one.
 //
 // The strictly-greater case, which stock interop treats as invalid (ErrTimestampViolation), is
 // refused by the same comparison.
@@ -623,7 +623,7 @@ func mustProofBatchType(version uint8) abi.Type {
 	return t
 }
 
-// EncodePublicValues ABI-encodes a proof batch at the current wire version: the bytes the SP1
+// EncodePublicValues ABI-encodes a proof batch at the current wire version: the bytes a proving
 // program commits to.
 func EncodePublicValues(b *ProofBatch) ([]byte, error) {
 	return EncodePublicValuesAs(b, Version)
@@ -790,7 +790,7 @@ func Encode(b *ProofBatch, proof []byte) ([]byte, error) {
 }
 
 // EncodeAs frames a proof batch at an explicit wire version. It exists for the rotation: a
-// dual-running submitter posts the same history to two inboxes under two vkeys, and a fixture
+// dual-running submitter posts the same history to two inboxes under two configs, and a fixture
 // generator must be able to produce the version it is pinning.
 func EncodeAs(b *ProofBatch, proof []byte, version uint8) ([]byte, error) {
 	pv, err := EncodePublicValuesAs(b, version)
@@ -824,9 +824,9 @@ func Decode(data []byte) (*Envelope, error) {
 
 // DecodeAs parses envelope bytes, accepting EXACTLY the given wire version.
 //
-// One version, not a set, and that is the config story for the rotation. A verifier's vkey pins the
-// guest, and the guest pins the version it commits to, so a node that accepted both would be
-// claiming a flexibility its proof verification does not have — and would silently apply the weaker
+// One version, not a set, and that is the config story for the rotation. A verifier's config pins
+// the version it accepts, and a producer commits to one version, so a node that accepted both would
+// be claiming a flexibility its acceptance rule does not have — and would silently apply the weaker
 // v2 dependency posture to a chain the operator believes is running v3. Two versions in flight means
 // two configured verifiers, each strict, which is also what makes a dark launch comparable.
 //

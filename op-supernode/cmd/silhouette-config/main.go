@@ -5,13 +5,13 @@
 // differs from a stock chain's — a finite sequencing window, a deposit contract that reverts, every
 // fork active at genesis — are properties a hand-edited JSON file loses silently. Generating it runs
 // checkSilhouetteInvariants over the result, so a config that would break the forced-extension
-// convention or the guest's headers-only L1 walk fails here rather than in a proof six hours later.
+// convention or a prover's headers-only L1 walk fails here rather than in a proof six hours later.
 //
-// The output is the file the verifier, the sequencer's op-node and the guest all read, and its
+// The output is the file the verifier, the sequencer's op-node and the prover all read, and its
 // sha256-of-canonical-JSON is the rollupConfigHash the wire binds. See the rotation runbook for how
-// that hash is computed (it is kona's serialization of the PARSED config, so it is computed by the
-// guest, not here — a second implementation of a consensus-critical hash is exactly what we do not
-// want).
+// that hash is computed (it is kona's serialization of the PARSED config, so it is computed on the
+// proving side, not here — a second implementation of a consensus-critical hash is exactly what we
+// do not want).
 package main
 
 import (

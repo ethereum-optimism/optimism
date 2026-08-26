@@ -202,7 +202,7 @@ func TestTheDisarmIsPostureScoped(t *testing.T) {
 
 	// The pipeline the bomb would fire in: disarmed.
 	require.Equal(t, SequencerPostureSeqWindow, e.vncfg.Rollup.SeqWindowSize)
-	// The rule every verifier and the guest also compute: untouched.
+	// The rule every verifier and the prover also compute: untouched.
 	require.Equal(t, seqWindow, e.a.Source.rollup.SeqWindowSize)
 	// And the untouched one is still the one that arms the generator, which is the property that makes
 	// the forced extension a liveness backstop rather than a dead branch.

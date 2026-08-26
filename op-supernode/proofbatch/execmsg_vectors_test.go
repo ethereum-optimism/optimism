@@ -84,7 +84,7 @@ func (m *execMsgVectorMsg) check(t *testing.T, where string) {
 	t.Helper()
 	msg := m.build(t)
 
-	// THE SIMPLIFICATION THAT MAKES THE JUDGE FLIP CHEAP (SPEC-WIRE-V3 §6): the first step of
+	// THE SIMPLIFICATION THAT MAKES THE JUDGE FLIP CHEAP (op-supernode/silhouette/docs/SPEC-WIRE-V3.md §6): the first step of
 	// CrossL2Inbox.calculateChecksum is keccak256(origin ‖ msgHash), which is byte-identical to wire
 	// v2's LogExport.logHash. So the identifier plus the message hash already determine the value the
 	// initiating chain's log database is keyed by — one comparison discharges both stock per-message
