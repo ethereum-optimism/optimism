@@ -30,9 +30,14 @@ import (
 // emits once config validation and provider construction have completed; the
 // launcher matches it to detect startup.
 const (
-	zkProposerReadyMessage = "kona-sp1-proposer started"
-	konaSP1ELFDirEnv       = "KONA_SP1_ELF_DIR"
+	zkProposerReadyMessage   = "kona-sp1-proposer started"
+	konaSP1ELFDirEnv         = "KONA_SP1_ELF_DIR"
+	konaSP1ProposerEnvPrefix = "KONA_SP1_PROPOSER"
 )
+
+func zkProposerEnv(suffix, value string) string {
+	return konaSP1ProposerEnvPrefix + "_" + suffix + "=" + value
+}
 
 func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 	if elfDir == "" {
@@ -80,7 +85,7 @@ func WithZKProposalInterval(interval time.Duration) ZKProposerOption {
 }
 
 // WithZKFastFinality makes the proposer prove every game it owns while it
-// is still unchallenged (FAST_FINALITY_MODE=true).
+// is still unchallenged.
 func WithZKFastFinality() ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.FastFinality = true
@@ -153,7 +158,7 @@ func startZKProposer(
 	require.NotEmpty(execPath, "kona-sp1-proposer binary path resolved")
 
 	// The proposer checks and loads program artifacts at
-	// PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz, mirroring
+	// KONA_SP1_PROPOSER_PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz, mirroring
 	// op-challenger's --prestates-url convention. The aggregation vkey embeds
 	// the range program's vkey, so it keys both ELFs. Devstack publishes the
 	// real ELFs, gzipped, when KONA_SP1_ELF_DIR is set; otherwise stub bytes
@@ -195,40 +200,39 @@ func startZKProposer(
 	require.NoError(os.WriteFile(depSetPath, depSetData, 0o640), "must write interop dependency set")
 
 	env := []string{
-		"L1_RPC=" + l1EL.UserRPC(),
-		"SUPERROOT_RPC=" + superRootRPC,
-		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
-		"PRESTATES_URL=file://" + prestatesDir,
-		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
+		zkProposerEnv("L1_RPC", l1EL.UserRPC()),
+		zkProposerEnv("SUPERROOT_RPCS", superRootRPC),
+		zkProposerEnv("FACTORY_ADDRESS", factoryAddr.Hex()),
+		zkProposerEnv("PRESTATES_URL", "file://"+prestatesDir),
+		zkProposerEnv("PRIVATE_KEY", hexutil.Encode(crypto.FromECDSA(proposerSecret))),
 		// The mock provider skips SP1 proving but still runs the full witness
 		// pipeline against these endpoints and configs.
-		"PROOF_PROVIDER=mock",
-		"L1_BEACON_RPC=" + l1CL.beaconHTTPAddr,
+		zkProposerEnv("PROOF_PROVIDER", "mock"),
+		zkProposerEnv("L1_BEACON_RPC", l1CL.beaconHTTPAddr),
 		// Order-irrelevant: kona-host keys L2 providers by queried eth_chainId.
-		"L2_RPCS=" + strings.Join(l2RPCs, ","),
-		"ROLLUP_CONFIG_PATHS=" + strings.Join(rollupPaths, ","),
-		"L1_CONFIG_PATH=" + l1CfgPath,
-		"DEPENDENCY_SET_PATH=" + depSetPath,
-		"PROPOSAL_SAFETY=safe",
-		"FETCH_INTERVAL=2",
-		"LOG_FORMAT=json",
+		zkProposerEnv("L2_RPCS", strings.Join(l2RPCs, ",")),
+		zkProposerEnv("ROLLUP_CONFIG_PATHS", strings.Join(rollupPaths, ",")),
+		zkProposerEnv("L1_CONFIG_PATH", l1CfgPath),
+		zkProposerEnv("DEPENDENCY_SET_PATH", depSetPath),
+		zkProposerEnv("PROPOSAL_SAFETY", "safe"),
+		zkProposerEnv("FETCH_INTERVAL", "2"),
+		zkProposerEnv("LOG_FORMAT", "json"),
 	}
 	if cfg.ProposalInterval != nil {
-		env = append(env, "PROPOSAL_INTERVAL_SECONDS="+strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10))
+		env = append(env, zkProposerEnv("PROPOSAL_INTERVAL_SECONDS", strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10)))
 	}
 	if cfg.FastFinality {
-		env = append(env, "FAST_FINALITY_MODE=true")
+		env = append(env, zkProposerEnv("FAST_FINALITY_MODE", "true"))
 	}
-	// Always pin METRICS_PORT: the child inherits the host environment, and
-	// an inherited value (op-succinct deployments export this exact name)
-	// would otherwise reach every devstack proposer and collide across
-	// parallel systems. 0 keeps metrics disabled; "auto" has the proposer
+	// Always pin the metrics port so inherited host configuration cannot
+	// reach every devstack proposer and collide across parallel systems.
+	// 0 keeps metrics disabled; "auto" has the proposer
 	// bind a free port and report it on its startup line.
 	metricsPort := "0"
 	if cfg.Metrics {
 		metricsPort = "auto"
 	}
-	env = append(env, "METRICS_PORT="+metricsPort)
+	env = append(env, zkProposerEnv("METRICS_PORT", metricsPort))
 
 	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stdout"), log.LevelWarn)
 	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stderr"), log.LevelWarn)

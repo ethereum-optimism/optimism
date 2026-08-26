@@ -290,10 +290,10 @@ func TestEndToEndApply(t *testing.T) {
 	loc, _ := testutil.LocalArtifacts(t)
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
 	t.Run("two chains one after another", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 		cg := ethClientCodeGetter(ctx, l1Client)
 
@@ -336,6 +336,9 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	t.Run("with calldata broadcasts", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 
 		require.NoError(t, deployer.ApplyPipeline(
@@ -356,6 +359,9 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	t.Run("with custom gas token", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 
 		// CGT config for L2 genesis

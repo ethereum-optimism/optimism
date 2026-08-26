@@ -5,8 +5,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -47,42 +45,4 @@ func waitTCPReady(p devtest.CommonT, rawURL string, timeout time.Duration) {
 		}
 		assert.NoError(c, err, "TCP connection to %s should succeed", u.Host)
 	}, timeout, 100*time.Millisecond, waitMsg)
-}
-
-// parseAndValidateAddr ensures the address has a scheme and is a valid URL.
-// Returns the validated URL string or empty string if invalid.
-// This is used to parse addresses from process (e.g. op-rbuilder) log output.
-func parseAndValidateAddr(addr, defaultScheme string) string {
-	if addr == "" {
-		return ""
-	}
-	// Add scheme if not present
-	if !strings.Contains(addr, "://") {
-		addr = defaultScheme + "://" + addr
-	}
-	u, err := url.Parse(addr)
-	if err != nil || u.Host == "" || u.Hostname() == "" {
-		return ""
-	}
-	return u.String()
-}
-
-func parseBoundAddressLog(message, prefix, defaultScheme string) (string, bool) {
-	addr, found := strings.CutPrefix(message, prefix)
-	if !found {
-		return "", false
-	}
-	validURL := parseAndValidateAddr(addr, defaultScheme)
-	if validURL == "" {
-		return "", false
-	}
-	u, err := url.Parse(validURL)
-	if err != nil {
-		return "", false
-	}
-	port, err := strconv.ParseUint(u.Port(), 10, 16)
-	if err != nil || port == 0 {
-		return "", false
-	}
-	return validURL, true
 }

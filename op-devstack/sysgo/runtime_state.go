@@ -58,11 +58,6 @@ type SyncTesterRuntime struct {
 	CL L2CLNode
 }
 
-type FlashblocksRuntimeSupport struct {
-	Builder     *OPRBuilderNode
-	RollupBoost *RollupBoostNode
-}
-
 type SingleChainInteropSupport struct {
 	Migration     *interopMigrationState
 	FullConfigSet config.FullConfigSetMerged
@@ -84,16 +79,17 @@ type SingleChainRuntime struct {
 	L2Batcher    *L2Batcher
 	L2Proposer   *L2Proposer
 	L2Challenger *L2Challenger
+	// ZKChallengerSuperRootRPCProxy is set when the runtime starts a ZK challenger.
+	ZKChallengerSuperRootRPCProxy *StallableProxy
 
 	TimeTravel    *clock.AdvancingClock
 	TestSequencer *TestSequencerRuntime
 
-	Nodes       map[string]*SingleChainNodeRuntime
-	SyncTester  *SyncTesterRuntime
-	Conductors  map[string]*Conductor
-	Flashblocks *FlashblocksRuntimeSupport
-	Interop     *SingleChainInteropSupport
-	P2PEnabled  bool
+	Nodes      map[string]*SingleChainNodeRuntime
+	SyncTester *SyncTesterRuntime
+	Conductors map[string]*Conductor
+	Interop    *SingleChainInteropSupport
+	P2PEnabled bool
 }
 
 func (r *SingleChainRuntime) VMConfig(t devtest.T, dir string) *vm.Config {

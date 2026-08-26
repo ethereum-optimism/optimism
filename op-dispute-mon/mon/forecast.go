@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/transform"
@@ -95,7 +96,8 @@ func (f *Forecast) forecastGame(game monTypes.EnrichedGame, metrics *forecastBat
 		if metrics.LatestValidProposal < common.Timestamp {
 			metrics.LatestValidProposal = common.Timestamp
 		}
-		if metrics.LatestValidProposalL2Block < common.L2SequenceNumber {
+		_, isZK := game.(*monTypes.ZKGameData)
+		if !isZK && metrics.LatestValidProposalL2Block < common.L2SequenceNumber {
 			metrics.LatestValidProposalL2Block = common.L2SequenceNumber
 		}
 	}
@@ -147,6 +149,27 @@ func (f *Forecast) forecastGame(game monTypes.EnrichedGame, metrics *forecastBat
 			// Otherwise we go through the resolution process to determine who would win based on the current claims
 			tree := transform.CreateBidirectionalTree(game.Claims)
 			forecastStatus = Resolve(tree)
+		}
+	case *monTypes.ZKGameData:
+		if game.ParentStatus != nil && *game.ParentStatus == types.GameStatusChallengerWon {
+			forecastStatus = types.GameStatusChallengerWon
+			break
+		}
+		switch game.ProposalStatus {
+		case contracts.ProposalStatusUnchallenged,
+			contracts.ProposalStatusUnchallengedAndValidProofProvided,
+			contracts.ProposalStatusChallengedAndValidProofProvided:
+			forecastStatus = types.GameStatusDefenderWon
+		case contracts.ProposalStatusChallenged:
+			forecastStatus = types.GameStatusChallengerWon
+		default:
+			f.logger.Error("Unable to forecast ZK game with incompatible proposal and global status",
+				"game", common.Proxy, "proposalStatus", game.ProposalStatus, "globalStatus", common.Status)
+			if agreement {
+				forecastStatus = types.GameStatusChallengerWon
+			} else {
+				forecastStatus = types.GameStatusDefenderWon
+			}
 		}
 	default:
 		return fmt.Errorf("unsupported enriched game variant %T", game)

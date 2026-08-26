@@ -232,15 +232,20 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	headBlockFetcher := func(ctx context.Context) (eth.L1BlockRef, error) {
 		return s.l1Client.L1BlockRefByLabel(ctx, "latest")
 	}
+	bondEnricher := extract.NewBondDataEnricher()
 	extractor := extract.NewExtractor(
 		s.logger,
 		s.cl,
+		s.metrics,
 		s.game.CreateContract,
 		s.factoryContract.GetGamesAtOrAfter,
+		s.factoryContract.GetGameStatusAtBlock,
 		cfg.IgnoredGames,
 		cfg.MaxConcurrency,
 		s.commonEnrichers(),
-		s.faultEnrichers(),
+		s.faultEnrichers(bondEnricher),
+		extract.NewZKAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		bondEnricher,
 	)
 	forecast := NewForecast(s.logger, s.metrics)
 	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl, s.honestActors)
@@ -256,6 +261,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	mixedSafetyMonitor := NewMixedSafetyMonitor(s.logger, s.metrics)
 	differentRootMonitor := NewDifferentRootMonitor(s.logger, s.metrics)
 	gameTypeMonitor := NewGameTypeMonitor(s.metrics)
+	zkLifecycleMonitor := NewZKLifecycleMonitor(s.cl, s.metrics)
 	anchorStateMonitor := NewAnchorStateMonitor(s.logger, s.metrics, func(addr common.Address) AnchorRootProvider {
 		return contracts.NewAnchorStateRegistryContract(s.metrics, addr, s.l1Caller)
 	})
@@ -281,6 +287,9 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		[]BondMonitor{
 			bonds.CheckBonds,
 			withdrawals.CheckWithdrawals,
+		},
+		[]ZKMonitor{
+			zkLifecycleMonitor.CheckLifecycle,
 		})
 }
 
@@ -293,10 +302,10 @@ func (s *Service) commonEnrichers() []extract.CommonEnricher {
 	}
 }
 
-func (s *Service) faultEnrichers() []extract.FaultEnricher {
+func (s *Service) faultEnrichers(bondEnricher *extract.BondDataEnricher) []extract.FaultEnricher {
 	return []extract.FaultEnricher{
 		extract.NewClaimEnricher(),
-		extract.NewBondDataEnricher(),
+		bondEnricher,
 	}
 }
 

@@ -19,6 +19,8 @@ use anyhow::{Context, Result, anyhow, bail};
 use kona_sp1_host_utils::{metrics::MetricsListen, network::parse_fulfillment_strategy};
 use sp1_sdk::network::FulfillmentStrategy;
 
+use crate::env_var;
+
 /// Safety level gating how far proposals may advance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProposalSafety {
@@ -35,7 +37,7 @@ impl FromStr for ProposalSafety {
         match value.to_ascii_lowercase().as_str() {
             "safe" => Ok(Self::Safe),
             "finalized" => Ok(Self::Finalized),
-            other => bail!("invalid PROPOSAL_SAFETY: {other} (expected safe|finalized)"),
+            other => bail!("{other} (expected safe|finalized)"),
         }
     }
 }
@@ -61,7 +63,7 @@ impl FromStr for ProofProviderKind {
         match value.to_ascii_lowercase().as_str() {
             "network" => Ok(Self::Network),
             "mock" => Ok(Self::Mock),
-            other => bail!("invalid PROOF_PROVIDER: {other} (expected network|mock)"),
+            other => bail!("{other} (expected network|mock)"),
         }
     }
 }
@@ -73,8 +75,8 @@ pub struct ProposerConfig {
     pub l1_rpc: Url,
 
     /// The RPC URL serving `superroot_atTimestamp`, provided by an op-supernode
-    /// or a single-chain op-node.
-    pub superroot_rpc: Url,
+    /// or a single-chain op-node. Multiple URLs are accepted for redundancy
+    pub superroot_rpcs: Vec<Url>,
 
     /// The address of the `DisputeGameFactory` contract.
     pub factory_address: Address,
@@ -150,7 +152,7 @@ pub struct ProposerConfig {
     pub l1_config_path: Option<PathBuf>,
 
     /// Optional dependency-set config file. Absent = superchain-registry
-    /// fallback. The env name matches the executor's `DEPENDENCY_SET_PATH`.
+    /// fallback. The suffix matches the executor's `DEPENDENCY_SET_PATH`.
     pub dependency_set_path: Option<PathBuf>,
 
     /// Number of proof chunks per defended timestamp span.
@@ -177,25 +179,44 @@ pub struct ProposerConfig {
     pub proof_provider_config: ProofProviderConfig,
 }
 
-fn optional_env(name: &str) -> Option<String> {
+fn required_env(suffix: &str) -> Result<String> {
+    let name = env_var(suffix);
+    env::var(&name).with_context(|| format!("{name} not set"))
+}
+
+fn optional_env(suffix: &str) -> Option<String> {
+    let name = env_var(suffix);
     match env::var(name) {
         Ok(value) if !value.is_empty() => Some(value),
         _ => None,
     }
 }
 
-fn parsed_env_or<T: FromStr>(name: &str, default: T) -> Result<T>
-where
-    T::Err: std::fmt::Display,
-{
-    parsed_optional_env(name).map(|value| value.unwrap_or(default))
+fn env_or(suffix: &str, default: &str) -> String {
+    env::var(env_var(suffix)).unwrap_or_else(|_| default.to_string())
 }
 
-fn parsed_optional_env<T: FromStr>(name: &str) -> Result<Option<T>>
+fn parsed_required_env<T: FromStr>(suffix: &str) -> Result<T>
 where
     T::Err: std::fmt::Display,
 {
-    optional_env(name)
+    let name = env_var(suffix);
+    required_env(suffix)?.parse::<T>().map_err(|err| anyhow!("invalid {name}: {err}"))
+}
+
+fn parsed_env_or<T: FromStr>(suffix: &str, default: T) -> Result<T>
+where
+    T::Err: std::fmt::Display,
+{
+    parsed_optional_env(suffix).map(|value| value.unwrap_or(default))
+}
+
+fn parsed_optional_env<T: FromStr>(suffix: &str) -> Result<Option<T>>
+where
+    T::Err: std::fmt::Display,
+{
+    let name = env_var(suffix);
+    optional_env(suffix)
         .map(|value| value.parse::<T>().map_err(|err| anyhow!("invalid {name}: {err}")))
         .transpose()
 }
@@ -207,31 +228,30 @@ impl ProposerConfig {
         let tx_confirmation_timeout = parsed_env_or("TX_CONFIRMATION_TIMEOUT", 60u64)?;
         anyhow::ensure!(
             tx_confirmation_timeout > 0,
-            "TX_CONFIRMATION_TIMEOUT must be positive (0 would time out every transaction immediately)"
+            "{} must be positive (0 would time out every transaction immediately)",
+            env_var("TX_CONFIRMATION_TIMEOUT")
         );
 
-        let proof_provider = env::var("PROOF_PROVIDER")
-            .context("PROOF_PROVIDER not set (expected network|mock; there is no default)")?
-            .parse::<ProofProviderKind>()?;
-        let l2_rpcs = parse_url_list(&env::var("L2_RPCS").context("L2_RPCS not set")?)
-            .context("invalid L2_RPCS")?;
+        let proof_provider_name = env_var("PROOF_PROVIDER");
+        let proof_provider = env::var(&proof_provider_name)
+            .with_context(|| {
+                format!(
+                    "{proof_provider_name} not set (expected network|mock; there is no default)"
+                )
+            })?
+            .parse::<ProofProviderKind>()
+            .map_err(|err| anyhow!("invalid {proof_provider_name}: {err}"))?;
+        let l2_rpcs_name = env_var("L2_RPCS");
+        let l2_rpcs = parse_url_list(&required_env("L2_RPCS")?)
+            .with_context(|| format!("invalid {l2_rpcs_name}"))?;
+        let superroot_rpcs_name = env_var("SUPERROOT_RPCS");
+        let superroot_rpcs = parse_url_list(&required_env("SUPERROOT_RPCS")?)
+            .with_context(|| format!("invalid {superroot_rpcs_name}"))?;
         Ok(Self {
-            l1_rpc: env::var("L1_RPC")
-                .context("L1_RPC not set")?
-                .parse()
-                .map_err(|err| anyhow!("invalid L1_RPC: {err}"))?,
-            superroot_rpc: env::var("SUPERROOT_RPC")
-                .context("SUPERROOT_RPC not set")?
-                .parse()
-                .map_err(|err| anyhow!("invalid SUPERROOT_RPC: {err}"))?,
-            factory_address: env::var("FACTORY_ADDRESS")
-                .context("FACTORY_ADDRESS not set")?
-                .parse()
-                .map_err(|err| anyhow!("invalid FACTORY_ADDRESS: {err}"))?,
-            prestates_url: env::var("PRESTATES_URL")
-                .context("PRESTATES_URL not set")?
-                .parse()
-                .map_err(|err| anyhow!("invalid PRESTATES_URL: {err}"))?,
+            l1_rpc: parsed_required_env("L1_RPC")?,
+            superroot_rpcs,
+            factory_address: parsed_required_env("FACTORY_ADDRESS")?,
+            prestates_url: parsed_required_env("PRESTATES_URL")?,
             proposal_interval_seconds: parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?,
             proposal_safety: parsed_env_or("PROPOSAL_SAFETY", ProposalSafety::Finalized)?,
             fetch_interval: parsed_env_or("FETCH_INTERVAL", 30u64)?,
@@ -241,10 +261,7 @@ impl ProposerConfig {
             max_fee_per_gas: parsed_optional_env("MAX_FEE_PER_GAS")?,
             max_priority_fee_per_gas: parsed_optional_env("MAX_PRIORITY_FEE_PER_GAS")?,
             proof_provider,
-            l1_beacon_rpc: env::var("L1_BEACON_RPC")
-                .context("L1_BEACON_RPC not set")?
-                .parse()
-                .map_err(|err| anyhow!("invalid L1_BEACON_RPC: {err}"))?,
+            l1_beacon_rpc: parsed_required_env("L1_BEACON_RPC")?,
             l2_rpcs,
             rollup_config_paths: optional_env("ROLLUP_CONFIG_PATHS")
                 .map(|list| list.split(',').map(|path| PathBuf::from(path.trim())).collect()),
@@ -293,7 +310,7 @@ const DEFAULT_PROOF_LIMIT: u64 = 1_000_000_000_000;
 /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
 ///
 /// Parsed in mock mode too, but all values have defaults and require no credentials.
-/// `NETWORK_PRIVATE_KEY` is read only when the network provider is built.
+/// `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` is read only when the network provider is built.
 #[derive(Debug, Clone)]
 pub struct ProofProviderConfig {
     /// Overall per-proof timeout in seconds: the server-side deadline for
@@ -329,31 +346,33 @@ impl ProofProviderConfig {
         let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?;
         anyhow::ensure!(
             timeout > 0,
-            "SP1_TIMEOUT_SECONDS must be positive: 0 would abandon every proof request at its \
-             first poll, right after paying to submit it"
+            "{} must be positive: 0 would abandon every proof request at its first poll, right \
+             after paying to submit it",
+            env_var("SP1_TIMEOUT_SECONDS")
         );
         let network_calls_timeout = parsed_env_or("NETWORK_CALLS_TIMEOUT", 15u64)?;
         anyhow::ensure!(
             network_calls_timeout > 0,
-            "NETWORK_CALLS_TIMEOUT must be positive: 0 would time out every SPN call before any \
-             I/O completes"
+            "{} must be positive: 0 would time out every SPN call before any I/O completes",
+            env_var("NETWORK_CALLS_TIMEOUT")
         );
         let auction_timeout = parsed_env_or("AUCTION_TIMEOUT", 60u64)?;
         anyhow::ensure!(
             auction_timeout > 0,
-            "AUCTION_TIMEOUT must be positive: 0 would cancel every mainnet request by its second \
-             poll"
+            "{} must be positive: 0 would cancel every mainnet request by its second poll",
+            env_var("AUCTION_TIMEOUT")
         );
         Ok(Self {
             timeout,
             network_calls_timeout,
             auction_timeout,
-            range_proof_strategy: parse_fulfillment_strategy(
-                env::var("RANGE_PROOF_STRATEGY").unwrap_or_else(|_| "reserved".to_string()),
-            )?,
-            agg_proof_strategy: parse_fulfillment_strategy(
-                env::var("AGG_PROOF_STRATEGY").unwrap_or_else(|_| "reserved".to_string()),
-            )?,
+            range_proof_strategy: parse_fulfillment_strategy(env_or(
+                "RANGE_PROOF_STRATEGY",
+                "auction",
+            ))
+            .with_context(|| format!("invalid {}", env_var("RANGE_PROOF_STRATEGY")))?,
+            agg_proof_strategy: parse_fulfillment_strategy(env_or("AGG_PROOF_STRATEGY", "auction"))
+                .with_context(|| format!("invalid {}", env_var("AGG_PROOF_STRATEGY")))?,
             range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
             range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
             agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
@@ -457,7 +476,9 @@ pub const RANGE_ARTIFACT_SUFFIX: &str = ".range.bin.gz";
 pub fn prestate_artifact_url(base: &Url, prestate: B256, suffix: &str) -> Result<Url> {
     let mut url = base.clone();
     url.path_segments_mut()
-        .map_err(|()| anyhow!("PRESTATES_URL cannot be a base: {}", redacted_url(base)))?
+        .map_err(|()| {
+            anyhow!("{} cannot be a base: {}", env_var("PRESTATES_URL"), redacted_url(base))
+        })?
         .pop_if_empty()
         .push(&format!("{prestate}{suffix}"));
     Ok(url)
@@ -502,9 +523,9 @@ const ARTIFACT_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_se
 async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
     let compressed = match url.scheme() {
         "file" => {
-            let path = url
-                .to_file_path()
-                .map_err(|()| anyhow!("invalid file path in PRESTATES_URL: {url}"))?;
+            let path = url.to_file_path().map_err(|()| {
+                anyhow!("invalid file path in {}: {url}", env_var("PRESTATES_URL"))
+            })?;
             tokio::fs::read(&path)
                 .await
                 .with_context(|| format!("failed to read prestate artifact {path:?}"))?
@@ -525,7 +546,10 @@ async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
                 format!("failed to read prestate artifact body from {}", redacted_url(url))
             })?
             .to_vec(),
-        other => bail!("unsupported PRESTATES_URL scheme {other} (expected file, http, or https)"),
+        other => bail!(
+            "unsupported {} scheme {other} (expected file, http, or https)",
+            env_var("PRESTATES_URL")
+        ),
     };
 
     let mut elf = Vec::new();
@@ -553,7 +577,7 @@ mod tests {
         assert_eq!(redacted_url(&plain), "http://127.0.0.1:8545/");
         // file:// URLs cannot carry userinfo: set_username/set_password return
         // Err, which redacted_url ignores. This pins that choice (panicking on
-        // Err would break file:// PRESTATES_URL) and that the URL renders
+        // Err would break file:// prestate URLs) and that the URL renders
         // unchanged.
         let file: Url = "file:///data/prestates".parse().unwrap();
         assert_eq!(redacted_url(&file), "file:///data/prestates");
@@ -646,6 +670,10 @@ mod tests {
     mod proving_config {
         use super::*;
 
+        fn set_proposer_env(suffix: &str, value: &str) {
+            unsafe { env::set_var(env_var(suffix), value) };
+        }
+
         #[test]
         fn proof_provider_kind_parse_rejects_unknown() {
             assert_eq!(ProofProviderKind::from_str("network").unwrap(), ProofProviderKind::Network);
@@ -703,30 +731,28 @@ mod tests {
         /// is `unsafe` on edition 2024.
         #[test]
         fn from_env_requires_defend_path_vars() {
-            unsafe {
-                env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERROOT_RPC", "http://127.0.0.1:9545");
-                env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
-                env::set_var("PRESTATES_URL", "file:///tmp/prestates");
-            }
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545,http://127.0.0.1:9546");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
 
-            // PROOF_PROVIDER has no default.
+            // The proof provider has no default.
             let err = ProposerConfig::from_env().unwrap_err().to_string();
-            assert!(err.contains("PROOF_PROVIDER"), "unexpected error: {err}");
+            assert!(err.contains("KONA_SP1_PROPOSER_PROOF_PROVIDER"), "unexpected error: {err}");
 
-            unsafe { env::set_var("PROOF_PROVIDER", "mock") };
+            set_proposer_env("PROOF_PROVIDER", "mock");
             let err = ProposerConfig::from_env().unwrap_err().to_string();
-            assert!(err.contains("L2_RPCS"), "unexpected error: {err}");
+            assert!(err.contains("KONA_SP1_PROPOSER_L2_RPCS"), "unexpected error: {err}");
 
-            unsafe { env::set_var("L2_RPCS", "http://127.0.0.1:8646,http://127.0.0.1:8647") };
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646,http://127.0.0.1:8647");
             let err = ProposerConfig::from_env().unwrap_err().to_string();
-            assert!(err.contains("L1_BEACON_RPC"), "unexpected error: {err}");
+            assert!(err.contains("KONA_SP1_PROPOSER_L1_BEACON_RPC"), "unexpected error: {err}");
 
-            // Mock mode requires no NETWORK_* variables: with the witness
-            // endpoints present, parsing succeeds without SPN credentials.
-            unsafe { env::set_var("L1_BEACON_RPC", "http://127.0.0.1:5052") };
+            // Mock mode requires no SPN credentials.
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
             let config = ProposerConfig::from_env().unwrap();
             assert_eq!(config.proof_provider, ProofProviderKind::Mock);
+            assert_eq!(config.superroot_rpcs.len(), 2);
             assert_eq!(config.l2_rpcs.len(), 2);
             assert!(config.rollup_config_paths.is_none());
             assert_eq!(config.range_split_count, RangeSplitCount::one());
@@ -734,6 +760,14 @@ mod tests {
             assert!(!config.fast_finality_mode);
             assert_eq!(config.fast_finality_proving_limit.get(), 1);
             assert_eq!(config.proof_provider_config.timeout, 14_400);
+            assert_eq!(
+                config.proof_provider_config.range_proof_strategy,
+                FulfillmentStrategy::Auction
+            );
+            assert_eq!(
+                config.proof_provider_config.agg_proof_strategy,
+                FulfillmentStrategy::Auction
+            );
         }
 
         /// A zero defense cap would silently disable defense entirely;
@@ -741,18 +775,19 @@ mod tests {
         /// process-per-test model; env mutation is `unsafe` on edition 2024.
         #[test]
         fn zero_defense_cap_is_rejected() {
-            unsafe {
-                env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERROOT_RPC", "http://127.0.0.1:9545");
-                env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
-                env::set_var("PRESTATES_URL", "file:///tmp/prestates");
-                env::set_var("PROOF_PROVIDER", "mock");
-                env::set_var("L2_RPCS", "http://127.0.0.1:8646");
-                env::set_var("L1_BEACON_RPC", "http://127.0.0.1:5052");
-                env::set_var("MAX_CONCURRENT_DEFENSE_TASKS", "0");
-            }
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
+            set_proposer_env("MAX_CONCURRENT_DEFENSE_TASKS", "0");
             let err = ProposerConfig::from_env().unwrap_err().to_string();
-            assert!(err.contains("MAX_CONCURRENT_DEFENSE_TASKS"), "unexpected error: {err}");
+            assert!(
+                err.contains("KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
+                "unexpected error: {err}"
+            );
         }
 
         /// Zero SPN timeouts are configuration errors, not degraded modes:
@@ -760,20 +795,19 @@ mod tests {
         /// under nextest's process-per-test model.
         #[test]
         fn zero_spn_timeouts_are_rejected() {
-            unsafe {
-                env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERROOT_RPC", "http://127.0.0.1:9545");
-                env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
-                env::set_var("PRESTATES_URL", "file:///tmp/prestates");
-                env::set_var("PROOF_PROVIDER", "mock");
-                env::set_var("L2_RPCS", "http://127.0.0.1:8646");
-                env::set_var("L1_BEACON_RPC", "http://127.0.0.1:5052");
-            }
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
             for var in ["SP1_TIMEOUT_SECONDS", "NETWORK_CALLS_TIMEOUT", "AUCTION_TIMEOUT"] {
-                unsafe { env::set_var(var, "0") };
+                set_proposer_env(var, "0");
                 let err = ProposerConfig::from_env().unwrap_err().to_string();
-                assert!(err.contains(var), "expected {var} rejection, got: {err}");
-                unsafe { env::remove_var(var) };
+                let name = env_var(var);
+                assert!(err.contains(&name), "expected {name} rejection, got: {err}");
+                unsafe { env::remove_var(name) };
             }
         }
     }

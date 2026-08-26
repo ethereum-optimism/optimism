@@ -6,7 +6,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
   c-base_image:
     type: string
     default: default
@@ -28,7 +28,7 @@ parameters:
     default: cimg/base:2026.03
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
   base_image:
     type: string
     default: default
@@ -197,7 +197,7 @@ commands:
       for every ref and develop overrides to the writer. The write/read split is
       enforced by GCP Workload Identity on the signed CircleCI OIDC vcs-ref
       claim, so a non-develop ref impersonating the writer is denied by GCP;
-      this only selects the SA. sccache is preinstalled in the ci-base-clang
+      this only selects the SA. sccache is preinstalled in the Rust base
       image.
 
       Not fail-open: if the sccache server can't start, the job fails so a
@@ -223,7 +223,7 @@ commands:
                     echo "export SCCACHE_LOG=warn"
                     echo "export SCCACHE_IDLE_TIMEOUT=0"
                     # Required for sccache to cache rustc output. rust-setup-env
-                    # also sets this, but rust-build-vendored does not run it.
+                    # also sets this; keep it here so direct callers remain correct.
                     echo "export CARGO_INCREMENTAL=0"
                   } >> "$BASH_ENV"
             # develop overrides to the writer identity. This selects the SA only;
@@ -247,7 +247,7 @@ commands:
                 name: "Start sccache"
                 command: |
                   # Skip where sccache is not installed (machine-executor jobs like
-                  # the cannon builds run on a VM, not the ci-base-clang image). This
+                  # the cannon builds run on a VM, not the Rust base image). This
                   # is NOT fail-open for a broken cache: if sccache IS present, a
                   # failed server start below still fails the job.
                   if ! command -v sccache >/dev/null 2>&1; then
@@ -360,8 +360,8 @@ commands:
           mentions: "<< parameters.mentions >>"
 
   apt-install:
-    description: "apt-get update + install, with retries to tolerate transient
-      Ubuntu mirror sync failures."
+    description: "apt-get update + install via .circleci/scripts/apt-install.sh,
+      which installs from the Ubuntu geo mirror list."
     parameters:
       packages:
         description: "Space-separated list of apt packages to install."
@@ -374,20 +374,8 @@ commands:
     steps:
       - run:
           name: "apt install << parameters.packages >>"
-          command: |
-            export NEEDRESTART_MODE=a
-            for i in 1 2 3; do
-              if sudo -E apt-get -o Acquire::Retries=5 update; then
-                break
-              fi
-              if [ "$i" = "3" ]; then
-                echo "apt-get update failed after 3 attempts" >&2
-                exit 1
-              fi
-              echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
-              sleep 10
-            done
-            sudo -E apt-get -o Acquire::Retries=5 install -y << parameters.extra_flags >> << parameters.packages >>
+          command: bash .circleci/scripts/apt-install.sh << parameters.extra_flags
+            >> << parameters.packages >>
 
   # Kona-specific commands
   install-zstd:
@@ -695,7 +683,7 @@ commands:
               # build alone would omit crates other workspace members need).
               cargo fetch --locked
             fi
-            # Use the mold linker (pinned via mise; also present in ci-base-clang)
+            # Use the mold linker (pinned via mise; also present in the Rust base image)
             # to cut final link time. `mold -run` intercepts the linker at exec
             # time, so it needs no RUSTFLAGS change and does not perturb the sccache
             # compile-cache key. The CI env is controlled, so a missing mold must
@@ -797,8 +785,6 @@ jobs:
                     >>/kona-*"
                   - "<< parameters.directory >>/target/<< parameters.profile
                     >>/op-*"
-                  - "<< parameters.directory >>/target/<< parameters.profile
-                    >>/rollup-boost"
 
   # Build the SP1 super-range executor into a dedicated workspace artifact.
   # Keeping its persisted copy out of rust/target prevents it from overlapping
@@ -860,140 +846,6 @@ jobs:
           paths:
             - "rust/target/release/op-reth"
             - "rust/target/release/op-reth-sdm-fixture"
-
-  # Build a single Rust binary from a vendored (non-submodule) directory.
-  rust-build-vendored:
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge.gen2
-    parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      hash_paths:
-        description: >
-          Space-separated git paths whose tree hash keys the binary cache. MUST
-          cover the full dependency closure the binary compiles, not just
-          `directory`: these vendored workspaces path-depend on sibling crates
-          under rust/ (e.g. alloy-op-evm, op-revm, op-reth), so hashing only
-          `directory` reuses a stale binary when a dependency outside it
-          changes. Defaults to `directory`. Keep in sync with the workspace's
-          `path = "../<crate>"` dependencies.
-        type: string
-        default: ""
-      binaries:
-        description: "Space-separated list of binary names to copy from target/release
-          into the cache"
-        type: string
-      build_command:
-        description: "Cargo build command to run"
-        type: string
-      needs_clang:
-        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
-        type: boolean
-        default: false
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      # These vendored workspaces path-depend on op-reth, whose chainspec build.rs
-      # regenerates the gitignored superchain archive from this submodule. Unlike
-      # rust-build (which goes through rust-prepare-and-restore-cache), this command
-      # never restores it, so on a binary cache miss the build below panics with
-      # "superchain-registry submodule not found". Init it up front; idempotent and
-      # cheap on a cache hit (the build short-circuits before touching it).
-      - run:
-          name: Initialize superchain-registry submodule
-          command: just update-superchain-registry-submodule
-      # Wrap the cargo build with sccache (sets RUSTC_WRAPPER). Fail-open: if the
-      # cache is unavailable the build just runs uncached. Only helps on a binary
-      # cache miss (a hit short-circuits the build below).
-      - rust-sccache-setup
-      - run:
-          name: Get << parameters.directory >> content HASH
-          command: |
-            mkdir -p .circleci-cache
-            HASH_PATHS="<< parameters.hash_paths >>"
-            [ -z "$HASH_PATHS" ] && HASH_PATHS="<< parameters.directory >>"
-            echo "Hashing paths: $HASH_PATHS"
-            # Fail fast on a stale/typo'd path: `git ls-tree` emits nothing (exit 0) for a
-            # non-existent path, which would silently shrink the hash and reintroduce the stale-binary
-            # bug this keying is meant to prevent.
-            for p in $HASH_PATHS; do
-              if ! git cat-file -e "HEAD:$p" 2>/dev/null; then
-                echo "ERROR: hash_paths entry '$p' does not exist at HEAD — fix hash_paths in main.yml" >&2
-                exit 1
-              fi
-            done
-            git ls-tree -r HEAD $HASH_PATHS | sha256sum | awk '{print $1}' > .circleci-cache/expected-submod-sha.txt
-            echo "Content HASH: $(cat .circleci-cache/expected-submod-sha.txt)"
-            echo "<< parameters.binaries >>" | tr ' ' '\n' | awk 'NF' | sort -u > .circleci-cache/expected-binaries.txt
-            echo "Expected binaries: $(tr '\n' ' ' < .circleci-cache/expected-binaries.txt)"
-      - restore_cache:
-          name: Restore << parameters.directory >> cache
-          keys:
-            - rust-<< parameters.directory >>-v9-{{ checksum
-              ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum
-              ".circleci-cache/expected-binaries.txt" }}
-      - run:
-          name: Build << parameters.directory >> (if needed)
-          command: |
-            ROOT_DIR="$(pwd)"
-            BIN_CACHE_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
-
-            HIT=true
-            for bin in << parameters.binaries >>; do
-              if [ ! -f "$BIN_CACHE_DIR/$bin" ]; then
-                HIT=false
-                break
-              fi
-            done
-            if [ "$HIT" = "true" ]; then
-              echo "Cache hit - binaries exist"
-              exit 0
-            fi
-
-            echo "Cache miss - will build"
-
-            if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
-              for i in 1 2 3; do
-                if sudo apt-get -o Acquire::Retries=5 update; then
-                  break
-                fi
-                if [ "$i" = "3" ]; then
-                  echo "apt-get update failed after 3 attempts" >&2
-                  exit 1
-                fi
-                echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
-                sleep 10
-              done
-              sudo apt-get install -y --no-install-recommends clang
-            fi
-
-            cd << parameters.directory >> && << parameters.build_command >>
-
-            mkdir -p "$BIN_CACHE_DIR"
-            for bin in << parameters.binaries >>; do
-              SRC="$ROOT_DIR/<< parameters.directory >>/target/release/$bin"
-              DST="$BIN_CACHE_DIR/$bin"
-              if [ ! -f "$SRC" ]; then
-                echo "ERROR: expected built binary not found at $SRC" >&2
-                exit 1
-              fi
-              cp "$SRC" "$DST"
-              chmod +x "$DST" || true
-            done
-          no_output_timeout: 30m
-      - save_cache:
-          key: rust-<< parameters.directory >>-v9-{{ checksum
-            ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum
-            ".circleci-cache/expected-binaries.txt" }}
-          name: Save << parameters.directory >> cache
-          paths:
-            - ".circleci-cache/rust-binaries"
-      - persist_to_workspace:
-          root: .
-          paths:
-            - ".circleci-cache/rust-binaries"
 
   initialize:
     docker:
@@ -1719,9 +1571,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
-      - run:
-          name: Install ripgrep
-          command: sudo apt-get install -y ripgrep
+      - apt-install:
+          packages: "ripgrep"
       - run:
           name: Check TODO issues
           command: ./ops/scripts/todo-checker.sh --verbose --strict
@@ -2095,15 +1946,16 @@ jobs:
     resource_class: 2xlarge+.gen2
     parallelism: <<parameters.parallelism>>
     steps:
+      # apt-install needs the working tree, so it runs after checkout.
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
       - apt-install:
           extra_flags: "--no-install-recommends"
           packages: "eatmydata"
       - run:
           name: Disable fsync for all subprocesses
           command: echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
       - attach_workspace:
           at: .
       - run:
@@ -2116,8 +1968,6 @@ jobs:
             echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE=$ROOT_DIR/rust/target/release/op-reth-sdm-fixture" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
 
             # Fail here in seconds rather than ~25 minutes into the test run: a drift in the
@@ -2703,8 +2553,6 @@ workflows:
           ignore-dirs: |
             ./packages/contracts-bedrock/lib
             ./docs/public-docs
-            ./rust/op-rbuilder
-            ./rust/rollup-boost
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
@@ -2729,41 +2577,11 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
-      - rust-build-vendored: &rust-build-op-rbuilder
-          name: rust-build-op-rbuilder
-          directory: rust/op-rbuilder
-          # Full vendored-crate closure op-rbuilder compiles (its `path = "../<crate>"` deps and
-          # their shared siblings). Without op-reth/op-revm/alloy-op-evm/etc. here, a change to one
-          # of those reuses a stale op-rbuilder binary in the sysgo acceptance jobs.
-          hash_paths: "rust/op-rbuilder rust/rollup-boost rust/op-reth rust/op-revm
-            rust/op-alloy rust/alloy-op-evm rust/alloy-op-hardforks"
-          binaries: "op-rbuilder"
-          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
-          needs_clang: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - sccache-gcs-optimism
-      - rust-build-vendored: &rust-build-rollup-boost
-          name: rust-build-rollup-boost
-          directory: rust/rollup-boost
-          # rollup-boost path-depends on op-reth/op-alloy (and their siblings transitively); hash the
-          # same shared vendored-crate closure so a sibling change rebuilds it instead of going stale.
-          hash_paths: "rust/op-rbuilder rust/rollup-boost rust/op-reth rust/op-revm
-            rust/op-alloy rust/alloy-op-evm rust/alloy-op-hardforks"
-          binaries: "rollup-boost"
-          build_command: cargo build --release -p rollup-boost --bin rollup-boost
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - sccache-gcs-optimism
-      # Lint runs in `rust-ci.yml` as `op-rbuilder-checks` / `rollup-boost-checks`
-      # via each crate's `make lint`.
       - rust-binaries-for-sysgo:
           requires:
             - rust-kona-binaries
             - rust-op-reth-binary
             - rust-sp1-super-range-executor
-            - rust-build-op-rbuilder
-            - rust-build-rollup-boost
       - go-binaries-for-sysgo:
           requires:
             - prep-go-modules

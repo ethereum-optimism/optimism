@@ -22,8 +22,8 @@ The `kona-engine` crate provides a task-based engine client for interacting with
 
 The engine implements a task-driven architecture where forkchoice synchronization is handled automatically:
 
-- **Automatic Forkchoice Handling**: The [`BuildTask`](crate::BuildTask) automatically performs forkchoice updates during block building, eliminating the need for explicit forkchoice management in user code.
-- **Internal Synchronization**: [`SynchronizeTask`](crate::SynchronizeTask) handles internal execution layer synchronization and is primarily used by other tasks rather than directly by users.
+- **Automatic Forkchoice Handling**: The [`BuildTask`] automatically performs forkchoice updates during block building, eliminating the need for explicit forkchoice management in user code.
+- **Internal Synchronization**: [`SynchronizeTask`] handles internal execution layer synchronization and is primarily used by other tasks rather than directly by users.
 - **Priority-Based Execution**: Tasks are executed in priority order to ensure optimal sequencer performance and block processing efficiency.
 
 ## Engine API Compatibility

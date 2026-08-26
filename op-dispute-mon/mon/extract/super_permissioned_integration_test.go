@@ -53,14 +53,18 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 	extractor := NewExtractor(
 		logger,
 		clock.NewDeterministicClock(time.Unix(48294294, 58)),
+		new(stubGamesWaitingForRootSourceMetrics),
 		creator.CreateContract,
 		fetchGames,
+		nil,
 		nil,
 		1,
 		[]CommonEnricher{
 			NewL1HeadBlockNumEnricher(&stubBlockFetcher{num: l1HeadNum}),
 			NewSuperAgreementEnricher(logger, metrics, []SuperRootProvider{provider}, clock.NewDeterministicClock(time.Unix(9824924, 499))),
 		},
+		nil,
+		nil,
 		nil,
 	)
 

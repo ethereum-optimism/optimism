@@ -40,9 +40,10 @@ type SingleChainInterop struct {
 	FunderA  *dsl.FunderEOA
 
 	// May be nil if not using sysgo
-	challengerConfig *challengerConfig.Config
-	startZKProposer  func()
-	zkMetricsAddr    func() string
+	challengerConfig              *challengerConfig.Config
+	zkChallengerSuperRootRPCProxy *sysgo.StallableProxy
+	startZKProposer               func()
+	zkMetricsAddr                 func() string
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -79,6 +80,14 @@ func (s *SingleChainInterop) ZKProposerMetricsURL() string {
 	addr := s.zkMetricsAddr()
 	s.T.Require().NotEmpty(addr, "no ZK proposer metrics endpoint; pass sysgo.WithZKMetrics()")
 	return "http://" + addr + "/metrics"
+}
+
+// ZKChallengerSuperRootRPCProxy returns the proxy in front of the live ZK
+// challenger's super-root RPC.
+func (s *SingleChainInterop) ZKChallengerSuperRootRPCProxy() *sysgo.StallableProxy {
+	s.T.Require().NotNil(s.zkChallengerSuperRootRPCProxy,
+		"ZK challenger super-root RPC proxy is not configured")
+	return s.zkChallengerSuperRootRPCProxy
 }
 
 func (s *SingleChainInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {

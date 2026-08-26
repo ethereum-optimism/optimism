@@ -6,11 +6,11 @@
 //! aggregation-input validation. The mock provider then returns placeholder bytes; the network
 //! provider proves each chunk in compressed mode and aggregates them with PLONK.
 
-use std::num::NonZeroUsize;
+use std::{future::Future, num::NonZeroUsize};
 
-use alloy_primitives::{Address, B256};
+use alloy_primitives::B256;
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use futures::stream::{StreamExt, TryStreamExt};
+use futures::stream::{FuturesUnordered, StreamExt};
 use kona_sp1_client_utils::super_root::{SuperAggregationInputs, TimestampSpan};
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
@@ -20,37 +20,14 @@ use kona_sp1_super_range_executor::{
 };
 use sp1_sdk::{SP1Proof, SP1Stdin};
 
+pub use crate::ports::GameProofInputs;
+
 use crate::{
     config::RangeSplitCount,
     metrics::ProposerGauge,
+    ports::SuperRootSource,
     prover::{MOCK_PROOF_BYTES, ProofKeys, ProofProvider},
-    superroot::SuperrootClient,
 };
-
-/// The on-chain facts a defense proof is built from, read from the game
-/// contract at task spawn time.
-#[derive(Clone, Debug)]
-pub struct GameProofInputs {
-    /// The game's pinned L1 head (`l1Head()`); every witness derives from
-    /// L1 data at or below it.
-    pub l1_head: B256,
-    /// Block number of `l1_head`.
-    pub l1_head_number: u64,
-    /// The agreed starting super root (`startingProposal().root`).
-    pub starting_root: B256,
-    /// Timestamp of the starting super root.
-    pub starting_ts: u64,
-    /// The claimed super root (`rootClaim()`).
-    pub root_claim: B256,
-    /// Timestamp of the claim (`l2SequenceNumber()`).
-    pub claim_ts: u64,
-    /// The game's `absolutePrestate()`; selects the proving programs.
-    pub prestate: B256,
-    /// The address that will submit `prove()`. The proof's public values
-    /// bind it (`msg.sender` on-chain), so proofs are non-transferable
-    /// between signers.
-    pub prover: Address,
-}
 
 /// Marker error: this game can never be proven by this proposer. The
 /// defense scheduler maps it into the permanent `undefendable` set so the
@@ -93,8 +70,8 @@ pub fn is_unprovable(err: &anyhow::Error) -> bool {
 /// unprovable. A response is trusted only when
 /// `current_l1 > verified_required_l1`; stale responses during rewinds cannot
 /// determine a permanent verdict.
-pub async fn fetch_span_responses(
-    client: &SuperrootClient,
+pub(crate) async fn fetch_span_responses(
+    source: &dyn SuperRootSource,
     game: &GameProofInputs,
 ) -> Result<Vec<SuperRootAtTimestampResponse>> {
     ensure!(
@@ -106,13 +83,13 @@ pub async fn fetch_span_responses(
     let mut responses = Vec::with_capacity((game.claim_ts - game.starting_ts + 1) as usize);
     let mut roots = Vec::with_capacity(responses.capacity());
     for timestamp in game.starting_ts..=game.claim_ts {
-        let response = client.superroot_at_timestamp(timestamp).await?;
-        let Some(at) = SuperrootClient::super_root_at(&response, timestamp)? else {
+        let super_root_at = source.super_root_at_timestamp(timestamp).await?;
+        let Some(root) = super_root_at.root else {
             ProposerGauge::SuperRootUnavailable.increment(1.0);
             return Err(anyhow::Error::new(SuperRootDataUnavailable(timestamp)));
         };
-        roots.push(at.super_root);
-        responses.push(response);
+        roots.push(root.super_root);
+        responses.push(super_root_at.response);
     }
     check_span_roots(game, &roots, &responses)?;
     check_provable(game, responses.last().expect("span is non-empty"))?;
@@ -214,6 +191,40 @@ struct ChunkResult {
     consolidation_outputs: kona_sp1_client_utils::super_root::SuperConsolidationOutputs,
     /// `Some((range_proof, consolidation_proof))` in network mode.
     proofs: Option<(SP1Proof, SP1Proof)>,
+}
+
+/// Runs tasks with bounded concurrency.
+///
+/// After the first error, stops admitting queued tasks, drains admitted tasks,
+/// and returns the first error. Returns every result when all tasks succeed.
+async fn run_chunk_tasks_until_error<I, F, T>(tasks: I, max_concurrent: usize) -> Result<Vec<T>>
+where
+    I: IntoIterator<Item = F>,
+    F: Future<Output = Result<T>>,
+{
+    let mut tasks = tasks.into_iter();
+    let mut active: FuturesUnordered<_> = tasks.by_ref().take(max_concurrent).collect();
+    let mut results = Vec::with_capacity(tasks.size_hint().0 + active.len());
+    let mut first_error = None;
+
+    while let Some(result) = active.next().await {
+        match result {
+            Ok(result) if first_error.is_none() => results.push(result),
+            Ok(_) => {}
+            Err(err) if first_error.is_some() => {
+                tracing::warn!(error = %err, "Admitted chunk failed after another chunk");
+            }
+            Err(err) => first_error = Some(err),
+        }
+
+        if first_error.is_none() &&
+            let Some(task) = tasks.next()
+        {
+            active.push(task);
+        }
+    }
+
+    first_error.map_or_else(|| Ok(results), Err)
 }
 
 /// Proves the game's span end to end and returns the on-chain proof bytes.
@@ -319,10 +330,9 @@ pub async fn prove_game_inner(
     });
 
     let max_concurrent = max_concurrent.get().min(chunk_count);
-    let results: Vec<ChunkResult> =
-        futures::stream::iter(tasks).buffer_unordered(max_concurrent).try_collect().await?;
+    let results: Vec<ChunkResult> = run_chunk_tasks_until_error(tasks, max_concurrent).await?;
 
-    // buffer_unordered completes chunks out of order; restore chunk order by index.
+    // Chunk tasks complete out of order; restore chunk order by index.
     let mut range_outputs = vec![None; chunk_count];
     let mut consolidation_outputs = vec![None; chunk_count];
     let mut proofs = vec![None; chunk_count];
@@ -412,7 +422,12 @@ fn collect_indexed<T>(items: Vec<Option<T>>, what: &str) -> Result<Vec<T>> {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U256;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
+
+    use alloy_primitives::{Address, U256};
     use kona_sp1_client_utils::test_utils::valid_aggregation_inputs;
     use kona_sp1_super_range_executor::{
         BlockId, ChainId, ChainIdAndOutput, SuperRootResponseData, SuperV1,
@@ -575,5 +590,100 @@ mod tests {
 
         let err = collect_indexed(vec![Some(1), None::<u64>], "chunks").unwrap_err();
         assert!(err.to_string().contains("missing chunks for chunk 1"));
+    }
+
+    #[tokio::test]
+    async fn chunk_error_drains_admitted_siblings() {
+        let admitted_started = Arc::new(tokio::sync::Notify::new());
+        let error_reported = Arc::new(tokio::sync::Notify::new());
+        let release_admitted = Arc::new(tokio::sync::Notify::new());
+        let admitted_completed = Arc::new(AtomicBool::new(false));
+        let queued_started = Arc::new(AtomicBool::new(false));
+
+        let tasks = (0..3).map(|index| {
+            let admitted_started = Arc::clone(&admitted_started);
+            let error_reported = Arc::clone(&error_reported);
+            let release_admitted = Arc::clone(&release_admitted);
+            let admitted_completed = Arc::clone(&admitted_completed);
+            let queued_started = Arc::clone(&queued_started);
+            async move {
+                match index {
+                    0 => {
+                        admitted_started.notify_one();
+                        release_admitted.notified().await;
+                        admitted_completed.store(true, Ordering::SeqCst);
+                        Ok(index)
+                    }
+                    1 => {
+                        admitted_started.notified().await;
+                        error_reported.notify_one();
+                        Err(anyhow::anyhow!("chunk B failed"))
+                    }
+                    2 => {
+                        queued_started.store(true, Ordering::SeqCst);
+                        Ok(index)
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        });
+
+        let controller_error_reported = Arc::clone(&error_reported);
+        let controller_release_admitted = Arc::clone(&release_admitted);
+        let controller = tokio::spawn(async move {
+            controller_error_reported.notified().await;
+            tokio::task::yield_now().await;
+            controller_release_admitted.notify_one();
+        });
+
+        let result = run_chunk_tasks_until_error(tasks, 2).await;
+        controller.await.unwrap();
+
+        assert_eq!(result.unwrap_err().to_string(), "chunk B failed");
+        assert!(
+            admitted_completed.load(Ordering::SeqCst),
+            "admitted sibling was dropped before completion"
+        );
+        assert!(!queued_started.load(Ordering::SeqCst), "queued chunk started after sibling error");
+    }
+
+    #[tokio::test]
+    async fn chunk_success_preserves_bounded_concurrency() {
+        let first_pair_started = Arc::new(tokio::sync::Barrier::new(2));
+        let started = Arc::new(AtomicUsize::new(0));
+        let active = Arc::new(AtomicUsize::new(0));
+        let max_active = Arc::new(AtomicUsize::new(0));
+
+        let tasks = (0..4).map(|index| {
+            let first_pair_started = Arc::clone(&first_pair_started);
+            let started = Arc::clone(&started);
+            let active = Arc::clone(&active);
+            let max_active = Arc::clone(&max_active);
+            async move {
+                started.fetch_add(1, Ordering::SeqCst);
+                let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+                max_active.fetch_max(current, Ordering::SeqCst);
+
+                if index < 2 {
+                    first_pair_started.wait().await;
+                }
+                tokio::task::yield_now().await;
+
+                active.fetch_sub(1, Ordering::SeqCst);
+                Ok::<_, anyhow::Error>((index, index * 10))
+            }
+        });
+
+        let results = run_chunk_tasks_until_error(tasks, 2).await.unwrap();
+
+        assert_eq!(started.load(Ordering::SeqCst), 4);
+        assert_eq!(active.load(Ordering::SeqCst), 0);
+        assert_eq!(max_active.load(Ordering::SeqCst), 2);
+
+        let mut slots = vec![None; 4];
+        for (index, value) in results {
+            slots[index] = Some(value);
+        }
+        assert_eq!(collect_indexed(slots, "chunks").unwrap(), vec![0, 10, 20, 30]);
     }
 }

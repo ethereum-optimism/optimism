@@ -7,8 +7,8 @@ use std::{
 };
 
 use kona_genesis::{
-    Chain, ChainConfig, ChainList, DependencySet, InteropConfig, Superchain, SuperchainConfig,
-    Superchains, aggregate_clusters,
+    Chain, ChainConfig, ChainList, DependencySet, Superchain, SuperchainConfig, Superchains,
+    aggregate_clusters, with_single_chain_defaults,
 };
 use serde::de::DeserializeOwned;
 
@@ -121,18 +121,17 @@ fn main() {
 
     fs::write(&configs_path, serde_json::to_string_pretty(&superchains).unwrap()).unwrap();
 
-    // Aggregate per-cluster `DependencySet`s from each chain's `[interop]` block and
-    // overwrite the embedded depsets with the resulting list.
-    let interop_chains: Vec<(u64, &InteropConfig)> = superchains
-        .superchains
-        .iter()
-        .flat_map(|sc| sc.chains.iter())
-        .filter_map(|c| c.interop.as_ref().map(|i| (c.chain_id, i)))
-        .collect();
-    let depsets = aggregate_clusters(interop_chains.iter().map(|(id, cfg)| (*id, *cfg)))
-        .unwrap_or_else(|e| {
-            panic!("failed to aggregate interop clusters from superchain configs: {e}")
-        });
+    // Aggregate per-cluster `DependencySet`s from each chain's `[interop]` block, then give
+    // every remaining chain a self-only depset.
+    let all_chains: Vec<&ChainConfig> =
+        superchains.superchains.iter().flat_map(|sc| sc.chains.iter()).collect();
+    let depsets = aggregate_clusters(
+        all_chains.iter().filter_map(|c| c.interop.as_ref().map(|i| (c.chain_id, i))),
+    )
+    .unwrap_or_else(|e| {
+        panic!("failed to aggregate interop clusters from superchain configs: {e}")
+    });
+    let depsets = with_single_chain_defaults(depsets, all_chains.iter().map(|c| c.chain_id));
     write_depsets(&depsets_path, &depsets);
 
     let etc_dir = prepare_etc_dir(&committed_etc_dir, custom_configs_dir.is_some());

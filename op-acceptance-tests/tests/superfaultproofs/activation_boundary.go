@@ -95,9 +95,9 @@ func RunInteropActivationBoundaryTest(t devtest.T, sys *presets.SimpleInterop, r
 		},
 	}
 
-	runScenarioProofs(t, sys, &scenarioProofData{
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
 		fpvmTransitions:    tests,
 		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, false, runners),
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, false, runners),
 	}, runners...)
 }

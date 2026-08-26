@@ -269,15 +269,15 @@
     },
     {
       "source": "/operators/chain-operators/features/flashblocks",
-      "destination": "/chain-operators/guides/features/flashblocks-guide"
+      "destination": "/chain-operators/guides/features/subblocks-guide"
     },
     {
       "source": "/operators/chain-operators/features/flashblocks/apps",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/chain-operators/reference/features/flashblocks/apps",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/builders/chain-operators/tools/chain-monitoring",
@@ -1329,7 +1329,7 @@
     },
     {
       "source": "/stack/beta-features",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/stack/beta-features/alt-da-mode",
@@ -1381,7 +1381,7 @@
     },
     {
       "source": "/stack/features",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/stack/features/send-raw-transaction-conditional",
@@ -1501,15 +1501,31 @@
     },
     {
       "source": "/concepts/transactions/flashblocks",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/stack/transactions/flashblocks",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
     },
     {
       "source": "/op-stack/transactions/flashblocks",
-      "destination": "/op-stack/features/flashblocks"
+      "destination": "/op-stack/features/subblocks"
+    },
+    {
+      "source": "/op-stack/features/flashblocks",
+      "destination": "/op-stack/features/subblocks"
+    },
+    {
+      "source": "/chain-operators/guides/features/flashblocks-guide",
+      "destination": "/chain-operators/guides/features/subblocks-guide"
+    },
+    {
+      "source": "/app-developers/guides/transactions/integrating-flashblocks",
+      "destination": "/app-developers/guides/transactions/integrating-subblocks"
+    },
+    {
+      "source": "/app-developers/guides/transactions/flashblocks-and-gas-usage",
+      "destination": "/app-developers/guides/transactions/subblocks-and-gas-usage"
     },
     {
       "source": "/concepts/transactions/forced-transaction",
@@ -1657,7 +1673,7 @@
     },
     {
       "source": "/operators/chain-operators/features/flashblocks/chain-operators",
-      "destination": "/chain-operators/guides/features/flashblocks-guide"
+      "destination": "/chain-operators/guides/features/subblocks-guide"
     },
     {
       "source": "/stack/smart-contracts/op-deployer-upgrade",
@@ -1845,7 +1861,7 @@
     },
     {
       "source": "/chain-operators/reference/features/flashblocks/chain-operators",
-      "destination": "/chain-operators/guides/features/flashblocks-guide"
+      "destination": "/chain-operators/guides/features/subblocks-guide"
     },
     {
       "source": "/chain-operators/reference/features/bridged-usdc-standard",
@@ -2759,7 +2775,7 @@
                   "chain-operators/guides/features/setting-min-base-fee",
                   "chain-operators/guides/features/setting-operator-fee",
                   "chain-operators/guides/features/setting-da-footprint",
-                  "chain-operators/guides/features/flashblocks-guide",
+                  "chain-operators/guides/features/subblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
                   "chain-operators/guides/features/blobs",
                   "chain-operators/guides/features/enable-span-batches",
@@ -3239,10 +3255,10 @@
                 "group": "Transactions",
                 "pages": [
                   "app-developers/guides/transactions/estimates",
-                  "app-developers/guides/transactions/flashblocks-and-gas-usage",
-                  "app-developers/guides/transactions/integrating-flashblocks",
+                  "app-developers/guides/transactions/integrating-subblocks",
                   "app-developers/guides/transactions/parameters",
                   "app-developers/guides/transactions/statuses",
+                  "app-developers/guides/transactions/subblocks-and-gas-usage",
                   "app-developers/guides/transactions/troubleshooting"
                 ]
               }
@@ -3380,7 +3396,7 @@
           {
             "group": "Features",
             "pages": [
-              "op-stack/features/flashblocks",
+              "op-stack/features/subblocks",
               "op-stack/features/custom-gas-token",
               "op-stack/features/bridged-usdc-standard",
               "op-stack/features/span-batches",
@@ -3611,7 +3627,8 @@
               {
                 "group": "Operations",
                 "pages": [
-                  "notices/specialized-node-topology"
+                  "notices/specialized-node-topology",
+                  "notices/subblocks"
                 ]
               },
               "notices/archive/index"

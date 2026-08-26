@@ -40,8 +40,6 @@ pub struct SyncStatus {
     /// This is the absolute tip of the L2 chain, pointing to block data that has not been
     /// submitted to L1 yet. The sequencer is building this, and verifiers may also be ahead of
     /// the safe L2 block if they sync blocks via p2p or other offchain sources.
-    /// This is considered to only be local-unsafe post-interop, see `cross_unsafe_l2` for cross-L2
-    /// guarantees.
     pub unsafe_l2: L2BlockInfo,
     /// The safe L2 block ref.
     ///
@@ -55,13 +53,77 @@ pub struct SyncStatus {
     /// This points to the L2 block that was derived fully from finalized L1 information, thus
     /// irreversible.
     pub finalized_l2: L2BlockInfo,
-    /// Cross unsafe L2 block ref.
-    ///
-    /// This is an unsafe L2 block, that has been verified to match cross-L2 dependencies.
-    /// Pre-interop every unsafe L2 block is also cross-unsafe.
-    pub cross_unsafe_l2: L2BlockInfo,
     /// Local safe L2 block ref.
     ///
     /// This is an L2 block derived from L1, not yet verified to have valid cross-L2 dependencies.
     pub local_safe_l2: L2BlockInfo,
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use super::*;
+    use alloy_primitives::b256;
+
+    /// A CL that still reports `cross_unsafe_l2` must stay parseable. `DerivationDelegateClient`
+    /// reads `optimism_syncStatus` from an arbitrary external node, and op-nodes predating the
+    /// field's removal — plus third-party implementations — still send it. This only works
+    /// because [`SyncStatus`] does not `deny_unknown_fields`.
+    #[test]
+    fn test_sync_status_ignores_cross_unsafe_from_an_external_node() {
+        let l1_block = r#"{
+            "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "number": 18123456,
+            "parentHash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+            "timestamp": 1699123456
+        }"#;
+        let l2_block = |number: u64| {
+            format!(
+                r#"{{
+                    "hash": "0x3333333333333333333333333333333333333333333333333333333333333333",
+                    "number": {number},
+                    "parentHash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+                    "timestamp": 1699123456,
+                    "l1Origin": {{
+                        "hash": "0x5555555555555555555555555555555555555555555555555555555555555555",
+                        "number": 18123456
+                    }},
+                    "sequenceNumber": 42
+                }}"#
+            )
+        };
+
+        let payload = format!(
+            r#"{{
+                "current_l1": {l1_block},
+                "current_l1_finalized": {l1_block},
+                "head_l1": {l1_block},
+                "safe_l1": {l1_block},
+                "finalized_l1": {l1_block},
+                "unsafe_l2": {unsafe_l2},
+                "safe_l2": {safe_l2},
+                "finalized_l2": {finalized_l2},
+                "cross_unsafe_l2": {cross_unsafe_l2},
+                "local_safe_l2": {local_safe_l2}
+            }}"#,
+            l1_block = l1_block,
+            unsafe_l2 = l2_block(12350),
+            safe_l2 = l2_block(12345),
+            finalized_l2 = l2_block(12340),
+            cross_unsafe_l2 = l2_block(12348),
+            local_safe_l2 = l2_block(12346),
+        );
+
+        let status: SyncStatus = serde_json::from_str(&payload).unwrap();
+
+        // The extra field is dropped, and the heads we do read are unaffected by it.
+        assert_eq!(status.unsafe_l2.block_info.number, 12350);
+        assert_eq!(status.safe_l2.block_info.number, 12345);
+        assert_eq!(status.local_safe_l2.block_info.number, 12346);
+        assert_eq!(
+            status.unsafe_l2.block_info.hash,
+            b256!("3333333333333333333333333333333333333333333333333333333333333333")
+        );
+        assert_eq!(status.unsafe_l2.l1_origin.number, 18123456);
+        assert_eq!(status.unsafe_l2.seq_num, 42);
+    }
 }

@@ -36,6 +36,4 @@ type L2Network interface {
 	L2CLNodes() []L2CLNode
 	L2ELNodes() []L2ELNode
 	Conductors() []Conductor
-	RollupBoostNodes() []RollupBoostNode
-	OPRBuilderNodes() []OPRBuilderNode
 }

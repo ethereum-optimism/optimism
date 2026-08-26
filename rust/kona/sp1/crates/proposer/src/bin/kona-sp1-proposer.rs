@@ -14,6 +14,7 @@ use kona_sp1_host_utils::{
     network::{build_network_prover_from_env, determine_network_mode},
 };
 use kona_sp1_proposer::{
+    ENV_VAR_PREFIX,
     config::{ProofProviderKind, ProposerConfig, redacted_url},
     contract::DisputeGameFactory,
     metrics::ProposerGauge,
@@ -30,13 +31,13 @@ struct Cli {}
 #[tokio::main]
 async fn main() -> Result<()> {
     Cli::parse();
-    setup_logger();
+    setup_logger(ENV_VAR_PREFIX);
 
     let config = ProposerConfig::from_env()?;
 
     tracing::info!(
         l1_rpc = %redacted_url(&config.l1_rpc),
-        superroot_rpc = %redacted_url(&config.superroot_rpc),
+        superroot_rpcs = &config.superroot_rpcs.iter().map(redacted_url).collect::<Vec<_>>().join(","),
         factory_address = %config.factory_address,
         prestates_url = %redacted_url(&config.prestates_url),
         proposal_interval_seconds = config.proposal_interval_seconds,
@@ -66,8 +67,7 @@ async fn main() -> Result<()> {
         "Resolved proposer configuration"
     );
 
-    // Read NETWORK_PRIVATE_KEY only in network mode; mock deployments
-    // need no SPN credentials.
+    // Mock deployments need no SPN credentials.
     let proof_provider = match config.proof_provider {
         ProofProviderKind::Network => {
             let provider_config = config.proof_provider_config.clone();
@@ -76,7 +76,8 @@ async fn main() -> Result<()> {
                 provider_config.agg_proof_strategy,
             )?;
             let prover =
-                build_network_prover_from_env(provider_config.range_proof_strategy).await?;
+                build_network_prover_from_env(ENV_VAR_PREFIX, provider_config.range_proof_strategy)
+                    .await?;
             ProofProvider::Network(NetworkProofProvider::new(
                 Arc::new(prover),
                 provider_config,

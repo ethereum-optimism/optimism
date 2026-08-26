@@ -1,8 +1,8 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{
-    EngineConfig, InteropMode, NetworkConfig, RollupNode, SequencerConfig,
-    actors::DerivationDelegateClient, service::node::L1Config,
+    EngineConfig, NetworkConfig, RollupNode, SequencerConfig, actors::DerivationDelegateClient,
+    service::node::L1Config,
 };
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
@@ -20,6 +20,7 @@ use url::Url;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_providers_alloy::OnlineBeaconClient;
+use kona_providers_local::BufferedL2Provider;
 use kona_rpc::RpcBuilder;
 
 /// Configuration for Derivation Delegate mode.
@@ -69,8 +70,6 @@ pub struct RollupNodeBuilder {
     pub rpc_config: Option<RpcBuilder>,
     /// The [`SequencerConfig`].
     pub sequencer_config: Option<SequencerConfig>,
-    /// Whether to run the node in interop mode.
-    pub interop_mode: InteropMode,
     /// Optional configuration for Derivation Delegate mode.
     /// When present, the node does not run derivation, instead trusting the configured delegate.
     pub derivation_delegate_config: Option<DerivationDelegateConfig>,
@@ -80,7 +79,7 @@ pub struct RollupNodeBuilder {
 
 impl RollupNodeBuilder {
     /// Creates a new [`RollupNodeBuilder`] with the given [`RollupConfig`].
-    pub fn new(
+    pub const fn new(
         config: RollupConfig,
         l1_config_builder: L1ConfigBuilder,
         l2_trust_rpc: bool,
@@ -95,7 +94,6 @@ impl RollupNodeBuilder {
             engine_config,
             p2p_config,
             rpc_config,
-            interop_mode: InteropMode::default(),
             sequencer_config: None,
             derivation_delegate_config: None,
             dependency_set: None,
@@ -171,6 +169,13 @@ impl RollupNodeBuilder {
         let l2_provider = RootProvider::<Optimism>::new(rpc_client);
 
         let rollup_config = Arc::new(self.config);
+        // The buffer's reorg depth governs its handling of chain events, which nothing feeds it:
+        // lookups are keyed by hash, so a reorged-out block is never returned regardless.
+        let l2_block_buffer = BufferedL2Provider::new(
+            rollup_config.clone(),
+            super::node::IMPORTED_BLOCK_BUFFER_SIZE,
+            0,
+        );
 
         let p2p_config = self.p2p_config;
         let sequencer_config = self.sequencer_config.unwrap_or_default();
@@ -184,8 +189,8 @@ impl RollupNodeBuilder {
         RollupNode {
             config: rollup_config,
             l1_config,
-            interop_mode: self.interop_mode,
             l2_provider,
+            l2_block_buffer,
             l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,

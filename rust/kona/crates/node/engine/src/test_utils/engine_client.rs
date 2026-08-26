@@ -15,7 +15,6 @@ use alloy_transport::{TransportError, TransportErrorKind, TransportResult};
 use alloy_transport_http::Http;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
-use kona_protocol::L2BlockInfo;
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types::Transaction as OpTransaction;
@@ -41,8 +40,6 @@ pub fn test_engine_client_builder() -> MockEngineClientBuilder {
 pub struct MockEngineStorage {
     /// Storage for block responses by tag.
     pub l2_blocks_by_label: HashMap<BlockNumberOrTag, Block<OpTransaction>>,
-    /// Storage for block info responses by tag.
-    pub block_info_by_tag: HashMap<BlockNumberOrTag, L2BlockInfo>,
 
     // Version-specific new_payload responses
     /// Storage for `new_payload_v1` responses.
@@ -136,12 +133,6 @@ impl MockEngineClientBuilder {
         block: Block<OpTransaction>,
     ) -> Self {
         self.storage.l2_blocks_by_label.insert(tag, block);
-        self
-    }
-
-    /// Sets a block info response for a specific tag.
-    pub fn with_block_info_by_tag(mut self, tag: BlockNumberOrTag, info: L2BlockInfo) -> Self {
-        self.storage.block_info_by_tag.insert(tag, info);
         self
     }
 
@@ -305,11 +296,6 @@ impl MockEngineClient {
     /// Sets a block response for a specific tag.
     pub async fn set_l2_block_by_label(&self, tag: BlockNumberOrTag, block: Block<OpTransaction>) {
         self.storage.write().await.l2_blocks_by_label.insert(tag, block);
-    }
-
-    /// Sets a block info response for a specific tag.
-    pub async fn set_block_info_by_tag(&self, tag: BlockNumberOrTag, info: L2BlockInfo) {
-        self.storage.write().await.block_info_by_tag.insert(tag, info);
     }
 
     /// Sets the `new_payload_v1` response.
@@ -485,14 +471,6 @@ impl EngineClient for MockEngineClient {
     ) -> Result<Option<Block<OpTransaction>>, EngineClientError> {
         let storage = self.storage.read().await;
         Ok(storage.l2_blocks_by_label.get(&numtag).cloned())
-    }
-
-    async fn l2_block_info_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<L2BlockInfo>, EngineClientError> {
-        let storage = self.storage.read().await;
-        Ok(storage.block_info_by_tag.get(&numtag).copied())
     }
 }
 
