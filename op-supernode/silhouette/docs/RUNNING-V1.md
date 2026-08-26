@@ -67,7 +67,7 @@ configuration half of the same claim.
 
 Size, for the record: the verifier core (`op-supernode/silhouette` + `op-supernode/proofbatch`,
 non-test) is **5,858 lines** of Go; **7,045** including the submitter, the config generator and the
-inspect tool; **8,017** lines of tests. Nothing in that build verifies a proof, so nothing in it
+inspect tool; **8,020** lines of tests. Nothing in that build verifies a proof, so nothing in it
 needs a toolchain that could.
 
 ---

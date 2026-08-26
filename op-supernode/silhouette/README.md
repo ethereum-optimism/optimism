@@ -51,24 +51,29 @@ shelf branches, and §"What is deliberately not here" says where.
 
 ## The diff
 
-| Category | Files | What |
-|---|---|---|
-| **The op-node seam** | 3 | **71 insertions.** `DataSourceOverride` + `ExtraAPIs`. This is the entire consensus-layer change. |
-| Wire codec + fixtures | 4 + 131 | The v3 envelope in Go, and the corpus that pins it |
-| The silhouette Go stack | 46 | Decode source, transcoder, fact store, shim EL, log sink, assembly, postures |
-| Interop plumbing | 10 | The judge flip, the third verdict, the capability seams — none behind a chain-kind branch |
-| Producer + ops tools | 7 | The submitter (the send is the attestation), `silhouette-config`, `proofbatch-inspect` |
-| Devstack + acceptance | 14 | The multi-process two-chain system and the 11-test v1 gate |
-| Contracts | 13 | The gated portal; the ETH net-flow solvency cap; the home-pinned bridge |
-| kona-derive | 3 | The op-stack blob payload decoder, exported for any kona-based reader |
-| Docs | 5 | This file, the trust model, the runbook, two specs |
+Measured against the upstream base this branch was cut from, `9104d734a9`:
+
+| Category | Files | + | − | What |
+|---|---:|---:|---:|---|
+| **The op-node seam** | **3** | **71** | **3** | `DataSourceOverride` + `ExtraAPIs`. **The entire consensus-layer change.** |
+| The silhouette Go stack | 41 | 10,426 | 0 | Decode source, transcoder, fact store, shim EL, log sink, assembly, postures — and its tests |
+| Wire codec (Go) | 4 | 2,641 | 0 | The v3 envelope, and the acceptance structure checked before anything else looks at it |
+| Fixture corpus | 131 | 3,406 | 0 | 35 v3 fixtures + 25 frozen v2 envelopes — the bytes that pin the wire, in either language |
+| Producer + ops tools | 6 | 1,816 | 0 | The submitter (the send is the attestation), `silhouette-config`, `proofbatch-inspect` |
+| Interop plumbing | 16 | 1,902 | 22 | The judge flip, the third verdict, the capability seams — none behind a chain-kind branch |
+| Devstack + acceptance | 14 | 2,714 | 29 | The multi-process two-chain system and the 11-test v1 gate |
+| Contracts | 19 | 2,404 | 10 | The gated portal; the ETH net-flow solvency cap; the home-pinned bridge |
+| kona-derive | 3 | 36 | 2 | The op-stack blob payload decoder, exported for any kona-based reader |
+| Docs | 5 | 1,440 | 0 | This file, the trust model, the runbook, two specs |
+| Misc | 1 | 5 | 0 | `.gitignore` for locally-built binaries |
+| **Total** | **243** | **26,861** | **66** | |
 
 **The number to look at first is 71.** A private chain in a public dependency set costs the
 consensus layer three files and two seams, both in the pattern of seams already there. Everything
 else is a service beside `op-node`, not a change to it.
 
 Sizes, for the record: the verifier core (`silhouette` + `proofbatch`, non-test) is **5,858 lines**
-of Go; **7,045** including the submitter and the two tools; **8,017** lines of Go tests. There is no
+of Go; **7,045** including the submitter and the two tools; **8,020** lines of Go tests. There is no
 ZK toolchain in the build or in the run.
 
 ## How to read it
