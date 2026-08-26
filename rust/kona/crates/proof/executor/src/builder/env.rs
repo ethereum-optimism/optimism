@@ -29,11 +29,16 @@ where
         payload_attrs: &OpPayloadAttributes,
         base_fee_params: &BaseFeeParams,
         min_base_fee: u64,
+        post_exec_active: bool,
+        committed_base_fee: Option<u64>,
     ) -> ExecutorResult<EvmEnv<OpSpecId>> {
         let gas_limit = payload_attrs.gas_limit.ok_or(ExecutorError::MissingGasLimit)?;
-        let next_block_base_fee = self
-            .next_block_base_fee(*base_fee_params, parent_header, min_base_fee)
-            .unwrap_or_default();
+        let next_block_base_fee = if post_exec_active {
+            committed_base_fee.unwrap_or_else(|| parent_header.base_fee_per_gas.unwrap_or_default())
+        } else {
+            self.next_block_base_fee(*base_fee_params, parent_header, min_base_fee)
+                .unwrap_or_default()
+        };
 
         Ok(evm_env_for_op_next_block(
             parent_header,

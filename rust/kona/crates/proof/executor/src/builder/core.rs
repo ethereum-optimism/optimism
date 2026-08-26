@@ -20,7 +20,9 @@ use alloy_op_hardforks::OpHardforks;
 use core::fmt::Debug;
 use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
-use op_alloy_consensus::{OpTxEnvelope, parse_post_exec_payload_from_transactions};
+use op_alloy_consensus::{
+    OpTxEnvelope, build_post_exec_tx, parse_post_exec_payload_from_transactions,
+};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 use revm::{
@@ -248,26 +250,75 @@ where
     /// - I/O patterns optimized through trie hinter guidance
     pub fn build_block(
         &mut self,
-        attrs: OpPayloadAttributes,
+        mut attrs: OpPayloadAttributes,
     ) -> ExecutorResult<BlockBuildingOutcome<R::Receipt>> {
+        let timestamp = attrs.payload_attributes.timestamp;
+        let post_exec_active = self.is_sdm_active(timestamp);
+        let block_number = self.trie_db.parent_block_header().number.saturating_add(1);
+
+        // Decode before constructing the EVM environment so Lagoon can recover the selected fee
+        // from the trailing PostExec commitment. Deterministic derived builds without a commitment
+        // carry forward the parent fee and synthesize the canonical empty commitment.
+        attrs.transactions.as_ref().ok_or(ExecutorError::MissingTransactions)?;
+        let initial_transactions = attrs
+            .recovered_transactions_with_encoded()
+            .collect::<Result<Vec<_>, RecoveryError>>()
+            .map_err(ExecutorError::Recovery)?;
+        let parsed = parse_post_exec_payload_from_transactions(
+            initial_transactions.iter().map(RecoveredTx::tx),
+            block_number,
+            post_exec_active,
+        )
+        .map_err(|err| ExecutorError::InvalidPostExecPayload(err.into_string()))?;
+
+        if post_exec_active && parsed.is_none() {
+            let selected_base_fee_per_gas =
+                self.trie_db.parent_block_header().base_fee_per_gas.unwrap_or_default();
+            let post_exec = build_post_exec_tx(block_number, selected_base_fee_per_gas, Vec::new());
+            let mut encoded = Vec::with_capacity(post_exec.eip2718_encoded_length());
+            post_exec.encode_2718(&mut encoded);
+            attrs
+                .transactions
+                .as_mut()
+                .expect("transactions presence checked above")
+                .push(encoded.into());
+        }
+
+        let transactions = attrs
+            .recovered_transactions_with_encoded()
+            .collect::<Result<Vec<_>, RecoveryError>>()
+            .map_err(ExecutorError::Recovery)?;
+        let parsed = parse_post_exec_payload_from_transactions(
+            transactions.iter().map(RecoveredTx::tx),
+            block_number,
+            post_exec_active,
+        )
+        .map_err(|err| ExecutorError::InvalidPostExecPayload(err.into_string()))?;
+        let committed_base_fee =
+            parsed.as_ref().map(|parsed| parsed.payload.selected_base_fee_per_gas);
+        let post_exec_mode =
+            parsed.map(|parsed| PostExecMode::Verify(parsed.payload)).unwrap_or_default();
+
         // Step 1. Set up the execution environment.
         let (base_fee_params, min_base_fee) = Self::active_base_fee_params(
             self.config,
             self.trie_db.parent_block_header(),
-            attrs.payload_attributes.timestamp,
+            timestamp,
         )?;
         let evm_env = self.evm_env(
             self.trie_db.parent_block_header(),
             &attrs,
             &base_fee_params,
             min_base_fee,
+            post_exec_active,
+            committed_base_fee,
         )?;
         let block_env = evm_env.block_env().clone();
         let parent_hash = self.trie_db.parent_block_header().seal();
         // Computed here, before `self.trie_db` is borrowed mutably below.
         let no_user_tx_activation_block = self.config.is_no_user_tx_activation_block(
             self.trie_db.parent_block_header().timestamp,
-            attrs.payload_attributes.timestamp,
+            timestamp,
         );
 
         // Attempt to send a payload witness hint to the host. This hint instructs the host to
@@ -288,27 +339,11 @@ where
             "Beginning block building."
         );
 
-        // Compute SDM activation before borrowing `self.trie_db` mutably below.
-        let sdm_active = self.is_sdm_active(block_env.timestamp.saturating_to());
-
         // Step 2. Create the executor, using the trie database.
         let mut state =
             State::builder().with_database(&mut self.trie_db).with_bundle_update().build();
         let evm = self.factory.evm_factory().create_evm(&mut state, evm_env);
-        // Step 3. Decode and validate the block transactions within the payload attributes.
-        let transactions = attrs
-            .recovered_transactions_with_encoded()
-            .collect::<Result<Vec<_>, RecoveryError>>()
-            .map_err(ExecutorError::Recovery)?;
-        let post_exec_mode = parse_post_exec_payload_from_transactions(
-            transactions.iter().map(RecoveredTx::tx),
-            block_env.number.saturating_to(),
-            sdm_active,
-        )
-        .map_err(|err| ExecutorError::InvalidPostExecPayload(err.into_string()))?
-        .map(|parsed| PostExecMode::Verify(parsed.payload))
-        .unwrap_or_default();
-
+        // Step 3. Execute the decoded and validated block transactions.
         let ctx = OpBlockExecutionCtx {
             parent_hash,
             no_user_tx_activation_block,
