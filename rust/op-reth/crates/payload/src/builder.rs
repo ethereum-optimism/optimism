@@ -975,11 +975,13 @@ where
 
         let selected_base_fee_per_gas = self
             .builder_config
-            .base_fee_policy
-            .select_base_fee(BaseFeePolicyInput {
-                parent: self.parent().header(),
-                next_timestamp: timestamp,
-                legacy_base_fee,
+            .base_fee_selection_cache
+            .resolve(self.payload_id(), || {
+                self.builder_config.base_fee_policy.select_base_fee(BaseFeePolicyInput {
+                    parent: self.parent().header(),
+                    next_timestamp: timestamp,
+                    legacy_base_fee,
+                })
             })
             .map_err(PayloadBuilderError::other)?;
 

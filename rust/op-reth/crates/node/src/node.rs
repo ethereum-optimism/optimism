@@ -285,6 +285,7 @@ impl OpNode {
             da_config: self.da_config.clone(),
             gas_limit_config: self.gas_limit_config.clone(),
             base_fee_policy: self.base_fee_policy.clone(),
+            base_fee_selection_cache: Default::default(),
             operator_sdm_opt_in: self.operator_sdm_opt_in.clone(),
             interop_failsafe: self.interop_failsafe.clone(),
             max_uncompressed_block_size: self.args.max_uncompressed_block_size,

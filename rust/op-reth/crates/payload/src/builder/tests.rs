@@ -39,7 +39,14 @@ use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
 use reth_transaction_pool::PoolTransaction;
-use std::{borrow::Cow, cell::Cell, sync::Arc};
+use std::{
+    borrow::Cow,
+    cell::Cell,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 
 #[derive(Debug)]
 struct TestBaseFeePolicy(Result<u64, &'static str>);
@@ -47,6 +54,15 @@ struct TestBaseFeePolicy(Result<u64, &'static str>);
 impl BaseFeePolicy for TestBaseFeePolicy {
     fn select_base_fee(&self, _input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
         self.0.map_err(BaseFeePolicyError::msg)
+    }
+}
+
+#[derive(Debug, Default)]
+struct IncrementingBaseFeePolicy(AtomicU64);
+
+impl BaseFeePolicy for IncrementingBaseFeePolicy {
+    fn select_base_fee(&self, _input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
+        Ok(700 + self.0.fetch_add(1, Ordering::Relaxed))
     }
 }
 
@@ -354,6 +370,20 @@ fn base_fee_resolution_uses_policy_commitment_and_fallback_sources() {
     assert_eq!(resolved.selected_base_fee_per_gas, 0);
     assert!(matches!(resolved.mode, PostExecMode::Commit));
     assert!(resolved.append_post_exec);
+}
+
+#[test]
+fn base_fee_selection_is_immutable_across_payload_job_retries() {
+    let mut ctx = interop_ctx(false, false, None);
+    let policy = Arc::new(IncrementingBaseFeePolicy::default());
+    ctx.builder_config.base_fee_policy = policy.clone();
+
+    let first = ctx.resolve_post_exec().expect("first attempt resolves");
+    let retry = ctx.resolve_post_exec().expect("retry resolves");
+
+    assert_eq!(first.selected_base_fee_per_gas, 700);
+    assert_eq!(retry.selected_base_fee_per_gas, 700);
+    assert_eq!(policy.0.load(Ordering::Relaxed), 1, "policy must run once per payload id");
 }
 
 #[test]

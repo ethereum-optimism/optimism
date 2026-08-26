@@ -1,10 +1,14 @@
 //! Additional configuration for the OP builder
 
 use alloy_consensus::BlockHeader;
+use alloy_rpc_types_engine::PayloadId;
 use reth_optimism_txpool::interop::InteropFailsafe;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
+use std::{
+    collections::VecDeque,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
 };
 
 /// Inputs available to a producer's base-fee policy.
@@ -61,6 +65,37 @@ impl BaseFeePolicy for JovianBaseFeePolicy {
     }
 }
 
+type BaseFeeSelections = VecDeque<(PayloadId, Result<u64, BaseFeePolicyError>)>;
+
+/// Bounded cache that keeps a policy selection immutable across retries of one payload job.
+#[derive(Debug, Clone, Default)]
+pub struct BaseFeeSelectionCache {
+    inner: Arc<Mutex<BaseFeeSelections>>,
+}
+
+impl BaseFeeSelectionCache {
+    const CAPACITY: usize = 64;
+
+    /// Returns the selection already resolved for `payload_id`, or resolves and stores it once.
+    pub fn resolve(
+        &self,
+        payload_id: PayloadId,
+        select: impl FnOnce() -> Result<u64, BaseFeePolicyError>,
+    ) -> Result<u64, BaseFeePolicyError> {
+        let mut entries = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((_, selected)) = entries.iter().find(|(id, _)| *id == payload_id) {
+            return selected.clone();
+        }
+
+        let selected = select();
+        if entries.len() == Self::CAPACITY {
+            entries.pop_front();
+        }
+        entries.push_back((payload_id, selected.clone()));
+        selected
+    }
+}
+
 /// Settings for the OP builder.
 #[derive(Debug, Clone)]
 pub struct OpBuilderConfig {
@@ -70,6 +105,8 @@ pub struct OpBuilderConfig {
     pub gas_limit_config: OpGasLimitConfig,
     /// Producer-only policy used to select the base fee for normal Lagoon payloads.
     pub base_fee_policy: Arc<dyn BaseFeePolicy>,
+    /// Selections shared by retries of the same payload job.
+    pub base_fee_selection_cache: BaseFeeSelectionCache,
     /// Local SDM refund production operator opt-in. Shared with the admin RPC.
     pub operator_sdm_opt_in: OperatorSdmOptIn,
     /// Interop failsafe gate. Set by the interop filter client; read by the builder to exclude
@@ -92,6 +129,7 @@ impl Default for OpBuilderConfig {
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
             base_fee_policy: Arc::new(JovianBaseFeePolicy),
+            base_fee_selection_cache: BaseFeeSelectionCache::default(),
             operator_sdm_opt_in: OperatorSdmOptIn::default(),
             interop_failsafe: InteropFailsafe::default(),
             max_uncompressed_block_size: None,
@@ -106,6 +144,7 @@ impl OpBuilderConfig {
             da_config,
             gas_limit_config,
             base_fee_policy: Arc::new(JovianBaseFeePolicy),
+            base_fee_selection_cache: BaseFeeSelectionCache::default(),
             operator_sdm_opt_in: OperatorSdmOptIn::default(),
             interop_failsafe: InteropFailsafe::default(),
             max_uncompressed_block_size: None,
