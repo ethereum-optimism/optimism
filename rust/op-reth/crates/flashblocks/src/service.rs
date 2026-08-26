@@ -7,9 +7,12 @@ use crate::{
     validation::{CanonicalBlockFingerprint, ReconciliationStrategy},
     worker::{BuildResult, FlashBlockBuilder, FlashblockCachedReceipt},
 };
+use alloy_consensus::transaction::SignerRecoverable;
+use alloy_eips::Decodable2718;
 use alloy_primitives::B256;
 use futures_util::{FutureExt, Stream, StreamExt};
 use metrics::{Counter, Gauge, Histogram};
+use op_alloy_consensus::OpTransaction;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_metrics::Metrics;
 use reth_optimism_evm::ConfigurePostExecEvm;
@@ -96,6 +99,7 @@ impl<N, S, EvmConfig, Provider> FlashBlockService<N, S, EvmConfig, Provider>
 where
     N: NodePrimitives,
     N::Receipt: FlashblockCachedReceipt,
+    N::SignedTx: Decodable2718 + OpTransaction + SignerRecoverable,
     S: Stream<Item = eyre::Result<FlashBlock>> + Unpin + 'static,
     EvmConfig: ConfigurePostExecEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>
         + Clone

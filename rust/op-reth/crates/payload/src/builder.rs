@@ -499,12 +499,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         let mut info = ctx.execute_sequencer_transactions(&mut builder, None)?;
         if append_post_exec {
             let block_number = builder.evm_mut().block().number().saturating_to();
-            let empty_post_exec_size =
-                build_post_exec_tx(block_number, selected_base_fee_per_gas, Vec::new())
-                    .eip2718_encoded_length() as u64;
-            info.reserved_post_exec_bytes = empty_post_exec_size.saturating_add(
-                info.included_transactions.saturating_mul(MAX_POST_EXEC_BYTES_PER_TRANSACTION),
-            );
+            info.reserve_post_exec(block_number, selected_base_fee_per_gas);
         }
 
         // 3. if mem pool transactions are requested we execute them
@@ -784,6 +779,16 @@ impl ExecutionInfo {
             included_transactions: 0,
             total_fees: U256::ZERO,
         }
+    }
+
+    /// Reserves conservative uncompressed block space for a mandatory trailing PostExec.
+    pub fn reserve_post_exec(&mut self, block_number: u64, selected_base_fee_per_gas: u64) {
+        let empty_post_exec_size =
+            build_post_exec_tx(block_number, selected_base_fee_per_gas, Vec::new())
+                .eip2718_encoded_length() as u64;
+        self.reserved_post_exec_bytes = empty_post_exec_size.saturating_add(
+            self.included_transactions.saturating_mul(MAX_POST_EXEC_BYTES_PER_TRANSACTION),
+        );
     }
 
     /// Adds a transaction's gas to both the canonical and pre-refund (real compute) counters,

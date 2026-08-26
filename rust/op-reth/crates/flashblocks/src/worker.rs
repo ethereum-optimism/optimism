@@ -3,8 +3,10 @@ use crate::{
     pending_state::PendingBlockState,
     tx_cache::{CachedExecutionMeta, TransactionCache},
 };
-use alloy_eips::{BlockNumberOrTag, eip2718::WithEncoded};
-use alloy_primitives::B256;
+use alloy_consensus::transaction::SignerRecoverable;
+use alloy_eips::{BlockNumberOrTag, Decodable2718, eip2718::WithEncoded};
+use alloy_primitives::{B256, Bytes};
+use op_alloy_consensus::OpTransaction;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_chain_state::ExecutedBlock;
 use reth_errors::RethError;
@@ -58,6 +60,8 @@ impl<EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider> {
 pub(crate) struct BuildArgs<I, N: NodePrimitives> {
     pub(crate) base: OpFlashblockPayloadBase,
     pub(crate) transactions: I,
+    /// Latest out-of-band PostExec snapshot for this sequence.
+    pub(crate) post_exec_tx: Option<Bytes>,
     pub(crate) cached_state: Option<(B256, CachedReads)>,
     pub(crate) last_flashblock_index: u64,
     pub(crate) last_flashblock_hash: B256,
@@ -117,6 +121,7 @@ impl<N, EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider>
 where
     N: NodePrimitives,
     N::Receipt: FlashblockCachedReceipt,
+    N::SignedTx: Decodable2718 + OpTransaction + SignerRecoverable,
     EvmConfig: ConfigurePostExecEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
     Provider: StateProviderFactory
         + BlockReaderIdExt<
@@ -167,8 +172,43 @@ where
             return Ok(None);
         }
 
-        // Collect transactions and extract hashes for cache lookup
-        let transactions: Vec<_> = args.transactions.into_iter().collect();
+        // Collect transactions, then materialize the latest out-of-band PostExec snapshot exactly
+        // once as the trailing transaction.
+        let mut transactions: Vec<_> = args.transactions.into_iter().collect();
+        let post_exec_mode = if let Some(raw) = args.post_exec_tx.take() {
+            let tx = N::SignedTx::decode_2718_exact(&raw)
+                .map_err(|err| eyre::eyre!("failed to decode flashblock post-exec tx: {err}"))?;
+            let payload = tx
+                .as_post_exec()
+                .ok_or_else(|| eyre::eyre!("flashblock post_exec_tx is not type 0x7d"))?
+                .inner()
+                .payload
+                .clone();
+            if payload.block_number != args.base.block_number {
+                return Err(eyre::eyre!(
+                    "flashblock post-exec block number {} does not match {}",
+                    payload.block_number,
+                    args.base.block_number
+                ));
+            }
+            let selected_base_fee_per_gas = u64::try_from(args.base.base_fee_per_gas)
+                .map_err(|_| eyre::eyre!("flashblock base fee does not fit in u64"))?;
+            if payload.selected_base_fee_per_gas != selected_base_fee_per_gas {
+                return Err(eyre::eyre!(
+                    "flashblock post-exec base fee {} does not match {}",
+                    payload.selected_base_fee_per_gas,
+                    selected_base_fee_per_gas
+                ));
+            }
+            let recovered = tx
+                .try_into_recovered()
+                .map_err(|err| eyre::eyre!("failed to recover flashblock post-exec tx: {err}"))?
+                .into_encoded_with(raw);
+            transactions.push(recovered);
+            PostExecMode::Verify(payload)
+        } else {
+            PostExecMode::Disabled
+        };
         let tx_hashes: Vec<B256> = transactions.iter().map(|tx| *tx.tx_hash()).collect();
 
         // Get state provider and parent header context.
@@ -234,7 +274,9 @@ where
 
         // Check for resumable canonical execution state.
         let canonical_parent_hash = args.base.parent_hash;
-        let cached_prefix = if is_canonical {
+        // A PostExec payload may refund any prior transaction, so verifier replay must observe the
+        // complete transaction list and cannot resume from a prefix executed in disabled mode.
+        let cached_prefix = if is_canonical && matches!(post_exec_mode, PostExecMode::Disabled) {
             tx_cache.as_ref().and_then(|cache| {
                 cache
                     .get_resumable_state_with_execution_meta_for_parent(
@@ -375,7 +417,7 @@ where
                         &mut state,
                         parent_header,
                         args.base.clone().into(),
-                        PostExecMode::Disabled,
+                        post_exec_mode,
                         selected_base_fee_per_gas,
                     )
                     .map_err(RethError::other)?;
@@ -508,17 +550,18 @@ mod tests {
     use alloy_consensus::{SignableTransaction, TxEip1559};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_network::TxSignerSync;
-    use alloy_primitives::{Address, B256, StorageKey, StorageValue, TxKind, U256};
+    use alloy_primitives::{Address, B256, Bytes, StorageKey, StorageValue, TxKind, U256};
     use alloy_signer_local::PrivateKeySigner;
+    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
     use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
     use op_revm::constants::L1_BLOCK_CONTRACT;
-    use reth_optimism_chainspec::OP_MAINNET;
+    use reth_optimism_chainspec::{OP_MAINNET, OpChainSpecBuilder};
     use reth_optimism_evm::OpEvmConfig;
     use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
     use reth_primitives_traits::{AlloyBlockHeader, Recovered, SignerRecoverable};
     use reth_provider::test_utils::{ExtendedAccount, MockEthProvider};
     use reth_storage_api::BlockReaderIdExt;
-    use std::str::FromStr;
+    use std::{str::FromStr, sync::Arc};
 
     fn signed_transfer_tx(
         signer: &PrivateKeySigner,
@@ -533,6 +576,7 @@ mod tests {
             max_fee_per_gas: 2_000_000_000,
             to: TxKind::Call(recipient),
             value: U256::from(1),
+            input: Bytes::from_static(&[1]),
             ..Default::default()
         };
         let signature = signer.sign_transaction_sync(&mut tx).expect("signing tx succeeds");
@@ -566,8 +610,15 @@ mod tests {
 
     #[test]
     fn canonical_build_reuses_cached_prefix_execution() {
+        let chain_spec = Arc::new(
+            OpChainSpecBuilder::default()
+                .chain(10.into())
+                .genesis(OP_MAINNET.genesis().clone())
+                .lagoon_activated()
+                .build(),
+        );
         let provider = MockEthProvider::<OpPrimitives>::new()
-            .with_chain_spec(OP_MAINNET.clone())
+            .with_chain_spec(chain_spec.clone())
             .with_genesis_block();
 
         let recipient = Address::repeat_byte(0x22);
@@ -585,6 +636,7 @@ mod tests {
                 (StorageKey::with_last_byte(1), StorageValue::from(1_000_000_000u64)),
                 (StorageKey::with_last_byte(5), StorageValue::from(188u64)),
                 (StorageKey::with_last_byte(6), StorageValue::from(684_000u64)),
+                (StorageKey::with_last_byte(8), StorageValue::ZERO),
                 (
                     StorageKey::with_last_byte(3),
                     StorageValue::from_str(
@@ -623,7 +675,7 @@ mod tests {
         let tx_b = into_encoded_recovered(tx_b, signer);
         let tx_c = into_encoded_recovered(tx_c, signer);
 
-        let evm_config = OpEvmConfig::optimism(OP_MAINNET.clone());
+        let evm_config = OpEvmConfig::optimism(chain_spec);
         let builder = FlashBlockBuilder::new(evm_config, provider);
         let mut tx_cache = TransactionCache::<OpPrimitives>::new();
 
@@ -632,6 +684,7 @@ mod tests {
                 BuildArgs {
                     base: base.clone(),
                     transactions: vec![tx_a.clone(), tx_b.clone()],
+                    post_exec_tx: None,
                     cached_state: None,
                     last_flashblock_index: 0,
                     last_flashblock_hash: B256::repeat_byte(0xA0),
@@ -644,6 +697,9 @@ mod tests {
             .expect("first build is canonical");
 
         assert_eq!(first.pending_state.execution_outcome.result.receipts.len(), 2);
+        let first_tx_cumulative_gas = first.pending_state.execution_outcome.result.receipts[0]
+            .as_receipt()
+            .cumulative_gas_used;
         assert_eq!(
             first
                 .pending_state
@@ -691,8 +747,9 @@ mod tests {
         let second = builder
             .execute(
                 BuildArgs {
-                    base,
-                    transactions: vec![tx_a, tx_b, tx_c],
+                    base: base.clone(),
+                    transactions: vec![tx_a.clone(), tx_b.clone(), tx_c.clone()],
+                    post_exec_tx: None,
                     cached_state: None,
                     last_flashblock_index: 1,
                     last_flashblock_hash: B256::repeat_byte(0xA1),
@@ -710,6 +767,65 @@ mod tests {
         assert!(
             receipts[2].as_receipt().cumulative_gas_used >
                 receipts[1].as_receipt().cumulative_gas_used
+        );
+
+        let empty_post_exec =
+            build_post_exec_tx(base.block_number, 777, Vec::new()).encoded_2718().into();
+        let with_empty_commitment = builder
+            .execute(
+                BuildArgs {
+                    base: base.clone(),
+                    transactions: vec![tx_a.clone(), tx_b.clone(), tx_c.clone()],
+                    post_exec_tx: Some(empty_post_exec),
+                    cached_state: None,
+                    last_flashblock_index: 2,
+                    last_flashblock_hash: B256::repeat_byte(0xA2),
+                    compute_state_root: false,
+                    pending_parent: None,
+                },
+                Some(&mut tx_cache),
+            )
+            .expect("empty-commitment build succeeds")
+            .expect("empty-commitment build is canonical");
+        assert_eq!(with_empty_commitment.pending_state.execution_outcome.result.receipts.len(), 4);
+        assert_eq!(
+            with_empty_commitment.pending_state.execution_outcome.result.receipts[0]
+                .as_receipt()
+                .cumulative_gas_used,
+            first_tx_cumulative_gas,
+            "PostExec replay must bypass the tampered disabled-mode prefix cache",
+        );
+
+        let refund_post_exec = build_post_exec_tx(
+            base.block_number,
+            777,
+            vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+        )
+        .encoded_2718()
+        .into();
+        let with_refund = builder
+            .execute(
+                BuildArgs {
+                    base,
+                    transactions: vec![tx_a, tx_b, tx_c],
+                    post_exec_tx: Some(refund_post_exec),
+                    cached_state: None,
+                    last_flashblock_index: 3,
+                    last_flashblock_hash: B256::repeat_byte(0xA3),
+                    compute_state_root: false,
+                    pending_parent: None,
+                },
+                Some(&mut tx_cache),
+            )
+            .expect("refund-commitment build succeeds")
+            .expect("refund-commitment build is canonical");
+        assert_eq!(with_refund.pending_state.execution_outcome.result.receipts.len(), 4);
+        assert_eq!(
+            with_refund.pending_state.execution_outcome.result.receipts[0]
+                .as_receipt()
+                .cumulative_gas_used,
+            first_tx_cumulative_gas - 1,
+            "refund targeting a formerly cached-prefix transaction must be applied",
         );
     }
 }
