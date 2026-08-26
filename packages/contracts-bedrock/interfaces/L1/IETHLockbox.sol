@@ -14,6 +14,22 @@ interface IETHLockbox is IProxyAdminOwnedBase, ISemver, IReinitializableBase {
     error ETHLockbox_InsufficientBalance();
     error ETHLockbox_NoWithdrawalTransactions();
     error ETHLockbox_DifferentSuperchainConfig();
+    error ETHLockbox_InvalidWithdrawalThrottleBps();
+    error ETHLockbox_InvalidWithdrawalThrottlePeriod();
+    error ETHLockbox_WithdrawalThrottleNotEnabled();
+    error ETHLockbox_WithdrawalThrottled(
+        uint256 requestedAmount, uint256 availableCapacity, uint256 totalCapacity
+    );
+
+    struct WithdrawalThrottleConfig {
+        uint256 capacity;
+        uint256 available;
+        uint64 refillPeriod;
+        uint64 lastUpdated;
+        uint64 refillRemainder;
+        uint16 maxBps;
+        bool enabled;
+    }
 
     event Initialized(uint8 version);
     event ETHLocked(IOptimismPortal2 indexed portal, uint256 amount);
@@ -22,6 +38,17 @@ interface IETHLockbox is IProxyAdminOwnedBase, ISemver, IReinitializableBase {
     event LockboxAuthorized(IETHLockbox indexed lockbox);
     event LiquidityMigrated(IETHLockbox indexed lockbox, uint256 amount);
     event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
+    event WithdrawalThrottleConfigured(
+        uint16 maxBps,
+        uint64 refillPeriod,
+        uint256 stockSnapshot,
+        uint256 capacity,
+        uint256 available
+    );
+    event WithdrawalThrottleRefreshed(uint256 stockSnapshot, uint256 capacity, uint256 available);
+    event WithdrawalThrottleDisabled();
+    event WithdrawalThrottleCapacityConsumed(uint256 amount, uint256 remaining);
+    event WithdrawalThrottleCapacityExhausted();
 
     function initialize(ISystemConfig _systemConfig, IOptimismPortal2[] calldata _portals) external;
     function systemConfig() external view returns (ISystemConfig);
@@ -35,6 +62,11 @@ interface IETHLockbox is IProxyAdminOwnedBase, ISemver, IReinitializableBase {
     function authorizeLockbox(IETHLockbox _lockbox) external;
     function migrateLiquidity(IETHLockbox _lockbox) external;
     function superchainConfig() external view returns (ISuperchainConfig);
+    function setWithdrawalThrottle(uint16 _maxBps, uint64 _refillPeriod) external;
+    function refreshWithdrawalThrottle() external;
+    function disableWithdrawalThrottle() external;
+    function withdrawalThrottle() external view returns (WithdrawalThrottleConfig memory);
+    function availableWithdrawalCapacity() external view returns (uint256);
 
     function __constructor__() external;
 }

@@ -91,6 +91,37 @@ abstract contract Events {
         bytes data
     );
 
+    event WithdrawalThrottleConfigured(
+        address indexed token,
+        uint16 maxBps,
+        uint64 refillPeriod,
+        uint256 stockSnapshot,
+        uint256 capacity,
+        uint256 available
+    );
+
+    event WithdrawalThrottleRefreshed(
+        address indexed token, uint256 stockSnapshot, uint256 capacity, uint256 available
+    );
+
+    event WithdrawalThrottleDisabled(address indexed token);
+
+    event WithdrawalThrottleCapacityConsumed(address indexed token, uint256 amount, uint256 remaining);
+
+    event WithdrawalThrottleCapacityExhausted(address indexed token);
+
+    event WithdrawalThrottleConfigured(
+        uint16 maxBps, uint64 refillPeriod, uint256 stockSnapshot, uint256 capacity, uint256 available
+    );
+
+    event WithdrawalThrottleRefreshed(uint256 stockSnapshot, uint256 capacity, uint256 available);
+
+    event WithdrawalThrottleDisabled();
+
+    event WithdrawalThrottleCapacityConsumed(uint256 amount, uint256 remaining);
+
+    event WithdrawalThrottleCapacityExhausted();
+
     event Paused(address identifier);
 
     event Unpaused(address identifier);

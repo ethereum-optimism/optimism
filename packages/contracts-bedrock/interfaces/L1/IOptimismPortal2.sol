@@ -39,6 +39,13 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_InvalidLockboxState();
     error OptimismPortal_ZeroAddress();
     error OptimismPortal_LockboxNotAuthorizedForPortal();
+    error OptimismPortal_InvalidWithdrawalThrottleBps();
+    error OptimismPortal_InvalidWithdrawalThrottlePeriod();
+    error OptimismPortal_WithdrawalThrottleNotEnabled();
+    error OptimismPortal_WithdrawalThrottleManagedByLockbox();
+    error OptimismPortal_WithdrawalThrottled(
+        uint256 requestedAmount, uint256 availableCapacity, uint256 totalCapacity
+    );
     error OutOfGas();
     error UnexpectedList();
     error UnexpectedString();
@@ -55,6 +62,16 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
+    event WithdrawalThrottleConfigured(
+        uint16 maxBps,
+        uint64 refillPeriod,
+        uint256 stockSnapshot,
+        uint256 capacity,
+        uint256 available
+    );
+    event WithdrawalThrottleDisabled();
+    event WithdrawalThrottleCapacityConsumed(uint256 amount, uint256 remaining);
+    event WithdrawalThrottleCapacityExhausted();
 
     receive() external payable;
 
@@ -94,6 +111,9 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function paused() external view returns (bool);
     function proofMaturityDelaySeconds() external view returns (uint256);
     function proofSubmitters(bytes32, uint256) external view returns (address);
+    function setWithdrawalThrottle(uint16 _maxBps, uint64 _refillPeriod) external;
+    function disableWithdrawalThrottle() external;
+    function availableWithdrawalCapacity() external view returns (uint256);
     function proveWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,
         uint256 _disputeGameIndex,

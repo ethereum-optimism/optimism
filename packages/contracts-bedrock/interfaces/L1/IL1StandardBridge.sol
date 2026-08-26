@@ -9,6 +9,27 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 
 interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     error ReinitializableBase_ZeroInitVersion();
+    error L1StandardBridge_InvalidWithdrawalThrottleToken();
+    error L1StandardBridge_InvalidWithdrawalThrottleBps();
+    error L1StandardBridge_UnsupportedWithdrawalThrottleToken();
+    error L1StandardBridge_InvalidWithdrawalThrottlePeriod();
+    error L1StandardBridge_WithdrawalThrottleNotEnabled();
+    error L1StandardBridge_WithdrawalThrottled(
+        address token,
+        uint256 requestedAmount,
+        uint256 availableCapacity,
+        uint256 totalCapacity
+    );
+
+    struct WithdrawalThrottleConfig {
+        uint256 capacity;
+        uint256 available;
+        uint64 refillPeriod;
+        uint64 lastUpdated;
+        uint64 refillRemainder;
+        uint16 maxBps;
+        bool enabled;
+    }
 
     event ERC20DepositInitiated(
         address indexed l1Token,
@@ -28,6 +49,20 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     );
     event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes extraData);
     event ETHWithdrawalFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
+    event WithdrawalThrottleConfigured(
+        address indexed token,
+        uint16 maxBps,
+        uint64 refillPeriod,
+        uint256 stockSnapshot,
+        uint256 capacity,
+        uint256 available
+    );
+    event WithdrawalThrottleRefreshed(
+        address indexed token, uint256 stockSnapshot, uint256 capacity, uint256 available
+    );
+    event WithdrawalThrottleDisabled(address indexed token);
+    event WithdrawalThrottleCapacityConsumed(address indexed token, uint256 amount, uint256 remaining);
+    event WithdrawalThrottleCapacityExhausted(address indexed token);
 
     function initVersion() external view returns (uint8);
     function depositERC20(
@@ -68,6 +103,11 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
         payable;
     function initialize(ICrossDomainMessenger _messenger, ISystemConfig _systemConfig) external;
     function l2TokenBridge() external view returns (address);
+    function setWithdrawalThrottle(address _token, uint16 _maxBps, uint64 _refillPeriod) external;
+    function refreshWithdrawalThrottle(address _token) external;
+    function disableWithdrawalThrottle(address _token) external;
+    function withdrawalThrottle(address _token) external view returns (WithdrawalThrottleConfig memory);
+    function availableWithdrawalCapacity(address _token) external view returns (uint256);
     function systemConfig() external view returns (ISystemConfig);
     function version() external view returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);

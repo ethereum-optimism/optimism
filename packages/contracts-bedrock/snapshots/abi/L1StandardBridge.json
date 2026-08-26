@@ -38,6 +38,25 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "availableWithdrawalCapacity",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "_localToken",
         "type": "address"
       },
@@ -286,6 +305,19 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "disableWithdrawalThrottle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "_localToken",
         "type": "address"
       },
@@ -524,6 +556,42 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "refreshWithdrawalThrottle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint16",
+        "name": "_maxBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_refillPeriod",
+        "type": "uint64"
+      }
+    ],
+    "name": "setWithdrawalThrottle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "superchainConfig",
     "outputs": [
@@ -557,6 +625,62 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "withdrawalThrottle",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "capacity",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "available",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint64",
+            "name": "refillPeriod",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastUpdated",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "refillRemainder",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint16",
+            "name": "maxBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "bool",
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct L1StandardBridge.WithdrawalThrottleConfig",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -870,6 +994,182 @@
     ],
     "name": "Initialized",
     "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "remaining",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawalThrottleCapacityConsumed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "WithdrawalThrottleCapacityExhausted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "maxBps",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "refillPeriod",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "stockSnapshot",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "capacity",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "available",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawalThrottleConfigured",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "WithdrawalThrottleDisabled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "stockSnapshot",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "capacity",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "available",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawalThrottleRefreshed",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "L1StandardBridge_InvalidWithdrawalThrottleBps",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1StandardBridge_InvalidWithdrawalThrottlePeriod",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1StandardBridge_InvalidWithdrawalThrottleToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1StandardBridge_UnsupportedWithdrawalThrottleToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1StandardBridge_WithdrawalThrottleNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "requestedAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "availableCapacity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalCapacity",
+        "type": "uint256"
+      }
+    ],
+    "name": "L1StandardBridge_WithdrawalThrottled",
+    "type": "error"
   },
   {
     "inputs": [],

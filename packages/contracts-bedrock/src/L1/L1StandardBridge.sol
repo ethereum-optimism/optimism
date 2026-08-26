@@ -8,8 +8,10 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { WithdrawalThrottle } from "src/libraries/WithdrawalThrottle.sol";
 
 // Interfaces
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -26,6 +28,61 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
 contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
+    /// @notice Thrown when a withdrawal throttle is configured for the zero address.
+    error L1StandardBridge_InvalidWithdrawalThrottleToken();
+
+    /// @notice Thrown when a withdrawal throttle basis point value is zero or exceeds 100%.
+    error L1StandardBridge_InvalidWithdrawalThrottleBps();
+
+    /// @notice Thrown when a withdrawal throttle is configured for a non-escrowed token.
+    error L1StandardBridge_UnsupportedWithdrawalThrottleToken();
+
+    /// @notice Thrown when a withdrawal throttle refill period is zero.
+    error L1StandardBridge_InvalidWithdrawalThrottlePeriod();
+
+    /// @notice Thrown when a withdrawal throttle is not enabled for a token.
+    error L1StandardBridge_WithdrawalThrottleNotEnabled();
+
+    /// @notice Thrown when a withdrawal exceeds the token's available withdrawal capacity.
+    error L1StandardBridge_WithdrawalThrottled(
+        address token, uint256 requestedAmount, uint256 availableCapacity, uint256 totalCapacity
+    );
+
+    /// @notice Withdrawal throttle state for an L1 token.
+    struct WithdrawalThrottleConfig {
+        uint256 capacity;
+        uint256 available;
+        uint64 refillPeriod;
+        uint64 lastUpdated;
+        uint64 refillRemainder;
+        uint16 maxBps;
+        bool enabled;
+    }
+
+    /// @notice Emitted when a withdrawal throttle is configured for a token.
+    event WithdrawalThrottleConfigured(
+        address indexed token,
+        uint16 maxBps,
+        uint64 refillPeriod,
+        uint256 stockSnapshot,
+        uint256 capacity,
+        uint256 available
+    );
+
+    /// @notice Emitted when a withdrawal throttle's stock snapshot is refreshed.
+    event WithdrawalThrottleRefreshed(
+        address indexed token, uint256 stockSnapshot, uint256 capacity, uint256 available
+    );
+
+    /// @notice Emitted when a withdrawal throttle is disabled for a token.
+    event WithdrawalThrottleDisabled(address indexed token);
+
+    /// @notice Emitted when withdrawal capacity is consumed.
+    event WithdrawalThrottleCapacityConsumed(address indexed token, uint256 amount, uint256 remaining);
+
+    /// @notice Emitted when all currently available withdrawal capacity is consumed.
+    event WithdrawalThrottleCapacityExhausted(address indexed token);
+
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.
@@ -77,8 +134,8 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.8.2
-    string public constant version = "2.8.2";
+    /// @custom:semver 3.0.0
+    string public constant version = "3.0.0";
 
     /// @custom:legacy
     /// @custom:spacer superchainConfig
@@ -92,6 +149,9 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
 
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
+
+    /// @notice Withdrawal throttle state keyed by L1 token address.
+    mapping(address => WithdrawalThrottleConfig) internal _withdrawalThrottles;
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() ReinitializableBase(3) {
@@ -128,6 +188,91 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function superchainConfig() public view returns (ISuperchainConfig) {
         return systemConfig.superchainConfig();
+    }
+
+    /// @notice Configures a token's withdrawal capacity as a percentage of its current bridge stock.
+    ///         Reconfiguration preserves accrued capacity and clamps it to the new maximum.
+    /// @param _token        Address of the L1 token to throttle.
+    /// @param _maxBps       Maximum withdrawable stock in basis points.
+    /// @param _refillPeriod Time in seconds for the bucket to refill from empty to full.
+    function setWithdrawalThrottle(address _token, uint16 _maxBps, uint64 _refillPeriod) external {
+        _assertOnlyProxyAdminOwner();
+
+        if (_token == address(0)) revert L1StandardBridge_InvalidWithdrawalThrottleToken();
+        if (_isOptimismMintableERC20(_token)) revert L1StandardBridge_UnsupportedWithdrawalThrottleToken();
+        if (_maxBps == 0 || _maxBps > WithdrawalThrottle.MAX_BPS) {
+            revert L1StandardBridge_InvalidWithdrawalThrottleBps();
+        }
+        if (_refillPeriod == 0) revert L1StandardBridge_InvalidWithdrawalThrottlePeriod();
+
+        WithdrawalThrottleConfig storage throttle = _withdrawalThrottles[_token];
+        uint256 available;
+        if (throttle.enabled) (available,) = _availableWithdrawalCapacity(throttle);
+        else available = type(uint256).max;
+        uint256 stockSnapshot = IERC20(_token).balanceOf(address(this));
+        uint256 capacity = WithdrawalThrottle.capacity(stockSnapshot, _maxBps);
+        if (available > capacity) available = capacity;
+
+        throttle.capacity = capacity;
+        throttle.available = available;
+        throttle.refillPeriod = _refillPeriod;
+        throttle.lastUpdated = uint64(block.timestamp);
+        throttle.refillRemainder = 0;
+        throttle.maxBps = _maxBps;
+        throttle.enabled = true;
+
+        emit WithdrawalThrottleConfigured(_token, _maxBps, _refillPeriod, stockSnapshot, capacity, available);
+    }
+
+    /// @notice Recomputes a token's capacity from its current bridge stock without refilling it.
+    /// @param _token Address of the L1 token whose stock snapshot should be refreshed.
+    function refreshWithdrawalThrottle(address _token) external {
+        _assertOnlyProxyAdminOwner();
+
+        WithdrawalThrottleConfig storage throttle = _withdrawalThrottles[_token];
+        if (!throttle.enabled) revert L1StandardBridge_WithdrawalThrottleNotEnabled();
+
+        (uint256 available,) = _availableWithdrawalCapacity(throttle);
+        uint256 stockSnapshot = IERC20(_token).balanceOf(address(this));
+        uint256 capacity = WithdrawalThrottle.capacity(stockSnapshot, throttle.maxBps);
+        if (available > capacity) available = capacity;
+
+        throttle.capacity = capacity;
+        throttle.available = available;
+        throttle.lastUpdated = uint64(block.timestamp);
+        throttle.refillRemainder = 0;
+
+        emit WithdrawalThrottleRefreshed(_token, stockSnapshot, capacity, available);
+    }
+
+    /// @notice Disables a token's withdrawal throttle.
+    /// @param _token Address of the L1 token whose throttle should be disabled.
+    function disableWithdrawalThrottle(address _token) external {
+        _assertOnlyProxyAdminOwner();
+
+        if (!_withdrawalThrottles[_token].enabled) {
+            revert L1StandardBridge_WithdrawalThrottleNotEnabled();
+        }
+        delete _withdrawalThrottles[_token];
+
+        emit WithdrawalThrottleDisabled(_token);
+    }
+
+    /// @notice Returns the stored withdrawal throttle state for a token.
+    /// @param _token Address of the L1 token.
+    /// @return Withdrawal throttle state before any pending refill is materialized.
+    function withdrawalThrottle(address _token) external view returns (WithdrawalThrottleConfig memory) {
+        return _withdrawalThrottles[_token];
+    }
+
+    /// @notice Returns the currently available withdrawal capacity for a token.
+    /// @param _token Address of the L1 token.
+    /// @return Available capacity, or the maximum uint256 value when throttling is disabled.
+    function availableWithdrawalCapacity(address _token) external view returns (uint256) {
+        WithdrawalThrottleConfig storage throttle = _withdrawalThrottles[_token];
+        if (!throttle.enabled) return type(uint256).max;
+        (uint256 available,) = _availableWithdrawalCapacity(throttle);
+        return available;
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
@@ -282,6 +427,44 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         internal
     {
         _initiateBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _minGasLimit, _extraData);
+    }
+
+    /// @inheritdoc StandardBridge
+    function _beforeFinalizeBridgeERC20(address _localToken, uint256 _amount) internal override {
+        WithdrawalThrottleConfig storage throttle = _withdrawalThrottles[_localToken];
+        if (!throttle.enabled || _amount == 0) return;
+
+        (uint256 available, uint64 refillRemainder) = _availableWithdrawalCapacity(throttle);
+        if (_amount > available) {
+            revert L1StandardBridge_WithdrawalThrottled(_localToken, _amount, available, throttle.capacity);
+        }
+
+        uint256 remaining = available - _amount;
+        throttle.available = remaining;
+        throttle.lastUpdated = uint64(block.timestamp);
+        throttle.refillRemainder = refillRemainder;
+
+        emit WithdrawalThrottleCapacityConsumed(_localToken, _amount, remaining);
+        if (remaining == 0) emit WithdrawalThrottleCapacityExhausted(_localToken);
+    }
+
+    /// @notice Computes a throttle's available capacity after its pending linear refill.
+    /// @param _throttle Withdrawal throttle state.
+    /// @return available_ Available capacity at the current timestamp.
+    /// @return remainder_ Fractional refill numerator to preserve when materializing the refill.
+    function _availableWithdrawalCapacity(WithdrawalThrottleConfig storage _throttle)
+        internal
+        view
+        returns (uint256 available_, uint64 remainder_)
+    {
+        return WithdrawalThrottle.available(
+            _throttle.capacity,
+            _throttle.available,
+            _throttle.refillRemainder,
+            _throttle.refillPeriod,
+            _throttle.lastUpdated,
+            block.timestamp
+        );
     }
 
     /// @inheritdoc StandardBridge

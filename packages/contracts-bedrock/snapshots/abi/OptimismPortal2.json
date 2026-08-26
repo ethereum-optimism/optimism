@@ -28,6 +28,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "availableWithdrawalCapacity",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -76,6 +89,13 @@
     "name": "depositTransaction",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "disableWithdrawalThrottle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -619,6 +639,24 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint16",
+        "name": "_maxBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_refillPeriod",
+        "type": "uint64"
+      }
+    ],
+    "name": "setWithdrawalThrottle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "superchainConfig",
     "outputs": [
@@ -815,6 +853,74 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "remaining",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawalThrottleCapacityConsumed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "WithdrawalThrottleCapacityExhausted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "maxBps",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "refillPeriod",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "stockSnapshot",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "capacity",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "available",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawalThrottleConfigured",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "WithdrawalThrottleDisabled",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "ContentLengthMismatch",
     "type": "error"
@@ -906,6 +1012,16 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_InvalidWithdrawalThrottleBps",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_InvalidWithdrawalThrottlePeriod",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_LockboxNotAuthorizedForPortal",
     "type": "error"
   },
@@ -937,6 +1053,37 @@
   {
     "inputs": [],
     "name": "OptimismPortal_Unproven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_WithdrawalThrottleManagedByLockbox",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_WithdrawalThrottleNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "requestedAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "availableCapacity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalCapacity",
+        "type": "uint256"
+      }
+    ],
+    "name": "OptimismPortal_WithdrawalThrottled",
     "type": "error"
   },
   {

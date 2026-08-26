@@ -36,6 +36,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     address depositor;
@@ -207,6 +208,100 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     function setUseCustomGasToken(bool _useCustomGasToken) public {
         vm.prank(address(proxyAdmin));
         systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, _useCustomGasToken);
+    }
+}
+
+/// @title OptimismPortal2_WithdrawalThrottle_TestInit
+/// @notice Reusable initialization for portal-held ETH withdrawal throttle tests.
+abstract contract OptimismPortal2_WithdrawalThrottle_TestInit is OptimismPortal2_TestInit {
+    uint16 internal constant WITHDRAWAL_MAX_BPS = 1000;
+    uint64 internal constant WITHDRAWAL_REFILL_PERIOD = 100;
+    uint256 internal constant WITHDRAWAL_STOCK = 1000;
+    uint256 internal constant WITHDRAWAL_CAPACITY = 100;
+
+    /// @notice Mocks direct portal ETH custody and funds its stock.
+    function _useDirectPortalCustody() internal {
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
+            abi.encode(false)
+        );
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.CUSTOM_GAS_TOKEN)),
+            abi.encode(false)
+        );
+        vm.deal(address(optimismPortal2), WITHDRAWAL_STOCK);
+    }
+
+    /// @notice Configures the direct-custody portal withdrawal throttle.
+    function _configurePortalWithdrawalThrottle(uint16 _maxBps) internal {
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setWithdrawalThrottle(_maxBps, WITHDRAWAL_REFILL_PERIOD);
+    }
+
+    /// @notice Proves the default withdrawal and advances it to finalizability.
+    function _prepareDefaultWithdrawal() internal {
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+        game.resolveClaim(0, 0);
+        game.resolve();
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
+    }
+}
+
+/// @title OptimismPortal2_SetWithdrawalThrottle_Test
+/// @notice Tests the `setWithdrawalThrottle` function.
+contract OptimismPortal2_SetWithdrawalThrottle_Test is OptimismPortal2_WithdrawalThrottle_TestInit {
+    /// @notice Tests that configuration snapshots portal-held ETH and starts full.
+    function test_setWithdrawalThrottle_succeeds() external {
+        _useDirectPortalCustody();
+
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalThrottleConfigured(
+            WITHDRAWAL_MAX_BPS, WITHDRAWAL_REFILL_PERIOD, WITHDRAWAL_STOCK, WITHDRAWAL_CAPACITY, WITHDRAWAL_CAPACITY
+        );
+        _configurePortalWithdrawalThrottle(WITHDRAWAL_MAX_BPS);
+
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), WITHDRAWAL_CAPACITY);
+    }
+
+    /// @notice Tests that lockbox deployments must configure throttling on the shared lockbox.
+    function test_setWithdrawalThrottle_usingLockbox_reverts() external {
+        forceEnableLockbox(address(ethLockbox));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_WithdrawalThrottleManagedByLockbox.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setWithdrawalThrottle(WITHDRAWAL_MAX_BPS, WITHDRAWAL_REFILL_PERIOD);
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can configure the throttle.
+    function testFuzz_setWithdrawalThrottle_notProxyAdminOwner_reverts(address _caller) external {
+        _useDirectPortalCustody();
+        vm.assume(_caller != proxyAdminOwner);
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        optimismPortal2.setWithdrawalThrottle(WITHDRAWAL_MAX_BPS, WITHDRAWAL_REFILL_PERIOD);
+    }
+}
+
+/// @title OptimismPortal2_DisableWithdrawalThrottle_Test
+/// @notice Tests the `disableWithdrawalThrottle` function.
+contract OptimismPortal2_DisableWithdrawalThrottle_Test is OptimismPortal2_WithdrawalThrottle_TestInit {
+    /// @notice Tests that disabling restores unrestricted portal-held ETH withdrawals.
+    function test_disableWithdrawalThrottle_succeeds() external {
+        _useDirectPortalCustody();
+        _configurePortalWithdrawalThrottle(WITHDRAWAL_MAX_BPS);
+
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.disableWithdrawalThrottle();
+
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), type(uint256).max);
     }
 }
 
@@ -1298,7 +1393,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
 
 /// @title OptimismPortal2_FinalizeWithdrawalTransaction_Test
 /// @notice Test contract for OptimismPortal2 `finalizeWithdrawalTransaction` function.
-contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_TestInit {
+contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_WithdrawalThrottle_TestInit {
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the target is the portal
     ///         contract or the lockbox.
     function test_finalizeWithdrawalTransaction_badTarget_reverts() external {
@@ -2173,6 +2268,90 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         vm.warp(block.timestamp + 1 seconds);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
         assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    /// @notice Tests that direct portal-held ETH finalization consumes exact withdrawal capacity.
+    function test_finalizeWithdrawalTransaction_exactWithdrawalCapacity_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        _useDirectPortalCustody();
+        _configurePortalWithdrawalThrottle(WITHDRAWAL_MAX_BPS);
+        _prepareDefaultWithdrawal();
+
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalThrottleCapacityConsumed(WITHDRAWAL_CAPACITY, 0);
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalThrottleCapacityExhausted();
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), 0);
+    }
+
+    /// @notice Tests that direct portal-held ETH finalization reverts above available capacity.
+    function test_finalizeWithdrawalTransaction_insufficientWithdrawalCapacity_reverts() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        _useDirectPortalCustody();
+        _configurePortalWithdrawalThrottle(500);
+        _prepareDefaultWithdrawal();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOptimismPortal.OptimismPortal_WithdrawalThrottled.selector,
+                WITHDRAWAL_CAPACITY,
+                WITHDRAWAL_CAPACITY / 2,
+                WITHDRAWAL_CAPACITY / 2
+            )
+        );
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertFalse(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    /// @notice Tests that lockbox custody bypasses a stale portal withdrawal throttle.
+    function test_finalizeWithdrawalTransaction_lockboxUsesLockboxThrottle_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        _useDirectPortalCustody();
+        _configurePortalWithdrawalThrottle(500);
+        forceEnableLockbox(address(ethLockbox));
+        vm.deal(address(ethLockbox), WITHDRAWAL_STOCK);
+        vm.prank(proxyAdminOwner);
+        ethLockbox.setWithdrawalThrottle(2000, WITHDRAWAL_REFILL_PERIOD);
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
+            abi.encode(true)
+        );
+        _prepareDefaultWithdrawal();
+
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleCapacityConsumed(WITHDRAWAL_CAPACITY, WITHDRAWAL_CAPACITY);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), WITHDRAWAL_CAPACITY / 2);
+        assertEq(ethLockbox.availableWithdrawalCapacity(), WITHDRAWAL_CAPACITY);
+    }
+
+    /// @notice Tests that shared lockbox capacity throttles portal finalization.
+    function test_finalizeWithdrawalTransaction_lockboxInsufficientWithdrawalCapacity_reverts() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceEnableLockbox(address(ethLockbox));
+        vm.deal(address(ethLockbox), WITHDRAWAL_STOCK);
+        vm.prank(proxyAdminOwner);
+        ethLockbox.setWithdrawalThrottle(500, WITHDRAWAL_REFILL_PERIOD);
+        _prepareDefaultWithdrawal();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IETHLockbox.ETHLockbox_WithdrawalThrottled.selector,
+                WITHDRAWAL_CAPACITY,
+                WITHDRAWAL_CAPACITY / 2,
+                WITHDRAWAL_CAPACITY / 2
+            )
+        );
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertFalse(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
     }
 }
 
