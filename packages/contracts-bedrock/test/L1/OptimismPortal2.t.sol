@@ -1398,6 +1398,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
     /// @notice Tests that `finalizeWithdrawalTransaction` succeeds.
     function test_finalizeWithdrawalTransaction_provenWithdrawalHashEther_succeeds() external {
         uint256 bobBalanceBefore = address(bob).balance;
+        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
 
         vm.expectEmit(address(optimismPortal2));
         emit WithdrawalProven(_withdrawalHash, alice, bob);
@@ -1409,6 +1410,9 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
             _outputRootProof: _outputRootProof,
             _withdrawalProof: _withdrawalProof
         });
+        (IDisputeGame provenGame, uint64 provenAt) = optimismPortal2.provenWithdrawals(_withdrawalHash, address(this));
+        assertEq(address(provenGame), address(game));
+        assertEq(provenAt, block.timestamp);
 
         // Warp and resolve the dispute game.
         game.resolveClaim(0, 0);
@@ -1420,6 +1424,9 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
         assert(address(bob).balance == bobBalanceBefore + _defaultTx.value);
+        if (isUsingLockbox()) {
+            assertEq(address(ethLockbox).balance, lockboxBalanceBefore - _defaultTx.value);
+        }
     }
 
     /// @notice Tests that `finalizeWithdrawalTransaction` succeeds using a different proof than an
@@ -1590,6 +1597,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         }
 
         uint256 bobBalanceBefore = address(bob).balance;
+        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
         vm.etch(bob, hex"fe"); // Contract with just the invalid opcode.
 
         vm.expectEmit(true, true, true, true);
@@ -1618,6 +1626,8 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
             // OptimismPortal2 should not have any stuck ETH.
             assertEq(address(optimismPortal2).balance, 0);
+            // Failed delivery must return the entire unlocked value to the ETHLockbox.
+            assertEq(address(ethLockbox).balance, lockboxBalanceBefore);
         }
     }
 
