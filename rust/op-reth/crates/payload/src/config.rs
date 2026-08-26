@@ -2,6 +2,8 @@
 
 use alloy_consensus::BlockHeader;
 use alloy_rpc_types_engine::PayloadId;
+use reth_chainspec::EthChainSpec;
+use reth_optimism_forks::OpHardforks;
 use reth_optimism_txpool::interop::InteropFailsafe;
 use std::{
     collections::VecDeque,
@@ -53,6 +55,14 @@ impl BaseFeePolicyError {
 pub trait BaseFeePolicy: core::fmt::Debug + Send + Sync + 'static {
     /// Selects one immutable base fee for the payload job.
     fn select_base_fee(&self, input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError>;
+
+    /// Returns a provisional fee for pending transaction classification and RPC suggestions.
+    ///
+    /// Policies with stateful selection may override this to avoid consuming or mutating a payload
+    /// decision while serving a quote.
+    fn quote_base_fee(&self, input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
+        self.select_base_fee(input)
+    }
 }
 
 /// Compatibility policy that preserves the legacy Jovian EIP-1559 result at Lagoon activation.
@@ -63,6 +73,27 @@ impl BaseFeePolicy for JovianBaseFeePolicy {
     fn select_base_fee(&self, input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
         Ok(input.legacy_base_fee)
     }
+}
+
+/// Quotes the next block's fee using legacy consensus rules before Lagoon and `policy` after it.
+pub fn quote_base_fee<ChainSpec, H>(
+    policy: &dyn BaseFeePolicy,
+    chain_spec: &ChainSpec,
+    parent: &H,
+    next_timestamp: u64,
+) -> Result<u64, BaseFeePolicyError>
+where
+    ChainSpec: EthChainSpec<Header = H> + OpHardforks,
+    H: BlockHeader,
+{
+    let legacy_base_fee = chain_spec
+        .next_block_base_fee(parent, next_timestamp)
+        .unwrap_or_else(|| parent.base_fee_per_gas().unwrap_or_default());
+    if !chain_spec.is_lagoon_active_at_timestamp(next_timestamp) {
+        return Ok(legacy_base_fee);
+    }
+
+    policy.quote_base_fee(BaseFeePolicyInput { parent, next_timestamp, legacy_base_fee })
 }
 
 type BaseFeeSelections = VecDeque<(PayloadId, Result<u64, BaseFeePolicyError>)>;
@@ -284,6 +315,55 @@ impl OpGasLimitConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::Header;
+    use reth_optimism_chainspec::OpChainSpecBuilder;
+
+    #[derive(Debug)]
+    struct TestBaseFeePolicy;
+
+    impl BaseFeePolicy for TestBaseFeePolicy {
+        fn select_base_fee(
+            &self,
+            _input: BaseFeePolicyInput<'_>,
+        ) -> Result<u64, BaseFeePolicyError> {
+            Ok(999)
+        }
+
+        fn quote_base_fee(
+            &self,
+            _input: BaseFeePolicyInput<'_>,
+        ) -> Result<u64, BaseFeePolicyError> {
+            Ok(777)
+        }
+    }
+
+    #[test]
+    fn quote_base_fee_uses_policy_only_at_lagoon() {
+        let parent = Header {
+            timestamp: 1,
+            base_fee_per_gas: Some(100),
+            gas_limit: 30_000_000,
+            ..Default::default()
+        };
+        let pre_lagoon =
+            OpChainSpecBuilder::default().chain(10.into()).genesis(Default::default()).build();
+        let expected_legacy =
+            pre_lagoon.next_block_base_fee(&parent, parent.timestamp).unwrap_or_default();
+        assert_eq!(
+            quote_base_fee(&TestBaseFeePolicy, &pre_lagoon, &parent, parent.timestamp).unwrap(),
+            expected_legacy,
+        );
+
+        let lagoon = OpChainSpecBuilder::default()
+            .chain(10.into())
+            .genesis(Default::default())
+            .lagoon_activated()
+            .build();
+        assert_eq!(
+            quote_base_fee(&TestBaseFeePolicy, &lagoon, &parent, parent.timestamp).unwrap(),
+            777,
+        );
+    }
 
     #[test]
     fn test_da() {
