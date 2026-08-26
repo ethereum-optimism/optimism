@@ -564,15 +564,23 @@ Compiling every Go module in those repos against upstream go-ethereum with the r
   `infrastructure-services/{safedb-scan,snapman,trm-dataset-loader,argocd-diff-bot,
   detection-response-webhook-monitoring}`.
 - **Decoupled now** — the replace drops with no other change:
-  `infrastructure-services/{regional-ip-blocker,snapshot-exporter-go,gke-notifier}`.
+  `infrastructure-services/{regional-ip-blocker,snapshot-exporter-go}`.
 - **Blocked on §15** — everything else. Almost every service imports `op-service/{rpc,metrics,
   client}` or `op-service/testlog`, so the RPC recorder hooks and log context methods gate the
   whole fleet: `infrastructure-services/{op-host-manager,interop-filter-permissive-mock,
   screening-service,zdd-service,netchef,op-benchmark}`, `infra/{op-signer,op-conductor-mon,
   op-ufm,peer-mgmt-service}`, `monitorism/op-monitorism`.
 
-Four have coupling of their own on top of §15, worth knowing about because they need decisions
-rather than just waiting:
+`infrastructure-services/gke-notifier` is a case of its own: it compiles fine with the replace
+dropped, but only at its existing geth v1.10.26, and *upstream* v1.10.26 carries six high-severity
+p2p/GraphQL DoS advisories that dependency scanning flags the moment the replace goes away. The
+module was always running that vintage — op-geth v0.0.0-20230127164839 forks roughly the same
+base — so **the replace was masking the advisories rather than protecting against them**. Worth
+remembering as a general hazard of fork pins: a pseudo-versioned fork silently opts out of
+advisory matching. Bumping its geth is blocked by an ancient `op-service` v0.10.11 pin.
+
+Four repos have coupling of their own on top of §15, worth knowing about because they need
+decisions rather than just waiting:
 
 - **`infra/op-txproxy`** uses op-geth-only `rpc.JsonError` and
   `params.TransactionConditional*ErrCode` directly — the transaction-conditional feature.
