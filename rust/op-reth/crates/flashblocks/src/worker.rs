@@ -6,7 +6,7 @@ use crate::{
 use alloy_consensus::transaction::SignerRecoverable;
 use alloy_eips::{BlockNumberOrTag, Decodable2718, eip2718::WithEncoded};
 use alloy_primitives::{B256, Bytes};
-use op_alloy_consensus::OpTransaction;
+use op_alloy_consensus::TxPostExec;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_chain_state::ExecutedBlock;
 use reth_errors::RethError;
@@ -121,7 +121,7 @@ impl<N, EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider>
 where
     N: NodePrimitives,
     N::Receipt: FlashblockCachedReceipt,
-    N::SignedTx: Decodable2718 + OpTransaction + SignerRecoverable,
+    N::SignedTx: Decodable2718 + SignerRecoverable,
     EvmConfig: ConfigurePostExecEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
     Provider: StateProviderFactory
         + BlockReaderIdExt<
@@ -178,12 +178,11 @@ where
         let post_exec_mode = if let Some(raw) = args.post_exec_tx.take() {
             let tx = N::SignedTx::decode_2718_exact(&raw)
                 .map_err(|err| eyre::eyre!("failed to decode flashblock post-exec tx: {err}"))?;
-            let payload = tx
-                .as_post_exec()
-                .ok_or_else(|| eyre::eyre!("flashblock post_exec_tx is not type 0x7d"))?
-                .inner()
-                .payload
-                .clone();
+            let payload = TxPostExec::decode_2718_exact(&raw)
+                .map_err(|err| {
+                    eyre::eyre!("flashblock post_exec_tx is not valid type 0x7d: {err}")
+                })?
+                .payload;
             if payload.block_number != args.base.block_number {
                 return Err(eyre::eyre!(
                     "flashblock post-exec block number {} does not match {}",
