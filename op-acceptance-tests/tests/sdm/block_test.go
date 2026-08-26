@@ -2,6 +2,7 @@ package sdm
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
@@ -25,7 +26,8 @@ func TestSDMDisabledNoRefunds(gt *testing.T) {
 	block, included, targetBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().GreaterOrEqual(len(included), 2, "target block must contain multiple user txs")
 
-	assertEmptyPostExecCommitment(t, block, "SDM-disabled sequencer")
+	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
+	t.Require().Nil(postExecTx, "pre-Lagoon sequencer must not include a post-exec tx")
 
 	for _, receipt := range included {
 		refund, present := getOPGasRefund(t, sys.L2EL, receipt.TxHash)
@@ -120,6 +122,10 @@ func assertEmptyPostExecCommitment(t devtest.T, block *sdmpkg.RPCBlock, producer
 	payload, err := optypes.DecodePostExecPayload(postExecTx.Input)
 	t.Require().NoError(err, "%s post-exec commitment must decode", producer)
 	t.Require().Equal(uint64(block.Number), payload.BlockNumber, "%s commitment must match its block", producer)
+	t.Require().NotNil(block.BaseFeePerGas, "%s block must expose baseFeePerGas", producer)
+	t.Require().True((*big.Int)(block.BaseFeePerGas).IsUint64(), "%s baseFeePerGas must fit in uint64", producer)
+	t.Require().Equal((*big.Int)(block.BaseFeePerGas).Uint64(), payload.SelectedBaseFeePerGas,
+		"%s commitment must match the block base fee", producer)
 	t.Require().Empty(payload.GasRefundEntries, "%s must not commit SDM refunds", producer)
 }
 

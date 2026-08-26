@@ -53,10 +53,11 @@ type RPCTransaction struct {
 
 // RPCBlock is a minimal block object returned by eth_getBlockByNumber(..., true).
 type RPCBlock struct {
-	Number       hexutil.Uint64   `json:"number"`
-	Hash         common.Hash      `json:"hash"`
-	GasUsed      hexutil.Uint64   `json:"gasUsed"`
-	Transactions []RPCTransaction `json:"transactions"`
+	Number        hexutil.Uint64   `json:"number"`
+	Hash          common.Hash      `json:"hash"`
+	GasUsed       hexutil.Uint64   `json:"gasUsed"`
+	BaseFeePerGas *hexutil.Big     `json:"baseFeePerGas"`
+	Transactions  []RPCTransaction `json:"transactions"`
 }
 
 // RPCReceipt is a minimal raw JSON receipt. It avoids ethclient's typed receipt decoding, which
@@ -236,8 +237,15 @@ func ValidatePostExecBlock(ctx context.Context, rpcClient Caller, blockNum uint6
 	if payload.BlockNumber != blockNum {
 		return nil, fmt.Errorf("post-exec payload block_number %d, want %d", payload.BlockNumber, blockNum)
 	}
-	if len(payload.GasRefundEntries) == 0 {
-		return nil, fmt.Errorf("block %d post-exec payload has no SDM refund entries", blockNum)
+	if block.BaseFeePerGas == nil {
+		return nil, fmt.Errorf("block %d has no baseFeePerGas", blockNum)
+	}
+	baseFee := (*big.Int)(block.BaseFeePerGas)
+	if !baseFee.IsUint64() {
+		return nil, fmt.Errorf("block %d baseFeePerGas %s does not fit in uint64", blockNum, baseFee)
+	}
+	if payload.SelectedBaseFeePerGas != baseFee.Uint64() {
+		return nil, fmt.Errorf("post-exec selected_base_fee_per_gas %d, want block baseFeePerGas %d", payload.SelectedBaseFeePerGas, baseFee.Uint64())
 	}
 
 	result := &ValidationResult{
