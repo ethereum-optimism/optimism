@@ -156,6 +156,11 @@ type Interop struct {
 	chains              map[eth.ChainID]cc.InteropChain
 	activationTimestamp uint64 // immutable protocol activation timestamp
 
+	// notReady holds the most recent reason every chain was not ready for the next timestamp, so the
+	// periodic progress line can name it. It is the difference between "this cluster is between
+	// batches" and "this cluster will never advance again", which look identical from outside.
+	notReady atomic.Pointer[error]
+
 	// verificationStartTimestamp is the first L2 timestamp the main loop
 	// attempts to verify. Set exactly once during tryInitFromVerifiedDB
 	// (resume path) or by advanceColdStartInit, then immutable.
@@ -186,6 +191,11 @@ type Interop struct {
 
 	// l1Heads is the snapshot captured with blocksAtTimestamp in observeRound; passing
 	// it through avoids a TOCTOU race against L2 reorgs.
+	// provenTrustWarned latches the "this chain's dependencies are proof-trusted" warning, one per
+	// chain. Round-loop state, touched only from the verification path, like the rest of this struct's
+	// unguarded fields.
+	provenTrustWarned map[eth.ChainID]bool
+
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, l1Heads map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
 	// cycleVerifyFn handles same-timestamp cycle verification.
@@ -455,6 +465,9 @@ func (i *Interop) progress() (time.Duration, error) {
 		}
 		fields = append(fields,
 			"lastVerifiedTimestamp", lastTS, "tipTimestamp", tipTS, "behindSeconds", behind)
+		if reason := i.notReady.Load(); reason != nil && *reason != nil {
+			fields = append(fields, "notReady", (*reason).Error())
+		}
 		i.log.Info("interop verification progress", fields...)
 	}
 	if !madeProgress {
@@ -507,12 +520,27 @@ func checkPreconditions(obs RoundObservation) *StepOutput {
 
 // decideVerifiedResult determines the next action from a completed verification
 // result. No side effects, no I/O.
+//
+// Invalidation is checked before readiness on purpose. Invalidating does not advance the
+// verified frontier — it rewinds the offending chain and the round runs again — so a chain that
+// is merely waiting is not carried forward on unverified data by that ordering, while the
+// reverse ordering would let one stalled chain indefinitely postpone acting on a real conflict
+// somewhere else at the same timestamp.
+//
+// A not-ready result waits and nothing is persisted: the frontier stays where it is and the
+// round is simply retried. That is what keeps a stalled dependency (a proof-carried chain whose
+// proof stream has fallen behind, or stopped altogether) from forking the chain that references
+// it — cross-safe progression stalls, which is recoverable, instead of the verifier declaring a
+// valid block invalid, which is not.
 func decideVerifiedResult(_ RoundObservation, verified Result) StepOutput {
 	if verified.IsEmpty() {
 		return StepOutput{Decision: DecisionWait}
 	}
 	if !verified.IsValid() {
 		return StepOutput{Decision: DecisionInvalidate, Result: verified}
+	}
+	if !verified.IsReady() {
+		return StepOutput{Decision: DecisionWait, Result: verified}
 	}
 	return StepOutput{Decision: DecisionAdvance, Result: verified}
 }
@@ -621,10 +649,17 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
 			obs.ChainsReady = false
+			// KEEP THE REASON. "Not ready" is the correct and expected state between batches, so it is
+			// not an error and must not be logged per round — but it is ALSO the shape of every
+			// permanent stall this activity can suffer, and it was previously discarded here. A round
+			// that waits forever and a round that waits correctly then advances are indistinguishable
+			// without knowing WHICH chain is not ready and why; the periodic progress line reports it.
+			i.notReady.Store(&err)
 			return obs, nil
 		}
 		return obs, err
 	}
+	i.notReady.Store(nil)
 	obs.ChainsReady = true
 	obs.BlocksAtTS = ready.blocks
 	obs.L1Heads = ready.l1Heads
@@ -720,6 +755,19 @@ func (i *Interop) buildPendingTransition(output StepOutput, obs RoundObservation
 		}, nil
 	case DecisionInvalidate:
 		result := output.Result
+		// A PROVEN CHAIN IS NEVER REPLACED, ONLY STOPPED (G7G D3).
+		//
+		// Under G7 a proof-carried chain's dependencies are on the wire and really checked, so this
+		// decision is reachable for one — and it must terminate here rather than downstream. The
+		// refusal is deliberately placed BEFORE captureInvalidationParentPayloads: that path fetches
+		// payloads by hash from the chain's engine, which for a chain whose "engine" serves
+		// proof-committed facts is at best an odd question and at worst an error, and an error there
+		// would turn a decision this node must state loudly into a retry loop around a plumbing
+		// failure. Refusing first makes the outcome the same on every attempt and puts the reason in
+		// one place.
+		if err := i.refuseProvenInvalidations(result.InvalidHeads); err != nil {
+			return PendingTransition{}, err
+		}
 		parentPayloads, err := i.captureInvalidationParentPayloads(result.InvalidHeads)
 		if err != nil {
 			return PendingTransition{}, fmt.Errorf("capture invalidation parent payloads: %w", err)
@@ -741,6 +789,63 @@ func (i *Interop) buildPendingTransition(output StepOutput, obs RoundObservation
 	default:
 		return PendingTransition{}, fmt.Errorf("unsupported transition decision: %v", output.Decision)
 	}
+}
+
+// refuseProvenInvalidations stops an invalidation of a proof-carried chain before anything is
+// captured, written or rewound.
+//
+// It routes through the chain container's own InvalidateBlock, which is where DR-1 requires the
+// honesty assertion to live in code and which is what fires the operator alert. Nothing here decides
+// the policy — it only makes sure the container is ASKED, on a path where its refusal is the whole
+// answer rather than one of several ways the round could fail.
+//
+// The parent payload is nil because there is nothing to rewind onto: the container refuses before
+// looking at it. If a container ever ACCEPTS this call for a proven chain, that is the honesty
+// assertion having been removed, and the loud failure belongs there rather than here.
+//
+// SCOPE, stated because it is wider than the name suggests: returning an error aborts the WHOLE
+// transition, so a DRIVEN chain invalidated in the same round is not invalidated either. That is
+// deliberate and follows from G7G D3 — the round cannot advance past this timestamp for any chain
+// while a proven member's history is unratifiable, so invalidating a peer would be acting on a
+// decision the round is not going to apply. It is also the only place this package can prevent a
+// driven chain's invalidation, so it is worth knowing about rather than discovering.
+func (i *Interop) refuseProvenInvalidations(invalidHeads map[eth.ChainID]InvalidHead) error {
+	// EVERY proven chain in the set is refused, not just the first one found, and in a DETERMINISTIC
+	// order. Both halves matter for the same reason: the refusal is what fires the per-chain operator
+	// alert (`silhouette_invalidations_refused_total`, labelled by chain_id). Returning early would
+	// leave a second affected chain's alert silent, and map iteration order would pick a different
+	// chain to name on every round — a condition that cannot change until a prover acts would be
+	// reported under a different name each time it was met.
+	proven := make([]eth.ChainID, 0, len(invalidHeads))
+	for chainID := range invalidHeads {
+		chain, ok := i.chains[chainID]
+		if !ok || cc.IngestionSourceOf(chain) != cc.IngestionProven {
+			continue
+		}
+		proven = append(proven, chainID)
+	}
+	if len(proven) == 0 {
+		return nil
+	}
+	eth.SortChainID(proven)
+
+	var accepted []eth.ChainID
+	for _, chainID := range proven {
+		head := invalidHeads[chainID]
+		if _, err := i.invalidateBlock(chainID, head.BlockID, 0,
+			head.StateRoot, head.MessagePasserStorageRoot, nil); err == nil {
+			// The container did NOT refuse. That is the honesty assertion having been removed, and it
+			// is worse news than the invalidation itself, so it is reported separately below.
+			accepted = append(accepted, chainID)
+		}
+	}
+	if len(accepted) > 0 {
+		return fmt.Errorf("proof-carried chain(s) %v accepted an invalidation; a proven chain must never "+
+			"be replaced, only stopped", accepted)
+	}
+	return fmt.Errorf("the cross-safety judge found proven block(s) invalid on chain(s) %v and this node "+
+		"will not replace them; the cross-safe frontier is pinned here until each chain's prover "+
+		"re-proves from its last valid point", proven)
 }
 
 // captureInvalidationParentPayloads fetches, for every invalidated chain, the canonical

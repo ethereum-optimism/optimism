@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
 
 // ErrCycle is returned when a cycle is detected in same-timestamp messages.
@@ -204,6 +205,36 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 		// A block at a different timestamp legitimately contributes no
 		// same-timestamp executing messages; skip it without error.
 		if blockRef.Time != ts {
+			continue
+		}
+		// A PROOF-CARRIED CHAIN CONTRIBUTES NO SAME-TIMESTAMP EXECUTING MESSAGES, and here that
+		// claim is CHECKED rather than assumed (G7G D2).
+		//
+		// This graph orders executing messages by their log index — intra-chain by position, and
+		// cross-chain by `executingMessageBefore` against the referenced index. Wire v3 carries no
+		// position for a proven chain's imports, so admitting one here with a synthesised index could
+		// hide a real cycle or invent a false one. The codec refuses such a batch outright
+		// (proofbatch.ErrSameTimestampImport), so the class cannot reach acceptance; this is the
+		// assertion that the refusal is still in place, on the one path where its absence would be a
+		// soundness hole rather than a bug. A hit means the codec rule was bypassed, so it is an
+		// error — the round stalls loudly — and never a silent skip.
+		if chain, known := i.chains[chainID]; known && cc.IngestionSourceOf(chain) == cc.IngestionProven {
+			provenMsgs, onWire, msgErr := cc.ProvenExecMsgsOf(chain, blockID.Number)
+			if msgErr != nil {
+				return Result{}, fmt.Errorf("chain %s: failed to read the executing messages block %d "+
+					"declared, for cycle verification: %w", chainID, blockID.Number, msgErr)
+			}
+			if !onWire {
+				continue
+			}
+			for ordinal, em := range provenMsgs {
+				if em != nil && em.Timestamp == ts {
+					return Result{}, fmt.Errorf("chain %s: block %d declares a same-timestamp executing "+
+						"message (ordinal %d, timestamp %d) which the wire format forbids: a proven chain's "+
+						"imports carry no position, so this message cannot be ordered in the same-timestamp "+
+						"dependency graph", chainID, blockID.Number, ordinal, ts)
+				}
+			}
 			continue
 		}
 		chainEMs[chainID] = execMsgs
