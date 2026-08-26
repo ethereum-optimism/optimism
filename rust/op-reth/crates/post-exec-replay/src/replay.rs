@@ -194,6 +194,7 @@ fn into_replay_payload(payload: PostExecPayload) -> PostExecReplayPayload {
     PostExecReplayPayload {
         version: payload.version.into(),
         block_number: payload.block_number,
+        selected_base_fee_per_gas: payload.selected_base_fee_per_gas,
         gas_refund_entries: payload
             .gas_refund_entries
             .into_iter()
@@ -431,7 +432,9 @@ mod tests {
         let normalized = normalize_block(&block).unwrap();
         assert_eq!(normalized.post_exec_tx_index, Some(2));
         assert_eq!(normalized.original_indexes, vec![0, 1]);
-        assert_eq!(normalized.embedded_payload.unwrap().gas_refund_entries, payload_entries);
+        let embedded_payload = normalized.embedded_payload.unwrap();
+        assert_eq!(embedded_payload.selected_base_fee_per_gas, 1);
+        assert_eq!(embedded_payload.gas_refund_entries, payload_entries);
         assert_eq!(normalized.replay_block.body().transactions.len(), 2);
     }
 
