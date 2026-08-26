@@ -17,12 +17,12 @@ pub enum OpPayloadBuilderError {
     /// Thrown when force deploy of create2deployer code fails.
     #[error("failed to force create2deployer account code")]
     ForceCreate2DeployerFail,
-    /// Thrown when the mandatory PostExec transaction would exceed the configured block-size cap.
+    /// Thrown when the mandatory `PostExec` transaction would exceed the configured block-size cap.
     #[error(
         "post-exec transaction would increase uncompressed block size to {size} bytes, exceeding maximum {max}"
     )]
     PostExecExceedsMaxBlockSize {
-        /// Total EIP-2718 encoded transaction size including PostExec.
+        /// Total EIP-2718 encoded transaction size including `PostExec`.
         size: u64,
         /// Configured maximum EIP-2718 encoded transaction size.
         max: u64,

@@ -60,7 +60,7 @@ impl<EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider> {
 pub(crate) struct BuildArgs<I, N: NodePrimitives> {
     pub(crate) base: OpFlashblockPayloadBase,
     pub(crate) transactions: I,
-    /// Latest out-of-band PostExec snapshot for this sequence.
+    /// Latest out-of-band `PostExec` snapshot for this sequence.
     pub(crate) post_exec_tx: Option<Bytes>,
     pub(crate) cached_state: Option<(B256, CachedReads)>,
     pub(crate) last_flashblock_index: u64,

@@ -759,9 +759,9 @@ pub struct ExecutionInfo {
     /// so far, in bytes. Bounds the block against the configured
     /// [`max_uncompressed_block_size`](crate::config::OpBuilderConfig::max_uncompressed_block_size).
     pub cumulative_uncompressed_bytes: u64,
-    /// Conservative space held for the mandatory trailing PostExec transaction.
+    /// Conservative space held for the mandatory trailing `PostExec` transaction.
     pub reserved_post_exec_bytes: u64,
-    /// Number of transactions included before PostExec.
+    /// Number of transactions included before `PostExec`.
     pub included_transactions: u64,
     /// Tracks fees from executed mempool transactions
     pub total_fees: U256,
@@ -781,7 +781,7 @@ impl ExecutionInfo {
         }
     }
 
-    /// Reserves conservative uncompressed block space for a mandatory trailing PostExec.
+    /// Reserves conservative uncompressed block space for a mandatory trailing `PostExec`.
     pub fn reserve_post_exec(&mut self, block_number: u64, selected_base_fee_per_gas: u64) {
         let empty_post_exec_size =
             build_post_exec_tx(block_number, selected_base_fee_per_gas, Vec::new())

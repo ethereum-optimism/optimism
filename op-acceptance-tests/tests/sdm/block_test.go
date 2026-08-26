@@ -124,7 +124,7 @@ func assertEmptyPostExecCommitment(t devtest.T, block *sdmpkg.RPCBlock, producer
 	t.Require().Equal(uint64(block.Number), payload.BlockNumber, "%s commitment must match its block", producer)
 	t.Require().NotNil(block.BaseFeePerGas, "%s block must expose baseFeePerGas", producer)
 	t.Require().True((*big.Int)(block.BaseFeePerGas).IsUint64(), "%s baseFeePerGas must fit in uint64", producer)
-	t.Require().Equal((*big.Int)(block.BaseFeePerGas).Uint64(), payload.SelectedBaseFeePerGas,
+	t.Require().Equal(bigs.Uint64Strict((*big.Int)(block.BaseFeePerGas)), payload.SelectedBaseFeePerGas,
 		"%s commitment must match the block base fee", producer)
 	t.Require().Empty(payload.GasRefundEntries, "%s must not commit SDM refunds", producer)
 }

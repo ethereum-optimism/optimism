@@ -244,8 +244,9 @@ func ValidatePostExecBlock(ctx context.Context, rpcClient Caller, blockNum uint6
 	if !baseFee.IsUint64() {
 		return nil, fmt.Errorf("block %d baseFeePerGas %s does not fit in uint64", blockNum, baseFee)
 	}
-	if payload.SelectedBaseFeePerGas != baseFee.Uint64() {
-		return nil, fmt.Errorf("post-exec selected_base_fee_per_gas %d, want block baseFeePerGas %d", payload.SelectedBaseFeePerGas, baseFee.Uint64())
+	selectedBaseFee := bigs.Uint64Strict(baseFee)
+	if payload.SelectedBaseFeePerGas != selectedBaseFee {
+		return nil, fmt.Errorf("post-exec selected_base_fee_per_gas %d, want block baseFeePerGas %d", payload.SelectedBaseFeePerGas, selectedBaseFee)
 	}
 
 	result := &ValidationResult{

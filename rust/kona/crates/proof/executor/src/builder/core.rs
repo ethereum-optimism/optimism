@@ -403,7 +403,7 @@ pub struct BlockBuildingOutcome<Receipt> {
     /// Exact EIP-2718 transaction encodings committed by the block header.
     ///
     /// This may differ from the input attributes when deterministic Lagoon execution synthesizes
-    /// the mandatory trailing PostExec commitment.
+    /// the mandatory trailing `PostExec` commitment.
     pub transactions: Vec<Bytes>,
 }
 
