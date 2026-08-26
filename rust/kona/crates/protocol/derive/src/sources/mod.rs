@@ -6,7 +6,7 @@
 //! [`BlockInfo`](kona_protocol::BlockInfo).
 
 mod blob_data;
-pub use blob_data::BlobData;
+pub use blob_data::{BlobData, decode_blob};
 
 mod ethereum;
 pub use ethereum::EthereumDataSource;
