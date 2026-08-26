@@ -49,6 +49,9 @@ func NewDriver(
 	sequencerConductor conductor.SequencerConductor,
 	altDA AltDAIface,
 	superAuthority rollup.SuperAuthority,
+	// dataSrcOverride replaces the stock L1 data-source factory when non-nil. It is the seam a
+	// chain uses whose derivation input is not batcher transactions.
+	dataSrcOverride derive.DataAvailabilitySource,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 
@@ -75,7 +78,11 @@ func NewDriver(
 	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec)
 	sys.Register("attributes-handler", attrHandler)
 
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, l1ChainConfig)
+	var pipelineOpts []derive.PipelineOption
+	if dataSrcOverride != nil {
+		pipelineOpts = append(pipelineOpts, derive.WithDataSource(dataSrcOverride))
+	}
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, l1ChainConfig, pipelineOpts...)
 
 	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline)
 	sys.Register("pipeline", pipelineDeriver)

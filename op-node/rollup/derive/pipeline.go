@@ -96,15 +96,42 @@ type DerivationPipeline struct {
 	metrics Metrics
 }
 
+// PipelineOption customises how a DerivationPipeline is assembled. The zero set of options builds
+// the stock pipeline, so an option is only ever needed by a caller that is deliberately replacing a
+// piece of it.
+type PipelineOption func(*pipelineOptions)
+
+type pipelineOptions struct {
+	dataSrc DataAvailabilitySource
+}
+
+// WithDataSource replaces the L1 data-source factory with a caller-supplied source.
+//
+// This is the same kind of seam the altDA parameter already is: everything downstream of retrieval
+// stays stock, and what changes is only where the bytes that enter FrameQueue come from. It exists
+// for a chain whose input is not batcher transactions at all — the frames may be transcoded from
+// some other L1 object entirely — and the pipeline neither knows nor needs to.
+func WithDataSource(src DataAvailabilitySource) PipelineOption {
+	return func(o *pipelineOptions) { o.dataSrc = src }
+}
+
 // NewDerivationPipeline creates a DerivationPipeline, to turn L1 data into L2 block-inputs.
 func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, depSet DependencySet, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher,
 	altDA AltDAInputFetcher, l2Source L2Source, metrics Metrics, l1ChainConfig *params.ChainConfig,
+	opts ...PipelineOption,
 ) *DerivationPipeline {
+	var options pipelineOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 	spec := rollup.NewChainSpec(rollupCfg)
 	// Stages are strung together into a pipeline,
 	// results are pulled from the stage closed to the L2 engine, which pulls from the previous stage, and so on.
 	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
-	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, altDA) // auxiliary stage for L1Retrieval
+	var dataSrc DataAvailabilitySource = NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, altDA) // auxiliary stage for L1Retrieval
+	if options.dataSrc != nil {
+		dataSrc = options.dataSrc
+	}
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, rollupCfg, l1Src)
 	channelMux := NewChannelMux(log, spec, frameQueue, metrics)
