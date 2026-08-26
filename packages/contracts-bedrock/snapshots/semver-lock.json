@@ -25,7 +25,7 @@
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0x67bbf6c9b344870cdbd7b041ddad6fb69057a4b48ec6dd96876af55d14fc1943",
-    "sourceCodeHash": "0x6f754eee67b9e8b9a8a46db304f695d381b63fdf2c48b540fd0cb39aed9daaa9"
+    "sourceCodeHash": "0x9fe71fe11ce20119af4ed3d07eefce4c9baf0b4aaa617df89aa433c9d607e620"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
     "initCodeHash": "0x68f3fa110e1509bd841932feab438df5b5995ee222fc69a4dd6fcd48428e06f5",
@@ -218,6 +218,10 @@
   "src/safe/SaferSafes.sol:SaferSafes": {
     "initCodeHash": "0x841042eeab4ff85b371aae0c4ee9c17b0a0757bca04fb8ce3054cc7503df9ace",
     "sourceCodeHash": "0x426f80c0cb5e237c87326daeb2bda675ab9a54531405f108075c8b8aa4743b48"
+  },
+  "src/silhouette/OptimismPortalNoDeposit.sol:OptimismPortalNoDeposit": {
+    "initCodeHash": "0xcda0d098d49555d323d4ea38a0f37256e4e40e4f40de9e7021f95c4218f5777a",
+    "sourceCodeHash": "0x2e583761fa8704ed846ff96e7df8813efd74e25b33181bff7d4b55a077ea6de8"
   },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0x3c85eed0d017dca8eda6396aa842ddc12492587b061e8c756a8d32c4610a9658",
