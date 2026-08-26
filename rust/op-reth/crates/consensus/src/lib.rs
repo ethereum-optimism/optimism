@@ -17,6 +17,7 @@ use alloy_consensus::{
 };
 use alloy_primitives::{B64, B256};
 use core::fmt::Debug;
+use op_alloy_consensus::OpTransaction as OpConsensusTransaction;
 use reth_chainspec::EthChainSpec;
 use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator, ReceiptRootBloom};
 use reth_consensus_common::validation::{
@@ -72,7 +73,7 @@ impl<ChainSpec> OpBeaconConsensus<ChainSpec> {
 
 impl<N, ChainSpec> FullConsensus<N> for OpBeaconConsensus<ChainSpec>
 where
-    N: NodePrimitives<Receipt: DepositReceipt>,
+    N: NodePrimitives<Receipt: DepositReceipt, SignedTx: OpConsensusTransaction>,
     ChainSpec: EthChainSpec<Header = N::BlockHeader> + OpHardforks + Debug + Send + Sync,
 {
     fn validate_block_post_execution(
@@ -89,6 +90,7 @@ where
 impl<B, ChainSpec> Consensus<B> for OpBeaconConsensus<ChainSpec>
 where
     B: Block,
+    B::Body: BlockBody<Transaction: OpConsensusTransaction>,
     ChainSpec: EthChainSpec<Header = B::Header> + OpHardforks + Debug + Send + Sync,
 {
     fn validate_body_against_header(
@@ -197,11 +199,15 @@ where
             validate_against_parent_timestamp(header.header(), parent.header())?;
         }
 
-        validate_against_parent_eip1559_base_fee(
-            header.header(),
-            parent.header(),
-            &self.chain_spec,
-        )?;
+        // Lagoon delegates base-fee selection to the sequencer. The replacement consensus check
+        // compares the header fee with the trailing PostExec commitment when validating the body.
+        if !self.chain_spec.is_lagoon_active_at_timestamp(header.timestamp()) {
+            validate_against_parent_eip1559_base_fee(
+                header.header(),
+                parent.header(),
+                &self.chain_spec,
+            )?;
+        }
 
         // Ensure that the blob gas fields for this block are correctly set.
         // In the op-stack, the excess blob gas is always 0 for all blocks after ecotone.
@@ -494,6 +500,37 @@ mod tests {
             ConsensusError::BlobGasUsedDiff(diff)
                 if diff.got == BLOB_GAS_USED + 1 && diff.expected == BLOB_GAS_USED
         ));
+    }
+
+    #[test]
+    fn test_header_accepts_sequencer_selected_base_fee_at_lagoon() {
+        let chain_spec = OpChainSpecBuilder::default()
+            .lagoon_activated()
+            .genesis(OP_MAINNET.genesis.clone())
+            .chain(OP_MAINNET.chain)
+            .build();
+        let consensus = OpBeaconConsensus::new(Arc::new(chain_spec));
+        let parent = SealedHeader::seal_slow(Header {
+            number: 0,
+            timestamp: 1,
+            base_fee_per_gas: Some(100),
+            gas_limit: 30_000_000,
+            blob_gas_used: Some(0),
+            excess_blob_gas: Some(0),
+            ..Default::default()
+        });
+        let header = SealedHeader::seal_slow(Header {
+            number: 1,
+            timestamp: 2,
+            parent_hash: parent.hash(),
+            base_fee_per_gas: Some(777),
+            gas_limit: 30_000_000,
+            blob_gas_used: Some(0),
+            excess_blob_gas: Some(0),
+            ..Default::default()
+        });
+
+        consensus.validate_header_against_parent(&header, &parent).unwrap();
     }
 
     #[test]

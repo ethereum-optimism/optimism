@@ -7,7 +7,9 @@ use crate::{
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_primitives::Sealed;
-use op_alloy_consensus::{OpPooledTransaction, TxPostExec, interop::SafetyLevel};
+use op_alloy_consensus::{
+    OpPooledTransaction, OpTransaction as OpConsensusTransaction, TxPostExec, interop::SafetyLevel,
+};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
 };
@@ -40,7 +42,10 @@ use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
     builder::OpPayloadTransactions,
-    config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig, OperatorSdmOptIn},
+    config::{
+        BaseFeePolicy, JovianBaseFeePolicy, OpBuilderConfig, OpDAConfig, OpGasLimitConfig,
+        OperatorSdmOptIn,
+    },
 };
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_optimism_rpc::{
@@ -191,7 +196,7 @@ where
 }
 
 /// Type configuration for a regular Optimism node.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct OpNode {
     /// Additional Optimism args
@@ -207,6 +212,8 @@ pub struct OpNode {
     /// Used to control the gas limit of the blocks produced by the OP builder.(configured by the
     /// batcher via the `miner_` api)
     pub gas_limit_config: OpGasLimitConfig,
+    /// Producer-only base-fee policy used for normal Lagoon payloads.
+    pub base_fee_policy: Arc<dyn BaseFeePolicy>,
     /// Local operator opt-in for SDM `PostExec` production. Shared (via Arc clones) between the
     /// payload builder and the `admin_setOperatorSdmOptIn` RPC handler.
     pub operator_sdm_opt_in: OperatorSdmOptIn,
@@ -225,6 +232,12 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
     OpConsensusBuilder,
 >;
 
+impl Default for OpNode {
+    fn default() -> Self {
+        Self::new(RollupArgs::default())
+    }
+}
+
 impl OpNode {
     /// Creates a new instance of the Optimism node type.
     pub fn new(args: RollupArgs) -> Self {
@@ -234,6 +247,7 @@ impl OpNode {
             args,
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
+            base_fee_policy: Arc::new(JovianBaseFeePolicy),
             operator_sdm_opt_in,
             interop_failsafe: InteropFailsafe::default(),
         }
@@ -251,6 +265,12 @@ impl OpNode {
         self
     }
 
+    /// Configure the producer-only Lagoon base-fee policy.
+    pub fn with_base_fee_policy(mut self, base_fee_policy: Arc<dyn BaseFeePolicy>) -> Self {
+        self.base_fee_policy = base_fee_policy;
+        self
+    }
+
     /// The [`OpBuilderConfig`] this node's payload builder is configured with.
     ///
     /// This is the single assembly site for the payload builder's config: [`components`] and any
@@ -264,6 +284,7 @@ impl OpNode {
         OpBuilderConfig {
             da_config: self.da_config.clone(),
             gas_limit_config: self.gas_limit_config.clone(),
+            base_fee_policy: self.base_fee_policy.clone(),
             operator_sdm_opt_in: self.operator_sdm_opt_in.clone(),
             interop_failsafe: self.interop_failsafe.clone(),
             max_uncompressed_block_size: self.args.max_uncompressed_block_size,
@@ -1518,6 +1539,13 @@ impl OpPayloadBuilder {
         self
     }
 
+    /// Configure the producer-only Lagoon base-fee policy.
+    #[must_use]
+    pub fn with_base_fee_policy(mut self, base_fee_policy: Arc<dyn BaseFeePolicy>) -> Self {
+        self.builder_config.base_fee_policy = base_fee_policy;
+        self
+    }
+
     /// Provide the shared SDM operator opt-in flag.
     #[must_use]
     pub fn with_operator_sdm_opt_in(mut self, operator_sdm_opt_in: OperatorSdmOptIn) -> Self {
@@ -1698,7 +1726,7 @@ where
     Node: FullNodeTypes<
         Types: NodeTypes<
             ChainSpec: OpHardforks,
-            Primitives: NodePrimitives<Receipt: DepositReceipt>,
+            Primitives: NodePrimitives<Receipt: DepositReceipt, SignedTx: OpConsensusTransaction>,
         >,
     >,
 {

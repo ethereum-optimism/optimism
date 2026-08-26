@@ -59,6 +59,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
         parent: &'a SealedHeader<<Self::Primitives as NodePrimitives>::BlockHeader>,
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
+        selected_base_fee_per_gas: u64,
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
@@ -125,6 +126,7 @@ where
         parent: &'a SealedHeader<<Self::Primitives as NodePrimitives>::BlockHeader>,
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
+        selected_base_fee_per_gas: u64,
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
@@ -136,7 +138,8 @@ where
         > + 'a,
         Self::Error,
     > {
-        let evm_env = self.next_evm_env(parent, &attributes)?;
+        let mut evm_env = self.next_evm_env(parent, &attributes)?;
+        evm_env.block_env.basefee = selected_base_fee_per_gas;
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);
@@ -231,6 +234,7 @@ where
         parent: &'a SealedHeader<<Self::Primitives as NodePrimitives>::BlockHeader>,
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
+        selected_base_fee_per_gas: u64,
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
@@ -242,7 +246,8 @@ where
         > + 'a,
         Self::Error,
     > {
-        let evm_env = self.next_evm_env(parent, &attributes)?;
+        let mut evm_env = self.next_evm_env(parent, &attributes)?;
+        evm_env.block_env.basefee = selected_base_fee_per_gas;
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);
