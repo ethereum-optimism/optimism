@@ -1023,7 +1023,11 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Evm::Primitives,
-            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
+            Executor: PostExecExecutorExt
+                          + BlockExecutor<
+                Evm: AlloyEvm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
+            >,
         > + 'a,
         PayloadBuilderError,
     > {
@@ -1041,7 +1045,11 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Evm::Primitives,
-            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
+            Executor: PostExecExecutorExt
+                          + BlockExecutor<
+                Evm: AlloyEvm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
+            >,
         > + 'a,
         PayloadBuilderError,
     > {
