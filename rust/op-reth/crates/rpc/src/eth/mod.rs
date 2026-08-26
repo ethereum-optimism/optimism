@@ -257,19 +257,27 @@ where
     Rpc: RpcConvert,
 {
     /// Quotes the pending base fee from the same policy used by the payload builder.
-    fn pending_base_fee_quote(
+    fn base_fee_quote_at_timestamp(
         &self,
         header: &ProviderHeader<N::Provider>,
+        next_timestamp: u64,
     ) -> Result<u64, OpEthApiError> {
-        // Pending RPCs do not have payload attributes yet. The parent timestamp matches reth's
-        // existing provisional next-block quote semantics.
         quote_base_fee(
             self.inner.base_fee_policy.as_ref(),
             self.inner.eth_api.provider().chain_spec().as_ref(),
             header,
-            header.timestamp(),
+            next_timestamp,
         )
         .map_err(Into::into)
+    }
+
+    fn pending_base_fee_quote(
+        &self,
+        header: &ProviderHeader<N::Provider>,
+    ) -> Result<u64, OpEthApiError> {
+        // Match the timestamp used by `OpNextBlockEnvAttributes::build_pending_env` so fee APIs,
+        // pending execution, and fork activation all describe the same provisional block.
+        self.base_fee_quote_at_timestamp(header, header.timestamp().saturating_add(12))
     }
 
     fn latest_pending_base_fee(&self) -> Result<u64, OpEthApiError> {

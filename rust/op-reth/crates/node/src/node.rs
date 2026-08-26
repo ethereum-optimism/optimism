@@ -1464,7 +1464,7 @@ where
                     base_fee_policy.as_ref(),
                     chain_spec.as_ref(),
                     header,
-                    header.timestamp(),
+                    header.timestamp().saturating_add(12),
                 )
                 .unwrap_or_else(|err| {
                         warn!(target: "txpool", %err, "base-fee policy quote failed; using latest observed fee");
