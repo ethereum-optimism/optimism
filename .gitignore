@@ -67,3 +67,8 @@ crytic-export
 # The binary archives are gitignored; only their .sha256 (and generated text) are committed.
 op-core/superchain/superchain-configs.zip
 rust/op-reth/crates/chainspec/res/superchain-configs.tar
+
+# Silhouette: locally-built binaries (build with `go build ./op-supernode/cmd/...`)
+/silhouette-config
+/proofbatch-submitter
+/op-supernode-bin
