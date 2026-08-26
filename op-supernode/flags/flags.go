@@ -74,6 +74,12 @@ var (
 		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
 		TakesFile: true,
 	}
+	SilhouetteManifest = &cli.PathFlag{
+		Name:      "silhouette",
+		Usage:     "Silhouette manifest (JSON): declares which of the configured chains are proof-carried silhouette chains, and names each one's verifier config. Chains absent from it are ordinary driven chains.",
+		EnvVars:   prefixEnvVars("SILHOUETTE"),
+		TakesFile: true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -85,6 +91,7 @@ var optionalFlags = []cli.Flag{
 	L1HTTPPollInterval,
 	DisableP2P,
 	DependencySet,
+	SilhouetteManifest,
 }
 
 // activityFlags holds flags registered by activity packages via RegisterActivityFlags.

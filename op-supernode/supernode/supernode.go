@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supernode/silhouette"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
@@ -51,12 +52,18 @@ type Supernode struct {
 	metrics          *resources.MetricsService
 	metricsFanIn     *resources.MetricsFanIn
 	supernodeMetrics *resources.SupernodeMetrics
+	// silhouettes holds the in-process machinery of each proof-carried chain: its fact store, its
+	// shim execution client and its injected data source. Empty on a supernode with no silhouette
+	// manifest, which is every ordinary cluster.
+	silhouettes map[eth.ChainID]*silhouette.Assembly
 	// cached address when available
 	rpcAddr string
 }
 
 func New(ctx context.Context, log gethlog.Logger, version string, commit string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
-	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[eth.ChainID]cc.InteropChain)}
+	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg,
+		chains:      make(map[eth.ChainID]cc.InteropChain),
+		silhouettes: make(map[eth.ChainID]*silhouette.Assembly)}
 
 	// Initialize L1 client
 	if err := s.initL1Client(ctx, cfg); err != nil {
@@ -66,6 +73,22 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 	// Initialize L1 Beacon client (optional)
 	if err := s.initBeaconClient(ctx, cfg); err != nil {
 		return nil, fmt.Errorf("failed to initialize L1 Beacon client: %w", err)
+	}
+
+	// Which of the configured chains, if any, are proof-carried. Loaded before any chain is built
+	// so an unparseable manifest or a missing verifying key stops the process rather than half of
+	// it. Nil manifest means no chain is a silhouette chain and every construction below is
+	// untouched.
+	var silhouettes *silhouette.Manifest
+	if cfg.SilhouetteManifestPath != "" {
+		m, err := silhouette.LoadManifest(cfg.SilhouetteManifestPath)
+		if err != nil {
+			return nil, err
+		}
+		silhouettes = m
+		if err := silhouettes.CheckChains(cfg.Chains); err != nil {
+			return nil, err
+		}
 	}
 
 	// Initialize chain containers for each configured chain ID
@@ -91,9 +114,28 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
+		// The silhouette switch. A declared chain has its execution client and its derivation input
+		// replaced IN the config and overrides the stock constructor below is about to read, so the
+		// container it builds is a stock container pointed at two replaced endpoints — a wiring
+		// statement rather than a new kind of chain.
+		var assembly *silhouette.Assembly
+		var labels silhouette.LabelSource
+		if decl, ok := silhouettes.Lookup(chainID); ok {
+			a, l, err := s.assembleSilhouette(log, decl, vnCfgs[chainID], initOverrides)
+			if err != nil {
+				return nil, err
+			}
+			assembly, labels = a, l
+			s.silhouettes[chainID] = a
+		}
+
 		container, err := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics, version)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create chain container for chain %s: %w", chainID, err)
+		}
+		if assembly != nil {
+			s.chains[chainID] = wrapSilhouetteChain(log, container, assembly, labels, s.supernodeMetrics)
+			continue
 		}
 		s.chains[chainID] = container
 	}
@@ -127,6 +169,18 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 		}
 		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
 		verifiedReader = interopActivity
+		// Now that the log databases exist, close the loop: each silhouette chain's data source
+		// seals its exported logs into its own chain's database, straight from the wire.
+		if err := s.attachSilhouetteLogStores(log, interopActivity); err != nil {
+			return nil, err
+		}
+	} else if len(s.silhouettes) > 0 {
+		// A silhouette chain outside a dependency set is a chain nobody can reference. It still
+		// derives, so this is a warning rather than a refusal — a single-chain verifier is a real
+		// use — but it is worth saying, because "no cross-chain messages" would otherwise be
+		// indistinguishable from an export policy that excluded everything.
+		log.Warn("silhouette chains are configured but interop is not; their exported messages will not be referenceable",
+			"chains", len(s.silhouettes))
 	}
 
 	// Order in this slice governs Start/Stop ordering; interop is appended
@@ -279,6 +333,30 @@ func (s *Supernode) Start(ctx context.Context) error {
 			}
 		}(chainID, chain)
 	}
+	// The sequencer posture's proven-head walk. It is started here, after the chains and after the
+	// interop activity, for the reason that ordering usually matters in this file: the walk's first
+	// step can accept a proof batch, and accepting one seals its exported logs into the chain's
+	// interop log database, which does not exist until the interop activity built it
+	// (attachSilhouetteLogStores). Started earlier it would fail its first step on a nil sink and
+	// retry until it did.
+	//
+	// Assembly.Run is a no-op in the verifier posture, so this loop is unconditional rather than
+	// guarded: there is exactly one place that knows which postures have something to drive, and it
+	// is the assembly.
+	for chainID, assembly := range s.silhouettes {
+		s.wg.Add(1)
+		go func(chainID eth.ChainID, assembly *silhouette.Assembly) {
+			defer s.wg.Done()
+			assembly.Run(lifecycleCtx)
+		}(chainID, assembly)
+	}
+	if len(s.silhouettes) > 0 {
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.observeSilhouettes(lifecycleCtx)
+		}()
+	}
 	return nil
 }
 
@@ -342,6 +420,13 @@ func (s *Supernode) Stop(ctx context.Context) error {
 		} else {
 			s.log.Info("chain container stopped", "chain_id", chainID.String())
 		}
+	}
+
+	// The shim servers last: they are what the containers above were talking to, so stopping them
+	// first would turn an orderly shutdown into a burst of engine-call failures.
+	for chainID, assembly := range s.silhouettes {
+		assembly.Close()
+		s.log.Info("silhouette shim stopped", "chain_id", chainID.String())
 	}
 
 	s.log.Info("all chain containers stopped, waiting for goroutines to finish")

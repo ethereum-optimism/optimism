@@ -32,6 +32,10 @@ type CLIConfig struct {
 	// DependencySetPath is the path to a JSON dependency-set file shared by every chain
 	// managed by the supernode. Empty means fall back to per-chain registry lookup.
 	DependencySetPath string
+	// SilhouetteManifestPath is the path to a JSON silhouette manifest declaring which of the
+	// configured chains are proof-carried. Empty means none of them are, and every chain is built
+	// exactly as it was before silhouette chains existed.
+	SilhouetteManifestPath string
 }
 
 func (c *CLIConfig) Check() error {
@@ -77,6 +81,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		RawCtx:                  ctx,
 		InteropLogBackfillDepth: ctx.Duration("interop.log-backfill-depth"),
 		DependencySetPath:       ctx.Path(flags.DependencySet.Name),
+		SilhouetteManifestPath:  ctx.Path(flags.SilhouetteManifest.Name),
 	}
 	if ctx.IsSet("interop.activation-timestamp") {
 		ts := ctx.Uint64("interop.activation-timestamp")
