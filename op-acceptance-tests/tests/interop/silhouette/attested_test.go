@@ -121,9 +121,9 @@ func TestAttestedRefusesABatchCarryingProofBytes(gt *testing.T) {
 // operator signed for them with a key the whole dependency set knows.
 //
 // What is NOT weakened, and is worth reading beside this: the fabricated log is a fabricated EXPORT.
-// P's IMPORTS are still checked — see TestSilhouetteImportThatIsFalseIsRefused, where one false
-// declared import pins the frontier. An attester can invent what its own chain said; it cannot invent
-// what someone else's chain said.
+// P's IMPORTS are still checked — see TestSilhouetteImportThatIsFalseIsReplaced, where one false
+// declared import causes the consuming block to be replaced. An attester can invent what its own
+// chain said; it cannot invent what someone else's chain said.
 //
 // Under a proving system that actually checks P's state this test would fail at step (3), and that is
 // the upgrade path: same wire, same proof slot, one config value. The test is therefore also a marker

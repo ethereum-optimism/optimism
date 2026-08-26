@@ -1,6 +1,7 @@
 package silhouette
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -116,12 +117,193 @@ type FactStore struct {
 	// for facts by HASH and a linear scan of a 65 536-entry window is fine until it is not.
 	byHash   map[common.Hash]uint64
 	carriers []carrier
+	// denied records proof-committed blocks that the cross-safety judge invalidated. A later valid
+	// proof may supersede the suffix containing one of these blocks, but the original proof may
+	// never become canonical again when the L1 source is replayed.
+	denied map[common.Hash]uint64
+	// deniedChecker reads the chain container's durable denylist. It lets an L1 replay reconstruct
+	// the same supersession decision after this in-memory table has been rebuilt.
+	deniedChecker func(uint64, common.Hash) (bool, error)
 	// renderings and cursors are the shim EL's half of the store — see store_shim.go. They live
 	// under the same lock because a rewind has to move the facts and forget the renderings above
 	// them together, or a query lands between the two and gets an answer from a chain that no
 	// longer exists.
 	renderings map[common.Hash]Rendering
 	cursors    Cursors
+}
+
+// SetDeniedChecker attaches the durable denial lookup after the chain container is constructed.
+func (f *FactStore) SetDeniedChecker(checker func(uint64, common.Hash) (bool, error)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deniedChecker = checker
+}
+
+// MarkDenied records the cross-safety verdict for a proof-committed block. It is idempotent so a
+// verifier may encounter the same invalid timestamp again while waiting for the producer's
+// replacement proof.
+func (f *FactStore) MarkDenied(number uint64, hash common.Hash) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if deniedAt, ok := f.denied[hash]; ok {
+		if deniedAt != number {
+			return fmt.Errorf("denied block %s was recorded at height %d, not %d", hash, deniedAt, number)
+		}
+		return nil
+	}
+	fact, ok := f.byNumberLocked(number)
+	if !ok {
+		return fmt.Errorf("cannot deny block %d (%s): no fact at that height", number, hash)
+	}
+	if fact.Hash != hash {
+		return fmt.Errorf("cannot deny block %d (%s): canonical proof fact is %s", number, hash, fact.Hash)
+	}
+	if f.denied == nil {
+		f.denied = make(map[common.Hash]uint64)
+	}
+	f.denied[hash] = number
+	return nil
+}
+
+// IsDenied reports whether a block hash has received an invalid cross-safety verdict.
+func (f *FactStore) IsDenied(hash common.Hash) bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	_, ok := f.denied[hash]
+	return ok
+}
+
+// Denied reports whether the exact block was denied, consulting the chain container's durable
+// denylist when the in-memory verdict has not yet been reconstructed after a restart.
+func (f *FactStore) Denied(number uint64, hash common.Hash) (bool, error) {
+	f.mu.RLock()
+	deniedAt, denied := f.denied[hash]
+	checker := f.deniedChecker
+	f.mu.RUnlock()
+	if denied {
+		if deniedAt != number {
+			return false, fmt.Errorf("denied block %s was recorded at height %d, not %d", hash, deniedAt, number)
+		}
+		return true, nil
+	}
+	if checker == nil {
+		return false, nil
+	}
+	return checker(number, hash)
+}
+
+// SupersessionBase resolves an output root to an ancestor and requires its immediate child to be
+// denied. This authorizes the exact suffix the stock replacement path rewrote, and no earlier one.
+func (f *FactStore) SupersessionBase(outputRoot common.Hash) (Fact, bool, error) {
+	f.mu.RLock()
+	var base Fact
+	found := false
+	for _, fact := range f.blocks {
+		if fact.OutputRoot == outputRoot {
+			base, found = fact, true
+			break
+		}
+	}
+	if !found {
+		f.mu.RUnlock()
+		return Fact{}, false, nil
+	}
+	replacement, ok := f.byNumberLocked(base.Number + 1)
+	if !ok {
+		f.mu.RUnlock()
+		return Fact{}, false, nil
+	}
+	_, denied := f.denied[replacement.Hash]
+	checker := f.deniedChecker
+	f.mu.RUnlock()
+	if denied {
+		return base, true, nil
+	}
+	if checker == nil {
+		return Fact{}, false, nil
+	}
+	denied, err := checker(replacement.Number, replacement.Hash)
+	if err != nil || !denied {
+		return Fact{}, false, err
+	}
+	if err := f.MarkDenied(replacement.Number, replacement.Hash); err != nil {
+		return Fact{}, false, err
+	}
+	return base, true, nil
+}
+
+// AnchorSupersession reports whether the first fact above the configured anchor was durably denied.
+func (f *FactStore) AnchorSupersession(anchor Fact) (bool, error) {
+	f.mu.RLock()
+	replacement, ok := f.byNumberLocked(anchor.Number + 1)
+	if !ok {
+		f.mu.RUnlock()
+		return false, nil
+	}
+	_, denied := f.denied[replacement.Hash]
+	checker := f.deniedChecker
+	f.mu.RUnlock()
+	if denied {
+		return true, nil
+	}
+	if checker == nil {
+		return false, nil
+	}
+	denied, err := checker(replacement.Number, replacement.Hash)
+	if err != nil || !denied {
+		return false, err
+	}
+	if err := f.MarkDenied(replacement.Number, replacement.Hash); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// PruneDenied mirrors durable denylist pruning after the L1 decision basis reorgs away.
+func (f *FactStore) PruneDenied(removed map[uint64][]common.Hash) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for number, hashes := range removed {
+		for _, hash := range hashes {
+			if f.denied[hash] == number {
+				delete(f.denied, hash)
+			}
+		}
+	}
+}
+
+// ReplaceSuffix drops proof facts and carrier ranges above base. The replacement proof is recorded
+// immediately afterwards by the caller.
+func (f *FactStore) ReplaceSuffix(base Fact) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	got, ok := f.byNumberLocked(base.Number)
+	if !ok || got.Hash != base.Hash || got.OutputRoot != base.OutputRoot {
+		return fmt.Errorf("supersession base block %d (%s) is no longer canonical", base.Number, base.Hash)
+	}
+
+	keptCarriers := 0
+	for keptCarriers < len(f.carriers) && f.carriers[keptCarriers].LastBlock <= base.Number {
+		keptCarriers++
+	}
+	if keptCarriers < len(f.carriers) && f.carriers[keptCarriers].FirstBlock <= base.Number {
+		c := f.carriers[keptCarriers]
+		c.LastBlock = base.Number
+		c.LastHash = base.Hash
+		c.NewOutputRoot = base.OutputRoot
+		f.carriers[keptCarriers] = c
+		keptCarriers++
+	}
+	f.carriers = f.carriers[:keptCarriers]
+	f.truncateBlocksLocked(base.Number, true)
+	return nil
+}
+
+func (f *FactStore) replaceAllForSupersession() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.carriers = nil
+	f.truncateBlocksLocked(0, false)
 }
 
 // Head is the highest block the table holds — the tip of proven-or-forced history.

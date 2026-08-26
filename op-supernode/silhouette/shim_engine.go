@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -312,11 +313,11 @@ func (s *Shim) factForBuild(ctx context.Context, job *buildJob) (Fact, error) {
 // shape of the ONE thing that could hand this engine a hash outside the facts: the replacement-block
 // synthesizer, which mutates ExtraData and re-hashes (rewind.go:195 on the Cove branch). It runs only
 // on judge invalidation of the chain, and under G7 that verdict IS reachable — P declares its imports
-// on the wire and the stock judge checks them — so this halt is no longer guarding an impossibility.
-// It is the second of two locks on the same door: the chain container refuses the invalidation
-// (G7G D3, "a proven chain is never replaced, only stopped") and this halts if anything ever gets
-// past that refusal. E3's honesty assertion, kept in code here. That case HALTS the shim,
-// permanently and loudly.
+// on the wire and the stock judge checks them. The verifier container deliberately does not run that
+// synthesizer: it waits for a corrected proof whose committed hash is the producer's real stock
+// replacement. This guard halts if a local path nevertheless tries to invent a different hash.
+// E3's honesty assertion is therefore kept in code here. That case HALTS the shim permanently and
+// loudly.
 //
 // A payload at a height with no fact at all is refused without halting: it is what a rewind that
 // crossed this call looks like, and the CL's own reset resolves it. Either way nothing is inserted,
@@ -411,7 +412,7 @@ func payloadEnvelope(hdr *types.Header, blockHash common.Hash, txs [][]byte) *et
 		ReceiptsRoot:  eth.Bytes32(hdr.ReceiptHash),
 		LogsBloom:     eth.Bytes256(hdr.Bloom),
 		PrevRandao:    eth.Bytes32(hdr.MixDigest),
-		BlockNumber:   eth.Uint64Quantity(hdr.Number.Uint64()),
+		BlockNumber:   eth.Uint64Quantity(bigs.Uint64Strict(hdr.Number)),
 		GasLimit:      eth.Uint64Quantity(hdr.GasLimit),
 		GasUsed:       eth.Uint64Quantity(hdr.GasUsed),
 		Timestamp:     eth.Uint64Quantity(hdr.Time),

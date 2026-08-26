@@ -100,9 +100,7 @@ type fakeProvenChain struct {
 	// both.
 	importsOnWire bool
 	receiptsCall  int
-	// invalidationsRefused counts the judge reaching a verdict of invalid for this chain. Under G7
-	// that is reachable, and what must stay unreachable is the REPLACEMENT of a proven block.
-	invalidationsRefused int
+	invalidations int
 }
 
 func newFakeProvenChain(t *testing.T, chainID eth.ChainID, store silhouette.LogStore) *fakeProvenChain {
@@ -136,14 +134,12 @@ func (c *fakeProvenChain) ProvenExecMsgs(blockNum uint64) (map[uint32]*messages.
 	return out, true, nil
 }
 
-// InvalidateBlock refuses and counts, mirroring the production container: a proven chain is never
-// replaced, only stopped (G7G D3).
 func (c *fakeProvenChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
-	c.invalidationsRefused++
-	return false, fmt.Errorf("chain %s: refusing to invalidate proven block %d (%s)", c.id, height, payloadHash)
+	c.invalidations++
+	return false, nil
 }
 
-func (c *fakeProvenChain) InvalidationsRefused() int { return c.invalidationsRefused }
+func (c *fakeProvenChain) Invalidations() int { return c.invalidations }
 
 // OutputV0AtBlockNumber answers from the WIRE FACTS, which is what the production container does: a
 // proof-carried chain's roots are what a proof committed to, never a re-execution. The judge needs

@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -62,7 +63,7 @@ func (a *SilhouetteAPI) SelfDeclaration() *SelfDeclaration {
 		Client:               ClientVersion,
 		ProofRendered:        true,
 		ExecutesTransactions: false,
-		L2ChainID:            hexutil.Uint64(a.s.params.Rollup.L2ChainID.Uint64()),
+		L2ChainID:            hexutil.Uint64(bigs.Uint64Strict(a.s.params.Rollup.L2ChainID)),
 		RealFields: []string{
 			"hash", "parentHash", "number", "timestamp", "stateRoot", "withdrawalsRoot",
 		},

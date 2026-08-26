@@ -11,6 +11,7 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
@@ -148,11 +149,11 @@ func TestManifestRejectsChainsTheSupernodeIsNotRunning(t *testing.T) {
 func TestL1ChainConfigLookup(t *testing.T) {
 	sep, err := L1ChainConfig(&Config{L1ChainID: 11155111})
 	require.NoError(t, err)
-	require.Equal(t, uint64(11155111), sep.ChainID.Uint64())
+	require.Equal(t, uint64(11155111), bigs.Uint64Strict(sep.ChainID))
 
 	mainnet, err := L1ChainConfig(&Config{L1ChainID: 1})
 	require.NoError(t, err)
-	require.Equal(t, uint64(1), mainnet.ChainID.Uint64())
+	require.Equal(t, uint64(1), bigs.Uint64Strict(mainnet.ChainID))
 
 	// An unknown L1 is an ERROR, not a default. The value decides whether the L1 block's excess
 	// blob gas is priced under Cancun or Prague, and that number goes into the L1-info transaction
@@ -175,7 +176,7 @@ func TestL1ChainConfigFromFile(t *testing.T) {
 
 	cfg, err := L1ChainConfig(&Config{L1ChainID: 11155111, L1ChainConfigPath: path})
 	require.NoError(t, err)
-	require.Equal(t, uint64(11155111), cfg.ChainID.Uint64())
+	require.Equal(t, uint64(11155111), bigs.Uint64Strict(cfg.ChainID))
 
 	// A file for the wrong chain is refused rather than used: it is the likeliest way to get this
 	// wrong, and the failure it would otherwise cause is a bad blob-fee field in a consensus
@@ -244,6 +245,11 @@ func TestAssembleWiresBothSeams(t *testing.T) {
 	var chainIDHex string
 	require.NoError(t, prepared.Client.CallContext(t.Context(), &chainIDHex, "eth_chainId"))
 	require.Equal(t, "0x6793a", chainIDHex, "the shim answers for P over the wired-in client")
+	// A virtual-node stop closes its prepared endpoint. The assembly owns this in-process client,
+	// so that close must not prevent the next virtual node from using the same endpoint.
+	prepared.Client.Close()
+	require.NoError(t, prepared.Client.CallContext(t.Context(), &chainIDHex, "eth_chainId"),
+		"the prepared shim endpoint must survive a virtual-node restart")
 
 	// Seam 2: the derivation input is the proof-batch source, and it is the SAME source object the
 	// assembly holds — so the log sink attached later lands on the source the pipeline reads.

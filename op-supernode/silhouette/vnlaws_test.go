@@ -397,33 +397,13 @@ func lawSyncStatusLadder(t *testing.T, s Subject) {
 // Silhouette makes that structural instead of conventional, so the law is amended from "the list is
 // empty" to "there is no list, and the path that would populate it is unreachable".
 //
-// G7 AMENDS THE AMENDMENT, and the change is worth stating precisely because one clause is retired
-// and the other is strengthened.
-//
-// The pre-G7 wording had two parts: "the judge does not invalidate P" and "nothing may reach the
-// replacement-block synthesiser". The FIRST IS RETIRED. P now declares its imports on the wire and
-// the stock judge validates them like any chain's, so a verdict of invalid is reachable — that is the
-// whole point of the consolidation rung, and a law asserting otherwise would be asserting that the
-// flip did not happen.
-//
-// The SECOND is what the law now says, on its own and more sharply:
-//
-//	A PROVEN CHAIN IS NEVER REPLACED, ONLY STOPPED.
-//
-// Invalidation means rewinding onto a synthesised deposits-only block (the synthesiser that mutates
-// ExtraData and re-hashes, rewind.go:195 on the Cove branch). A verifier may not do that to a chain
-// whose canonical history is a proof stream on L1 that it did not author; doing so would make this
-// node's P a different chain from every other member's. So the verdict may be reached and the
-// REPLACEMENT may not, the container refuses, and the frontier pins until the prover re-proves
-// (DR-RESUME: no supersession). G7G D3.
-//
-// DR-1 requires the assertion to be kept IN CODE, and it is: this container is not invalidatable,
-// and the shim halts on a replacement payload. This law is where the suite checks it is still there.
+// A verifier must never synthesize P's replacement locally. The sequencing node owns P's real
+// execution client and uses the stock deposits-only replacement path; the verifier learns that exact
+// replacement from the corrected proof. Its shim therefore remains non-invalidatable and halts on a
+// payload whose hash contradicts the current proof fact.
 func lawNoInvalidationPath(t *testing.T, s Subject) {
 	require.False(t, s.Chain.Invalidatable(),
-		"a proven chain is never replaced, only stopped: no code may reach replacement-block synthesis "+
-			"for it, and a chain that could be denied would need one. The judge MAY now find one of its "+
-			"blocks invalid (G7) — what must stay unreachable is rewriting that block locally")
+		"a verifier must not synthesize a replacement for proven history; it must derive the producer's replacement proof")
 	_, halted := s.Chain.Halted()
 	require.False(t, halted, "a chain nothing has been invalidated on must not be halted")
 }

@@ -2,6 +2,7 @@ package silhouette
 
 import (
 	"context"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -299,6 +300,142 @@ func TestDuplicateBatchIsANoOp(t *testing.T) {
 	require.Empty(t, e.derive(dup.carrier), "a replayed batch must be rejected")
 	again, _ := e.facts.Head()
 	require.Equal(t, head.Number, again.Number, "the head must not move on a replay")
+}
+
+func TestReplacementProofSupersedesDeniedSuffix(t *testing.T) {
+	e := newTestEnv(t, l1GenesisNum+8)
+	originalSpec := e.goodBatch()
+	original := e.buildBatch(originalSpec)
+	e.plant(original, originalSpec)
+	require.Len(t, e.derive(originalSpec.carrier), 1)
+
+	denied := original.Blocks[1]
+	e.facts.SetDeniedChecker(func(number uint64, hash common.Hash) (bool, error) {
+		return number == denied.Number && hash == denied.Hash, nil
+	})
+	require.False(t, e.facts.IsDenied(denied.Hash), "simulate rebuilding the in-memory facts after restart")
+
+	replacementSpec := batchSpec{
+		prevRoot:   original.Blocks[0].OutputRoot(),
+		firstBlock: denied.Number,
+		firstTime:  denied.Timestamp,
+		count:      2,
+		l1Head:     l1GenesisNum + 3,
+		carrier:    l1GenesisNum + 6,
+	}
+	replacement := e.buildBatch(replacementSpec)
+	for i := range replacement.Blocks {
+		n := replacement.Blocks[i].Number
+		replacement.Blocks[i].Hash = common.BigToHash(new(big.Int).SetUint64(10_000 + n))
+		replacement.Blocks[i].StateRoot = common.BigToHash(new(big.Int).SetUint64(20_000 + n))
+		replacement.Blocks[i].MessagePasserStorageRoot = common.BigToHash(new(big.Int).SetUint64(30_000 + n))
+	}
+	replacement.NewOutputRoot = replacement.Blocks[len(replacement.Blocks)-1].OutputRoot()
+	e.plant(replacement, replacementSpec)
+
+	payloads := e.derive(replacementSpec.carrier)
+	require.Len(t, payloads, 1, "a valid proof may replace the suffix containing the denied block")
+	got, ok := e.facts.ByNumber(denied.Number)
+	require.True(t, ok)
+	require.Equal(t, replacement.Blocks[0].Hash, got.Hash)
+	require.NotEqual(t, denied.Hash, got.Hash)
+	require.True(t, e.facts.IsDenied(denied.Hash), "durable denial must be restored while replaying L1")
+	head, ok := e.facts.Head()
+	require.True(t, ok)
+	require.Equal(t, replacement.NewOutputRoot, head.OutputRoot)
+
+	// The original proof remains denied even if its L1 envelope is replayed later.
+	replay := originalSpec
+	replay.carrier = l1GenesisNum + 7
+	e.plant(original, replay)
+	require.Empty(t, e.derive(replay.carrier))
+	headAfterReplay, _ := e.facts.Head()
+	require.Equal(t, head, headAfterReplay)
+}
+
+func TestL1ReplayRetainsVerifiedPrefixBeforeDeniedBlock(t *testing.T) {
+	e := newTestEnv(t, l1GenesisNum+8)
+	originalSpec := e.goodBatch()
+	original := e.buildBatch(originalSpec)
+	e.plant(original, originalSpec)
+	require.Len(t, e.derive(originalSpec.carrier), 1)
+
+	denied := original.Blocks[1]
+	e.facts.SetDeniedChecker(func(number uint64, hash common.Hash) (bool, error) {
+		return number == denied.Number && hash == denied.Hash, nil
+	})
+
+	// Reopening the carrier models the stock pipeline reset after invalidation. The source must
+	// replay the proof only through the denied block's parent so a corrected proof can chain there.
+	payloads := e.derive(originalSpec.carrier)
+	require.Len(t, payloads, 1)
+	batches := decodeBatches(t, e.rollup, payloads[0], e.l1.ref(originalSpec.carrier))
+	require.Len(t, batches, 1)
+	require.Equal(t, e.cfg.Anchor.BlockHash, batches[0].ParentHash)
+	head, ok := e.facts.Head()
+	require.True(t, ok)
+	require.Equal(t, original.Blocks[0].Number, head.Number)
+	require.Equal(t, original.Blocks[0].Hash, head.Hash)
+	require.False(t, e.facts.IsDenied(denied.Hash), "the durable verdict need not be copied into an absent fact")
+
+	replacementSpec := batchSpec{
+		prevRoot:   original.Blocks[0].OutputRoot(),
+		firstBlock: denied.Number,
+		firstTime:  denied.Timestamp,
+		count:      2,
+		l1Head:     l1GenesisNum + 3,
+		carrier:    l1GenesisNum + 6,
+	}
+	replacement := e.buildBatch(replacementSpec)
+	for i := range replacement.Blocks {
+		n := replacement.Blocks[i].Number
+		replacement.Blocks[i].Hash = common.BigToHash(new(big.Int).SetUint64(70_000 + n))
+		replacement.Blocks[i].StateRoot = common.BigToHash(new(big.Int).SetUint64(80_000 + n))
+		replacement.Blocks[i].MessagePasserStorageRoot = common.BigToHash(new(big.Int).SetUint64(90_000 + n))
+	}
+	replacement.NewOutputRoot = replacement.Blocks[len(replacement.Blocks)-1].OutputRoot()
+	e.plant(replacement, replacementSpec)
+
+	require.Len(t, e.derive(replacementSpec.carrier), 1)
+	head, ok = e.facts.Head()
+	require.True(t, ok)
+	require.Equal(t, replacement.NewOutputRoot, head.OutputRoot)
+}
+
+func TestReplacementProofCannotRewriteBeforeDeniedHeight(t *testing.T) {
+	e := newTestEnv(t, l1GenesisNum+8)
+	originalSpec := e.goodBatch()
+	original := e.buildBatch(originalSpec)
+	e.plant(original, originalSpec)
+	require.Len(t, e.derive(originalSpec.carrier), 1)
+
+	denied := original.Blocks[1]
+	require.NoError(t, e.facts.MarkDenied(denied.Number, denied.Hash))
+	head, ok := e.facts.Head()
+	require.True(t, ok)
+
+	tooEarlySpec := batchSpec{
+		prevRoot:   e.cfg.Anchor.OutputRoot,
+		firstBlock: e.cfg.Anchor.BlockNumber + 1,
+		firstTime:  e.cfg.Anchor.Timestamp + l2BlockTime,
+		count:      3,
+		l1Head:     l1GenesisNum + 3,
+		carrier:    l1GenesisNum + 6,
+	}
+	tooEarly := e.buildBatch(tooEarlySpec)
+	for i := range tooEarly.Blocks {
+		n := tooEarly.Blocks[i].Number
+		tooEarly.Blocks[i].Hash = common.BigToHash(new(big.Int).SetUint64(40_000 + n))
+		tooEarly.Blocks[i].StateRoot = common.BigToHash(new(big.Int).SetUint64(50_000 + n))
+		tooEarly.Blocks[i].MessagePasserStorageRoot = common.BigToHash(new(big.Int).SetUint64(60_000 + n))
+	}
+	tooEarly.NewOutputRoot = tooEarly.Blocks[len(tooEarly.Blocks)-1].OutputRoot()
+	e.plant(tooEarly, tooEarlySpec)
+
+	require.Empty(t, e.derive(tooEarlySpec.carrier), "replacement must begin at the denied height")
+	unchanged, ok := e.facts.Head()
+	require.True(t, ok)
+	require.Equal(t, head, unchanged)
 }
 
 // TestResetRewindsToTheL1Cursor is gate 4's first half (G2 D5): re-opening an L1 block at or below a

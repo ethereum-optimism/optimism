@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -182,7 +183,7 @@ func forcedBlock(
 	// wire instead, and its rendered header deliberately does not re-hash to it.
 	hash := hdr.Hash()
 	return Fact{
-		Number:                   hdr.Number.Uint64(),
+		Number:                   bigs.Uint64Strict(hdr.Number),
 		Timestamp:                timestamp,
 		Hash:                     hash,
 		StateRoot:                parent.StateRoot,

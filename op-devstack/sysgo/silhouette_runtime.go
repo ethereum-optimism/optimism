@@ -3,6 +3,7 @@ package sysgo
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"net"
 	"os"
@@ -144,16 +145,29 @@ func (s *SilhouetteRuntime) TryVerifierWithManifest(manifestPath string) error {
 // than pretend to re-derive it.
 func (s *SilhouetteRuntime) BlockProvenance(t devtest.T, number uint64) *silhouette.BlockDeclaration {
 	require := t.Require()
+	out, err := s.TryBlockProvenance(t, number)
+	require.NoErrorf(err, "silhouette_blockProvenance(%d)", number)
+	return out
+}
+
+// TryBlockProvenance is the non-fatal form of BlockProvenance. It is useful while a denied proof
+// suffix is being replaced, when the requested height may temporarily be absent.
+func (s *SilhouetteRuntime) TryBlockProvenance(t devtest.T, number uint64) (*silhouette.BlockDeclaration, error) {
 	route := s.VerifierRoutes[s.ChainKey]
-	require.NotNil(route, "verifier has no route for the silhouette chain")
+	if route == nil {
+		return nil, fmt.Errorf("verifier has no route for the silhouette chain")
+	}
 	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), route.UserRPC(), client.WithLazyDial())
-	require.NoError(err, "failed to dial the silhouette chain's verifier route")
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial the silhouette chain's verifier route: %w", err)
+	}
 	defer rpcCl.Close()
 
 	var out silhouette.BlockDeclaration
-	require.NoErrorf(rpcCl.CallContext(t.Ctx(), &out, "silhouette_blockProvenance", hexutil.Uint64(number)),
-		"silhouette_blockProvenance(%d)", number)
-	return &out
+	if err := rpcCl.CallContext(t.Ctx(), &out, "silhouette_blockProvenance", hexutil.Uint64(number)); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // SequencerProvenHead asks the SEQUENCING supernode how far the chain has been proven.

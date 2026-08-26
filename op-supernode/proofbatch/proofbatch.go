@@ -441,8 +441,8 @@ func checkExecMsgs(blk *BlockExport) error {
 // nothing to do with bytes. The rule belongs with the other things a NODE requires of a batch —
 // block-time spacing, config binding, L1-head depth — all of which are equally not the codec's
 // business. Same failure mode either way: the batch is rejected, the proven head does not move, and
-// the prover can post a correct one. That recoverable failure is the whole point of refusing here
-// rather than letting the judge find proven history invalid (G7G D3).
+// the prover can post a correct one. Rejecting a dependency the producer can identify before proving
+// also avoids an unnecessary block replacement and re-proof.
 func (b *ProofBatch) CheckNoSameTimestampImports() error {
 	for i := range b.Blocks {
 		blk := &b.Blocks[i]

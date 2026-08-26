@@ -161,22 +161,30 @@ func (s *SilhouetteTarget) TimestampsVerified(t devtest.T) float64 {
 	return sysgo.ScrapeCounterSum(t, s.Runtime.VerifierMetricsURL, "supernode_interop_timestamps_verified_total")
 }
 
-// InvalidationsRefused reads supernode_silhouette_invalidations_refused_total off the same registry:
-// the times the cross-safety judge found a block of the proof-carried chain INVALID and this node
-// refused to replace it (G7G D3).
-//
-// It is the counter that makes the G7 dependency check falsifiable from a test. supernode_interop_
-// invalidations_total counts invalidations CARRIED OUT and stays at zero for a proven chain by
-// design, so on its own it cannot distinguish "the dependency was checked and held" from "nothing
-// was checked". This one moves exactly when a proven chain's declared dependency failed.
-func (s *SilhouetteTarget) InvalidationsRefused(t devtest.T) float64 {
-	return sysgo.ScrapeCounterSum(t, s.Runtime.VerifierMetricsURL, "supernode_silhouette_invalidations_refused_total")
-}
-
 // BlockProvenance asks the silhouette chain, on the verifier, how it knows about a block: "proven",
 // "forced" or "genesis". It is the read path for a chain with no execution client.
 func (s *SilhouetteTarget) BlockProvenance(t devtest.T, number uint64) *silhouette.BlockDeclaration {
 	return s.Runtime.BlockProvenance(t, number)
+}
+
+func (s *SilhouetteTarget) TryBlockProvenance(t devtest.T, number uint64) (*silhouette.BlockDeclaration, error) {
+	return s.Runtime.TryBlockProvenance(t, number)
+}
+
+// WaitBlockProvenance waits until the verifier attributes target to its proof stream. A replacement
+// temporarily removes the denied suffix, so lookup errors are expected while the corrected proof is
+// being derived.
+func (s *SilhouetteTarget) WaitBlockProvenance(t devtest.T, target eth.BlockID, timeout time.Duration) *silhouette.BlockDeclaration {
+	var out *silhouette.BlockDeclaration
+	t.Require().Eventually(func() bool {
+		decl, err := s.TryBlockProvenance(t, target.Number)
+		if err != nil || decl.Hash != target.Hash {
+			return false
+		}
+		out = decl
+		return true
+	}, timeout, time.Second, "verifier did not derive proven block "+target.String())
+	return out
 }
 
 // SequencerPosture reports whether the SEQUENCING supernode was put into the `proven-head` posture.

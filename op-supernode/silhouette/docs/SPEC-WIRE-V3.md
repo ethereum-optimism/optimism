@@ -419,15 +419,15 @@ the per-message loop, as in `MessageGraph::resolve`.
 
 **A settlement proof that cannot consolidate is not produced.** Any failure of any step above makes
 the superroot program *fail* — no public values are committed, no proof exists, nothing is posted.
-There is deliberately **no** "consolidated: false" output, no replacement claim, and no invalidation
-path for P (DR-1's honesty assertion: no code path may reach invalidation or replacement-block
-synthesis for P).
+There is deliberately **no** "consolidated: false" output and no replacement claim. The settlement
+program either proves a valid history or proves nothing; it does not authorize a verifier to invent
+a replacement block.
 
-The unhappy path is the one DR-RESUME already ratified: if A reorgs away a consumed message, the
-affected P blocks are invalid, P reorgs and **re-proves** from the last valid point, and the burned
-proving cost is wasted work by design. Abort is what makes that the only outcome — a proof that
-could say "I failed to consolidate" would be a second, weaker kind of settlement claim, and the
-depset has no rule for reading one.
+If A later reorgs away a consumed message, the sequencing supernode replaces the affected P block
+through the stock deposits-only path and P **re-proves** from the last valid point. Verifiers accept
+that corrected proof as a supersession of the denied suffix. The burned proving cost is wasted work
+by design. A proof that could say "I failed to consolidate" would still be a second, weaker kind of
+settlement claim, and the depset has no rule for reading one.
 
 The scoping boundary this creates — a P import whose initiating block falls outside the settlement
 window cannot be resolved in memory, so it aborts too — is a real operational constraint with a

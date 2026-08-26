@@ -269,7 +269,7 @@ func TestProvenChainDependencyIsVerifiedAndCrossSafes(t *testing.T) {
 	require.Equal(t, DecisionAdvance, out.Decision)
 	require.Empty(t, result.InvalidHeads)
 	require.Empty(t, result.NotReady)
-	require.Zero(t, f.proven.InvalidationsRefused())
+	require.Zero(t, f.proven.Invalidations())
 	// P's receipts were never touched: the dependency was checked from the wire, not from execution
 	// data this node does not have.
 	require.Zero(t, f.proven.ReceiptsAsked())
@@ -306,9 +306,8 @@ func TestProvenChainDependencyCheckIsNotVacuous(t *testing.T) {
 // NOT-YET-INDEXED IS NOT INVALID.
 //
 // P's block imports A's block 2, and A's message database is sealed only through block 1. That is not
-// a conflict — it is the absence of a verdict — and the difference matters more here than anywhere
-// else, because the verdict a proven chain cannot survive is "invalid" (G7G D3). So the round must
-// WAIT, invalidate nothing, and then advance on the SAME block once A catches up.
+// a conflict — it is the absence of a verdict. So the round must WAIT, invalidate nothing, and then
+// advance on the SAME block once A catches up.
 func TestProvenChainDependencyWaitsThenAdvances(t *testing.T) {
 	f := newProvenImportsFixture(t, provenImportsOptions{sealDrivenBlocks: []uint64{importsInitBlock}})
 	f.acceptProvenBlock(f.importOf(2))
@@ -322,7 +321,7 @@ func TestProvenChainDependencyWaitsThenAdvances(t *testing.T) {
 	require.Equal(t, DecisionWait, out.Decision, "a dependency A has not indexed yet must wait")
 	require.Empty(t, result.InvalidHeads, "a late dependency is not a bad one")
 	require.Contains(t, result.NotReady, f.provenID)
-	require.Zero(t, f.proven.InvalidationsRefused())
+	require.Zero(t, f.proven.Invalidations())
 
 	// The wait must also TERMINATE. A's block 2 is sealed and the same round, on the same P block,
 	// now advances — which is the half of the wait-fix that a test asserting only the pin would miss.
@@ -331,17 +330,16 @@ func TestProvenChainDependencyWaitsThenAdvances(t *testing.T) {
 	require.Equal(t, DecisionAdvance, out.Decision)
 	require.Empty(t, result.InvalidHeads)
 	require.Empty(t, result.NotReady)
-	require.Zero(t, f.proven.InvalidationsRefused())
+	require.Zero(t, f.proven.Invalidations())
 }
 
 // TestProvenChainDependencyThatCanNeverExist covers the third class: a reference that STOCK semantics
 // can decide against immediately and permanently. Each case is a different rule, and the point is
 // that the rule is the stock one — none of this code is silhouette-specific.
 //
-// The DOCUMENTED OUTCOME, uniform across all of them: the judge returns InvalidHead for P, the round
-// decides DecisionInvalidate, and applying that decision is REFUSED by the chain container. Proven
-// history is never rewritten locally; the frontier pins until the prover re-proves (DR-RESUME, no
-// supersession). See TestProvenChainInvalidationIsRefusedNotReplaced for the terminal.
+// The DOCUMENTED OUTCOME, uniform across all of them: the judge returns InvalidHead for P and the
+// round decides DecisionInvalidate. The sequencing container applies the stock deposits-only
+// replacement; a verifier waits for the corrected proof rather than synthesising a different block.
 func TestProvenChainDependencyThatCanNeverExist(t *testing.T) {
 	t.Run("checksum conflict against a sealed block", func(t *testing.T) {
 		f := newProvenImportsFixture(t, provenImportsOptions{})
@@ -397,19 +395,7 @@ func TestProvenChainDependencyThatCanNeverExist(t *testing.T) {
 	})
 }
 
-// TestProvenChainInvalidationIsRefusedNotReplaced is the terminal of every case above, and the G7
-// refinement of DR-1's honesty assertion (G7G D3).
-//
-// Before G7 the assertion was "no path may reach InvalidateBlock for P". One third of the argument
-// behind it — that P's own executing messages were proof-trusted — is now deliberately gone, so the
-// verdict IS reachable. What must stay unreachable is the REPLACEMENT: invalidating a block means
-// rewinding the chain onto a deposits-only block the verifier synthesises, and a verifier may not do
-// that to a chain whose canonical history is a proof stream it did not author. It would make this
-// node's P a different chain from every other member's P.
-//
-// So: the path is reachable, it refuses, and it refuses through the single function that would have
-// reached the synthesiser.
-func TestProvenChainInvalidationIsRefusedNotReplaced(t *testing.T) {
+func TestProvenChainInvalidationReachesContainer(t *testing.T) {
 	f := newProvenImportsFixture(t, provenImportsOptions{})
 	bad := f.importOf(importsInitBlock)
 	bad.PayloadHash = common.HexToHash("0xbad")
@@ -420,32 +406,15 @@ func TestProvenChainInvalidationIsRefusedNotReplaced(t *testing.T) {
 	invalid := result.InvalidHeads[f.provenID]
 	require.Equal(t, importsProvenBlock, invalid.BlockID.Number)
 
-	// Through the REAL transition path, which is what a live round takes. buildPendingTransition is
-	// where the decision becomes something the node would write down and act on, and the refusal has
-	// to happen there — before any payload is captured or any WAL entry is written.
-	_, err := f.interop.buildPendingTransition(out, RoundObservation{})
-	require.Error(t, err, "a proven block must never be replaced")
-	require.ErrorContains(t, err, "will not replace them")
-	require.ErrorContains(t, err, "pinned here until each chain's prover")
-	require.ErrorContains(t, err, f.provenID.String(), "the error must name the affected chain")
-	require.Equal(t, 1, f.proven.InvalidationsRefused(),
-		"the refusal must be reached, not merely available")
-
-	// It is also deterministic across attempts, which is the difference between a decision and a
-	// flapping error: the round will meet this every time until the prover fixes it.
-	_, err = f.interop.buildPendingTransition(out, RoundObservation{})
-	require.Error(t, err)
-	require.Equal(t, 2, f.proven.InvalidationsRefused())
-
-	// And the single refusal site is still the container's own InvalidateBlock, where DR-1 requires
-	// the honesty assertion to live.
+	// The generic interop layer does not special-case proof-carried chains. Their container owns the
+	// replacement policy, just as an ordinary container owns its engine rewind.
 	rewound, err := f.interop.invalidateBlock(f.provenID, invalid.BlockID, f.provenTS,
 		invalid.StateRoot, invalid.MessagePasserStorageRoot, nil)
-	require.Error(t, err)
-	require.False(t, rewound, "nothing may be rewound on a proof-carried chain")
+	require.NoError(t, err)
+	require.False(t, rewound)
+	require.Equal(t, 1, f.proven.Invalidations())
 
-	// A driven chain in the same system is unaffected: the refusal is a property of the proven
-	// container, not a global disabling of invalidation.
+	// A driven chain still follows the same generic path.
 	rewound, err = f.interop.invalidateBlock(f.drivenID, eth.BlockID{Number: 3, Hash: f.driven.infos[3].hash},
 		f.provenTS, eth.Bytes32{}, eth.Bytes32{}, nil)
 	require.NoError(t, err)

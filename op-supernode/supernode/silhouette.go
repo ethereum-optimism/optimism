@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	gethlog "github.com/ethereum/go-ethereum/log"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/silhouette"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
@@ -52,7 +52,7 @@ func (s *Supernode) assembleSilhouette(
 	if err != nil {
 		return nil, 0, fmt.Errorf("chain %s: %w", chainID, err)
 	}
-	if got := vnCfg.Rollup.L2ChainID.Uint64(); got != decl.ChainID {
+	if got := bigs.Uint64Strict(vnCfg.Rollup.L2ChainID); got != decl.ChainID {
 		return nil, 0, fmt.Errorf("silhouette manifest declares chain %d but its rollup config is for chain %d",
 			decl.ChainID, got)
 	}
@@ -171,30 +171,10 @@ func (s *Supernode) observeSilhouettes(ctx context.Context) {
 }
 
 // wrapSilhouetteChain gives a stock container the silhouette behaviours: proven ingestion, the
-// import list its proofs declared, refusal to fetch receipts or to be invalidated, and (in the
-// sequencer posture) labels from the proven head.
-func wrapSilhouetteChain(log gethlog.Logger, inner cc.InteropChain, a *silhouette.Assembly, labels silhouette.LabelSource, metrics *resources.SupernodeMetrics) cc.InteropChain {
+// import list its proofs declared, refusal to fetch receipts, replacement-aware invalidation, and
+// (in the sequencer posture) labels from the proven head.
+func wrapSilhouetteChain(log gethlog.Logger, inner cc.InteropChain, a *silhouette.Assembly, labels silhouette.LabelSource) cc.InteropChain {
 	logger := log.New("chain", a.ChainID)
-	container := silhouette.NewContainer(logger, inner, a.Facts, labels)
-	// A refused invalidation must be able to PAGE, not only to appear in a log.
-	//
-	// Under G7 the judge can find a block of a proof-carried chain invalid — its dependencies are on
-	// the wire and really checked — and this node then refuses to replace it (G7G D3). The state that
-	// leaves behind is operationally identical to the shim's halt: the chain cannot advance, the
-	// dependency set's cross-safe frontier is pinned behind it, and no local action fixes it. The
-	// difference is that a halt is a gauge on a component and this is a verdict about history, so it
-	// gets its own counter rather than borrowing that one. The series is created at zero for every
-	// declared chain, because an alert on an absent series never fires.
-	if metrics != nil {
-		counter := metrics.SilhouetteInvalidationsRefused.WithLabelValues(a.ChainID.String())
-		counter.Add(0)
-		container.OnInvalidationRefused(func(height uint64, hash common.Hash) {
-			counter.Inc()
-			logger.Error("the cross-safety judge found a block of this proof-carried chain INVALID and "+
-				"this node refused to replace it; the dependency set's cross-safe frontier is now pinned "+
-				"at this block and only a re-proof from the last valid point can clear it",
-				"chain", a.ChainID, "height", height, "hash", hash)
-		})
-	}
-	return container
+	a.Facts.SetDeniedChecker(inner.IsDenied)
+	return silhouette.NewContainer(logger, inner, a.Facts, labels)
 }

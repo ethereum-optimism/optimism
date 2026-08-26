@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -164,7 +165,7 @@ func L1ChainConfig(cfg *Config) (*params.ChainConfig, error) {
 		if err := json.Unmarshal(raw, &c); err != nil {
 			return nil, fmt.Errorf("parse L1 chain config %q: %w", cfg.L1ChainConfigPath, err)
 		}
-		if c.ChainID == nil || c.ChainID.Uint64() != cfg.L1ChainID {
+		if c.ChainID == nil || bigs.Uint64Strict(c.ChainID) != cfg.L1ChainID {
 			return nil, fmt.Errorf("L1 chain config %q is for chain %v, but this chain settles on %d",
 				cfg.L1ChainConfigPath, c.ChainID, cfg.L1ChainID)
 		}
@@ -176,7 +177,7 @@ func L1ChainConfig(cfg *Config) (*params.ChainConfig, error) {
 		params.HoleskyChainConfig,
 		params.HoodiChainConfig,
 	} {
-		if c.ChainID != nil && c.ChainID.Uint64() == cfg.L1ChainID {
+		if c.ChainID != nil && bigs.Uint64Strict(c.ChainID) == cfg.L1ChainID {
 			return c, nil
 		}
 	}

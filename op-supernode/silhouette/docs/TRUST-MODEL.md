@@ -65,8 +65,9 @@ message database: the checksum, the hazard set, expiry, the fixpoint. A lying at
 imports are still checked.
 
 So: **an attester can invent what its own chain said. It cannot invent what someone else's chain
-said.** A batch declaring an import that chain A never emitted does not become cross-safe — the
-frontier pins below it, and the block is never replaced (`TestSilhouetteImportThatIsFalseIsRefused`).
+said.** A batch declaring an import that chain A never emitted does not become cross-safe. The
+sequencing supernode replaces it through the stock deposits-only path, and verifiers derive that
+same replacement from the corrected proof (`TestSilhouetteImportThatIsFalseIsReplaced`).
 
 The reason this survives the loss of the proof is structural, not lucky: the import list is **wire
 data**. It is decoded from the envelope, recorded against the wire version, and handed to the stock
@@ -186,7 +187,7 @@ Everything above is a test, not a promise.
 | a config ahead of the binary is told so, not called malformed | `TestFutureProofTypeIsRecognisedAndRefused` |
 | the retired `mockProofs` spelling is refused with instructions | `TestMockProofsIsRetired` |
 | imports are checked, not trusted | `TestSilhouetteImportsAMessageAndTheDependencyIsVerified` |
-| a **false** import is refused and the frontier pins | `TestSilhouetteImportThatIsFalseIsRefused` |
+| a **false** import causes the consuming block to be replaced | `TestSilhouetteImportThatIsFalseIsReplaced` |
 | the judge's inputs never depended on the proof | `TestTheJudgeReadsTheWireNotTheProof` |
 | **a fabricated export IS accepted** | `TestAttestedFabricatedExportIsAccepted` |
 | a v1 deployment holds no proving artefact | `TestAttestedChainIsRenderedWithoutAProvingToolchain` |

@@ -90,10 +90,10 @@ func TestAcceptedBatchCarriesItsImportList(t *testing.T) {
 // than a codec rule: a batch declaring a same-timestamp import is REFUSED, so the proven head does
 // not move and there is nothing for the judge to be unable to order.
 //
-// That failure mode is the one this design wants. The alternative — accepting it and letting the
-// judge find it invalid — would put proven history into the state that has no local remedy (G7G D3).
-// Refusing the batch instead means the chain simply does not advance, which is the same shape as any
-// other bad batch and is recoverable by the prover posting a correct one.
+// That failure mode is the one this design wants. Accepting it would force a block replacement for
+// a dependency the producer can reject before proving. Refusing the batch instead means the chain
+// simply does not advance, which is the same shape as any other bad batch and is recoverable by the
+// prover posting a correct one.
 func TestSameTimestampImportIsRejectedAtAcceptance(t *testing.T) {
 	e := newTestEnv(t, l1GenesisNum+10)
 	spec := e.goodBatch()

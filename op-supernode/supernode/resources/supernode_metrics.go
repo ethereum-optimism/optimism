@@ -32,10 +32,9 @@ type SupernodeMetrics struct {
 	// arriving looks exactly like a chain with nothing to say. Every one of these is exported for a
 	// chain the moment it is declared, at zero, so that "no series" means "no silhouette chain"
 	// rather than "nothing has gone wrong yet" — an alert on an absent series never fires.
-	SilhouetteShimHalted           *prometheus.GaugeVec
-	SilhouetteProvenHead           *prometheus.GaugeVec
-	SilhouetteTrackerL1            *prometheus.GaugeVec
-	SilhouetteInvalidationsRefused *prometheus.CounterVec
+	SilhouetteShimHalted *prometheus.GaugeVec
+	SilhouetteProvenHead *prometheus.GaugeVec
+	SilhouetteTrackerL1  *prometheus.GaugeVec
 
 	registry *prometheus.Registry
 }
@@ -148,16 +147,6 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 				"head it separates 'no proofs are landing' from 'this node stopped looking', which " +
 				"are the same symptom and different incidents.",
 		}, []string{"chain_id"}),
-		SilhouetteInvalidationsRefused: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "supernode",
-			Name:      "silhouette_invalidations_refused_total",
-			Help: "Times the cross-safety judge found a block of a proof-carried chain INVALID and this " +
-				"node refused to replace it (G7G D3: a proven chain is never replaced, only stopped). " +
-				"Any non-zero value is an incident: the dependency set's cross-safe frontier is pinned " +
-				"at that block and only the chain's prover can clear it, by re-proving from the last " +
-				"valid point. It is deliberately separate from interop_invalidations, which counts " +
-				"invalidations that were CARRIED OUT.",
-		}, []string{"chain_id"}),
 		registry: reg,
 	}
 	reg.MustRegister(
@@ -180,7 +169,6 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.SilhouetteShimHalted,
 		m.SilhouetteProvenHead,
 		m.SilhouetteTrackerL1,
-		m.SilhouetteInvalidationsRefused,
 	)
 	return m
 }

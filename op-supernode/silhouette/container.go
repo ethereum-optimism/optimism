@@ -45,19 +45,14 @@ const (
 //  1. INGESTION. Its initiating messages come from the wire, not from receipts (the capability
 //     seam). This holds in BOTH postures — see the note on the sequencer side below, where it is
 //     least obvious and most important.
-//  2. REFUSALS. FetchReceipts and InvalidateBlock refuse, which is where the honesty line lives in
-//     code (DR-1, E3).
+//  2. EXECUTION DATA. FetchReceipts refuses, while invalidation is recorded against the proof facts
+//     and, in the sequencer posture, delegated to the real execution client.
 //  3. LABELS, in the sequencer posture only.
 type Container struct {
 	cc.InteropChain
 	log    log.Logger
 	facts  *FactStore
 	labels LabelSource
-	// onInvalidationRefused fires when the judge reaches a verdict of invalid for this chain and is
-	// refused. It is the alerting hook, deliberately shaped like the shim's OnHalt (G4 D7): the
-	// condition is operationally identical — this node cannot advance the chain and only an
-	// off-node action can fix it — so it must be able to page rather than only appear in a log.
-	onInvalidationRefused func(height uint64, hash common.Hash)
 }
 
 var (
@@ -66,15 +61,13 @@ var (
 	_ cc.ProvenMessageImports = (*Container)(nil)
 )
 
+type deniedBlockRecorder interface {
+	RecordDeniedBlock(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error
+}
+
 // NewContainer wraps a chain container as a silhouette chain.
 func NewContainer(logger log.Logger, inner cc.InteropChain, facts *FactStore, labels LabelSource) *Container {
 	return &Container{InteropChain: inner, log: logger, facts: facts, labels: labels}
-}
-
-// OnInvalidationRefused installs the alerting hook. Idempotent callers replace the hook; there is
-// deliberately no chaining, because two owners of one alert is worse than one.
-func (c *Container) OnInvalidationRefused(fn func(height uint64, hash common.Hash)) {
-	c.onInvalidationRefused = fn
 }
 
 // IngestionSource declares that this chain's initiating messages are sealed from validity proofs.
@@ -140,47 +133,50 @@ func (c *Container) ProvenExecMsgs(blockNum uint64) (map[uint32]*messages.Execut
 	return msgs, true, nil
 }
 
-// InvalidateBlock refuses, and under G7 that refusal changed meaning without changing behaviour.
+// InvalidateBlock makes a proof-carried chain follow the same externally visible rule as a driven
+// chain: an invalid executing block is replaced.
 //
-// BEFORE (ruling-7 posture, retired): no path could reach here at all. P's own executing messages
-// were proof-trusted, so the message check never marked it invalid; its block hashes came from the
-// same proofs the frontier was built from, so the hash-mismatch check never fired; and it
-// contributed no same-timestamp executing messages, so it could not participate in a cycle. The
-// refusal was a backstop behind an argument.
-//
-// NOW: the first of those three is GONE ON PURPOSE. P has real dependencies on the wire and the stock
-// judge validates them exactly like a driven chain's — checksum, hazards, expiry, activation — so a
-// verdict of "invalid" is reachable for P for the first time. What replaces the retired clause is a
-// sharper statement of what was always the load-bearing half:
-//
-//	A PROVEN CHAIN IS NEVER REPLACED, ONLY STOPPED.
-//
-// Invalidating a block means rewinding the chain onto a SYNTHESISED replacement block — a
-// deposits-only block the verifier builds itself. A verifier may not do that to a proven chain,
-// whatever verdict it reached, because that chain's canonical history is the proof stream on L1 and
-// the verifier is not its author. Rewriting it locally would make this node's P a different chain
-// from every other member's P, which is the one failure the whole design exists to prevent.
-//
-// So the invalidation path is now REACHABLE and TERMINAL: it refuses here, loudly, and the round
-// cannot advance past the offending timestamp. The depset's frontier pins — which is the honest
-// consequence of DR-RESUME's ruling that there is no supersession mechanism: a P block whose
-// cross-chain assumption is false can only be fixed by the prover re-proving from the last valid
-// point, and no local action is a substitute for that. The interim posture (P's sequencer consumes
-// only already-cross-safe messages) is what keeps this practically unreachable. Recorded as G7G D3.
-//
-// The shim's halt (G3 D4) is the other end of the same guarantee, and it is unchanged: nothing may
-// reach the replacement-block synthesiser for P.
+// On the sequencing supernode the wrapped container fronts P's real execution client, so the stock
+// deny-list and Holocene deposits-only replacement path can run unchanged. On a verifier there is
+// no stateful execution client to rewind. It records the denied proof fact and lets the producer's
+// replacement proof drive the stock derivation pipeline onto the same block. The later proof is
+// allowed to supersede only a suffix containing this exact denied hash.
 func (c *Container) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
-	c.log.Error("PROVEN CHAIN INVALIDATION REFUSED — a proven chain is never replaced, only stopped. "+
-		"The cross-safe frontier will pin at this block until its prover re-proves from the last valid "+
-		"point (there is no supersession mechanism, by ruling). Investigate the dependency this block "+
-		"declared on the wire.",
-		"chain", c.ID(), "height", height, "hash", payloadHash, "decisionTimestamp", decisionTimestamp)
-	if c.onInvalidationRefused != nil {
-		c.onInvalidationRefused(height, payloadHash)
+	if err := c.facts.MarkDenied(height, payloadHash); err != nil {
+		return false, err
 	}
-	return false, fmt.Errorf("chain %s: refusing to invalidate proven block %d (%s): a proven chain is "+
-		"never replaced, only stopped: %w", c.ID(), height, payloadHash, ErrNoExecutionData)
+	if c.labels == LabelsFromDerivation {
+		recorder, ok := c.InteropChain.(deniedBlockRecorder)
+		if !ok {
+			return false, fmt.Errorf("chain %s cannot persist a denied proof block", c.ID())
+		}
+		if err := recorder.RecordDeniedBlock(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot); err != nil {
+			return false, err
+		}
+		c.log.Warn("recorded invalid proof block; waiting for its replacement proof",
+			"chain", c.ID(), "height", height, "hash", payloadHash,
+			"decisionTimestamp", decisionTimestamp)
+		return false, nil
+	}
+
+	rewound, err := c.InteropChain.InvalidateBlock(ctx, height, payloadHash, decisionTimestamp,
+		stateRoot, messagePasserStorageRoot, parentPayload)
+	if err != nil {
+		return false, err
+	}
+	c.log.Warn("invalidated proof-carried block through the stock replacement path",
+		"chain", c.ID(), "height", height, "hash", payloadHash,
+		"decisionTimestamp", decisionTimestamp, "rewound", rewound)
+	return rewound, nil
+}
+
+func (c *Container) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
+	removed, err := c.InteropChain.PruneDeniedAtOrAfterTimestamp(timestamp)
+	if err != nil {
+		return nil, err
+	}
+	c.facts.PruneDenied(removed)
+	return removed, nil
 }
 
 // OptimisticAt is the chain's answer to "which of your blocks is at this timestamp, and which L1

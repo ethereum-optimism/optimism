@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -502,7 +503,7 @@ func TestShimSelfDeclaresAtTheServiceLayer(t *testing.T) {
 	require.False(t, decl.HeadersReHash, "the declaration must say the headers do not re-hash")
 	require.Contains(t, decl.FabricatedFields, "receiptsRoot")
 	require.Contains(t, decl.RealFields, "stateRoot")
-	require.Equal(t, hexutil.Uint64(e.rollup.L2ChainID.Uint64()), decl.L2ChainID)
+	require.Equal(t, hexutil.Uint64(bigs.Uint64Strict(e.rollup.L2ChainID)), decl.L2ChainID)
 
 	var blockDecl BlockDeclaration
 	require.NoError(t, se.rpc.CallContext(ctx, &blockDecl, "silhouette_blockProvenance",

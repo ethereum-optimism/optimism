@@ -173,6 +173,10 @@ func (s *DataSource) head() Fact {
 	if h, ok := s.facts.Head(); ok {
 		return h
 	}
+	return s.anchor()
+}
+
+func (s *DataSource) anchor() Fact {
 	return Fact{
 		Number:     s.cfg.Anchor.BlockNumber,
 		Timestamp:  s.cfg.Anchor.Timestamp,
@@ -328,12 +332,22 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 	if err := b.CheckStructure(); err != nil {
 		return nil, err
 	}
+	deniedIndex := -1
+	for i, blk := range b.Blocks {
+		denied, err := s.facts.Denied(blk.Number, blk.Hash)
+		if err != nil {
+			return nil, retryable(fmt.Errorf("check durable denial for block %d (%s): %w", blk.Number, blk.Hash, err))
+		}
+		if denied {
+			deniedIndex = i
+			break
+		}
+	}
 	// Acceptance rule (G7G D2 / G7R D10): no block may consume a message stamped at or above its own
 	// timestamp. The wire format PERMITS such a batch — it is well-formed — and this node refuses it,
 	// because a same-timestamp import carries no position and the stock same-timestamp cycle graph
 	// orders executing messages by position. Refusing here makes the failure a rejected batch, which
-	// is recoverable by the prover posting a correct one; admitting it would put the round in the one
-	// state that has no local remedy.
+	// is recoverable by the prover posting a correct one, without first replacing an L2 block.
 	if err := b.CheckNoSameTimestampImports(); err != nil {
 		return nil, err
 	}
@@ -347,12 +361,33 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 	// derived here, from the batch's OWN l1Head rather than from this node's live cursor, which is
 	// the only race-free reading available (G2 F4).
 	head := s.head()
+	supersedes := false
 	if b.PrevOutputRoot != head.OutputRoot {
-		resumed, err := s.resumeHead(ctx, head, b, l1)
+		base, ok, err := s.facts.SupersessionBase(b.PrevOutputRoot)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("check durable denial for proof supersession: %w", err)
 		}
-		head = resumed
+		if ok {
+			head, supersedes = base, true
+		} else {
+			anchor := s.anchor()
+			if b.PrevOutputRoot == anchor.OutputRoot {
+				allowed, err := s.facts.AnchorSupersession(anchor)
+				if err != nil {
+					return nil, fmt.Errorf("check durable anchor denial for proof supersession: %w", err)
+				}
+				if allowed {
+					head, supersedes = anchor, true
+				}
+			}
+		}
+		if !supersedes {
+			resumed, err := s.resumeHead(ctx, head, b, l1)
+			if err != nil {
+				return nil, err
+			}
+			head = resumed
+		}
 	}
 	if b.NewOutputRoot == (common.Hash{}) {
 		return nil, errors.New("batch claims a zero output root")
@@ -370,9 +405,10 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 		return nil, fmt.Errorf("batch claims new output root %s but block %d's committed roots derive %s",
 			b.NewOutputRoot, last.Number, got)
 	}
-	// G2 D6: the whole batch must stand or fall together, so timestamps are checked for exact
+	// G2 D6: the whole envelope must validate and prove together, so timestamps are checked for exact
 	// block-time spacing here rather than left to the stock batch queue, which would silently drop
 	// mistimed batches downstream and leave the chaining head advanced past blocks nothing derived.
+	// Only after all checks pass may replay omit a suffix carrying an already-denied block.
 	prevTime := head.Timestamp
 	for i := range b.Blocks {
 		if b.Blocks[i].Hash == (common.Hash{}) {
@@ -406,31 +442,63 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 		return nil, err
 	}
 
+	// An L1 replay after replacement still encounters the original proof before the corrected one.
+	// Keep its verified prefix so stock derivation reaches the parent of the denied block, but never
+	// reintroduce that block or anything descended from it. The whole original envelope is verified
+	// above before its suffix is omitted, so every retained fact remains proof-committed.
+	blocks := b.Blocks
+	newOutputRoot := b.NewOutputRoot
+	if deniedIndex >= 0 {
+		denied := b.Blocks[deniedIndex]
+		if deniedIndex == 0 {
+			return nil, fmt.Errorf("block %d (%s) was denied by the cross-safety judge", denied.Number, denied.Hash)
+		}
+		blocks = b.Blocks[:deniedIndex]
+		last = blocks[len(blocks)-1]
+		newOutputRoot = last.OutputRoot()
+		s.log.Warn("omitting denied proof suffix during L1 replay",
+			"denied_block", denied.Number, "denied_hash", denied.Hash,
+			"retained_first", blocks[0].Number, "retained_last", last.Number)
+	}
+
 	// Accepted. Transcode BEFORE recording anything: the transcode assigns each block its rendered
 	// origin, and those origins are part of the facts. A failure here is not the batch's fault, so
 	// it must not be recorded as a rejection either — it is returned as retryable.
-	frames, origins, err := s.transcode(ctx, head, b.Blocks, l1, b.PrevOutputRoot, b.NewOutputRoot)
+	frames, origins, err := s.transcode(ctx, head, blocks, l1, b.PrevOutputRoot, newOutputRoot)
 	if err != nil {
 		return nil, err
+	}
+	if supersedes {
+		oldHead := s.head()
+		if err := s.sink.Rewind(eth.BlockID{Number: head.Number, Hash: head.Hash}); err != nil {
+			return nil, retryable(fmt.Errorf("rewind exported logs for proof supersession: %w", err))
+		}
+		if head.Number == s.cfg.Anchor.BlockNumber {
+			s.facts.replaceAllForSupersession()
+		} else if err := s.facts.ReplaceSuffix(head); err != nil {
+			return nil, err
+		}
+		s.log.Warn("accepted a replacement proof for a denied suffix",
+			"from", head.Number+1, "old_head", oldHead.Number, "new_head", last.Number)
 	}
 	// Seal the exported logs BEFORE the facts move. The fact table IS the proven head, so this
 	// ordering is what makes "the head can never claim history the log store does not hold" true
 	// rather than merely intended: a sink failure returns before RecordProven, leaving the head
 	// where it was, and the pipeline derives the same batch again.
-	if err := s.sink.Accept(b.Blocks, head.Hash); err != nil {
-		return nil, fmt.Errorf("seal exported logs for blocks %d-%d: %w", b.Blocks[0].Number, last.Number, err)
+	if err := s.sink.Accept(blocks, head.Hash); err != nil {
+		return nil, fmt.Errorf("seal exported logs for blocks %d-%d: %w", blocks[0].Number, last.Number, err)
 	}
-	for i, blk := range b.Blocks {
+	for i, blk := range blocks {
 		s.facts.RecordProven(blk, origins[i].origin, origins[i].seqNumber, env.Version)
 	}
 	s.facts.recordCarrier(carrier{
 		L1: l1.ID(), L1Time: l1.Time,
-		FirstBlock: b.Blocks[0].Number, LastBlock: last.Number, LastHash: last.Hash,
-		ParentHash: head.Hash, PrevOutputRoot: b.PrevOutputRoot, NewOutputRoot: b.NewOutputRoot,
+		FirstBlock: blocks[0].Number, LastBlock: last.Number, LastHash: last.Hash,
+		ParentHash: head.Hash, PrevOutputRoot: b.PrevOutputRoot, NewOutputRoot: newOutputRoot,
 	})
-	s.log.Info("accepted proof batch", "l1", l1, "tx", txHash, "blocks", len(b.Blocks),
-		"first", b.Blocks[0].Number, "last", last.Number, "last_hash", last.Hash,
-		"output_root", b.NewOutputRoot, "proof_type", s.verifier.ProofType())
+	s.log.Info("accepted proof batch", "l1", l1, "tx", txHash, "blocks", len(blocks),
+		"first", blocks[0].Number, "last", last.Number, "last_hash", last.Hash,
+		"output_root", newOutputRoot, "proof_type", s.verifier.ProofType())
 	return frames, nil
 }
 

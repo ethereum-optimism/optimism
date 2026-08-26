@@ -80,9 +80,11 @@ type ProofBatchSubmitter struct {
 	// without anyone deciding it.
 	wireVersion uint8
 
-	mu         sync.Mutex
-	lastBlock  uint64
-	outputRoot common.Hash
+	mu          sync.Mutex
+	anchorBlock uint64
+	anchorRoot  common.Hash
+	lastBlock   uint64
+	outputRoot  common.Hash
 	// mutate damages a batch after it is built and before it is checked, staying armed until the
 	// callback reports that it APPLIED. It exists for exactly one kind of assertion: a verifier's
 	// dependency check is only falsifiable if a test can post a batch whose declared dependency is
@@ -167,6 +169,8 @@ func newProofBatchSubmitter(
 		l1Lag:            cfg.L1Lag,
 		maxBlocks:        maxBlocks,
 		wireVersion:      wireVersion,
+		anchorBlock:      cfg.AnchorBlock,
+		anchorRoot:       cfg.AnchorOutputRoot,
 		lastBlock:        cfg.AnchorBlock,
 		outputRoot:       cfg.AnchorOutputRoot,
 	}
@@ -361,6 +365,9 @@ func (s *ProofBatchSubmitter) build(ctx context.Context, upTo uint64) (*proofbat
 	if err != nil {
 		return nil, err
 	}
+	if err := s.reconcileReorg(ctx, head); err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	from, prevRoot := s.lastBlock, s.outputRoot
 	s.mu.Unlock()
@@ -424,6 +431,56 @@ func (s *ProofBatchSubmitter) build(ctx context.Context, upTo uint64) (*proofbat
 		return nil, fmt.Errorf("built a batch a verifier will refuse: %w", err)
 	}
 	return batch, nil
+}
+
+// reconcileReorg moves the proof cursor back to the highest block that is still canonical. The
+// chain's stock interop invalidation may replace a block the submitter already posted; the next
+// proof must then extend the surviving parent rather than the orphaned output root.
+func (s *ProofBatchSubmitter) reconcileReorg(ctx context.Context, head uint64) error {
+	s.mu.Lock()
+	from := s.lastBlock
+	posted := make(map[uint64]proofbatch.BlockExport, len(s.posted))
+	for number, export := range s.posted {
+		posted[number] = export
+	}
+	s.mu.Unlock()
+	if from == s.anchorBlock {
+		return nil
+	}
+
+	candidate := min(from, head)
+	for candidate > s.anchorBlock {
+		export, ok := posted[candidate]
+		if ok {
+			out, err := s.outputAtBlock(ctx, candidate)
+			if err != nil {
+				return fmt.Errorf("check proof cursor block %d for reorg: %w", candidate, err)
+			}
+			if out.BlockRef.Hash == export.Hash {
+				if candidate == from {
+					return nil
+				}
+				s.resetCursor(candidate, out.OutputRoot)
+				return nil
+			}
+		}
+		candidate--
+	}
+	s.resetCursor(s.anchorBlock, s.anchorRoot)
+	return nil
+}
+
+func (s *ProofBatchSubmitter) resetCursor(block uint64, outputRoot common.Hash) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old := s.lastBlock
+	s.lastBlock, s.outputRoot = block, outputRoot
+	for number := range s.posted {
+		if number > block {
+			delete(s.posted, number)
+		}
+	}
+	s.log.Warn("proof cursor followed an L2 reorg", "from", old, "to", block, "output_root", outputRoot)
 }
 
 // head reads the chain's UNSAFE head. Both heads come out of the one response so the gap between

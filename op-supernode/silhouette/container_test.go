@@ -29,7 +29,10 @@ type frozenInner struct {
 	id     eth.ChainID
 	rollup *rollup.Config
 	// optimisticCalls counts delegation, so the verifier-posture test can prove it delegated.
-	optimisticCalls int
+	optimisticCalls   int
+	invalidationCalls int
+	invalidationErr   error
+	recordDeniedCalls int
 }
 
 func (f *frozenInner) ID() eth.ChainID   { return f.id }
@@ -60,6 +63,16 @@ func (f *frozenInner) LocalSafeBlockAtTimestamp(_ context.Context, _ uint64) (et
 
 func (f *frozenInner) FirstSafeHeadTimestamp(_ context.Context) (uint64, error) {
 	return 0, cc.ErrSafeDBNotReady
+}
+
+func (f *frozenInner) InvalidateBlock(context.Context, uint64, common.Hash, uint64, eth.Bytes32, eth.Bytes32, *eth.ExecutionPayloadEnvelope) (bool, error) {
+	f.invalidationCalls++
+	return f.invalidationErr == nil, f.invalidationErr
+}
+
+func (f *frozenInner) RecordDeniedBlock(uint64, common.Hash, uint64, eth.Bytes32, eth.Bytes32) error {
+	f.recordDeniedCalls++
+	return nil
 }
 
 // sequencerEnv is a sequencer-posture assembly: a frozen real chain container, a fact store kept
@@ -197,17 +210,48 @@ func TestSequencerTrackerSealsExportedMessages(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoExecutionData)
 }
 
-// TestContainerRefusesInvalidation is the E3 honesty line in code: no path may reach invalidation
-// or replacement-block synthesis for a proof-carried chain. This is the backstop that turns "no
-// path reaches it" from an argument into an assertion.
-func TestContainerRefusesInvalidation(t *testing.T) {
+func TestContainerInvalidatesThroughSequencerExecutionClient(t *testing.T) {
 	t.Parallel()
 	e := newSequencerEnv(t, l1GenesisNum+20)
+	hash := common.HexToHash("0xabc")
+	e.facts.Record(Fact{Number: 7, Hash: hash})
 
 	rewound, err := e.container.InvalidateBlock(context.Background(), 7,
-		common.HexToHash("0xabc"), 1234, eth.Bytes32{}, eth.Bytes32{}, nil)
-	require.ErrorIs(t, err, ErrNoExecutionData)
-	require.False(t, rewound, "nothing may be rewound on a chain whose blocks are valid by proof")
+		hash, 1234, eth.Bytes32{}, eth.Bytes32{}, nil)
+	require.NoError(t, err)
+	require.True(t, rewound)
+	require.Equal(t, 1, e.inner.invalidationCalls)
+	require.Zero(t, e.inner.recordDeniedCalls, "the delegated stock path owns durable denylist recording")
+	require.True(t, e.facts.IsDenied(hash))
+}
+
+func TestContainerRecordsDenialBeforeDelegatingInvalidation(t *testing.T) {
+	t.Parallel()
+	e := newSequencerEnv(t, l1GenesisNum+20)
+	hash := common.HexToHash("0xabc")
+	e.facts.Record(Fact{Number: 7, Hash: hash})
+	e.inner.invalidationErr = fmt.Errorf("engine unavailable")
+
+	_, err := e.container.InvalidateBlock(context.Background(), 7,
+		hash, 1234, eth.Bytes32{}, eth.Bytes32{}, nil)
+	require.ErrorContains(t, err, "engine unavailable")
+	require.True(t, e.facts.IsDenied(hash), "a retry must not lose the verdict after a partial invalidation")
+}
+
+func TestVerifierContainerRecordsDeniedBlockWithoutLocalExecution(t *testing.T) {
+	t.Parallel()
+	e := newSequencerEnv(t, l1GenesisNum+20)
+	hash := common.HexToHash("0xdef")
+	e.facts.Record(Fact{Number: 7, Hash: hash})
+	verifier := NewContainer(testlog.Logger(t, log.LevelInfo), e.inner, e.facts, LabelsFromDerivation)
+
+	rewound, err := verifier.InvalidateBlock(context.Background(), 7,
+		hash, 1234, eth.Bytes32{}, eth.Bytes32{}, nil)
+	require.NoError(t, err)
+	require.False(t, rewound)
+	require.Zero(t, e.inner.invalidationCalls, "a verifier has no stateful B execution client to rewind")
+	require.Equal(t, 1, e.inner.recordDeniedCalls)
+	require.True(t, e.facts.IsDenied(hash))
 }
 
 // TestVerifierPostureDelegatesLabels: in a verifier supernode this node really does derive P — a

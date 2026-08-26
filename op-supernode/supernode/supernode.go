@@ -134,7 +134,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 			return nil, fmt.Errorf("failed to create chain container for chain %s: %w", chainID, err)
 		}
 		if assembly != nil {
-			s.chains[chainID] = wrapSilhouetteChain(log, container, assembly, labels, s.supernodeMetrics)
+			s.chains[chainID] = wrapSilhouetteChain(log, container, assembly, labels)
 			continue
 		}
 		s.chains[chainID] = container

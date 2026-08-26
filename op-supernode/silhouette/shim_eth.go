@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -83,7 +84,7 @@ func renderRPCBlock(r Rendering, fullTx bool) *rpcBlock {
 		ReceiptHash:      hdr.ReceiptHash,
 		Bloom:            eth.Bytes256(hdr.Bloom),
 		Difficulty:       (*hexutil.Big)(hdr.Difficulty),
-		Number:           hexutil.Uint64(hdr.Number.Uint64()),
+		Number:           hexutil.Uint64(bigs.Uint64Strict(hdr.Number)),
 		GasLimit:         hexutil.Uint64(hdr.GasLimit),
 		GasUsed:          hexutil.Uint64(hdr.GasUsed),
 		Time:             hexutil.Uint64(hdr.Time),
@@ -124,7 +125,7 @@ func renderRPCBlock(r Rendering, fullTx bool) *rpcBlock {
 
 // ChainId is the L2 chain ID, from the rollup config.
 func (a *EthAPI) ChainId() hexutil.Uint64 {
-	return hexutil.Uint64(a.s.params.Rollup.L2ChainID.Uint64())
+	return hexutil.Uint64(bigs.Uint64Strict(a.s.params.Rollup.L2ChainID))
 }
 
 // Syncing is STATICALLY false.

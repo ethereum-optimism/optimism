@@ -12,6 +12,8 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -45,7 +47,14 @@ type Assembly struct {
 	// it; it is returned rather than hidden because a shim that outlives its supernode is a leak
 	// that only shows up under test restarts.
 	server *gethrpc.Server
+	client client.RPC
 }
+
+// restartableRPC prevents a virtual-node restart from closing the assembly-owned in-process
+// connection. Assembly.Close closes the underlying client after every container has stopped.
+type restartableRPC struct{ client.RPC }
+
+func (restartableRPC) Close() {}
 
 // Run drives whatever this assembly has to drive, until ctx is cancelled.
 //
@@ -154,7 +163,7 @@ func Assemble(logger log.Logger, cfg *Config, ac AssemblyConfig,
 	if ac.Rollup == nil {
 		return nil, fmt.Errorf("silhouette assembly needs P's rollup config")
 	}
-	chainID := eth.ChainIDFromUInt64(ac.Rollup.Rollup.L2ChainID.Uint64())
+	chainID := eth.ChainIDFromUInt64(bigs.Uint64Strict(ac.Rollup.Rollup.L2ChainID))
 
 	verifier, err := cfg.NewVerifier()
 	if err != nil {
@@ -201,7 +210,7 @@ func Assemble(logger log.Logger, cfg *Config, ac AssemblyConfig,
 
 	// Seam 1: the execution client. PreparedL2Endpoints is op-node's own in-process endpoint type,
 	// so both the virtual node and the chain container's engine controller share this one client.
-	vncfg.L2 = &opnodecfg.PreparedL2Endpoints{Client: shimRPC}
+	vncfg.L2 = &opnodecfg.PreparedL2Endpoints{Client: restartableRPC{shimRPC}}
 
 	// Seam 2: the derivation input.
 	overrides.DataSourceOverride = source
@@ -240,6 +249,7 @@ func Assemble(logger log.Logger, cfg *Config, ac AssemblyConfig,
 
 	a.Shim = shim
 	a.server = server
+	a.client = shimRPC
 	return a, nil
 }
 
@@ -371,6 +381,9 @@ func (a *Assembly) AttachLogStore(logger log.Logger, store LogStore) error {
 
 // Close stops the in-process shim server.
 func (a *Assembly) Close() {
+	if a.client != nil {
+		a.client.Close()
+	}
 	if a.server != nil {
 		a.server.Stop()
 	}

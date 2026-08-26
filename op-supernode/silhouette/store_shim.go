@@ -4,6 +4,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -85,7 +86,7 @@ func (f *FactStore) Cursors() Cursors {
 // point of the store is that every answer is traceable to a proof or to the convention.
 func (f *FactStore) dropRenderingsAbove(number uint64) {
 	for hash, r := range f.renderings {
-		if r.Header.Number.Uint64() > number {
+		if bigs.Uint64Strict(r.Header.Number) > number {
 			delete(f.renderings, hash)
 		}
 	}
