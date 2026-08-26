@@ -1,0 +1,16 @@
+{
+  "name": "abi-garbage",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "A well-formed envelope whose public_values are 64 bytes of 0xff — not a valid ProofBatch ABI encoding.",
+  "expectedError": "public_values is not a valid ProofBatch ABI encoding",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 64,
+    "proofLen": 0,
+    "totalLen": 77
+  },
+  "envelopeKeccak": "0xefd227d26a516eeed6edfc4746f65fc35e59f77df5ee185e0ba13554f2b1890f"
+}

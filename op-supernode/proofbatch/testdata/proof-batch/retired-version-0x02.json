@@ -1,0 +1,15 @@
+{
+  "name": "retired-version-0x02",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Version byte 0x02 — the version the LIVE CLUSTER RUNS until the rotation event, and the case that matters at the cutover. A v3 verifier must refuse it outright rather than best-effort decode: v2's BlockExport has six fields where v3 has seven, so a lenient decoder reads `logs` out of the wrong offset. The frozen v2 corpus at ../proof-batch-v2/ is the same gate's REAL v2 bytes rather than a flipped byte, kept as the pre-rotation record; the test that reads that tree is the prover-side one, on karl/silhouette-guest.",
+  "expectedError": "bad version 2, want 3 (v2 is retired: refuse, do not adapt -- its BlockExport has six fields where v3 has seven)",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 1088,
+    "totalLen": 1101
+  },
+  "envelopeKeccak": "0xa61247e68a9eaf7a2edd32990fa3de7f21f8017314ce3e1a8531daaf4d946086"
+}

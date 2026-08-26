@@ -1,0 +1,16 @@
+{
+  "name": "equal-timestamps",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Contiguous block numbers but the same timestamp twice. Timestamps must be STRICTLY increasing (decision D3): interop's timestamp invariants make an equal pair meaningless, and a `<` check instead of `<=` would let this through.",
+  "expectedError": "invalid proof batch: blocks[1] timestamp 1800500000, must exceed 1800500000",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 800,
+    "proofLen": 0,
+    "totalLen": 813
+  },
+  "envelopeKeccak": "0x8c97233453492d025bbb1d32f5859cc5f0018ad791eb88243b3156f967eaf8d8"
+}

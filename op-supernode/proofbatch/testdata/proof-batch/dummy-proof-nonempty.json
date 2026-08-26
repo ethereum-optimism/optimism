@@ -1,0 +1,53 @@
+{
+  "name": "dummy-proof-nonempty",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "A populated proof slot: the same public values followed by a 356-byte deterministic stand-in for an SP1 Groth16 proof at the pinned SP1 version 6.4.0 (vkeyPrefix 4 + exitCode 32 + vkRoot 32 + proofNonce 32 + gnark 256). The bytes are NOT a valid proof; they pin the length prefix and the fact that the codec carries proof bytes through untouched.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 1088,
+    "proofLen": 356,
+    "totalLen": 1457
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x5296985abbeb92f416bd6f3aea4dd30026df6c7859ab92ae41eb25ce6ac64d57",
+    "newOutputRoot": "0xb64d4d22b86ef374475577e407f3a38a0455ad0f5f8b60171eba6e785f79b7ef",
+    "l1Head": "0xb40ef1e637e8bc9c5ca5cbaa2d5c178f1d9f0f1bd90d3eff29bdd2f7f62a4d1a",
+    "rollupConfigHash": "0xbf789f8e7e93f6e20b12930f60c0a2825729dd76effd2ff39c68d3a0dfce1450",
+    "depSetHash": "0xdd64dedf643aae37c5b6bc507cc5dd48328d344bf775a1371dbfebcebdb803bd",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 7000001,
+        "timestamp": 1800300002,
+        "blockHash": "0x97f4eccb7900a4c534a3eb85bf60a9acfe5153c6480a65f39f6f700e5b0afac7",
+        "stateRoot": "0xec4c1ea891fcbef3bf2b495da88d9037adf9c0806aa994a90645e97cb1193467",
+        "messagePasserStorageRoot": "0xb9fc065a5d78c8b4656eab189be393a73ea89cd430b997c1250b1c101eb0520e",
+        "outputRoot": "0xbca8784c7d9e47c04542d2963f08a10be501d0da731d4e74caf2d60186fd9ae7",
+        "logs": [
+          {
+            "logIndex": 0,
+            "logHash": "0x6bd91c1d58a81d241930e4876a86e283432114445751e97d03dc062b223fca0b",
+            "preimage": "0x"
+          }
+        ],
+        "execMsgs": []
+      },
+      {
+        "blockNumber": 7000002,
+        "timestamp": 1800300004,
+        "blockHash": "0x6ff7b4958206af0a22e71cad47a17870566b5dd58cfe3ee3214e67f334db9bd6",
+        "stateRoot": "0x3fed5fccafea01c005cb12588099f4726566010effdec64c57eaeca3f0c00005",
+        "messagePasserStorageRoot": "0xad3030dbe602fa955a69c2d61085a44551d3b10ebaac4084d9bd3148e32c5251",
+        "outputRoot": "0xb64d4d22b86ef374475577e407f3a38a0455ad0f5f8b60171eba6e785f79b7ef",
+        "logs": [],
+        "execMsgs": []
+      }
+    ]
+  },
+  "publicValuesKeccak": "0x05459096ca6dffa4b5ebc701f419bb2b44fcc2e07a5df4ddfa1d11c57ed34537",
+  "proofHex": "0x60ebc1e30000000000000000000000000000000000000000000000000000000000000000222acd140c679fd137ed7950a16bc7930d05af2037ffa8236e66bae5cbfd0d62895c3c79f69f388b8ac62ab568dba6785aba7a376cd389d847f35f7139ae1a8a45d498dd71330e97741c234b47c30fe5a245a8a00c31a2082863cedff7cf2ff98ca7279189fbf6e8bd44ef20e7325e2b35827afe852638e524e2a16dd7adbb7de16130b4cb15199b5102d06d86861360c6720e8fc0db1039c252cbacafbaf27d7d3eaedfaf4ff6cf2a811f08a3a793f01d59fef27ed95a0815da9e5c5228ebcd0b3a7895f50e6c43472fd74c09586d896010fdd01f64254d4338e7e381ff704153602cb2f2a7d486c320a019466decca581a2789b324e2ebf2a7f1846141a2ef40edf4fb7b4ebf9dd1749a0ebb536abd3fadd9be59a20074edb866f0db527b2630519f4a481f5081d6ad28750f1a2f53c23684f05dda696d4da5a5e5c1bd6a50",
+  "envelopeKeccak": "0x40c465418654557780fc670975c29516b9d21fe07deef8bc5c2eab2ff85487ad"
+}

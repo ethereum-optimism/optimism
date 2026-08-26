@@ -1,0 +1,16 @@
+{
+  "name": "duplicate-block-number",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "The same block number twice. Caught by the same contiguity rule as the gap case, and worth its own fixture because a naive `>=` check would let it through.",
+  "expectedError": "invalid proof batch: blocks[1] number 5000001, expected 5000002",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 928,
+    "proofLen": 0,
+    "totalLen": 941
+  },
+  "envelopeKeccak": "0x5ca1b30b50b3740062d0573036ac4839335be61039d8b2795f0ed1a16452f1d4"
+}

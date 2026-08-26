@@ -1,0 +1,74 @@
+{
+  "algorithm": {
+    "payload": "topics[0] || topics[1] || ... || data",
+    "payloadHash": "keccak256(payload)",
+    "logHash": "keccak256(address(20 bytes) || payloadHash(32 bytes))",
+    "preimage": "address(20 bytes) || payload — the wire-v2 canonical log preimage (decision D9). Empty on the wire means absent; a present one MUST satisfy logHash == keccak256(preimage[0:20] || keccak256(preimage[20:]))",
+    "goSource": [
+      "op-core/interop/messages/logs.go LogToLogHash",
+      "op-core/interop/messages/messages.go LogToMessagePayload",
+      "op-core/interop/messages/messages.go PayloadHashToLogHash"
+    ]
+  },
+  "vectors": [
+    {
+      "name": "go-upstream-reference",
+      "source": "op-core/interop/messages/logs_test.go:TestLogToLogHash (expectedRefHash)",
+      "log": {
+        "blockNumber": 12345,
+        "logIndex": 8,
+        "address": "0xaabb000000000000000000000000000000000000",
+        "topics": [
+          "0xcc00000000000000000000000000000000000000000000000000000000000000",
+          "0xdd00000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "data": "0xeeff00",
+        "logHash": "0x4e1dc08fddeb273275f787762cdfe945cf47bb4e80a1fabbc7a825801e81b73f",
+        "preimage": "0xaabb000000000000000000000000000000000000cc00000000000000000000000000000000000000000000000000000000000000dd00000000000000000000000000000000000000000000000000000000000000eeff00"
+      }
+    },
+    {
+      "name": "erc20-transfer",
+      "source": "generated",
+      "log": {
+        "blockNumber": 1,
+        "logIndex": 0,
+        "address": "0x2e36abc72b1c8f2afd2cec2b1f73faf23b31a55f",
+        "topics": [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x0000000000000000000000008466cdfaad94a784a045f0983898d68cb2a52ac2",
+          "0x000000000000000000000000b814d2b41140ca04117b18362acbb30db34b0bf1"
+        ],
+        "data": "0xd795cfbee4df3b2d45b94fb2241a3400e4e01272738caa3fcb5924af63459de4",
+        "logHash": "0x068d6accd35257bcd216c167c68e00e0926665aedcc362786f8c55b88ae720b1",
+        "preimage": "0x2e36abc72b1c8f2afd2cec2b1f73faf23b31a55fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000008466cdfaad94a784a045f0983898d68cb2a52ac2000000000000000000000000b814d2b41140ca04117b18362acbb30db34b0bf1d795cfbee4df3b2d45b94fb2241a3400e4e01272738caa3fcb5924af63459de4"
+      }
+    },
+    {
+      "name": "anonymous-no-topics",
+      "source": "generated",
+      "log": {
+        "blockNumber": 1,
+        "logIndex": 1,
+        "address": "0xfe69f1fdf51b1f48331ae123088ff53560d675fb",
+        "topics": [],
+        "data": "0xc44267c7c4c738c6fc90dfdefdcd1492218cfff89bdac63ae93a632c86c81e16",
+        "logHash": "0x6558e8542cd1b1c2aaa0df9f818005ba6b69ae47ecc8818d59ac066fcfef426e",
+        "preimage": "0xfe69f1fdf51b1f48331ae123088ff53560d675fbc44267c7c4c738c6fc90dfdefdcd1492218cfff89bdac63ae93a632c86c81e16"
+      }
+    },
+    {
+      "name": "empty-everything",
+      "source": "generated",
+      "log": {
+        "blockNumber": 1,
+        "logIndex": 2,
+        "address": "0x0000000000000000000000000000000000000000",
+        "topics": [],
+        "data": "0x",
+        "logHash": "0x09051be45a200c773610a29099f03e7dfe72b244e6b585e0b3a9a8d379802094",
+        "preimage": "0x0000000000000000000000000000000000000000"
+      }
+    }
+  ]
+}

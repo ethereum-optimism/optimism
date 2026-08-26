@@ -1,0 +1,68 @@
+{
+  "name": "exec-msgs-empty",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "A block that EXPORTED a log and IMPORTED nothing. The empty execMsgs[] is a zero-length array that is PRESENT on the wire (an offset word plus a zero length word), never elided — same rule v2 fixed for an absent preimage. Pins that the two cross-chain surfaces are independent: exporting does not imply importing.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 1088,
+    "proofLen": 0,
+    "totalLen": 1101
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x1da88398a14e529c9f94e8358592d4d36b7103e439f80772992c8084895b9391",
+    "newOutputRoot": "0x31bd03a36190da6f4f1ba621b6a9ab1ccf7e85cff7aeeb003a6f3f6466632059",
+    "l1Head": "0x31e640e7385c5abff0cf242f80af777c826c4388c10dc14cc8b642263336fee5",
+    "rollupConfigHash": "0x53ea7e607d6fdf76bcd8477628037abcdf64fbf6968db8232b473b48b288a370",
+    "depSetHash": "0x80c900a06dd38169e525d9911c1860d439c02d6535a4ea80db7e6e377f8fa7a9",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 1100001,
+        "timestamp": 1801000002,
+        "blockHash": "0x3ae91f6d831cb859bb794185c836da8d6c723950c56b79835e1a8ee77beee199",
+        "stateRoot": "0xe32af3592d85c4a689c463a02f431c6c2ec5d2edb36a18e3e2aca3776e2d3967",
+        "messagePasserStorageRoot": "0x6682aec56e608c04e3e34bc3b43bd6d2c09aabc67f1e5f0644b634e7eacdf9cd",
+        "outputRoot": "0x7e31328eb230411c139b14d8fa479ae5e40342e7fae7244b5c5cacf339549b6f",
+        "logs": [
+          {
+            "logIndex": 0,
+            "logHash": "0x76d55517275c5026ac4497dd522a37341b9b01abe9a7d8c6570986d8ae8a4736",
+            "preimage": "0x"
+          }
+        ],
+        "execMsgs": []
+      },
+      {
+        "blockNumber": 1100002,
+        "timestamp": 1801000004,
+        "blockHash": "0xbd1a0ba6fde7edb8d2e6eebae3d0fc67cfd51bd03523b32dbeee72001ddd7d0c",
+        "stateRoot": "0x9fd1da11ac32eab9d664b69a1de3b491926b211eeb669975ad6f31a512fb61bf",
+        "messagePasserStorageRoot": "0xb8a914a645a52753ee5545641ce8d3891ae3de0ec0fe8aa422668c1b9f278b27",
+        "outputRoot": "0x31bd03a36190da6f4f1ba621b6a9ab1ccf7e85cff7aeeb003a6f3f6466632059",
+        "logs": [],
+        "execMsgs": []
+      }
+    ]
+  },
+  "publicValuesKeccak": "0xe1b877ea3d8737302e8d4e72bf3150106ca87b7656251073c8932a18fd73d5d1",
+  "proofHex": "0x",
+  "envelopeKeccak": "0x627b32d3674cf898dcdfc5398e75919b80d76ffe818dc14407bb1570bc31f221",
+  "sourceLogs": [
+    {
+      "blockNumber": 1100001,
+      "logIndex": 0,
+      "address": "0x3e13494d87f4c7986a3efe3930a940cba204c5d9",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000000d2f3fbf6d6bf1e8761477506338603a3c493498",
+        "0x0000000000000000000000000a15bec5eb36f386874f4c5df68764f6be73eb12"
+      ],
+      "data": "0x3ada71956b5779f041cec68ed59ce8a0e9be865073baef4344ceb9d8abe5c352",
+      "logHash": "0x76d55517275c5026ac4497dd522a37341b9b01abe9a7d8c6570986d8ae8a4736",
+      "preimage": "0x3e13494d87f4c7986a3efe3930a940cba204c5d9ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000000d2f3fbf6d6bf1e8761477506338603a3c4934980000000000000000000000000a15bec5eb36f386874f4c5df68764f6be73eb123ada71956b5779f041cec68ed59ce8a0e9be865073baef4344ceb9d8abe5c352"
+    }
+  ]
+}

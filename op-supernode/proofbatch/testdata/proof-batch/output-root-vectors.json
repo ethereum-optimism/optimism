@@ -1,0 +1,23 @@
+{
+  "algorithm": "outputRoot = keccak256(bytes32(0) || stateRoot || messagePasserStorageRoot || blockHash) — the stock OP-Stack V0 output root, 128 bytes preimage, version word all zero.",
+  "why": "New in wire v2: with all three fields on the wire a verifier that never executed the chain can answer outputAtBlock for ANY block in a proven range, not just the batch boundary. That is what lets a proven chain join a super-root at an arbitrary timestamp.",
+  "source": "kona crates/protocol/protocol/src/output_root.rs (OutputRoot::hash)",
+  "vectors": [
+    {
+      "name": "kona-upstream-reference",
+      "source": "kona output_root.rs::test_hash_output_root",
+      "stateRoot": "0x000000000000000000000000000000000000000000000000000000000000beef",
+      "messagePasserStorageRoot": "0x000000000000000000000000000000000000000000000000000000000000babe",
+      "blockHash": "0x000000000000000000000000000000000000000000000000000000000000c0de",
+      "outputRoot": "0x0c39fb6b07cf6694b13e63e59f7b15255be1c93a4d6d3e0da6c99729647c0d11"
+    },
+    {
+      "name": "cove-synthetic",
+      "source": "generated",
+      "stateRoot": "0x3e848de1cf5a8c9a666f43f1c7d29fc7363fb29cf94549e396f79b7eb87056f9",
+      "messagePasserStorageRoot": "0x84fbc2553673eb795a93087146c0642abdce982fc57092e25ba23f91d6839d53",
+      "blockHash": "0x9f3e794b2ad37c24115f67b1794df535e118cf7edd4208e08fbb45613df3fdf3",
+      "outputRoot": "0xe1c4cd28586ca4aa46aa3a25af44abac05f8ad789ea375f4ea8c4c66b0cc6ed1"
+    }
+  ]
+}

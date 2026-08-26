@@ -1,0 +1,15 @@
+{
+  "name": "trailing-bytes",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "One extra zero byte after the proof. The op-stack blob codec round-trips exact lengths, so trailing bytes are corruption, not padding (decision D4).",
+  "expectedError": "1 trailing bytes after proof",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 960,
+    "totalLen": 974
+  },
+  "envelopeKeccak": "0x7d8c148f575bd580c056179a8787c884fc6d2c2f425030f8e1a2cbc7163a5ede"
+}

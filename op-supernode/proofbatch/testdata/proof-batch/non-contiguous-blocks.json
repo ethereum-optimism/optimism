@@ -1,0 +1,16 @@
+{
+  "name": "non-contiguous-blocks",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Blocks 5000001 then 5000003: a gap. SPEC verifier rule 3 forbids gaps, so this is rejected at decode rather than left for the verifier to notice (decision D2).",
+  "expectedError": "invalid proof batch: blocks[1] number 5000003, expected 5000002",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 928,
+    "proofLen": 0,
+    "totalLen": 941
+  },
+  "envelopeKeccak": "0xba0ce7c338ffb06d7972d683b057cbb0439cacb8469e3caee4de5a3dbef4008f"
+}

@@ -1,0 +1,148 @@
+{
+  "name": "multi-block-mixed-logs",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "Five contiguous blocks at a 2 s cadence with log counts 0,1,0,3,0. Pins that empty logs arrays are encoded (as zero-length dynamic arrays), never elided, and that every block in the range appears even when it exports nothing.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 2208,
+    "proofLen": 0,
+    "totalLen": 2221
+  },
+  "publicValues": {
+    "prevOutputRoot": "0xedf4eddd384217a8b0cd12acbc58a6da5675ff430cee735d3aa2238833bfc7a9",
+    "newOutputRoot": "0x7bebd4877cea1e47481f4b23474088bfd3d1c9167c0f89335a3beeced9c929e5",
+    "l1Head": "0xc56ea59356c6a444acb5d4f4f8a0c23c1b8820742be4952c438f318f24bb2097",
+    "rollupConfigHash": "0x9d4ca72debc595a79306359e918f432e2f4d96c8a9c198a2903c5b123bf6839e",
+    "depSetHash": "0x56b0d2ff1ddf820d894ce601c5b032e1290ed9f28540e0fb53ebc29e998b68d4",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 4242000,
+        "timestamp": 1800100000,
+        "blockHash": "0xdb47e80857facff83ab091040e127dc3a8ab880cc118664096d7e5e4fd6283ba",
+        "stateRoot": "0xdb285b6774dda1290e87656f5eb424192acd332f3b6a6a2d8ee31694344aa198",
+        "messagePasserStorageRoot": "0x56fb608861a39e95a2fff04d15bf4a184b69422956943c584611d0498e6543be",
+        "outputRoot": "0x8ce421ae7aacf266e14aef6982e39d50cd73f179a62d9369708c085b29da30d4",
+        "logs": []
+      },
+      {
+        "blockNumber": 4242001,
+        "timestamp": 1800100002,
+        "blockHash": "0x92bb070529a2b225d00d3bfa7609d30b56068b7b2fdb8bde4adaf56aca3c516a",
+        "stateRoot": "0x5485ba5bd42e27b1ef3a1936cf3fcab737a2917ead821968a94cb9ec47a2bc9f",
+        "messagePasserStorageRoot": "0x086fbbc598d5b7d99fe9cfc12868bca302764599063876cb9a187f191b2944ab",
+        "outputRoot": "0x490fb463720d77227de8f3aa0a0b26de4b2871b23212dd90374fe1892fd4f4cf",
+        "logs": [
+          {
+            "logIndex": 0,
+            "logHash": "0xa58cb9f30376a9fae6258142fd4eeef2a011028a4cb5e6ed078cdeb3b4cfccdf",
+            "preimage": "0x"
+          }
+        ]
+      },
+      {
+        "blockNumber": 4242002,
+        "timestamp": 1800100004,
+        "blockHash": "0x4cc2682b649d8af823615d593fd60a8c7b85c0091953e2540c35562727e640de",
+        "stateRoot": "0xa044c59a8f2a1a12ce4017a70f54dc6d09e7f43d0e3f7ff113cc9523170d3cc2",
+        "messagePasserStorageRoot": "0x4f8b10e48ec37e2e853779233597c3ce11ac8fd8fdbbbb82b762338d60aa822c",
+        "outputRoot": "0xc7121f4ca66be12872221daa29befb3563b5684f32bb01e050f3f5c33edf3b61",
+        "logs": []
+      },
+      {
+        "blockNumber": 4242003,
+        "timestamp": 1800100006,
+        "blockHash": "0xbb1e24076cdc882e426633ad1a15da07db9073ea36827a8bcb28ccdf83bb84d3",
+        "stateRoot": "0x1eea12a20348f1e76034c60be02ab25aa0652744a18361bb0ee4e2e5a9f0cd7c",
+        "messagePasserStorageRoot": "0x72be01ff6a684e17ef557502a31b53b9abcf63c14814246fea51ef1a6e76c011",
+        "outputRoot": "0x8324c4dfa0218b4ea6bb795c9db04b8ef2cddcc755792885e378bdaaddb6cafd",
+        "logs": [
+          {
+            "logIndex": 0,
+            "logHash": "0xfacd300157116187d51ab15f5bb4fde2ba27f3889b413dd5f4d3d8b0c2e33f1f",
+            "preimage": "0x"
+          },
+          {
+            "logIndex": 1,
+            "logHash": "0x2693c551d621f767dc3388c6d5e0e81d6f2700b511cd1b6a096417e7bf1a0b17",
+            "preimage": "0x"
+          },
+          {
+            "logIndex": 2,
+            "logHash": "0x77e796c73ef672588d338e3bce6659f1fe4c5c104150291452e30f889d00ae97",
+            "preimage": "0x"
+          }
+        ]
+      },
+      {
+        "blockNumber": 4242004,
+        "timestamp": 1800100008,
+        "blockHash": "0x1002d5fb0fba9a6d745f919f3ecb8ea31786c46e01156d9703135a9bfc9404bf",
+        "stateRoot": "0x32767747e6ff4ec50d8fca7ded16c6a1aefe4221bb863eab9908b0d9f64293e6",
+        "messagePasserStorageRoot": "0x3efd28b30c43bee111d81d3764a560d2a384e631110468b4697556becefaf4b1",
+        "outputRoot": "0x7bebd4877cea1e47481f4b23474088bfd3d1c9167c0f89335a3beeced9c929e5",
+        "logs": []
+      }
+    ]
+  },
+  "publicValuesKeccak": "0xe16b9f496debc2513d8ec41736ff65ddfc0fde05da248a7b1e36ee0a2356d046",
+  "proofHex": "0x",
+  "envelopeKeccak": "0x29a0cea01e930d9359261a8e4ae3228c0970cd30506852e585b919220d7fc579",
+  "sourceLogs": [
+    {
+      "blockNumber": 4242001,
+      "logIndex": 0,
+      "address": "0x517c332a3378713b66fd4f26f60ddfb087bef1c8",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000008a2aca4d0a2375bbd89884ef62f0817401d01e07",
+        "0x00000000000000000000000018352ad76709488844779f68ce34e3dd3010b82d"
+      ],
+      "data": "0xe400863b1486aeb3a5fa597796b6fb52adebc8382ec60c55b37dba705753759b",
+      "logHash": "0xa58cb9f30376a9fae6258142fd4eeef2a011028a4cb5e6ed078cdeb3b4cfccdf",
+      "preimage": "0x517c332a3378713b66fd4f26f60ddfb087bef1c8ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000008a2aca4d0a2375bbd89884ef62f0817401d01e0700000000000000000000000018352ad76709488844779f68ce34e3dd3010b82de400863b1486aeb3a5fa597796b6fb52adebc8382ec60c55b37dba705753759b"
+    },
+    {
+      "blockNumber": 4242003,
+      "logIndex": 0,
+      "address": "0xfde292521922fa883cc2e06f57c975622d59665e",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000009abd2ab5fd9aa3d18039315d70ad0a2f0235d8fc",
+        "0x00000000000000000000000085779ed47b5dcae7462da56b3e7f32dcf5878ed5"
+      ],
+      "data": "0xb78d167445e0eb6a37448aea67d6d930aef4e4e2204f78ce609a6a4cc64ecef1",
+      "logHash": "0xfacd300157116187d51ab15f5bb4fde2ba27f3889b413dd5f4d3d8b0c2e33f1f",
+      "preimage": "0xfde292521922fa883cc2e06f57c975622d59665eddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000009abd2ab5fd9aa3d18039315d70ad0a2f0235d8fc00000000000000000000000085779ed47b5dcae7462da56b3e7f32dcf5878ed5b78d167445e0eb6a37448aea67d6d930aef4e4e2204f78ce609a6a4cc64ecef1"
+    },
+    {
+      "blockNumber": 4242003,
+      "logIndex": 1,
+      "address": "0x61d38f1581c6b84a2fdf047b4b87e19f89fa55df",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000002d3b09f1c33298a4786e5940d6ccaa906ffe57c2",
+        "0x000000000000000000000000e483aeee94751b0f3bc4adace04433704e333b0a"
+      ],
+      "data": "0x2f4cd9676380680d34c60c00cf13d8e00fea8d24db6e85a7f00cb76d9c3c0ccc",
+      "logHash": "0x2693c551d621f767dc3388c6d5e0e81d6f2700b511cd1b6a096417e7bf1a0b17",
+      "preimage": "0x61d38f1581c6b84a2fdf047b4b87e19f89fa55dfddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000002d3b09f1c33298a4786e5940d6ccaa906ffe57c2000000000000000000000000e483aeee94751b0f3bc4adace04433704e333b0a2f4cd9676380680d34c60c00cf13d8e00fea8d24db6e85a7f00cb76d9c3c0ccc"
+    },
+    {
+      "blockNumber": 4242003,
+      "logIndex": 2,
+      "address": "0x270504e35890660a1ac188b2a80e02bbfd08b888",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x000000000000000000000000a90b5cea4192e60773533d79205861bee1c73129",
+        "0x00000000000000000000000003d080949f05b7c38d7302d319c564e3852578b8"
+      ],
+      "data": "0xe6c6ec169c0a83ec9c94526b6abb27d5d964e4de47e32f816cecd32cd5f76584",
+      "logHash": "0x77e796c73ef672588d338e3bce6659f1fe4c5c104150291452e30f889d00ae97",
+      "preimage": "0x270504e35890660a1ac188b2a80e02bbfd08b888ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef000000000000000000000000a90b5cea4192e60773533d79205861bee1c7312900000000000000000000000003d080949f05b7c38d7302d319c564e3852578b8e6c6ec169c0a83ec9c94526b6abb27d5d964e4de47e32f816cecd32cd5f76584"
+    }
+  ]
+}
