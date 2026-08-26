@@ -6,6 +6,7 @@ use crate::{
     engine::OpEngineValidator,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
+use alloy_consensus::BlockHeader;
 use alloy_primitives::Sealed;
 use op_alloy_consensus::{
     OpPooledTransaction, OpTransaction as OpConsensusTransaction, TxPostExec, interop::SafetyLevel,
@@ -44,7 +45,7 @@ use reth_optimism_payload_builder::{
     builder::OpPayloadTransactions,
     config::{
         BaseFeePolicy, JovianBaseFeePolicy, OpBuilderConfig, OpDAConfig, OpGasLimitConfig,
-        OperatorSdmOptIn,
+        OperatorSdmOptIn, quote_base_fee,
     },
 };
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
@@ -66,7 +67,7 @@ use reth_rpc_api::{
     eth::{RpcTypes, helpers::config::EthConfigHandler},
 };
 use reth_rpc_server_types::RethRpcModule;
-use reth_tracing::tracing::{debug, info};
+use reth_tracing::tracing::{debug, info, warn};
 use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPoolTransaction, PoolPooledTx, PoolTransaction, TransactionOrdering,
     TransactionPool, TransactionValidationTaskExecutor, TransactionValidator,
@@ -308,6 +309,7 @@ impl OpNode {
                 self.args.interop_safety_level,
             )
             .with_interop_failsafe(self.interop_failsafe.clone())
+            .with_base_fee_policy(self.base_fee_policy.clone())
     }
 
     /// Returns the payload builder stock components install.
@@ -341,6 +343,7 @@ impl OpNode {
             .with_sequencer_headers(self.args.sequencer_headers.clone())
             .with_da_config(self.da_config.clone())
             .with_gas_limit_config(self.gas_limit_config.clone())
+            .with_base_fee_policy(self.base_fee_policy.clone())
             .with_operator_sdm_opt_in(self.operator_sdm_opt_in.clone())
             .with_enable_tx_conditional(self.args.enable_tx_conditional)
             .with_min_suggested_priority_fee(self.args.min_suggested_priority_fee)
@@ -913,6 +916,8 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     da_config: Option<OpDAConfig>,
     /// Gas limit configuration for the OP builder.
     gas_limit_config: Option<OpGasLimitConfig>,
+    /// Policy used by RPC to quote the next sequencer-selected base fee.
+    base_fee_policy: Option<Arc<dyn BaseFeePolicy>>,
     /// Shared SDM operator opt-in flag for the payload builder and admin RPC.
     operator_sdm_opt_in: Option<OperatorSdmOptIn>,
     /// Enable transaction conditionals.
@@ -942,6 +947,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
             historical_rpc: None,
             da_config: None,
             gas_limit_config: None,
+            base_fee_policy: None,
             operator_sdm_opt_in: None,
             enable_tx_conditional: false,
             retain_forwarded_txs: false,
@@ -977,6 +983,12 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
     /// Configure the gas limit configuration for the OP payload builder.
     pub fn with_gas_limit_config(mut self, gas_limit_config: OpGasLimitConfig) -> Self {
         self.gas_limit_config = Some(gas_limit_config);
+        self
+    }
+
+    /// Configure the policy used by RPC to quote the next sequencer-selected base fee.
+    pub fn with_base_fee_policy(mut self, base_fee_policy: Arc<dyn BaseFeePolicy>) -> Self {
+        self.base_fee_policy = Some(base_fee_policy);
         self
     }
 
@@ -1028,6 +1040,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             historical_rpc,
             da_config,
             gas_limit_config,
+            base_fee_policy,
             operator_sdm_opt_in,
             enable_tx_conditional,
             retain_forwarded_txs,
@@ -1044,6 +1057,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             historical_rpc,
             da_config,
             gas_limit_config,
+            base_fee_policy,
             operator_sdm_opt_in,
             enable_tx_conditional,
             retain_forwarded_txs,
@@ -1086,6 +1100,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             sequencer_headers,
             da_config,
             gas_limit_config,
+            base_fee_policy,
             operator_sdm_opt_in,
             enable_tx_conditional,
             retain_forwarded_txs,
@@ -1104,6 +1119,9 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                     .with_sequencer(sequencer_url.clone())
                     .with_sequencer_headers(sequencer_headers.clone())
                     .with_min_suggested_priority_fee(min_suggested_priority_fee)
+                    .with_base_fee_policy(
+                        base_fee_policy.unwrap_or_else(|| Arc::new(JovianBaseFeePolicy)),
+                    )
                     .with_flashblocks(flashblocks_url)
                     .with_flashblock_consensus(flashblock_consensus)
                     .with_retain_forwarded_txs(retain_forwarded_txs),
@@ -1205,6 +1223,8 @@ pub struct OpPoolBuilder<
     pub interop_safety_level: SafetyLevel,
     /// Shared interop failsafe gate, passed to the interop filter client this builder constructs.
     pub interop_failsafe: InteropFailsafe,
+    /// Policy used to quote the next sequencer-selected base fee for pool classification.
+    pub base_fee_policy: Arc<dyn BaseFeePolicy>,
     /// The transaction ordering used by the pool.
     pub ordering: O,
     /// The validator wrapper applied to the built [`OpTransactionValidator`].
@@ -1222,6 +1242,7 @@ impl<T> Default for OpPoolBuilder<T> {
             interop_min_responses: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,
             interop_failsafe: InteropFailsafe::default(),
+            base_fee_policy: Arc::new(JovianBaseFeePolicy),
             ordering: CoinbaseTipOrdering::default(),
             validator_wrapper: IdentityValidatorWrapper,
             _pd: Default::default(),
@@ -1238,6 +1259,7 @@ impl<T, O: Clone, W: Clone> Clone for OpPoolBuilder<T, O, W> {
             interop_min_responses: self.interop_min_responses,
             interop_safety_level: self.interop_safety_level,
             interop_failsafe: self.interop_failsafe.clone(),
+            base_fee_policy: self.base_fee_policy.clone(),
             ordering: self.ordering.clone(),
             validator_wrapper: self.validator_wrapper.clone(),
             _pd: core::marker::PhantomData,
@@ -1282,6 +1304,12 @@ impl<T, O, W> OpPoolBuilder<T, O, W> {
         self
     }
 
+    /// Sets the policy used to quote the next sequencer-selected base fee.
+    pub fn with_base_fee_policy(mut self, base_fee_policy: Arc<dyn BaseFeePolicy>) -> Self {
+        self.base_fee_policy = base_fee_policy;
+        self
+    }
+
     /// Sets a custom transaction ordering for the pool, replacing the default
     /// [`CoinbaseTipOrdering`].
     pub fn with_ordering<NewO>(self, ordering: NewO) -> OpPoolBuilder<T, NewO, W> {
@@ -1292,6 +1320,7 @@ impl<T, O, W> OpPoolBuilder<T, O, W> {
             interop_min_responses: self.interop_min_responses,
             interop_safety_level: self.interop_safety_level,
             interop_failsafe: self.interop_failsafe,
+            base_fee_policy: self.base_fee_policy,
             ordering,
             validator_wrapper: self.validator_wrapper,
             _pd: core::marker::PhantomData,
@@ -1312,6 +1341,7 @@ impl<T, O, W> OpPoolBuilder<T, O, W> {
             interop_min_responses: self.interop_min_responses,
             interop_safety_level: self.interop_safety_level,
             interop_failsafe: self.interop_failsafe,
+            base_fee_policy: self.base_fee_policy,
             ordering: self.ordering,
             validator_wrapper,
             _pd: core::marker::PhantomData,
@@ -1335,6 +1365,7 @@ where
         ctx: &BuilderContext<Node>,
         evm_config: Evm,
     ) -> eyre::Result<Self::Pool> {
+        let base_fee_policy = self.base_fee_policy.clone();
         let Self { pool_config_overrides, ordering, validator_wrapper, .. } = self;
 
         // Interop filter used for txpool validation.
@@ -1423,10 +1454,23 @@ where
             ctx.chain_spec().op_fork_activation(OpHardfork::Lagoon) != ForkCondition::Never;
         let transaction_pool = OpPool::new(inner_pool, interop_filter_enabled);
 
-        reth_node_builder::components::spawn_maintenance_tasks(
+        let chain_spec = ctx.chain_spec();
+        reth_node_builder::components::spawn_maintenance_tasks_with_base_fee(
             ctx,
             transaction_pool.clone(),
             &final_pool_config,
+            move |header| {
+                quote_base_fee(
+                    base_fee_policy.as_ref(),
+                    chain_spec.as_ref(),
+                    header,
+                    header.timestamp(),
+                )
+                .unwrap_or_else(|err| {
+                        warn!(target: "txpool", %err, "base-fee policy quote failed; using latest observed fee");
+                        header.base_fee_per_gas().unwrap_or_default()
+                    })
+            },
         )?;
 
         info!(target: "reth::cli", "Transaction pool initialized (interop filter enabled = {interop_filter_enabled})");
@@ -1782,11 +1826,17 @@ mod tests {
         let node = OpNode::new(args.clone());
 
         let pool = node.standard_pool_builder::<OpPooledTransaction>();
+        let add_ons = node.add_ons_builder::<op_alloy_network::Optimism>();
 
         assert_eq!(pool.enable_tx_conditional, args.enable_tx_conditional);
         assert_eq!(pool.interop_endpoints, args.interop_http);
         assert_eq!(pool.interop_min_responses, args.interop_min_responses);
         assert_eq!(pool.interop_safety_level, args.interop_safety_level);
+        assert!(Arc::ptr_eq(&pool.base_fee_policy, &node.base_fee_policy));
+        assert!(Arc::ptr_eq(
+            add_ons.base_fee_policy.as_ref().expect("base-fee policy must be configured"),
+            &node.base_fee_policy,
+        ));
 
         assert!(!pool.interop_failsafe.enabled(), "failsafe starts disabled");
         node.interop_failsafe.set(true);
@@ -1836,6 +1886,7 @@ mod tests {
         assert_eq!(cfg.da_config.max_da_block_size(), Some(200));
         assert!(cfg.constrained_da_config().is_some());
         assert_eq!(cfg.gas_limit_config.gas_limit(), Some(30_000_000));
+        assert!(Arc::ptr_eq(&cfg.base_fee_policy, &node.base_fee_policy));
         assert!(cfg.operator_sdm_opt_in.enabled());
         assert!(cfg.interop_failsafe.enabled());
     }

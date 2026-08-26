@@ -1,4 +1,8 @@
-use crate::{OpEthApi, OpEthApiError, eth::RpcNodeCore};
+use crate::{
+    OpEthApi, OpEthApiError,
+    eth::{OpRpcProvider, RpcNodeCore},
+};
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_rpc_eth_api::{
     FromEvmError, RpcConvert,
     helpers::{Call, EthCall, estimate::EstimateCall},
@@ -7,6 +11,8 @@ use reth_rpc_eth_api::{
 impl<N, Rpc> EthCall for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError, Evm = N::Evm>,
 {
@@ -15,6 +21,8 @@ where
 impl<N, Rpc> EstimateCall for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError, Evm = N::Evm>,
 {
@@ -23,6 +31,8 @@ where
 impl<N, Rpc> Call for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError, Evm = N::Evm>,
 {

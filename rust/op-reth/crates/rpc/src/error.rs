@@ -10,6 +10,7 @@ use op_alloy_consensus::PostExecPayloadValidationError;
 use op_revm::OpHaltReason;
 use reth_evm::execute::ProviderError;
 use reth_optimism_evm::OpBlockExecutionError;
+use reth_optimism_payload_builder::config::BaseFeePolicyError;
 use reth_rpc_eth_api::{AsEthApiError, EthTxEnvError, TransactionConversionError};
 use reth_rpc_eth_types::{
     EthApiError,
@@ -40,6 +41,9 @@ pub enum OpEthApiError {
     /// Invalid post-exec payload or post-exec transaction placement.
     #[error(transparent)]
     InvalidPostExecPayload(#[from] PostExecPayloadValidationError),
+    /// Base-fee policy could not provide a quote.
+    #[error(transparent)]
+    BaseFeePolicy(#[from] BaseFeePolicyError),
     /// Sequencer client error.
     #[error(transparent)]
     Sequencer(#[from] SequencerClientError),
@@ -62,7 +66,8 @@ impl From<OpEthApiError> for jsonrpsee_types::error::ErrorObject<'static> {
             OpEthApiError::Evm(_) |
             OpEthApiError::L1BlockFeeError |
             OpEthApiError::L1BlockGasError |
-            OpEthApiError::InvalidPostExecPayload(_) => internal_rpc_err(err.to_string()),
+            OpEthApiError::InvalidPostExecPayload(_) |
+            OpEthApiError::BaseFeePolicy(_) => internal_rpc_err(err.to_string()),
             OpEthApiError::Sequencer(err) => err.into(),
         }
     }

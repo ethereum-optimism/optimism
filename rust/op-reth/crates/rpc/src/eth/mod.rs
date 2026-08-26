@@ -13,29 +13,32 @@ use crate::{
     OpEthApiError, SequencerClient,
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
 };
+use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumHash;
 use alloy_primitives::U256;
-use alloy_rpc_types_eth::{Filter, Log};
+use alloy_rpc_types_eth::{BlockNumberOrTag, Filter, Log};
 use eyre::WrapErr;
 use futures::StreamExt;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
-use reth_chainspec::{EthereumHardforks, Hardforks};
-use reth_evm::ConfigureEvm;
+use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks, Hardforks};
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_optimism_flashblocks::{
     FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
     FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
     FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
 };
+use reth_optimism_forks::OpHardforks;
+use reth_optimism_payload_builder::config::{BaseFeePolicy, JovianBaseFeePolicy, quote_base_fee};
 use reth_primitives_traits::NodePrimitives;
 use reth_rpc::eth::core::EthApiInner;
 use reth_rpc_eth_api::{
-    EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcNodeCore,
-    RpcNodeCoreExt, RpcTypes,
+    EthApiTypes, FromEthApiError, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter,
+    RpcNodeCore, RpcNodeCoreExt, RpcTypes,
     helpers::{
         EthApiSpec, EthFees, EthState, EthSubscriptions, LoadFee, LoadPendingBlock, LoadState,
         SpawnBlocking, Trace, bal::GetBlockAccessList, pending_block::BuildPendingEnv,
@@ -44,7 +47,7 @@ use reth_rpc_eth_api::{
 use reth_rpc_eth_types::{
     EthStateCache, FeeHistoryCache, GasPriceOracle, logs_utils::matching_block_logs_with_tx_hashes,
 };
-use reth_storage_api::ProviderHeader;
+use reth_storage_api::{BlockReaderIdExt, ProviderHeader};
 use reth_tasks::{
     Runtime,
     pool::{BlockingTaskGuard, BlockingTaskPool},
@@ -61,6 +64,19 @@ use tracing::info;
 
 /// Maximum duration to wait for a fresh flashblock when one is being built.
 const MAX_FLASHBLOCK_WAIT_DURATION: Duration = Duration::from_millis(50);
+
+/// Provider capabilities required by OP-specific pending-fee RPC behavior.
+pub trait OpRpcProvider:
+    ChainSpecProvider<ChainSpec: EthChainSpec<Header = ProviderHeader<Self>> + OpHardforks>
+    + BlockReaderIdExt
+{
+}
+
+impl<T> OpRpcProvider for T where
+    T: ChainSpecProvider<ChainSpec: EthChainSpec<Header = ProviderHeader<T>> + OpHardforks>
+        + BlockReaderIdExt
+{
+}
 
 /// Adapter for [`EthApiInner`], which holds all the data required to serve core `eth_` API.
 pub type EthApiNodeBackend<N, Rpc> = EthApiInner<N, Rpc>;
@@ -92,6 +108,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         eth_api: EthApiNodeBackend<N, Rpc>,
         sequencer_client: Option<SequencerClient>,
         min_suggested_priority_fee: U256,
+        base_fee_policy: Arc<dyn BaseFeePolicy>,
         flashblocks: Option<FlashblocksListeners<N::Primitives>>,
         retain_forwarded_txs: bool,
     ) -> Self {
@@ -99,6 +116,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             eth_api,
             sequencer_client,
             min_suggested_priority_fee,
+            base_fee_policy,
             flashblocks,
             retain_forwarded_txs,
         });
@@ -106,7 +124,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     }
 
     /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
-    pub const fn builder() -> OpEthApiBuilder<Rpc> {
+    pub fn builder() -> OpEthApiBuilder<Rpc> {
         OpEthApiBuilder::new()
     }
 
@@ -232,6 +250,42 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     }
 }
 
+impl<N, Rpc> OpEthApi<N, Rpc>
+where
+    N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    Rpc: RpcConvert,
+{
+    /// Quotes the pending base fee from the same policy used by the payload builder.
+    fn pending_base_fee_quote(
+        &self,
+        header: &ProviderHeader<N::Provider>,
+    ) -> Result<u64, OpEthApiError> {
+        // Pending RPCs do not have payload attributes yet. The parent timestamp matches reth's
+        // existing provisional next-block quote semantics.
+        quote_base_fee(
+            self.inner.base_fee_policy.as_ref(),
+            self.inner.eth_api.provider().chain_spec().as_ref(),
+            header,
+            header.timestamp(),
+        )
+        .map_err(Into::into)
+    }
+
+    fn latest_pending_base_fee(&self) -> Result<u64, OpEthApiError> {
+        let header = self
+            .inner
+            .eth_api
+            .provider()
+            .latest_header()
+            .map_err(OpEthApiError::from_eth_err)?
+            .ok_or_else(|| {
+                reth_rpc_eth_types::EthApiError::HeaderNotFound(BlockNumberOrTag::Latest.into())
+            })?;
+        self.pending_base_fee_quote(&header)
+    }
+}
+
 impl<N, Rpc> EthApiTypes for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
@@ -329,6 +383,8 @@ where
 impl<N, Rpc> LoadFee for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
@@ -340,6 +396,18 @@ where
     #[inline]
     fn fee_history_cache(&self) -> &FeeHistoryCache<ProviderHeader<N::Provider>> {
         self.inner.eth_api.fee_history_cache()
+    }
+
+    fn pending_base_fee(
+        &self,
+        header: &ProviderHeader<Self::Provider>,
+    ) -> Result<Option<u64>, Self::Error> {
+        self.pending_base_fee_quote(header).map(Some)
+    }
+
+    async fn gas_price(&self) -> Result<U256, Self::Error> {
+        Ok(U256::from(self.latest_pending_base_fee()?) +
+            LoadFee::suggested_priority_fee(self).await?)
     }
 
     async fn suggested_priority_fee(&self) -> Result<U256, Self::Error> {
@@ -355,6 +423,8 @@ where
 impl<N, Rpc> LoadState for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     Rpc: RpcConvert<Primitives = N::Primitives>,
     Self: LoadPendingBlock,
 {
@@ -363,6 +433,8 @@ where
 impl<N, Rpc> EthState for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
     Self: LoadPendingBlock,
 {
@@ -375,6 +447,8 @@ where
 impl<N, Rpc> EthFees for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
@@ -390,6 +464,8 @@ where
 impl<N, Rpc> Trace for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError, Evm = N::Evm>,
 {
@@ -398,6 +474,8 @@ where
 impl<N, Rpc> GetBlockAccessList for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError, Evm = N::Evm>,
 {
@@ -420,6 +498,8 @@ pub struct OpEthApiInner<N: RpcNodeCore, Rpc: RpcConvert> {
     ///
     /// See also <https://github.com/ethereum-optimism/op-geth/blob/d4e0fe9bb0c2075a9bff269fb975464dd8498f75/eth/gasprice/optimism-gasprice.go#L38-L38>
     min_suggested_priority_fee: U256,
+    /// Policy used to quote the next sequencer-selected base fee.
+    base_fee_policy: Arc<dyn BaseFeePolicy>,
     /// Flashblocks listeners.
     ///
     /// If set, provides receivers for pending blocks, flashblock sequences, and build status.
@@ -474,6 +554,8 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     sequencer_headers: Vec<String>,
     /// Minimum suggested priority fee (tip)
     min_suggested_priority_fee: u64,
+    /// Policy used to quote the next sequencer-selected base fee.
+    base_fee_policy: Arc<dyn BaseFeePolicy>,
     /// A URL pointing to a secure websocket connection (wss) that streams out [flashblocks].
     ///
     /// [flashblocks]: reth_optimism_flashblocks
@@ -497,6 +579,7 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
             sequencer_url: None,
             sequencer_headers: Vec::new(),
             min_suggested_priority_fee: 1_000_000,
+            base_fee_policy: Arc::new(JovianBaseFeePolicy),
             flashblocks_url: None,
             flashblock_consensus: false,
             retain_forwarded_txs: false,
@@ -507,11 +590,12 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
 
 impl<NetworkT> OpEthApiBuilder<NetworkT> {
     /// Creates a [`OpEthApiBuilder`] instance from core components.
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             sequencer_url: None,
             sequencer_headers: Vec::new(),
             min_suggested_priority_fee: 1_000_000,
+            base_fee_policy: Arc::new(JovianBaseFeePolicy),
             flashblocks_url: None,
             flashblock_consensus: false,
             retain_forwarded_txs: false,
@@ -534,6 +618,12 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
     /// With minimum suggested priority fee (tip).
     pub const fn with_min_suggested_priority_fee(mut self, min: u64) -> Self {
         self.min_suggested_priority_fee = min;
+        self
+    }
+
+    /// With the policy used to quote the next sequencer-selected base fee.
+    pub fn with_base_fee_policy(mut self, base_fee_policy: Arc<dyn BaseFeePolicy>) -> Self {
+        self.base_fee_policy = base_fee_policy;
         self
     }
 
@@ -560,13 +650,13 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
 where
     N: FullNodeComponents<
-            Evm: ConfigureEvm<
+            Evm: ConfigurePostExecEvm<
                 NextBlockEnvCtx: BuildPendingEnv<HeaderTy<N::Types>>
                                      + From<OpFlashblockPayloadBase>
                                      + Unpin,
             >,
             Types: NodeTypes<
-                ChainSpec: Hardforks + EthereumHardforks,
+                ChainSpec: Hardforks + EthereumHardforks + OpHardforks,
                 Payload: reth_node_api::PayloadTypes<
                     ExecutionData: for<'a> TryFrom<
                         &'a FlashBlockCompleteSequence,
@@ -588,6 +678,7 @@ where
             sequencer_url,
             sequencer_headers,
             min_suggested_priority_fee,
+            base_fee_policy,
             flashblocks_url,
             flashblock_consensus,
             retain_forwarded_txs,
@@ -652,8 +743,34 @@ where
             eth_api,
             sequencer_client,
             U256::from(min_suggested_priority_fee),
+            base_fee_policy,
             flashblocks,
             retain_forwarded_txs,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reth_optimism_payload_builder::config::{BaseFeePolicyError, BaseFeePolicyInput};
+
+    #[derive(Debug)]
+    struct TestBaseFeePolicy;
+
+    impl BaseFeePolicy for TestBaseFeePolicy {
+        fn select_base_fee(
+            &self,
+            _input: BaseFeePolicyInput<'_>,
+        ) -> Result<u64, BaseFeePolicyError> {
+            Ok(777)
+        }
+    }
+
+    #[test]
+    fn eth_api_builder_accepts_base_fee_policy() {
+        let policy: Arc<dyn BaseFeePolicy> = Arc::new(TestBaseFeePolicy);
+        let builder = OpEthApiBuilder::<Optimism>::default().with_base_fee_policy(policy.clone());
+        assert!(Arc::ptr_eq(&builder.base_fee_policy, &policy));
     }
 }

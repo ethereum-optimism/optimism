@@ -493,6 +493,35 @@ mod tests {
         assert!(!evm_config.is_sdm_active_at_timestamp(u64::MAX));
     }
 
+    #[test]
+    fn next_evm_env_uses_selected_base_fee() {
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
+        let parent = Header {
+            number: 7,
+            timestamp: 100,
+            gas_limit: 30_000_000,
+            gas_used: 15_000_000,
+            base_fee_per_gas: Some(100),
+            ..Default::default()
+        };
+        let attributes = OpNextBlockEnvAttributes {
+            timestamp: 102,
+            suggested_fee_recipient: Address::ZERO,
+            prev_randao: B256::ZERO,
+            gas_limit: parent.gas_limit,
+            parent_beacon_block_root: None,
+            extra_data: Default::default(),
+        };
+
+        let evm_env = evm_config
+            .next_evm_env_with_base_fee(&parent, &attributes, 777)
+            .expect("next EVM environment should be valid");
+
+        assert_eq!(evm_env.block_env.basefee, 777);
+        assert_eq!(evm_env.block_env.number, 8);
+        assert_eq!(evm_env.block_env.timestamp, 102);
+    }
+
     fn block_with_post_exec_tx(
         number: u64,
         timestamp: u64,
