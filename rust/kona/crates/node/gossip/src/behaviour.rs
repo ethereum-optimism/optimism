@@ -57,10 +57,6 @@ impl Behaviour {
 
         let topics = handlers.iter().flat_map(|handler| handler.topics()).collect::<Vec<_>>();
 
-        // Accept subscriptions only for the topics the handlers serve. libp2p otherwise accepts a
-        // subscription for any topic a peer announces, which lets one peer grow its entry in the
-        // swarm's peer table and mint unbounded `topic` metric label values. op-node applies the
-        // same allowlist in `BuildSubscriptionFilter`.
         let mut gossipsub = libp2p::gossipsub::Behaviour::new_with_subscription_filter(
             MessageAuthenticity::Anonymous,
             cfg,
@@ -126,12 +122,11 @@ mod tests {
         let handlers: Vec<Box<dyn Handler>> = vec![Box::new(block_handler)];
         let mut behaviour = Behaviour::new(key.public(), cfg, &handlers).unwrap();
 
-        // The subscription filter gates our own subscriptions and the ones peers announce, so a
-        // refusal here proves an inbound announcement for the same topic is dropped.
+        // The filter gates our own subscriptions and the ones peers announce.
         let result = behaviour.gossipsub.subscribe(&IdentTopic::new("/optimism/10/9/blocks"));
         assert!(matches!(result, Err(SubscriptionError::NotAllowed)), "unexpected: {result:?}");
 
-        // A handler topic still passes the filter. `Ok(false)` means we already subscribed.
+        // `Ok(false)` means we already subscribed.
         let result = behaviour.gossipsub.subscribe(&IdentTopic::new("/optimism/10/0/blocks"));
         assert!(matches!(result, Ok(false)), "unexpected: {result:?}");
 
