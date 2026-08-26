@@ -12,6 +12,36 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { Features } from "src/libraries/Features.sol";
+import { GameStatus } from "src/dispute/lib/Types.sol";
+import { OptimismPortal2 as OptimismPortal2Implementation } from "src/L1/OptimismPortal2.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import {
+    AirgapFactory_Harness,
+    AirgapGame_Harness,
+    AirgapSystemConfig_Harness,
+    AnchorStateRegistryAirgap_Harness
+} from "./utils/AirgapHarnesses.sol";
+
+contract OptimismPortalAirgap_Harness is OptimismPortal2Implementation {
+    constructor(uint256 _proofMaturityDelay) OptimismPortal2Implementation(_proofMaturityDelay) { }
+
+    function configure(IAnchorStateRegistry _registry) external {
+        anchorStateRegistry = _registry;
+    }
+
+    function recordWithdrawal(
+        bytes32 _withdrawalHash,
+        address _proofSubmitter,
+        IDisputeGame _game,
+        uint64 _provenAt
+    )
+        external
+    {
+        provenWithdrawals[_withdrawalHash][_proofSubmitter] =
+            ProvenWithdrawal({ disputeGameProxy: _game, timestamp: _provenAt });
+    }
+}
 
 contract OptimismPortal2Kontrol is DeploymentSummaryFaultProofs, KontrolUtils {
     address internal constant WITHDRAWAL_SENDER = address(0x1111);
@@ -100,6 +130,41 @@ contract OptimismPortal2Kontrol is DeploymentSummaryFaultProofs, KontrolUtils {
         assert(optimismPortal.proofMaturityDelaySeconds() == 7 days);
         vm.warp(FIRST_MATURE_TIMESTAMP);
         optimismPortal.checkWithdrawal(WITHDRAWAL_HASH, address(this));
+    }
+
+    /// @notice Composes the production Portal and AnchorStateRegistry implementations. Whenever
+    ///         the Portal's authorization predicate succeeds, both independently recorded L1
+    ///         clocks must be strictly beyond their seven-day boundaries.
+    function prove_checkWithdrawal_successRequiresBothAirgaps(
+        uint64 _finalizationTime,
+        uint64 _provenAt,
+        uint64 _resolvedAt
+    )
+        external
+    {
+        vm.assume(_provenAt > 1);
+        vm.assume(_resolvedAt > 0);
+        vm.assume(_finalizationTime >= _provenAt);
+        vm.assume(_finalizationTime >= _resolvedAt);
+
+        AirgapGame_Harness game = new AirgapGame_Harness();
+        game.setState(1, _resolvedAt, GameStatus.DEFENDER_WINS);
+        AirgapFactory_Harness factory = new AirgapFactory_Harness(IDisputeGame(address(game)));
+        AirgapSystemConfig_Harness systemConfig = new AirgapSystemConfig_Harness();
+        AnchorStateRegistryAirgap_Harness registry = new AnchorStateRegistryAirgap_Harness(7 days);
+        registry.configure(ISystemConfig(address(systemConfig)), IDisputeGameFactory(address(factory)));
+        OptimismPortalAirgap_Harness portal = new OptimismPortalAirgap_Harness(7 days);
+        portal.configure(IAnchorStateRegistry(address(registry)));
+        portal.recordWithdrawal(WITHDRAWAL_HASH, address(this), IDisputeGame(address(game)), _provenAt);
+        vm.warp(_finalizationTime);
+
+        (bool authorized,) =
+            address(portal).staticcall(abi.encodeCall(portal.checkWithdrawal, (WITHDRAWAL_HASH, address(this))));
+        if (authorized) {
+            assert(uint256(_finalizationTime) - uint256(_provenAt) > 7 days);
+            assert(uint256(_finalizationTime) - uint256(_resolvedAt) > 7 days);
+            assert(game.status() == GameStatus.DEFENDER_WINS);
+        }
     }
 
     /// @notice Proves for every symbolic value that the real ETHLockbox transfers exactly that
