@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -44,6 +45,8 @@ const asciiArt = ` ____  ____        _     ____
 | \_/||  __/\____\| \_/||  __/
 \____/\_/         \____/\_/`
 
+const opUpInteropDelay = uint64(2)
+
 var (
 	Version     = "v0.0.0"
 	VersionMeta = "dev"
@@ -71,6 +74,24 @@ var (
 		Usage:   "start a 2-chain interop devnet backed by op-supernode.",
 		EnvVars: opservice.PrefixEnvVar(envPrefix, "INTEROP"),
 	}
+	silhouetteFlag = &cli.BoolFlag{
+		Name: "silhouette",
+		Usage: "start a 2-chain interop devnet with L2B carried by proof batches " +
+			"instead of an ordinary batcher.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "SILHOUETTE"),
+	}
+	l2ARPCPortFlag = &cli.UintFlag{
+		Name:    "l2a-rpc-port",
+		Usage:   "host port for the L2A execution-layer JSON-RPC proxy.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "L2A_RPC_PORT"),
+		Value:   8545,
+	}
+	l2BRPCPortFlag = &cli.UintFlag{
+		Name:    "l2b-rpc-port",
+		Usage:   "host port for the L2B execution-layer JSON-RPC proxy.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "L2B_RPC_PORT"),
+		Value:   8546,
+	}
 )
 
 func main() {
@@ -89,7 +110,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, VersionMeta)
 	app.Name = "op-up"
 	app.Usage = "deploys an in-memory OP Stack devnet."
-	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag, interopFlag})
+	app.Flags = cliapp.ProtectFlags([]cli.Flag{
+		dirFlag, interopFlag, silhouetteFlag, l2ARPCPortFlag, l2BRPCPortFlag,
+	})
 	// The default OnUsageError behavior will print the error twice: once in the cli package and
 	// once in our main function.
 	// The function below prints help and returns the error for further handling/error messages.
@@ -100,7 +123,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	app.Action = func(cliCtx *cli.Context) error {
-		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name))
+		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name),
+			cliCtx.Bool(interopFlag.Name), cliCtx.Bool(silhouetteFlag.Name),
+			cliCtx.Uint(l2ARPCPortFlag.Name), cliCtx.Uint(l2BRPCPortFlag.Name))
 	}
 	app.Commands = []*cli.Command{
 		interopsmoke.Command(envPrefix),
@@ -108,7 +133,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	return app.RunContext(ctx, args)
 }
 
-func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool) error {
+func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop, silhouette bool, l2APort, l2BPort uint) error {
 	fmt.Fprintf(stderr, "%s\n", asciiArt)
 
 	if err := os.MkdirAll(opUpDir, 0o755); err != nil {
@@ -123,12 +148,20 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 	t := newTestingT(ctx, stderr, tempRoot)
 	defer t.doCleanup()
 
-	if interop {
+	if silhouette {
+		sys, err := newSilhouetteSystem(t)
+		if err != nil {
+			return err
+		}
+		if err := runSupernodeSystem(ctx, stderr, sys, l2APort, l2BPort); err != nil {
+			return err
+		}
+	} else if interop {
 		sys, err := newSupernodeInteropSystem(t)
 		if err != nil {
 			return err
 		}
-		if err := runSupernodeSystem(ctx, stderr, sys); err != nil {
+		if err := runSupernodeSystem(ctx, stderr, sys, l2APort, l2BPort); err != nil {
 			return err
 		}
 	} else {
@@ -136,7 +169,7 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 		if err != nil {
 			return err
 		}
-		if err := runSystem(ctx, stderr, sys); err != nil {
+		if err := runSystem(ctx, stderr, sys, l2APort); err != nil {
 			return err
 		}
 	}
@@ -182,62 +215,123 @@ func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop,
 			panic(recovered)
 		}
 	}()
-	// Use a small activation delay so that interop bridge contracts
-	// (SuperchainETHBridge, ETHLiquidity) get properly initialized.
-	const interopDelay = uint64(2)
-	return presets.NewTwoL2SupernodeInterop(t, interopDelay,
-		presets.WithSuggestedLagoonActivationOffset(interopDelay),
-	), nil
+	return presets.NewTwoL2SupernodeInterop(t, opUpInteropDelay, opUpInteropOptions()...), nil
 }
 
-func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal) error {
+func newSilhouetteSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			var failure testingFailure
+			if errors.As(asError(recovered), &failure) {
+				err = failure.err
+				return
+			}
+			panic(recovered)
+		}
+	}()
+	opts := append(opUpInteropOptions(),
+		presets.WithSilhouetteChain(presets.SilhouetteChainB),
+		presets.WithSilhouetteSequencerPosture(),
+	)
+	return presets.NewTwoL2SupernodeInterop(t, opUpInteropDelay, opts...), nil
+}
+
+// opUpInteropOptions is shared so silhouette mode changes only L2B's publication and verification
+// topology, not the activation configuration users get from ordinary --interop mode.
+func opUpInteropOptions() []presets.Option {
+	return []presets.Option{presets.WithSuggestedLagoonActivationOffset(opUpInteropDelay)}
+}
+
+func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal, l2Port uint) error {
 	if err := printAccountInfo(stderr); err != nil {
 		return err
 	}
-	fmt.Fprintf(stderr, "EL Node URL: %s\n", "http://localhost:8545")
+	rpcAddr := fmt.Sprintf("127.0.0.1:%d", l2Port)
+	fmt.Fprintf(stderr, "EL Node URL: http://%s\n", rpcAddr)
 
 	elNode := sys.L2EL
 	go logBlocks(ctx, stderr, "L2", elNode)
 
-	// Proxy L2 EL requests.
-	go func() {
-		if err := proxyEL(ctx, stderr, "localhost:8545", elNode.Escape().L2EthClient().RPC()); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintf(stderr, "error: %v", err)
-		}
-	}()
+	listener, err := net.Listen("tcp", rpcAddr)
+	if err != nil {
+		return fmt.Errorf("listen for L2 RPC on %s: %w", rpcAddr, err)
+	}
+	defer listener.Close()
+	errCh := make(chan error, 1)
+	go func() { errCh <- proxyEL(ctx, stderr, listener, elNode.Escape().L2EthClient().RPC()) }()
 
-	<-ctx.Done()
-
-	return nil
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }
 
-func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL2SupernodeInterop) error {
+func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL2SupernodeInterop, l2APort, l2BPort uint) error {
 	if err := printAccountInfo(stderr); err != nil {
 		return err
 	}
+	if sys.Silhouette != nil {
+		sys.Silhouette.Submitter.Start(2 * time.Second)
+		fmt.Fprintf(stderr, "L2A submitter: op-batcher\n")
+		fmt.Fprintf(stderr, "L2B submitter: proof-batch submitter (2s interval)\n")
+		fmt.Fprintf(stderr, "Silhouette verifier manifest: %s\n", sys.Silhouette.Runtime.ManifestPath)
+	}
+	l2AAddr := fmt.Sprintf("127.0.0.1:%d", l2APort)
+	l2BAddr := fmt.Sprintf("127.0.0.1:%d", l2BPort)
 	fmt.Fprintf(stderr, "L2A Chain ID: %s\n", sys.L2A.ChainID())
-	fmt.Fprintf(stderr, "L2A EL Node URL: %s\n", "http://localhost:8545")
+	fmt.Fprintf(stderr, "L2A EL Node URL: http://%s\n", l2AAddr)
 	fmt.Fprintf(stderr, "L2B Chain ID: %s\n", sys.L2B.ChainID())
-	fmt.Fprintf(stderr, "L2B EL Node URL: %s\n", "http://localhost:8546")
+	fmt.Fprintf(stderr, "L2B EL Node URL: http://%s\n", l2BAddr)
 
 	go logBlocks(ctx, stderr, "L2A", sys.L2ELA)
 	go logBlocks(ctx, stderr, "L2B", sys.L2ELB)
 	go logInterop(ctx, stderr, sys)
+	if sys.Silhouette != nil {
+		go logSilhouette(ctx, stderr, sys.Silhouette)
+	}
 
-	go func() {
-		if err := proxyEL(ctx, stderr, "localhost:8545", sys.L2ELA.Escape().L2EthClient().RPC()); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintf(stderr, "error: %v", err)
+	l2AListener, err := net.Listen("tcp", l2AAddr)
+	if err != nil {
+		return fmt.Errorf("listen for L2A RPC on %s: %w", l2AAddr, err)
+	}
+	defer l2AListener.Close()
+	l2BListener, err := net.Listen("tcp", l2BAddr)
+	if err != nil {
+		return fmt.Errorf("listen for L2B RPC on %s: %w", l2BAddr, err)
+	}
+	defer l2BListener.Close()
+	errCh := make(chan error, 2)
+	go func() { errCh <- proxyEL(ctx, stderr, l2AListener, sys.L2ELA.Escape().L2EthClient().RPC()) }()
+	go func() { errCh <- proxyEL(ctx, stderr, l2BListener, sys.L2ELB.Escape().L2EthClient().RPC()) }()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		return err
+	}
+}
+
+func logSilhouette(ctx context.Context, stderr io.Writer, silhouette *presets.SilhouetteTarget) {
+	const pollInterval = 2 * time.Second
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	var lastBatched uint64
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			batched := silhouette.Submitter.BatchedHead()
+			if batched != lastBatched {
+				fmt.Fprintf(stderr, "[silhouette] L2B proof-batched through #%d\n", batched)
+				lastBatched = batched
+			}
 		}
-	}()
-	go func() {
-		if err := proxyEL(ctx, stderr, "localhost:8546", sys.L2ELB.Escape().L2EthClient().RPC()); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintf(stderr, "error: %v", err)
-		}
-	}()
-
-	<-ctx.Done()
-
-	return nil
+	}
 }
 
 func printAccountInfo(stderr io.Writer) error {
@@ -344,7 +438,7 @@ func logBlocks(ctx context.Context, stderr io.Writer, name string, elNode *dsl.L
 
 // proxyEL is a hacky way to intercept EL json rpc requests for logging to get around log filtering
 // bugs.
-func proxyEL(ctx context.Context, stderr io.Writer, addr string, client client.RPC) error {
+func proxyEL(ctx context.Context, stderr io.Writer, listener net.Listener, client client.RPC) error {
 	mux := http.NewServeMux()
 	// Set up the HTTP handler for all incoming requests.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -454,10 +548,10 @@ func proxyEL(ctx context.Context, stderr io.Writer, addr string, client client.R
 		}
 	})
 
-	server := &http.Server{Addr: addr, Handler: mux}
+	server := &http.Server{Handler: mux}
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- server.ListenAndServe()
+		errCh <- server.Serve(listener)
 	}()
 	select {
 	case <-ctx.Done():
@@ -466,9 +560,13 @@ func proxyEL(ctx context.Context, stderr io.Writer, addr string, client client.R
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("shutdown proxy server: %w", err)
 		}
-		return <-errCh
+		err := <-errCh
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
 	case err := <-errCh:
-		if err != nil {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("listen and serve: %w", err)
 		}
 		return nil
