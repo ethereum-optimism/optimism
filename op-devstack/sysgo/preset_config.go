@@ -74,6 +74,21 @@ type PresetConfig struct {
 	// exercise Interop-gated consensus features (e.g. SDM PostExec) on the default
 	// single-chain runtime.
 	InteropAtGenesis bool
+	// SilhouetteChain, when set, names the runtime chain ("l2a" / "l2b") that is run as a
+	// SILHOUETTE chain: no batcher, its history posted to L1 as proof batches, and a second
+	// supernode that derives it from those proofs alone. See silhouette_runtime.go for what that
+	// costs and why a second supernode is not optional.
+	SilhouetteChain string
+	// SilhouetteSequencerPosture puts the preset's OWN supernode — the one that sequences the
+	// silhouette chain on its real execution client — into the sequencer posture, restarting it with
+	// a `proven-head` manifest.
+	//
+	// It is opt-in rather than implied by SilhouetteChain because the difference it makes is the
+	// thing worth testing on both sides. Without it the sequencer side runs the chain ordinarily and
+	// its cross-safe frontier freezes from a perfectly healthy chain (hazard 3), which is what
+	// TestSilhouetteCrossChainPinsThenAdvances asserts as its control. Turning it on by default
+	// would delete that control.
+	SilhouetteSequencerPosture bool
 	// SupernodeVNSequencerForBootstrap, in the light-sequencer supernode interop preset,
 	// enables sequencing on the supernode VN and starts the light follow-mode ELSync
 	// sequencers stopped, so the VN can bootstrap the chain the light sequencers EL-sync

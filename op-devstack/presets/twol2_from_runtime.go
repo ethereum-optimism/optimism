@@ -160,7 +160,65 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	}
 	preset.FunderA = newFunderEOA(t, runtime.Keys, preset.L2ELA, preset.Wallet)
 	preset.FunderB = newFunderEOA(t, runtime.Keys, preset.L2ELB, preset.Wallet)
+	preset.Silhouette = silhouetteTargetFromRuntime(t, runtime)
 	return preset
+}
+
+// silhouetteTargetFromRuntime exposes the verifier supernode and the proof stream.
+//
+// The silhouette chain gets a rollup route and NO execution-layer frontend, and that is not an
+// omission: on the verifier it has no execution client at all. Its query surface is the shim, served
+// at its own route by the chain container's extra APIs, so anything a test needs to ask about the
+// chain it asks the route.
+func silhouetteTargetFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *SilhouetteTarget {
+	s := runtime.Silhouette
+	if s == nil {
+		return nil
+	}
+	peerKey := "l2a"
+	if s.ChainKey == "l2a" {
+		peerKey = "l2b"
+	}
+	peer := runtime.Chains[peerKey]
+	t.Require().NotNilf(peer, "missing %s runtime chain beside the silhouette chain", peerKey)
+
+	route := func(key string) *sysgo.SuperNodeProxy {
+		r := s.VerifierRoutes[key]
+		t.Require().NotNilf(r, "verifier supernode has no route for chain %s", key)
+		return r
+	}
+
+	verifierEL := s.VerifierELs[peerKey]
+	t.Require().NotNilf(verifierEL, "verifier supernode has no execution client for chain %s", peerKey)
+	peerEL := newL2ELFrontend(t, "silhouette-verifier", peer.Network.ChainID(), verifierEL.UserRPC(),
+		verifierEL.EngineRPC(), verifierEL.JWTPath(), peer.Network.RollupConfig(), verifierEL)
+	peerCL := newL2CLFrontend(t, "silhouette-verifier", peer.Network.ChainID(), route(peerKey).UserRPC(), route(peerKey))
+	peerCL.attachEL(peerEL)
+
+	// The silhouette chain gets a rollup route and NO execution-layer frontend, and that is not an
+	// omission.
+	//
+	// On the verifier it has no execution client. The shim answers eth_ at the chain's own route, but
+	// the hash it reports is the hash the PROOF committed to and deliberately not
+	// keccak(RLP(header)): the header's interior is a rendering of a block whose interior is private.
+	// Every devstack execution-layer frontend verifies block hashes and would reject that — correctly,
+	// which is the shim's own documented position. Read the chain through
+	// SilhouetteTarget.BlockProvenance instead: it asks the chain what it knows rather than pretending
+	// to re-derive it.
+	verifierCL := newL2CLFrontend(t, "silhouette-verifier", s.ChainID, route(s.ChainKey).UserRPC(), route(s.ChainKey))
+
+	supernode := newSupernodeFrontend(t, "supernode-silhouette-verifier", s.Verifier.UserRPC(), s.Verifier)
+	return &SilhouetteTarget{
+		ChainKey:     s.ChainKey,
+		ChainID:      s.ChainID,
+		Supernode:    dsl.NewSupernodeWithTestControl(supernode, s.Verifier),
+		VerifierCL:   dsl.NewL2CLNode(verifierCL),
+		PeerCL:       dsl.NewL2CLNode(peerCL),
+		PeerEL:       dsl.NewL2ELNode(peerEL),
+		PeerChainKey: peerKey,
+		Submitter:    s.Submitter,
+		Runtime:      s,
+	}
 }
 
 func twoL2SupernodeFollowL2FromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2SupernodeFollowL2 {

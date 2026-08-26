@@ -232,7 +232,17 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	// A silhouette chain's proof-batch submitter is prefunded on L1 at genesis. That has to be
+	// decided here, before the world is built: funding it by transaction afterwards would put a
+	// nonce on L1 that every later assertion has to reason around.
+	deployerOpts := cfg.DeployerOptions
+	if cfg.SilhouetteChain != "" {
+		require.True(enableInterop,
+			"a silhouette chain outside a dependency set is a chain nobody can reference; enable interop")
+		deployerOpts = append([]DeployerOption{silhouettePrefundOption()}, deployerOpts...)
+	}
+
+	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, deployerOpts...)
 	migration := newInteropMigrationState(wb)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
@@ -391,15 +401,71 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		batchACL, batchAEL = supernodeL2ACL, supernodeL2AEL
 		batchBCL, batchBEL = supernodeL2BCL, supernodeL2BEL
 	}
-	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, batchACL, batchAEL, cfg.BatcherOptions...)
-	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, supernodeL2ACL)
-	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, batchBCL, batchBEL, cfg.BatcherOptions...)
-	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
+	// The silhouette chain's batcher is constructed but never started, and it gets no proposer.
+	// Both absences are what a silhouette chain IS: its L1 footprint is the proof-batch inbox, and
+	// its safe head — the thing a proposer would propose — only exists on a node reading proofs.
+	batcherOpts := cfg.BatcherOptions
+	silhouetteChainID := eth.ChainID{}
+	switch cfg.SilhouetteChain {
+	case "l2a":
+		silhouetteChainID = l2ANet.ChainID()
+	case "l2b":
+		silhouetteChainID = l2BNet.ChainID()
+	case "":
+	default:
+		require.FailNowf("unknown silhouette chain", "no runtime chain %q", cfg.SilhouetteChain)
+	}
+	if silhouetteChainID != (eth.ChainID{}) {
+		batcherOpts = append(batcherOpts, silhouetteBatcherStoppedOption(silhouetteChainID))
+	}
+
+	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, batchACL, batchAEL, batcherOpts...)
+	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, batchBCL, batchBEL, batcherOpts...)
+	var l2AProposer, l2BProposer *L2Proposer
+	if silhouetteChainID != l2ANet.ChainID() {
+		l2AProposer = startMinimalProposer(t, keys, l2ANet, l1EL, supernodeL2ACL)
+	}
+	if silhouetteChainID != l2BNet.ChainID() {
+		l2BProposer = startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
+	}
 
 	// Wait for interop filter readiness now that the supernode and batchers are running.
 	// The filter needs blocks to be produced before its chain ingesters can backfill.
 	if interopFilter != nil {
 		interopFilter.WaitForReady(t, 120*time.Second)
+	}
+
+	runtimeChains := map[string]*MultiChainNodeRuntime{
+		"l2a": {
+			Name:        "l2a",
+			Network:     l2ANet,
+			EL:          seqL2AEL,
+			CL:          l2ACL,
+			SupernodeCL: supernodeL2ACL,
+			SupernodeEL: supernodeL2AEL,
+			Batcher:     l2ABatcher,
+			Proposer:    l2AProposer,
+		},
+		"l2b": {
+			Name:        "l2b",
+			Network:     l2BNet,
+			EL:          seqL2BEL,
+			CL:          l2BCL,
+			SupernodeCL: supernodeL2BCL,
+			SupernodeEL: supernodeL2BEL,
+			Batcher:     l2BBatcher,
+			Proposer:    l2BProposer,
+		},
+	}
+
+	// Last, because the verifier's config carries the silhouette chain's ANCHOR and the anchor is
+	// read from the chain itself over RPC: the chain has to be answering before the file that names
+	// it can be written.
+	var silhouetteRuntime *SilhouetteRuntime
+	if cfg.SilhouetteChain != "" {
+		silhouetteRuntime = setUpSilhouette(t, keys, cfg.SilhouetteChain, l1Net, l1EL, l1CL,
+			runtimeChains, depSet, interopActivationTimestamp, jwtPath, jwtSecret,
+			supernode, cfg.SilhouetteSequencerPosture)
 	}
 
 	return &MultiChainRuntime{
@@ -409,31 +475,11 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		L1Network:     l1Net,
 		L1EL:          l1EL,
 		L1CL:          l1CL,
-		Chains: map[string]*MultiChainNodeRuntime{
-			"l2a": {
-				Name:        "l2a",
-				Network:     l2ANet,
-				EL:          seqL2AEL,
-				CL:          l2ACL,
-				SupernodeCL: supernodeL2ACL,
-				SupernodeEL: supernodeL2AEL,
-				Batcher:     l2ABatcher,
-				Proposer:    l2AProposer,
-			},
-			"l2b": {
-				Name:        "l2b",
-				Network:     l2BNet,
-				EL:          seqL2BEL,
-				CL:          l2BCL,
-				SupernodeCL: supernodeL2BCL,
-				SupernodeEL: supernodeL2BEL,
-				Batcher:     l2BBatcher,
-				Proposer:    l2BProposer,
-			},
-		},
+		Chains:        runtimeChains,
 		Supernode:     supernode,
 		TimeTravel:    timeTravelClock,
 		InteropFilter: interopFilter,
+		Silhouette:    silhouetteRuntime,
 	}, activationTime
 }
 

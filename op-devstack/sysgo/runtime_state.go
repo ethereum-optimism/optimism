@@ -160,6 +160,10 @@ type MultiChainRuntime struct {
 	DelaySeconds       uint64
 	InteropFilter      *InteropFilter // nil if not using interop filter
 	SyncTester         *SyncTesterRuntime
+	// Silhouette is non-nil only when one of the chains was declared proof-carried. It holds the
+	// second supernode — the one that derives that chain from proofs alone — and the submitter that
+	// posts them.
+	Silhouette *SilhouetteRuntime
 }
 
 // StartZKProposer starts the configured kona-sp1-proposer. It is intended for

@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum-optimism/optimism/op-supernode/silhouette"
 )
 
 // TwoL2 represents a two-L2 setup without interop considerations.
@@ -97,7 +98,99 @@ type TwoL2SupernodeInterop struct {
 	// nil if not using interop filter (WithInteropFilter() not set).
 	InteropFilter *sysgo.InteropFilter
 
+	// Silhouette is the proof-carried half of the system: the verifier supernode, its per-chain
+	// routes, and the proof-batch submitter. nil unless WithSilhouetteChain() was set.
+	Silhouette *SilhouetteTarget
+
 	timeTravel *clock.AdvancingClock
+}
+
+// SilhouetteTarget is the second supernode and the proof stream it consumes.
+//
+// Every assertion about what a proof establishes belongs here rather than on TwoL2SupernodeInterop's
+// Supernode: that one is the silhouette chain's SEQUENCER, so it knows the chain's messages from its
+// own execution client and cannot demonstrate anything about proofs.
+type SilhouetteTarget struct {
+	// ChainKey and ChainID identify the proof-carried chain.
+	ChainKey string
+	ChainID  eth.ChainID
+
+	// Supernode is the VERIFIER: the node that holds no execution client for the silhouette chain
+	// and whose entire access to it is L1.
+	Supernode *dsl.Supernode
+
+	// VerifierCL is the verifier's rollup route for the SILHOUETTE chain. Its safety labels are the
+	// gate: they move only when a proof batch is accepted.
+	VerifierCL *dsl.L2CLNode
+	// There is deliberately no execution-layer field for the silhouette chain: on the verifier it has
+	// no execution client. Use BlockProvenance to read it.
+	// PeerCL and PeerEL are the verifier's route and execution client for the OTHER chain — the
+	// ordinary one, derived from L1 in the normal way. It is where an executing message referencing
+	// the silhouette chain is observed pinning and then advancing.
+	PeerCL *dsl.L2CLNode
+	PeerEL *dsl.L2ELNode
+	// PeerChainKey names that chain.
+	PeerChainKey string
+
+	// Submitter posts the silhouette chain's proof batches. It is under the test's control on
+	// purpose: withholding the batch that covers a given block is the only way to make "cross-safe
+	// pins below the executing message" an assertion rather than a hope.
+	Submitter *sysgo.ProofBatchSubmitter
+
+	// Runtime is the sysgo wiring, for the config paths and the startup-refusal probe.
+	Runtime *sysgo.SilhouetteRuntime
+}
+
+// InteropInvalidations reads supernode_interop_invalidations_total off the verifier's Prometheus
+// endpoint, summed over chains. It exists because "zero invalidations" is otherwise unfalsifiable
+// from a test: the counter is the only place the supernode says it replaced a block.
+//
+// A zero here is only meaningful next to a non-zero TimestampsVerified — see that method.
+func (s *SilhouetteTarget) InteropInvalidations(t devtest.T) float64 {
+	return sysgo.ScrapeCounterSum(t, s.Runtime.VerifierMetricsURL, "supernode_interop_invalidations_total")
+}
+
+// TimestampsVerified reads supernode_interop_timestamps_verified_total off the same registry.
+//
+// It is the liveness half of the invalidation assertion. supernode_interop_invalidations_total is a
+// CounterVec, so it has no series at all until something invalidates a block — an absent family and
+// a genuinely quiet verifier look identical in the payload, and both correctly read as zero. What
+// distinguishes "zero because nothing was invalidated" from "zero because nothing happened" is that
+// this counter, on the same scrape of the same registry, is above zero.
+func (s *SilhouetteTarget) TimestampsVerified(t devtest.T) float64 {
+	return sysgo.ScrapeCounterSum(t, s.Runtime.VerifierMetricsURL, "supernode_interop_timestamps_verified_total")
+}
+
+// InvalidationsRefused reads supernode_silhouette_invalidations_refused_total off the same registry:
+// the times the cross-safety judge found a block of the proof-carried chain INVALID and this node
+// refused to replace it (G7G D3).
+//
+// It is the counter that makes the G7 dependency check falsifiable from a test. supernode_interop_
+// invalidations_total counts invalidations CARRIED OUT and stays at zero for a proven chain by
+// design, so on its own it cannot distinguish "the dependency was checked and held" from "nothing
+// was checked". This one moves exactly when a proven chain's declared dependency failed.
+func (s *SilhouetteTarget) InvalidationsRefused(t devtest.T) float64 {
+	return sysgo.ScrapeCounterSum(t, s.Runtime.VerifierMetricsURL, "supernode_silhouette_invalidations_refused_total")
+}
+
+// BlockProvenance asks the silhouette chain, on the verifier, how it knows about a block: "proven",
+// "forced" or "genesis". It is the read path for a chain with no execution client.
+func (s *SilhouetteTarget) BlockProvenance(t devtest.T, number uint64) *silhouette.BlockDeclaration {
+	return s.Runtime.BlockProvenance(t, number)
+}
+
+// SequencerPosture reports whether the SEQUENCING supernode was put into the `proven-head` posture.
+func (s *SilhouetteTarget) SequencerPosture() bool { return s.Runtime.SequencerPosture }
+
+// SequencerProvenHead asks the SEQUENCING supernode how far the chain has been proven.
+//
+// Every other read on this type is aimed at the verifier, because the verifier is where a claim about
+// proofs can be made. This one is the exception and it is the sequencer posture's whole subject: on
+// that node the chain's public safety labels are taken from the proven head rather than from a
+// derivation pipeline, and nothing in `optimism_syncStatus` shows it — those labels are the virtual
+// node's own, and they sit at genesis forever because there is no batcher behind them.
+func (s *SilhouetteTarget) SequencerProvenHead(t devtest.T) *silhouette.ProvenHeadStatus {
+	return s.Runtime.SequencerProvenHead(t)
 }
 
 // L2UserRPCURLs returns the user-RPC URLs for both L2 EL nodes in canonical

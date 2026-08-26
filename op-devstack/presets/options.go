@@ -290,6 +290,64 @@ func WithMaxSequencingWindow(max uint64) Option {
 	}
 }
 
+// SilhouetteChainA / SilhouetteChainB name the two-L2 preset's chains for WithSilhouetteChain.
+//
+// They are the runtime's own chain keys rather than a second naming scheme, so that a test, a
+// runtime map and a log line all say the same word about the same chain.
+const (
+	SilhouetteChainA = "l2a"
+	SilhouetteChainB = "l2b"
+)
+
+// WithSilhouetteChain runs one of the preset's chains as a SILHOUETTE chain: it keeps its own
+// sequencer and execution client (that is the private side), it gets NO batcher, its history is
+// posted to L1 as proof batches by an in-test submitter, and a SECOND supernode is started which
+// holds no execution client for it and derives it from those proofs alone.
+//
+// The second supernode is the whole point and cannot be collapsed into the preset's existing one:
+// that one is the chain's sequencer, so any verdict it reaches about the chain's messages is a
+// statement about receipts it was handed rather than about proofs.
+//
+// Only supported on the two-L2 supernode interop preset, and only meaningful with interop enabled —
+// outside a dependency set nothing can reference the silhouette chain's messages, which is the
+// property the preset exists to exercise.
+func WithSilhouetteChain(chainKey string) Option {
+	return option{
+		kinds: optionKindSilhouetteChain,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SilhouetteChain = chainKey
+		},
+	}
+}
+
+// WithSilhouetteSequencerPosture puts the preset's OWN supernode — the one that SEQUENCES the
+// silhouette chain — into the sequencer posture: `labels: "proven-head"`.
+//
+// That supernode keeps everything that makes it the chain's block producer. Its virtual node still
+// drives the chain's real execution client and still sequences; what changes is where the chain's
+// PUBLIC safety labels come from, which becomes the proven head walked out of L1 by the same data
+// source every verifier runs. Without it that node's public label for the chain never moves — there
+// is no batcher behind it — and the cross-safety round, which gates on every chain in the dependency
+// set, freezes the whole cluster's frontier from a chain that is perfectly healthy (hazard 3).
+//
+// Restarting the supernode is part of what this does, with a FRESH data directory, and both halves
+// are faithful to the rotation runbook rather than conveniences: the posture is applied to a node
+// that is already running (the anchor has to be read off the chain before the manifest naming it can
+// be written), and the chain's log database has to be cleared because its messages were being
+// ingested from receipts and will now be sealed from the wire (G4 D1). A store built one way cannot
+// chain onto the other.
+//
+// Requires WithSilhouetteChain. It is a separate option so that a test can assert the hazard and a
+// test can assert its fix.
+func WithSilhouetteSequencerPosture() Option {
+	return option{
+		kinds: optionKindSilhouetteSequencerPosture,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SilhouetteSequencerPosture = true
+		},
+	}
+}
+
 // WithInteropFilter enables the in-process op-interop-filter for EL transaction
 // validation. Only supported on supernode interop presets.
 func WithInteropFilter() Option {

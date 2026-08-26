@@ -37,6 +37,8 @@ const (
 	optionKindSupernodeVNSequencerForBootstrap
 	optionKindZKDisputeGame
 	optionKindZKProposer
+	optionKindSilhouetteChain
+	optionKindSilhouetteSequencerPosture
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -64,7 +66,9 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropAtGenesis |
 	optionKindSupernodeVNSequencerForBootstrap |
 	optionKindZKDisputeGame |
-	optionKindZKProposer
+	optionKindZKProposer |
+	optionKindSilhouetteChain |
+	optionKindSilhouetteSequencerPosture
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -96,6 +100,8 @@ var optionKindLabels = []struct {
 	{kind: optionKindSupernodeVNSequencerForBootstrap, label: "supernode VN sequencer for bootstrap"},
 	{kind: optionKindZKDisputeGame, label: "ZK dispute game"},
 	{kind: optionKindZKProposer, label: "ZK proposer options"},
+	{kind: optionKindSilhouetteChain, label: "silhouette chain"},
+	{kind: optionKindSilhouetteSequencerPosture, label: "silhouette sequencer posture"},
 }
 
 func (k optionKinds) String() string {
@@ -138,6 +144,18 @@ func validatePresetConfig(cfg sysgo.PresetConfig) error {
 	}
 	if len(cfg.ZKProposerOptions) > 0 && cfg.ZKDisputeGame == nil {
 		return fmt.Errorf("ZK proposer options require WithZK")
+	}
+	// A silhouette chain names a runtime chain by the same key MultiChainRuntime.Chains uses. A typo
+	// would otherwise be a silent no-op: the preset would come up as an ordinary two-L2 system and
+	// every silhouette assertion in the test would be about a chain that is not one.
+	if key := cfg.SilhouetteChain; key != "" && key != SilhouetteChainA && key != SilhouetteChainB {
+		return fmt.Errorf("WithSilhouetteChain(%q): want %q or %q", key, SilhouetteChainA, SilhouetteChainB)
+	}
+	// The posture is a property of a chain that IS proof-carried. Without the chain there is nothing
+	// to take labels from, and the option would restart the supernode with a manifest naming a chain
+	// that has no proof stream — a supernode that refused to start, at best.
+	if cfg.SilhouetteSequencerPosture && cfg.SilhouetteChain == "" {
+		return fmt.Errorf("WithSilhouetteSequencerPosture requires WithSilhouetteChain")
 	}
 	return nil
 }
@@ -203,7 +221,9 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindInteropLogBackfill |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
-	optionKindSupernodeVNSequencerForBootstrap
+	optionKindSupernodeVNSequencerForBootstrap |
+	optionKindSilhouetteChain |
+	optionKindSilhouetteSequencerPosture
 
 // twoL2SupernodeLightSequencerPresetSupportedOptionKinds additionally accepts
 // L2 CL options: the light-sequencer runtime is the only two-L2 supernode
