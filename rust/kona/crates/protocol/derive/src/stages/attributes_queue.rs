@@ -1,6 +1,7 @@
 //! Contains the logic for the `AttributesQueue` stage.
 
 use crate::{
+    StagedBatch,
     errors::{PipelineError, ResetError},
     traits::{
         AttributesBuilder, AttributesProvider, NextAttributes, OriginAdvancer, OriginProvider,
@@ -42,7 +43,7 @@ where
     /// Whether the current batch is the last in its span.
     pub is_last_in_span: bool,
     /// The current batch being processed.
-    pub batch: Option<SingleBatch>,
+    pub batch: Option<StagedBatch<SingleBatch>>,
     /// The attributes builder.
     pub builder: AB,
 }
@@ -57,8 +58,11 @@ where
         Self { cfg, prev, is_last_in_span: false, batch: None, builder }
     }
 
-    /// Loads a [`SingleBatch`] from the [`AttributesProvider`] if needed.
-    pub async fn load_batch(&mut self, parent: L2BlockInfo) -> PipelineResult<SingleBatch> {
+    /// Loads a batch from the [`AttributesProvider`] if needed.
+    pub async fn load_batch(
+        &mut self,
+        parent: L2BlockInfo,
+    ) -> PipelineResult<StagedBatch<SingleBatch>> {
         if self.batch.is_none() {
             let batch = self.prev.next_batch(parent).await?;
             self.batch = Some(batch);
@@ -107,23 +111,31 @@ where
     /// This sets `no_tx_pool` and appends the batched txs to the attributes tx list.
     pub async fn create_next_attributes(
         &mut self,
-        batch: SingleBatch,
+        staged: StagedBatch<SingleBatch>,
         parent: L2BlockInfo,
     ) -> PipelineResult<OpPayloadAttributes> {
+        let StagedBatch { batch, is_sibling } = staged;
+
         // Sanity check parent hash
         if batch.parent_hash != parent.block_info.hash {
             return Err(ResetError::BadParentHash(batch.parent_hash, parent.block_info.hash).into());
         }
 
-        // Sanity check timestamp
-        let actual = parent.block_info.timestamp + self.cfg.block_time;
-        if actual != batch.timestamp {
-            return Err(ResetError::BadTimestamp(batch.timestamp, actual).into());
+        // Sanity check timestamp: a block either follows its parent by one block time, or is a
+        // sibling repeating the parent's timestamp — which only a span batch can vouch for, and
+        // only where the chain allows it.
+        let next = parent.block_info.timestamp + self.cfg.block_time;
+        let sibling_of_parent = is_sibling &&
+            batch.timestamp == parent.block_info.timestamp &&
+            self.cfg.siblings_allowed(batch.timestamp);
+        if batch.timestamp != next && !sibling_of_parent {
+            return Err(ResetError::BadTimestamp(batch.timestamp, next).into());
         }
 
         // Prepare the payload attributes
         let tx_count = batch.transactions.len();
-        let mut attributes = self.builder.prepare_payload_attributes(parent, batch.epoch()).await?;
+        let mut attributes =
+            self.builder.prepare_payload_attributes(parent, batch.epoch(), batch.timestamp).await?;
         attributes.no_tx_pool = Some(true);
         match attributes.transactions {
             Some(ref mut txs) => txs.extend(batch.transactions),
@@ -219,6 +231,7 @@ mod tests {
     use alloc::{sync::Arc, vec, vec::Vec};
     use alloy_primitives::{Address, B256, Bytes, b256};
     use alloy_rpc_types_engine::PayloadAttributes;
+    use kona_genesis::HardForkConfig;
 
     fn default_optimism_payload_attributes() -> OpPayloadAttributes {
         OpPayloadAttributes {
@@ -247,14 +260,14 @@ mod tests {
     ) -> AttributesQueue<TestAttributesProvider, TestAttributesBuilder> {
         let cfg = cfg.unwrap_or_default();
         let mock_batch_queue = new_test_attributes_provider(origin, batches);
-        let mock_attributes_builder = TestAttributesBuilder { attributes };
+        let mock_attributes_builder = TestAttributesBuilder { attributes, ..Default::default() };
         AttributesQueue::new(Arc::new(cfg), mock_batch_queue, mock_attributes_builder)
     }
 
     #[tokio::test]
     async fn test_attributes_queue_flush() {
         let mut attributes_queue = new_attributes_queue(None, None, vec![], vec![]);
-        attributes_queue.batch = Some(SingleBatch::default());
+        attributes_queue.batch = Some(StagedBatch::default());
         assert!(!attributes_queue.prev.flushed);
         attributes_queue.flush_channel().await.unwrap();
         assert!(attributes_queue.prev.flushed);
@@ -267,7 +280,7 @@ mod tests {
         let mock = new_test_attributes_provider(None, vec![]);
         let mock_builder = TestAttributesBuilder::default();
         let mut aq = AttributesQueue::new(Arc::new(cfg), mock, mock_builder);
-        aq.batch = Some(SingleBatch::default());
+        aq.batch = Some(StagedBatch::default());
         assert!(!aq.prev.reset);
         aq.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(aq.batch.is_none());
@@ -300,7 +313,7 @@ mod tests {
             block_info: BlockInfo { hash: bad_hash, ..Default::default() },
             ..Default::default()
         };
-        let batch = SingleBatch::default();
+        let batch = StagedBatch::new(SingleBatch::default());
         let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
         assert_eq!(
             result,
@@ -312,9 +325,90 @@ mod tests {
     async fn test_create_next_attributes_bad_timestamp() {
         let mut attributes_queue = new_attributes_queue(None, None, vec![], vec![]);
         let parent = L2BlockInfo::default();
-        let batch = SingleBatch { timestamp: 1, ..Default::default() };
+        let batch = StagedBatch::new(SingleBatch { timestamp: 1, ..Default::default() });
         let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
         assert_eq!(result, PipelineErrorKind::Reset(ResetError::BadTimestamp(1, 0)));
+    }
+
+    /// The accept-set grows by the parent's own timestamp where the chain allows siblings, and
+    /// the builder is told which of the two it is building.
+    #[tokio::test]
+    async fn test_create_next_attributes_sibling() {
+        let cfg = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig { karst_time: Some(0), ..Default::default() },
+            multi_block_time: Some(1000),
+            max_multi_blocks: Some(4),
+            ..Default::default()
+        };
+        let attributes = default_optimism_payload_attributes();
+        let mut attributes_queue =
+            new_attributes_queue(Some(cfg), None, vec![], vec![Ok(attributes.clone())]);
+        let parent = L2BlockInfo {
+            block_info: BlockInfo { timestamp: 1010, ..Default::default() },
+            ..Default::default()
+        };
+        let batch = StagedBatch {
+            batch: SingleBatch { timestamp: 1010, ..Default::default() },
+            is_sibling: true,
+        };
+        attributes_queue.create_next_attributes(batch, parent).await.unwrap();
+        assert_eq!(attributes_queue.builder.timestamps, vec![1010]);
+    }
+
+    #[tokio::test]
+    async fn test_create_next_attributes_builds_at_next_block_time() {
+        let cfg = RollupConfig { block_time: 2, ..Default::default() };
+        let attributes = default_optimism_payload_attributes();
+        let mut attributes_queue =
+            new_attributes_queue(Some(cfg), None, vec![], vec![Ok(attributes)]);
+        let parent = L2BlockInfo {
+            block_info: BlockInfo { timestamp: 1010, ..Default::default() },
+            ..Default::default()
+        };
+        let batch = StagedBatch::new(SingleBatch { timestamp: 1012, ..Default::default() });
+        attributes_queue.create_next_attributes(batch, parent).await.unwrap();
+        assert_eq!(attributes_queue.builder.timestamps, vec![1012]);
+    }
+
+    /// Without an active multi-block configuration, a batch repeating its parent's timestamp is
+    /// as wrong as any other misaligned one, even when a span vouched for it.
+    #[tokio::test]
+    async fn test_create_next_attributes_sibling_not_allowed() {
+        let cfg = RollupConfig { block_time: 2, ..Default::default() };
+        let mut attributes_queue = new_attributes_queue(Some(cfg), None, vec![], vec![]);
+        let parent = L2BlockInfo {
+            block_info: BlockInfo { timestamp: 1010, ..Default::default() },
+            ..Default::default()
+        };
+        let batch = StagedBatch {
+            batch: SingleBatch { timestamp: 1010, ..Default::default() },
+            is_sibling: true,
+        };
+        let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
+        assert_eq!(result, PipelineErrorKind::Reset(ResetError::BadTimestamp(1010, 1012)));
+    }
+
+    /// A batch repeating its parent's timestamp that no span batch vouched for is rejected even
+    /// where the chain does allow siblings: the sibling claim is part of the batch's validity,
+    /// not something to re-derive from the timestamps.
+    #[tokio::test]
+    async fn test_create_next_attributes_unvouched_sibling() {
+        let cfg = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig { karst_time: Some(0), ..Default::default() },
+            multi_block_time: Some(1000),
+            max_multi_blocks: Some(4),
+            ..Default::default()
+        };
+        let mut attributes_queue = new_attributes_queue(Some(cfg), None, vec![], vec![]);
+        let parent = L2BlockInfo {
+            block_info: BlockInfo { timestamp: 1010, ..Default::default() },
+            ..Default::default()
+        };
+        let batch = StagedBatch::new(SingleBatch { timestamp: 1010, ..Default::default() });
+        let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
+        assert_eq!(result, PipelineErrorKind::Reset(ResetError::BadTimestamp(1010, 1012)));
     }
 
     #[tokio::test]
@@ -324,7 +418,7 @@ mod tests {
             block_info: BlockInfo { timestamp: 2, ..Default::default() },
             ..Default::default()
         };
-        let batch = SingleBatch { timestamp: 1, ..Default::default() };
+        let batch = StagedBatch::new(SingleBatch { timestamp: 1, ..Default::default() });
         let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
         assert_eq!(result, PipelineErrorKind::Reset(ResetError::BadTimestamp(1, 2)));
     }
@@ -337,7 +431,7 @@ mod tests {
             block_info: BlockInfo { timestamp: 1, ..Default::default() },
             ..Default::default()
         };
-        let batch = SingleBatch { timestamp: 1, ..Default::default() };
+        let batch = StagedBatch::new(SingleBatch { timestamp: 1, ..Default::default() });
         let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
         assert_eq!(result, PipelineErrorKind::Reset(ResetError::BadTimestamp(1, 2)));
     }
@@ -351,7 +445,7 @@ mod tests {
             vec![Err(PipelineErrorKind::Critical(BuilderError::AttributesUnavailable.into()))],
         );
         let parent = L2BlockInfo::default();
-        let batch = SingleBatch::default();
+        let batch = StagedBatch::new(SingleBatch::default());
         let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
         assert_eq!(
             result,
@@ -364,12 +458,15 @@ mod tests {
         let cfg = RollupConfig::default();
         let mock = new_test_attributes_provider(None, vec![]);
         let mut payload_attributes = default_optimism_payload_attributes();
-        let mock_builder =
-            TestAttributesBuilder { attributes: vec![Ok(payload_attributes.clone())] };
+        let mock_builder = TestAttributesBuilder {
+            attributes: vec![Ok(payload_attributes.clone())],
+            ..Default::default()
+        };
         let mut aq = AttributesQueue::new(Arc::new(cfg), mock, mock_builder);
         let parent = L2BlockInfo::default();
         let txs = vec![Bytes::default(), Bytes::default()];
-        let batch = SingleBatch { transactions: txs.clone(), ..Default::default() };
+        let batch =
+            StagedBatch::new(SingleBatch { transactions: txs.clone(), ..Default::default() });
         let attributes = aq.create_next_attributes(batch, parent).await.unwrap();
         // update the expected attributes
         payload_attributes.no_tx_pool = Some(true);
@@ -394,7 +491,8 @@ mod tests {
         let mock =
             new_test_attributes_provider(Some(Default::default()), vec![Ok(Default::default())]);
         let mut pa = default_optimism_payload_attributes();
-        let mock_builder = TestAttributesBuilder { attributes: vec![Ok(pa.clone())] };
+        let mock_builder =
+            TestAttributesBuilder { attributes: vec![Ok(pa.clone())], ..Default::default() };
         let mut aq = AttributesQueue::new(Arc::new(cfg), mock, mock_builder);
         // If we load the batch, we should get the last in span.
         // But it won't take it so it will be available in the next_attributes call.

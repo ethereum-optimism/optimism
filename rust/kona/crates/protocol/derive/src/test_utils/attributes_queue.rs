@@ -1,6 +1,7 @@
 //! Testing utilities for the attributes queue stage.
 
 use crate::{
+    StagedBatch,
     errors::{PipelineError, PipelineErrorKind},
     traits::{AttributesBuilder, AttributesProvider, OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
@@ -17,6 +18,8 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 pub struct TestAttributesBuilder {
     /// The attributes to return.
     pub attributes: Vec<Result<OpPayloadAttributes, PipelineErrorKind>>,
+    /// The timestamps the builder was asked to build for, in call order.
+    pub timestamps: Vec<u64>,
 }
 
 #[async_trait]
@@ -26,7 +29,9 @@ impl AttributesBuilder for TestAttributesBuilder {
         &mut self,
         _l2_parent: L2BlockInfo,
         _epoch: BlockNumHash,
+        timestamp: u64,
     ) -> PipelineResult<OpPayloadAttributes> {
+        self.timestamps.push(timestamp);
         match self.attributes.pop() {
             Some(Ok(attrs)) => Ok(attrs),
             Some(Err(err)) => Err(err),
@@ -83,8 +88,11 @@ impl Stage for TestAttributesProvider {
 
 #[async_trait]
 impl AttributesProvider for TestAttributesProvider {
-    async fn next_batch(&mut self, _parent: L2BlockInfo) -> PipelineResult<SingleBatch> {
-        self.batches.pop().ok_or(PipelineError::Eof.temp())?
+    async fn next_batch(
+        &mut self,
+        _parent: L2BlockInfo,
+    ) -> PipelineResult<StagedBatch<SingleBatch>> {
+        self.batches.pop().ok_or(PipelineError::Eof.temp())?.map(StagedBatch::new)
     }
 
     fn is_last_in_span(&self) -> bool {

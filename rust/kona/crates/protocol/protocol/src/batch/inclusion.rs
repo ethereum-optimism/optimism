@@ -32,7 +32,7 @@ impl BatchWithInclusionBlock {
     ) -> BatchValidity {
         match &self.batch {
             Batch::Single(single_batch) => {
-                single_batch.check_batch(cfg, l1_blocks, l2_safe_head, &self.inclusion_block)
+                single_batch.check_batch(cfg, l1_blocks, l2_safe_head, &self.inclusion_block, false)
             }
             Batch::Span(span_batch) => {
                 span_batch

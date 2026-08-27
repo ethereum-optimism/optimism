@@ -87,7 +87,19 @@ where
         &mut self,
         l2_parent: L2BlockInfo,
         epoch: BlockNumHash,
+        next_l2_time: u64,
     ) -> PipelineResult<OpPayloadAttributes> {
+        // The timestamp is an input, so the accept-set is checked here rather than trusted: every
+        // caller, derivation and sequencer alike, is held to the same two options.
+        let parent_timestamp = l2_parent.block_info.timestamp;
+        let is_sibling =
+            next_l2_time == parent_timestamp && self.rollup_cfg.siblings_allowed(next_l2_time);
+        if next_l2_time != parent_timestamp + self.rollup_cfg.block_time && !is_sibling {
+            return Err(PipelineErrorKind::Reset(
+                BuilderError::InvalidNextTimestamp(next_l2_time, parent_timestamp).into(),
+            ));
+        }
+
         let l1_header;
         let deposit_transactions: Vec<Bytes>;
 
@@ -150,7 +162,6 @@ where
 
         // Sanity check the L1 origin was correctly selected to maintain the time invariant
         // between L1 and L2.
-        let next_l2_time = l2_parent.block_info.timestamp + self.rollup_cfg.block_time;
         if next_l2_time < l1_header.timestamp {
             return Err(PipelineErrorKind::Reset(
                 BuilderError::BrokenTimeInvariant(
@@ -314,10 +325,12 @@ mod tests {
     };
     use alloc::vec;
     use alloy_consensus::Header;
+    use alloy_eips::eip2718::Decodable2718;
     use alloy_primitives::{B256, Bytes, Log, LogData, U64, U256, address};
     use kona_genesis::{CONFIG_UPDATE_TOPIC, HardForkConfig, SystemConfig};
     use kona_protocol::{BlockInfo, DepositError};
     use kona_registry::L1Config;
+    use op_alloy_consensus::OpTxEnvelope;
 
     fn generate_valid_log() -> Log {
         let deposit_contract = address!("1111111111111111111111111111111111111111");
@@ -439,7 +452,10 @@ mod tests {
         // hash. Here we use the default header whose hash will not equal the custom `l2_hash`.
         let expected =
             BuilderError::BlockMismatchEpochReset(epoch, l2_parent.l1_origin, B256::default());
-        let err = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap_err();
+        // The epoch mismatch is detected before the timestamp is used.
+        let next_l2_time = l2_parent.block_info.timestamp;
+        let err =
+            builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await.unwrap_err();
         assert_eq!(err, PipelineErrorKind::Reset(expected.into()));
     }
 
@@ -464,7 +480,10 @@ mod tests {
         // This should error because the l2 parent's l1_origin.hash should equal the epoch hash
         // Here the default header is used whose hash will not equal the custom `l2_hash` above.
         let expected = BuilderError::BlockMismatch(epoch, l2_parent.l1_origin);
-        let err = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap_err();
+        // The epoch mismatch is detected before the timestamp is used.
+        let next_l2_time = l2_parent.block_info.timestamp;
+        let err =
+            builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await.unwrap_err();
         assert_eq!(err, PipelineErrorKind::Reset(ResetError::AttributesBuilder(expected)));
     }
 
@@ -496,7 +515,8 @@ mod tests {
             block_id,
             timestamp,
         );
-        let err = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap_err();
+        let err =
+            builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await.unwrap_err();
         assert_eq!(err, PipelineErrorKind::Reset(ResetError::AttributesBuilder(expected)));
     }
 
@@ -527,7 +547,8 @@ mod tests {
             seq_num: 0,
         };
         let next_l2_time = l2_parent.block_info.timestamp + block_time;
-        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
+        let payload =
+            builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await.unwrap();
         let expected = OpPayloadAttributes {
             payload_attributes: PayloadAttributes {
                 timestamp: next_l2_time,
@@ -548,6 +569,50 @@ mod tests {
         };
         assert_eq!(payload, expected);
         assert_eq!(payload.transactions.unwrap().len(), 1);
+    }
+
+    /// A sibling repeats its parent's timestamp and L1 origin, so it takes the next sequence
+    /// number and no upgrade transactions: the fork gates compare the block's timestamp with the
+    /// parent's, and here they are the same.
+    #[tokio::test]
+    async fn test_prepare_payload_sibling() {
+        let timestamp = 1010;
+        let cfg = Arc::new(RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig { ecotone_time: Some(1000), ..Default::default() },
+            multi_block_time: Some(1000),
+            max_multi_blocks: Some(4),
+            ..Default::default()
+        });
+        let l1_cfg = Arc::new(L1Config::sepolia().into());
+        let mut fetcher = TestSystemConfigL2Fetcher::default();
+        fetcher.insert(B256::ZERO, SystemConfig::default());
+        let mut provider = TestChainProvider::default();
+        let header = Header { number: 7, timestamp: 900, ..Default::default() };
+        let prev_randao = header.mix_hash;
+        let hash = header.hash_slow();
+        provider.insert_header(hash, header);
+        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
+        let epoch = BlockNumHash { hash, number: 7 };
+        let l2_parent = L2BlockInfo {
+            block_info: BlockInfo { hash: B256::ZERO, number: 20, timestamp, parent_hash: hash },
+            l1_origin: BlockNumHash { hash, number: 7 },
+            seq_num: 3,
+        };
+        let payload =
+            builder.prepare_payload_attributes(l2_parent, epoch, timestamp).await.unwrap();
+
+        assert_eq!(payload.payload_attributes.timestamp, timestamp);
+        assert_eq!(payload.payload_attributes.prev_randao, prev_randao);
+        // Only the L1 info transaction: a sibling is never a fork activation block, and it
+        // adopts no new L1 origin, so there are no deposits either.
+        let transactions = payload.transactions.unwrap();
+        assert_eq!(transactions.len(), 1);
+        let l1_info_tx = OpTxEnvelope::decode_2718(&mut transactions[0].as_ref()).unwrap();
+        let l1_info =
+            L1BlockInfoTx::decode_calldata(&l1_info_tx.as_deposit().unwrap().input).unwrap();
+        assert_eq!(l1_info.sequence_number(), l2_parent.seq_num + 1);
+        assert_eq!(l1_info.id().number, l2_parent.l1_origin.number);
     }
 
     #[tokio::test]
@@ -581,7 +646,8 @@ mod tests {
             seq_num: 0,
         };
         let next_l2_time = l2_parent.block_info.timestamp + block_time;
-        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
+        let payload =
+            builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await.unwrap();
         let expected = OpPayloadAttributes {
             payload_attributes: PayloadAttributes {
                 timestamp: next_l2_time,
@@ -636,7 +702,8 @@ mod tests {
             seq_num: 0,
         };
         let next_l2_time = l2_parent.block_info.timestamp + block_time;
-        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
+        let payload =
+            builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await.unwrap();
         let expected = OpPayloadAttributes {
             payload_attributes: PayloadAttributes {
                 timestamp: next_l2_time,
@@ -690,7 +757,8 @@ mod tests {
             seq_num: 0,
         };
         let next_l2_time = l2_parent.block_info.timestamp + block_time;
-        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
+        let payload =
+            builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await.unwrap();
         let expected = OpPayloadAttributes {
             payload_attributes: PayloadAttributes {
                 timestamp: next_l2_time,
@@ -775,7 +843,8 @@ mod tests {
         };
         // Before the fix this would return Err(Critical(SystemConfigUpdate(...))).
         // After the fix, the error is logged as a warning and attributes are returned.
-        let result = builder.prepare_payload_attributes(l2_parent, epoch).await;
+        let next_l2_time = l2_parent.block_info.timestamp + block_time;
+        let result = builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await;
         assert!(
             result.is_ok(),
             "system config update failure should be non-fatal, got: {:?}",
@@ -847,7 +916,9 @@ mod tests {
             l1_origin: BlockNumHash { hash, number: l2_number },
             seq_num: 0,
         };
-        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
+        let next_l2_time = l2_parent.block_info.timestamp + block_time;
+        let payload =
+            builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await.unwrap();
         // 1 L1InfoTx + 28 bundle txs. Single-chain superchains skip only the
         // setFeature and ETHLiquidity funding wrappers.
         assert_eq!(payload.transactions.unwrap().len(), 1 + 28);
@@ -898,7 +969,9 @@ mod tests {
             l1_origin: BlockNumHash { hash, number: l2_number },
             seq_num: 0,
         };
-        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
+        let next_l2_time = l2_parent.block_info.timestamp + block_time;
+        let payload =
+            builder.prepare_payload_attributes(l2_parent, epoch, next_l2_time).await.unwrap();
         // 1 L1InfoTx + 30 interop txs (1 setFeature + 28 bundle + 1 ETHLiquidity funding).
         assert_eq!(payload.transactions.unwrap().len(), 1 + 30);
     }

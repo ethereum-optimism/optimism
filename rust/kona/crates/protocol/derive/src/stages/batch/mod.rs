@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use kona_protocol::{Batch, BlockInfo, L2BlockInfo};
 
 mod batch_stream;
-pub use batch_stream::{BatchStream, BatchStreamProvider};
+pub use batch_stream::{BatchStream, BatchStreamProvider, StagedSpan};
 
 mod batch_queue;
 pub use batch_queue::BatchQueue;
@@ -23,6 +23,27 @@ pub use batch_validator::BatchValidator;
 
 mod batch_provider;
 pub use batch_provider::BatchProvider;
+
+/// A batch on its way to the next stage, together with the claim that only a span batch can make
+/// about it.
+///
+/// The claim cannot ride on the batch itself: a [`SingleBatch`](kona_protocol::SingleBatch) is
+/// RLP-encoded as the `0x00` wire format, which has no way to express a sibling.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StagedBatch<B> {
+    /// The batch.
+    pub batch: B,
+    /// Whether the batch is a span batch element that shares the timestamp of the block it
+    /// builds on.
+    pub is_sibling: bool,
+}
+
+impl<B> StagedBatch<B> {
+    /// Stages a batch that no span batch vouched for as a sibling.
+    pub const fn new(batch: B) -> Self {
+        Self { batch, is_sibling: false }
+    }
+}
 
 /// Provides [`Batch`]es for the [`BatchQueue`] and [`BatchValidator`] stages.
 #[async_trait]
@@ -38,7 +59,7 @@ pub trait NextBatchProvider {
         &mut self,
         parent: L2BlockInfo,
         l1_origins: &[BlockInfo],
-    ) -> PipelineResult<Batch>;
+    ) -> PipelineResult<StagedBatch<Batch>>;
 
     /// Returns the number of [`SingleBatch`]es that are currently buffered in the [`BatchStream`]
     /// from a [`SpanBatch`].

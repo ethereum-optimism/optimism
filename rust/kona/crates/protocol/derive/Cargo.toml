@@ -46,6 +46,7 @@ metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
 spin.workspace = true
+miniz_oxide.workspace = true
 proptest.workspace = true
 serde_json.workspace = true
 kona-registry.workspace = true

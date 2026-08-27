@@ -56,6 +56,8 @@ pub enum BatchDropReason {
     SpanBatchMisalignedTimestamp,
     /// Span batch timestamp does not overlap exactly.
     SpanBatchNotOverlappedExactly,
+    /// The span batch's parent would sit below the L2 genesis block.
+    SpanBatchParentBelowGenesis,
     /// Batch L1 origin is before safe head L1 origin.
     L1OriginBeforeSafeHead,
     /// Unable to find L1 origin for batch.
@@ -115,6 +117,9 @@ impl core::fmt::Display for BatchDropReason {
             }
             Self::SpanBatchMisalignedTimestamp => write!(f, "span batch has misaligned timestamp"),
             Self::SpanBatchNotOverlappedExactly => write!(f, "span batch does not overlap exactly"),
+            Self::SpanBatchParentBelowGenesis => {
+                write!(f, "span batch's parent is below the L2 genesis block")
+            }
             Self::L1OriginBeforeSafeHead => {
                 write!(f, "batch L1 origin is before safe head L1 origin")
             }

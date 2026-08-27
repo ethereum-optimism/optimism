@@ -32,12 +32,24 @@ impl SingleBatch {
     }
 
     /// Validate the batch timestamp.
+    ///
+    /// `is_sibling` marks a batch that a span batch flagged as sharing the timestamp of the block
+    /// it builds on. It is the only way a batch may repeat its parent's timestamp: a wire singular
+    /// batch (`0x00`) cannot express a sibling, so an equal timestamp there is simply an old
+    /// batch.
     pub fn check_batch_timestamp(
         &self,
         cfg: &RollupConfig,
         l2_safe_head: L2BlockInfo,
         inclusion_block: &BlockInfo,
+        is_sibling: bool,
     ) -> BatchValidity {
+        if is_sibling && self.timestamp == l2_safe_head.block_info.timestamp {
+            if !cfg.siblings_allowed(self.timestamp) {
+                return BatchValidity::Drop(BatchDropReason::SiblingsNotAllowed);
+            }
+            return BatchValidity::Accept;
+        }
         let next_timestamp = l2_safe_head.block_info.timestamp + cfg.block_time;
         if self.timestamp > next_timestamp {
             if cfg.is_holocene_active(inclusion_block.timestamp) {
@@ -65,6 +77,7 @@ impl SingleBatch {
         l1_blocks: &[BlockInfo],
         l2_safe_head: L2BlockInfo,
         inclusion_block: &BlockInfo,
+        is_sibling: bool,
     ) -> BatchValidity {
         // Cannot have empty l1_blocks for batch validation.
         if l1_blocks.is_empty() {
@@ -74,7 +87,8 @@ impl SingleBatch {
         let epoch = l1_blocks[0];
 
         // If the batch is not accepted by the timestamp check, return the result.
-        let timestamp_check = self.check_batch_timestamp(cfg, l2_safe_head, inclusion_block);
+        let timestamp_check =
+            self.check_batch_timestamp(cfg, l2_safe_head, inclusion_block, is_sibling);
         if !timestamp_check.is_accept() {
             return timestamp_check;
         }
@@ -83,6 +97,12 @@ impl SingleBatch {
         // If the timestamp is correct, then it must build on top of the safe head.
         if self.parent_hash != l2_safe_head.block_info.hash {
             return BatchValidity::Drop(BatchDropReason::ParentHashMismatch);
+        }
+
+        // A sibling shares its parent's L1 origin: the whole group is sequenced against one
+        // origin, and only the first block of a timestamp may adopt a new one.
+        if is_sibling && self.epoch_num != l2_safe_head.l1_origin.number {
+            return BatchValidity::Drop(BatchDropReason::SiblingOriginMismatch);
         }
 
         // Filter out batches that were included too late.
@@ -215,7 +235,7 @@ mod tests {
         let inclusion_block = BlockInfo::default();
         let batch = SingleBatch::default();
         assert_eq!(
-            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Undecided
         );
     }
@@ -231,7 +251,7 @@ mod tests {
         let inclusion_block = BlockInfo::default();
         let batch = SingleBatch { timestamp: 2, ..Default::default() };
         assert_eq!(
-            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Future
         );
     }
@@ -247,7 +267,7 @@ mod tests {
         let inclusion_block = BlockInfo::default();
         let batch = SingleBatch { parent_hash: BlockHash::from([0x02; 32]), ..Default::default() };
         assert_eq!(
-            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Drop(BatchDropReason::ParentHashMismatch)
         );
     }
@@ -262,7 +282,7 @@ mod tests {
         let inclusion_block = BlockInfo { timestamp: 1, ..Default::default() };
         let batch = SingleBatch { epoch_num: 1, timestamp: 2, ..Default::default() };
         assert_eq!(
-            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block),
+            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block, false),
             BatchValidity::Future
         );
     }
@@ -280,7 +300,7 @@ mod tests {
         let inclusion_block = BlockInfo { timestamp: 1, ..Default::default() };
         let batch = SingleBatch { epoch_num: 1, timestamp: 2, ..Default::default() };
         assert_eq!(
-            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block),
+            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block, false),
             BatchValidity::Drop(BatchDropReason::FutureTimestampHolocene)
         );
     }
@@ -298,7 +318,7 @@ mod tests {
         let inclusion_block = BlockInfo { timestamp: 1, ..Default::default() };
         let batch = SingleBatch { epoch_num: 1, timestamp: 1, ..Default::default() };
         assert_eq!(
-            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block),
+            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block, false),
             BatchValidity::Past
         );
     }
@@ -313,7 +333,7 @@ mod tests {
         let inclusion_block = BlockInfo { timestamp: 1, ..Default::default() };
         let batch = SingleBatch { epoch_num: 1, timestamp: 1, ..Default::default() };
         assert_eq!(
-            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block),
+            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block, false),
             BatchValidity::Drop(BatchDropReason::PastTimestampPreHolocene)
         );
     }
@@ -328,8 +348,98 @@ mod tests {
         let inclusion_block = BlockInfo::default();
         let batch = SingleBatch { timestamp: 2, ..Default::default() };
         assert_eq!(
-            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block),
+            batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block, false),
             BatchValidity::Accept
+        );
+    }
+
+    /// A chain whose blocks may have siblings from timestamp 1000 on, with two blocks already
+    /// sharing timestamp 1010 at the safe head.
+    fn multi_block_cfg() -> RollupConfig {
+        RollupConfig {
+            block_time: 2,
+            max_sequencer_drift: 100,
+            hardforks: HardForkConfig {
+                holocene_time: Some(0),
+                karst_time: Some(0),
+                ..Default::default()
+            },
+            multi_block_time: Some(1000),
+            max_multi_blocks: Some(4),
+            ..Default::default()
+        }
+    }
+
+    fn multi_block_safe_head() -> L2BlockInfo {
+        L2BlockInfo {
+            block_info: BlockInfo { number: 20, timestamp: 1010, ..Default::default() },
+            l1_origin: BlockNumHash { number: 1, hash: BlockHash::ZERO },
+            seq_num: 3,
+        }
+    }
+
+    #[test]
+    fn test_check_batch_sibling_accepted() {
+        let cfg = multi_block_cfg();
+        let l1_blocks = vec![BlockInfo::default(), BlockInfo::default()];
+        let inclusion_block = BlockInfo::default();
+        let batch = SingleBatch { epoch_num: 1, timestamp: 1010, ..Default::default() };
+        assert_eq!(
+            batch.check_batch(&cfg, &l1_blocks, multi_block_safe_head(), &inclusion_block, true),
+            BatchValidity::Accept
+        );
+    }
+
+    /// The wire singular batch (`0x00`) has no way to say "sibling", so an equal timestamp keeps
+    /// its Holocene classification: an already-applied block.
+    #[test]
+    fn test_check_batch_equal_timestamp_wire_singular_is_past() {
+        let cfg = multi_block_cfg();
+        let l1_blocks = vec![BlockInfo::default(), BlockInfo::default()];
+        let inclusion_block = BlockInfo::default();
+        let batch = SingleBatch { epoch_num: 1, timestamp: 1010, ..Default::default() };
+        assert_eq!(
+            batch.check_batch(&cfg, &l1_blocks, multi_block_safe_head(), &inclusion_block, false),
+            BatchValidity::Past
+        );
+    }
+
+    #[test]
+    fn test_check_batch_sibling_with_different_epoch_dropped() {
+        let cfg = multi_block_cfg();
+        let l1_blocks = vec![BlockInfo::default(), BlockInfo { number: 2, ..Default::default() }];
+        let inclusion_block = BlockInfo::default();
+        let batch = SingleBatch { epoch_num: 2, timestamp: 1010, ..Default::default() };
+        assert_eq!(
+            batch.check_batch(&cfg, &l1_blocks, multi_block_safe_head(), &inclusion_block, true),
+            BatchValidity::Drop(BatchDropReason::SiblingOriginMismatch)
+        );
+    }
+
+    /// Siblings are only allowed strictly after the activation timestamp, so the flag alone does
+    /// not widen the accept-set.
+    #[test]
+    fn test_check_batch_sibling_before_activation_dropped() {
+        let cfg = RollupConfig { multi_block_time: Some(1010), ..multi_block_cfg() };
+        let l1_blocks = vec![BlockInfo::default(), BlockInfo::default()];
+        let inclusion_block = BlockInfo::default();
+        let batch = SingleBatch { epoch_num: 1, timestamp: 1010, ..Default::default() };
+        assert_eq!(
+            batch.check_batch(&cfg, &l1_blocks, multi_block_safe_head(), &inclusion_block, true),
+            BatchValidity::Drop(BatchDropReason::SiblingsNotAllowed)
+        );
+    }
+
+    /// The accept-set grows by the parent's own timestamp, not beyond it.
+    #[test]
+    fn test_check_batch_sibling_two_block_times_ahead_is_future() {
+        let cfg = multi_block_cfg();
+        let l1_blocks = vec![BlockInfo::default(), BlockInfo::default()];
+        let inclusion_block = BlockInfo::default();
+        let batch = SingleBatch { epoch_num: 1, timestamp: 1014, ..Default::default() };
+        assert_eq!(
+            batch.check_batch(&cfg, &l1_blocks, multi_block_safe_head(), &inclusion_block, true),
+            BatchValidity::Drop(BatchDropReason::FutureTimestampHolocene)
         );
     }
 
@@ -366,7 +476,7 @@ mod tests {
             transactions: vec![Bytes::from(vec![0x01])],
         };
         assert_eq!(
-            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Accept
         );
     }
@@ -436,7 +546,7 @@ mod tests {
         };
         let inclusion_block = BlockInfo::default();
         assert_eq!(
-            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Accept
         );
     }
@@ -486,7 +596,7 @@ mod tests {
         };
         let inclusion_block = BlockInfo::default();
         assert_eq!(
-            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus)
         );
     }
@@ -526,7 +636,7 @@ mod tests {
         };
         let inclusion_block = BlockInfo::default();
         assert_eq!(
-            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Accept
         );
     }
@@ -558,7 +668,7 @@ mod tests {
         };
         let inclusion_block = BlockInfo::default();
         assert_eq!(
-            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Drop(BatchDropReason::PostExecPreLagoon)
         );
     }
@@ -594,7 +704,7 @@ mod tests {
         };
         let inclusion_block = BlockInfo::default();
         assert_eq!(
-            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Accept
         );
     }
@@ -623,7 +733,7 @@ mod tests {
         };
         let inclusion_block = BlockInfo::default();
         assert_eq!(
-            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Drop(BatchDropReason::EmptyTransaction)
         );
     }
@@ -666,7 +776,7 @@ mod tests {
         };
         let inclusion_block = BlockInfo::default();
         assert_eq!(
-            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Drop(BatchDropReason::DepositTransaction)
         );
     }
@@ -704,7 +814,7 @@ mod tests {
         };
         let inclusion_block = BlockInfo::default();
         assert_eq!(
-            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, false),
             BatchValidity::Drop(BatchDropReason::NonEmptyTransitionBlock)
         );
 

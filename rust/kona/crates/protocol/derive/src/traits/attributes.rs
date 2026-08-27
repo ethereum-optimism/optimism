@@ -2,7 +2,7 @@
 
 use core::fmt::Debug;
 
-use crate::PipelineResult;
+use crate::{PipelineResult, StagedBatch};
 use alloc::boxed::Box;
 use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
@@ -14,8 +14,10 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 /// [`BatchQueue`]: crate::stages::BatchQueue
 #[async_trait]
 pub trait AttributesProvider {
-    /// Returns the next valid batch upon the given safe head.
-    async fn next_batch(&mut self, parent: L2BlockInfo) -> PipelineResult<SingleBatch>;
+    /// Returns the next valid batch upon the given safe head, carrying whether validation
+    /// accepted it as a sibling of that head rather than as its successor.
+    async fn next_batch(&mut self, parent: L2BlockInfo)
+    -> PipelineResult<StagedBatch<SingleBatch>>;
 
     /// Returns whether the current batch is the last in its span.
     fn is_last_in_span(&self) -> bool;
@@ -37,15 +39,19 @@ pub trait NextAttributes {
 #[async_trait]
 pub trait AttributesBuilder: Debug + Send {
     /// Prepares a template [`OpPayloadAttributes`] that is ready to be used to build an L2
-    /// block. The block will contain deposits only, on top of the given L2 parent, with the L1
-    /// origin set to the given epoch.
+    /// block at `timestamp`. The block will contain deposits only, on top of the given L2 parent,
+    /// with the L1 origin set to the given epoch.
     /// By default, the [`OpPayloadAttributes`] template will have `no_tx_pool` set to true,
     /// and no sequencer transactions. The caller has to modify the template to add transactions.
     /// This can be done by either setting the `no_tx_pool` to false as sequencer, or by appending
     /// batch transactions as the verifier.
+    ///
+    /// `timestamp` is an input rather than something the builder derives from `l2_parent`: a
+    /// block may share its parent's timestamp, so the parent alone does not determine it.
     async fn prepare_payload_attributes(
         &mut self,
         l2_parent: L2BlockInfo,
         epoch: BlockNumHash,
+        timestamp: u64,
     ) -> PipelineResult<OpPayloadAttributes>;
 }

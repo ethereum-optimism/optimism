@@ -1,6 +1,6 @@
 //! Contains the [`BatchValidator`] stage.
 
-use super::NextBatchProvider;
+use super::{NextBatchProvider, StagedBatch};
 use crate::{
     errors::{PipelineError, PipelineErrorKind, ResetError},
     traits::{AttributesProvider, OriginAdvancer, OriginProvider, Stage},
@@ -143,7 +143,7 @@ where
     pub(crate) fn try_derive_empty_batch(
         &mut self,
         parent: &L2BlockInfo,
-    ) -> PipelineResult<SingleBatch> {
+    ) -> PipelineResult<StagedBatch<SingleBatch>> {
         let epoch = self.l1_blocks[0];
 
         // If the current epoch is too old compared to the L1 block we are at,
@@ -173,13 +173,13 @@ where
         // generate a batch to ensure that we at least have one batch per epoch.
         if next_timestamp < next_epoch.timestamp || first_of_epoch {
             info!(target: "batch_validator", "Generating empty batch for epoch #{}", epoch.number);
-            return Ok(SingleBatch {
+            return Ok(StagedBatch::new(SingleBatch {
                 parent_hash: parent.block_info.hash,
                 epoch_num: epoch.number,
                 epoch_hash: epoch.hash,
                 timestamp: next_timestamp,
                 transactions: Vec::new(),
-            });
+            }));
         }
 
         // At this point we have auto generated every batch for the current epoch
@@ -199,7 +199,10 @@ impl<P> AttributesProvider for BatchValidator<P>
 where
     P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
-    async fn next_batch(&mut self, parent: L2BlockInfo) -> PipelineResult<SingleBatch> {
+    async fn next_batch(
+        &mut self,
+        parent: L2BlockInfo,
+    ) -> PipelineResult<StagedBatch<SingleBatch>> {
         // Update the L1 origin blocks within the stage.
         self.update_origins(&parent)?;
 
@@ -239,7 +242,7 @@ where
         };
 
         // The batch must be a single batch - this stage does not support span batches.
-        let Batch::Single(mut next_batch) = next_batch else {
+        let StagedBatch { batch: Batch::Single(mut next_batch), is_sibling } = next_batch else {
             error!(
                 target: "batch_validator",
                 "BatchValidator received a batch that is not a SingleBatch"
@@ -254,10 +257,11 @@ where
             self.l1_blocks.as_ref(),
             parent,
             &stage_origin,
+            is_sibling,
         ) {
             BatchValidity::Accept => {
                 info!(target: "batch_validator", "Found next batch (epoch #{})", next_batch.epoch_num);
-                Ok(next_batch)
+                Ok(StagedBatch { batch: next_batch, is_sibling })
             }
             BatchValidity::Past => {
                 warn!(target: "batch_validator", "Dropping old batch");
@@ -536,7 +540,7 @@ mod test {
 
         // Grab the next batch.
         let produced_batch = bv.next_batch(parent).await.unwrap();
-        assert_eq!(batch, produced_batch);
+        assert_eq!(batch, produced_batch.batch);
     }
 
     #[tokio::test]
@@ -566,13 +570,48 @@ mod test {
             l1_origin: BlockNumHash { number: 0, ..Default::default() },
             ..Default::default()
         };
-        assert!(bv.next_batch(mock_parent).await.unwrap().transactions.is_empty());
+        assert!(bv.next_batch(mock_parent).await.unwrap().batch.transactions.is_empty());
 
         let trace_lock = trace_store.lock();
         assert_eq!(trace_lock.iter().filter(|(l, _)| matches!(l, &Level::DEBUG)).count(), 1);
         assert_eq!(trace_lock.iter().filter(|(l, _)| matches!(l, &Level::INFO)).count(), 1);
         assert!(trace_lock[0].1.contains("Advancing batch validator origin"));
         assert!(trace_lock[1].1.contains("Generating empty batch for epoch"));
+    }
+
+    /// Force-inclusion ends whatever group the parent is in: the empty batch it generates takes
+    /// the next timestamp, never the parent's, so the sequencer's unsafe siblings are reorged out
+    /// rather than adopted.
+    #[tokio::test]
+    async fn test_batch_validator_forced_empty_batch_ends_group() {
+        let cfg = Arc::new(RollupConfig {
+            seq_window_size: 5,
+            block_time: 2,
+            hardforks: HardForkConfig { karst_time: Some(0), ..Default::default() },
+            multi_block_time: Some(1000),
+            max_multi_blocks: Some(4),
+            ..Default::default()
+        });
+        let mut mock = TestNextBatchProvider::new(vec![]);
+        mock.origin = Some(BlockInfo { number: 1, ..Default::default() });
+        let mut bv = BatchValidator::new(cfg, mock);
+
+        bv.reset(BlockNumHash { number: 1, ..Default::default() }, SystemConfig::default())
+            .await
+            .unwrap();
+        for _ in 0..6 {
+            bv.advance_origin().await.unwrap();
+        }
+
+        // The parent is the second block of a group at timestamp 1010.
+        let parent = L2BlockInfo {
+            block_info: BlockInfo { number: 11, timestamp: 1010, ..Default::default() },
+            l1_origin: BlockNumHash { number: 0, ..Default::default() },
+            seq_num: 1,
+        };
+        let batch = bv.next_batch(parent).await.unwrap().batch;
+        assert!(batch.transactions.is_empty());
+        assert_eq!(batch.timestamp, 1012);
     }
 
     #[tokio::test]

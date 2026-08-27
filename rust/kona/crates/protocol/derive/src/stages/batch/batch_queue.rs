@@ -1,6 +1,6 @@
 //! This module contains the `BatchQueue` stage implementation.
 
-use super::NextBatchProvider;
+use super::{NextBatchProvider, StagedBatch};
 use crate::{
     errors::{PipelineEncodingError, PipelineError, PipelineErrorKind, ResetError},
     traits::{AttributesProvider, L2ChainProvider, OriginAdvancer, OriginProvider, Stage},
@@ -274,13 +274,21 @@ where
     BF: L2ChainProvider + Send + Debug,
 {
     /// Returns the next valid batch upon the given safe head.
-    /// Also returns the boolean that indicates if the batch is the last block in the batch.
-    async fn next_batch(&mut self, parent: L2BlockInfo) -> PipelineResult<SingleBatch> {
+    ///
+    /// Only the Delta span format reaches this stage, which cannot express a sibling, so the
+    /// staged batch never claims to be one.
+    async fn next_batch(
+        &mut self,
+        parent: L2BlockInfo,
+    ) -> PipelineResult<StagedBatch<SingleBatch>> {
         if !self.next_spans.is_empty() {
             // There are cached singular batches derived from the span batch.
             // Check if the next cached batch matches the given parent block.
             if self.next_spans[0].timestamp == parent.block_info.timestamp + self.cfg.block_time {
-                return self.pop_next_batch(parent).ok_or(PipelineError::BatchQueueEmpty.crit());
+                return self
+                    .pop_next_batch(parent)
+                    .map(StagedBatch::new)
+                    .ok_or(PipelineError::BatchQueueEmpty.crit());
             }
             // Parent block does not match the next batch.
             // Means the previously returned batch is invalid.
@@ -342,7 +350,7 @@ where
                 if origin_behind {
                     warn!(target: "batch_queue", "Dropping batch: Origin is behind");
                 } else {
-                    self.add_batch(b, parent).await.ok();
+                    self.add_batch(b.batch, parent).await.ok();
                 }
             }
             Err(e) => {
@@ -380,17 +388,22 @@ where
         // If the next batch is derived from the span batch, it's the last batch of the span.
         // For singular batches, the span batch cache should be empty.
         match batch {
-            Batch::Single(sb) => Ok(sb),
+            Batch::Single(sb) => Ok(StagedBatch::new(sb)),
             Batch::Span(sb) => {
-                let batches = match sb.get_singular_batches(&self.l1_blocks, parent).map_err(|e| {
-                    PipelineError::BadEncoding(PipelineEncodingError::SpanBatchError(e)).crit()
-                }) {
+                // Only the Delta span format reaches this stage, where every element is one
+                // block time after its predecessor.
+                let span_parent_number = sb.parent_number_from_timestamps(parent);
+                let batches = match sb
+                    .get_singular_batches(&self.l1_blocks, parent, span_parent_number)
+                    .map_err(|e| {
+                        PipelineError::BadEncoding(PipelineEncodingError::SpanBatchError(e)).crit()
+                    }) {
                     Ok(b) => b,
                     Err(e) => {
                         return Err(e);
                     }
                 };
-                self.next_spans = batches;
+                self.next_spans = batches.into_iter().map(|b| b.batch).collect();
                 let nb = match self
                     .pop_next_batch(parent)
                     .ok_or(PipelineError::BatchQueueEmpty.crit())
@@ -400,7 +413,7 @@ where
                         return Err(e);
                     }
                 };
-                Ok(nb)
+                Ok(StagedBatch::new(nb))
             }
         }
     }
@@ -894,7 +907,7 @@ mod tests {
         let sb = SingleBatch::default();
         bq.next_spans.push(sb.clone());
         let next = bq.next_batch(L2BlockInfo::default()).await.unwrap();
-        assert_eq!(next, sb);
+        assert_eq!(next.batch, sb);
         assert!(bq.next_spans.is_empty());
     }
 
@@ -1101,6 +1114,6 @@ mod tests {
         let mut bq = BatchQueue::new(cfg, mock, fetcher);
         let parent = L2BlockInfo::default();
         let batch = bq.next_batch(parent).await.unwrap();
-        assert_eq!(batch, SingleBatch::default());
+        assert_eq!(batch.batch, SingleBatch::default());
     }
 }

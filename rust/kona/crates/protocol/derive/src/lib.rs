@@ -36,7 +36,7 @@ pub use stages::{
     AttributesQueue, BatchProvider, BatchQueue, BatchStream, BatchStreamProvider, BatchValidator,
     ChannelAssembler, ChannelBank, ChannelProvider, ChannelReader, ChannelReaderProvider,
     FrameQueue, FrameQueueProvider, L1Retrieval, L1RetrievalProvider, NextBatchProvider,
-    NextFrameProvider, PollingTraversal,
+    NextFrameProvider, PollingTraversal, StagedBatch, StagedSpan,
 };
 
 mod traits;
