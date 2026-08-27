@@ -102,6 +102,10 @@ library Predeploys {
     /// @notice Address of the ETHLiquidity predeploy.
     address internal constant ETH_LIQUIDITY = 0x4200000000000000000000000000000000000025;
 
+    /// @notice Address of the local log oracle precompile.
+    /// @dev The execution client implements this address directly. It is not a proxied predeploy.
+    address internal constant LOCAL_LOG_ORACLE = 0x4200000000000000000000000000000000000026;
+
     /// @notice Address of the NativeAssetLiquidity predeploy.
     address internal constant NATIVE_ASSET_LIQUIDITY = 0x4200000000000000000000000000000000000029;
 
