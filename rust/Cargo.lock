@@ -13637,6 +13637,7 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
 ]
 
@@ -13737,6 +13738,7 @@ dependencies = [
  "reth-optimism-primitives",
  "reth-optimism-trie",
  "reth-optimism-txpool",
+ "reth-payload-builder",
  "reth-payload-util",
  "reth-primitives-traits",
  "reth-provider",

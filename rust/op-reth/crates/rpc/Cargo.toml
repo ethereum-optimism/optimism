@@ -30,6 +30,7 @@ reth-node-builder.workspace = true
 reth-chainspec.workspace = true
 reth-chain-state.workspace = true
 reth-rpc-engine-api.workspace = true
+reth-payload-builder.workspace = true
 reth-payload-util.workspace = true
 reth-provider.workspace = true
 
@@ -100,6 +101,7 @@ alloy-op-hardforks.workspace = true
 alloy-genesis.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 rstest.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 client = [

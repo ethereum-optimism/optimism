@@ -2,7 +2,10 @@ use super::{
     CommittedTxGas, ExecutionInfo, OpPayloadBuilderCtx, PayloadTransactionsWithCommitHook,
     RethPayloadTransactions, build_post_exec_recovered_tx, try_include_post_exec_tx,
 };
-use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
+use crate::{
+    OpPayloadBuilderAttributes,
+    config::{MultiBlockPolicy, OpBuilderConfig},
+};
 use alloy_consensus::{
     Header, Sealable, SignableTransaction, Transaction, TxEip1559, Typed2718,
     transaction::{Recovered, TxHashRef},
@@ -680,7 +683,7 @@ fn execute_best_transactions_respects_gas_limit_cap() {
     let expected_committed = vec![*tx0.hash()];
     let txs = vec![tx0, tx1];
 
-    let (_info, block_tx_hashes) = run_execute_best_transactions(
+    let (info, block_tx_hashes) = run_execute_best_transactions(
         signer,
         txs,
         Some(MIN_TRANSACTION_GAS),
@@ -689,6 +692,50 @@ fn execute_best_transactions_respects_gas_limit_cap() {
 
     assert_eq!(tx_hashes(&committed_txs), expected_committed);
     assert_eq!(block_tx_hashes, expected_committed);
+    // The multi-block sealing policy is expressed in this count, so it tracks inclusions rather
+    // than attempts.
+    assert_eq!(info.user_txs, expected_committed.len() as u64);
+}
+
+/// The freeze decision `OpBuilder::build` makes once a payload is built: a payload the consensus
+/// layer can already seal must not keep rebuilding, and the readiness it records must land in the
+/// policy the builder was configured with — the one the engine API serves.
+#[test]
+fn record_built_payload_freezes_once_the_policy_is_met() {
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let mut ctx = payload_builder_ctx(chain_spec, 1_000_000);
+    let policy = MultiBlockPolicy::new(Some(2), None);
+    ctx.builder_config.multi_block_policy = policy.clone();
+
+    assert!(!ctx.record_built_payload(1), "below min-txs a better payload may still come along");
+    assert!(!policy.is_ready(ctx.payload_id()));
+
+    assert!(ctx.record_built_payload(2));
+    assert!(policy.is_ready(ctx.payload_id()));
+}
+
+/// Without a policy the builder behaves exactly as it did before multi-block: it keeps improving
+/// the payload until the consensus layer fetches it.
+#[test]
+fn record_built_payload_without_a_policy_never_freezes() {
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let ctx = payload_builder_ctx(chain_spec, 1_000_000);
+
+    assert!(!ctx.record_built_payload(1_000));
+}
+
+/// A `no_tx_pool` payload is deterministic, so it is frozen whatever the policy says — and the
+/// consensus layer is told at once instead of waiting out its slot for a final payload.
+#[test]
+fn record_built_payload_freezes_a_no_tx_pool_payload() {
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let mut ctx = payload_builder_ctx(chain_spec, 1_000_000);
+    let policy = MultiBlockPolicy::new(Some(1_000), None);
+    ctx.builder_config.multi_block_policy = policy.clone();
+    ctx.config.attributes.no_tx_pool = true;
+
+    assert!(ctx.record_built_payload(0));
+    assert!(policy.is_ready(ctx.payload_id()));
 }
 
 #[test]

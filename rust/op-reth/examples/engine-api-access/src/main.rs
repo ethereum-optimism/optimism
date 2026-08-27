@@ -9,9 +9,7 @@
 use reth_db::test_utils::create_test_rw_db;
 use reth_node_builder::{EngineApiExt, FullNodeComponents, NodeBuilder, NodeConfig};
 use reth_optimism_chainspec::OP_MAINNET;
-use reth_optimism_node::{
-    OpAddOns, OpEngineApiBuilder, OpNode, args::RollupArgs, node::OpEngineValidatorBuilder,
-};
+use reth_optimism_node::{OpAddOns, OpNode, args::RollupArgs};
 use tokio::sync::oneshot;
 
 #[tokio::main]
@@ -24,10 +22,11 @@ async fn main() {
 
     let (engine_api_tx, _engine_api_rx) = oneshot::channel();
 
-    let engine_api =
-        EngineApiExt::new(OpEngineApiBuilder::<OpEngineValidatorBuilder>::default(), move |api| {
-            let _ = engine_api_tx.send(api);
-        });
+    // `OpNode::engine_api_builder` rather than a default one, so the engine API shares the
+    // node's multi-block sealing policy and can answer `engine_awaitPayloadReadyV1`.
+    let engine_api = EngineApiExt::new(op_node.engine_api_builder(), move |api| {
+        let _ = engine_api_tx.send(api);
+    });
 
     let _builder = NodeBuilder::new(config)
         .with_database(db)

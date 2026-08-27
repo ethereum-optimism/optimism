@@ -58,6 +58,10 @@ pub struct OpGenesisInfo {
     pub jovian_time: Option<u64>,
     /// karst hardfork timestamp
     pub karst_time: Option<u64>,
+    /// timestamp at which the multi-block feature activates
+    ///
+    /// Not a hardfork: it gates whether consecutive blocks may share a timestamp.
+    pub multi_block_time: Option<u64>,
 }
 
 impl OpGenesisInfo {
@@ -139,8 +143,24 @@ mod tests {
                 lagoon_time: None,
                 jovian_time: None,
                 karst_time: None,
+                multi_block_time: None,
             }
         );
+    }
+
+    #[test]
+    fn test_extract_multi_block_time() {
+        let genesis_info = r#"
+        {
+          "bedrockBlock": 0,
+          "multiBlockTime": 1750000000
+        }
+        "#;
+
+        let others: OtherFields = serde_json::from_str(genesis_info).unwrap();
+        let genesis_info = OpGenesisInfo::extract_from(&others).unwrap();
+
+        assert_eq!(genesis_info.multi_block_time, Some(1750000000));
     }
 
     #[test]
@@ -201,6 +221,7 @@ mod tests {
                     lagoon_time: None,
                     jovian_time: None,
                     karst_time: None,
+                    multi_block_time: None,
                 }),
                 base_fee_info: Some(OpBaseFeeInfo {
                     eip1559_elasticity: None,
@@ -227,6 +248,7 @@ mod tests {
                     lagoon_time: None,
                     jovian_time: None,
                     karst_time: None,
+                    multi_block_time: None,
                 }),
                 base_fee_info: Some(OpBaseFeeInfo {
                     eip1559_elasticity: None,
@@ -271,6 +293,7 @@ mod tests {
                     lagoon_time: None,
                     jovian_time: Some(0),
                     karst_time: None,
+                    multi_block_time: None,
                 }),
                 base_fee_info: None,
             }

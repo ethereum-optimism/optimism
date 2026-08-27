@@ -40,7 +40,7 @@ use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
     builder::OpPayloadTransactions,
-    config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig, OperatorSdmOptIn},
+    config::{MultiBlockPolicy, OpBuilderConfig, OpDAConfig, OpGasLimitConfig, OperatorSdmOptIn},
 };
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_optimism_rpc::{
@@ -68,7 +68,7 @@ use reth_transaction_pool::{
     blobstore::DiskFileBlobStore,
 };
 use reth_trie_common::KeccakKeyHasher;
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::Arc, time::Duration};
 use url::Url;
 
 use reth_optimism_payload_builder::OpPayloadAttrs;
@@ -213,6 +213,9 @@ pub struct OpNode {
     /// Interop failsafe gate, shared between the txpool's interop filter client (writer) and the
     /// payload builder (reader, to exclude interop txs while it is active).
     pub interop_failsafe: InteropFailsafe,
+    /// Multi-block sealing policy, shared between the payload builder (which records payload
+    /// readiness) and the engine API (which serves it).
+    pub multi_block_policy: MultiBlockPolicy,
 }
 
 /// A [`ComponentsBuilder`] with its generic arguments set to a stack of Optimism specific builders.
@@ -230,12 +233,17 @@ impl OpNode {
     pub fn new(args: RollupArgs) -> Self {
         let operator_sdm_opt_in = OperatorSdmOptIn::default();
         operator_sdm_opt_in.set(args.operator_sdm_opt_in);
+        let multi_block_policy = MultiBlockPolicy::new(
+            args.multi_block_min_txs,
+            args.multi_block_min_build_time_ms.map(Duration::from_millis),
+        );
         Self {
             args,
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
             operator_sdm_opt_in,
             interop_failsafe: InteropFailsafe::default(),
+            multi_block_policy,
         }
     }
 
@@ -267,7 +275,15 @@ impl OpNode {
             operator_sdm_opt_in: self.operator_sdm_opt_in.clone(),
             interop_failsafe: self.interop_failsafe.clone(),
             max_uncompressed_block_size: self.args.max_uncompressed_block_size,
+            multi_block_policy: self.multi_block_policy.clone(),
         }
+    }
+
+    /// The engine API builder stock add-ons install, carrying the same multi-block sealing policy
+    /// as [`builder_config`](Self::builder_config): the payload builder records payload readiness
+    /// in it and `engine_awaitPayloadReadyV1` serves it, so the two must share one policy.
+    pub fn engine_api_builder(&self) -> OpEngineApiBuilder<OpEngineValidatorBuilder> {
+        OpEngineApiBuilder::default().with_multi_block_policy(self.multi_block_policy.clone())
     }
 
     /// The pool builder configured the way every OP node's pool expects: tx-conditional support,
@@ -394,7 +410,9 @@ where
     }
 
     fn add_ons(&self) -> Self::AddOns {
-        self.add_ons_builder().build()
+        self.add_ons_builder()
+            .build::<_, _, OpEngineApiBuilder<OpEngineValidatorBuilder>, _>()
+            .with_engine_api(self.engine_api_builder())
     }
 }
 
@@ -1740,6 +1758,7 @@ pub type OpNetworkPrimitives = BasicNetworkPrimitives<OpPrimitives, OpPooledTran
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_rpc_types_engine::PayloadId;
 
     #[test]
     fn standard_pool_builder_forwards_base_config() {
@@ -1794,6 +1813,7 @@ mod tests {
         let node = OpNode::new(RollupArgs {
             max_uncompressed_block_size: Some(7_340_032),
             operator_sdm_opt_in: true,
+            multi_block_min_txs: Some(3),
             ..Default::default()
         });
         node.da_config.set_max_da_size(100, 200);
@@ -1809,6 +1829,43 @@ mod tests {
         assert_eq!(cfg.gas_limit_config.gas_limit(), Some(30_000_000));
         assert!(cfg.operator_sdm_opt_in.enabled());
         assert!(cfg.interop_failsafe.enabled());
+        assert!(cfg.multi_block_policy.is_configured());
+    }
+
+    /// The payload builder writes readiness and the engine API reads it, so a config that copied
+    /// the policy's thresholds instead of sharing its registry would report every payload pending
+    /// while every value-propagation assertion above still passed.
+    #[test]
+    fn builder_config_multi_block_policy_is_live_shared_handle() {
+        let node = OpNode::new(RollupArgs { multi_block_min_txs: Some(3), ..Default::default() });
+        let cfg = node.builder_config();
+        let id = PayloadId::new([1; 8]);
+
+        node.multi_block_policy.begin_build(id, true);
+        assert!(node.multi_block_policy.record_built_payload(id, 3));
+
+        assert!(
+            cfg.multi_block_policy.is_ready(id),
+            "builder_config must carry the node's live readiness registry, not a detached copy"
+        );
+    }
+
+    /// The other half of the same registry: the engine API answers
+    /// `engine_awaitPayloadReadyV1` from what the payload builder recorded, which only works if
+    /// stock add-ons install the node's own policy.
+    #[test]
+    fn engine_api_builder_shares_the_multi_block_policy() {
+        let node = OpNode::new(RollupArgs { multi_block_min_txs: Some(3), ..Default::default() });
+        let engine_api_builder = node.engine_api_builder();
+        let id = PayloadId::new([2; 8]);
+
+        node.builder_config().multi_block_policy.begin_build(id, true);
+        assert!(node.builder_config().multi_block_policy.record_built_payload(id, 3));
+
+        assert!(
+            engine_api_builder.multi_block_policy().is_ready(id),
+            "the engine API must serve the readiness the payload builder records"
+        );
     }
 
     #[test]

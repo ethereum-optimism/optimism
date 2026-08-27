@@ -317,6 +317,40 @@ pub trait OpHardforks: EthereumHardforks {
     fn is_interop_active_at_timestamp(&self, timestamp: u64) -> bool {
         self.is_lagoon_active_at_timestamp(timestamp)
     }
+
+    /// Returns the [`ForkCondition`] under which the multi-block feature activates.
+    ///
+    /// Multi-block lets consecutive blocks share a timestamp. It is a chain configuration
+    /// toggle rather than an [`OpHardfork`], so chains that don't configure it — and
+    /// implementations that don't know about it — report [`ForkCondition::Never`].
+    fn multi_block_activation(&self) -> ForkCondition {
+        ForkCondition::Never
+    }
+
+    /// Returns `true` if the multi-block feature is active at the given timestamp.
+    ///
+    /// This gates the wire formats that can express blocks sharing a timestamp. Whether two
+    /// blocks may actually share a specific timestamp is
+    /// [`Self::siblings_allowed_at_timestamp`].
+    fn is_multi_block_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.multi_block_activation().active_at_timestamp(timestamp)
+    }
+
+    /// Returns `true` if a block at the given timestamp may share it with its parent.
+    ///
+    /// Siblings are allowed strictly after the multi-block activation timestamp, and never at
+    /// the activation timestamp of a fork: fork-activation rules are keyed on the block
+    /// timestamp alone, so every block of a group sharing an activation timestamp would be
+    /// treated as the activation block.
+    fn siblings_allowed_at_timestamp(&self, timestamp: u64) -> bool {
+        let ForkCondition::Timestamp(activation) = self.multi_block_activation() else {
+            return false;
+        };
+        timestamp > activation &&
+            !OpHardfork::VARIANTS
+                .iter()
+                .any(|fork| self.op_fork_activation(*fork).as_timestamp() == Some(timestamp))
+    }
 }
 
 /// A type allowing to configure activation [`ForkCondition`]s for a given list of
@@ -849,6 +883,71 @@ mod tests {
         ));
         // L1 forks without an L2 equivalent never activate.
         assert_eq!(forks.ethereum_fork_activation(EthereumHardfork::Bpo1), ForkCondition::Never);
+    }
+
+    /// A chain that configures the multi-block feature on top of a fork schedule, exercising
+    /// the [`OpHardforks`] methods that derive from [`OpHardforks::multi_block_activation`].
+    #[derive(Debug)]
+    struct MultiBlockChain {
+        forks: OpChainHardforks,
+        multi_block: ForkCondition,
+    }
+
+    impl MultiBlockChain {
+        /// All forks up to Karst at genesis, Lagoon at `lagoon`, multi-block at `activation`.
+        fn new(activation: u64, lagoon: u64) -> Self {
+            let mut forks: alloc::vec::Vec<_> = OpHardfork::VARIANTS
+                .iter()
+                .map(|fork| (*fork, ForkCondition::Timestamp(0)))
+                .collect();
+            forks[OpHardfork::Bedrock.idx()].1 = ForkCondition::Block(0);
+            forks[OpHardfork::Lagoon.idx()].1 = ForkCondition::Timestamp(lagoon);
+            Self {
+                forks: OpChainHardforks::new(forks),
+                multi_block: ForkCondition::Timestamp(activation),
+            }
+        }
+    }
+
+    impl EthereumHardforks for MultiBlockChain {
+        fn ethereum_fork_activation(&self, fork: EthereumHardfork) -> ForkCondition {
+            self.forks.ethereum_fork_activation(fork)
+        }
+    }
+
+    impl OpHardforks for MultiBlockChain {
+        fn op_fork_activation(&self, fork: OpHardfork) -> ForkCondition {
+            self.forks.op_fork_activation(fork)
+        }
+
+        fn multi_block_activation(&self) -> ForkCondition {
+            self.multi_block
+        }
+    }
+
+    #[test]
+    fn multi_block_is_off_by_default() {
+        let forks = OpChainHardforks::op_mainnet();
+        assert_eq!(forks.multi_block_activation(), ForkCondition::Never);
+        assert!(!forks.is_multi_block_active_at_timestamp(u64::MAX));
+        assert!(!forks.siblings_allowed_at_timestamp(u64::MAX));
+    }
+
+    #[test]
+    fn siblings_allowed_strictly_after_activation_and_never_at_a_fork_activation() {
+        let chain = MultiBlockChain::new(1000, 2000);
+
+        assert!(!chain.is_multi_block_active_at_timestamp(999));
+        assert!(chain.is_multi_block_active_at_timestamp(1000));
+
+        // The activation timestamp itself carries no siblings: its blocks' parents are still
+        // pre-activation.
+        assert!(!chain.siblings_allowed_at_timestamp(1000));
+        assert!(chain.siblings_allowed_at_timestamp(1001));
+
+        // Lagoon activates after multi-block; its activation block must stay unique.
+        assert!(!chain.siblings_allowed_at_timestamp(2000));
+        assert!(chain.siblings_allowed_at_timestamp(2001));
     }
 
     // https://github.com/alloy-rs/hardforks/issues/63

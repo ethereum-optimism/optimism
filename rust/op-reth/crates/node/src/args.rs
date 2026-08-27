@@ -238,6 +238,33 @@ pub struct RollupArgs {
     #[arg(long = "rollup.max-uncompressed-block-size", value_name = "MAX_UNCOMPRESSED_BLOCK_SIZE")]
     pub max_uncompressed_block_size: Option<u64>,
 
+    /// Seal a block for the consensus layer once it holds at least this many user (mempool)
+    /// transactions.
+    ///
+    /// Only meaningful on a sequencer: the consensus layer polls
+    /// `engine_awaitPayloadReadyV1`, and readiness lets it seal before its slot deadline and
+    /// start the next block, fitting several blocks into one block time. Unset means the
+    /// transaction count never makes a payload ready; `0` would make every payload ready at
+    /// once and is rejected.
+    #[arg(
+        long = "rollup.multi-block.min-txs",
+        value_name = "MIN_TXS",
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
+    pub multi_block_min_txs: Option<u64>,
+
+    /// Seal a block for the consensus layer once a block holding user transactions has been
+    /// building for this long, in milliseconds.
+    ///
+    /// The companion of `--rollup.multi-block.min-txs` for blocks that fill slowly. Unset means
+    /// build time never makes a payload ready; `0` is rejected for the same reason as above.
+    #[arg(
+        long = "rollup.multi-block.min-build-time",
+        value_name = "MIN_BUILD_TIME_MS",
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
+    pub multi_block_min_build_time_ms: Option<u64>,
+
     /// A URL pointing to a secure websocket subscription that streams out flashblocks.
     ///
     /// If given, the flashblocks are received to build pending block. All request with "pending"
@@ -313,6 +340,8 @@ impl Default for RollupArgs {
             historical_rpc: None,
             min_suggested_priority_fee: 1_000_000,
             max_uncompressed_block_size: None,
+            multi_block_min_txs: None,
+            multi_block_min_build_time_ms: None,
             flashblocks_url: None,
             flashblock_consensus: false,
             proofs_history: false,
@@ -343,6 +372,40 @@ mod tests {
         let default_args = RollupArgs::default();
         let args = CommandParser::<RollupArgs>::parse_from(["reth"]).args;
         assert_eq!(args, default_args);
+    }
+
+    #[test]
+    fn test_parse_multi_block_policy_args() {
+        assert_eq!(RollupArgs::default().multi_block_min_txs, None);
+        assert_eq!(RollupArgs::default().multi_block_min_build_time_ms, None);
+
+        let expected_args = RollupArgs {
+            multi_block_min_txs: Some(4),
+            multi_block_min_build_time_ms: Some(50),
+            ..Default::default()
+        };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.multi-block.min-txs",
+            "4",
+            "--rollup.multi-block.min-build-time",
+            "50",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    /// A zero threshold is satisfied by the very first build, which would freeze every payload
+    /// as soon as the job starts and leave the chain producing nothing but empty blocks.
+    #[test]
+    fn test_multi_block_policy_args_reject_zero() {
+        for flag in ["--rollup.multi-block.min-txs", "--rollup.multi-block.min-build-time"] {
+            assert!(
+                CommandParser::<RollupArgs>::try_parse_from(["reth", flag, "0"]).is_err(),
+                "{flag} must reject 0"
+            );
+            assert!(CommandParser::<RollupArgs>::try_parse_from(["reth", flag, "1"]).is_ok());
+        }
     }
 
     #[test]
