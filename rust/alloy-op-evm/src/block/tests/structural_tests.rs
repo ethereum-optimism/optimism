@@ -168,6 +168,80 @@ fn canonicalized_result_gas_applies_refund_exactly_once() {
 }
 
 #[test]
+fn sdm_refund_can_reduce_canonical_gas_across_eip7623_floor() {
+    let tx = calldata_floor_test_tx();
+    let (evm_gas_used, floor_gas, native_evm_refund) = {
+        let mut fixture =
+            JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 500_000, JOVIAN_TIMESTAMP);
+        fixture.db = prepare_calldata_floor_db();
+        let mut executor = fixture.executor();
+        let output =
+            executor.execute_transaction_without_commit(&tx).expect("floor probe executes");
+        let gas = output.inner.result.result.gas();
+        (output.evm_gas_used, gas.floor_gas(), gas.inner_refunded())
+    };
+    assert!(floor_gas > 0, "Jovian transaction must compute an EIP-7623 floor");
+    assert!(native_evm_refund > 0, "test transaction must earn a native EVM refund");
+    let gas_above_floor = evm_gas_used
+        .checked_sub(floor_gas)
+        .expect("test transaction executes above its calldata floor");
+    assert!(gas_above_floor > 1, "test needs room on both sides of the floor");
+
+    for (case, refund, expected_canonical_gas) in [
+        ("above floor", gas_above_floor - 1, floor_gas + 1),
+        ("at floor", gas_above_floor, floor_gas),
+        ("below floor", gas_above_floor + 1, floor_gas - 1),
+    ] {
+        let entries = vec![SDMGasEntry { index: 0, gas_refund: refund }];
+        let mut fixture =
+            JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 500_000, JOVIAN_TIMESTAMP);
+        fixture.db = prepare_calldata_floor_db();
+        let mut verifier = fixture.verifier(0, entries.clone());
+
+        let output = verifier
+            .execute_transaction_without_commit(&tx)
+            .unwrap_or_else(|err| panic!("{case}: refunded transaction executes: {err}"));
+        assert_eq!(output.evm_gas_used, evm_gas_used, "{case}: raw gas remains unchanged");
+        assert_eq!(
+            output.canonical_gas_used, expected_canonical_gas,
+            "{case}: canonical gas is raw EVM gas minus the complete SDM refund"
+        );
+        let result_gas = output.inner.result.result.gas();
+        assert_eq!(
+            result_gas.tx_gas_used(),
+            expected_canonical_gas,
+            "{case}: generic execution-result gas must agree with canonical gas"
+        );
+        assert_eq!(
+            result_gas.inner_refunded(),
+            native_evm_refund,
+            "{case}: SDM must not alter the EVM's own refund counter"
+        );
+        assert_eq!(
+            result_gas.floor_gas(),
+            floor_gas.saturating_sub(refund),
+            "{case}: the post-EVM SDM refund must discount the stored floor too"
+        );
+
+        verifier.commit_transaction(output);
+        let post_exec = recovered_post_exec(0, entries);
+        verifier.execute_transaction(&post_exec).expect("post-exec transaction verifies");
+        let (_, result) = verifier.finish().expect("floor-bound block finishes");
+        assert_eq!(result.gas_used, expected_canonical_gas, "{case}: block gas");
+        assert_eq!(
+            result.receipts[0].cumulative_gas_used(),
+            expected_canonical_gas,
+            "{case}: user receipt cumulative gas"
+        );
+        assert_eq!(
+            result.receipts[1].cumulative_gas_used(),
+            expected_canonical_gas,
+            "{case}: zero-gas PostExec receipt inherits canonical cumulative gas"
+        );
+    }
+}
+
+#[test]
 fn fixed_policy_producer_verifier_roundtrip() {
     let tx = observer_test_tx();
     let mut producer_db = prepare_observer_db();
