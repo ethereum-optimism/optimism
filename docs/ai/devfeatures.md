@@ -19,7 +19,7 @@ Active flags:
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
-
+| `WithdrawalThrottle` | Withdrawal throttle configuration through OPCM upgrade and migration instructions |
 
 The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `SuperRootGamesMigration`, which is enabled by default on both the Go and Solidity sides. The bitmap no longer acts as a circuit breaker for it; removal is tracked in #21662.
 
@@ -67,8 +67,11 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
+- `DEV_FEATURE__WITHDRAWAL_THROTTLE`
 
-Interop and ZK are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+Interop, ZK, and withdrawal throttling are read via `vm.envOr(..., false)` in
+`packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()`
+returns `true` unconditionally. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/CommonTest.sol`, `test/setup/ForkL1Live.s.sol`, `test/setup/ForkL2Live.s.sol` — branch on individual `Config.devFeature*` returns
@@ -101,6 +104,12 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 
 ## E. Activation — who reads it and what they gate
 
+**On L1 (Solidity)**, `OPContractsManagerV2` and `OPContractsManagerMigrator` read the immutable
+bitmap in their contracts container. `WithdrawalThrottle` permits the one-off
+`WithdrawalThrottleConfig` upgrade/migration instruction; it does not gate the owner-only throttle
+setters themselves. A predeployed OPCM cannot gain this bit from a later intent override, so the
+OPCM deployment must already include the feature.
+
 **On L2 (Solidity)**, readers consult either the in-memory bitmap (during deploy scripts) or the `L2DevFeatureFlags` predeploy (at runtime):
 
 - `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, all under `OptimismPortalInterop`) are considered "real" predeploys.
@@ -120,7 +129,13 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 
 ## F. Hardfork interaction
 
-Interop and ZK use the bitmap as their per-chain provisioning switch and have no parallel hardfork timestamp. Super-root migration also has no parallel hardfork timestamp, but it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
+Interop, ZK, and withdrawal throttling use the bitmap as provisioning switches and have no parallel
+hardfork timestamp. Withdrawal throttling gates one-off L1 OPCM instructions; it does not install a
+runtime L2 flag consumer. Super-root migration also has no parallel hardfork timestamp, but it is
+default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide
+activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles
+in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when**
+L2ContractsManager upgrade transactions execute across the network.
 
 ## G. Lifecycle direction
 

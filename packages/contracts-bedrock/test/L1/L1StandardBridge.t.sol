@@ -1224,7 +1224,7 @@ contract L1StandardBridge_FinalizeBridgeERC20_Test is L1StandardBridge_Withdrawa
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IL1StandardBridge.L1StandardBridge_WithdrawalThrottled.selector, address(L1Token), 1, 0, CAPACITY
+                IL1StandardBridge.L1StandardBridge_WithdrawalThrottled.selector, address(L1Token), 1, 0, 90
             )
         );
         _withdraw(address(L1Token), address(L2Token), 1);
@@ -1244,7 +1244,41 @@ contract L1StandardBridge_FinalizeBridgeERC20_Test is L1StandardBridge_Withdrawa
         _withdraw(address(L1Token), address(L2Token), CAPACITY / 2);
 
         vm.warp(block.timestamp + REFILL_PERIOD);
-        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), CAPACITY);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 85);
+    }
+
+    /// @notice Tests that increased stock raises the ceiling without immediately topping up availability.
+    function test_finalizeBridgeERC20_increasedStockLazilyRaisesCapacity_succeeds() external {
+        _configureThrottle();
+        _withdraw(address(L1Token), address(L2Token), CAPACITY);
+
+        deal(address(L1Token), address(l1StandardBridge), 1900, true);
+        _setDeposits(address(L1Token), address(L2Token), 1900);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 0);
+
+        vm.warp(block.timestamp + REFILL_PERIOD / 2);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 50);
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleRefreshed(address(L1Token), 1900, 190, 50);
+        _withdraw(address(L1Token), address(L2Token), 50);
+
+        assertEq(l1StandardBridge.withdrawalThrottle(address(L1Token)).capacity, 190);
+        vm.warp(block.timestamp + REFILL_PERIOD / 2);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 95);
+    }
+
+    /// @notice Tests that decreased stock immediately clamps effective availability.
+    function test_finalizeBridgeERC20_decreasedStockLazilyClampsCapacity_succeeds() external {
+        _configureThrottle();
+        deal(address(L1Token), address(l1StandardBridge), 500, true);
+        _setDeposits(address(L1Token), address(L2Token), 500);
+
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 50);
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleRefreshed(address(L1Token), 500, 50, 50);
+        _withdraw(address(L1Token), address(L2Token), 50);
+
+        assertEq(l1StandardBridge.withdrawalThrottle(address(L1Token)).capacity, 50);
     }
 
     /// @notice Tests that staggered withdrawals preserve fractional refill capacity.
@@ -1252,13 +1286,19 @@ contract L1StandardBridge_FinalizeBridgeERC20_Test is L1StandardBridge_Withdrawa
         vm.prank(bridgeOwner);
         l1StandardBridge.setWithdrawalThrottle(address(L1Token), MAX_BPS, 3);
         _withdraw(address(L1Token), address(L2Token), CAPACITY);
+        deal(address(L1Token), address(l1StandardBridge), STOCK, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK);
 
         vm.warp(block.timestamp + 1);
         _withdraw(address(L1Token), address(L2Token), 33);
+        deal(address(L1Token), address(l1StandardBridge), STOCK, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK);
         vm.warp(block.timestamp + 1);
 
         assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 33);
         _withdraw(address(L1Token), address(L2Token), 33);
+        deal(address(L1Token), address(l1StandardBridge), STOCK, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK);
         vm.warp(block.timestamp + 1);
 
         assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 34);
@@ -1285,7 +1325,7 @@ contract L1StandardBridge_FinalizeBridgeERC20_Test is L1StandardBridge_Withdrawa
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IL1StandardBridge.L1StandardBridge_WithdrawalThrottled.selector, address(L1Token), 41, 40, CAPACITY
+                IL1StandardBridge.L1StandardBridge_WithdrawalThrottled.selector, address(L1Token), 41, 40, 94
             )
         );
         _withdraw(address(L1Token), alternateRemoteToken, 41);

@@ -30,6 +30,9 @@ var (
 
 	// SuperRootGamesMigrationFlag enables the super root games migration path in OPCM upgrade.
 	SuperRootGamesMigrationFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000010000000")
+
+	// WithdrawalThrottleFlag enables withdrawal throttle configuration through OPCM.
+	WithdrawalThrottleFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000001000000000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.

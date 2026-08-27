@@ -67,6 +67,12 @@ interface IOPContractsManagerMigrator {
     ///         it is given, so a disabled config would be registered anyway.
     error OPContractsManagerMigrator_DisputeGameNotEnabled();
 
+    /// @notice Thrown when a migration instruction is not permitted.
+    error OPContractsManagerMigrator_InvalidMigrationInstruction(string _key);
+
+    /// @notice Thrown when shared lockbox throttle configuration is not exactly one ETH entry.
+    error OPContractsManagerMigrator_InvalidWithdrawalThrottleConfig();
+
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 
@@ -77,6 +83,13 @@ interface IOPContractsManagerMigrator {
     ///         dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) external;
+
+    /// @notice Migrates chains and applies permitted one-off migration instructions.
+    function migrateWithInstructions(
+        MigrateInput calldata _input,
+        IOPContractsManagerUtils.ExtraInstruction[] calldata _extraInstructions
+    )
+        external;
 
     function __constructor__(IOPContractsManagerUtils _utils) external;
 }

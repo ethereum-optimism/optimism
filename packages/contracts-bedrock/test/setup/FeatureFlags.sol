@@ -49,6 +49,10 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION is enabled");
             devFeatureBitmap |= DevFeatures.SUPER_ROOT_GAMES_MIGRATION;
         }
+        if (Config.devFeatureWithdrawalThrottle()) {
+            console.log("Setup: DEV_FEATURE__WITHDRAWAL_THROTTLE is enabled");
+            devFeatureBitmap |= DevFeatures.WITHDRAWAL_THROTTLE;
+        }
     }
 
     /// @notice Returns the string name of a feature.
@@ -61,6 +65,8 @@ abstract contract FeatureFlags {
             return "DEV_FEATURE__ZK_DISPUTE_GAME";
         } else if (_feature == DevFeatures.SUPER_ROOT_GAMES_MIGRATION) {
             return "DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION";
+        } else if (_feature == DevFeatures.WITHDRAWAL_THROTTLE) {
+            return "DEV_FEATURE__WITHDRAWAL_THROTTLE";
         } else if (_feature == Features.CUSTOM_GAS_TOKEN) {
             return "SYS_FEATURE__CUSTOM_GAS_TOKEN";
         } else if (_feature == Features.ETH_LOCKBOX) {

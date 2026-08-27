@@ -50,6 +50,7 @@ func TestInteropMigration(t *testing.T) {
 	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, 30_000_000)
 
 	devBitmap := devfeatures.EnableDevFeature(common.Hash{}, devfeatures.OptimismPortalInteropFlag)
+	devBitmap = devfeatures.EnableDevFeature(devBitmap, devfeatures.WithdrawalThrottleFlag)
 	intent.GlobalDeployOverrides = map[string]any{
 		"devFeatureBitmap": devBitmap,
 	}
@@ -107,6 +108,20 @@ func TestInteropMigration(t *testing.T) {
 	testPrestate := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000abc")
 	gameArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
 	require.NoError(t, err)
+	withdrawalThrottleType, err := abi.NewType("tuple[]", "", []abi.ArgumentMarshaling{
+		{Name: "token", Type: "address"},
+		{Name: "maxBps", Type: "uint16"},
+		{Name: "refillPeriod", Type: "uint64"},
+	})
+	require.NoError(t, err)
+	withdrawalThrottleData, err := abi.Arguments{{Type: withdrawalThrottleType}}.Pack([]struct {
+		Token        common.Address
+		MaxBps       uint16
+		RefillPeriod uint64
+	}{
+		{MaxBps: 1000, RefillPeriod: 100},
+	})
+	require.NoError(t, err)
 
 	// Define game type constants matching Solidity GameTypes library.
 	const GameTypeSuperCannonKona = uint32(9)
@@ -132,6 +147,9 @@ func TestInteropMigration(t *testing.T) {
 			},
 			StartingRespectedGameType: GameTypeSuperCannonKona,
 		},
+		ExtraInstructions: []ExtraInstruction{
+			{Key: "WithdrawalThrottleConfig", Data: withdrawalThrottleData},
+		},
 	}
 
 	// Execute Migration
@@ -144,6 +162,9 @@ func TestInteropMigration(t *testing.T) {
 	require.Len(t, dump, 1, "Should have one transaction (migration)")
 	require.True(t, dump[0].Value.ToInt().Cmp(common.Big0) == 0, "Transaction value should be zero")
 	require.Equal(t, l1ProxyAdminOwner, *dump[0].To, "Transaction should be sent to prank address")
+	require.GreaterOrEqual(t, len(dump[0].Data), 4)
+	require.Equal(t, common.FromHex("c73d1bb8"), []byte(dump[0].Data[:4]),
+		"transaction should call migrateWithInstructions")
 }
 
 func TestCommandsDoNotIncludeMigrate(t *testing.T) {
@@ -205,4 +226,35 @@ func TestEncodedMigrateInputV2(t *testing.T) {
 		"aa00000000000000000000000000000000000000000000000000000000000000" // gameArgs data (prestate)
 
 	require.Equal(t, expected, hex.EncodeToString(data))
+}
+
+func TestEncodedExtraInstructions(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		data, err := (&InteropMigrationInput{}).EncodedExtraInstructions()
+		require.NoError(t, err)
+		require.Nil(t, data)
+	})
+
+	t.Run("encodes instructions", func(t *testing.T) {
+		input := &InteropMigrationInput{
+			ExtraInstructions: []ExtraInstruction{
+				{Key: "test-key", Data: []byte{0x04, 0x05, 0x06}},
+			},
+		}
+
+		data, err := input.EncodedExtraInstructions()
+		require.NoError(t, err)
+
+		expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to instructions
+			"0000000000000000000000000000000000000000000000000000000000000001" + // instructions.length
+			"0000000000000000000000000000000000000000000000000000000000000020" + // offset to instructions[0]
+			"0000000000000000000000000000000000000000000000000000000000000040" + // offset to key
+			"0000000000000000000000000000000000000000000000000000000000000080" + // offset to data
+			"0000000000000000000000000000000000000000000000000000000000000008" + // key.length
+			"746573742d6b6579000000000000000000000000000000000000000000000000" + // key data
+			"0000000000000000000000000000000000000000000000000000000000000003" + // data.length
+			"0405060000000000000000000000000000000000000000000000000000000000" // data
+
+		require.Equal(t, expected, hex.EncodeToString(data))
+	})
 }

@@ -12,6 +12,17 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 interface IOptimismPortal2 is IProxyAdminOwnedBase {
+    /// @notice Withdrawal throttle state for ETH held directly by the portal.
+    struct WithdrawalThrottleConfig {
+        uint256 capacity;
+        uint256 available;
+        uint64 refillPeriod;
+        uint64 lastUpdated;
+        uint64 refillRemainder;
+        uint16 maxBps;
+        bool enabled;
+    }
+
     error ContentLengthMismatch();
     error EmptyItem();
     error InvalidDataRemainder();
@@ -69,6 +80,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         uint256 capacity,
         uint256 available
     );
+    event WithdrawalThrottleRefreshed(uint256 stockSnapshot, uint256 capacity, uint256 available);
     event WithdrawalThrottleDisabled();
     event WithdrawalThrottleCapacityConsumed(uint256 amount, uint256 remaining);
     event WithdrawalThrottleCapacityExhausted();
@@ -113,6 +125,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function proofSubmitters(bytes32, uint256) external view returns (address);
     function setWithdrawalThrottle(uint16 _maxBps, uint64 _refillPeriod) external;
     function disableWithdrawalThrottle() external;
+    function withdrawalThrottle() external view returns (WithdrawalThrottleConfig memory);
     function availableWithdrawalCapacity() external view returns (uint256);
     function proveWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,

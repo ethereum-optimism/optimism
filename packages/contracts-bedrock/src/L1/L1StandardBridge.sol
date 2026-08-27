@@ -232,15 +232,18 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         WithdrawalThrottleConfig storage throttle = _withdrawalThrottles[_token];
         if (!throttle.enabled) revert L1StandardBridge_WithdrawalThrottleNotEnabled();
 
-        (uint256 available,) = _availableWithdrawalCapacity(throttle);
+        (uint256 available, uint64 refillRemainder) = _availableWithdrawalCapacity(throttle);
         uint256 stockSnapshot = IERC20(_token).balanceOf(address(this));
         uint256 capacity = WithdrawalThrottle.capacity(stockSnapshot, throttle.maxBps);
-        if (available > capacity) available = capacity;
+        if (available >= capacity) {
+            available = capacity;
+            refillRemainder = 0;
+        }
 
         throttle.capacity = capacity;
         throttle.available = available;
         throttle.lastUpdated = uint64(block.timestamp);
-        throttle.refillRemainder = 0;
+        throttle.refillRemainder = refillRemainder;
 
         emit WithdrawalThrottleRefreshed(_token, stockSnapshot, capacity, available);
     }
@@ -271,7 +274,7 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     function availableWithdrawalCapacity(address _token) external view returns (uint256) {
         WithdrawalThrottleConfig storage throttle = _withdrawalThrottles[_token];
         if (!throttle.enabled) return type(uint256).max;
-        (uint256 available,) = _availableWithdrawalCapacity(throttle);
+        (,, uint256 available,) = _syncedWithdrawalCapacity(_token, throttle);
         return available;
     }
 
@@ -434,16 +437,20 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         WithdrawalThrottleConfig storage throttle = _withdrawalThrottles[_localToken];
         if (!throttle.enabled || _amount == 0) return;
 
-        (uint256 available, uint64 refillRemainder) = _availableWithdrawalCapacity(throttle);
+        (uint256 stockSnapshot, uint256 capacity, uint256 available, uint64 refillRemainder) =
+            _syncedWithdrawalCapacity(_localToken, throttle);
         if (_amount > available) {
-            revert L1StandardBridge_WithdrawalThrottled(_localToken, _amount, available, throttle.capacity);
+            revert L1StandardBridge_WithdrawalThrottled(_localToken, _amount, available, capacity);
         }
 
         uint256 remaining = available - _amount;
+        bool capacityChanged = capacity != throttle.capacity;
+        throttle.capacity = capacity;
         throttle.available = remaining;
         throttle.lastUpdated = uint64(block.timestamp);
         throttle.refillRemainder = refillRemainder;
 
+        if (capacityChanged) emit WithdrawalThrottleRefreshed(_localToken, stockSnapshot, capacity, available);
         emit WithdrawalThrottleCapacityConsumed(_localToken, _amount, remaining);
         if (remaining == 0) emit WithdrawalThrottleCapacityExhausted(_localToken);
     }
@@ -465,6 +472,30 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
             _throttle.lastUpdated,
             block.timestamp
         );
+    }
+
+    /// @notice Computes the effective bucket state against the token's current bridge stock.
+    /// @param _token Token whose bridge stock should be read.
+    /// @param _throttle Withdrawal throttle state.
+    /// @return stock_ Current bridge stock.
+    /// @return capacity_ Capacity derived from the current stock.
+    /// @return available_ Available capacity after refill and stock synchronization.
+    /// @return remainder_ Fractional refill numerator to preserve when materializing the refill.
+    function _syncedWithdrawalCapacity(
+        address _token,
+        WithdrawalThrottleConfig storage _throttle
+    )
+        internal
+        view
+        returns (uint256 stock_, uint256 capacity_, uint256 available_, uint64 remainder_)
+    {
+        (available_, remainder_) = _availableWithdrawalCapacity(_throttle);
+        stock_ = IERC20(_token).balanceOf(address(this));
+        capacity_ = WithdrawalThrottle.capacity(stock_, _throttle.maxBps);
+        if (available_ >= capacity_) {
+            available_ = capacity_;
+            remainder_ = 0;
+        }
     }
 
     /// @inheritdoc StandardBridge

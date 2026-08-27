@@ -651,9 +651,44 @@ contract ETHLockbox_UnlockETH_Test is ETHLockbox_WithdrawalThrottle_TestInit {
         vm.prank(address(optimismPortal2));
         ethLockbox.unlockETH(CAPACITY);
 
-        vm.expectRevert(abi.encodeWithSelector(IETHLockbox.ETHLockbox_WithdrawalThrottled.selector, 1, 0, CAPACITY));
+        vm.expectRevert(abi.encodeWithSelector(IETHLockbox.ETHLockbox_WithdrawalThrottled.selector, 1, 0, 90));
         vm.prank(address(optimismPortal2));
         ethLockbox.unlockETH(1);
+    }
+
+    /// @notice Tests that increased stock raises the ceiling without immediately topping up availability.
+    function test_unlockETH_increasedStockLazilyRaisesCapacity_succeeds() external {
+        _configureWithdrawalThrottle();
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(CAPACITY);
+
+        vm.deal(address(ethLockbox), 1900);
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 0);
+
+        vm.warp(block.timestamp + REFILL_PERIOD / 2);
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 50);
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleRefreshed(1900, 190, 50);
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(50);
+
+        assertEq(ethLockbox.withdrawalThrottle().capacity, 190);
+        vm.warp(block.timestamp + REFILL_PERIOD / 2);
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 95);
+    }
+
+    /// @notice Tests that decreased stock immediately clamps effective availability.
+    function test_unlockETH_decreasedStockLazilyClampsCapacity_succeeds() external {
+        _configureWithdrawalThrottle();
+        vm.deal(address(ethLockbox), 500);
+
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 50);
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleRefreshed(500, 50, 50);
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(50);
+
+        assertEq(ethLockbox.withdrawalThrottle().capacity, 50);
     }
 }
 

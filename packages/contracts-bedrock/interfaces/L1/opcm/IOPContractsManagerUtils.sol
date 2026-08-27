@@ -23,6 +23,16 @@ interface IOPContractsManagerUtils {
         bytes data;
     }
 
+    /// @notice Parameters for configuring one asset's withdrawal throttle.
+    /// @param token        L1 token address, or address(0) for ETH.
+    /// @param maxBps       Maximum withdrawable stock in basis points.
+    /// @param refillPeriod Time in seconds for the bucket to refill from empty to full.
+    struct WithdrawalThrottleConfig {
+        address token;
+        uint16 maxBps;
+        uint64 refillPeriod;
+    }
+
     /// @notice Configuration struct for the FaultDisputeGame.
     struct FaultDisputeGameConfig {
         Claim absolutePrestate;

@@ -2954,6 +2954,9 @@ workflows:
                 - CUSTOM_GAS_TOKEN
                 - OPTIMISM_PORTAL_INTEROP
                 - ZK_DISPUTE_GAME
+                - WITHDRAWAL_THROTTLE
+                - WITHDRAWAL_THROTTLE,OPTIMISM_PORTAL_INTEROP
+                - WITHDRAWAL_THROTTLE,CUSTOM_GAS_TOKEN
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3109,18 +3112,30 @@ workflows:
             - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-tests ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests WITHDRAWAL_THROTTLE: terminal
+            - contracts-bedrock-tests WITHDRAWAL_THROTTLE,OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-tests WITHDRAWAL_THROTTLE,CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified WITHDRAWAL_THROTTLE: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified WITHDRAWAL_THROTTLE,OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified WITHDRAWAL_THROTTLE,CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-coverage CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-coverage ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-coverage WITHDRAWAL_THROTTLE: terminal
+            - contracts-bedrock-coverage WITHDRAWAL_THROTTLE,OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-coverage WITHDRAWAL_THROTTLE,CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet WITHDRAWAL_THROTTLE: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet WITHDRAWAL_THROTTLE,OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet WITHDRAWAL_THROTTLE,CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-upgrade op-mainnet: terminal
             - contracts-bedrock-tests-upgrade ink-mainnet: terminal
             - contracts-bedrock-tests-upgrade unichain-mainnet: terminal

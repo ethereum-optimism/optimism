@@ -36,6 +36,7 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title OPContractsManagerV2_TestInit
 /// @notice Base test initialization contract for OPContractsManagerV2.
@@ -2385,6 +2386,213 @@ contract OPContractsManagerV2_DevFeatureBitmap_Test is OPContractsManagerV2_Test
     }
 }
 
+/// @title OPContractsManagerV2_Upgrade_WithdrawalThrottle_Test
+/// @notice Tests withdrawal throttle upgrade instructions.
+contract OPContractsManagerV2_Upgrade_WithdrawalThrottle_Test is OPContractsManagerV2_TestInit {
+    /// @notice Skips fork tests because these cases exercise a locally deployed OPCM chain.
+    function setUp() public override {
+        super.setUp();
+        skipIfForkTest("Withdrawal throttle instruction tests use local deployments");
+    }
+
+    /// @notice Builds the current chain's dispute game configuration for an OPCM upgrade.
+    function _upgradeGameConfigs()
+        internal
+        view
+        returns (IOPContractsManagerUtils.DisputeGameConfig[] memory configs_)
+    {
+        bool superRoot = GameTypes.isSuperGame(anchorStateRegistry.respectedGameType());
+        configs_ = new IOPContractsManagerUtils.DisputeGameConfig[](6);
+        configs_[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: bytes("")
+        });
+        configs_[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: !superRoot,
+            initBond: superRoot ? 0 : disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: superRoot
+                ? bytes("")
+                : abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: cannonPrestate,
+                        proposer: DisputeGames.permissionedGameProposer(disputeGameFactory),
+                        challenger: DisputeGames.permissionedGameChallenger(disputeGameFactory)
+                    })
+                )
+        });
+        configs_[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        configs_[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: superRoot,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED,
+            gameArgs: superRoot
+                ? abi.encode(
+                    IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({
+                        proposer: DisputeGames.permissionedGameProposer(disputeGameFactory)
+                    })
+                )
+                : bytes("")
+        });
+        configs_[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        configs_[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: bytes("")
+        });
+    }
+
+    /// @notice Builds a withdrawal throttle instruction.
+    function _instruction(IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory _configs)
+        internal
+        pure
+        returns (IOPContractsManagerUtils.ExtraInstruction[] memory instructions_)
+    {
+        instructions_ = new IOPContractsManagerUtils.ExtraInstruction[](1);
+        instructions_[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: Constants.WITHDRAWAL_THROTTLE_CONFIG_KEY,
+            data: abi.encode(_configs)
+        });
+    }
+
+    /// @notice Executes a chain upgrade with the supplied withdrawal throttle configs.
+    function _upgrade(IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory _configs)
+        internal
+        returns (bool success_, bytes memory reason_)
+    {
+        IOPContractsManagerV2.UpgradeInput memory input = IOPContractsManagerV2.UpgradeInput({
+            systemConfig: systemConfig,
+            disputeGameConfigs: _upgradeGameConfigs(),
+            extraInstructions: _instruction(_configs)
+        });
+        prankDelegateCall(proxyAdminOwner);
+        (success_, reason_) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+    }
+
+    /// @notice Tests that a feature-enabled instruction configures ERC20 and direct ETH buckets once.
+    function test_upgrade_withdrawalThrottleInstruction_succeeds() external {
+        skipIfDevFeatureDisabled(DevFeatures.WITHDRAWAL_THROTTLE);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.ETH_LOCKBOX);
+
+        vm.mockCall(
+            address(L1Token), abi.encodeCall(IERC20.balanceOf, (address(l1StandardBridge))), abi.encode(uint256(1000))
+        );
+        vm.deal(address(optimismPortal2), 2000);
+
+        IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory configs =
+            new IOPContractsManagerUtils.WithdrawalThrottleConfig[](2);
+        configs[0] = IOPContractsManagerUtils.WithdrawalThrottleConfig({
+            token: address(L1Token),
+            maxBps: 1000,
+            refillPeriod: 100
+        });
+        configs[1] =
+            IOPContractsManagerUtils.WithdrawalThrottleConfig({ token: address(0), maxBps: 1000, refillPeriod: 100 });
+
+        (bool success,) = _upgrade(configs);
+        assertTrue(success, "upgrade failed");
+        assertEq(l1StandardBridge.withdrawalThrottle(address(L1Token)).capacity, 100);
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), 200);
+
+        vm.mockCall(
+            address(L1Token), abi.encodeCall(IERC20.balanceOf, (address(l1StandardBridge))), abi.encode(uint256(2000))
+        );
+        vm.deal(address(optimismPortal2), 4000);
+        (success,) = _upgrade(configs);
+        assertTrue(success, "repeat upgrade failed");
+        assertEq(l1StandardBridge.withdrawalThrottle(address(L1Token)).capacity, 100);
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), 200);
+    }
+
+    /// @notice Tests that the instruction is rejected when its development feature is disabled.
+    function test_upgrade_withdrawalThrottleFeatureDisabled_reverts() external {
+        skipIfDevFeatureEnabled(DevFeatures.WITHDRAWAL_THROTTLE);
+
+        IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory configs =
+            new IOPContractsManagerUtils.WithdrawalThrottleConfig[](1);
+        configs[0] = IOPContractsManagerUtils.WithdrawalThrottleConfig({
+            token: address(L1Token),
+            maxBps: 1000,
+            refillPeriod: 100
+        });
+
+        (bool success, bytes memory reason) = _upgrade(configs);
+        assertFalse(success);
+        assertEq(bytes4(reason), IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInstruction.selector);
+    }
+
+    /// @notice Tests that custom gas token chains reject an ETH throttle entry.
+    function test_upgrade_customGasTokenETHThrottle_reverts() external {
+        skipIfDevFeatureDisabled(DevFeatures.WITHDRAWAL_THROTTLE);
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory configs =
+            new IOPContractsManagerUtils.WithdrawalThrottleConfig[](1);
+        configs[0] =
+            IOPContractsManagerUtils.WithdrawalThrottleConfig({ token: address(0), maxBps: 1000, refillPeriod: 100 });
+
+        (bool success, bytes memory reason) = _upgrade(configs);
+        assertFalse(success);
+        assertEq(bytes4(reason), IOPContractsManagerV2.OPContractsManagerV2_InvalidWithdrawalThrottleConfig.selector);
+    }
+
+    /// @notice Tests that an active lockbox is configured once and exact replays preserve its capacity.
+    function test_upgrade_activeLockboxETHThrottle_succeeds() external {
+        skipIfDevFeatureDisabled(DevFeatures.WITHDRAWAL_THROTTLE);
+        skipIfSysFeatureDisabled(Features.ETH_LOCKBOX);
+
+        vm.deal(address(ethLockbox), 2000);
+
+        IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory configs =
+            new IOPContractsManagerUtils.WithdrawalThrottleConfig[](1);
+        configs[0] =
+            IOPContractsManagerUtils.WithdrawalThrottleConfig({ token: address(0), maxBps: 1000, refillPeriod: 100 });
+
+        (bool success,) = _upgrade(configs);
+        assertTrue(success, "upgrade failed");
+        assertEq(ethLockbox.withdrawalThrottle().capacity, 200);
+
+        vm.deal(address(ethLockbox), 4000);
+        (success,) = _upgrade(configs);
+        assertTrue(success, "repeat upgrade failed");
+        assertEq(ethLockbox.withdrawalThrottle().capacity, 200);
+    }
+
+    /// @notice Tests that an instruction cannot silently replace a different existing configuration.
+    function test_upgrade_conflictingWithdrawalThrottle_reverts() external {
+        skipIfDevFeatureDisabled(DevFeatures.WITHDRAWAL_THROTTLE);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.ETH_LOCKBOX);
+
+        vm.deal(address(optimismPortal2), 2000);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setWithdrawalThrottle(500, 100);
+
+        IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory configs =
+            new IOPContractsManagerUtils.WithdrawalThrottleConfig[](1);
+        configs[0] =
+            IOPContractsManagerUtils.WithdrawalThrottleConfig({ token: address(0), maxBps: 1000, refillPeriod: 100 });
+
+        (bool success, bytes memory reason) = _upgrade(configs);
+        assertFalse(success);
+        assertEq(bytes4(reason), IOPContractsManagerV2.OPContractsManagerV2_WithdrawalThrottleConfigConflict.selector);
+    }
+}
+
 /// @title OPContractsManagerV2_Migrate_Test
 /// @notice Tests the `migrate` function of the `OPContractsManagerV2` contract.
 contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
@@ -2638,6 +2846,44 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertLt(gasBefore - gasAfter, 20_000_000, "Gas usage too high");
     }
 
+    /// @notice Executes a migration with one-off instructions.
+    function _doMigrationWithInstructions(
+        IOPContractsManagerMigrator.MigrateInput memory _input,
+        IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions,
+        bytes4 _revertSelector
+    )
+        internal
+    {
+        address proxyAdminOwner = chainContracts1.proxyAdmin.owner();
+        prankDelegateCall(proxyAdminOwner);
+        (bool success, bytes memory reason) = address(opcmV2).delegatecall(
+            abi.encodeCall(IOPContractsManagerV2.migrateWithInstructions, (_input, _extraInstructions))
+        );
+        if (_revertSelector == bytes4(0)) {
+            assertTrue(success, "migration with instructions failed");
+        } else {
+            assertFalse(success, "migration with instructions succeeded");
+            assertEq(bytes4(reason), _revertSelector);
+        }
+    }
+
+    /// @notice Builds one shared ETH withdrawal throttle instruction.
+    function _sharedETHWithdrawalThrottleInstruction()
+        internal
+        pure
+        returns (IOPContractsManagerUtils.ExtraInstruction[] memory instructions_)
+    {
+        IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory configs =
+            new IOPContractsManagerUtils.WithdrawalThrottleConfig[](1);
+        configs[0] =
+            IOPContractsManagerUtils.WithdrawalThrottleConfig({ token: address(0), maxBps: 1000, refillPeriod: 100 });
+        instructions_ = new IOPContractsManagerUtils.ExtraInstruction[](1);
+        instructions_[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: Constants.WITHDRAWAL_THROTTLE_CONFIG_KEY,
+            data: abi.encode(configs)
+        });
+    }
+
     /// @notice Helper function to enable a chain's existing per-chain ETHLockbox before migration.
     /// @param _cts The chain contracts to update.
     function _enableEthLockbox(IOPContractsManagerV2.ChainContracts memory _cts) internal {
@@ -2687,6 +2933,39 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_OnlyDelegateCall.selector);
         opcmV2.migrate(input);
+    }
+
+    /// @notice Tests that migration instructions require the withdrawal throttle feature.
+    function test_migrateWithInstructions_withdrawalThrottleFeatureDisabled_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.WITHDRAWAL_THROTTLE);
+        _doMigrationWithInstructions(
+            _getDefaultMigrateInput(),
+            _sharedETHWithdrawalThrottleInstruction(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidMigrationInstruction.selector
+        );
+    }
+
+    /// @notice Tests that shared ETH capacity snapshots aggregate liquidity exactly once.
+    function test_migrateWithInstructions_sharedETHWithdrawalThrottle_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.WITHDRAWAL_THROTTLE);
+        _enableEthLockboxes();
+
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+        vm.deal(address(portal1), 10 ether);
+        vm.deal(address(portal2), 5 ether);
+        vm.deal(address(chainContracts1.ethLockbox), 3 ether);
+        vm.deal(address(chainContracts2.ethLockbox), 2 ether);
+
+        _doMigrationWithInstructions(_getDefaultMigrateInput(), _sharedETHWithdrawalThrottleInstruction(), bytes4(0));
+
+        IETHLockbox sharedLockbox = portal1.ethLockbox();
+        IETHLockbox.WithdrawalThrottleConfig memory throttle = sharedLockbox.withdrawalThrottle();
+        assertEq(address(sharedLockbox).balance, 20 ether);
+        assertEq(throttle.capacity, 2 ether);
+        assertEq(throttle.available, 2 ether);
+        assertTrue(throttle.enabled);
+        assertEq(address(portal2.ethLockbox()), address(sharedLockbox));
     }
 
     /// @notice Tests that upgrade re-points the shared dispute games of a migrated interop set.

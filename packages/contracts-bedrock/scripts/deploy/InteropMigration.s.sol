@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
@@ -16,6 +17,8 @@ contract InteropMigrationInput is BaseDeployIO {
     address internal _opcm;
     /// @notice The migrate input is stored as opaque bytes to allow storing both OPCM v1 and v2 migrate inputs.
     bytes internal _migrateInput;
+    /// @notice Optional one-off migration instructions.
+    bytes internal _extraInstructions;
 
     function set(bytes4 _sel, address _value) public {
         require(address(_value) != address(0), "InteropMigrationInput: cannot set zero address");
@@ -33,6 +36,12 @@ contract InteropMigrationInput is BaseDeployIO {
         else revert("InteropMigrationInput: unknown selector");
     }
 
+    /// @notice Sets one-off OPCM migration instructions.
+    function set(bytes4 _sel, IOPContractsManagerUtils.ExtraInstruction[] memory _value) public {
+        if (_sel == this.extraInstructions.selector) _extraInstructions = abi.encode(_value);
+        else revert("InteropMigrationInput: unknown selector");
+    }
+
     function prank() public view returns (address) {
         require(address(_prank) != address(0), "InteropMigrationInput: prank not set");
         return _prank;
@@ -46,6 +55,10 @@ contract InteropMigrationInput is BaseDeployIO {
     function migrateInput() public view returns (bytes memory) {
         require(_migrateInput.length > 0, "InteropMigrationInput: migrateInput not set");
         return _migrateInput;
+    }
+
+    function extraInstructions() public view returns (bytes memory) {
+        return _extraInstructions;
     }
 }
 
@@ -72,6 +85,13 @@ contract InteropMigration is Script {
             SemverComp.gte(ISemver(opcm).version(), "7.0.0"),
             "InteropMigration: OPCM must be v7.0.0 or later (OPCMv2). OPCMv1 is no longer supported."
         );
+        bytes memory encodedInstructions = _imi.extraInstructions();
+        if (encodedInstructions.length != 0) {
+            require(
+                SemverComp.gte(ISemver(opcm).version(), "8.0.4"),
+                "InteropMigration: OPCM must be v8.0.4 or later when using extra instructions."
+            );
+        }
 
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
@@ -85,9 +105,15 @@ contract InteropMigration is Script {
         // Call into the DummyCaller. This will perform the delegatecall under the hood.
         // The DummyCaller uses a fallback that reverts on failure, so no need to check success.
         vm.startBroadcast(msg.sender);
-        IOPContractsManagerMigrator(prank).migrate(
-            abi.decode(_imi.migrateInput(), (IOPContractsManagerMigrator.MigrateInput))
-        );
+        IOPContractsManagerMigrator.MigrateInput memory migrateInput =
+            abi.decode(_imi.migrateInput(), (IOPContractsManagerMigrator.MigrateInput));
+        if (encodedInstructions.length == 0) {
+            IOPContractsManagerMigrator(prank).migrate(migrateInput);
+        } else {
+            IOPContractsManagerMigrator(prank).migrateWithInstructions(
+                migrateInput, abi.decode(encodedInstructions, (IOPContractsManagerUtils.ExtraInstruction[]))
+            );
+        }
         vm.stopBroadcast();
 
         // After migration all portals will have the same DGF

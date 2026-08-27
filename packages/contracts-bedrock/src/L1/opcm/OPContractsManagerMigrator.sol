@@ -84,6 +84,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///         it is given, so a disabled config would be registered anyway.
     error OPContractsManagerMigrator_DisputeGameNotEnabled();
 
+    /// @notice Thrown when a migration instruction is not permitted.
+    error OPContractsManagerMigrator_InvalidMigrationInstruction(string _key);
+
+    /// @notice Thrown when shared lockbox throttle configuration is not exactly one ETH entry.
+    error OPContractsManagerMigrator_InvalidWithdrawalThrottleConfig();
+
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
@@ -115,6 +121,32 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      portal to the shared dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](0);
+        _migrate(_input, extraInstructions);
+    }
+
+    /// @notice Migrates chains and applies permitted one-off migration instructions.
+    /// @param _input The input parameters for the migration.
+    /// @param _extraInstructions One-off migration instructions.
+    function migrateWithInstructions(
+        MigrateInput calldata _input,
+        IOPContractsManagerUtils.ExtraInstruction[] calldata _extraInstructions
+    )
+        public
+    {
+        _migrate(_input, _extraInstructions);
+    }
+
+    /// @notice Executes the interop migration with optional one-off instructions.
+    /// @param _input The input parameters for the migration.
+    /// @param _extraInstructions One-off migration instructions.
+    function _migrate(
+        MigrateInput calldata _input,
+        IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions
+    )
+        internal
+    {
         // Check that at least one chain is being migrated.
         if (_input.chainSystemConfigs.length == 0) {
             revert OPContractsManagerMigrator_NoChains();
@@ -124,6 +156,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             revert OPContractsManagerMigrator_InteropNotEnabled();
         }
+
+        _validateMigrationInstructions(_extraInstructions);
 
         // Check that the starting respected game type is a valid super game type.
         // SUPER_CANNON is retired in favor of SUPER_CANNON_KONA.
@@ -249,15 +283,72 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             }
         }
 
-        // Set up the dispute games in the new DisputeGameFactory. Configs are validated by
-        // _validateDisputeGameConfigs above.
-        for (uint256 i = 0; i < _input.disputeGameConfigs.length; i++) {
-            disputeGameFactory.setImplementation(
-                _input.disputeGameConfigs[i].gameType,
-                _getGameImpl(_input.disputeGameConfigs[i].gameType),
-                _makeGameArgs(0, anchorStateRegistry, delayedWETH, _input.disputeGameConfigs[i])
+        // Configure the shared ETH bucket only after every portal and old lockbox has contributed
+        // its liquidity, so the percentage is calculated from the aggregate stock.
+        _configureSharedETHWithdrawalThrottle(ethLockbox, _extraInstructions);
+
+        _configureDisputeGames(disputeGameFactory, anchorStateRegistry, delayedWETH, _input.disputeGameConfigs);
+    }
+
+    /// @notice Validates one-off migration instructions.
+    /// @param _extraInstructions Instructions supplied by the operator.
+    function _validateMigrationInstructions(IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions)
+        internal
+        view
+    {
+        if (_extraInstructions.length > 1) {
+            revert OPContractsManagerMigrator_InvalidMigrationInstruction(_extraInstructions[1].key);
+        }
+        if (_extraInstructions.length == 0) return;
+
+        if (
+            !contractsContainer().isDevFeatureEnabled(DevFeatures.WITHDRAWAL_THROTTLE)
+                || !_isMatchingInstructionByKey(_extraInstructions[0], Constants.WITHDRAWAL_THROTTLE_CONFIG_KEY)
+        ) {
+            revert OPContractsManagerMigrator_InvalidMigrationInstruction(_extraInstructions[0].key);
+        }
+    }
+
+    /// @notice Configures the aggregate shared ETH withdrawal bucket after liquidity migration.
+    /// @param _ethLockbox The newly deployed shared ETH lockbox.
+    /// @param _extraInstructions Instructions supplied by the operator.
+    function _configureSharedETHWithdrawalThrottle(
+        IETHLockbox _ethLockbox,
+        IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions
+    )
+        internal
+    {
+        if (_extraInstructions.length == 0) return;
+
+        IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory configs =
+            abi.decode(_extraInstructions[0].data, (IOPContractsManagerUtils.WithdrawalThrottleConfig[]));
+        if (configs.length != 1 || configs[0].token != address(0)) {
+            revert OPContractsManagerMigrator_InvalidWithdrawalThrottleConfig();
+        }
+
+        _ethLockbox.setWithdrawalThrottle(configs[0].maxBps, configs[0].refillPeriod);
+    }
+
+    /// @notice Configures the shared dispute game factory after migration.
+    /// @param _disputeGameFactory The shared dispute game factory.
+    /// @param _anchorStateRegistry The shared anchor state registry.
+    /// @param _delayedWETH The shared delayed WETH contract.
+    /// @param _configs Validated dispute game configurations.
+    function _configureDisputeGames(
+        IDisputeGameFactory _disputeGameFactory,
+        IAnchorStateRegistry _anchorStateRegistry,
+        IDelayedWETH _delayedWETH,
+        IOPContractsManagerUtils.DisputeGameConfig[] calldata _configs
+    )
+        internal
+    {
+        for (uint256 i = 0; i < _configs.length; i++) {
+            _disputeGameFactory.setImplementation(
+                _configs[i].gameType,
+                _getGameImpl(_configs[i].gameType),
+                _makeGameArgs(0, _anchorStateRegistry, _delayedWETH, _configs[i])
             );
-            disputeGameFactory.setInitBond(_input.disputeGameConfigs[i].gameType, _input.disputeGameConfigs[i].initBond);
+            _disputeGameFactory.setInitBond(_configs[i].gameType, _configs[i].initBond);
         }
     }
 

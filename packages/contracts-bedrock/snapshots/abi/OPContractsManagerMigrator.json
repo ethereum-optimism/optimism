@@ -93,6 +93,92 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract ISystemConfig[]",
+            "name": "chainSystemConfigs",
+            "type": "address[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "enabled",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint256",
+                "name": "initBond",
+                "type": "uint256"
+              },
+              {
+                "internalType": "GameType",
+                "name": "gameType",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes",
+                "name": "gameArgs",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
+            "name": "disputeGameConfigs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Hash",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "l2SequenceNumber",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Proposal",
+            "name": "startingAnchorRoot",
+            "type": "tuple"
+          },
+          {
+            "internalType": "GameType",
+            "name": "startingRespectedGameType",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct OPContractsManagerMigrator.MigrateInput",
+        "name": "_input",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "key",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerUtils.ExtraInstruction[]",
+        "name": "_extraInstructions",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "migrateWithInstructions",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "opcmUtils",
     "outputs": [
@@ -146,8 +232,24 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_key",
+        "type": "string"
+      }
+    ],
+    "name": "OPContractsManagerMigrator_InvalidMigrationInstruction",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "OPContractsManagerMigrator_InvalidStartingRespectedGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidWithdrawalThrottleConfig",
     "type": "error"
   },
   {

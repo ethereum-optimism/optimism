@@ -46,6 +46,10 @@ library DevFeatures {
     bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =
         bytes32(0x0000000000000000000000000000000000000000000000000000000010000000);
 
+    /// @notice The feature that enables withdrawal throttle configuration through OPCM.
+    bytes32 public constant WITHDRAWAL_THROTTLE =
+        bytes32(0x0000000000000000000000000000000000000000000000000000001000000000);
+
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation
     ///         allows for multiple features to be enabled at once. Users should generally check

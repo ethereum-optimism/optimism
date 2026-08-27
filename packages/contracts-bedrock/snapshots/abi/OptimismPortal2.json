@@ -696,6 +696,56 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "withdrawalThrottle",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "capacity",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "available",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint64",
+            "name": "refillPeriod",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastUpdated",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "refillRemainder",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint16",
+            "name": "maxBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "bool",
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct OptimismPortal2.WithdrawalThrottleConfig",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "anonymous": false,
     "inputs": [
       {
@@ -918,6 +968,31 @@
     "anonymous": false,
     "inputs": [],
     "name": "WithdrawalThrottleDisabled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "stockSnapshot",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "capacity",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "available",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawalThrottleRefreshed",
     "type": "event"
   },
   {

@@ -2307,6 +2307,40 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_W
         assertFalse(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
     }
 
+    /// @notice Tests that increased direct ETH stock raises the ceiling without immediately topping up availability.
+    function test_finalizeWithdrawalTransaction_increasedStockLazilyRaisesCapacity_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        _useDirectPortalCustody();
+        _configurePortalWithdrawalThrottle(WITHDRAWAL_MAX_BPS);
+        vm.deal(address(optimismPortal2), 2000);
+
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), WITHDRAWAL_CAPACITY);
+        _prepareDefaultWithdrawal();
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalThrottleRefreshed(2000, 200, WITHDRAWAL_CAPACITY);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertEq(optimismPortal2.withdrawalThrottle().capacity, 200);
+        vm.warp(block.timestamp + WITHDRAWAL_REFILL_PERIOD / 2);
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), WITHDRAWAL_CAPACITY);
+    }
+
+    /// @notice Tests that decreased direct ETH stock immediately clamps effective availability.
+    function test_finalizeWithdrawalTransaction_decreasedStockLazilyClampsCapacity_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        _useDirectPortalCustody();
+        _configurePortalWithdrawalThrottle(2000);
+        vm.deal(address(optimismPortal2), 500);
+
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), WITHDRAWAL_CAPACITY);
+        _prepareDefaultWithdrawal();
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalThrottleRefreshed(500, WITHDRAWAL_CAPACITY, WITHDRAWAL_CAPACITY);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertEq(optimismPortal2.withdrawalThrottle().capacity, WITHDRAWAL_CAPACITY);
+    }
+
     /// @notice Tests that lockbox custody bypasses a stale portal withdrawal throttle.
     function test_finalizeWithdrawalTransaction_lockboxUsesLockboxThrottle_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
