@@ -371,4 +371,7 @@ impl<Receipt> From<(Sealed<Header>, BlockExecutionResult<Receipt>)>
 }
 
 #[cfg(test)]
+mod proptests;
+
+#[cfg(test)]
 mod tests;

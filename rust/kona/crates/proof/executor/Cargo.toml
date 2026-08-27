@@ -66,6 +66,7 @@ alloy-rpc-types-engine.workspace = true
 alloy-transport.workspace = true
 alloy-transport-http.workspace = true
 kona-registry.workspace = true
+proptest.workspace = true
 rocksdb = { workspace = true, features = ["snappy"] }
 rstest.workspace = true
 serde = { workspace = true, features = ["derive"] }
