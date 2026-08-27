@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -253,7 +254,7 @@ func (s *stubL1) HeaderByHash(_ context.Context, hash common.Hash) (*ethTypes.He
 }
 
 func (s *stubL1) FilterLogs(_ context.Context, query ethereum.FilterQuery) ([]ethTypes.Log, error) {
-	s.queries = append(s.queries, query.FromBlock.Uint64())
+	s.queries = append(s.queries, bigs.Uint64Strict(query.FromBlock))
 	return s.logs, nil
 }
 

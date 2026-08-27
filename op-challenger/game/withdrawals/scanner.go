@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -42,7 +43,7 @@ func (s *proofScanner) Proofs(ctx context.Context, game resolvedGame, toBlock ui
 		if err != nil {
 			return nil, fmt.Errorf("failed to load l1 head %v: %w", game.l1Head, err)
 		}
-		from = header.Number.Uint64()
+		from = bigs.Uint64Strict(header.Number)
 		s.next[game.addr] = from
 	}
 	if from > toBlock {
