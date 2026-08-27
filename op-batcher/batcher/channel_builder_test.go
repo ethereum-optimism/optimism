@@ -36,7 +36,7 @@ var defaultTestRollupConfig = &rollup.Config{
 // channel out could not be created.
 // it acts as a factory for either a span or singular channel out
 func newChannelBuilder(log log.Logger, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*ChannelBuilder, error) {
-	co, err := NewChannelOut(cfg, rollupCfg, 0)
+	co, err := NewChannelOut(cfg, rollupCfg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating channel out: %w", err)
 	}

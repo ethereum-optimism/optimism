@@ -482,8 +482,9 @@ type SpanBatch struct {
 	ChainID          *big.Int
 	Batches          []*SpanBatchElement // List of block input in derived form
 
-	// parentTimestamp is the timestamp of the L2 block this span builds on, or 0 when it is not
-	// known. It decides whether the first appended element is a sibling of that parent.
+	// parentTimestamp is the timestamp of the L2 block this span builds on. It decides whether the
+	// first appended element is a sibling of that parent, so a SpanBatchV2Type span needs the real
+	// value; SpanBatchType ignores it.
 	parentTimestamp uint64
 
 	// caching
@@ -498,16 +499,26 @@ func (b *SpanBatch) AsSpanBatch() (*SpanBatch, bool)         { return b, true }
 
 // spanBatchMarshaling is a helper type used for JSON marshaling.
 type spanBatchMarshaling struct {
+	Version       int                 `json:"version"`
 	ParentCheck   []hexutil.Bytes     `json:"parent_check"`
 	L1OriginCheck []hexutil.Bytes     `json:"l1_origin_check"`
+	SameTsBits    []bool              `json:"same_ts_bits,omitempty"`
 	Batches       []*SpanBatchElement `json:"span_batch_elements"`
 }
 
 func (b *SpanBatch) MarshalJSON() ([]byte, error) {
 	spanBatch := spanBatchMarshaling{
+		Version:       b.Version,
 		ParentCheck:   []hexutil.Bytes{b.ParentCheck[:]},
 		L1OriginCheck: []hexutil.Bytes{b.L1OriginCheck[:]},
 		Batches:       b.Batches,
+	}
+	// the bits are what distinguishes a v2 span from a v1 one, so decoded output has to show them
+	if b.sameTsBits != nil {
+		spanBatch.SameTsBits = make([]bool, len(b.Batches))
+		for i := range b.Batches {
+			spanBatch.SameTsBits[i] = b.sameTsBits.Bit(i) == 1
+		}
 	}
 	return json.Marshal(spanBatch)
 }
@@ -720,8 +731,7 @@ func (b *SpanBatch) GetSingularBatches(l1Origins []eth.L1BlockRef, l2SafeHead et
 // NewSpanBatch creates an empty SpanBatch of the given wire version.
 // parentTimestamp is the timestamp of the L2 block the span builds on; it decides whether the
 // first appended batch is recorded as a sibling of that parent, and is only consulted for
-// SpanBatchV2Type. Pass 0 when the parent's timestamp is unknown, which records the first element
-// as starting a new timestamp.
+// SpanBatchV2Type. A SpanBatchType span ignores it, so 0 is fine there.
 func NewSpanBatch(version int, genesisTimestamp uint64, chainID *big.Int, parentTimestamp uint64) *SpanBatch {
 	// newSpanBatchTxs can't fail with empty txs
 	sbtxs, _ := newSpanBatchTxs([][]byte{}, chainID)

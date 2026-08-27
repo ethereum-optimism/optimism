@@ -54,7 +54,7 @@ func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Block
 		}
 		return checkSpanBatch(ctx, cfg, log, l1Blocks, l2SafeHead, spanBatch, batch.L1InclusionBlock, l2Fetcher)
 	case SpanBatchV2Type:
-		// op-node does not derive multi-blocks.
+		// Unreachable: the ChannelInReader already discards any channel carrying a v2 span.
 		log.Warn("dropping span batch v2: op-node does not derive multi-blocks")
 		return BatchDrop
 	default:

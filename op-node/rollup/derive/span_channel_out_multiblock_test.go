@@ -2,7 +2,6 @@ package derive
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"math/rand"
@@ -11,13 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 // multiBlockChannelBatches builds a run of singular batches with the given timestamps, all on one
@@ -122,7 +118,8 @@ func TestSpanChannelOut_MultiBlockSpanBoundaryInsideGroup(t *testing.T) {
 	timestamps := []uint64{base, base, base, base + 2, base + 2, base + 4}
 	cfg, batches, l1Origin := multiBlockChannelBatches(t, timestamps, activation)
 
-	cout, err := NewSpanChannelOut(100_000, Zlib, rollup.NewChainSpec(&cfg), WithMaxBlocksPerSpanBatch(2))
+	cout, err := NewSpanChannelOut(100_000, Zlib, rollup.NewChainSpec(&cfg), WithMaxBlocksPerSpanBatch(2),
+		WithParentTimestamp(base-rollupCfg.BlockTime))
 	require.NoError(t, err)
 	for i, b := range batches {
 		require.NoError(t, cout.addSingularBatch(b, uint64(i)))
@@ -151,7 +148,8 @@ func TestSpanChannelOut_MultiBlockChannelBoundaryInsideGroup(t *testing.T) {
 	}
 	cfg, batches, l1Origin := multiBlockChannelBatches(t, timestamps, base-rollupCfg.BlockTime)
 
-	first, err := NewSpanChannelOut(300, Zlib, rollup.NewChainSpec(&cfg))
+	first, err := NewSpanChannelOut(300, Zlib, rollup.NewChainSpec(&cfg),
+		WithParentTimestamp(base-rollupCfg.BlockTime))
 	require.NoError(t, err)
 	added := 0
 	for i, b := range batches {
@@ -199,70 +197,32 @@ func TestSpanChannelOut_MultiBlockResetKeepsParentTimestamp(t *testing.T) {
 	require.Equal(t, uint(1), cout.spanBatch.sameTsBits.Bit(0))
 }
 
-// staticRawChannelProvider hands out one prepared channel and then reports EOF.
-type staticRawChannelProvider struct {
-	origin eth.L1BlockRef
-	data   []byte
-	served bool
-}
-
-func (p *staticRawChannelProvider) Origin() eth.L1BlockRef { return p.origin }
-func (p *staticRawChannelProvider) FlushChannel()          {}
-
-func (p *staticRawChannelProvider) Reset(context.Context, eth.L1BlockRef, eth.SystemConfig) error {
-	return io.EOF
-}
-
-func (p *staticRawChannelProvider) NextRawChannel(context.Context) ([]byte, error) {
-	if p.served {
-		return nil, io.EOF
-	}
-	p.served = true
-	return p.data, nil
-}
-
-// TestChannelInReaderDropsSpanBatchV2 checks that op-node, which does not derive multi-blocks,
-// drops a span batch v2 as a missing-data condition rather than failing the pipeline, and keeps
-// reading the batches that follow it in the channel.
-func TestChannelInReaderDropsSpanBatchV2(t *testing.T) {
+// TestSpanChannelOut_MultiBlockRefusesUnknownParentTimestamp checks that a channel out opened
+// without a parent timestamp refuses to write a v2 span rather than guessing bit 0, and that a v1
+// span on the same channel out is unaffected.
+func TestSpanChannelOut_MultiBlockRefusesUnknownParentTimestamp(t *testing.T) {
 	base := rollupCfg.Genesis.L2Time + 420_000
-	cfg, batches, l1Origin := multiBlockChannelBatches(t, []uint64{base, base, base + 2}, base-rollupCfg.BlockTime)
-	l1Origin.Time = base
-	cfg.DeltaTime = ptr.New(uint64(0))
+	activation := base + rollupCfg.BlockTime
+	cfg, batches, _ := multiBlockChannelBatches(t, []uint64{base, activation}, activation)
 
-	// one v2 span holding the group, then a v1 span with the trailing block
-	cout, err := NewSpanChannelOut(100_000, Zlib, rollup.NewChainSpec(&cfg), WithMaxBlocksPerSpanBatch(2))
-	require.NoError(t, err)
-	for i, b := range batches[:2] {
-		require.NoError(t, cout.addSingularBatch(b, uint64(i)))
-	}
-	cfg.MultiBlockTime = ptr.New(base + 1_000_000)
-	require.NoError(t, cout.addSingularBatch(batches[2], 2))
-	require.NoError(t, cout.Close())
-
-	var frameBuf bytes.Buffer
-	_, err = cout.OutputFrame(&frameBuf, 100_000)
-	require.ErrorIs(t, err, io.EOF)
-	var frame Frame
-	require.NoError(t, frame.UnmarshalBinary(&frameBuf))
-	ch := NewChannel(frame.ID, l1Origin, false)
-	require.NoError(t, ch.AddFrame(frame, l1Origin))
-	channelData, err := io.ReadAll(ch.Reader())
+	cout, err := NewSpanChannelOut(100_000, Zlib, rollup.NewChainSpec(&cfg))
 	require.NoError(t, err)
 
-	cfg.MultiBlockTime = nil
-	cr := NewChannelInReader(&cfg, testlog.Logger(t, log.LevelError),
-		&staticRawChannelProvider{origin: l1Origin, data: channelData}, metrics.NoopMetrics)
+	// pre-activation blocks go into a v1 span, which cannot express siblings and needs no parent
+	require.NoError(t, cout.addSingularBatch(batches[0], 0))
 
-	// the v2 span is dropped without failing the pipeline
-	batch, err := cr.NextBatch(context.Background())
-	require.ErrorIs(t, err, NotEnoughData)
-	require.Nil(t, batch)
+	// with the parent now known from the block just added, the v2 span opens
+	require.NoError(t, cout.addSingularBatch(batches[1], 1))
+	require.Equal(t, SpanBatchV2Type, cout.spanBatch.Version)
 
-	// the v1 span that follows it in the same channel is still read
-	batch, err = cr.NextBatch(context.Background())
+	// a fresh channel out has no parent at all, so the first v2 block is refused
+	empty, err := NewSpanChannelOut(100_000, Zlib, rollup.NewChainSpec(&cfg))
 	require.NoError(t, err)
-	span, ok := batch.AsSpanBatch()
-	require.True(t, ok)
-	require.Equal(t, []uint64{base + 2}, spanTimestamps([]*SpanBatch{span}))
+	require.ErrorIs(t, empty.addSingularBatch(batches[1], 1), ErrUnknownParentTimestamp)
+
+	// telling it the parent timestamp is all it was missing
+	known, err := NewSpanChannelOut(100_000, Zlib, rollup.NewChainSpec(&cfg), WithParentTimestamp(base))
+	require.NoError(t, err)
+	require.NoError(t, known.addSingularBatch(batches[1], 1))
+	require.Equal(t, uint(0), known.spanBatch.sameTsBits.Bit(0))
 }

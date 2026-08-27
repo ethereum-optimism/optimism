@@ -22,13 +22,10 @@ func (r *inclusiveBlockRange) TerminalString() string {
 }
 
 type syncActions struct {
-	clearState *eth.BlockID
-	// safeHeadTimestamp is the L2 timestamp of the safe head the state is cleared to. Only
-	// meaningful together with clearState.
-	safeHeadTimestamp uint64
-	blocksToPrune     int
-	channelsToPrune   int
-	blocksToLoad      *inclusiveBlockRange // the blocks that should be loaded into the local state.
+	clearState      *eth.BlockID
+	blocksToPrune   int
+	channelsToPrune int
+	blocksToLoad    *inclusiveBlockRange // the blocks that should be loaded into the local state.
 	// NOTE this range is inclusive on both ends, which is a change to previous behaviour.
 }
 
@@ -111,9 +108,8 @@ func computeSyncActions[T channelStatuser](
 	// and we need to start over, loading all unsafe blocks
 	// from the sequencer.
 	startAfresh := syncActions{
-		clearState:        &safeL2.L1Origin,
-		safeHeadTimestamp: safeL2.Time,
-		blocksToLoad:      allUnsafeBlocks,
+		clearState:   &safeL2.L1Origin,
+		blocksToLoad: allUnsafeBlocks,
 	}
 
 	oldestBlockInStateNum := oldestBlockInState.NumberU64()

@@ -2,6 +2,7 @@ package rollup
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -122,4 +123,77 @@ func TestConfig_CheckMultiBlock(t *testing.T) {
 			}
 		})
 	}
+}
+
+// On a multi-block chain a timestamp no longer identifies one block, so callers must be pushed to
+// read the chain instead of computing a block number that would be wrong past the activation.
+func TestConfig_TargetBlockNumberRejectsMultiBlock(t *testing.T) {
+	cfg := multiBlockConfig()
+	activation := *cfg.MultiBlockTime
+
+	for _, ts := range []uint64{cfg.Genesis.L2Time, activation - cfg.BlockTime, activation, activation + 100*cfg.BlockTime} {
+		_, err := cfg.TargetBlockNumber(ts)
+		require.ErrorIsf(t, err, ErrMultiBlockNoBlockNumberForTimestamp, "timestamp %d", ts)
+	}
+
+	// without the activation the mapping is a bijection again
+	cfg.MultiBlockTime = nil
+	num, err := cfg.TargetBlockNumber(activation)
+	require.NoError(t, err)
+	require.Equal(t, cfg.Genesis.L2.Number+10, num)
+	require.Equal(t, activation, cfg.TimestampForBlock(num))
+}
+
+// An activation time of 0 means active at genesis, the convention every scheduleable fork uses, so
+// a deploy config with a zero offset produces a config that validates.
+func TestConfig_MultiBlockAtGenesis(t *testing.T) {
+	cfg := multiBlockConfig()
+	cfg.MultiBlockTime = ptr.New(uint64(0))
+	require.NoError(t, cfg.Check())
+
+	require.True(t, cfg.IsMultiBlock(0))
+	require.True(t, cfg.IsMultiBlock(cfg.Genesis.L2Time))
+
+	// the activation timestamp itself never allows siblings
+	require.False(t, cfg.SiblingsAllowed(0))
+	require.True(t, cfg.SiblingsAllowed(cfg.Genesis.L2Time))
+}
+
+func TestConfig_MaxMultiBlocksUpperBound(t *testing.T) {
+	cfg := multiBlockConfig()
+	cfg.MaxMultiBlocks = ptr.New(uint64(MaxMultiBlocksLimit))
+	require.NoError(t, cfg.Check())
+
+	cfg.MaxMultiBlocks = ptr.New(uint64(MaxMultiBlocksLimit + 1))
+	require.ErrorIs(t, cfg.Check(), ErrMaxMultiBlocksTooLarge)
+}
+
+// multiBlockRollupFixture is the rollup config op-chain-ops/genesis emits for a multi-blocks chain.
+// kona parses the same bytes and makes the same assertions, so the two clients cannot drift on
+// which timestamps allow siblings. Keep the file unchanged.
+const multiBlockRollupFixture = "../../op-chain-ops/genesis/testdata/rollup-multiblock.json"
+
+// TestConfig_SiblingsAllowedFixture pins the sibling exclusion set on the shared fixture: no fork
+// activation timestamp scheduled past the multi-blocks activation may carry siblings, because the
+// predicates that recognize an activation block do so from its timestamp alone.
+func TestConfig_SiblingsAllowedFixture(t *testing.T) {
+	data, err := os.ReadFile(multiBlockRollupFixture)
+	require.NoError(t, err)
+	var cfg Config
+	require.NoError(t, json.Unmarshal(data, &cfg))
+	require.NoError(t, cfg.Check())
+	require.NotNil(t, cfg.MultiBlockTime)
+
+	excluded := 0
+	for _, fork := range scheduleableForks {
+		activation := cfg.ActivationTime(fork)
+		if activation == nil || *activation <= *cfg.MultiBlockTime {
+			continue
+		}
+		excluded++
+		require.Falsef(t, cfg.SiblingsAllowed(*activation), "siblings at the %s activation (%d)", fork, *activation)
+		require.Truef(t, cfg.SiblingsAllowed(*activation-cfg.BlockTime), "no siblings one block before the %s activation", fork)
+		require.Truef(t, cfg.SiblingsAllowed(*activation+cfg.BlockTime), "no siblings one block after the %s activation", fork)
+	}
+	require.Positive(t, excluded, "the fixture must schedule a fork past the multi-blocks activation")
 }

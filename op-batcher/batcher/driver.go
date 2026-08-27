@@ -474,11 +474,14 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 
 	// Manage existing state / garbage collection
 	if syncActions.clearState != nil {
-		l.channelMgr.Clear(*syncActions.clearState, syncActions.safeHeadTimestamp)
+		l.channelMgr.Clear(*syncActions.clearState)
 	} else {
 		l.channelMgr.PruneSafeBlocks(syncActions.blocksToPrune)
 		l.channelMgr.PruneChannels(syncActions.channelsToPrune)
 	}
+	// Every branch above leaves the oldest block in state at safe+1, and blocksToLoad starts there
+	// too, so the safe head is the parent of the next block a channel will take.
+	l.channelMgr.SetSafeHeadTimestamp(syncStatus.LocalSafeL2.Time)
 	return syncActions.blocksToLoad
 }
 
@@ -814,7 +817,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 	defer l.Log.Info("State cleared")
 
 	clearStateWithL1Origin := func() bool {
-		l1SafeOrigin, safeHeadTimestamp, err := l.safeL1Origin(ctx)
+		l1SafeOrigin, err := l.safeL1Origin(ctx)
 		if err != nil {
 			l.Log.Warn("Failed to query L1 safe origin, will retry", "err", err)
 			return false
@@ -822,7 +825,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 			l.Log.Info("Clearing state with safe L1 origin", "origin", l1SafeOrigin)
 			l.channelMgrMutex.Lock()
 			defer l.channelMgrMutex.Unlock()
-			l.channelMgr.Clear(l1SafeOrigin, safeHeadTimestamp)
+			l.channelMgr.Clear(l1SafeOrigin)
 			return true
 		}
 	}
@@ -845,7 +848,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 			l.Log.Warn("Clearing state cancelled")
 			l.channelMgrMutex.Lock()
 			defer l.channelMgrMutex.Unlock()
-			l.channelMgr.Clear(eth.BlockID{}, 0)
+			l.channelMgr.Clear(eth.BlockID{})
 			return
 		}
 	}
@@ -884,11 +887,11 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 
 // safeL1Origin returns the L1 origin of the local-safe L2 head, along with that head's L2
 // timestamp.
-func (l *BatchSubmitter) safeL1Origin(ctx context.Context) (eth.BlockID, uint64, error) {
+func (l *BatchSubmitter) safeL1Origin(ctx context.Context) (eth.BlockID, error) {
 	c, err := l.EndpointProvider.RollupClient(ctx)
 	if err != nil {
 		log.Error("Failed to get rollup client", "err", err)
-		return eth.BlockID{}, 0, fmt.Errorf("safe l1 origin: error getting rollup client: %w", err)
+		return eth.BlockID{}, fmt.Errorf("safe l1 origin: error getting rollup client: %w", err)
 	}
 
 	cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
@@ -897,15 +900,15 @@ func (l *BatchSubmitter) safeL1Origin(ctx context.Context) (eth.BlockID, uint64,
 	status, err := c.SyncStatus(cCtx)
 	if err != nil {
 		log.Error("Failed to get sync status", "err", err)
-		return eth.BlockID{}, 0, fmt.Errorf("safe l1 origin: error getting sync status: %w", err)
+		return eth.BlockID{}, fmt.Errorf("safe l1 origin: error getting sync status: %w", err)
 	}
 
 	// If the safe L2 block origin is 0, we are at the genesis block and should use the L1 origin from the rollup config.
 	if status.LocalSafeL2.L1Origin.Number == 0 {
-		return l.RollupConfig.Genesis.L1, status.LocalSafeL2.Time, nil
+		return l.RollupConfig.Genesis.L1, nil
 	}
 
-	return status.LocalSafeL2.L1Origin, status.LocalSafeL2.Time, nil
+	return status.LocalSafeL2.L1Origin, nil
 }
 
 // cancelBlockingTx creates an empty transaction of appropriate type to cancel out the incompatible

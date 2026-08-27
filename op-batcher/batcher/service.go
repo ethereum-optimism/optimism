@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -305,6 +306,15 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	// Checking for brotli compression only post Fjord
 	if cc.CompressorConfig.CompressionAlgo.IsBrotli() && !bs.RollupConfig.IsFjord(uint64(time.Now().Unix())) {
 		return errors.New("cannot use brotli compression before Fjord")
+	}
+
+	// Only a span batch v2 can express blocks that share a timestamp, and the channel manager
+	// opens one from the rollup config. A singular batch would put a sibling at its parent's
+	// timestamp, which derivation classifies as Past and replaces with a force-included block, so
+	// the safe chain would leave the sequencer's.
+	if bs.RollupConfig.MultiBlockTime != nil && cc.BatchType != derive.SpanBatchType {
+		return fmt.Errorf("rollup config sets multi_block_time (%d), which requires batch type %d (span), but batch type %d is configured",
+			*bs.RollupConfig.MultiBlockTime, derive.SpanBatchType, cc.BatchType)
 	}
 
 	if err := cc.Check(); err != nil {

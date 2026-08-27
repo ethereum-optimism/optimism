@@ -25,7 +25,7 @@ func zeroFrameTxID(fn uint16) txID {
 }
 
 func newChannelWithChannelOut(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*channel, error) {
-	channelOut, err := NewChannelOut(cfg, rollupCfg, 0)
+	channelOut, err := NewChannelOut(cfg, rollupCfg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating channel out: %w", err)
 	}
@@ -43,7 +43,7 @@ func TestChannelTimeout(t *testing.T) {
 			CompressionAlgo: derive.Zlib,
 		},
 	}, &rollup.Config{})
-	m.Clear(eth.BlockID{}, 0)
+	m.Clear(eth.BlockID{})
 
 	// Pending channel is nil so is cannot be timed out
 	require.Nil(t, m.currentChannel)
@@ -87,7 +87,7 @@ func TestChannelManager_NextTxData(t *testing.T) {
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
 		CompressionAlgo: derive.Zlib,
 	}}, &rollup.Config{})
-	m.Clear(eth.BlockID{}, 0)
+	m.Clear(eth.BlockID{})
 
 	// Nil pending channel should return EOF
 	returnedTxData, err := m.nextTxData(nil)
@@ -227,7 +227,7 @@ func TestChannelTxConfirmed(t *testing.T) {
 			CompressionAlgo: derive.Zlib,
 		},
 	}, &rollup.Config{})
-	m.Clear(eth.BlockID{}, 0)
+	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel manager
 	// So we can demonstrate that TxConfirmed's correctness
@@ -279,7 +279,7 @@ func TestChannelTxFailed(t *testing.T) {
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
 		CompressionAlgo: derive.Zlib,
 	}}, &rollup.Config{})
-	m.Clear(eth.BlockID{}, 0)
+	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel
 	// manager so we can demonstrate correctness

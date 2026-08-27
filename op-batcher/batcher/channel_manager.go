@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -17,7 +18,7 @@ import (
 
 var ErrReorg = errors.New("block does not extend existing chain")
 
-type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config, parentTimestamp uint64) (derive.ChannelOut, error)
+type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config, parentTimestamp *uint64) (derive.ChannelOut, error)
 
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
@@ -48,8 +49,8 @@ type channelManager struct {
 	// last block hash - for reorg detection
 	tip common.Hash
 	// safeHeadTimestamp is the L2 timestamp of the safe head the block queue continues from, i.e.
-	// of the parent of blocks[0]. Zero means unknown.
-	safeHeadTimestamp uint64
+	// of the parent of blocks[0]. Nil until the first sync tick sets it.
+	safeHeadTimestamp *uint64
 
 	// channel to write new block data to
 	currentChannel *channel
@@ -77,12 +78,12 @@ func (s *channelManager) SetChannelOutFactory(outFactory ChannelOutFactory) {
 
 // Clear clears the entire state of the channel manager.
 // It is intended to be used before launching op-batcher and after an L2 reorg.
-func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID, safeHeadTimestamp uint64) {
+func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
 	s.log.Trace("clearing channel manager state")
 	s.blocks.Clear()
 	s.blockCursor = 0
 	s.l1OriginLastSubmittedChannel = l1OriginLastSubmittedChannel
-	s.safeHeadTimestamp = safeHeadTimestamp
+	s.safeHeadTimestamp = nil
 	s.tip = common.Hash{}
 	s.currentChannel = nil
 	s.channelQueue = nil
@@ -97,14 +98,23 @@ func (s *channelManager) pendingBlocks() int {
 	return s.blocks.Len() - s.blockCursor
 }
 
+// SetSafeHeadTimestamp records the L2 timestamp of the safe head the block queue continues from.
+// The sync tick calls it after clearing or pruning, when blocks[0] is by construction the block
+// right after the safe head.
+func (s *channelManager) SetSafeHeadTimestamp(timestamp uint64) {
+	s.safeHeadTimestamp = &timestamp
+}
+
 // parentTimestamp returns the L2 timestamp of the parent of the next block to be added to a
 // channel. A span batch opened on that block needs it to tell whether the block is a sibling of
-// its parent. Zero when the parent is not known, e.g. right after a state clear.
-func (s *channelManager) parentTimestamp() uint64 {
+// its parent. Nil before the first sync tick, when the safe head is not known yet.
+func (s *channelManager) parentTimestamp() *uint64 {
 	if s.blockCursor > 0 {
-		if block, ok := s.blocks.PeekN(s.blockCursor - 1); ok {
-			return uint64(block.Timestamp)
+		block, ok := s.blocks.PeekN(s.blockCursor - 1)
+		if !ok {
+			return nil
 		}
+		return ptr.New(uint64(block.Timestamp))
 	}
 	return s.safeHeadTimestamp
 }
@@ -550,10 +560,6 @@ func (s *channelManager) PruneSafeBlocks(num int) {
 	discardedBlocks, ok := s.blocks.DequeueN(int(num))
 	if !ok {
 		panic("tried to prune more blocks than available")
-	}
-	if len(discardedBlocks) > 0 {
-		// the last pruned block is the new safe head, and hence the parent of blocks[0]
-		s.safeHeadTimestamp = uint64(discardedBlocks[len(discardedBlocks)-1].Timestamp)
 	}
 	s.blockCursor -= int(num)
 	if s.blockCursor < 0 {

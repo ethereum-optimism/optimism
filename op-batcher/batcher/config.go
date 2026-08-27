@@ -182,6 +182,8 @@ func (c *CLIConfig) Check() error {
 	if !derive.ValidCompressionAlgo(c.CompressionAlgo) {
 		return fmt.Errorf("invalid compression algo %v", c.CompressionAlgo)
 	}
+	// --batch-type selects only the CLI-selectable formats; span batch v2 is chosen from the
+	// rollup config, not from this flag.
 	if c.BatchType > derive.SpanBatchType {
 		return fmt.Errorf("unknown batch type: %v", c.BatchType)
 	}

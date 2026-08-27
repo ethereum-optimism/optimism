@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -234,4 +235,28 @@ func TestSpanBatchV2GoldenVectors(t *testing.T) {
 			require.Equal(t, uint8(SpanBatchV2Type), decoded.GetBatchType())
 		})
 	}
+}
+
+// TestSpanBatchMarshalJSON checks that batch_decoder output tells a v2 span from a v1 one, and
+// where the siblings are.
+func TestSpanBatchMarshalJSON(t *testing.T) {
+	v2 := buildSpanBatchV2(t, 1010, [][2]uint64{{1010, 1}, {1010, 0}, {1012, 1}})
+	data, err := json.Marshal(v2)
+	require.NoError(t, err)
+
+	var decoded struct {
+		Version    int    `json:"version"`
+		SameTsBits []bool `json:"same_ts_bits"`
+	}
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	require.Equal(t, SpanBatchV2Type, decoded.Version)
+	require.Equal(t, []bool{true, true, false}, decoded.SameTsBits)
+
+	// a v1 span cannot express siblings, so it carries no bits at all
+	v1 := NewSpanBatch(SpanBatchType, spanBatchV2GenesisTimestamp, spanBatchV2ChainID(), 1008)
+	require.NoError(t, v1.AppendSingularBatch(spanBatchV2Element(t, 1010, 1), 5))
+	data, err = json.Marshal(v1)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "same_ts_bits")
+	require.Contains(t, string(data), `"version":1`)
 }

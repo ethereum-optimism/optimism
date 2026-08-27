@@ -26,6 +26,11 @@ import (
 // any block below its earliest available history height.
 const historyPrunedErrCode = 4444
 
+// MaxMultiBlocksLimit is the largest value MaxMultiBlocks may take. Determining a block's position
+// in its group means walking back over the group, and gossip validation caches seen block hashes in
+// proportion to the group size, so both scale with this bound.
+const MaxMultiBlocksLimit = 128
+
 var (
 	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
 	ErrMissingChannelTimeout         = errors.New("channel timeout must be set, this should cover at least a L1 block time")
@@ -46,8 +51,13 @@ var (
 	ErrL1ChainIDNotPositive          = errors.New("L1 chain ID must be non-zero and positive")
 	ErrL2ChainIDNotPositive          = errors.New("L2 chain ID must be non-zero and positive")
 	ErrInvalidMaxMultiBlocks         = errors.New("max multi blocks must not be zero")
+	ErrMaxMultiBlocksTooLarge        = fmt.Errorf("max multi blocks must not exceed %d", MaxMultiBlocksLimit)
 	ErrMultiBlockBeforeKarst         = errors.New("multi block time must not be before Karst")
 	ErrMultiBlockMisaligned          = errors.New("multi block time must be a whole number of block times after L2 genesis")
+	// ErrMultiBlockNoBlockNumberForTimestamp is returned when a timestamp cannot be mapped to a
+	// single L2 block number because the chain schedules multi-blocks, past which several blocks
+	// may share a timestamp. Callers have to look the block up on the chain instead.
+	ErrMultiBlockNoBlockNumberForTimestamp = errors.New("cannot derive an L2 block number from a timestamp on a multi-block chain")
 )
 
 type Genesis struct {
@@ -241,14 +251,25 @@ func (cfg *Config) ValidateL2Config(ctx context.Context, logger log.Logger, clie
 	return nil
 }
 
+// TimestampForBlock returns the timestamp of the L2 block with the given number.
+//
+// It is only valid while MultiBlockTime is nil. Past the multi-blocks activation several blocks may
+// share a timestamp, so the block number no longer determines it; callers on such a chain have to
+// read the block itself.
 func (cfg *Config) TimestampForBlock(blockNumber uint64) uint64 {
 	return cfg.Genesis.L2Time + ((blockNumber - cfg.Genesis.L2.Number) * cfg.BlockTime)
 }
 
 // TargetBlockNumber returns the L2 block number for the given timestamp.
-// If the timestamp is before the genesis time, it returns an error.
-// All other cases should return a valid block number.
+// It returns an error if the timestamp is before the genesis time, or if the chain schedules
+// multi-blocks, where a timestamp may cover several blocks.
+// All other cases return a valid block number.
 func (cfg *Config) TargetBlockNumber(timestamp uint64) (num uint64, err error) {
+	if cfg.MultiBlockTime != nil {
+		// The mapping is not a bijection on a multi-block chain, not even below the activation:
+		// a caller that wants a specific block has to find it on the chain.
+		return 0, ErrMultiBlockNoBlockNumberForTimestamp
+	}
 	// subtract genesis time from timestamp to get the time elapsed since genesis, and then divide that
 	// difference by the block time to get the expected L2 block number at the current time. If the
 	// unsafe head does not have this block number, then there is a gap in the queue.
@@ -428,8 +449,13 @@ func (cfg *Config) Check() error {
 }
 
 func (cfg *Config) checkMultiBlock() error {
-	if cfg.MaxMultiBlocks != nil && *cfg.MaxMultiBlocks == 0 {
-		return ErrInvalidMaxMultiBlocks
+	if cfg.MaxMultiBlocks != nil {
+		if *cfg.MaxMultiBlocks == 0 {
+			return ErrInvalidMaxMultiBlocks
+		}
+		if *cfg.MaxMultiBlocks > MaxMultiBlocksLimit {
+			return ErrMaxMultiBlocksTooLarge
+		}
 	}
 	if cfg.MultiBlockTime == nil {
 		return nil
@@ -438,6 +464,10 @@ func (cfg *Config) checkMultiBlock() error {
 	// terms of a single timestamp.
 	if cfg.KarstTime == nil || *cfg.MultiBlockTime < *cfg.KarstTime {
 		return ErrMultiBlockBeforeKarst
+	}
+	if *cfg.MultiBlockTime == 0 {
+		// active at genesis, like every other fork scheduled at 0
+		return nil
 	}
 	if *cfg.MultiBlockTime < cfg.Genesis.L2Time || (*cfg.MultiBlockTime-cfg.Genesis.L2Time)%cfg.BlockTime != 0 {
 		return ErrMultiBlockMisaligned
@@ -593,6 +623,9 @@ func (c *Config) SiblingsAllowed(l2BlockTime uint64) bool {
 	if c.MultiBlockTime == nil || l2BlockTime <= *c.MultiBlockTime {
 		return false
 	}
+	// The excluded set has to match kona's, which iterates its own fork enum. Only forks
+	// scheduleable after MultiBlockTime can ever match, so the two lists agree today; a fork added
+	// to one enum and not the other would silently diverge.
 	for _, fork := range scheduleableForks {
 		if t := c.ActivationTime(fork); t != nil && *t == l2BlockTime {
 			return false

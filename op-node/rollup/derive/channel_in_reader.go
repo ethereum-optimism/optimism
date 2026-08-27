@@ -126,9 +126,12 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		cr.metrics.RecordDerivedBatches("span")
 		return batch, nil
 	case SpanBatchV2Type:
-		// op-node does not derive multi-blocks. Dropping the batch keeps the rest of the channel
-		// readable, matching how a span batch before Delta activation is handled.
-		cr.log.Warn("dropping span batch v2: op-node does not derive multi-blocks", "stage_origin", cr.Origin())
+		// op-node does not derive multi-blocks. This is the single rejection point for them:
+		// discarding the rest of the channel makes a channel carrying a v2 span contribute no
+		// blocks at all, which is also what kona does on its Holocene path, so both derive the
+		// same safe chain. The downstream SpanBatchV2Type arms are unreachable defense.
+		cr.log.Warn("dropping channel with span batch v2: op-node does not derive multi-blocks", "stage_origin", cr.Origin())
+		cr.NextChannel()
 		return nil, NotEnoughData
 	default:
 		// error is bubbled up to user, but pipeline can skip the batch and continue after.

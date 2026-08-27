@@ -71,3 +71,19 @@ func TestRollupConfigMultiBlockFixture(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, string(want), string(got))
 }
+
+// An offset of 0 activates at genesis, like every other fork offset, so op-deployer can generate a
+// chain that has multi-blocks from its first block.
+func TestRollupConfigMultiBlockAtGenesis(t *testing.T) {
+	cfg := multiBlockDeployConfig(t)
+	cfg.L2GenesisMultiBlockTimeOffset = (*hexutil.Uint64)(ptr.New(uint64(0)))
+
+	l1Start := &eth.BlockRef{Hash: common.HexToHash("0xaa"), Number: 100, Time: 5000}
+	rollupCfg, err := cfg.RollupConfig(l1Start, common.HexToHash("0xbb"), 0)
+	require.NoError(t, err)
+	require.NoError(t, rollupCfg.Check())
+
+	require.Equal(t, uint64(0), *rollupCfg.MultiBlockTime)
+	require.True(t, rollupCfg.IsMultiBlock(rollupCfg.Genesis.L2Time))
+	require.True(t, rollupCfg.SiblingsAllowed(rollupCfg.Genesis.L2Time))
+}
