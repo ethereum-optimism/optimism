@@ -1,8 +1,4 @@
 {
-  "src/L1/DataAvailabilityChallenge.sol:DataAvailabilityChallenge": {
-    "initCodeHash": "0xa957b89a7a77447ddac685ccdfb481d0066315684dd58339b6a65985a0d135f9",
-    "sourceCodeHash": "0x97888fc27c562c1ee77050e76c81249f4dc41c519c0a7f663740ff582df09045"
-  },
   "src/L1/ETHLockbox.sol:ETHLockbox": {
     "initCodeHash": "0xb2ff8426ab2eb36352f790748963c8e1f7a91caf16bee6a035c2c41bac532836",
     "sourceCodeHash": "0x870004d5acc24a704277680f09ccca51a020a512e6c6d48cca583a23a0de43a2"

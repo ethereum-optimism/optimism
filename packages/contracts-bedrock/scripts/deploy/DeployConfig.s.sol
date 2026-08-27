@@ -18,6 +18,9 @@ contract DeployConfig is Script {
     /// @notice Thrown when a config file cannot be read at the given path.
     error UnableToReadConfigFile(string path);
 
+    /// @notice Thrown when a retired Alt-DA deployment is requested.
+    error AltDANoLongerSupported();
+
     /// @notice Represents an unset offset value, as opposed to 0, which denotes no-offset.
     uint256 constant NULL_OFFSET = type(uint256).max;
 
@@ -74,13 +77,6 @@ contract DeployConfig is Script {
     uint256 public proofMaturityDelaySeconds;
     uint256 public disputeGameFinalityDelaySeconds;
     uint256 public respectedGameType;
-    bool public useAltDA;
-    string public daCommitmentType;
-    uint256 public daChallengeWindow;
-    uint256 public daResolveWindow;
-    uint256 public daBondSize;
-    uint256 public daResolverRefundPercentage;
-
     // Custom Gas Token Configuration
     bool public useCustomGasToken;
     string public gasPayingTokenName;
@@ -120,6 +116,12 @@ contract DeployConfig is Script {
             console.log("DeployConfig: reading file %s", _path);
         } catch {
             revert UnableToReadConfigFile(_path);
+        }
+
+        // Fail closed when loading legacy deploy configs. Forge's JSON helpers ignore
+        // unknown keys, so an old Alt-DA config would otherwise deploy as Ethereum DA.
+        if (_readOr(_json, "$.useAltDA", false)) {
+            revert AltDANoLongerSupported();
         }
 
         // Read values from JSON, using _readOr with hardcoded defaults for optional fields
@@ -186,13 +188,6 @@ contract DeployConfig is Script {
         preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
 
-        useAltDA = _readOr(_json, "$.useAltDA", false);
-        daCommitmentType = _json.readStringOr("$.daCommitmentType", "KeccakCommitment");
-        daChallengeWindow = _readOr(_json, "$.daChallengeWindow", uint256(1000));
-        daResolveWindow = _readOr(_json, "$.daResolveWindow", uint256(1000));
-        daBondSize = _readOr(_json, "$.daBondSize", uint256(1000000000));
-        daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", uint256(0));
-
         devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", uint256(0)));
         useInterop = _readOr(_json, "$.useInterop", false);
         faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", uint256(73));
@@ -245,11 +240,6 @@ contract DeployConfig is Script {
             return stdJson.readUint(res, "");
         }
         return uint256(_l2OutputOracleStartingTimestamp);
-    }
-
-    /// @notice Allow the `useAltDA` config to be overridden in testing environments
-    function setUseAltDA(bool _useAltDA) public {
-        useAltDA = _useAltDA;
     }
 
     /// @notice Allow the `useInterop` config to be overridden in testing environments
@@ -377,12 +367,6 @@ contract DeployConfig is Script {
         proofMaturityDelaySeconds = 604800;
         disputeGameFinalityDelaySeconds = 302400;
         respectedGameType = 0;
-        useAltDA = false;
-        daCommitmentType = "KeccakCommitment";
-        daChallengeWindow = 100;
-        daResolveWindow = 100;
-        daBondSize = 1000;
-        daResolverRefundPercentage = 50;
         useCustomGasToken = false;
         gasPayingTokenName = "";
         gasPayingTokenSymbol = "";

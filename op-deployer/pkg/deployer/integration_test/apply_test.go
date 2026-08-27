@@ -26,9 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
@@ -801,39 +798,6 @@ func TestProofParamOverrides(t *testing.T) {
 			checkImmutable(t, allocs, tt.address, tt.caster(t, intent.GlobalDeployOverrides[tt.name]))
 		})
 	}
-}
-
-func TestAltDADeployment(t *testing.T) {
-	op_e2e.InitParallel(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
-	altDACfg := genesis.AltDADeployConfig{
-		UseAltDA:                   true,
-		DACommitmentType:           altda.KeccakCommitmentString,
-		DAChallengeWindow:          10,
-		DAResolveWindow:            10,
-		DABondSize:                 100,
-		DAResolverRefundPercentage: 50,
-	}
-	intent.Chains[0].DangerousAltDAConfig = altDACfg
-
-	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
-
-	chainState := st.Chains[0]
-	require.NotEmpty(t, chainState.AltDAChallengeProxy)
-	require.NotEmpty(t, chainState.AltDAChallengeImpl)
-
-	_, rollupCfg, err := pipeline.RenderGenesisAndRollup(st, chainState.ID, nil)
-	require.NoError(t, err)
-	require.EqualValues(t, &rollup.AltDAConfig{
-		CommitmentType:     altda.KeccakCommitmentString,
-		DAChallengeWindow:  altDACfg.DAChallengeWindow,
-		DAChallengeAddress: chainState.AltDAChallengeProxy,
-		DAResolveWindow:    altDACfg.DAResolveWindow,
-	}, rollupCfg.AltDAConfig)
 }
 
 func TestInvalidL2Genesis(t *testing.T) {

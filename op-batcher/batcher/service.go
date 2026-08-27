@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -37,14 +36,6 @@ type BatcherConfig struct {
 	PollInterval           time.Duration
 	MaxPendingTransactions uint64
 
-	// UseAltDA is true if the rollup config has a DA challenge address so the batcher
-	// will post inputs to the DA server and post commitments to blobs or calldata.
-	UseAltDA bool
-	// GenericDA is true if the DA server generates commitments for the input
-	GenericDA bool
-	// maximum number of concurrent blob put requests to the DA server
-	MaxConcurrentDARequests uint64
-
 	WaitNodeSync        bool
 	CheckRecentTxsDepth int
 
@@ -61,7 +52,6 @@ type BatcherService struct {
 	L1Client         *ethclient.Client
 	EndpointProvider dial.L2EndpointProvider
 	TxManager        txmgr.TxManager
-	AltDA            *altda.DAClient
 
 	BatcherConfig
 
@@ -105,7 +95,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 
 	bs.PollInterval = cfg.PollInterval
 	bs.MaxPendingTransactions = cfg.MaxPendingTransactions
-	bs.MaxConcurrentDARequests = cfg.AltDA.MaxConcurrentRequests
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
@@ -171,10 +160,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 	}
 	if err := bs.initTxManager(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init Tx manager: %w", err)
-	}
-	// must be init before driver and channel config
-	if err := bs.initAltDA(cfg); err != nil {
-		return fmt.Errorf("failed to init AltDA: %w", err)
 	}
 	if err := bs.initChannelConfig(cfg); err != nil {
 		return fmt.Errorf("failed to init channel config: %w", err)
@@ -284,15 +269,6 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 	}
 
-	if bs.UseAltDA && cc.UseBlobs {
-		return fmt.Errorf("cannot use data availability type blobs or auto with Alt-DA")
-	}
-
-	maxInputSize := bs.RollupConfig.AltDAConfig.MaxInputSizeOrDefault()
-	if bs.UseAltDA && !bs.GenericDA && cc.MaxFrameSize > maxInputSize {
-		return fmt.Errorf("max frame size %d exceeds altDA max input size %d", cc.MaxFrameSize, maxInputSize)
-	}
-
 	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor, cfg.CompressionAlgo)
 
 	if cc.UseBlobs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
@@ -312,7 +288,6 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	}
 	bs.Log.Info("Initialized channel-config",
 		"da_type", cfg.DataAvailabilityType,
-		"use_alt_da", bs.UseAltDA,
 		"max_frame_size", cc.MaxFrameSize,
 		"target_num_frames", cc.TargetNumFrames,
 		"compressor", cc.CompressorConfig.Kind,
@@ -321,10 +296,6 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		"max_channel_duration", cc.MaxChannelDuration,
 		"channel_timeout", cc.ChannelTimeout,
 		"sub_safety_margin", cc.SubSafetyMargin)
-	if bs.UseAltDA {
-		bs.Log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
-	}
-
 	if cfg.DataAvailabilityType == flags.AutoType {
 		// copy blobs config and use hardcoded calldata fallback config for now
 		calldataCC := cc
@@ -403,7 +374,6 @@ func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
 		L1Client:         bs.L1Client,
 		EndpointProvider: bs.EndpointProvider,
 		ChannelConfig:    bs.ChannelConfig,
-		AltDA:            bs.AltDA,
 	}
 	for _, opt := range opts {
 		opt(&ds)
@@ -430,17 +400,6 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 		return fmt.Errorf("unable to start RPC server: %w", err)
 	}
 	bs.rpcServer = server
-	return nil
-}
-
-func (bs *BatcherService) initAltDA(cfg *CLIConfig) error {
-	config := cfg.AltDA
-	if err := config.Check(); err != nil {
-		return err
-	}
-	bs.AltDA = config.NewDAClient()
-	bs.UseAltDA = config.Enabled
-	bs.GenericDA = config.GenericDA
 	return nil
 }
 

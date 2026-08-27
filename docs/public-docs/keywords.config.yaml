@@ -62,7 +62,6 @@ metadata_rules:
     values:
       # Data Availability Layer
       - eth-da               
-      - alt-da              
       - permissionless-batch-submission
       - block-times
       - data-availability

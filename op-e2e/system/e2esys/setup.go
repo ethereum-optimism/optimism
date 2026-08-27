@@ -41,7 +41,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherCfg "github.com/ethereum-optimism/optimism/op-batcher/config"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
@@ -191,11 +190,10 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 			},
 		},
 		Loggers: map[string]log.Logger{
-			RoleVerif:   testlog.Logger(t, log.LevelInfo).New("role", RoleVerif),
-			RoleSeq:     testlog.Logger(t, log.LevelInfo).New("role", RoleSeq),
-			"batcher":   testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
-			"proposer":  testlog.Logger(t, log.LevelInfo).New("role", "proposer"),
-			"da-server": testlog.Logger(t, log.LevelInfo).New("role", "da-server"),
+			RoleVerif:  testlog.Logger(t, log.LevelInfo).New("role", RoleVerif),
+			RoleSeq:    testlog.Logger(t, log.LevelInfo).New("role", RoleSeq),
+			"batcher":  testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
+			"proposer": testlog.Logger(t, log.LevelInfo).New("role", "proposer"),
 		},
 		GethOptions:                   map[string][]geth.GethOption{},
 		P2PTopology:                   nil, // no P2P connectivity by default
@@ -361,10 +359,6 @@ type SystemConfig struct {
 	// concurrently. 0 means unlimited.
 	BatcherMaxPendingTransactions uint64
 
-	// BatcherMaxConcurrentDARequest determines how many DAserver requests the batcher is allowed to
-	// make concurrently. 0 means unlimited.
-	BatcherMaxConcurrentDARequest uint64
-
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
 
@@ -387,9 +381,7 @@ type System struct {
 	L2OutputSubmitter *l2os.ProposerService
 	BatchSubmitter    *bss.BatcherService
 	Mocknet           mocknet.Mocknet
-	FakeAltDAServer   *altda.FakeDAServer
-
-	L1BeaconAPIAddr endpoint.RestHTTP
+	L1BeaconAPIAddr   endpoint.RestHTTP
 
 	// TimeTravelClock is nil unless SystemConfig.SupportL1TimeTravel was set to true
 	// It provides access to the clock instance used by the L1 node. Calling TimeTravelClock.AdvanceBy
@@ -690,16 +682,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		}
 	}
 
-	var rollupAltDAConfig *rollup.AltDAConfig
-	if cfg.DeployConfig.UseAltDA {
-		rollupAltDAConfig = &rollup.AltDAConfig{
-			DAChallengeAddress: cfg.L1Deployments.DataAvailabilityChallengeProxy,
-			DAChallengeWindow:  cfg.DeployConfig.DAChallengeWindow,
-			DAResolveWindow:    cfg.DeployConfig.DAResolveWindow,
-			CommitmentType:     altda.GenericCommitmentString,
-		}
-	}
-
 	l2GenesisTime, err := cfg.DeployConfig.L2GenesisTime(l1Block.Time())
 	if err != nil {
 		return nil, err
@@ -740,7 +722,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			JovianTime:             cfg.DeployConfig.JovianTime(l2GenesisTime),
 			KarstTime:              cfg.DeployConfig.KarstTime(l2GenesisTime),
 			LagoonTime:             cfg.DeployConfig.LagoonTime(l2GenesisTime),
-			AltDAConfig:            rollupAltDAConfig,
 			ChainOpConfig: &opparams.OptimismConfig{
 				EIP1559Elasticity:        cfg.DeployConfig.EIP1559Elasticity,
 				EIP1559Denominator:       cfg.DeployConfig.EIP1559Denominator,
@@ -997,22 +978,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		batcherTargetNumFrames = 1
 	}
 
-	var batcherAltDACLIConfig altda.CLIConfig
-	if cfg.DeployConfig.UseAltDA {
-		fakeAltDAServer := altda.NewFakeDAServer("127.0.0.1", 0, sys.Cfg.Loggers["da-server"])
-		if err := fakeAltDAServer.Start(); err != nil {
-			return nil, fmt.Errorf("failed to start fake altDA server: %w", err)
-		}
-		sys.FakeAltDAServer = fakeAltDAServer
-
-		batcherAltDACLIConfig = altda.CLIConfig{
-			Enabled:               cfg.DeployConfig.UseAltDA,
-			DAServerURL:           fakeAltDAServer.HttpEndpoint(),
-			VerifyOnRead:          true,
-			GenericDA:             true,
-			MaxConcurrentRequests: cfg.BatcherMaxConcurrentDARequest,
-		}
-	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 sys.EthInstances[RoleL1].UserRPC().RPC(),
 		L2EthRpc:                 []string{sys.EthInstances[RoleSeq].UserRPC().RPC()},
@@ -1035,7 +1000,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		MaxBlocksPerSpanBatch: cfg.BatcherMaxBlocksPerSpanBatch,
 		DataAvailabilityType:  sys.Cfg.DataAvailabilityType,
 		CompressionAlgo:       derive.Zlib,
-		AltDA:                 batcherAltDACLIConfig,
 	}
 
 	// Apply batcher cli modifications

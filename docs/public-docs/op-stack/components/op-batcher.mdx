@@ -12,9 +12,9 @@ layer.
 
 op-batcher reads unsafe blocks from the sequencer, compresses them into
 channels, splits the channels into frames, and submits those frames to the
-data availability layer — as Ethereum calldata or blob transactions, or via
-an [Alt-DA](/op-stack/features/experimental/alt-da-mode) layer. It can also
-select between calldata and blobs automatically based on current L1 prices.
+data availability layer as Ethereum calldata or blob transactions. It can
+also select between calldata and blobs automatically based on current L1
+prices.
 
 It exists because an OP Stack chain is *derived* from the data availability
 layer: until op-batcher posts a block's data, verifier nodes cannot derive it
@@ -43,9 +43,6 @@ throttle how much DA-consuming data new L2 blocks include.
     the chain's data availability type to blobs.
 *   [Enable span batches](/chain-operators/guides/features/enable-span-batches):
     configure the batch type on op-batcher.
-*   [How to run an Alt-DA mode chain](/chain-operators/guides/features/alt-da-mode-guide):
-    post data to an Alt-DA layer instead of Ethereum.
-
 ## Configuration & flags reference
 
 *   [Batcher configuration reference](/chain-operators/reference/batcher-configuration)

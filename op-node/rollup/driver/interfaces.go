@@ -3,7 +3,6 @@ package driver
 import (
 	"context"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/metrics/metered"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -77,15 +76,6 @@ type Finalizer interface {
 	FinalizedL1() eth.L1BlockRef
 	OnL1Finalized(x eth.L1BlockRef)
 	event.Deriver
-}
-
-type AltDAIface interface {
-	// Notify L1 finalized head so AltDA finality is always behind L1
-	Finalize(ref eth.L1BlockRef)
-	// Set the engine finalization signal callback
-	OnFinalizedHeadSignal(f altda.HeadSignalFn)
-
-	derive.AltDAInputFetcher
 }
 
 type SyncStatusTracker interface {

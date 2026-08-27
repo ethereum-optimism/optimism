@@ -251,6 +251,10 @@ func GetStandardSuperchainRoles(l1ChainId uint64) (*addresses.SuperchainRoles, e
 }
 
 func (c *Intent) Check() error {
+	if err := c.RejectUnsupportedAltDA(); err != nil {
+		return err
+	}
+
 	if c.L1ChainID == 0 {
 		return fmt.Errorf("l1ChainID cannot be 0")
 	}
@@ -278,6 +282,20 @@ func (c *Intent) Check() error {
 		return fmt.Errorf("failed to validate intent-type=%s: %w", c.ConfigType, err)
 	}
 
+	return nil
+}
+
+// RejectUnsupportedAltDA rejects non-empty legacy Alt-DA configuration and
+// clears empty decode-only compatibility fields.
+func (c *Intent) RejectUnsupportedAltDA() error {
+	for _, chain := range c.Chains {
+		if chain == nil {
+			continue
+		}
+		if err := chain.rejectUnsupportedAltDA(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

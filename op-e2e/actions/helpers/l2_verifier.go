@@ -98,7 +98,7 @@ type safeDB interface {
 }
 
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
-	blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface,
+	blobsSrc derive.L1BlobsFetcher,
 	eng L2API, cfg *rollup.Config, l1ChainConfig *params.ChainConfig,
 	depSet depset.DependencySet, syncCfg *sync.Config, safeHeadListener safeDB,
 ) *L2Verifier {
@@ -122,19 +122,14 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	metrics := &testutils.TestDerivationMetrics{}
 	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, l1, sys.Register("engine-controller", nil, opts), nil)
 
-	var finalizer driver.Finalizer
-	if cfg.AltDAEnabled() {
-		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, nil, l1, altDASrc, ec)
-	} else {
-		finalizer = finality.NewFinalizer(ctx, log, cfg, nil, l1, ec)
-	}
+	finalizer := finality.NewFinalizer(ctx, log, nil, l1, ec)
 	sys.Register("finalizer", finalizer, opts)
 
 	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng, ec)
 	sys.Register("attributes-handler", attrHandler, opts)
 	ec.SetAttributesResetter(attrHandler)
 
-	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, l1ChainConfig)
+	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, eng, metrics, l1ChainConfig)
 	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline)
 	sys.Register("pipeline", pipelineDeriver, opts)
 	ec.SetPipelineResetter(pipelineDeriver)

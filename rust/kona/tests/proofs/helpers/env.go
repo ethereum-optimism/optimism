@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"math/rand"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
@@ -82,7 +81,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 		require.NoError(t, err)
 		sd.DependencySet = defaultDepSet
 	}
-	sequencer := helpers.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), altda.Disabled, l2EngineCl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
+	sequencer := helpers.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), l2EngineCl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
 	miner.ActL1SetFeeRecipient(common.Address{0xCA, 0xFE, 0xBA, 0xBE})
 	sequencer.ActL2PipelineFull(t)
 	engCl := engine.EngineClient(t, sd.RollupCfg)

@@ -1,7 +1,6 @@
 package interopgen
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"math/big"
@@ -220,10 +219,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 }
 
 func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployment *SuperchainDeployment, cfg *L2Config) (*L2Deployment, error) {
-	if cfg.UseAltDA {
-		return nil, errors.New("alt-da mode not supported yet")
-	}
-
 	l1Host.SetTxOrigin(cfg.Deployer)
 
 	deployOPChainScript, err := opcm.NewDeployOPChainScript(l1Host)
@@ -444,7 +439,6 @@ func CompleteL2(l2Host *script.Host, cfg *L2Config, l1Block *types.Block, deploy
 			L1ERC721BridgeProxy:         deployment.L1ERC721BridgeProxy,
 			SystemConfigProxy:           deployment.SystemConfigProxy,
 			OptimismPortalProxy:         deployment.OptimismPortalProxy,
-			DAChallengeProxy:            common.Address{}, // unsupported for now
 		},
 	}
 	// l1Block is used to determine genesis time.

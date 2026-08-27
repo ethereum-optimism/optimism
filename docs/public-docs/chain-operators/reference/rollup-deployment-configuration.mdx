@@ -222,19 +222,6 @@ setting `useFaultProofs`; see the
 be 0. `faultGameMaxDepth` should be conservatively set so that there is always
 enough room for a full Cannon trace.
 
-### Alt-DA guidance
-
-Alt-DA mode is a non-standard feature. It enables integration of Data
-Availability layers into the OP Stack regardless of their commitment type; see
-[Alt-DA mode](/op-stack/features/experimental/alt-da-mode).
-
-*   `daCommitmentType`: must be either `KeccakCommitment` or
-    `GenericCommitment` (recommended); `KeccakCommitment` will be deprecated.
-*   `daChallengeWindow` and `daResolveWindow`: must be nonzero when using
-    Alt-DA mode with Keccak commitments.
-*   `daChallengeProxy`: must not be `address(0)` when using Alt-DA mode with
-    Keccak commitments, and must be `address(0)` with generic commitments.
-
 ### Governance and development settings
 
 *   `enableGovernance`: false is recommended; the governance token predeploy

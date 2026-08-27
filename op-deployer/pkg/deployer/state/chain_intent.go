@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
 
 type VMType string
@@ -76,26 +75,48 @@ type CustomGasToken struct {
 	LiquidityControllerOwner common.Address `json:"liquidityControllerOwner" toml:"liquidityControllerOwner"`
 }
 
+// legacyAltDAConfig exists only so older intent and state files cannot silently
+// discard Alt-DA configuration while decoding.
+type legacyAltDAConfig struct {
+	UseAltDA                   bool   `json:"useAltDA" toml:"useAltDA"`
+	DACommitmentType           string `json:"daCommitmentType" toml:"daCommitmentType"`
+	DAChallengeWindow          uint64 `json:"daChallengeWindow" toml:"daChallengeWindow"`
+	DAResolveWindow            uint64 `json:"daResolveWindow" toml:"daResolveWindow"`
+	DABondSize                 uint64 `json:"daBondSize" toml:"daBondSize"`
+	DAResolverRefundPercentage uint64 `json:"daResolverRefundPercentage" toml:"daResolverRefundPercentage"`
+}
+
+func (c *legacyAltDAConfig) isSet() bool {
+	return c != nil && (c.UseAltDA ||
+		c.DACommitmentType != "" ||
+		c.DAChallengeWindow != 0 ||
+		c.DAResolveWindow != 0 ||
+		c.DABondSize != 0 ||
+		c.DAResolverRefundPercentage != 0)
+}
+
 type ChainIntent struct {
-	ID                         common.Hash               `json:"id" toml:"id"`
-	BaseFeeVaultRecipient      common.Address            `json:"baseFeeVaultRecipient" toml:"baseFeeVaultRecipient"`
-	L1FeeVaultRecipient        common.Address            `json:"l1FeeVaultRecipient" toml:"l1FeeVaultRecipient"`
-	SequencerFeeVaultRecipient common.Address            `json:"sequencerFeeVaultRecipient" toml:"sequencerFeeVaultRecipient"`
-	OperatorFeeVaultRecipient  common.Address            `json:"operatorFeeVaultRecipient" toml:"operatorFeeVaultRecipient"`
-	Eip1559DenominatorCanyon   uint64                    `json:"eip1559DenominatorCanyon" toml:"eip1559DenominatorCanyon"`
-	Eip1559Denominator         uint64                    `json:"eip1559Denominator" toml:"eip1559Denominator"`
-	Eip1559Elasticity          uint64                    `json:"eip1559Elasticity" toml:"eip1559Elasticity"`
-	GasLimit                   uint64                    `json:"gasLimit" toml:"gasLimit"`
-	Roles                      ChainRoles                `json:"roles" toml:"roles"`
-	DeployOverrides            map[string]any            `json:"deployOverrides" toml:"deployOverrides"`
-	DangerousAltDAConfig       genesis.AltDADeployConfig `json:"dangerousAltDAConfig,omitempty" toml:"dangerousAltDAConfig,omitempty"`
-	AdditionalDisputeGames     []AdditionalDisputeGame   `json:"dangerousAdditionalDisputeGames" toml:"dangerousAdditionalDisputeGames,omitempty"`
-	OperatorFeeScalar          uint32                    `json:"operatorFeeScalar,omitempty" toml:"operatorFeeScalar,omitempty"`
-	OperatorFeeConstant        uint64                    `json:"operatorFeeConstant,omitempty" toml:"operatorFeeConstant,omitempty"`
-	L1StartBlockHash           *common.Hash              `json:"l1StartBlockHash,omitempty" toml:"l1StartBlockHash,omitempty"`
-	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
-	DAFootprintGasScalar       uint16                    `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
-	CustomGasToken             CustomGasToken            `json:"customGasToken" toml:"customGasToken"`
+	ID                         common.Hash             `json:"id" toml:"id"`
+	BaseFeeVaultRecipient      common.Address          `json:"baseFeeVaultRecipient" toml:"baseFeeVaultRecipient"`
+	L1FeeVaultRecipient        common.Address          `json:"l1FeeVaultRecipient" toml:"l1FeeVaultRecipient"`
+	SequencerFeeVaultRecipient common.Address          `json:"sequencerFeeVaultRecipient" toml:"sequencerFeeVaultRecipient"`
+	OperatorFeeVaultRecipient  common.Address          `json:"operatorFeeVaultRecipient" toml:"operatorFeeVaultRecipient"`
+	Eip1559DenominatorCanyon   uint64                  `json:"eip1559DenominatorCanyon" toml:"eip1559DenominatorCanyon"`
+	Eip1559Denominator         uint64                  `json:"eip1559Denominator" toml:"eip1559Denominator"`
+	Eip1559Elasticity          uint64                  `json:"eip1559Elasticity" toml:"eip1559Elasticity"`
+	GasLimit                   uint64                  `json:"gasLimit" toml:"gasLimit"`
+	Roles                      ChainRoles              `json:"roles" toml:"roles"`
+	DeployOverrides            map[string]any          `json:"deployOverrides" toml:"deployOverrides"`
+	AdditionalDisputeGames     []AdditionalDisputeGame `json:"dangerousAdditionalDisputeGames" toml:"dangerousAdditionalDisputeGames,omitempty"`
+	OperatorFeeScalar          uint32                  `json:"operatorFeeScalar,omitempty" toml:"operatorFeeScalar,omitempty"`
+	OperatorFeeConstant        uint64                  `json:"operatorFeeConstant,omitempty" toml:"operatorFeeConstant,omitempty"`
+	L1StartBlockHash           *common.Hash            `json:"l1StartBlockHash,omitempty" toml:"l1StartBlockHash,omitempty"`
+	MinBaseFee                 uint64                  `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
+	DAFootprintGasScalar       uint16                  `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
+	CustomGasToken             CustomGasToken          `json:"customGasToken" toml:"customGasToken"`
+	// LegacyDangerousAltDAConfig is decode-only compatibility state. Non-empty
+	// legacy Alt-DA configuration is rejected during loading and validation.
+	LegacyDangerousAltDAConfig *legacyAltDAConfig `json:"dangerousAltDAConfig,omitempty" toml:"dangerousAltDAConfig,omitempty"`
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
@@ -119,7 +140,25 @@ var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value"
 var ErrZKDisputeGameMissingParams = fmt.Errorf("ZK dispute game is missing required params")
 var ErrZKDisputeGameParamOutOfRange = fmt.Errorf("ZK dispute game param is out of range")
 
+// ErrAltDANoLongerSupported is returned when legacy Alt-DA configuration or
+// deployment state is found while loading an op-deployer input.
+var ErrAltDANoLongerSupported = fmt.Errorf("Alt-DA is no longer supported")
+
+func (c *ChainIntent) rejectUnsupportedAltDA() error {
+	if c.LegacyDangerousAltDAConfig.isSet() {
+		return fmt.Errorf("%w: chain %s contains dangerousAltDAConfig", ErrAltDANoLongerSupported, c.ID)
+	}
+	// Do not carry forward an empty compatibility-only field when rewriting an
+	// intent or serializing it into deployment state.
+	c.LegacyDangerousAltDAConfig = nil
+	return nil
+}
+
 func (c *ChainIntent) Check() error {
+	if err := c.rejectUnsupportedAltDA(); err != nil {
+		return err
+	}
+
 	if c.ID == emptyHash {
 		return fmt.Errorf("id must be set")
 	}
@@ -164,10 +203,6 @@ func (c *ChainIntent) Check() error {
 			return fmt.Errorf("%w: CustomGasToken.InitialLiquidity must be non-negative when custom gas token is enabled, chainId=%s", ErrIncompatibleValue, c.ID)
 		}
 		// LiquidityControllerOwner is optional - if not set, L2ProxyAdminOwner will be used as default
-	}
-
-	if c.DangerousAltDAConfig.UseAltDA {
-		return c.DangerousAltDAConfig.Check(nil)
 	}
 
 	for _, game := range c.AdditionalDisputeGames {

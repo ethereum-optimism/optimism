@@ -97,7 +97,10 @@ pub struct ChainConfig {
     /// Optimism configuration
     #[cfg_attr(feature = "serde", serde(rename = "optimism"))]
     pub optimism: Option<BaseFeeConfig>,
-    /// Alternative DA configuration
+    /// Compatibility-only Alt-DA metadata from the superchain registry.
+    ///
+    /// Kona preserves this current registry schema but does not propagate it into a
+    /// [`RollupConfig`].
     #[cfg_attr(feature = "serde", serde(rename = "alt_da"))]
     pub alt_da: Option<AltDAConfig>,
     /// Chain-specific genesis information
@@ -142,15 +145,21 @@ impl ChainConfig {
         self.optimism.as_ref().map(|op| *op).unwrap_or_else(|| base_fee_config(self.chain_id))
     }
 
-    /// Loads the rollup config for the OP-Stack chain given the chain config and address list.
+    /// Loads the rollup config for an Ethereum-DA OP Stack chain.
     #[deprecated(since = "0.2.1", note = "please use `as_rollup_config` instead")]
-    pub fn load_op_stack_rollup_config(&self) -> RollupConfig {
+    pub fn load_op_stack_rollup_config(&self) -> Option<RollupConfig> {
         self.as_rollup_config()
     }
 
-    /// Loads the rollup config for the OP-Stack chain given the chain config and address list.
-    pub fn as_rollup_config(&self) -> RollupConfig {
-        RollupConfig {
+    /// Loads the rollup config for an Ethereum-DA OP Stack chain.
+    ///
+    /// Returns [`Option::None`] for unsupported data availability types or Alt-DA metadata.
+    pub fn as_rollup_config(&self) -> Option<RollupConfig> {
+        if self.data_availability_type != "eth-da" || self.alt_da.is_some() {
+            return None;
+        }
+
+        Some(RollupConfig {
             genesis: self.genesis,
             l1_chain_id: self.l1_chain_id,
             l2_chain_id: Chain::from(self.chain_id),
@@ -171,23 +180,18 @@ impl ChainConfig {
                 .unwrap_or_default(),
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
-            da_challenge_address: self
-                .alt_da
-                .as_ref()
-                .and_then(|alt_da| alt_da.da_challenge_address),
+            unsupported_alt_da: (),
 
             // The below chain parameters can be different per OP-Stack chain,
             // but since none of the superchain chains differ, it's not represented in the
             // superchain-registry yet. This restriction on superchain-chains may change in the
-            // future. Test/Alt configurations can still load custom rollup-configs when
-            // necessary.
+            // future. Test configurations can still load custom rollup-configs when necessary.
             channel_timeout: 300,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
             #[cfg(feature = "rollup_config_override")]
             fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             chain_op_config: self.base_fee_config(),
-            alt_da_config: self.alt_da.clone(),
-        }
+        })
     }
 }
 
@@ -303,6 +307,16 @@ mod tests {
         let cfg = ChainConfig::default();
         let json = serde_json::to_string(&cfg).unwrap();
         assert!(!json.contains("interop"), "expected `interop` key to be omitted; got: {json}");
+    }
+
+    #[test]
+    fn test_alt_da_metadata_has_no_rollup_config() {
+        let cfg = ChainConfig {
+            data_availability_type: "eth-da".to_string(),
+            alt_da: Some(AltDAConfig::default()),
+            ..Default::default()
+        };
+        assert!(cfg.as_rollup_config().is_none());
     }
 
     // Guards the `deny_unknown_fields` attribute on ChainConfig: an otherwise-valid config with one

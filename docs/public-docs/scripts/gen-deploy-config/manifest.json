@@ -1,6 +1,6 @@
 {
   "deploy-config": {
     "tag": "op-deployer/v0.7.1",
-    "sha256": "a06e30b6e8b31905a52654a2ebda70c8f113d5f2bb4234139a57c816da2d32b5"
+    "sha256": "7a964fe93189f890d38124467281234680b9a9523159fc86aa808fec214d5e96"
   }
 }

@@ -20,24 +20,17 @@ import (
 func fullyPopulatedChainConfig() *registry.ChainConfig {
 	portal := common.HexToAddress("0x1111111111111111111111111111111111111111")
 	sysCfgProxy := common.HexToAddress("0x2222222222222222222222222222222222222222")
-	daChallenge := common.HexToAddress("0x3333333333333333333333333333333333333333")
-
 	return &registry.ChainConfig{
-		ChainID:           10,
-		BatchInboxAddr:    common.HexToAddress("0xff00000000000000000000000000000000000010"),
-		BlockTime:         2,
-		SeqWindowSize:     3600,
-		MaxSequencerDrift: 600,
+		ChainID:              10,
+		BatchInboxAddr:       common.HexToAddress("0xff00000000000000000000000000000000000010"),
+		BlockTime:            2,
+		SeqWindowSize:        3600,
+		MaxSequencerDrift:    600,
+		DataAvailabilityType: "eth-da",
 		Optimism: &registry.OptimismConfig{
 			EIP1559Elasticity:        6,
 			EIP1559Denominator:       50,
 			EIP1559DenominatorCanyon: ptr.New(uint64(250)),
-		},
-		AltDA: &registry.AltDAConfig{
-			DaChallengeContractAddress: daChallenge,
-			DaChallengeWindow:          160,
-			DaResolveWindow:            160,
-			DaCommitmentType:           "KeccakCommitment",
 		},
 		Genesis: registry.GenesisConfig{
 			L2Time: 1234,
@@ -76,7 +69,8 @@ func fullyPopulatedChainConfig() *registry.ChainConfig {
 // the rollup Config.
 func TestRollupConfigFromRegistry(t *testing.T) {
 	chConfig := fullyPopulatedChainConfig()
-	cfg := rollupConfigFromRegistry(chConfig, registry.Superchain{L1: registry.L1Config{ChainID: 1}})
+	cfg, err := rollupConfigFromRegistry(chConfig, registry.Superchain{L1: registry.L1Config{ChainID: 1}})
+	require.NoError(t, err)
 
 	require.Equal(t, big.NewInt(10), cfg.L2ChainID)
 	require.Equal(t, big.NewInt(1), cfg.L1ChainID)
@@ -89,11 +83,12 @@ func TestRollupConfigFromRegistry(t *testing.T) {
 }
 
 // TestRollupConfigFromRegistry_AllFieldsSet feeds a fully-populated chain config through the
-// conversion and asserts every rollup Config field ends up non-zero. A newly added registry-derived
-// field that the conversion forgets to map stays at its zero value and fails here — the completeness
-// guard for the whole Config, not just the hardforks.
+// conversion and asserts every registry-derived rollup Config field ends up non-zero. A newly added
+// registry-derived field that the conversion forgets to map stays at its zero value and fails here —
+// the completeness guard for the whole runtime Config, not just the hardforks.
 func TestRollupConfigFromRegistry_AllFieldsSet(t *testing.T) {
-	cfg := rollupConfigFromRegistry(fullyPopulatedChainConfig(), registry.Superchain{L1: registry.L1Config{ChainID: 1}})
+	cfg, err := rollupConfigFromRegistry(fullyPopulatedChainConfig(), registry.Superchain{L1: registry.L1Config{ChainID: 1}})
+	require.NoError(t, err)
 
 	v := reflect.ValueOf(*cfg)
 	typ := v.Type()
@@ -102,6 +97,26 @@ func TestRollupConfigFromRegistry_AllFieldsSet(t *testing.T) {
 			"rollup Config field %q is zero after conversion: map it in rollupConfigFromRegistry, and "+
 				"make sure fullyPopulatedChainConfig provides its source", typ.Field(i).Name)
 	}
+}
+
+func TestRollupConfigFromRegistryRejectsUnsupportedDA(t *testing.T) {
+	t.Run("unsupported type", func(t *testing.T) {
+		chConfig := fullyPopulatedChainConfig()
+		chConfig.DataAvailabilityType = "alt-da"
+
+		cfg, err := rollupConfigFromRegistry(chConfig, registry.Superchain{L1: registry.L1Config{ChainID: 1}})
+		require.Nil(t, cfg)
+		require.EqualError(t, err, `unsupported data availability type "alt-da"`)
+	})
+
+	t.Run("legacy config with eth-da type", func(t *testing.T) {
+		chConfig := fullyPopulatedChainConfig()
+		chConfig.AltDA = &registry.AltDAConfig{}
+
+		cfg, err := rollupConfigFromRegistry(chConfig, registry.Superchain{L1: registry.L1Config{ChainID: 1}})
+		require.Nil(t, cfg)
+		require.EqualError(t, err, `unsupported alt_da configuration for data availability type "eth-da"`)
+	})
 }
 
 func TestApplyHardforks_NoForks(t *testing.T) {

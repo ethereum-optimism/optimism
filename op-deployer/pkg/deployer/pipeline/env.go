@@ -73,6 +73,9 @@ func ReadIntent(workdir string) (*state.Intent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read intent file: %w", err)
 	}
+	if err := intent.RejectUnsupportedAltDA(); err != nil {
+		return nil, fmt.Errorf("failed to read intent file: %w", err)
+	}
 	return intent, nil
 }
 
@@ -80,6 +83,9 @@ func ReadState(workdir string) (*state.State, error) {
 	statePath := path.Join(workdir, "state.json")
 	st, err := jsonutil.LoadJSON[state.State](statePath)
 	if err != nil {
+		return nil, fmt.Errorf("failed to read state file: %w", err)
+	}
+	if err := st.RejectUnsupportedAltDA(); err != nil {
 		return nil, fmt.Errorf("failed to read state file: %w", err)
 	}
 	return st, nil

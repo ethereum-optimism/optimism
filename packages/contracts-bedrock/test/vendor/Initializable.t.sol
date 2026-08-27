@@ -46,7 +46,6 @@ contract Initializer_Test is CommonTest {
     mapping(string => string) nicknames;
 
     function setUp() public override {
-        super.enableAltDA();
         super.setUp();
 
         // Initialize the `contracts` array with the addresses of the contracts to test, the
@@ -283,22 +282,6 @@ contract Initializer_Test is CommonTest {
                 name: "OptimismMintableERC20FactoryProxy",
                 target: address(l1OptimismMintableERC20Factory),
                 initCalldata: abi.encodeCall(l1OptimismMintableERC20Factory.initialize, (address(l1StandardBridge)))
-            })
-        );
-        // DataAvailabilityChallengeImpl
-        contracts.push(
-            InitializeableContract({
-                name: "DataAvailabilityChallengeImpl",
-                target: EIP1967Helper.getImplementation(address(dataAvailabilityChallenge)),
-                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0))
-            })
-        );
-        // DataAvailabilityChallengeProxy
-        contracts.push(
-            InitializeableContract({
-                name: "DataAvailabilityChallengeProxy",
-                target: address(dataAvailabilityChallenge),
-                initCalldata: abi.encodeCall(dataAvailabilityChallenge.initialize, (address(0), 0, 0, 0, 0))
             })
         );
         // AnchorStateRegistry

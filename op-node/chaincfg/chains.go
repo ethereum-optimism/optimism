@@ -35,11 +35,21 @@ var L2ChainIDToNetworkDisplayName = func() map[string]string {
 	return out
 }()
 
+func isSupportedDataAvailability(cfg *registry.ChainConfig) bool {
+	return cfg.DataAvailabilityType == "eth-da" && cfg.AltDA == nil
+}
+
 // AvailableNetworks returns the selection of network configurations that is available by default.
 func AvailableNetworks() []string {
 	var networks []string
-	for _, cfg := range registry.Chains {
-		networks = append(networks, cfg.Name+"-"+cfg.Network)
+	for _, chain := range registry.Chains {
+		cfg, err := chain.Config()
+		if err != nil {
+			panic(fmt.Errorf("failed to load chain config: %w", err))
+		}
+		if isSupportedDataAvailability(cfg) {
+			networks = append(networks, chain.Name+"-"+chain.Network)
+		}
 	}
 	sort.Strings(networks)
 	return networks
@@ -69,6 +79,9 @@ func ChainByName(name string) *registry.ChainConfig {
 		cfg, err := chainCfg.Config()
 		if err != nil {
 			panic(fmt.Errorf("failed to load chain config: %w", err))
+		}
+		if !isSupportedDataAvailability(cfg) {
+			return nil
 		}
 		return cfg
 	}

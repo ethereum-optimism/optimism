@@ -32,7 +32,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*rollup.Config, error) {
 		return nil, fmt.Errorf("unable to get superchain %q from superchain registry: %w", chain.Network, err)
 	}
 
-	return rollupConfigFromRegistry(chConfig, superConfig), nil
+	return rollupConfigFromRegistry(chConfig, superConfig)
 }
 
 // rollupConfigFromRegistry converts a superchain-registry chain config (with its parent
@@ -40,7 +40,14 @@ func LoadOPStackRollupConfig(chainID uint64) (*rollup.Config, error) {
 // maps registry fields onto Config, kept separate from the registry lookup so it can be
 // unit-tested directly: feeding a fully-populated ChainConfig through it and checking the result
 // catches any registry field that fails to reach Config.
-func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig registry.Superchain) *rollup.Config {
+func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig registry.Superchain) (*rollup.Config, error) {
+	if chConfig.DataAvailabilityType != "eth-da" {
+		return nil, fmt.Errorf("unsupported data availability type %q", chConfig.DataAvailabilityType)
+	}
+	if chConfig.AltDA != nil {
+		return nil, fmt.Errorf("unsupported alt_da configuration for data availability type %q", chConfig.DataAvailabilityType)
+	}
+
 	chOpConfig := &opparams.OptimismConfig{
 		EIP1559Elasticity:        chConfig.Optimism.EIP1559Elasticity,
 		EIP1559Denominator:       chConfig.Optimism.EIP1559Denominator,
@@ -57,16 +64,6 @@ func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig regist
 	}
 
 	addrs := chConfig.Addresses
-
-	var altDA *rollup.AltDAConfig
-	if chConfig.AltDA != nil {
-		altDA = &rollup.AltDAConfig{
-			DAChallengeAddress: chConfig.AltDA.DaChallengeContractAddress,
-			DAChallengeWindow:  chConfig.AltDA.DaChallengeWindow,
-			DAResolveWindow:    chConfig.AltDA.DaResolveWindow,
-			CommitmentType:     chConfig.AltDA.DaCommitmentType,
-		}
-	}
 
 	cfg := &rollup.Config{
 		Genesis: rollup.Genesis{
@@ -94,12 +91,11 @@ func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig regist
 		BatchInboxAddress:      chConfig.BatchInboxAddr,
 		DepositContractAddress: *addrs.OptimismPortalProxy,
 		L1SystemConfigAddress:  *addrs.SystemConfigProxy,
-		AltDAConfig:            altDA,
 		ChainOpConfig:          chOpConfig,
 	}
 	applyHardforks(cfg, chConfig.Hardforks)
 
-	return cfg
+	return cfg, nil
 }
 
 func applyHardforks(cfg *rollup.Config, hardforks registry.HardforkConfig) {

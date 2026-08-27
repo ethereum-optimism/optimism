@@ -90,12 +90,5 @@
   "gasPayingTokenSymbol": "",
   "nativeAssetLiquidityAmount": null,
   "liquidityControllerOwner": "0x0000000000000000000000000000000000000000",
-  "useFaultProofs": false,
-  "useAltDA": false,
-  "daBondSize": 0,
-  "daCommitmentType": "KeccakCommitment",
-  "daChallengeProxy": "0x0000000000000000000000000000000000000000",
-  "daChallengeWindow": 0,
-  "daResolveWindow": 0,
-  "daResolverRefundPercentage": 0
+  "useFaultProofs": false
 }

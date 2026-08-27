@@ -33,36 +33,6 @@ func TestDeployScriptsForge(t *testing.T) {
 	guardian := shared.AddrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig))
 	challenger := shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
-	t.Run("deploy altda with forge", func(t *testing.T) {
-		runner := NewCLITestRunnerWithNetwork(t)
-
-		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-		require.NoError(t, err)
-
-		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
-
-		// Deploy AltDA using Forge wrapper function
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     forgeClient,
-			Context:    context.Background(),
-			L1RPCUrl:   runner.GetL1RPC(),
-			PrivateKey: runner.GetPrivateKey(),
-		}
-		output, err := opcm.DeployAltDAViaForge(forgeEnv, opcm.DeployAltDAInput{
-			Salt:                     common.BigToHash(big.NewInt(12345)),
-			ProxyAdmin:               superchainProxyAdminOwner,
-			ChallengeContractOwner:   challenger,
-			ChallengeWindow:          big.NewInt(3600),
-			ResolveWindow:            big.NewInt(7200),
-			BondSize:                 big.NewInt(1000000000000000000), // 1 ETH
-			ResolverRefundPercentage: big.NewInt(50),
-		})
-		require.NoError(t, err)
-		require.NotEqual(t, common.Address{}, output.DataAvailabilityChallengeProxy)
-		require.NotEqual(t, common.Address{}, output.DataAvailabilityChallengeImpl)
-	})
-
 	t.Run("deploy alphabet vm with forge", func(t *testing.T) {
 		runner := NewCLITestRunnerWithNetwork(t)
 

@@ -104,8 +104,7 @@
             "FaultDisputeGame": null,
             "Mips": null,
             "PermissionedDisputeGame": null,
-            "PreimageOracle": null,
-            "DataAvailabilityChallenge": null
+            "PreimageOracle": null
           }
         },
         {
@@ -189,8 +188,7 @@
             "FaultDisputeGame": null,
             "Mips": null,
             "PermissionedDisputeGame": null,
-            "PreimageOracle": null,
-            "DataAvailabilityChallenge": null
+            "PreimageOracle": null
           }
         }
       ]

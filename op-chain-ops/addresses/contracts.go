@@ -59,7 +59,6 @@ type ImplementationsContracts struct {
 type OpChainContracts struct {
 	OpChainCoreContracts
 	OpChainFaultProofsContracts
-	OpChainAltDAContracts
 	OpChainLegacyContracts
 }
 
@@ -86,11 +85,6 @@ type OpChainFaultProofsContracts struct {
 	SuperPermissionedDisputeGameImpl   common.Address
 	DelayedWethPermissionedGameProxy   common.Address
 	DelayedWethPermissionlessGameProxy common.Address
-}
-
-type OpChainAltDAContracts struct {
-	AltDAChallengeProxy common.Address
-	AltDAChallengeImpl  common.Address
 }
 
 type OpChainLegacyContracts struct {

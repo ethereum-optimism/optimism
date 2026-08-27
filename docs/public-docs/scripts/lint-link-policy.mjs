@@ -62,7 +62,6 @@ const RETIRED_SPEC_PATHS = {
   "/experimental/fault-proof/stage-one/dispute-game-interface.html": "/fault-proof/stage-one/dispute-game-interface.html",
   "/experimental/fault-proof/stage-one/fault-dispute-game.html": "/fault-proof/stage-one/fault-dispute-game.html",
   "/experimental/fault-proof/stage-one/honest-challenger-fdg.html": "/fault-proof/stage-one/honest-challenger-fdg.html",
-  "/experimental/plasma.html": "/experimental/alt-da.html",
   "/fjord/overview.html": "/protocol/fjord/overview.html",
   "/fjord/derivation.html": "/protocol/fjord/derivation.html",
   "/fjord/exec-engine.html": "/protocol/fjord/exec-engine.html",
@@ -443,7 +442,7 @@ Root-relative internal link to a page that exists:
 [these examples](/good-links), including with [anchor and query](/good-links?x=1#somewhere).
 
 A fragment-only link is [fine](#somewhere), and URLs inside code are ignored:
-\`https://specs.optimism.io/experimental/plasma.html\` stays illustrative.
+\`https://specs.optimism.io/experimental/example.html\` stays illustrative.
 
 \`\`\`md
 [not linted](https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle?utm_source=x)

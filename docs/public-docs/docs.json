@@ -1089,11 +1089,15 @@
     },
     {
       "source": "/operators/chain-operators/features/alt-da-mode",
-      "destination": "/chain-operators/guides/features/alt-da-mode-guide"
+      "destination": "/chain-operators/guides/configuration/batcher#batcher-policy"
     },
     {
       "source": "/chain-operators/reference/features/alt-da-mode",
-      "destination": "/chain-operators/guides/features/alt-da-mode-guide"
+      "destination": "/chain-operators/guides/configuration/batcher#batcher-policy"
+    },
+    {
+      "source": "/chain-operators/guides/features/alt-da-mode-guide",
+      "destination": "/chain-operators/guides/configuration/batcher#batcher-policy"
     },
     {
       "source": "/operators/chain-operators/features/bridged-usdc-standard",
@@ -1205,7 +1209,11 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/integrating-da-layer",
-      "destination": "/chain-operators/tutorials/integrating-da-layer"
+      "destination": "/op-stack/components/op-batcher"
+    },
+    {
+      "source": "/chain-operators/tutorials/integrating-da-layer",
+      "destination": "/op-stack/components/op-batcher"
     },
     {
       "source": "/operators/chain-operators/tutorials/migrating-permissionless",
@@ -1333,7 +1341,15 @@
     },
     {
       "source": "/stack/beta-features/alt-da-mode",
-      "destination": "/op-stack/features/experimental/alt-da-mode"
+      "destination": "/op-stack/protocol/components#data-availability"
+    },
+    {
+      "source": "/op-stack/features/experimental/alt-da-mode",
+      "destination": "/op-stack/protocol/components#data-availability"
+    },
+    {
+      "source": "/op-stack/features/experimental/alt-da-mode#faqs",
+      "destination": "/op-stack/protocol/components#data-availability"
     },
     {
       "source": "/stack/design-principles",
@@ -2776,7 +2792,6 @@
                   "chain-operators/guides/features/setting-operator-fee",
                   "chain-operators/guides/features/setting-da-footprint",
                   "chain-operators/guides/features/subblocks-guide",
-                  "chain-operators/guides/features/alt-da-mode-guide",
                   "chain-operators/guides/features/blobs",
                   "chain-operators/guides/features/enable-span-batches",
                   "chain-operators/guides/features/snap-sync"
@@ -2826,8 +2841,7 @@
                 "pages": [
                   "chain-operators/tutorials/adding-precompiles",
                   "chain-operators/tutorials/modifying-predeploys",
-                  "chain-operators/tutorials/adding-derivation-attributes",
-                  "chain-operators/tutorials/integrating-da-layer"
+                  "chain-operators/tutorials/adding-derivation-attributes"
                 ]
               },
               {
@@ -3403,8 +3417,7 @@
               "op-stack/features/send-raw-transaction-conditional",
               "op-stack/features/l2-contract-manager",
               "op-stack/features/osaka-on-l2",
-              "op-stack/features/preinstalls",
-              "op-stack/features/experimental/alt-da-mode"
+              "op-stack/features/preinstalls"
             ]
           },
           {

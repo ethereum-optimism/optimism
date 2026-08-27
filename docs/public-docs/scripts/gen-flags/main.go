@@ -4,7 +4,7 @@
 //
 // For each component listed in components below, the tool walks the composed
 // flag slice the binary actually registers (including the flag families
-// appended from op-service: rpc, log, metrics, pprof, txmgr, altda) and emits
+// appended from op-service: rpc, log, metrics, pprof, and txmgr) and emits
 // a snippet into docs/public-docs/snippets/generated/. The snippet carries a
 // do-not-edit header and a provenance line naming the release tag recorded in
 // manifest.json.

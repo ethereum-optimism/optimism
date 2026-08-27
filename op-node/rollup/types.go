@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,7 +10,6 @@ import (
 	"math/big"
 	"time"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -45,7 +45,13 @@ var (
 	ErrChainIDsSame                  = errors.New("L1 and L2 chain IDs must be different")
 	ErrL1ChainIDNotPositive          = errors.New("L1 chain ID must be non-zero and positive")
 	ErrL2ChainIDNotPositive          = errors.New("L2 chain ID must be non-zero and positive")
+	errAltDANoLongerSupported        = errors.New("alt-DA is no longer supported")
 )
+
+func hasUnsupportedAltDA(raw json.RawMessage) bool {
+	value := bytes.TrimSpace(raw)
+	return len(value) != 0 && !bytes.Equal(value, []byte("null"))
+}
 
 type Genesis struct {
 	// The L1 block that the rollup starts *after* (no derived transactions)
@@ -58,30 +64,6 @@ type Genesis struct {
 	// The L2 genesis block may not include transactions, and thus cannot encode the config values,
 	// unlike later L2 blocks.
 	SystemConfig eth.SystemConfig `json:"system_config"`
-}
-
-type AltDAConfig struct {
-	// L1 DataAvailabilityChallenge contract proxy address
-	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
-	// CommitmentType specifies which commitment type can be used. Defaults to Keccak (type 0) if not present
-	CommitmentType string `json:"da_commitment_type"`
-	// MaxInputSize is the maximum byte size accepted for Keccak commitments.
-	// It defaults to the protocol limit when omitted.
-	MaxInputSize *uint64 `json:"da_max_input_size,omitempty"`
-	// DA challenge window value set on the DAC contract. Used in alt-da mode
-	// to compute when a commitment can no longer be challenged.
-	DAChallengeWindow uint64 `json:"da_challenge_window"`
-	// DA resolve window value set on the DAC contract. Used in alt-da mode
-	// to compute when a challenge expires and trigger a reorg if needed.
-	DAResolveWindow uint64 `json:"da_resolve_window"`
-}
-
-// MaxInputSizeOrDefault returns the configured maximum input size or the protocol default.
-func (c *AltDAConfig) MaxInputSizeOrDefault() uint64 {
-	if c == nil || c.MaxInputSize == nil {
-		return altda.MaxInputSize
-	}
-	return *c.MaxInputSize
 }
 
 type Config struct {
@@ -180,11 +162,6 @@ type Config struct {
 	// If missing, it is loaded by the op-node from the embedded superchain config at startup.
 	ChainOpConfig *opparams.OptimismConfig `json:"chain_op_config,omitempty"`
 
-	// Optional Features
-
-	// AltDAConfig. We are in the process of migrating to the AltDAConfig from these legacy top level values
-	AltDAConfig *AltDAConfig `json:"alt_da,omitempty"`
-
 	// PectraBlobScheduleTime sets the time until which (but not including) the blob base fee
 	// calculations for the L1 Block Info use the pre-Prague=Cancun blob parameters.
 	// This feature is optional and if not active, the L1 Block Info calculation uses the Prague
@@ -192,6 +169,27 @@ type Config struct {
 	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
+}
+
+// UnmarshalJSON rejects legacy Alt-DA configuration during decoding. This ensures callers that
+// do not subsequently call Check cannot silently run an Alt-DA chain as an Ethereum-DA chain.
+func (cfg *Config) UnmarshalJSON(data []byte) error {
+	type config Config
+	decoded := config(*cfg)
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var compatibility struct {
+		AltDA json.RawMessage `json:"alt_da"`
+	}
+	if err := json.Unmarshal(data, &compatibility); err != nil {
+		return err
+	}
+	if hasUnsupportedAltDA(compatibility.AltDA) {
+		return errAltDANoLongerSupported
+	}
+	*cfg = Config(decoded)
+	return nil
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -381,10 +379,6 @@ func (cfg *Config) Check() error {
 	if cfg.L2ChainID.Sign() < 1 {
 		return ErrL2ChainIDNotPositive
 	}
-	if err := validateAltDAConfig(cfg); err != nil {
-		return err
-	}
-
 	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, forks.Regolith, forks.Canyon); err != nil {
 		return err
 	}
@@ -438,28 +432,6 @@ func (cfg *Config) ProbablyMissingPectraBlobSchedule() bool {
 	// Only chains whose genesis was before the L1's prague activation need
 	// the Pectra blob schedule fix.
 	return pragueTime >= cfg.Genesis.L2Time
-}
-
-// validateAltDAConfig checks the two approaches to configuring alt-da mode.
-// If the legacy values are set, they are copied to the new location. If both are set, they are check for consistency.
-func validateAltDAConfig(cfg *Config) error {
-	if cfg.AltDAConfig != nil {
-		if cfg.AltDAConfig.CommitmentType == altda.GenericCommitmentString && cfg.AltDAConfig.MaxInputSize != nil {
-			return errors.New("altDA max input size must be omitted for generic commitments")
-		}
-		if cfg.AltDAConfig.MaxInputSize != nil && *cfg.AltDAConfig.MaxInputSize == 0 {
-			return errors.New("altDA max input size must be greater than zero")
-		}
-		if !(cfg.AltDAConfig.CommitmentType == altda.KeccakCommitmentString || cfg.AltDAConfig.CommitmentType == altda.GenericCommitmentString) {
-			return fmt.Errorf("invalid commitment type: %v", cfg.AltDAConfig.CommitmentType)
-		}
-		if cfg.AltDAConfig.CommitmentType == altda.KeccakCommitmentString && cfg.AltDAConfig.DAChallengeAddress == (common.Address{}) {
-			return errors.New("Must set da_challenge_contract_address for keccak commitments")
-		} else if cfg.AltDAConfig.CommitmentType == altda.GenericCommitmentString && cfg.AltDAConfig.DAChallengeAddress != (common.Address{}) {
-			return errors.New("Must set empty da_challenge_contract_address for generic commitments")
-		}
-	}
-	return nil
 }
 
 // checkFork checks that fork A is before or at the same time as fork B
@@ -789,41 +761,8 @@ func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 	}
 }
 
-// GetOPAltDAConfig validates and returns the altDA config from the rollup config.
-func (c *Config) GetOPAltDAConfig() (altda.Config, error) {
-	if c.AltDAConfig == nil {
-		return altda.Config{}, errors.New("no altDA config")
-	}
-	if c.AltDAConfig.DAChallengeWindow == uint64(0) {
-		return altda.Config{}, errors.New("missing DAChallengeWindow")
-	}
-	if c.AltDAConfig.DAResolveWindow == uint64(0) {
-		return altda.Config{}, errors.New("missing DAResolveWindow")
-	}
-	t, err := altda.CommitmentTypeFromString(c.AltDAConfig.CommitmentType)
-	if err != nil {
-		return altda.Config{}, err
-	}
-	return altda.Config{
-		DAChallengeContractAddress: c.AltDAConfig.DAChallengeAddress,
-		ChallengeWindow:            c.AltDAConfig.DAChallengeWindow,
-		ResolveWindow:              c.AltDAConfig.DAResolveWindow,
-		CommitmentType:             t,
-	}, nil
-}
-
-func (c *Config) AltDAEnabled() bool {
-	return c.AltDAConfig != nil
-}
-
 // SyncLookback computes the number of blocks to walk back in order to find the correct L1 origin.
-// In alt-da mode longest possible window is challenge + resolve windows.
 func (c *Config) SyncLookback() uint64 {
-	if c.AltDAEnabled() {
-		if win := (c.AltDAConfig.DAChallengeWindow + c.AltDAConfig.DAResolveWindow); win > c.SeqWindowSize {
-			return win
-		}
-	}
 	return c.SeqWindowSize
 }
 
@@ -859,9 +798,6 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	if c.KeepKarstUpgradeGas {
 		// Only reported when set, since it is an opt-out behavioral flag, not a scheduled time.
 		banner += "Keep Karst upgrade gas: true\n"
-	}
-	if c.AltDAConfig != nil {
-		banner += fmt.Sprintf("Node supports Alt-DA Mode with CommitmentType %v\n", c.AltDAConfig.CommitmentType)
 	}
 	return banner
 }
@@ -900,9 +836,6 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	if c.KeepKarstUpgradeGas {
 		// Only reported when set, since it is an opt-out behavioral flag, not a scheduled time.
 		ctx = append(ctx, "keep_karst_upgrade_gas", true)
-	}
-	if c.AltDAConfig != nil {
-		ctx = append(ctx, "alt_da", *c.AltDAConfig)
 	}
 	log.Info("Rollup Config", ctx...)
 }

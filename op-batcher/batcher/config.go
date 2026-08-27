@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
@@ -151,7 +150,6 @@ type CLIConfig struct {
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
-	AltDA         altda.CLIConfig
 }
 
 func (c *CLIConfig) Check() error {
@@ -247,7 +245,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		RPC:                          oprpc.ReadCLIConfig(ctx),
-		AltDA:                        altda.ReadCLIConfig(ctx),
 		ThrottleConfig: ThrottleConfig{
 			AdditionalEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
 			TxSizeLowerLimit:    ctx.Uint64(flags.ThrottleTxSizeLowerLimitFlag.Name),

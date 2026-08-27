@@ -17,7 +17,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -53,7 +52,6 @@ type TestParams struct {
 	SequencerWindowSize uint64
 	ChannelTimeout      uint64
 	L1BlockTime         uint64
-	UseAltDA            bool
 	AllocType           config.AllocType
 }
 
@@ -67,7 +65,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig.SequencerWindowSize = tp.SequencerWindowSize
 	deployConfig.ChannelTimeoutBedrock = tp.ChannelTimeout
 	deployConfig.L1BlockTime = tp.L1BlockTime
-	deployConfig.UseAltDA = tp.UseAltDA
 	ApplyDeployConfigForks(deployConfig)
 
 	logger := log.NewLogger(log.DiscardHandler())
@@ -240,16 +237,6 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		require.NoError(t, validatePredeployImplementations(l2Genesis.Alloc))
 	}
 
-	var pcfg *rollup.AltDAConfig
-	if deployConf.UseAltDA {
-		pcfg = &rollup.AltDAConfig{
-			DAChallengeAddress: l1Deployments.DataAvailabilityChallengeProxy,
-			DAChallengeWindow:  deployConf.DAChallengeWindow,
-			DAResolveWindow:    deployConf.DAResolveWindow,
-			CommitmentType:     altda.KeccakCommitmentString,
-		}
-	}
-
 	l2GenesisTime, err := deployConf.L2GenesisTime(l1Block.Time())
 	require.NoError(t, err, "failed to compute l2 genesis time")
 
@@ -288,7 +275,6 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		KarstTime:              deployConf.KarstTime(l2GenesisTime),
 		LagoonTime:             deployConf.LagoonTime(l2GenesisTime),
 		KeepKarstUpgradeGas:    deployConf.KeepKarstUpgradeGas,
-		AltDAConfig:            pcfg,
 		ChainOpConfig: &opparams.OptimismConfig{
 			EIP1559Elasticity:        deployConf.EIP1559Elasticity,
 			EIP1559Denominator:       deployConf.EIP1559Denominator,

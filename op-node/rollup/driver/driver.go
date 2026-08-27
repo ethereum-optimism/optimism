@@ -47,7 +47,6 @@ func NewDriver(
 	safeHeadListener rollup.SafeHeadListener,
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
-	altDA AltDAIface,
 	superAuthority rollup.SuperAuthority,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
@@ -64,18 +63,13 @@ func NewDriver(
 	// TODO(#17115): Refactor dependency cycles
 	ec.SetCrossUpdateHandler(statusTracker)
 
-	var finalizer Finalizer
-	if cfg.AltDAEnabled() {
-		finalizer = finality.NewAltDAFinalizer(driverCtx, log, cfg, driverCfg.Finalizer, l1, altDA, ec)
-	} else {
-		finalizer = finality.NewFinalizer(driverCtx, log, cfg, driverCfg.Finalizer, l1, ec)
-	}
+	finalizer := finality.NewFinalizer(driverCtx, log, driverCfg.Finalizer, l1, ec)
 	sys.Register("finalizer", finalizer)
 
 	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec)
 	sys.Register("attributes-handler", attrHandler)
 
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, l1ChainConfig)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, l2, metrics, l1ChainConfig)
 
 	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline)
 	sys.Register("pipeline", pipelineDeriver)

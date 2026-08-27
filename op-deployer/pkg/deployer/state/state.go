@@ -173,6 +173,11 @@ type PreparedChainState struct {
 
 	addresses.OpChainContracts
 
+	// LegacyAltDAChallengeProxy and LegacyAltDAChallengeImpl are decode-only
+	// compatibility fields for state files written before Alt-DA was removed.
+	LegacyAltDAChallengeProxy *common.Address `json:"AltDAChallengeProxy,omitempty"`
+	LegacyAltDAChallengeImpl  *common.Address `json:"AltDAChallengeImpl,omitempty"`
+
 	StartBlock  *L1BlockRefJSON `json:"startBlock"`
 	GenesisTime *hexutil.Uint64 `json:"genesisTime"`
 }
@@ -208,6 +213,11 @@ type ChainState struct {
 
 	addresses.OpChainContracts
 
+	// LegacyAltDAChallengeProxy and LegacyAltDAChallengeImpl are decode-only
+	// compatibility fields for state files written before Alt-DA was removed.
+	LegacyAltDAChallengeProxy *common.Address `json:"AltDAChallengeProxy,omitempty"`
+	LegacyAltDAChallengeImpl  *common.Address `json:"AltDAChallengeImpl,omitempty"`
+
 	// Deployed indicates whether the addresses in this chain have been deployed or are just addresses produced
 	// by the prediction step of the prepare command.
 	Deployed *bool `json:"deployed,omitempty"`
@@ -239,6 +249,60 @@ type ChainState struct {
 	// config, and the pinned StartBlock/GenesisTime. Used by post-deploy validation to confirm
 	// on-chain seeding matches the predicted genesis.
 	GenesisBlockHash *common.Hash `json:"genesisBlockHash,omitempty"`
+}
+
+func rejectLegacyAltDAAddresses(id common.Hash, proxy, impl **common.Address) error {
+	if (*proxy != nil && **proxy != (common.Address{})) ||
+		(*impl != nil && **impl != (common.Address{})) {
+		return fmt.Errorf("%w: chain %s contains legacy Alt-DA challenge addresses", ErrAltDANoLongerSupported, id)
+	}
+	// Empty addresses were emitted by older op-deployer versions even when
+	// Alt-DA was disabled. Accept them, but never write them back out.
+	*proxy = nil
+	*impl = nil
+	return nil
+}
+
+// RejectUnsupportedAltDA rejects non-empty legacy Alt-DA state and clears
+// empty decode-only compatibility fields.
+func (s *State) RejectUnsupportedAltDA() error {
+	if s.AppliedIntent != nil {
+		if err := s.AppliedIntent.RejectUnsupportedAltDA(); err != nil {
+			return err
+		}
+	}
+	if s.PreparedDeployment != nil && s.PreparedDeployment.Intent != nil {
+		if err := s.PreparedDeployment.Intent.RejectUnsupportedAltDA(); err != nil {
+			return err
+		}
+	}
+	for _, chain := range s.Chains {
+		if chain == nil {
+			continue
+		}
+		if err := rejectLegacyAltDAAddresses(
+			chain.ID,
+			&chain.LegacyAltDAChallengeProxy,
+			&chain.LegacyAltDAChallengeImpl,
+		); err != nil {
+			return err
+		}
+	}
+	if s.PreparedDeployment != nil {
+		for _, chain := range s.PreparedDeployment.Chains {
+			if chain == nil {
+				continue
+			}
+			if err := rejectLegacyAltDAAddresses(
+				chain.ID,
+				&chain.LegacyAltDAChallengeProxy,
+				&chain.LegacyAltDAChallengeImpl,
+			); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // ClearDerivedArtifacts clears every value derived from the chain's predicted L1

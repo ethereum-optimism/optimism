@@ -1,7 +1,9 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"math/big"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -17,6 +19,83 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReadIntentRejectsLegacyAltDAConfig(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "intent.toml"), []byte(`
+[[chains]]
+
+[chains.dangerousAltDAConfig]
+useAltDA = true
+`), 0o600))
+
+	_, err := ReadIntent(dir)
+	require.ErrorContains(t, err, state.ErrAltDANoLongerSupported.Error())
+}
+
+func TestReadStateRejectsLegacyAltDAChallengeAddress(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{
+  "opChainDeployments": [{
+    "id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "AltDAChallengeProxy": "0x1111111111111111111111111111111111111111"
+  }]
+}`), 0o600))
+
+	_, err := ReadState(dir)
+	require.ErrorContains(t, err, state.ErrAltDANoLongerSupported.Error())
+}
+
+func TestReadStateRejectsLegacyAltDAConfig(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{
+  "appliedIntent": {
+    "chains": [{
+      "dangerousAltDAConfig": {
+        "useAltDA": true
+      }
+    }]
+  }
+}`), 0o600))
+
+	_, err := ReadState(dir)
+	require.ErrorContains(t, err, state.ErrAltDANoLongerSupported.Error())
+}
+
+func TestReadStateDropsEmptyLegacyAltDAFields(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{
+  "appliedIntent": {
+    "chains": [{
+      "dangerousAltDAConfig": {
+        "useAltDA": false
+      }
+    }]
+  },
+  "preparedDeployment": {
+    "intent": {
+      "chains": [{
+        "dangerousAltDAConfig": {}
+      }]
+    },
+    "chains": [{
+      "AltDAChallengeProxy": "0x0000000000000000000000000000000000000000",
+      "AltDAChallengeImpl": "0x0000000000000000000000000000000000000000"
+    }]
+  },
+  "opChainDeployments": [{
+    "AltDAChallengeProxy": "0x0000000000000000000000000000000000000000",
+    "AltDAChallengeImpl": "0x0000000000000000000000000000000000000000"
+  }]
+}`), 0o600))
+
+	st, err := ReadState(dir)
+	require.NoError(t, err)
+	encoded, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "dangerousAltDAConfig")
+	require.NotContains(t, string(encoded), "AltDAChallenge")
+}
 
 func TestResolveRenderIntent_PrefersAppliedIntent(t *testing.T) {
 	_, _, dk := shared.DefaultPrivkey(t)

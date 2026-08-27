@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
@@ -21,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher/throttler"
 	config "github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -93,7 +90,6 @@ type DriverSetup struct {
 	L1Client          L1Client
 	EndpointProvider  dial.L2EndpointProvider
 	ChannelConfig     ChannelConfigProvider
-	AltDA             *altda.DAClient
 	ChannelOutFactory ChannelOutFactory
 }
 
@@ -485,29 +481,16 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 // publishingLoop:
 // -  waits for a signal that blocks have been loaded
 // -  drives the creation of channels and frames
-// -  sends transactions to the DA layer
+// -  sends transactions to L1
 func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup, receiptsCh chan txmgr.TxReceipt[txRef], publishSignal chan pubInfo) {
 	defer close(receiptsCh)
 	defer wg.Done()
 
-	daGroup := &errgroup.Group{}
-	// errgroup with limit of 0 means no goroutine is able to run concurrently,
-	// so we only set the limit if it is greater than 0.
-	if l.Config.MaxConcurrentDARequests > 0 {
-		daGroup.SetLimit(int(l.Config.MaxConcurrentDARequests))
-	}
 	txQueue := txmgr.NewQueue[txRef](ctx, l.Txmgr, l.Config.MaxPendingTransactions)
 
 	for pi := range l.publishSignal {
 		l.Log.Debug("publishing loop received signal", "force_publish", pi.forcePublish)
-		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup, pi)
-	}
-
-	// First wait for all DA requests to finish to prevent new transactions being queued
-	if err := daGroup.Wait(); err != nil {
-		if !errors.Is(err, context.Canceled) {
-			l.Log.Error("error waiting for DA requests to complete", "err", err)
-		}
+		l.publishStateToL1(ctx, txQueue, receiptsCh, pi)
 	}
 
 	// We _must_ wait for all senders on receiptsCh to finish before we can close it.
@@ -781,7 +764,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 
 // publishStateToL1 queues up all pending TxData to be published to the L1, returning when there is no more data to
 // queue for publishing or if there was an error queuing the data.
-func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, pi pubInfo) {
+func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], pi pubInfo) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -798,7 +781,7 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queu
 			return
 		}
 
-		err := l.publishTxToL1(ctx, queue, receiptsCh, daGroup, pi)
+		err := l.publishTxToL1(ctx, queue, receiptsCh, pi)
 		if err != nil {
 			if err != io.EOF {
 				l.Log.Error("Error publishing tx to l1", "err", err)
@@ -852,7 +835,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 }
 
 // publishTxToL1 submits a single state tx to the L1
-func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, pi pubInfo) error {
+func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], pi pubInfo) error {
 	// send all available transactions
 	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
@@ -863,7 +846,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 
 	_, params := l.throttleController.Load()
 	// Collect next transaction data. This pulls data out of the channel, so we need to make sure
-	// to put it back if ever da or txmgr requests fail, by calling l.recordFailedDARequest/recordFailedTx.
+	// to put it back if a txmgr request fails, by calling l.recordFailedTx.
 	l.channelMgrMutex.Lock()
 	txdata, err := l.channelMgr.TxData(l1tip.ID(), params.IsThrottling(), pi)
 	l.channelMgrMutex.Unlock()
@@ -876,7 +859,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 		return err
 	}
 
-	if err = l.sendTransaction(txdata, queue, receiptsCh, daGroup); err != nil {
+	if err = l.sendTransaction(txdata, queue, receiptsCh); err != nil {
 		return fmt.Errorf("BatchSubmitter.sendTransaction failed: %w", err)
 	}
 	return nil
@@ -921,62 +904,11 @@ func (l *BatchSubmitter) cancelBlockingTx(queue *txmgr.Queue[txRef], receiptsCh 
 	l.sendTx(txData{}, true, candidate, queue, receiptsCh)
 }
 
-// publishToAltDAAndL1 posts the txdata to the DA Provider and then sends the commitment to L1.
-func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) {
-	// sanity checks
-	if nf := len(txdata.frames); nf != 1 {
-		l.Log.Crit("Unexpected number of frames in calldata tx", "num_frames", nf)
-	}
-	if txdata.asBlob {
-		l.Log.Crit("Unexpected blob txdata with AltDA enabled")
-	}
-
-	// when posting txdata to an external DA Provider, we use a goroutine to avoid blocking the main loop
-	// since it may take a while for the request to return.
-	goroutineSpawned := daGroup.TryGo(func() error {
-		// TODO: probably shouldn't be using the global shutdownCtx here, see https://go.dev/blog/context-and-structs
-		// but sendTransaction receives l.killCtx as an argument, which currently is only canceled after waiting for the main loop
-		// to exit, which would wait on this DA call to finish, which would take a long time.
-		// So we prefer to mimic the behavior of txmgr and cancel all pending DA/txmgr requests when the batcher is stopped.
-		comm, err := l.AltDA.SetInput(l.shutdownCtx, txdata.CallData())
-		if err != nil {
-			// Don't log context cancelled events because they are expected,
-			// and can happen after tests complete which causes a panic.
-			if errors.Is(err, context.Canceled) {
-				l.recordFailedDARequest(txdata.ID(), nil)
-			} else {
-				l.Log.Error("Failed to post input to Alt DA", "error", err)
-				// requeue frame if we fail to post to the DA Provider so it can be retried
-				// note: this assumes that the da server caches requests, otherwise it might lead to resubmissions of the blobs
-				l.recordFailedDARequest(txdata.ID(), err)
-			}
-			return nil
-		}
-		l.Log.Info("Set altda input", "commitment", comm, "tx", txdata.ID())
-		candidate := l.calldataTxCandidate(comm.TxData())
-		l.sendTx(txdata, false, candidate, queue, receiptsCh)
-		return nil
-	})
-	if !goroutineSpawned {
-		// We couldn't start the goroutine because the errgroup.Group limit
-		// is already reached. Since we can't send the txdata, we have to
-		// return it for later processing. We use nil error to skip error logging.
-		l.recordFailedDARequest(txdata.ID(), nil)
-	}
-}
-
 // sendTransaction creates & queues for sending a transaction to the batch inbox address with the given `txData`.
 // This call will block if the txmgr queue is at the  max-pending limit.
 // The method will block if the queue's MaxPendingTransactions is exceeded.
-func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) error {
+func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) error {
 	var err error
-
-	// if Alt DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
-	if l.Config.UseAltDA {
-		l.publishToAltDAAndL1(txdata, queue, receiptsCh, daGroup)
-		// we return nil to allow publishStateToL1 to keep processing the next txdata
-		return nil
-	}
 
 	var candidate *txmgr.TxCandidate
 	if txdata.asBlob {
@@ -1081,15 +1013,6 @@ func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txRef]) {
 		l.recordConfirmedTx(r.ID.id, r.Receipt)
 	}
 	// Both r.Err and r.Receipt can be nil, in which case we do nothing.
-}
-
-func (l *BatchSubmitter) recordFailedDARequest(id txID, err error) {
-	l.channelMgrMutex.Lock()
-	defer l.channelMgrMutex.Unlock()
-	if err != nil {
-		l.Log.Warn("DA request failed", logFields(id, err)...)
-	}
-	l.channelMgr.TxFailed(id)
 }
 
 func (l *BatchSubmitter) recordFailedTx(id txID, err error) {

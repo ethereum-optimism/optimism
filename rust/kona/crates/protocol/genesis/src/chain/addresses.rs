@@ -50,9 +50,6 @@ pub struct AddressList {
     pub permissioned_dispute_game: Option<Address>,
     /// Preimage Oracle Proxy address
     pub preimage_oracle: Option<Address>,
-    /// The data availability challenge contract address
-    #[cfg_attr(feature = "serde", serde(alias = "DAChallengeAddress"))]
-    pub data_availability_challenge: Option<Address>,
 }
 
 impl AddressList {
@@ -156,7 +153,6 @@ mod tests {
             mips: Some(address!("16e83ce5ce29bf90ad9da06d2fe6a15d5f344ce4")),
             permissioned_dispute_game: Some(address!("19009debf8954b610f207d5925eede827805986e")),
             preimage_oracle: Some(address!("9c065e11870b891d214bc2da7ef1f9ddfa1be277")),
-            data_availability_challenge: None,
         };
 
         let deserialized: AddressList = serde_json::from_str(raw).unwrap();
@@ -209,7 +205,6 @@ mod tests {
             mips: Some(address!("16e83ce5ce29bf90ad9da06d2fe6a15d5f344ce4")),
             permissioned_dispute_game: Some(address!("19009debf8954b610f207d5925eede827805986e")),
             preimage_oracle: Some(address!("9c065e11870b891d214bc2da7ef1f9ddfa1be277")),
-            data_availability_challenge: None,
         };
 
         let deserialized: AddressList = serde_json::from_str(raw).unwrap();

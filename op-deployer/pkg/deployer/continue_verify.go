@@ -880,8 +880,6 @@ func continuationContractAddresses(contracts addresses.OpChainContracts) []named
 		{"PermissionedDisputeGameImpl", contracts.PermissionedDisputeGameImpl, false},
 		{"DelayedWethPermissionedGameProxy", contracts.DelayedWethPermissionedGameProxy, true},
 		{"DelayedWethPermissionlessGameProxy", contracts.DelayedWethPermissionlessGameProxy, true},
-		{"AltDAChallengeProxy", contracts.AltDAChallengeProxy, true},
-		{"AltDAChallengeImpl", contracts.AltDAChallengeImpl, false},
 		{"L2OutputOracleProxy", contracts.L2OutputOracleProxy, true},
 	}
 }

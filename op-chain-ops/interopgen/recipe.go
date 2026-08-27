@@ -286,9 +286,6 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				BatchInboxAddress:         batchInboxAddress,
 				SystemConfigStartBlock:    0,
 			},
-			AltDADeployConfig: genesis.AltDADeployConfig{
-				UseAltDA: false,
-			},
 		},
 		Prefund:                     make(map[common.Address]*big.Int),
 		SaltMixer:                   "",

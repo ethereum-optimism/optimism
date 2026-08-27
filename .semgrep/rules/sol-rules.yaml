@@ -241,7 +241,6 @@ rules:
         - /packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol
         - /packages/contracts-bedrock/src/L2/CrossL2Inbox.sol
         - /packages/contracts-bedrock/src/L1/ResourceMetering.sol
-        - /packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
 
   - id: sol-safety-use-disable-initializer
     languages: [solidity]
@@ -448,8 +447,6 @@ rules:
         - /packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
         - /packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol
         - /packages/contracts-bedrock/src/dispute/zk/OptimisticZkGame.sol
-        # DataAvailabilityChallenge is a beta/non-standard contract.
-        - /packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
 
   - id: sol-safety-use-deployutils-getcode
     languages: [solidity]

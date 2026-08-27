@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -76,28 +75,15 @@ func TestConfigJSON(t *testing.T) {
 	assert.Equal(t, &roundTripped, config)
 }
 
-func TestAltDAConfigMaxInputSize(t *testing.T) {
-	custom := uint64(1_000_000)
-
-	require.Equal(t, uint64(altda.MaxInputSize), (*AltDAConfig)(nil).MaxInputSizeOrDefault())
-	require.Equal(t, uint64(altda.MaxInputSize), (&AltDAConfig{}).MaxInputSizeOrDefault())
-	require.Equal(t, custom, (&AltDAConfig{MaxInputSize: &custom}).MaxInputSizeOrDefault())
-
+func TestConfigRejectsLegacyAltDA(t *testing.T) {
 	cfg := randConfig()
-	cfg.AltDAConfig = &AltDAConfig{
-		DAChallengeAddress: common.Address{1},
-		CommitmentType:     altda.KeccakCommitmentString,
-		MaxInputSize:       ptr.Zero64,
-	}
-	require.EqualError(t, cfg.Check(), "altDA max input size must be greater than zero")
+	require.EqualError(t,
+		json.Unmarshal([]byte(`{"alt_da":{"da_commitment_type":"KeccakCommitment"}}`), cfg),
+		"alt-DA is no longer supported",
+	)
 
-	cfg.AltDAConfig = &AltDAConfig{
-		CommitmentType: altda.GenericCommitmentString,
-		MaxInputSize:   &custom,
-	}
-	require.EqualError(t, cfg.Check(), "altDA max input size must be omitted for generic commitments")
-
-	cfg.AltDAConfig.MaxInputSize = nil
+	cfg = randConfig()
+	require.NoError(t, json.Unmarshal([]byte(`{"alt_da":null}`), cfg))
 	require.NoError(t, cfg.Check())
 }
 
