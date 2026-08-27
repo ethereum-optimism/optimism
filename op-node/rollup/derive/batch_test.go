@@ -64,6 +64,7 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 		panic(err.Error())
 	}
 	rawSpanBatch := RawSpanBatch{
+		version: SpanBatchType,
 		spanBatchPrefix: spanBatchPrefix{
 			relTimestamp:  uint64(rng.Uint32()),
 			l1OriginNum:   rng.Uint64(),

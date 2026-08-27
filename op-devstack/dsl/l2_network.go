@@ -283,6 +283,40 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 
 }
 
+// AwaitMultiBlockActivation waits for the first L2 block at or after the multi-blocks activation
+// timestamp and returns it. Unlike AwaitActivation it never maps a timestamp to a block number:
+// past the activation the chain may hold several blocks per block time, so that mapping no longer
+// holds.
+func (n *L2Network) AwaitMultiBlockActivation(t devtest.T) eth.BlockRef {
+	require := t.Require()
+	activationTime := n.Escape().RollupConfig().MultiBlockTime
+	require.NotNil(activationTime, "multi-blocks is not scheduled for activation")
+
+	el := n.PrimaryEL()
+	var head eth.BlockRef
+	require.NoError(wait.For(t.Ctx(), 100*time.Millisecond, func() (bool, error) {
+		var err error
+		head, err = el.EthClient().BlockRefByLabel(t.Ctx(), eth.Unsafe)
+		if err != nil {
+			return false, nil
+		}
+		return head.Time >= *activationTime, nil
+	}), "expected the chain to reach the multi-blocks activation timestamp %d", *activationTime)
+
+	// walk back to the first block at or after the activation timestamp
+	activationBlock := head
+	for activationBlock.Number > 0 {
+		parent, err := el.EthClient().BlockRefByHash(t.Ctx(), activationBlock.ParentHash)
+		require.NoError(err)
+		if parent.Time < *activationTime {
+			break
+		}
+		activationBlock = parent
+	}
+	t.Logger().Info("Multi-blocks activation block", "block", activationBlock, "time", activationBlock.Time)
+	return activationBlock
+}
+
 func (n *L2Network) DisputeGameFactoryProxyAddr() common.Address {
 	return n.inner.Deployment().DisputeGameFactoryProxyAddr()
 }
@@ -510,7 +544,7 @@ func (n *L2Network) deriveData(blocks int) (channels []derive.ChannelID, channel
 					l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
 				}
 
-			} else if batchType == derive.SpanBatchType {
+			} else if batchType == derive.SpanBatchType || batchType == derive.SpanBatchV2Type {
 				spanBatch, err := derive.DeriveSpanBatch(batchData, rollupCfg)
 				if err != nil {
 					l.Warn("Failed to decode span batch",

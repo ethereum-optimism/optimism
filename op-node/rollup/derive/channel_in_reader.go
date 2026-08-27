@@ -125,6 +125,11 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		batch.LogContext(cr.log).Info("decoded span batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("span")
 		return batch, nil
+	case SpanBatchV2Type:
+		// op-node does not derive multi-blocks. Dropping the batch keeps the rest of the channel
+		// readable, matching how a span batch before Delta activation is handled.
+		cr.log.Warn("dropping span batch v2: op-node does not derive multi-blocks", "stage_origin", cr.Origin())
+		return nil, NotEnoughData
 	default:
 		// error is bubbled up to user, but pipeline can skip the batch and continue after.
 		return nil, NewTemporaryError(fmt.Errorf("unrecognized batch type: %d", batchData.GetBatchType()))

@@ -25,7 +25,7 @@ import (
 // It will also ignore any errors that occur during AppendSingularBatch.
 // Tests should manually set the first bit of the originBits if needed using SetFirstOriginChangedBit
 func initializedSpanBatch(singularBatches []*SingularBatch, genesisTimestamp uint64, chainID *big.Int) *SpanBatch {
-	spanBatch := NewSpanBatch(genesisTimestamp, chainID)
+	spanBatch := NewSpanBatch(SpanBatchType, genesisTimestamp, chainID, 0)
 	if len(singularBatches) == 0 {
 		return spanBatch
 	}
@@ -69,6 +69,7 @@ func TestEmptySpanBatch(t *testing.T) {
 	require.NoError(t, err)
 
 	rawSpanBatch := RawSpanBatch{
+		version: SpanBatchType,
 		spanBatchPrefix: spanBatchPrefix{
 			relTimestamp:  uint64(rng.Uint32()),
 			l1OriginNum:   rng.Uint64(),
@@ -138,7 +139,7 @@ func TestSpanBatchPrefix(t *testing.T) {
 
 	result := buf.Bytes()
 	r := bytes.NewReader(result)
-	var sb RawSpanBatch
+	sb := RawSpanBatch{version: SpanBatchType}
 	err = sb.decodePrefix(r)
 	require.NoError(t, err)
 
@@ -234,14 +235,14 @@ func TestSpanBatchPayload(t *testing.T) {
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
 
 	var buf bytes.Buffer
-	err := rawSpanBatch.encodePayload(&buf)
+	err := rawSpanBatch.encodePayload(&buf, false)
 	require.NoError(t, err)
 
 	result := buf.Bytes()
 	r := bytes.NewReader(result)
 	var sb RawSpanBatch
 
-	err = sb.decodePayload(r)
+	err = sb.decodePayload(r, false)
 	require.NoError(t, err)
 
 	err = sb.txs.recoverV(chainID)
@@ -325,7 +326,7 @@ func TestSpanBatchRoundTrip(t *testing.T) {
 	err := rawSpanBatch.encode(&result)
 	require.NoError(t, err)
 
-	var sb RawSpanBatch
+	sb := RawSpanBatch{version: SpanBatchType}
 	err = sb.decode(bytes.NewReader(result.Bytes()))
 	require.NoError(t, err)
 
@@ -628,7 +629,7 @@ func TestSpanBatchNonMinimalBlockCount(t *testing.T) {
 	require.NoError(t, rawSpanBatch.encodeBlockTxCounts(&buf))
 	require.NoError(t, rawSpanBatch.encodeTxs(&buf))
 
-	var sb RawSpanBatch
+	sb := RawSpanBatch{version: SpanBatchType}
 	require.NoError(t, sb.decode(bytes.NewReader(buf.Bytes())))
 	require.NoError(t, sb.txs.recoverV(chainID))
 	requireEqual(t, rawSpanBatch, &sb)

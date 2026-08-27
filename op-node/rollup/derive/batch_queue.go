@@ -104,6 +104,10 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		bq.nextSpan = singularBatches
 		// span-batches are non-empty, so the below pop is safe.
 		nextBatch = bq.popNextBatch(parent)
+	case SpanBatchV2Type:
+		// op-node does not derive multi-blocks.
+		bq.log.Warn("Dropping span batch v2: op-node does not derive multi-blocks")
+		return nil, false, io.EOF
 	default:
 		return nil, false, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", typ))
 	}

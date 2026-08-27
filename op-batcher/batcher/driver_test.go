@@ -125,7 +125,7 @@ func TestBatchSubmitter_SafeL1Origin(t *testing.T) {
 				}, nil)
 			}
 
-			id, err := bs.safeL1Origin(context.Background())
+			id, _, err := bs.safeL1Origin(context.Background())
 
 			if tt.expectErr {
 				require.Error(t, err)
@@ -142,7 +142,7 @@ func TestBatchSubmitter_SafeL1Origin_FailsToResolveRollupClient(t *testing.T) {
 
 	ep.rollupClientErr = errors.New("failed to resolve rollup client")
 
-	_, err := bs.safeL1Origin(context.Background())
+	_, _, err := bs.safeL1Origin(context.Background())
 	require.Error(t, err)
 }
 

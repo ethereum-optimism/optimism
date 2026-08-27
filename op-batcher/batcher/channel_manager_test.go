@@ -64,7 +64,7 @@ func TestChannelManagerBatchType(t *testing.T) {
 func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{BatchType: batchType}, &rollup.Config{})
-	m.Clear(eth.BlockID{})
+	m.Clear(eth.BlockID{}, 0)
 
 	a := types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
@@ -97,7 +97,7 @@ func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint) {
 	cfg := channelManagerTestConfig(120_000, batchType)
 	cfg.CompressorConfig.TargetOutputSize = 1 // full on first block
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &rollup.Config{})
-	m.Clear(eth.BlockID{})
+	m.Clear(eth.BlockID{}, 0)
 
 	a := newMiniL2Block(0)
 	x := newMiniL2BlockWithNumberParent(0, big.NewInt(1), common.Hash{0xff})
@@ -135,7 +135,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.Empty(m.channelQueue)
 	require.Empty(m.txChannels)
 	// Set the last block
-	m.Clear(eth.BlockID{})
+	m.Clear(eth.BlockID{}, 0)
 
 	// Add a block to the channel manager
 	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
@@ -183,7 +183,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.NotZero(m.metr.PendingDABytes())
 
 	// Clear the channel manager
-	m.Clear(safeL1Origin)
+	m.Clear(safeL1Origin, 0)
 
 	// Check that the entire channel manager state cleared
 	require.Empty(m.blocks)
@@ -202,7 +202,7 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 	cfg := channelManagerTestConfig(120_000, batchType)
 	cfg.CompressorConfig.TargetOutputSize = 1 // full on first block
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
-	m.Clear(eth.BlockID{})
+	m.Clear(eth.BlockID{}, 0)
 
 	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
 
@@ -728,8 +728,8 @@ func TestChannelManager_ChannelOutFactory(t *testing.T) {
 	l := testlog.Logger(t, log.LevelCrit)
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
 	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
-	m.SetChannelOutFactory(func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
-		co, err := NewChannelOut(cfg, rollupCfg)
+	m.SetChannelOutFactory(func(cfg ChannelConfig, rollupCfg *rollup.Config, parentTimestamp uint64) (derive.ChannelOut, error) {
+		co, err := NewChannelOut(cfg, rollupCfg, parentTimestamp)
 		if err != nil {
 			return nil, err
 		}
@@ -1095,7 +1095,7 @@ func TestChannelManager_getReadyChannel_NilChannel(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	cfg := channelManagerTestConfig(120_000, derive.SingularBatchType)
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &rollup.Config{})
-	m.Clear(eth.BlockID{})
+	m.Clear(eth.BlockID{}, 0)
 
 	require.Nil(t, m.currentChannel, "currentChannel should be nil after Clear()")
 

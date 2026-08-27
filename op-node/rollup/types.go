@@ -45,6 +45,9 @@ var (
 	ErrChainIDsSame                  = errors.New("L1 and L2 chain IDs must be different")
 	ErrL1ChainIDNotPositive          = errors.New("L1 chain ID must be non-zero and positive")
 	ErrL2ChainIDNotPositive          = errors.New("L2 chain ID must be non-zero and positive")
+	ErrInvalidMaxMultiBlocks         = errors.New("max multi blocks must not be zero")
+	ErrMultiBlockBeforeKarst         = errors.New("multi block time must not be before Karst")
+	ErrMultiBlockMisaligned          = errors.New("multi block time must be a whole number of block times after L2 genesis")
 )
 
 type Genesis struct {
@@ -192,6 +195,17 @@ type Config struct {
 	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
+
+	// MultiBlockTime enables up to MaxMultiBlocks L2 blocks per block time, by letting a block
+	// share its parent's timestamp ("siblings").
+	// It gates the span batch v2 wire format, evaluated on the L1 inclusion block timestamp of a
+	// batch, and — one block time later, see SiblingsAllowed — sibling blocks themselves,
+	// evaluated on the L2 block timestamp.
+	MultiBlockTime *uint64 `json:"multi_block_time,omitempty"`
+
+	// MaxMultiBlocks is the maximum number of consecutive L2 blocks that may share a timestamp.
+	// Unset means 1, i.e. no siblings.
+	MaxMultiBlocks *uint64 `json:"max_multi_blocks,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -406,7 +420,28 @@ func (cfg *Config) Check() error {
 	if err := checkFork(cfg.HoloceneTime, cfg.IsthmusTime, forks.Holocene, forks.Isthmus); err != nil {
 		return err
 	}
+	if err := cfg.checkMultiBlock(); err != nil {
+		return err
+	}
 
+	return nil
+}
+
+func (cfg *Config) checkMultiBlock() error {
+	if cfg.MaxMultiBlocks != nil && *cfg.MaxMultiBlocks == 0 {
+		return ErrInvalidMaxMultiBlocks
+	}
+	if cfg.MultiBlockTime == nil {
+		return nil
+	}
+	// Siblings rely on Karst-era block building, and on every fork predicate being expressible in
+	// terms of a single timestamp.
+	if cfg.KarstTime == nil || *cfg.MultiBlockTime < *cfg.KarstTime {
+		return ErrMultiBlockBeforeKarst
+	}
+	if *cfg.MultiBlockTime < cfg.Genesis.L2Time || (*cfg.MultiBlockTime-cfg.Genesis.L2Time)%cfg.BlockTime != 0 {
+		return ErrMultiBlockMisaligned
+	}
 	return nil
 }
 
@@ -543,6 +578,38 @@ func (c *Config) IsLagoon(timestamp uint64) bool {
 	return c.IsForkActive(forks.Lagoon, timestamp)
 }
 
+// IsMultiBlock returns true if the multi-blocks feature is active at or past the given timestamp.
+// It gates the span batch v2 wire format, so it is evaluated on the L1 inclusion block timestamp of
+// a batch, the same basis Delta uses to gate span batches.
+func (c *Config) IsMultiBlock(timestamp uint64) bool {
+	return c.IsForkActive(forks.MultiBlock, timestamp)
+}
+
+// SiblingsAllowed returns whether an L2 block with the given timestamp may share that timestamp
+// with its parent. Siblings only start after MultiBlockTime, and never fall on a fork activation
+// timestamp, so that predicates which recognize an activation block from its timestamp alone stay
+// correct.
+func (c *Config) SiblingsAllowed(l2BlockTime uint64) bool {
+	if c.MultiBlockTime == nil || l2BlockTime <= *c.MultiBlockTime {
+		return false
+	}
+	for _, fork := range scheduleableForks {
+		if t := c.ActivationTime(fork); t != nil && *t == l2BlockTime {
+			return false
+		}
+	}
+	return true
+}
+
+// MaxMultiBlocksOrDefault returns the maximum number of consecutive L2 blocks that may share a
+// timestamp, defaulting to 1 (no siblings) when unset.
+func (c *Config) MaxMultiBlocksOrDefault() uint64 {
+	if c.MaxMultiBlocks == nil {
+		return 1
+	}
+	return *c.MaxMultiBlocks
+}
+
 func (c *Config) IsRegolithActivationBlock(l2BlockTime uint64) bool {
 	return c.IsRegolith(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
@@ -654,6 +721,8 @@ func (c *Config) ActivationTime(fork ForkName) *uint64 {
 	// Optional forks
 	case forks.PectraBlobSchedule:
 		return c.PectraBlobScheduleTime
+	case forks.MultiBlock:
+		return c.MultiBlockTime
 
 	default:
 		panic(fmt.Sprintf("unknown fork: %v", fork))
@@ -689,6 +758,8 @@ func (c *Config) SetActivationTime(fork ForkName, timestamp *uint64) {
 	// Optional forks
 	case forks.PectraBlobSchedule:
 		c.PectraBlobScheduleTime = timestamp
+	case forks.MultiBlock:
+		c.MultiBlockTime = timestamp
 
 	default:
 		panic(fmt.Sprintf("unknown fork: %v", fork))
@@ -923,6 +994,10 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 	callback("Jovian", "jovian_time", c.JovianTime)
 	callback("Karst", "karst_time", c.KarstTime)
 	callback("Lagoon", "lagoon_time", c.LagoonTime)
+	if c.MultiBlockTime != nil {
+		// only report if config is set
+		callback("Multi Block", "multi_block_time", c.MultiBlockTime)
+	}
 }
 
 func (c *Config) ParseRollupConfig(in io.Reader) error {

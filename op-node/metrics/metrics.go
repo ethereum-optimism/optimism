@@ -443,6 +443,7 @@ func (m *Metrics) RecordHardforkActivationTimes(cfg *rollup.Config) {
 	record("karst", cfg.KarstTime, "l2_timestamp")
 	record("lagoon", cfg.LagoonTime, "l2_timestamp")
 	record("pectra_blob_schedule", cfg.PectraBlobScheduleTime, "l1_origin_timestamp")
+	record("multi_block", cfg.MultiBlockTime, "l2_timestamp")
 	if cfg.KeepKarstUpgradeGas && cfg.KarstTime != nil {
 		// Behavioral opt-out flag, not a scheduled fork: reported only when set, valued at the
 		// Karst activation time it modifies. Absence of the series means the flag is unset.

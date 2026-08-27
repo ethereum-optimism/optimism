@@ -103,12 +103,15 @@ func NewChannelBuilderWithChannelOut(log log.Logger, cfg ChannelConfig, rollupCf
 }
 
 // NewChannelOut creates a new channel out based on the given configuration.
-func NewChannelOut(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
+// parentTimestamp is the L2 timestamp of the block preceding the first block the channel will be
+// given; a span batch v2 needs it to tell whether that block is a sibling of its parent.
+func NewChannelOut(cfg ChannelConfig, rollupCfg *rollup.Config, parentTimestamp uint64) (derive.ChannelOut, error) {
 	spec := rollup.NewChainSpec(rollupCfg)
 	if cfg.BatchType == derive.SpanBatchType {
 		return derive.NewSpanChannelOut(
 			cfg.CompressorConfig.TargetOutputSize, cfg.CompressorConfig.CompressionAlgo,
-			spec, derive.WithMaxBlocksPerSpanBatch(cfg.MaxBlocksPerSpanBatch))
+			spec, derive.WithMaxBlocksPerSpanBatch(cfg.MaxBlocksPerSpanBatch),
+			derive.WithParentTimestamp(parentTimestamp))
 	}
 	comp, err := cfg.CompressorConfig.NewCompressor()
 	if err != nil {

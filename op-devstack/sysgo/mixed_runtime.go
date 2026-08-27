@@ -256,6 +256,8 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		var el L2ELNode
 		switch spec.ELKind {
 		case MixedL2ELOpGeth:
+			require.Nil(l2Net.RollupConfig().MultiBlockTime,
+				"op-geth cannot build or validate multi-blocks, use an op-reth EL")
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
 			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", nodeOpRethOpts...)
@@ -367,6 +369,41 @@ func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
 	return out
 }
 
+// withMultiBlockGenesisConfig adds the multi-blocks activation to the genesis `config` object.
+// op-reth reads it from there, but it has no representation in go-ethereum's ChainConfig, so it
+// has to be spliced into the encoded genesis.
+func withMultiBlockGenesisConfig(t devtest.T, genesis []byte, multiBlockTime *uint64) []byte {
+	if multiBlockTime == nil {
+		return genesis
+	}
+	var doc map[string]json.RawMessage
+	t.Require().NoError(json.Unmarshal(genesis, &doc), "must decode genesis")
+	var chainConfig map[string]any
+	t.Require().NoError(json.Unmarshal(doc["config"], &chainConfig), "must decode genesis chain config")
+	chainConfig["multiBlockTime"] = *multiBlockTime
+	encoded, err := json.Marshal(chainConfig)
+	t.Require().NoError(err, "must encode genesis chain config")
+	doc["config"] = encoded
+	out, err := json.Marshal(doc)
+	t.Require().NoError(err, "must encode genesis")
+	return out
+}
+
+// requireGenesisMultiBlockTime asserts that the genesis file op-reth is about to read carries the
+// multi-blocks activation, which is the only way op-reth learns about it.
+func requireGenesisMultiBlockTime(t devtest.T, path string, want uint64) {
+	data, err := os.ReadFile(path)
+	t.Require().NoError(err, "must read back genesis file")
+	var doc struct {
+		Config struct {
+			MultiBlockTime *uint64 `json:"multiBlockTime"`
+		} `json:"config"`
+	}
+	t.Require().NoError(json.Unmarshal(data, &doc), "must decode genesis file")
+	t.Require().NotNil(doc.Config.MultiBlockTime, "genesis file must carry multiBlockTime")
+	t.Require().Equal(want, *doc.Config.MultiBlockTime)
+}
+
 // buildMixedOpRethNode constructs an OpReth node without starting it.
 func buildMixedOpRethNode(
 	t devtest.T,
@@ -382,8 +419,12 @@ func buildMixedOpRethNode(
 
 	data, err := json.Marshal(l2Net.genesis)
 	t.Require().NoError(err, "must json-encode genesis")
+	data = withMultiBlockGenesisConfig(t, data, l2Net.RollupConfig().MultiBlockTime)
 	chainConfigPath := filepath.Join(tempDir, "genesis.json")
 	t.Require().NoError(os.WriteFile(chainConfigPath, data, 0o640), "must write genesis file")
+	if multiBlockTime := l2Net.RollupConfig().MultiBlockTime; multiBlockTime != nil {
+		requireGenesisMultiBlockTime(t, chainConfigPath, *multiBlockTime)
+	}
 
 	dataDirPath := filepath.Join(tempDir, "data")
 	t.Require().NoError(os.MkdirAll(dataDirPath, 0o755), "must create datadir")

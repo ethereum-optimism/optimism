@@ -17,7 +17,7 @@ import (
 
 var ErrReorg = errors.New("block does not extend existing chain")
 
-type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error)
+type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config, parentTimestamp uint64) (derive.ChannelOut, error)
 
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
@@ -47,6 +47,9 @@ type channelManager struct {
 	defaultCfg ChannelConfig
 	// last block hash - for reorg detection
 	tip common.Hash
+	// safeHeadTimestamp is the L2 timestamp of the safe head the block queue continues from, i.e.
+	// of the parent of blocks[0]. Zero means unknown.
+	safeHeadTimestamp uint64
 
 	// channel to write new block data to
 	currentChannel *channel
@@ -74,11 +77,12 @@ func (s *channelManager) SetChannelOutFactory(outFactory ChannelOutFactory) {
 
 // Clear clears the entire state of the channel manager.
 // It is intended to be used before launching op-batcher and after an L2 reorg.
-func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
+func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID, safeHeadTimestamp uint64) {
 	s.log.Trace("clearing channel manager state")
 	s.blocks.Clear()
 	s.blockCursor = 0
 	s.l1OriginLastSubmittedChannel = l1OriginLastSubmittedChannel
+	s.safeHeadTimestamp = safeHeadTimestamp
 	s.tip = common.Hash{}
 	s.currentChannel = nil
 	s.channelQueue = nil
@@ -91,6 +95,18 @@ func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
 
 func (s *channelManager) pendingBlocks() int {
 	return s.blocks.Len() - s.blockCursor
+}
+
+// parentTimestamp returns the L2 timestamp of the parent of the next block to be added to a
+// channel. A span batch opened on that block needs it to tell whether the block is a sibling of
+// its parent. Zero when the parent is not known, e.g. right after a state clear.
+func (s *channelManager) parentTimestamp() uint64 {
+	if s.blockCursor > 0 {
+		if block, ok := s.blocks.PeekN(s.blockCursor - 1); ok {
+			return uint64(block.Timestamp)
+		}
+	}
+	return s.safeHeadTimestamp
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
@@ -365,7 +381,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	// but this is our best guess at the appropriate values for now.
 	cfg := s.defaultCfg
 
-	channelOut, err := s.outFactory(cfg, s.rollupCfg)
+	channelOut, err := s.outFactory(cfg, s.rollupCfg, s.parentTimestamp())
 	if err != nil {
 		return fmt.Errorf("creating channel out: %w", err)
 	}
@@ -534,6 +550,10 @@ func (s *channelManager) PruneSafeBlocks(num int) {
 	discardedBlocks, ok := s.blocks.DequeueN(int(num))
 	if !ok {
 		panic("tried to prune more blocks than available")
+	}
+	if len(discardedBlocks) > 0 {
+		// the last pruned block is the new safe head, and hence the parent of blocks[0]
+		s.safeHeadTimestamp = uint64(discardedBlocks[len(discardedBlocks)-1].Timestamp)
 	}
 	s.blockCursor -= int(num)
 	if s.blockCursor < 0 {

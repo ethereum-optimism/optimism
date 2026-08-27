@@ -72,6 +72,12 @@ func (s *ChainSpec) IsJovian(t uint64) bool {
 	return s.config.IsJovian(t)
 }
 
+// IsMultiBlock returns true if the multi-blocks feature is active at or past the given timestamp.
+// The batcher uses it to decide the span batch wire version.
+func (s *ChainSpec) IsMultiBlock(t uint64) bool {
+	return s.config.IsMultiBlock(t)
+}
+
 // MaxChannelBankSize returns the maximum number of bytes the can allocated inside the channel bank
 // before pruning occurs at the given timestamp.
 func (s *ChainSpec) MaxChannelBankSize(t uint64) uint64 {

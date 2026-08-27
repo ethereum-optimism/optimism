@@ -87,7 +87,7 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 
 	// Use the existing default test rollup config to ensure chain IDs match
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
-	m.Clear(eth.BlockID{})
+	m.Clear(eth.BlockID{}, 0)
 
 	// Measure initial memory
 	var initialMem runtime.MemStats

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -390,6 +391,22 @@ func WithHardforkSequentialActivation(startFork, endFork opforks.Name, delta *ui
 				}
 			}
 		}
+	}
+}
+
+// WithMultiBlockAtOffset activates the multi-blocks feature the given number of seconds after L2
+// genesis, on every L2. The offset must be a whole number of block times.
+func WithMultiBlockAtOffset(offset uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("l2GenesisMultiBlockTimeOffset", hexutil.Uint64(offset))
+	}
+}
+
+// WithMaxMultiBlocks sets the maximum number of consecutive L2 blocks that may share a timestamp,
+// on every L2.
+func WithMaxMultiBlocks(n uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("maxMultiBlocks", hexutil.Uint64(n))
 	}
 }
 

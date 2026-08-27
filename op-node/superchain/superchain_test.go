@@ -95,9 +95,19 @@ func TestRollupConfigFromRegistry(t *testing.T) {
 func TestRollupConfigFromRegistry_AllFieldsSet(t *testing.T) {
 	cfg := rollupConfigFromRegistry(fullyPopulatedChainConfig(), registry.Superchain{L1: registry.L1Config{ChainID: 1}})
 
+	// The multi-blocks feature has no registry representation: it is configured per deployment, so
+	// the conversion has nothing to map it from.
+	notFromRegistry := map[string]bool{
+		"MultiBlockTime": true,
+		"MaxMultiBlocks": true,
+	}
+
 	v := reflect.ValueOf(*cfg)
 	typ := v.Type()
 	for i := 0; i < v.NumField(); i++ {
+		if notFromRegistry[typ.Field(i).Name] {
+			continue
+		}
 		require.Falsef(t, v.Field(i).IsZero(),
 			"rollup Config field %q is zero after conversion: map it in rollupConfigFromRegistry, and "+
 				"make sure fullyPopulatedChainConfig provides its source", typ.Field(i).Name)
