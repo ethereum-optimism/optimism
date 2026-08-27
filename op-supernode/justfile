@@ -15,7 +15,7 @@ BINDINGS_BINARY := "./bin/silhouette-bindings"
 # Build op-supernode binary
 op-supernode: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
 
-# Build the standalone proof-backed in-memory EL.
+# Build the standalone persistent proof-backed EL.
 op-silhouette-el: (go_build SILHOUETTE_EL_BINARY "./cmd/op-silhouette-el" "-ldflags" _LDFLAGSSTRING)
 
 # Build the canonical artifact-binding hash tool.

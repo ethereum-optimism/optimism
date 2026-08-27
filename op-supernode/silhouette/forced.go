@@ -185,6 +185,7 @@ func forcedBlock(
 	return Fact{
 		Number:                   bigs.Uint64Strict(hdr.Number),
 		Timestamp:                timestamp,
+		ParentHash:               parent.Hash,
 		Hash:                     hash,
 		StateRoot:                parent.StateRoot,
 		MessagePasserStorageRoot: parent.MessagePasserStorageRoot,

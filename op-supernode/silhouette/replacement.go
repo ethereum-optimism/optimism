@@ -24,10 +24,11 @@ type ReplacementBuilder interface {
 	BuildReplacement(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes) (*eth.ExecutionPayloadEnvelope, error)
 }
 
-// EngineReplacementBuilder performs the same build dance a normal op-node performs, against P's
-// private EL: build, seal, import, then make the valid payload the engine head. P's LightCL observes
-// and adopts the replacement through the verifier's ordinary rollup route; no op-node behavior is
-// changed or reimplemented here.
+// EngineReplacementBuilder performs the normal build, seal, and import dance against P's private
+// EL. It deliberately leaves forkchoice alone after NewPayload: P's LightCL observes the replacement
+// through the verifier's ordinary rollup route and its stock follow-source path reorgs onto it. If
+// this helper made it canonical first, the LightCL could mistake it for an already-consolidated
+// block while its in-memory unsafe head still named the old branch.
 type EngineReplacementBuilder struct {
 	engine *sources.EngineClient
 }
@@ -86,18 +87,6 @@ func (b *EngineReplacementBuilder) BuildReplacement(ctx context.Context, parent 
 	if status.Status != eth.ExecutionValid {
 		return nil, fmt.Errorf("private EL rejected deposits-only replacement: status %s, validation error %v",
 			status.Status, status.ValidationError)
-	}
-	// NewPayload only imports the block. Normal op-node ingestion immediately follows it with FCU;
-	// without that step eth_getBlockByNumber("latest") and the proof batcher remain on the denied
-	// branch even though the replacement is present in the database.
-	state.HeadBlockHash = env.ExecutionPayload.BlockHash
-	promoted, err := b.engine.ForkchoiceUpdate(ctx, state, nil)
-	if err != nil {
-		return nil, fmt.Errorf("make deposits-only replacement canonical in private EL: %w", err)
-	}
-	if promoted.PayloadStatus.Status != eth.ExecutionValid {
-		return nil, fmt.Errorf("private EL refused replacement forkchoice: status %s, validation error %v",
-			promoted.PayloadStatus.Status, promoted.PayloadStatus.ValidationError)
 	}
 	return env, nil
 }
@@ -187,6 +176,7 @@ func factFromReplacement(rollupCfg *rollup.Config, parent Fact, attrs *eth.Paylo
 	fact := Fact{
 		Number:                   ref.Number,
 		Timestamp:                ref.Time,
+		ParentHash:               parent.Hash,
 		Hash:                     ref.Hash,
 		StateRoot:                stateRoot,
 		MessagePasserStorageRoot: messagePasserRoot,

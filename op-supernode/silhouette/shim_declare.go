@@ -8,8 +8,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/proofbatch"
 )
 
 // SELF-DECLARATION AT THE SERVICE LAYER.
@@ -155,12 +157,84 @@ func (a *SilhouetteAPI) BlockProvenance(ctx context.Context, id rpc.BlockNumberO
 	return out, nil
 }
 
+// InteropBlock is the receipt-free interop view of one proof-rendered block. It is intentionally
+// narrower than Fact: this is the component boundary between the standalone EL and a supernode,
+// and only public block identity plus the proof-declared message sets cross it.
+type InteropBlock struct {
+	Number        hexutil.Uint64              `json:"number"`
+	Timestamp     hexutil.Uint64              `json:"timestamp"`
+	ParentHash    common.Hash                 `json:"parentHash"`
+	Hash          common.Hash                 `json:"hash"`
+	Logs          []proofbatch.LogExport      `json:"logs"`
+	ExecMsgs      []messages.ExecutingMessage `json:"executingMessages"`
+	ExecMsgsKnown bool                        `json:"executingMessagesKnown"`
+	Denied        bool                        `json:"denied"`
+	// Replacement distinguishes a temporary deposits-only handoff from a corrected proof fact.
+	// The former still needs the stock receipts-ingestion equivalent to reseal LogsDB.
+	Replacement bool `json:"replacement"`
+}
+
+// InteropBlock returns the data an ordinary supernode would learn from receipts. Silhouette blocks
+// have no public receipts, so the standalone EL exposes the proof's equivalent facts directly.
+func (a *SilhouetteAPI) InteropBlock(ctx context.Context, number hexutil.Uint64) (*InteropBlock, error) {
+	fact, ok := a.s.factByNumber(uint64(number))
+	if !ok {
+		return nil, nil
+	}
+	denied, err := a.s.facts.Denied(fact.Number, fact.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("check denial of block %d: %w", fact.Number, err)
+	}
+	return &InteropBlock{
+		Number:        hexutil.Uint64(fact.Number),
+		Timestamp:     hexutil.Uint64(fact.Timestamp),
+		ParentHash:    fact.ParentHash,
+		Hash:          fact.Hash,
+		Logs:          cloneLogExports(fact.LogExports),
+		ExecMsgs:      append([]messages.ExecutingMessage(nil), fact.ExecMsgs...),
+		ExecMsgsKnown: fact.ExecMsgsKnown,
+		Denied:        denied,
+		Replacement:   fact.Replacement,
+	}, nil
+}
+
+// MarkDenied mirrors the supernode's durable cross-safety verdict into the EL's durable replay
+// state. The supernode denylist remains the decision source; this makes replacement handling
+// immediate and restart-safe without a callback during the build request.
+func (a *SilhouetteAPI) MarkDenied(number hexutil.Uint64, hash common.Hash) error {
+	if err := a.s.facts.MarkDenied(uint64(number), hash); err != nil {
+		return err
+	}
+	return a.s.facts.Flush()
+}
+
+// DeniedBlock identifies a local denial-cache entry to forget after the supernode prunes its
+// durable denylist during an L1 rewind.
+type DeniedBlock struct {
+	Number hexutil.Uint64 `json:"number"`
+	Hash   common.Hash    `json:"hash"`
+}
+
+// PruneDenied keeps the standalone EL's replay cache aligned with the supernode's durable denylist.
+func (a *SilhouetteAPI) PruneDenied(blocks []DeniedBlock) error {
+	removed := make(map[uint64][]common.Hash)
+	for _, block := range blocks {
+		n := uint64(block.Number)
+		removed[n] = append(removed[n], block.Hash)
+	}
+	a.s.facts.PruneDenied(removed)
+	return a.s.facts.Flush()
+}
+
 // Status is the operational picture: where the labels stand, what the fact window covers, and whether
 // the fail-stop has fired.
 type Status struct {
 	Unsafe    eth.L2BlockRef `json:"unsafe"`
 	Safe      eth.L2BlockRef `json:"safe"`
 	Finalized eth.L2BlockRef `json:"finalized"`
+	// CanonicalHead is always present, including when the proof-fact window is empty. During a
+	// deposits-only handoff it may be the temporary replacement above HeadFact.
+	CanonicalHead eth.BlockID `json:"canonicalHead"`
 	// OldestFact and HeadFact bound the window of blocks this node can answer about. Below
 	// OldestFact the answer is "not here any more", which is a different statement from "not proven"
 	// and must never be conflated with it.
@@ -175,7 +249,11 @@ type Status struct {
 // Status reports the shim's operational state.
 func (a *SilhouetteAPI) Status() *Status {
 	c := a.s.facts.Cursors()
-	out := &Status{Unsafe: c.Unsafe, Safe: c.Safe, Finalized: c.Finalized}
+	head := a.s.head()
+	out := &Status{
+		Unsafe: c.Unsafe, Safe: c.Safe, Finalized: c.Finalized,
+		CanonicalHead: eth.BlockID{Hash: head.Hash, Number: head.Number},
+	}
 	if oldest, ok := a.s.facts.Oldest(); ok {
 		v := hexutil.Uint64(oldest.Number)
 		out.OldestFact = &v

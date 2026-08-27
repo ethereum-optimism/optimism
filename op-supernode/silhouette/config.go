@@ -72,7 +72,7 @@ type Config struct {
 	// DepSetHash is the dependency set the batch's interop attributes were built from. A batch
 	// derived under a different dep set is a different chain's history.
 	DepSetHash common.Hash `json:"depSetHash"`
-	// L1StartBlock is retained for standalone proof-source walkers such as the magic EL service.
+	// L1StartBlock is the initial boundary for a standalone Silhouette EL's persistent proof walker.
 	// The supernode verifier's stock derivation pipeline starts from the rollup genesis instead.
 	L1StartBlock uint64 `json:"l1StartBlock"`
 	// L1HeadMaxDepth bounds how far below the L1 block that carried a batch its claimed l1Head may

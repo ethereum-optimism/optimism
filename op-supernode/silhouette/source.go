@@ -115,6 +115,12 @@ func (s *DataSource) forcedParams() ForcedParams {
 	return ForcedParams{Rollup: s.rollup, L1Chain: s.l1Chain, SysCfg: s.sysCfg}
 }
 
+// restoreL1Cursor reconnects a restored tracker checkpoint to DataSource's reorg detector. The
+// next canonical block must extend this hash; a mismatch triggers the ordinary carrier rewind.
+func (s *DataSource) restoreL1Cursor(number uint64, hash common.Hash) {
+	s.lastOpened = eth.L1BlockRef{Number: number, Hash: hash}
+}
+
 // OpenData implements derive.DataAvailabilitySource.
 //
 // The rewind here IS the chaining-state ↔ stock-reset mapping (G2 D5). L1Retrieval calls OpenData
@@ -157,6 +163,10 @@ func (s *DataSource) OpenData(ctx context.Context, ref eth.L1BlockRef, _ common.
 		// referenceable — otherwise another chain could execute against an initiating message that
 		// nothing on L1 proves any more, which is the one thing the log store exists to prevent.
 		head := s.head()
+		// Keep the engine labels inside the same surviving fact window before the stock CL begins its
+		// reset walk. It will subsequently drive these labels through ordinary forkchoice updates;
+		// this only removes references to history which L1 has already orphaned.
+		s.facts.ClampCursorsTo(head)
 		if err := s.sink.Rewind(eth.BlockID{Hash: head.Hash, Number: head.Number}); err != nil {
 			return nil, derive.NewTemporaryError(fmt.Errorf("rewind exported logs to the proven head: %w", err))
 		}
@@ -508,7 +518,7 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 		blocks = b.Blocks[:deniedIndex]
 		// Include the denied height in the channel returned to stock derivation, but not in the facts
 		// or log sink recorded below. Its empty singular batch is the normal Holocene replacement
-		// trigger: op-node produces deposits-only attributes, and the magic EL delegates those exact
+		// trigger: op-node produces deposits-only attributes, and the Silhouette EL delegates those exact
 		// attributes to the private EL.
 		renderBlocks = b.Blocks[:deniedIndex+1]
 		if len(blocks) > 0 {
@@ -560,8 +570,10 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 	if err := s.sink.Accept(blocks, head.Hash); err != nil {
 		return nil, fmt.Errorf("seal exported logs for blocks %d-%d: %w", blocks[0].Number, last.Number, err)
 	}
+	parentHash := head.Hash
 	for i, blk := range blocks {
-		s.facts.RecordProven(blk, origins[i].origin, origins[i].seqNumber, env.Version)
+		s.facts.RecordProven(blk, parentHash, origins[i].origin, origins[i].seqNumber, env.Version)
+		parentHash = blk.Hash
 	}
 	s.facts.recordCarrier(carrier{
 		L1: l1.ID(), L1Time: l1.Time,

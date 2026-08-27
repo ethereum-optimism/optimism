@@ -52,10 +52,8 @@ type Supernode struct {
 	metrics          *resources.MetricsService
 	metricsFanIn     *resources.MetricsFanIn
 	supernodeMetrics *resources.SupernodeMetrics
-	// silhouettes holds the in-process machinery of each proof-carried chain: its fact store, its
-	// shim execution client and its injected data source. Empty on a supernode with no silhouette
-	// manifest, which is every ordinary cluster.
-	silhouettes map[eth.ChainID]*silhouette.Assembly
+	// silhouettes holds thin clients for standalone proof-rendering EL components.
+	silhouettes map[eth.ChainID]*silhouette.RemoteAssembly
 	// cached address when available
 	rpcAddr string
 }
@@ -63,7 +61,7 @@ type Supernode struct {
 func New(ctx context.Context, log gethlog.Logger, version string, commit string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
 	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg,
 		chains:      make(map[eth.ChainID]cc.InteropChain),
-		silhouettes: make(map[eth.ChainID]*silhouette.Assembly)}
+		silhouettes: make(map[eth.ChainID]*silhouette.RemoteAssembly)}
 
 	// Initialize L1 client
 	if err := s.initL1Client(ctx, cfg); err != nil {
@@ -115,11 +113,11 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 			continue
 		}
 		// The silhouette switch leaves the stock virtual-node pipeline intact. Its L2 endpoint is the
-		// standalone magic EL and its normal L1 input is the producer's empty-batch carrier; a separate
-		// proof observer supplies public imports to the interop judge.
-		var assembly *silhouette.Assembly
+		// standalone Silhouette EL and its normal L1 input is the producer's empty-batch carrier. The
+		// supernode reads the EL's public interop facts over RPC; it owns no proof observer itself.
+		var assembly *silhouette.RemoteAssembly
 		if decl, ok := silhouettes.Lookup(chainID); ok {
-			a, err := s.assembleSilhouette(log, decl, vnCfgs[chainID])
+			a, err := s.assembleSilhouette(ctx, log, decl, vnCfgs[chainID])
 			if err != nil {
 				return nil, err
 			}
@@ -334,9 +332,9 @@ func (s *Supernode) Start(ctx context.Context) error {
 	if len(s.silhouettes) > 0 {
 		for chainID, assembly := range s.silhouettes {
 			s.wg.Add(1)
-			go func(chainID eth.ChainID, assembly *silhouette.Assembly) {
+			go func(chainID eth.ChainID, assembly *silhouette.RemoteAssembly) {
 				defer s.wg.Done()
-				s.log.Info("starting silhouette proof observer", "chain_id", chainID.String())
+				s.log.Info("starting silhouette interop-facts mirror", "chain_id", chainID.String())
 				assembly.Run(lifecycleCtx)
 			}(chainID, assembly)
 		}

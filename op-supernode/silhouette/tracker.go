@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// ProvenHeadTracker walks L1 through the acceptance path to keep the standalone magic EL's fact
+// ProvenHeadTracker walks L1 through the acceptance path to keep the standalone Silhouette EL's fact
 // store current. The supernode has its own stock derivation pipeline and does not use this walker.
 //
 // It drives the SAME DataSource, which is the point. Acceptance rules, chaining, the forced
@@ -25,11 +25,17 @@ type ProvenHeadTracker struct {
 	log log.Logger
 	src *DataSource
 	l1  L1Headers
+	// start is the earliest L1 block this verifier is allowed to replay.
+	start uint64
 
-	// next is the L1 block to read. Acceptance is a pure function of L1 (G2 D5), so this cursor is
-	// the only state the tracker has, and a restart from the configured start block re-derives
-	// identical facts.
+	// next and processed are checkpointed atomically with the fact store. A restart continues from
+	// the exact L1 boundary whose facts are durable instead of replaying from the configured start.
 	next uint64
+	// processed records the canonical hash observed at every processed L1 height. It lets a
+	// caught-up walker detect an L1 reorg that made the chain shorter: fetching next returns
+	// NotFound on both an ordinary tip and a shortened fork, so the previous hashes disambiguate
+	// those cases.
+	processed map[uint64]common.Hash
 	// interval is how long to wait after catching up with L1 before looking again.
 	interval time.Duration
 }
@@ -39,7 +45,20 @@ func NewProvenHeadTracker(logger log.Logger, src *DataSource, l1 L1Headers, star
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}
-	return &ProvenHeadTracker{log: logger, src: src, l1: l1, next: startBlock, interval: interval}
+	state := trackerState{Initialized: true, Start: startBlock, Next: startBlock, Processed: make(map[uint64]common.Hash)}
+	if src != nil {
+		state = src.facts.trackerState(startBlock)
+	}
+	tracker := &ProvenHeadTracker{
+		log: logger, src: src, l1: l1, start: startBlock, next: state.Next,
+		processed: state.Processed, interval: interval,
+	}
+	if src != nil && tracker.next > tracker.start {
+		if hash, ok := tracker.processed[tracker.next-1]; ok {
+			src.restoreL1Cursor(tracker.next-1, hash)
+		}
+	}
+	return tracker
 }
 
 // Run drives the tracker until ctx is cancelled. It is expected to be called in its own goroutine.
@@ -72,7 +91,7 @@ func (t *ProvenHeadTracker) Run(ctx context.Context) {
 func (t *ProvenHeadTracker) Step(ctx context.Context) (bool, error) {
 	ref, err := t.l1.L1BlockRefByNumber(ctx, t.next)
 	if errors.Is(err, ethereum.NotFound) {
-		return false, nil // caught up with L1
+		return t.reconcileShortenedL1(ctx)
 	}
 	if err != nil {
 		return false, fmt.Errorf("fetch L1 block %d: %w", t.next, err)
@@ -94,9 +113,75 @@ func (t *ProvenHeadTracker) Step(ctx context.Context) (bool, error) {
 			return false, fmt.Errorf("read L1 block %d: %w", t.next, err)
 		}
 	}
-	t.next++
+	oldNext := t.next
+	t.processed[oldNext] = ref.Hash
+	t.next = oldNext + 1
+	if err := t.checkpoint(); err != nil {
+		delete(t.processed, oldNext)
+		t.next = oldNext
+		t.src.facts.setTrackerState(t.state())
+		return false, err
+	}
+	return true, nil
+}
+
+// reconcileShortenedL1 distinguishes an ordinary caught-up cursor from an L1 reorg whose new tip
+// is below that cursor. It searches backward for the newest height whose hash is still canonical,
+// then replays from its child. DataSource.OpenData performs the corresponding fact/log rollback
+// when that child is opened.
+func (t *ProvenHeadTracker) reconcileShortenedL1(ctx context.Context) (bool, error) {
+	if t.next <= t.start || len(t.processed) == 0 {
+		return false, nil
+	}
+	newNext := t.start
+	for n := t.next; n > t.start; {
+		n--
+		want, ok := t.processed[n]
+		if !ok {
+			continue
+		}
+		got, err := t.l1.L1BlockRefByNumber(ctx, n)
+		if errors.Is(err, ethereum.NotFound) {
+			continue
+		}
+		if err != nil {
+			return false, fmt.Errorf("check canonical L1 block %d: %w", n, err)
+		}
+		if got.Hash == want {
+			newNext = n + 1
+			break
+		}
+	}
+	if newNext == t.next {
+		return false, nil
+	}
+	oldNext := t.next
+	for n := newNext; n < oldNext; n++ {
+		delete(t.processed, n)
+	}
+	t.next = newNext
+	if err := t.checkpoint(); err != nil {
+		return false, err
+	}
+	t.log.Warn("L1 shortened or reorged behind proof cursor; replaying from canonical ancestor",
+		"old_next", oldNext, "new_next", newNext)
 	return true, nil
 }
 
 // Cursor is the next L1 block the tracker will read.
 func (t *ProvenHeadTracker) Cursor() uint64 { return t.next }
+
+func (t *ProvenHeadTracker) state() trackerState {
+	return trackerState{Initialized: true, Start: t.start, Next: t.next, Processed: t.processed}
+}
+
+func (t *ProvenHeadTracker) checkpoint() error {
+	if t.src == nil {
+		return nil
+	}
+	t.src.facts.setTrackerState(t.state())
+	if err := t.src.facts.Flush(); err != nil {
+		return fmt.Errorf("checkpoint proof walker at L1 block %d: %w", t.next, err)
+	}
+	return nil
+}

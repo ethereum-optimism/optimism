@@ -17,9 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
@@ -82,15 +80,17 @@ type SilhouetteRuntime struct {
 	// VerifierRoutes are the verifier's per-chain rollup routes, keyed by runtime chain key.
 	VerifierRoutes map[string]*SuperNodeProxy
 	// VerifierELs are the stateful execution clients the verifier's ORDINARY chains drive, keyed by
-	// runtime chain key. The silhouette chain has no entry: its standalone magic EL serves
-	// proof-committed facts, persists no state, and executes nothing.
+	// runtime chain key. The private chain uses EL instead: a standalone proof-rendering client in
+	// the identical engine-RPC slot.
 	VerifierELs map[string]L2ELNode
+	// EL is the persistent, restartable execution client for the private chain's verifier.
+	EL *SilhouetteEL
 	// VerifierMetricsURL is the verifier's Prometheus endpoint. It exists so a test can assert on
 	// supernode_interop_invalidations_total, which is the only honest way to say "zero
 	// invalidations" rather than "we did not notice one".
 	VerifierMetricsURL string
-	// MagicELRPC is the standalone op-silhouette-el endpoint used by the verifier virtual node.
-	MagicELRPC string
+	// ELRPC is EL's stable endpoint, preserved across restarts by a devstack proxy.
+	ELRPC string
 
 	// Batcher drives and observes P's ordinary op-batcher in acceptance tests.
 	Batcher *ProofBatchControl
@@ -134,10 +134,10 @@ func (s *SilhouetteRuntime) BlockProvenance(t devtest.T, number uint64) *silhoue
 // TryBlockProvenance is the non-fatal form of BlockProvenance. It is useful while a denied proof
 // suffix is being replaced, when the requested height may temporarily be absent.
 func (s *SilhouetteRuntime) TryBlockProvenance(t devtest.T, number uint64) (*silhouette.BlockDeclaration, error) {
-	if s.MagicELRPC == "" {
-		return nil, fmt.Errorf("verifier has no magic EL endpoint for the silhouette chain")
+	if s.ELRPC == "" {
+		return nil, fmt.Errorf("verifier has no Silhouette EL endpoint for the private chain")
 	}
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), s.MagicELRPC, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), s.ELRPC, client.WithLazyDial())
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial the silhouette chain's verifier route: %w", err)
 	}
@@ -523,8 +523,8 @@ func setUpSilhouette(
 		Inbox:            p.Network.rollupCfg.BatchInboxAddress,
 		RollupConfigHash: rollupConfigHash,
 		DepSetHash:       depSetHash,
-		// Proven history is re-derived from here on every restart, and P starts at its own genesis,
-		// so its genesis L1 origin is the first L1 block that can carry anything about it.
+		// P starts at its own genesis, so its genesis L1 origin is the first L1 block that can carry
+		// anything about it. The persistent EL checkpoints its walker from this initial boundary.
 		L1StartBlock: p.Network.rollupCfg.Genesis.L1.Number,
 		Anchor:       anchor,
 		// v1's proving system: the operator's L1 signature over the blob transaction IS the proof
@@ -539,13 +539,20 @@ func setUpSilhouette(
 	liveConfigDir := filepath.Join(configDir, "live")
 	manifestPath := writeSilhouetteManifest(t, liveConfigDir, l1Net.genesis.Config, cfg, pChainID)
 	// writeSilhouetteManifest takes cfg by value and fills this path in the file it writes. The
-	// standalone magic EL consumes the same config directly, so give its copy the identical path.
+	// standalone Silhouette EL consumes the same config directly, so give its copy the identical path.
 	cfg.L1ChainConfigPath = filepath.Join(liveConfigDir, "l1-chain-config.json")
-	magicELRPC, magicFacts := startSilhouetteEL(t, logger, sharedSupernode, verifierRollup, cfg,
-		p.EL, jwtSecret)
+	silhouetteEL := NewSilhouetteEL(t, logger.New("component", "el"), sharedSupernode, verifierRollup, cfg,
+		p.EL, jwtSecret, t.TempDirWithPrefix("silhouette-el"))
+	silhouetteEL.Start()
+	t.Cleanup(func() {
+		if silhouetteEL.Running() {
+			silhouetteEL.Stop()
+		}
+	})
+	elRPC := silhouetteEL.EngineRPC()
 
-	// Every ordinary chain gets its own execution client on the verifier side. The silhouette chain
-	// gets none: that absence is the deliverable.
+	// Every ordinary chain gets its own op-reth execution client on the verifier side. The private
+	// chain uses the standalone Silhouette EL in the same slot instead.
 	chains := make([]silhouetteVerifierChain, 0, len(runtimeChains))
 	verifierELs := make(map[string]L2ELNode, len(runtimeChains))
 	for _, key := range sortedChainKeys(runtimeChains) {
@@ -556,7 +563,7 @@ func setUpSilhouette(
 				NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
 			verifierELs[key] = vc.el
 		} else {
-			vc.engineRPC = magicELRPC
+			vc.engineRPC = elRPC
 			vc.rollup = verifierRollup
 		}
 		chains = append(chains, vc)
@@ -569,7 +576,7 @@ func setUpSilhouette(
 	// Follow-source forkchoice carries only block references. For ordinary chains, the replacement
 	// payload itself lives first in the verifier supernode's EL, so peer that EL with the LightCL
 	// sequencer's EL exactly as the normal light-sequencer topology does. The silhouette chain needs
-	// no such link: its magic EL builds the replacement directly in P's private sequencing EL.
+	// no such link: its Silhouette EL builds the replacement directly in P's private sequencing EL.
 	for _, key := range sortedChainKeys(runtimeChains) {
 		verifierEL, ok := verifierELs[key]
 		if !ok {
@@ -577,7 +584,7 @@ func setUpSilhouette(
 		}
 		connectL2ELPeers(t, logger, verifierEL.UserRPC(), runtimeChains[key].EL.UserRPC())
 	}
-	attachSilhouetteDeniedChecker(t, logger, magicFacts, verifier.UserRPC(), pChainID)
+	attachSilhouetteDeniedChecker(t, logger, silhouetteEL, verifier.UserRPC(), pChainID)
 
 	batcherControl := newProofBatchControl(t, p.Batcher)
 
@@ -593,8 +600,9 @@ func setUpSilhouette(
 		Verifier:           verifier,
 		VerifierRoutes:     routes,
 		VerifierELs:        verifierELs,
+		EL:                 silhouetteEL,
 		VerifierMetricsURL: metricsURL,
-		MagicELRPC:         magicELRPC,
+		ELRPC:              elRPC,
 		Batcher:            batcherControl,
 		ManifestPath:       manifestPath,
 		Config:             cfg,
@@ -606,7 +614,7 @@ func setUpSilhouette(
 
 // silhouetteVerifierRollup derives the public verifier's rollup config from the private producer's
 // config. Chain identity, timing, portal and genesis SystemConfig stay identical. Forks are active
-// from genesis because the magic EL intentionally does not expose enough header interior to
+// from genesis because the Silhouette EL intentionally does not expose enough header interior to
 // reconstruct one-time activation gas from an earlier rendered block.
 func silhouetteVerifierRollup(t devtest.T, producer *rollup.Config) *rollup.Config {
 	require := t.Require()
@@ -644,58 +652,15 @@ func silhouetteVerifierRollup(t devtest.T, producer *rollup.Config) *rollup.Conf
 	return cfg
 }
 
-// startSilhouetteEL starts the devstack equivalent of the op-silhouette-el binary. It has its own
-// fact store and proof walker; only the L1 transports are shared with the harness process.
-func startSilhouetteEL(t devtest.T, logger log.Logger, sn *SuperNode, rollupCfg *rollup.Config,
-	cfg silhouette.Config, privateEL L2ELNode, jwtSecret [32]byte,
-) (string, *silhouette.FactStore) {
-	require := t.Require()
-	require.NotNil(sn, "the magic EL needs the runtime's shared L1 clients")
-	require.NotNil(sn.L1Client())
-	require.NotNil(sn.BeaconClient())
-
-	l1Chain, err := silhouette.L1ChainConfig(&cfg)
-	require.NoError(err)
-	verifier, err := cfg.NewVerifier()
-	require.NoError(err)
-	facts := &silhouette.FactStore{}
-	source := silhouette.NewDataSource(logger.New("component", "magic-el-proof-source"), &cfg, rollupCfg,
-		l1Chain, rollupCfg.Genesis.SystemConfig, sn.L1Client(), sn.BeaconClient(), verifier, facts)
-	shim := silhouette.NewShim(logger.New("component", "magic-el"), rollupCfg, l1Chain,
-		rollupCfg.Genesis.SystemConfig, sn.L1Client(), facts)
-	replacementRPC, err := client.NewRPC(t.Ctx(), logger, privateEL.EngineRPC(),
-		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))),
-		client.WithCallTimeout(30*time.Second))
-	require.NoError(err, "dial private replacement engine")
-	t.Cleanup(replacementRPC.Close)
-	replacementEngine, err := sources.NewEngineClient(replacementRPC, logger.New("component", "replacement-engine"),
-		nil, sources.EngineClientDefaultConfig(rollupCfg))
-	require.NoError(err, "create private replacement engine client")
-	shim.SetReplacementBuilder(silhouette.NewEngineReplacementBuilder(replacementEngine))
-	start := cfg.L1StartBlock
-	if start == 0 {
-		start = rollupCfg.Genesis.L1.Number
-	}
-	tracker := silhouette.NewProvenHeadTracker(logger.New("component", "magic-el-proof-walker"),
-		source, sn.L1Client(), start, 100*time.Millisecond)
-	server := shim.Standalone("127.0.0.1", 0)
-	require.NoError(server.Start())
-	t.Cleanup(func() { require.NoError(server.Stop()) })
-	go tracker.Run(t.Ctx())
-	rpcURL := "http://" + server.Endpoint()
-	logger.Info("started standalone silhouette magic EL", "rpc", rpcURL, "chain", rollupCfg.L2ChainID)
-	return rpcURL, facts
-}
-
-// attachSilhouetteDeniedChecker gives the standalone magic EL the verifier's durable denial view.
+// attachSilhouetteDeniedChecker gives the standalone EL the verifier's durable denial view.
 // It is attached after the verifier starts because the verifier needs the EL endpoint during its
 // own startup. No proof submitter is running yet, so no replacement proof can race this attachment.
-func attachSilhouetteDeniedChecker(t devtest.T, logger log.Logger, facts *silhouette.FactStore, supernodeRPC string, chainID eth.ChainID) {
+func attachSilhouetteDeniedChecker(t devtest.T, logger log.Logger, el *SilhouetteEL, supernodeRPC string, chainID eth.ChainID) {
 	rpcCl, err := client.NewRPC(t.Ctx(), logger, supernodeRPC, client.WithLazyDial(), client.WithCallTimeout(10*time.Second))
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
 	supernodeClient := sources.NewSuperNodeClient(rpcCl)
-	facts.SetDeniedChecker(func(number uint64, hash common.Hash) (bool, error) {
+	el.SetDeniedChecker(func(number uint64, hash common.Hash) (bool, error) {
 		ctx, cancel := context.WithTimeout(t.Ctx(), 10*time.Second)
 		defer cancel()
 		return supernodeClient.IsDenied(ctx, chainID, number, hash)

@@ -22,9 +22,9 @@ var ErrNoExecutionData = errors.New("proof-carried chain has no execution data")
 // Safety labels, rewinds, and derivation remain the stock container's responsibility.
 type Container struct {
 	cc.InteropChain
-	log   log.Logger
-	facts *FactStore
-	sink  func() *LogSink
+	log    log.Logger
+	source InteropSource
+	sink   func() *LogSink
 }
 
 var (
@@ -34,8 +34,8 @@ var (
 )
 
 // NewContainer wraps a verifier chain container. There is deliberately no sequencing posture.
-func NewContainer(logger log.Logger, inner cc.InteropChain, facts *FactStore, sink func() *LogSink) *Container {
-	return &Container{InteropChain: inner, log: logger, facts: facts, sink: sink}
+func NewContainer(logger log.Logger, inner cc.InteropChain, source InteropSource, sink func() *LogSink) *Container {
+	return &Container{InteropChain: inner, log: logger, source: source, sink: sink}
 }
 
 // IngestionSource declares that initiating messages are carried by verified proof batches.
@@ -49,21 +49,17 @@ func (c *Container) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth
 // ProvenExecMsgs returns the executing-message set committed by the proof wire. Map keys are set
 // ordinals, not private receipt log indices; same-timestamp imports are rejected by the wire codec.
 func (c *Container) ProvenExecMsgs(blockNum uint64) (map[uint32]*messages.ExecutingMessage, bool, error) {
-	fact, ok := c.facts.ByNumber(blockNum)
-	if !ok {
-		oldest, haveWindow := c.facts.Oldest()
-		if haveWindow && blockNum < oldest.Number {
-			return nil, false, fmt.Errorf("chain %s: block %d is below the fact window (oldest %d), so this "+
-				"node can no longer say what it imported: %w", c.ID(), blockNum, oldest.Number, ErrNoExecutionData)
-		}
+	lookupCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	fact, err := c.source.InteropBlock(lookupCtx, blockNum)
+	cancel()
+	if err != nil {
+		return nil, false, fmt.Errorf("chain %s: read interop facts for block %d: %w", c.ID(), blockNum, err)
+	}
+	if fact == nil {
 		return nil, false, fmt.Errorf("chain %s: no facts for block %d, so this node cannot say what it "+
 			"imported: %w", c.ID(), blockNum, ErrNoExecutionData)
 	}
-	denied, err := c.facts.Denied(fact.Number, fact.Hash)
-	if err != nil {
-		return nil, false, fmt.Errorf("check proof verdict for block %d: %w", blockNum, err)
-	}
-	if denied {
+	if fact.Denied {
 		// The proof table deliberately retains the denied fact until a corrected proof supersedes
 		// it. Once the canonical EL has a different hash at this height, however, that block is the
 		// stock deposits-only replacement and therefore has a known-empty import set.
@@ -94,7 +90,7 @@ func (c *Container) ProvenExecMsgs(blockNum uint64) (map[uint32]*messages.Execut
 func (c *Container) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	rewound, rewindErr := c.InteropChain.InvalidateBlock(ctx, height, payloadHash, decisionTimestamp,
 		stateRoot, messagePasserStorageRoot, parentPayload)
-	markErr := c.facts.MarkDenied(height, payloadHash)
+	markErr := c.source.MarkDenied(ctx, height, payloadHash)
 	if rewindErr != nil {
 		return rewound, rewindErr
 	}
@@ -113,7 +109,7 @@ func (c *Container) InvalidateBlock(ctx context.Context, height uint64, payloadH
 const replacementSealTimeout = 30 * time.Second
 
 // sealReplacement waits for the unmodified verifier to derive the stock deposits-only replacement
-// through the magic EL, then gives the interop LogsDB the same canonical-block update a normal
+// through the Silhouette EL, then gives the interop LogsDB the same canonical-block update a normal
 // receipts ingester would make. Until this happens the DB still names the invalid proof block, so
 // the next verification round would mistake the replacement itself for a hash conflict.
 func (c *Container) sealReplacement(ctx context.Context, height uint64, deniedHash common.Hash) error {
@@ -133,7 +129,11 @@ func (c *Container) sealReplacement(ctx context.Context, height uint64, deniedHa
 		if err == nil && env != nil && env.ExecutionPayload != nil {
 			payload := env.ExecutionPayload
 			if payload.BlockHash != deniedHash {
-				if fact, ok := c.facts.ByNumber(height); ok && fact.Hash == payload.BlockHash {
+				fact, factErr := c.source.InteropBlock(waitCtx, height)
+				if factErr != nil {
+					return fmt.Errorf("read replacement facts at block %d: %w", height, factErr)
+				}
+				if fact != nil && fact.Hash == payload.BlockHash && !fact.Replacement {
 					// A corrected proof won the race and its acceptance already sealed this block.
 					return nil
 				}
@@ -158,6 +158,10 @@ func (c *Container) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64]
 	if err != nil {
 		return nil, err
 	}
-	c.facts.PruneDenied(removed)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := c.source.PruneDenied(ctx, removed); err != nil {
+		return nil, err
+	}
 	return removed, nil
 }

@@ -8,8 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -180,76 +178,11 @@ func TestL1ChainConfigFromFile(t *testing.T) {
 	require.ErrorContains(t, err, "read L1 chain config")
 }
 
-// TestAssembleTakesNoGossip pins the safety property that a silhouette chain is not reachable over
-// P2P. A payload gossiped at a height the shim HOLDS, with the same parent and a different hash, is
-// the shape the shim treats as a fatal disagreement about proven history and halts on permanently
-// (G3 D4) -- correct when the claim comes from derivation, absurd when it comes from a stranger on
-// a gossip topic. The door is closed rather than guarded.
-func TestAssembleTakesNoGossip(t *testing.T) {
-	env := newTestEnv(t, l1GenesisNum+10)
-	vncfg := &opnodecfg.Config{Rollup: *silhouetteRollupConfig()}
-	vncfg.L2 = &opnodecfg.L2EndpointConfig{L2EngineAddr: "http://magic-el"}
-	vncfg.P2P = &p2p.Config{}
-	vncfg.P2PSigner = &p2p.PreparedSigner{}
-
-	a, err := Assemble(testlog.Logger(t, log.LevelError), env.cfg, AssemblyConfig{
-		Rollup: vncfg, L1Chain: sepoliaChainConfig(), SysCfg: vncfg.Rollup.Genesis.SystemConfig,
-		L1: env.l1, Blobs: env.blobs, L1Headers: env.l1,
-	}, vncfg)
-	require.NoError(t, err)
-	defer a.Close()
-
-	require.Nil(t, vncfg.P2P, "a proof-carried chain has nothing to learn from a peer")
-	require.Nil(t, vncfg.P2PSigner)
-	require.False(t, vncfg.P2PEnabled())
-}
-
-// TestAssembleKeepsStockDerivation pins the no-op-node-fork architecture: assembly observes proofs
-// beside the virtual node and leaves its normal L1 data path untouched.
-func TestAssembleKeepsStockDerivation(t *testing.T) {
-	env := newTestEnv(t, l1GenesisNum+10)
-	logger := testlog.Logger(t, log.LevelError)
-
-	vncfg := &opnodecfg.Config{Rollup: *silhouetteRollupConfig()}
-	externalEL := &opnodecfg.L2EndpointConfig{L2EngineAddr: "http://magic-el"}
-	vncfg.L2 = externalEL
-	// A sequencer-enabled config, so the pinning below is observed rather than assumed.
-	vncfg.Driver.SequencerEnabled = true
-	vncfg.Driver.SequencerStopped = false
-	a, err := Assemble(logger, env.cfg, AssemblyConfig{
-		Rollup:    vncfg,
-		L1Chain:   sepoliaChainConfig(),
-		SysCfg:    vncfg.Rollup.Genesis.SystemConfig,
-		L1:        env.l1,
-		Blobs:     env.blobs,
-		L1Headers: env.l1,
-	}, vncfg)
-	require.NoError(t, err)
-	defer a.Close()
-
-	require.Equal(t, eth.ChainIDFromUInt64(424250), a.ChainID)
-
-	// Seam 1 is an ordinary external execution endpoint and assembly leaves it untouched.
-	require.Same(t, externalEL, vncfg.L2)
-
-	// The proof observer is separate from op-node's stock derivation input.
-	require.NotNil(t, a.Source)
-	require.NotNil(t, a.tracker)
-
-	// A silhouette chain never sequences, whatever the config said.
-	require.False(t, vncfg.Driver.SequencerEnabled)
-	require.True(t, vncfg.Driver.SequencerStopped)
-
-	// The supernode's proof source and interop container share one local fact table. The standalone
-	// magic EL independently verifies the same L1 stream.
-	require.Same(t, a.Facts, a.Source.facts)
-}
-
-// TestAssembleDoesNotPublishTheEngineAPI states the exclusion on its own, because it is a security
+// TestShimDoesNotPublishTheEngineAPI states the exclusion on its own, because it is a security
 // property rather than a tidiness one: a published newPayload for a chain nobody may extend is an
 // invitation with no legitimate caller, and the shim's fail-stop is a guard, not a reason to offer
 // the door.
-func TestAssembleDoesNotPublishTheEngineAPI(t *testing.T) {
+func TestShimDoesNotPublishTheEngineAPI(t *testing.T) {
 	env := newTestEnv(t, l1GenesisNum+10)
 	shim := NewShim(testlog.Logger(t, log.LevelError), silhouetteRollupConfig(), sepoliaChainConfig(),
 		silhouetteRollupConfig().Genesis.SystemConfig, env.l1, env.facts)
@@ -267,21 +200,4 @@ func TestAssembleDoesNotPublishTheEngineAPI(t *testing.T) {
 	// Everything else the shim serves is public: the public set is the full set minus engine, so a
 	// namespace added later is published by default rather than forgotten.
 	require.Len(t, public, len(all)-1)
-}
-
-func TestAssembleRejectsMissingInputs(t *testing.T) {
-	env := newTestEnv(t, l1GenesisNum+10)
-	logger := testlog.Logger(t, log.LevelError)
-	vncfg := &opnodecfg.Config{Rollup: *silhouetteRollupConfig()}
-
-	_, err := Assemble(logger, env.cfg, AssemblyConfig{Rollup: vncfg}, nil)
-	require.ErrorContains(t, err, "needs a virtual-node config")
-
-	_, err = Assemble(logger, env.cfg, AssemblyConfig{}, vncfg)
-	require.ErrorContains(t, err, "needs P's rollup config")
-
-	bad := *env.cfg
-	bad.Inbox = bad.Submitter
-	_, err = Assemble(logger, &bad, AssemblyConfig{Rollup: vncfg}, vncfg)
-	require.ErrorContains(t, err, "silhouette config")
 }

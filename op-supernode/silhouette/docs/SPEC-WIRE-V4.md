@@ -111,7 +111,7 @@ canonical L1 source and enforces ordinary rollup progression:
 - otherwise `sequenceNumber` increments by one;
 - the L2 timestamp satisfies the rollup config's L1-origin and drift constraints.
 
-The accepted values are recorded directly in the proven fact and returned by the magic EL. No
+The accepted values are recorded directly in the proven fact and returned by the Silhouette EL. No
 heuristic reconstruction is allowed for v4.
 
 ## 6. One-block overlap

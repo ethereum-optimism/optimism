@@ -301,12 +301,10 @@ const (
 
 // WithSilhouetteChain runs one of the preset's chains as a SILHOUETTE chain: it keeps its own
 // sequencer and execution client (that is the private side), its ordinary batcher posts
-// transaction-stripped proof batches to L1, and a SECOND supernode is started which has only a
-// proof-backed magic EL for it and derives it from those proofs alone.
-//
-// The second supernode is the whole point and cannot be collapsed into the preset's existing one:
-// that one is the chain's sequencer, so any verdict it reaches about the chain's messages is a
-// statement about receipts it was handed rather than about proofs.
+// transaction-stripped proof batches to L1, and exposes the verifier-only supernode backed by a
+// standalone proof-backed Silhouette EL. The sysgo fixture retains its normal startup supernode to
+// bootstrap the LightCL topology, but the verifier is the one functional supernode role and the
+// preset routes its stock test surface there.
 //
 // Only supported on the two-L2 supernode interop preset, and only meaningful with interop enabled —
 // outside a dependency set nothing can reference the silhouette chain's messages, which is the

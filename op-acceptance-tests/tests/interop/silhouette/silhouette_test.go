@@ -30,7 +30,7 @@ import (
 //
 // Every assertion that matters here is made on that second supernode, and the reason is worth being
 // blunt about: P's LightCL and execution client are the private producer. The verifier supernode
-// only sees P through proof batches and the magic EL, and P's LightCL follows that verifier's safety
+// only sees P through proof batches and the Silhouette EL, and P's LightCL follows that verifier's safety
 // route for ordinary interop invalidation decisions.
 
 // silhouetteSystem brings up the preset with l2b proof-carried.
@@ -182,6 +182,42 @@ func TestSilhouetteProofBatchAdvancesVerifier(gt *testing.T) {
 	t.Logger().Info("proof-carried head advanced",
 		"proven_head", secondLast.Number, "proven_hash", secondLast.Hash,
 		"private_head", sys.L2BCL.HeadBlockRef(safety.LocalUnsafe).Number)
+}
+
+// TestSilhouetteELRestart proves the verifier EL is a real persistent component, rather than an
+// in-memory cache reconstructed by its supernode. The pre-restart head must be queryable immediately
+// after Start, and the same stock verifier must continue advancing through the stable Engine RPC.
+func TestSilhouetteELRestart(gt *testing.T) {
+	t, sys := silhouetteSystem(gt)
+	require := t.Require()
+	sil := sys.Silhouette
+	require.NotNil(sil.Runtime.EL)
+
+	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
+	beforeBatch := sil.Batcher.SubmitNext()
+	require.NotNil(beforeBatch)
+	before := beforeBatch.Blocks[len(beforeBatch.Blocks)-1]
+	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.CrossSafe, before.Number, 120))
+	require.Equal(before.Hash, sil.BlockProvenance(t, before.Number).Hash)
+
+	rpcBefore := sil.Runtime.EL.EngineRPC()
+	sil.Runtime.EL.Stop()
+	require.False(sil.Runtime.EL.Running())
+	sil.Runtime.EL.Start()
+	require.True(sil.Runtime.EL.Running())
+	require.Equal(rpcBefore, sil.Runtime.EL.EngineRPC(), "EL restart changed the verifier's Engine RPC")
+	restored := sil.BlockProvenance(t, before.Number)
+	require.Equal(before.Hash, restored.Hash, "restart did not restore the proven head from disk")
+	require.Equal("proven", restored.Provenance)
+
+	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
+	afterBatch := sil.Batcher.SubmitNext()
+	require.NotNil(afterBatch)
+	after := afterBatch.Blocks[len(afterBatch.Blocks)-1]
+	require.Greater(after.Number, before.Number)
+	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.CrossSafe, after.Number, 180))
+	require.Equal(after.Hash, sil.BlockProvenance(t, after.Number).Hash)
+	require.Zero(sil.InteropInvalidations(t), "EL restart caused an interop invalidation")
 }
 
 // TestSilhouetteCrossChainPinsThenAdvances is the phase-1 gate.

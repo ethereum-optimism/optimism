@@ -83,7 +83,7 @@ func TestAcceptedBatchCarriesItsImportList(t *testing.T) {
 
 	// Through the capability, which is the surface the judge actually uses.
 	container := NewContainer(testlog.Logger(t, log.LevelError),
-		&testInteropChain{id: eth.ChainIDFromUInt64(424247)}, e.facts, nil)
+		&testInteropChain{id: eth.ChainIDFromUInt64(424247)}, LocalInteropSource(e.facts), nil)
 	msgs, onWire, err := cc.ProvenExecMsgsOf(container, 1)
 	require.NoError(t, err)
 	require.True(t, onWire)
@@ -115,7 +115,7 @@ func TestReplacementHasKnownEmptyImportSet(t *testing.T) {
 			BlockNumber: eth.Uint64Quantity(1),
 		}},
 	}
-	container := NewContainer(testlog.Logger(t, log.LevelError), chain, e.facts, nil)
+	container := NewContainer(testlog.Logger(t, log.LevelError), chain, LocalInteropSource(e.facts), nil)
 	msgs, onWire, err := container.ProvenExecMsgs(1)
 	require.NoError(t, err)
 	require.True(t, onWire)
@@ -178,7 +178,7 @@ func TestPreV3WireLeavesDependenciesUnknown(t *testing.T) {
 	require.Empty(t, fact.ExecMsgs)
 
 	container := NewContainer(testlog.Logger(t, log.LevelError),
-		&testInteropChain{id: eth.ChainIDFromUInt64(424247)}, e.facts, nil)
+		&testInteropChain{id: eth.ChainIDFromUInt64(424247)}, LocalInteropSource(e.facts), nil)
 	msgs, onWire, err := cc.ProvenExecMsgsOf(container, 1)
 	require.NoError(t, err)
 	require.False(t, onWire, "the capability must report that this wire carries no import list")
@@ -251,7 +251,7 @@ func TestForcedBlockImportsNothingAndSaysSo(t *testing.T) {
 
 // TestDerivationAndStandaloneWalkerCarryTheImportListIdentically is gate 4.
 //
-// The standalone magic EL and supernode derivation drive the same DataSource implementation. This
+// The standalone Silhouette EL and the reference derivation harness drive the same DataSource implementation. This
 // checks that the direct L1 walker and the pipeline-facing path record identical import facts.
 //
 // So this asserts equality rather than presence, and it does it by running the two postures over the
@@ -269,7 +269,7 @@ func TestDerivationAndStandaloneWalkerCarryTheImportListIdentically(t *testing.T
 	verifier.plantSpec(vspec)
 	require.NotEmpty(t, verifier.derive(vspec.carrier))
 
-	// The standalone magic EL path: its walker drains the same source over the same L1.
+	// The standalone Silhouette EL path: its walker drains the same source over the same L1.
 	seq := newTestEnv(t, l1GenesisNum+10)
 	sspec := seq.goodBatch()
 	sspec.imports = imports

@@ -257,31 +257,26 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 
 	var l2AEL, l2BEL L2ELNode
 	var interopFilter *InteropFilter
+	var interopFilterProxy *tcpproxy.Proxy
+	var interopFilterRPC string
+	var interopFilterRollupConfigs map[eth.ChainID]*rollup.Config
 
 	if cfg.UseInteropFilter {
 		// Proxy pattern: allocate stable address before ELs start
-		filterProxy := tcpproxy.New(t.Logger().New("proxy", "interop-filter"))
-		require.NoError(filterProxy.Start())
-		t.Cleanup(func() { filterProxy.Close() })
-		filterRPC := "http://" + filterProxy.Addr()
+		interopFilterProxy = tcpproxy.New(t.Logger().New("proxy", "interop-filter"))
+		require.NoError(interopFilterProxy.Start())
+		t.Cleanup(func() { interopFilterProxy.Close() })
+		interopFilterRPC = "http://" + interopFilterProxy.Addr()
 
 		// Start ELs with filter proxy URL
-		l2AEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
-		l2BEL = startSupernodeELWithInteropURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2AEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, interopFilterRPC)
+		l2BEL = startSupernodeELWithInteropURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, interopFilterRPC)
 
 		// Build rollup config map from L2 networks (Go structs, no file I/O)
-		rollupConfigs := map[eth.ChainID]*rollup.Config{
+		interopFilterRollupConfigs = map[eth.ChainID]*rollup.Config{
 			eth.ChainIDFromBig(l2ANet.RollupConfig().L2ChainID): l2ANet.RollupConfig(),
 			eth.ChainIDFromBig(l2BNet.RollupConfig().L2ChainID): l2BNet.RollupConfig(),
 		}
-
-		// Create and start interop filter in-process
-		interopFilter = startInteropFilter(t, "interop-filter",
-			[]string{l2AEL.UserRPC(), l2BEL.UserRPC()},
-			rollupConfigs)
-
-		// Connect proxy to the filter's actual RPC endpoint
-		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
 	} else {
 		// No interop filter — ELs start without an interop filter URL (existing behavior)
 		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
@@ -338,7 +333,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	followSourceB := supernodeL2BCL.UserRPC()
 	var silhouetteFollowProxies map[string]*tcpproxy.Proxy
 	if cfg.SilhouetteChain != "" {
-		// The proof verifier needs the magic EL endpoint, while both LightCL sequencers must follow
+		// The proof verifier needs the Silhouette EL endpoint, while both LightCL sequencers must follow
 		// that verifier's interop verdicts. Break the startup cycle with stable proxies: initially
 		// they point at the bootstrap supernode, then both move to the proof verifier once it exists.
 		// Routing only the private chain would make B reorg normally while A's verifier-side reorg
@@ -364,6 +359,9 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// Production-faithful topology: each follow-mode sequencer runs its own
 		// EL, distinct from the supernode VN's EL, joined only by L1 and P2P.
 		sequencerELOpts := ResolveMixedL2ELOpts(t)
+		if cfg.UseInteropFilter {
+			sequencerELOpts = append(sequencerELOpts, OpRethWithInteropURL(interopFilterRPC))
+		}
 		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
 		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
 
@@ -411,7 +409,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// A silhouette chain is deliberately not peered with the bootstrap VN. That VN is a
 		// stock op-node, so it consumes the public empty-batch carrier from P's normal batch
 		// inbox and derives an empty history. P's LightCL instead follows the proof verifier,
-		// whose magic EL maps that same carrier onto the proof-committed private block hashes.
+		// whose Silhouette EL maps that same carrier onto the proof-committed private block hashes.
 		// Peering both histories would let the bootstrap VN gossip its conflicting empty fork
 		// back to P after a valid interop replacement.
 		if cfg.SilhouetteChain != "l2a" {
@@ -424,6 +422,16 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// supernode EL (required for the ELSync follow path).
 		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC())
 		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC())
+	}
+
+	if cfg.UseInteropFilter {
+		// The filter indexes and validates the transaction-facing producer ELs.
+		// In the virtual-sequencer preset these alias the VN ELs; in the LightCL
+		// preset they are distinct. Pointing it at the VN copies makes the filter
+		// ready against a different history from the endpoints used by tests.
+		interopFilter = startInteropFilter(t, "interop-filter",
+			[]string{seqL2AEL.UserRPC(), seqL2BEL.UserRPC()}, interopFilterRollupConfigs)
+		interopFilterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
 	}
 
 	// Batchers follow the active sequencer's CL + EL so the L1-derived safe chain stays

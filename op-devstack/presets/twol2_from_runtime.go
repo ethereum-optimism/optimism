@@ -103,7 +103,14 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	t.Require().NotNil(chainA.SupernodeCL, "missing l2a supernode CL")
 	t.Require().NotNil(chainB.SupernodeCL, "missing l2b supernode CL")
 
-	supernode := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC(), runtime.Supernode)
+	testSupernode := runtime.Supernode
+	if runtime.Silhouette != nil {
+		// A silhouette runtime's verifier is the system supernode. The other
+		// supernode only bootstraps the LightCL sequencers while the standalone
+		// proof-backed EL is coming online and is not part of the test surface.
+		testSupernode = runtime.Silhouette.Verifier
+	}
+	supernode := newSupernodeFrontend(t, "supernode-two-l2-system", testSupernode.UserRPC(), testSupernode)
 	// The supernode VN drives its own EL, distinct from the sequencer's
 	// (joined only by L1 + P2P) in light-sequencer presets. In virtual-sequencer
 	// presets the supernode VN is itself the sequencer, so SupernodeEL == EL and
@@ -113,12 +120,30 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	if chainA.SupernodeEL != nil && chainA.SupernodeEL != chainA.EL {
 		l2ASupernodeEL = newL2ELFrontend(t, "supernode", chainA.Network.ChainID(), chainA.SupernodeEL.UserRPC(), chainA.SupernodeEL.EngineRPC(), chainA.SupernodeEL.JWTPath(), chainA.Network.RollupConfig(), chainA.SupernodeEL)
 	}
-	l2ASupernodeCL.attachEL(l2ASupernodeEL)
 	l2BSupernodeCL := newL2CLFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeCL.UserRPC(), chainB.SupernodeCL)
 	l2BSupernodeEL := components.l2BEL
 	if chainB.SupernodeEL != nil && chainB.SupernodeEL != chainB.EL {
 		l2BSupernodeEL = newL2ELFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeEL.UserRPC(), chainB.SupernodeEL.EngineRPC(), chainB.SupernodeEL.JWTPath(), chainB.Network.RollupConfig(), chainB.SupernodeEL)
 	}
+	if runtime.Silhouette != nil {
+		s := runtime.Silhouette
+		if route := s.VerifierRoutes["l2a"]; route != nil {
+			l2ASupernodeCL = newL2CLFrontend(t, "supernode", chainA.Network.ChainID(), route.UserRPC(), route)
+		}
+		if route := s.VerifierRoutes["l2b"]; route != nil {
+			l2BSupernodeCL = newL2CLFrontend(t, "supernode", chainB.Network.ChainID(), route.UserRPC(), route)
+		}
+		// Ordinary verifier chains have their own stateful EL. The private
+		// verifier chain intentionally does not, so its producer EL remains the
+		// transaction-facing frontend while its CL labels come from proofs.
+		if el := s.VerifierELs["l2a"]; el != nil {
+			l2ASupernodeEL = newL2ELFrontend(t, "supernode", chainA.Network.ChainID(), el.UserRPC(), el.EngineRPC(), el.JWTPath(), chainA.Network.RollupConfig(), el)
+		}
+		if el := s.VerifierELs["l2b"]; el != nil {
+			l2BSupernodeEL = newL2ELFrontend(t, "supernode", chainB.Network.ChainID(), el.UserRPC(), el.EngineRPC(), el.JWTPath(), chainB.Network.RollupConfig(), el)
+		}
+	}
+	l2ASupernodeCL.attachEL(l2ASupernodeEL)
 	l2BSupernodeCL.attachEL(l2BSupernodeEL)
 	testSequencer := newTestSequencerFrontend(
 		t,
@@ -141,7 +166,7 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 			L2ACL:     twoL2.L2ACL,
 			L2BCL:     twoL2.L2BCL,
 		},
-		Supernode:             dsl.NewSupernodeWithTestControl(supernode, runtime.Supernode),
+		Supernode:             dsl.NewSupernodeWithTestControl(supernode, testSupernode),
 		TestSequencer:         dsl.NewTestSequencer(testSequencer),
 		L2ELA:                 dsl.NewL2ELNode(components.l2AEL),
 		L2ELB:                 dsl.NewL2ELNode(components.l2BEL),
@@ -167,7 +192,7 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 // silhouetteTargetFromRuntime exposes the verifier supernode and the proof stream.
 //
 // The silhouette chain gets a rollup route and no stateful execution-layer frontend. Its query
-// surface is the standalone magic EL and the proof-backed route, so anything a test needs to ask
+// surface is the standalone Silhouette EL and the proof-backed route, so anything a test needs to ask
 // about the verifier's view of the chain goes through that route.
 func silhouetteTargetFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *SilhouetteTarget {
 	s := runtime.Silhouette

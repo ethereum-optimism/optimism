@@ -119,6 +119,9 @@ func (e *EngineAPI) ForkchoiceUpdatedV3(ctx context.Context, state eth.Forkchoic
 	if !s.isRewindFact(head.Hash) {
 		s.clearRewindFacts()
 	}
+	if err := s.facts.Flush(); err != nil {
+		return nil, err
+	}
 
 	result := &eth.ForkchoiceUpdatedResult{
 		PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &head.Hash},
@@ -213,6 +216,9 @@ func (e *EngineAPI) getPayload(ctx context.Context, id eth.PayloadID) (*eth.Exec
 				"parent", job.parent.Number, "timestamp", uint64(job.attrs.Timestamp), "err", err)
 			return nil, eth.InputError{Code: eth.UnknownPayload, Inner: err}
 		}
+		if err := s.facts.Flush(); err != nil {
+			return nil, err
+		}
 		s.mu.Lock()
 		delete(s.jobs, id)
 		s.mu.Unlock()
@@ -275,6 +281,9 @@ func (e *EngineAPI) getPayload(ctx context.Context, id eth.PayloadID) (*eth.Exec
 	}
 
 	s.facts.RecordRendering(Rendering{Header: hdr, Txs: txs, Hash: fact.Hash})
+	if err := s.facts.Flush(); err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	delete(s.jobs, id)
 	s.mu.Unlock()
@@ -287,7 +296,7 @@ func (e *EngineAPI) getPayload(ctx context.Context, id eth.PayloadID) (*eth.Exec
 }
 
 // buildDeniedReplacement handles the one case where a proof fact must be replaced. The stock
-// supernode has already rewound its op-node and generated deposits-only attributes. The magic EL
+// supernode has already rewound its op-node and generated deposits-only attributes. The Silhouette EL
 // delegates execution of those exact attributes to P's real EL, then serves the resulting payload
 // back through the ordinary op-node build path.
 func (s *Shim) buildDeniedReplacement(ctx context.Context, job *buildJob) (*eth.ExecutionPayloadEnvelope, bool, error) {
@@ -338,10 +347,7 @@ func (s *Shim) buildDeniedReplacement(ctx context.Context, job *buildJob) (*eth.
 		return nil, true, fmt.Errorf("drop denied proof suffix at block %d: %w", number, err)
 	}
 	s.facts.RecordRendering(rendering)
-	s.mu.Lock()
-	s.replacementsByHash[replacement.Hash] = replacement
-	s.replacementsByNum[replacement.Number] = replacement
-	s.mu.Unlock()
+	s.facts.RecordReplacement(replacement)
 	s.log.Warn("prepared stock deposits-only replacement in P's private EL",
 		"number", replacement.Number, "denied_hash", deniedFact.Hash,
 		"replacement_hash", replacement.Hash, "parent", job.parent.Hash)
@@ -456,6 +462,9 @@ func (e *EngineAPI) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayl
 			"height is %s", number, payload.BlockHash, fact.Hash)
 		if payload.ParentHash == parent.Hash {
 			if err := s.acceptRewindPayload(payload, fact); err == nil {
+				if err := s.facts.Flush(); err != nil {
+					return nil, err
+				}
 				return &eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &payload.BlockHash}, nil
 			} else {
 				s.halt(fmt.Errorf("newPayload offered a non-canonical block for block %d on the same parent %s: %w: %v",

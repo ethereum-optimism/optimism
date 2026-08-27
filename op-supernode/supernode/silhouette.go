@@ -10,80 +10,53 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-supernode/silhouette"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 )
 
-// assembleSilhouette turns one configured chain into a silhouette chain, in place.
-//
-// It is called from the chain loop BEFORE NewChainContainer, and everything it does is to the
-// arguments that call is about to receive: the virtual-node config gets an in-process execution
-// client that is the shim, and the initialization overrides get the proof-batch data source. The
-// container built afterwards is a stock container — it is not told that its chain is unusual,
-// because from where it stands it is not.
-//
-// The two shared L1 resources come from the supernode, which is the whole reason this lives here
-// rather than in the silhouette package: a silhouette chain reads L1 exactly like every other chain
-// does, through the same client and the same beacon, and giving it its own would be a second view
-// of L1 that could disagree with the one the cross-safety round checks canonicality against.
+// assembleSilhouette connects a stock virtual node to a standalone op-silhouette-el. The supernode
+// owns no proof verifier or fact table; it only consumes the EL's receipt-free interop RPC.
 func (s *Supernode) assembleSilhouette(
+	ctx context.Context,
 	log gethlog.Logger,
 	decl silhouette.ManifestChain,
 	vnCfg *opnodecfg.Config,
-) (*silhouette.Assembly, error) {
+) (*silhouette.RemoteAssembly, error) {
 	chainID := eth.ChainIDFromUInt64(decl.ChainID)
-	cfg := decl.Config()
 
 	if err := decl.CheckRole(); err != nil {
 		return nil, err
-	}
-	if s.beaconClient == nil {
-		// A silhouette chain's history travels in blobs, so a beacon endpoint is not optional the
-		// way it is for a calldata rollup. Saying so at startup beats deriving nothing and looking
-		// like a stalled prover.
-		return nil, fmt.Errorf("chain %s is a silhouette chain and needs an L1 beacon endpoint", chainID)
-	}
-	l1Chain, err := silhouette.L1ChainConfig(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("chain %s: %w", chainID, err)
 	}
 	if got := bigs.Uint64Strict(vnCfg.Rollup.L2ChainID); got != decl.ChainID {
 		return nil, fmt.Errorf("silhouette manifest declares chain %d but its rollup config is for chain %d",
 			decl.ChainID, got)
 	}
-
-	l1 := resources.NewNonCloseableL1Client(s.l1Client)
-	assembly, err := silhouette.Assemble(log, cfg, silhouette.AssemblyConfig{
-		Rollup: vnCfg,
-		// The FROZEN genesis SystemConfig (DR-2) is read off the rollup config rather than
-		// configured separately. There is exactly one right answer and the rollup config already
-		// holds it; a second copy could only ever be a way to disagree with it.
-		SysCfg:    vnCfg.Rollup.Genesis.SystemConfig,
-		L1Chain:   l1Chain,
-		L1:        l1,
-		L1Headers: l1,
-		Blobs:     resources.NewNonCloseableL1BeaconClient(s.beaconClient),
-	}, vnCfg)
+	rpc, _, err := vnCfg.L2.Setup(ctx, log.New("component", "silhouette-el-client"),
+		&vnCfg.Rollup, &opmetrics.NoopRPCMetrics{})
 	if err != nil {
-		return nil, fmt.Errorf("assemble silhouette chain %s: %w", chainID, err)
+		return nil, fmt.Errorf("connect to standalone silhouette EL for chain %s: %w", chainID, err)
 	}
-	s.supernodeMetrics.SilhouetteProvenHead.WithLabelValues(chainID.String()).Set(0)
+	var self *silhouette.SelfDeclaration
+	if err := rpc.CallContext(ctx, &self, "silhouette_selfDeclaration"); err != nil {
+		rpc.Close()
+		return nil, fmt.Errorf("chain %s EL does not expose the silhouette component API: %w", chainID, err)
+	}
+	if self == nil || !self.ProofRendered || self.ExecutesTransactions || uint64(self.L2ChainID) != decl.ChainID {
+		rpc.Close()
+		return nil, fmt.Errorf("chain %s EL returned an incompatible silhouette self-declaration", chainID)
+	}
+	assembly := silhouette.NewRemoteAssembly(log.New("chain", chainID), chainID, rpc)
 
-	// proofType and dependenciesVerified are in the startup line because they are the two properties
-	// of a silhouette verifier that are invisible from the outside: every proving system and both wire
-	// versions derive the chain, serve the same roots and report the same heads. Only these two say
-	// what an accepted batch MEANT — whether the chain's state was proven or attested (V1G), and
-	// whether its IMPORTS were ever checked (G7). An operator reading a runbook needs both, once, at
-	// boot.
-	log.Info("assembled silhouette chain",
-		"chain", chainID,
-		"wireVersion", cfg.EffectiveWireVersion(),
-		"dependenciesVerified", cfg.DependenciesVerified(),
-		"proofType", cfg.ProofType,
-		"anchor", cfg.Anchor.BlockNumber,
-		"anchorOutputRoot", cfg.Anchor.OutputRoot)
+	// Proof-rendered verifier nodes never sequence or accept gossip. These are virtual-node posture
+	// settings; all proof interpretation remains inside the standalone EL.
+	vnCfg.Driver.SequencerEnabled = false
+	vnCfg.Driver.SequencerStopped = true
+	vnCfg.P2P = nil
+	vnCfg.P2PSigner = nil
+	s.supernodeMetrics.SilhouetteProvenHead.WithLabelValues(chainID.String()).Set(0)
+	log.Info("connected standalone silhouette EL", "chain", chainID, "client", self.Client)
 	return assembly, nil
 }
 
@@ -100,7 +73,7 @@ func (s *Supernode) attachSilhouetteLogStores(log gethlog.Logger, in *interop.In
 		if !ok {
 			return fmt.Errorf("silhouette chain %s has no interop log database", chainID)
 		}
-		if err := assembly.AttachLogStore(log, store); err != nil {
+		if err := assembly.AttachLogStore(store); err != nil {
 			return fmt.Errorf("attach log store for silhouette chain %s: %w", chainID, err)
 		}
 		log.Info("attached silhouette log sink", "chain", chainID)
@@ -128,8 +101,9 @@ func (s *Supernode) observeSilhouettes(ctx context.Context) {
 	for {
 		for chainID, assembly := range s.silhouettes {
 			id := chainID.String()
-			if head, ok := assembly.Facts.Head(); ok {
-				s.supernodeMetrics.SilhouetteProvenHead.WithLabelValues(id).Set(float64(head.Number))
+			status, err := assembly.Source.Status(ctx)
+			if err == nil && status.HeadFact != nil {
+				s.supernodeMetrics.SilhouetteProvenHead.WithLabelValues(id).Set(float64(*status.HeadFact))
 			}
 		}
 		select {
@@ -143,8 +117,7 @@ func (s *Supernode) observeSilhouettes(ctx context.Context) {
 // wrapSilhouetteChain gives a stock container the silhouette behaviours: proven ingestion, the
 // import list its proofs declared, refusal to fetch receipts, replacement-aware invalidation, and
 // proof-aware invalidation.
-func wrapSilhouetteChain(log gethlog.Logger, inner cc.InteropChain, a *silhouette.Assembly) cc.InteropChain {
+func wrapSilhouetteChain(log gethlog.Logger, inner cc.InteropChain, a *silhouette.RemoteAssembly) cc.InteropChain {
 	logger := log.New("chain", a.ChainID)
-	a.Facts.SetDeniedChecker(inner.IsDenied)
-	return silhouette.NewContainer(logger, inner, a.Facts, a.LogSink)
+	return silhouette.NewContainer(logger, inner, a.Source, a.LogSink)
 }

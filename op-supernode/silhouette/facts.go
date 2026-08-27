@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	// maxIndexedBlocks bounds the fact table. Proven history is unbounded and re-derived from L1 on
-	// every restart, so the in-memory table is a window over the recent past rather than an archive:
+	// maxIndexedBlocks bounds the fact table. Proven history is unbounded, so the durable table is a
+	// window over the recent past rather than an archive:
 	// enough for the cross-safety judge, superroot composition and the shim's getPayload, all of
 	// which look at the frontier.
 	maxIndexedBlocks = 1 << 16
@@ -36,10 +36,13 @@ const (
 //     by this node, the producer and the superroot program.
 //
 //   - a REPLACEMENT block was executed by P's real EL from stock deposits-only attributes and is
-//     retained by the magic EL only until the proof submitter publishes that same block.
+//     retained by the Silhouette EL only until the proof submitter publishes that same block.
 type Fact struct {
-	Number                   uint64
-	Timestamp                uint64
+	Number    uint64
+	Timestamp uint64
+	// ParentHash is retained explicitly so a remote interop consumer can reconstruct the chain
+	// without sharing this process's fact table. It is public block identity, not private body data.
+	ParentHash               common.Hash
 	Hash                     common.Hash
 	StateRoot                common.Hash
 	MessagePasserStorageRoot common.Hash
@@ -78,6 +81,10 @@ type Fact struct {
 	// validating no dependencies while reporting that it validates them. Every consumer must branch
 	// on this flag rather than on len(ExecMsgs).
 	ExecMsgsKnown bool
+	// LogExports are the proof-declared initiating-message hashes and their real block indices.
+	// Keeping them beside the imports makes the standalone EL the sole owner of proof-derived
+	// interop data; a supernode consumes this over RPC instead of running a second proof observer.
+	LogExports []proofbatch.LogExport
 	// Header is the full forced header, retained for forced blocks only: a hash disagreement between
 	// implementations is diagnosed by diffing headers, not by staring at two hashes. Nil for proven
 	// blocks, whose headers are private by construction — we hold their hash, never their bytes.
@@ -106,8 +113,9 @@ type carrier struct {
 	NewOutputRoot  common.Hash
 }
 
-// FactStore holds per-block facts and per-batch L1 provenance. Both are windows — history is
-// re-derived from L1, never persisted.
+// FactStore holds per-block facts, per-batch L1 provenance, and the engine's canonical public
+// view. OpenFactStore makes the complete view durable; a zero-value FactStore remains useful for
+// focused tests and ephemeral embeddings.
 //
 // It is written by the derivation loop and read by whoever asks the node a question, so it carries
 // its own lock: a table of facts standing in for state is exactly the thing other goroutines want
@@ -126,11 +134,10 @@ type FactStore struct {
 	// never become canonical again when the L1 source is replayed.
 	denied map[common.Hash]uint64
 	// deniedFacts retains the full fact at each denied height after the canonical suffix is
-	// truncated. The magic EL needs it exactly once more: to recognize the stock deposits-only build
+	// truncated. The Silhouette EL needs it exactly once more: to recognize the stock deposits-only build
 	// job for that height and delegate it to the private execution engine.
 	deniedFacts map[uint64]Fact
-	// deniedChecker reads the chain container's durable denylist. It lets an L1 replay reconstruct
-	// the same supersession decision after this in-memory table has been rebuilt.
+	// deniedChecker reads the chain container's durable denylist as the authoritative decision source.
 	deniedChecker func(uint64, common.Hash) (bool, error)
 	// renderings and cursors are the shim EL's half of the store — see store_shim.go. They live
 	// under the same lock because a rewind has to move the facts and forget the renderings above
@@ -138,6 +145,13 @@ type FactStore struct {
 	// longer exists.
 	renderings map[common.Hash]Rendering
 	cursors    Cursors
+	// replacements and rewindFacts are engine-visible canonicality handoffs. Keeping them in the
+	// store, rather than in Shim, makes an EL restart indistinguishable from a process pause.
+	replacementsByHash map[common.Hash]Fact
+	replacementsByNum  map[uint64]Fact
+	rewindFacts        map[common.Hash]Fact
+	tracker            trackerState
+	persist            *persistentStore
 }
 
 // SetDeniedChecker attaches the durable denial lookup after the chain container is constructed.
@@ -194,7 +208,7 @@ func (f *FactStore) IsDenied(hash common.Hash) bool {
 }
 
 // Denied reports whether the exact block was denied, consulting the chain container's durable
-// denylist when the in-memory verdict has not yet been reconstructed after a restart.
+// denylist when the local mirror has not yet observed the verdict.
 func (f *FactStore) Denied(number uint64, hash common.Hash) (bool, error) {
 	f.mu.RLock()
 	deniedAt, denied := f.denied[hash]
@@ -398,7 +412,7 @@ func (f *FactStore) Record(fact Fact) {
 //
 // wireVersion is passed rather than inferred, because whether an empty import list is a claim is a
 // property of the VERSION, not of the list (see Fact.ExecMsgsKnown).
-func (f *FactStore) RecordProven(blk proofbatch.BlockExport, origin eth.BlockID, seqNumber uint64, wireVersion uint8) {
+func (f *FactStore) RecordProven(blk proofbatch.BlockExport, parentHash common.Hash, origin eth.BlockID, seqNumber uint64, wireVersion uint8) {
 	// Not `wireVersion >= proofbatch.Version`: whether a version carries an import list is a fixed
 	// fact about version 3, not about whatever this codec currently encodes (see proofbatch.VersionV3).
 	known := proofbatch.VersionHasExecMsgs(wireVersion)
@@ -414,6 +428,7 @@ func (f *FactStore) RecordProven(blk proofbatch.BlockExport, origin eth.BlockID,
 	f.Record(Fact{
 		Number:                   blk.Number,
 		Timestamp:                blk.Timestamp,
+		ParentHash:               parentHash,
 		Hash:                     blk.Hash,
 		ExecMsgs:                 execMsgs,
 		ExecMsgsKnown:            known,
@@ -422,7 +437,17 @@ func (f *FactStore) RecordProven(blk proofbatch.BlockExport, origin eth.BlockID,
 		OutputRoot:               blk.OutputRoot(),
 		L1Origin:                 origin,
 		SeqNumber:                seqNumber,
+		LogExports:               cloneLogExports(blk.Logs),
 	})
+}
+
+func cloneLogExports(in []proofbatch.LogExport) []proofbatch.LogExport {
+	out := make([]proofbatch.LogExport, len(in))
+	for i := range in {
+		out[i] = in[i]
+		out[i].Preimage = append([]byte(nil), in[i].Preimage...)
+	}
+	return out
 }
 
 func (f *FactStore) recordCarrier(c carrier) {

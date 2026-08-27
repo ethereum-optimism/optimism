@@ -15,10 +15,10 @@ reads its interior. There is no DA layer to read it from.
 A stock `op-node` derives the private chain through its completely standard pipeline and its normal
 batch inbox. The ordinary `op-batcher` appends standard carrier frames, with user transactions
 removed, after the proof envelope. Stock derivation ignores the proof blob's unknown format byte and
-consumes the carrier. Independently, the proof observer checks the envelope and supplies facts to the
-execution client. The execution client is a **shim** — a small
-service speaking the Engine API and the `eth_` query surface that never executes anything, and
-"builds" blocks by serving the proof-committed facts from the wire.
+consumes the carrier. Independently, `op-silhouette-el` checks the envelope and stores its facts.
+That execution client is a separate, persistent service speaking the Engine API and the `eth_`
+query surface that never executes anything, and "builds" blocks by serving proof-committed facts.
+The supernode consumes its message view over RPC; it does not run a second proof observer.
 
 Because `op-node` treats the engine as the hash authority and re-hashes no payload on the
 derivation path, the public network operates on the private chain's **real identity**: stock code
@@ -56,6 +56,7 @@ shelf branches, and §"What is deliberately not here" says where.
 There are **no changes under `op-node/`**. The verifier is a stock op-node assembled by
 `op-supernode`; its configured L2 endpoint is `op-silhouette-el`, which serves proof-committed facts
 and delegates stock replacement-block construction to the private chain's authenticated Engine API.
+Its `--data-dir` retains the public chain view and L1 cursor across restarts.
 
 There is no separate batch submitter or custom inbox. The normal `op-batcher` loads real blocks,
 output roots and receipts, follows its ordinary reorg/channel/txmgr lifecycle, and drops private
@@ -65,7 +66,7 @@ transaction data only at its terminal encoding seam. The three runtime images ar
 ## How to read it
 
 1. `docs/TRUST-MODEL.md` — on what authority the public network believes any of this. Read first.
-2. `source.go` — the independent proof observer: acceptance rules, chaining and fact ingestion.
+2. `source.go` — the EL-owned proof observer: acceptance rules, chaining and fact ingestion.
 3. `facts.go` + `forced.go` — the fact store and the forced-extension convention (a dead prover must
    never stall the dependency set's frontier, so stock derivation force-generates empty blocks).
 4. `shim_engine.go` + `shim_shim.go` — the execution client that verifies instead of executing.
@@ -80,7 +81,7 @@ To see all of it run, in one command, with no cluster:
 go test ./op-acceptance-tests/tests/interop/silhouette/ -v -timeout 45m
 ```
 
-Two chains, two supernodes, real execution clients as subprocesses, a real L1, real blob
+Two chains, one verifier supernode, real execution clients as subprocesses, a real L1, real blob
 transactions, including invalid-dependency replacement through the stock interop path.
 
 ## What is deliberately not here

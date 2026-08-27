@@ -67,6 +67,12 @@ type ProofBatchEncoder struct {
 	blocks map[common.Hash]preparedProofBlock
 }
 
+// AllowsL1RewindRecovery marks proof publication as the input that can unblock derivation after a
+// deep L1 reorg. The normal batcher waits for CurrentL1 to regain its old height; doing so here would
+// deadlock because CurrentL1 cannot advance past the rewound proof frontier until this batcher
+// republishes the private unsafe suffix.
+func (*ProofBatchEncoder) AllowsL1RewindRecovery() bool { return true }
+
 // ProofBatchEnvelope is one proof batch as it entered the normal batcher's final wire encoder.
 // Proof is normally empty; acceptance tests use it to exercise verifier refusal rules.
 type ProofBatchEnvelope struct {

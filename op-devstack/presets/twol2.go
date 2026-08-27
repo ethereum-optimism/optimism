@@ -2,6 +2,7 @@ package presets
 
 import (
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -258,11 +259,25 @@ func (s *TwoL2SupernodeInterop) BootstrapLightSequencersViaVNHandoff() {
 // When WithInteropFilter() is set the test is skipped on op-geth: the interop filter
 // is only supported with op-reth, since op-geth does not call the interop_ namespace.
 func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
+	privateChain, usePrivateChain := os.LookupEnv("DEVSTACK_INTEROP_PRIVATE_CHAIN")
+	if usePrivateChain {
+		opts = append(opts, WithSilhouetteChain(privateChain))
+	}
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeInterop", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
 	if presetCfg.UseInteropFilter {
 		sysgo.SkipOnOpGeth(t, "interop filter is only supported with op-reth")
 	}
-	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
+	if !usePrivateChain {
+		return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
+	}
+	runtime := sysgo.NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t, delaySeconds, presetCfg)
+	result := twoL2SupernodeInteropFromRuntime(t, runtime)
+	if privateChain == SilhouetteChainA {
+		result.L2BatcherA.Start()
+	} else {
+		result.L2BatcherB.Start()
+	}
+	return result
 }
 
 // NewTwoL2SupernodeLightSequencerInterop creates a two-L2 interop setup where

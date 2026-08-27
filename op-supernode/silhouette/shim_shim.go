@@ -65,7 +65,7 @@ import (
 
 // ClientVersion is the self-declaration a caller sees over web3_clientVersion. It names what this
 // service is in the one place an operator or an integrator actually looks.
-const ClientVersion = "silhouette-shim/v1 (proof-rendered blocks; executes nothing)"
+const ClientVersion = "op-silhouette-el/v1 (proof-rendered blocks; executes nothing)"
 
 // Shim is the execution client for one silhouette chain.
 type Shim struct {
@@ -81,17 +81,10 @@ type Shim struct {
 	mu   sync.Mutex
 	jobs map[eth.PayloadID]*buildJob
 	// replacements are real, deposits-only payloads prepared by P's private EL after the stock
-	// supernode invalidates a proof fact. They are intentionally outside FactStore: proof acceptance
-	// must continue to see the denied block's parent as its durable head until the corrected proof is
-	// posted.
+	// supernode invalidates a proof fact. They live in FactStore so they survive an EL restart, while
+	// remaining outside its canonical proof-fact slice until a corrected proof is posted.
 	replacementBuilder ReplacementBuilder
-	replacementsByHash map[common.Hash]Fact
-	replacementsByNum  map[uint64]Fact
-	// rewindFacts contains the one-block, temporary fork used by the stock supernode engine
-	// controller to make a rewind durable. These are never canonical proof facts and disappear when
-	// forkchoice returns to a proof fact.
-	rewindFacts map[common.Hash]Fact
-	halted      error
+	halted             error
 }
 
 // buildJob is an open block-building job: a parent, and the attributes the CL asked for.
@@ -112,19 +105,16 @@ func NewShim(logger log.Logger, rollupCfg *rollup.Config, l1Chain *params.ChainC
 	l1 L1Headers, facts *FactStore,
 ) *Shim {
 	return &Shim{
-		log:                logger,
-		params:             ForcedParams{Rollup: rollupCfg, L1Chain: l1Chain, SysCfg: sysCfg},
-		facts:              facts,
-		l1:                 l1,
-		jobs:               make(map[eth.PayloadID]*buildJob),
-		rewindFacts:        make(map[common.Hash]Fact),
-		replacementsByHash: make(map[common.Hash]Fact),
-		replacementsByNum:  make(map[uint64]Fact),
+		log:    logger,
+		params: ForcedParams{Rollup: rollupCfg, L1Chain: l1Chain, SysCfg: sysCfg},
+		facts:  facts,
+		l1:     l1,
+		jobs:   make(map[eth.PayloadID]*buildJob),
 	}
 }
 
-// SetReplacementBuilder connects the magic EL to P's private Engine API for the single operation
-// the magic EL cannot perform itself: executing stock deposits-only replacement attributes.
+// SetReplacementBuilder connects the Silhouette EL to P's private Engine API for the single
+// operation it cannot perform itself: executing stock deposits-only replacement attributes.
 func (s *Shim) SetReplacementBuilder(builder ReplacementBuilder) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -215,10 +205,7 @@ func (s *Shim) factByNumber(number uint64) (Fact, bool) {
 	if fact, ok := s.facts.ByNumber(number); ok {
 		return fact, true
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	fact, ok := s.replacementsByNum[number]
-	return fact, ok
+	return s.facts.ReplacementByNumber(number)
 }
 
 // factByHash resolves a block hash to its facts, genesis included.
@@ -229,47 +216,25 @@ func (s *Shim) factByHash(hash common.Hash) (Fact, bool) {
 	if fact, ok := s.facts.ByHash(hash); ok {
 		return fact, true
 	}
-	s.mu.Lock()
-	if replacement, ok := s.replacementsByHash[hash]; ok {
-		// A corrected proof may have occupied this height while a caller retained the temporary hash.
-		// Once that happens only the durable proof fact is canonical.
-		if canonical, exists := s.facts.ByNumber(replacement.Number); !exists || canonical.Hash == hash {
-			s.mu.Unlock()
-			return replacement, true
-		}
+	if replacement, ok := s.facts.ReplacementByHash(hash); ok {
+		return replacement, true
 	}
-	rewind, ok := s.rewindFacts[hash]
-	s.mu.Unlock()
-	if ok {
+	if rewind, ok := s.facts.RewindFact(hash); ok {
 		return rewind, true
 	}
 	return Fact{}, false
 }
 
 func (s *Shim) isRewindFact(hash common.Hash) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, ok := s.rewindFacts[hash]
-	return ok
+	return s.facts.IsRewindFact(hash)
 }
 
 func (s *Shim) recordRewindFact(fact Fact) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.rewindFacts[fact.Hash] = fact
+	s.facts.RecordRewindFact(fact)
 }
 
 func (s *Shim) clearRewindFacts() {
-	s.mu.Lock()
-	hashes := make([]common.Hash, 0, len(s.rewindFacts))
-	for hash := range s.rewindFacts {
-		hashes = append(hashes, hash)
-	}
-	s.rewindFacts = make(map[common.Hash]Fact)
-	s.mu.Unlock()
-	for _, hash := range hashes {
-		s.facts.DeleteRendering(hash)
-	}
+	s.facts.ClearRewindFacts()
 }
 
 // parentOf returns a block's parent facts. A block whose parent has fallen out of the fact window is
@@ -310,9 +275,8 @@ func (s *Shim) ref(fact Fact) (eth.L2BlockRef, error) {
 
 // head is the block the head cursor points at, defaulting to genesis.
 //
-// A fresh shim genuinely IS at genesis: proven history is re-derived from L1 on every restart and
-// never persisted (PLAN.md), so an in-memory engine with no forkchoice yet has no chain. Saying so
-// is what makes the CL re-derive rather than trust a cursor nobody set.
+// A brand-new shim genuinely IS at genesis. A persistent standalone EL restores its cursor before
+// constructing the shim, while a zero-value test store has no forkchoice opinion yet.
 func (s *Shim) head() Fact {
 	c := s.facts.Cursors()
 	if c.Unsafe == (eth.L2BlockRef{}) {

@@ -485,7 +485,20 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 	defer l.channelMgrMutex.Unlock()
 
 	// Decide appropriate actions
-	syncActions, outOfSync := computeSyncActions(*syncStatus, l.prevCurrentL1, l.channelMgr.blocks, l.channelMgr.channelQueue, l.Log)
+	previousL1 := l.prevCurrentL1
+	if syncStatus.CurrentL1.Number < previousL1.Number {
+		// A normal batcher waits for the CL derivation cursor to regain its old height before it
+		// changes channel state. A proof-carried chain cannot always do that: after a deep L1 reorg
+		// its verifier needs the batcher to republish the private unsafe suffix before derivation can
+		// advance. The proof encoder opts into breaking that circular wait. computeSyncActions still
+		// performs the ordinary safe-head comparison, clear and block reload below.
+		if recovery, ok := l.blockEnricher.(interface{ AllowsL1RewindRecovery() bool }); ok && recovery.AllowsL1RewindRecovery() {
+			l.Log.Warn("proof batcher observed an L1 rewind; reloading from local-safe without waiting for the proof cursor to catch up",
+				"previousL1", previousL1, "currentL1", syncStatus.CurrentL1)
+			previousL1 = syncStatus.CurrentL1
+		}
+	}
+	syncActions, outOfSync := computeSyncActions(*syncStatus, previousL1, l.channelMgr.blocks, l.channelMgr.channelQueue, l.Log)
 
 	if outOfSync {
 		// If the sequencer is out of sync

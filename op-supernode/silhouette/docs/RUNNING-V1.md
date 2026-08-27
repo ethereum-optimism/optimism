@@ -27,14 +27,17 @@ checkable locally, which is how §5 asks you to check it.
                                      │             L1                  │
                                      └─────┬───────────────────────────┘
                                            │
-                            ┌──────────────▼───────────────────────────┐
-                            │ VERIFIER SUPERNODE                       │
-                            │  A: ordinary chain, derived from L1      │
-                            │  P: silhouette chain — no stateful EL.   │
-                            │     Proof source + magic EL serving      │
-                            │     proven facts.                         │
-                            │  stock interop judge over both.          │
-                            └──────────────────────────────────────────┘
+                  ┌──────────────────▼────────────────────┐
+                  │ op-silhouette-el                      │
+                  │ persistent proof-derived public view │
+                  └──────────────────┬────────────────────┘
+                                     │ Engine + interop-facts RPC
+                            ┌────────▼───────────────────────────────┐
+                            │ VERIFIER SUPERNODE                    │
+                            │ A: ordinary EL                        │
+                            │ P: op-silhouette-el in the EL slot    │
+                            │ stock derivation + interop judge      │
+                            └───────────────────────────────────────┘
 ```
 
 Three things to notice, because they are the deliverable:
@@ -42,9 +45,9 @@ Three things to notice, because they are the deliverable:
 1. **P uses the ordinary op-batcher and ordinary batch inbox.** It reads real private blocks and
    their receipts. Its terminal encoder emits the proof envelope followed by a standard carrier
    channel for the same blocks with user transactions removed. Deposits remain in the carrier.
-2. **The verifier has no stateful execution client for P.** It points at `op-silhouette-el`; that
-   in-memory Engine API learns P only from signed blobs and delegates replacement construction to
-   P's private EL.
+2. **The verifier swaps only P's EL component.** It points at `op-silhouette-el`, a separate,
+   persistent Engine API that learns P only from signed blobs and delegates replacement construction
+   to P's private EL. The supernode owns no proof walker or duplicate fact table.
 3. **A is unmodified.** No fork, no plugin, no special casing. It is a stock chain that happens to
    have a silhouette chain in its dependency set.
 
@@ -133,20 +136,23 @@ to a LightCL-based sequencing node, not to `op-supernode`.
 
 ## 3. Run
 
-### The magic EL
+### The Silhouette EL
 
 ```
 op-silhouette-el --l1 $L1_RPC --l1.beacon $L1_BEACON --supernode $SUPERNODE_RPC \
   --rollup-config rollup-p.json --verifier-config verifier-p.json \
+  --data-dir /var/lib/op-silhouette-el \
   --replacement-engine $PRIVATE_ENGINE_AUTH_RPC \
   --replacement-engine.jwt-secret jwt.txt \
   --rpc.addr 0.0.0.0 --rpc.port 9545
 ```
 
-This is the proof-backed, in-memory EL. It independently watches the authenticated proof stream and
-serves Engine/eth RPC. It executes no EVM code and stores no persistent chain state. The replacement
-engine is the private chain's normal EL; it is used only when stock interop invalidation asks op-node
-to build a Holocene deposits-only replacement. On accelerated devnets, pass the same
+This is the proof-backed, persistent EL. It independently watches the authenticated proof stream and
+serves Engine/eth RPC. It executes no EVM code. Its data directory atomically stores accepted facts,
+batch/L1 provenance, public renderings, forkchoice labels, denial/replacement state, and the L1 walker
+checkpoint, so a restart resumes without replaying the chain. The replacement engine is the private
+chain's normal EL; it is used only when stock interop invalidation asks op-node to build a Holocene
+deposits-only replacement. On accelerated devnets, pass the same
 `--l1.beacon.slot-duration-override` to this process and `op-supernode`.
 
 ### The verifier supernode
@@ -165,15 +171,14 @@ Two invocation details that are not obvious and cost time if guessed:
   `--dependency-set`**, because op-node's own config check runs before the supernode applies the
   shared set. The "virtual node flag is ignored" warning is expected; the supernode-level value wins.
 
-Read the startup line and check two words:
+Read the EL and supernode startup lines and check the declared client and chain:
 
 ```
-assembled silhouette chain  chain=424247 wireVersion=4 dependenciesVerified=true proofType=attested …
+connected standalone silhouette EL chain=424247 client="op-silhouette-el/v1 …"
 ```
 
-These are the only two properties of a silhouette verifier invisible from the outside. Every proving
-system and all supported wire versions derive the chain, serve the same roots and report the same heads. Only
-these say what an accepted batch **meant**.
+The full trust posture and wire version remain explicit in `verifier-p.json`; the EL refuses an
+incompatible config before opening its RPC listener.
 
 ### The producer batcher
 
@@ -225,7 +230,7 @@ also exposes its sender, destination inbox, nonce, fees, blob commitments, and L
 Each of these has actually happened. They are here rather than in a postmortem because each one
 presents as a healthy system.
 
-1. The private chain must be sequenced by a LightCL op-node. The verifier supernode is verifier-only
+1. The private chain must be sequenced by a LightCL op-node. The supernode is verifier-only
    and rejects attempts to sequence the silhouette chain.
 2. The LightCL follows the verifier supernode's chain-scoped rollup route. Its own EL remains the
    private, full execution engine; this is also where stock Holocene replacement blocks are built.
@@ -235,6 +240,8 @@ presents as a healthy system.
 4. A verifier accepts exactly one wire version, and a rotation is two verifiers, not one lenient
    one. A node that accepted both would silently apply the weaker posture—dependencies not
    checked—to a chain whose operator believes it runs the stronger one.
+5. `op-silhouette-el` owns its data directory exclusively. Give it persistent storage and restart
+   that component in place; do not share the directory with `op-supernode` or another EL replica.
 
 ---
 

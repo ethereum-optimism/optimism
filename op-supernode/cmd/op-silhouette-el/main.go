@@ -1,5 +1,5 @@
-// Command op-silhouette-el runs the proof-backed, in-memory execution-layer shim used by
-// silhouette verifier nodes. It executes no EVM code and persists no chain state.
+// Command op-silhouette-el runs the proof-backed execution-layer used by Silhouette verifier
+// nodes. It executes no EVM code and durably stores its proof-derived public chain view.
 package main
 
 import (
@@ -38,7 +38,7 @@ func main() {
 	oplog.SetupDefaults()
 	app := cli.NewApp()
 	app.Name = "op-silhouette-el"
-	app.Usage = "Proof-backed in-memory EL for silhouette verifier nodes"
+	app.Usage = "Proof-backed persistent EL for silhouette verifier nodes"
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
 	app.Flags = cliapp.ProtectFlags(append([]cli.Flag{
 		&cli.StringFlag{Name: "l1", Required: true, EnvVars: []string{envPrefix + "_L1"}},
@@ -47,6 +47,7 @@ func main() {
 		&cli.StringFlag{Name: "supernode", Required: true, EnvVars: []string{envPrefix + "_SUPERNODE"}},
 		&cli.PathFlag{Name: "rollup-config", Required: true, TakesFile: true, EnvVars: []string{envPrefix + "_ROLLUP_CONFIG"}},
 		&cli.PathFlag{Name: "verifier-config", Required: true, TakesFile: true, EnvVars: []string{envPrefix + "_VERIFIER_CONFIG"}},
+		&cli.PathFlag{Name: "data-dir", Required: true, EnvVars: []string{envPrefix + "_DATA_DIR"}},
 		&cli.StringFlag{Name: "replacement-engine", Required: true, EnvVars: []string{envPrefix + "_REPLACEMENT_ENGINE"}},
 		&cli.PathFlag{Name: "replacement-engine.jwt-secret", Required: true, TakesFile: true, EnvVars: []string{envPrefix + "_REPLACEMENT_ENGINE_JWT_SECRET"}},
 		&cli.StringFlag{Name: "rpc.addr", Value: "127.0.0.1", EnvVars: []string{envPrefix + "_RPC_ADDR"}},
@@ -101,7 +102,15 @@ func run(cliCtx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("create proof verifier: %w", err)
 	}
-	facts := &silhouette.FactStore{}
+	facts, err := silhouette.OpenFactStore(cliCtx.Path("data-dir"))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := facts.Close(); err != nil {
+			logger.Error("failed to close silhouette EL database", "err", err)
+		}
+	}()
 	supernodeRPC, err := client.NewRPC(cliCtx.Context, logger, cliCtx.String("supernode"),
 		client.WithLazyDial(), client.WithCallTimeout(10*time.Second))
 	if err != nil {

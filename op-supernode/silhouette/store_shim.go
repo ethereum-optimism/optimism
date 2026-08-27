@@ -15,8 +15,8 @@ import (
 // it served for a block, and where the safety labels stand. G4's sequencer-side label source reads
 // the cursors; the superroot composition reads the renderings.
 //
-// Both tables are windows over the frontier, like the fact table itself, and both are derived: a
-// restart re-derives the facts from L1 and re-renders the blocks as the CL replays the build dance.
+// Both tables are windows over the frontier, like the fact table itself, and are persisted by a
+// standalone EL so restart preserves the exact public chain view and safety labels.
 
 // Rendering is the public rendering of one L2 block: the header this node serves for it and the
 // transaction bytes the CL supplied when the block was built.
@@ -85,6 +85,47 @@ func (f *FactStore) Cursors() Cursors {
 	return f.cursors
 }
 
+// ClampCursorsTo moves labels that named discarded history back to the surviving proven head.
+//
+// The stock CL normally performs this move with forkchoiceUpdated after its reset walk. There is a
+// small but important ordering constraint here, though: that walk first asks the EL for its current
+// safe/finalized labels. An L1-driven fact rewind has already made an orphaned label unservable by
+// then, so leaving it in the cursor table traps the CL in a reset loop before it can send the
+// correcting forkchoice update. Clamping only labels whose hash is no longer canonical gives that
+// stock walk a valid starting point; labels that still name surviving history are left untouched.
+func (f *FactStore) ClampCursorsTo(head Fact) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	headRef := eth.L2BlockRef{
+		Hash:           head.Hash,
+		Number:         head.Number,
+		ParentHash:     head.ParentHash,
+		Time:           head.Timestamp,
+		L1Origin:       head.L1Origin,
+		SequenceNumber: head.SeqNumber,
+	}
+	canonical := func(ref eth.L2BlockRef) bool {
+		if ref == (eth.L2BlockRef{}) {
+			return true
+		}
+		if ref.Hash == head.Hash && ref.Number == head.Number {
+			return true // the configured anchor is intentionally not in byHash
+		}
+		number, ok := f.byHash[ref.Hash]
+		return ok && number == ref.Number && number <= head.Number
+	}
+	if !canonical(f.cursors.Unsafe) {
+		f.cursors.Unsafe = headRef
+	}
+	if !canonical(f.cursors.Safe) {
+		f.cursors.Safe = headRef
+	}
+	if !canonical(f.cursors.Finalized) {
+		f.cursors.Finalized = headRef
+	}
+}
+
 // dropRenderingsAbove forgets renderings of blocks above `number`, and is called from the two places
 // history can retreat: an L1-driven rewind of the facts, and a forkchoice update to an older head.
 //
@@ -105,4 +146,73 @@ func (f *FactStore) DropRenderingsAbove(number uint64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.dropRenderingsAbove(number)
+}
+
+// RecordReplacement retains a real deposits-only block until the corrected proof makes it an
+// ordinary canonical fact. It is engine-visible state and is therefore part of the durable store.
+func (f *FactStore) RecordReplacement(fact Fact) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.replacementsByHash == nil {
+		f.replacementsByHash = make(map[common.Hash]Fact)
+	}
+	f.replacementsByHash[fact.Hash] = fact
+	if f.replacementsByNum == nil {
+		f.replacementsByNum = make(map[uint64]Fact)
+	}
+	f.replacementsByNum[fact.Number] = fact
+}
+
+func (f *FactStore) ReplacementByNumber(number uint64) (Fact, bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	fact, ok := f.replacementsByNum[number]
+	return fact, ok
+}
+
+func (f *FactStore) ReplacementByHash(hash common.Hash) (Fact, bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	replacement, ok := f.replacementsByHash[hash]
+	if !ok {
+		return Fact{}, false
+	}
+	// A corrected proof may have occupied this height while a caller retained the temporary hash.
+	// Once that happens only the canonical proof fact is visible.
+	if canonical, exists := f.byNumberLocked(replacement.Number); exists && canonical.Hash != hash {
+		return Fact{}, false
+	}
+	return replacement, true
+}
+
+func (f *FactStore) RecordRewindFact(fact Fact) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.rewindFacts == nil {
+		f.rewindFacts = make(map[common.Hash]Fact)
+	}
+	f.rewindFacts[fact.Hash] = fact
+}
+
+func (f *FactStore) RewindFact(hash common.Hash) (Fact, bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	fact, ok := f.rewindFacts[hash]
+	return fact, ok
+}
+
+func (f *FactStore) IsRewindFact(hash common.Hash) bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	_, ok := f.rewindFacts[hash]
+	return ok
+}
+
+func (f *FactStore) ClearRewindFacts() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for hash := range f.rewindFacts {
+		delete(f.renderings, hash)
+	}
+	f.rewindFacts = nil
 }

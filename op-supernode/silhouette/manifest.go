@@ -18,7 +18,7 @@ import (
 //
 // It is a separate file rather than a set of per-chain CLI flags because the thing being declared
 // is not a tuning knob: it says that a chain in the supernode's chains map uses a proof-backed
-// magic EL and that its history arrives as proofs. The private producer still has a normal EL and
+// Silhouette EL and that its history arrives as proofs. The private producer still has a normal EL and
 // op-batcher. This deployment statement belongs in a file an operator can diff and a runbook can
 // name.
 //
