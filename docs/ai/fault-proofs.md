@@ -80,7 +80,7 @@ from the normal `go test ./...` suite — they only run under kona-host.
 
 > [!NOTE]
 > These tests cover **op-node as well as kona-client**. The chain is built and derived by op-node
-> — the action-test `L2Sequencer`/`L2Verifier` drives `op-node/rollup/driver` through
+> — the action-test `L2Sequencer`/`L2Verifier` drives `op-node/rollup/derive` through
 > `PreparePayloadAttributes` → `PayloadToSystemConfig` — and the `RunFaultProofProgram` step then
 > has kona-client re-derive and prove that same chain. So a single test exercises both
 > consensus-layer implementations of the state transition.

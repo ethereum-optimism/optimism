@@ -55,7 +55,7 @@ field that comes from the registry means wiring it through **every** ingestion e
 (`DeployConfig.RollupConfig`) path:
 
 - **op-node (Go)**: the TOML-decoded `superchain.HardforkConfig` (`op-core/superchain`) **and**
-  the `superchain.ChainConfig` → `rollup.Config` conversion in `op-node/rollup/superchain.go`
+  the `superchain.ChainConfig` → `rollup.Config` conversion in `op-node/superchain/superchain.go`
   (`applyHardforks` / `rollupConfigFromRegistry`).
 - **kona (Rust)**: `HardForkConfig` / `ChainConfig::as_rollup_config`
   (`rust/kona/crates/protocol/genesis`).

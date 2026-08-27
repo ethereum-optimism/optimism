@@ -38,9 +38,9 @@ Notes that matter in practice:
   run on fast paths; for every other suite, look for an open flake issue instead. A rerun
   that hides a real regression costs more than the minutes it saved, and a confirmed
   flake needs an issue, not a silent retry. Reruns through the CircleCI v2 API need a
-  personal API token in `CIRCLE_TOKEN` — the same variable
-  [ci-config-review.md](ci-config-review.md) uses for `circleci config validate --org`;
-  the `CIRCLE_API_TOKEN` in `.circleci/` is the in-job context token, not this one. For
+  personal API token in `CIRCLE_TOKEN` — not the `CIRCLECI_CLI_TOKEN` the CLI reads for
+  [ci-config-review.md](ci-config-review.md)'s `circleci config validate --org-slug`, and
+  not the `CIRCLE_API_TOKEN` in `.circleci/`, which is the in-job context token. For
   flakes in `op-acceptance-tests/`/`op-devstack/`,
   [flake-prevention.md](flake-prevention.md) catalogues the recurring causes.
 
@@ -77,15 +77,15 @@ it `//go:embed`s. The zip is **gitignored** and built only by the `prep-supercha
 `op-core/superchain` linker must provision it. The linker set is large and grows silently
 — op-node and the other binaries, but also `packages/contracts-bedrock/scripts/go-ffi`,
 `op-e2e`, `op-acceptance-tests`, `op-deployer`, and the `kona`/`op-reth` Go tests — so a
-**Go-only** change can red-wash unrelated-looking jobs (contracts-bedrock, fuzz-golang,
-rust-e2e) all at compile time. It passes locally and in review because the developer
-already has the zip on disk (see [go-dev.md](go-dev.md)).
+**Go-only** change can red-wash unrelated-looking jobs (contracts-bedrock, rust-e2e)
+all at compile time. It passes locally and in review because the developer already
+has the zip on disk (see [go-dev.md](go-dev.md)).
 
 Provision the bundle in the failing job:
 
 - **`main.yml` jobs** (the `prep-superchain` job lives in that workflow): add
   `prep-superchain` to the job's `requires` and attach its workspace
-  (`uses_artifacts: true`) — the same pattern `go-tests` uses.
+  (`attach_workspace`) — the same pattern `go-tests` uses.
 - **Other workflows** (`rust-ci.yml`, `rust-e2e.yml` — no `prep-superchain` job there):
   add an in-job `just build-superchain-go` step (verify mode: regenerates from the
   superchain-registry submodule and asserts the committed `.sha256`).
