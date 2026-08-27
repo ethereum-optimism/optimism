@@ -230,7 +230,11 @@ impl HintHandler for InteropHintHandler {
                     .or_else(|| ROLLUP_CONFIGS.get(&chain_id).cloned())
                     .map(Arc::new)
                     .ok_or_else(|| anyhow!("No rollup config found for chain ID: {chain_id}"))?;
-                let block_number = rollup_config.block_number_from_timestamp(timestamp);
+                let block_number = rollup_config
+                    .block_number_from_timestamp(timestamp)
+                    .ok_or_else(|| anyhow!(
+                        "Chain ID {chain_id} produces multiple blocks per timestamp; cannot resolve timestamp {timestamp} to an L2 block number"
+                    ))?;
 
                 // Fetch the header for the L2 head block.
                 let raw_header: Bytes = l2_provider

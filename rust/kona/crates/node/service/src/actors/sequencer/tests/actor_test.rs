@@ -291,3 +291,57 @@ async fn test_chain_without_siblings_builds_one_block_per_block_time_at_the_dead
         "the slots that follow wait for their own deadline too"
     );
 }
+
+/// Every gauge in `snapshot`, in seconds, by metric name. Snapshotting is destructive, so a test
+/// reading more than one gauge has to read them all from the same snapshot.
+#[cfg(feature = "metrics")]
+fn gauges_in_seconds(
+    snapshot: metrics_util::debugging::Snapshot,
+) -> std::collections::HashMap<String, f64> {
+    use metrics_util::debugging::DebugValue;
+    snapshot
+        .into_vec()
+        .into_iter()
+        .filter_map(|(ckey, _unit, _desc, value)| match value {
+            DebugValue::Gauge(seconds) => {
+                Some((ckey.key().name().to_string(), seconds.into_inner()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(feature = "metrics")]
+#[tokio::test(start_paused = true)]
+async fn test_seal_metrics_report_the_round_trip_and_the_readiness_wait() {
+    /// What the engine reports as the seal proper, leaving the rest of the round trip to the wait.
+    const SEAL_DURATION: Duration = Duration::from_millis(250);
+
+    let head_timestamp = head_timestamp_ahead_of_clock();
+    let mut fixture = sequencer_fixture(head_timestamp, 1);
+    {
+        let mut engine = fixture.engine.lock().unwrap();
+        // Nothing is ever ready, so the seal waits out the whole slot deadline.
+        engine.seals_immediately = false;
+        engine.seal_duration = SEAL_DURATION;
+    }
+
+    let recorder = metrics_util::debugging::DebuggingRecorder::new();
+    let snapshotter = recorder.snapshotter();
+    let guard = metrics::set_default_local_recorder(&recorder);
+    fixture.actor.run_slot().await.expect("the slot seals at its deadline");
+    drop(guard);
+
+    let gauges = gauges_in_seconds(snapshotter.snapshot());
+    let round_trip = gauges[crate::Metrics::SEQUENCER_BLOCK_BUILDING_SEAL_TASK_DURATION];
+    let await_ready = gauges[crate::Metrics::SEQUENCER_BLOCK_BUILDING_AWAIT_READY_DURATION];
+
+    assert!(
+        round_trip >= Duration::from_secs(30).as_secs_f64(),
+        "the seal gauge covers the whole round trip, including the wait, {round_trip}"
+    );
+    assert!(
+        (round_trip - await_ready - SEAL_DURATION.as_secs_f64()).abs() < 1e-9,
+        "the wait gauge is the round trip minus the seal the engine reported, {round_trip} vs {await_ready}"
+    );
+}

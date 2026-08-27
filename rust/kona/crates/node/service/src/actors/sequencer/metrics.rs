@@ -70,6 +70,15 @@ pub(super) fn update_seal_duration_metrics(duration: Duration) {
 }
 
 #[inline]
+pub(super) fn update_await_ready_duration_metrics(duration: Duration) {
+    kona_macros::set!(
+        gauge,
+        crate::Metrics::SEQUENCER_BLOCK_BUILDING_AWAIT_READY_DURATION,
+        duration
+    );
+}
+
+#[inline]
 pub(super) fn update_total_transactions_sequenced(transaction_count: u64) {
     #[cfg(feature = "metrics")]
     metrics::counter!(crate::Metrics::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED)

@@ -9,9 +9,9 @@ use crate::{
             conductor::Conductor,
             error::SequencerActorError,
             metrics::{
-                update_attributes_build_duration_metrics, update_block_build_duration_metrics,
-                update_conductor_commitment_duration_metrics, update_seal_duration_metrics,
-                update_total_transactions_sequenced,
+                update_attributes_build_duration_metrics, update_await_ready_duration_metrics,
+                update_block_build_duration_metrics, update_conductor_commitment_duration_metrics,
+                update_seal_duration_metrics, update_total_transactions_sequenced,
             },
             origin_selector::{L1OriginSelectorError, OriginSelector},
         },
@@ -351,6 +351,8 @@ where
         unsealed_payload_handle: &UnsealedPayloadHandle,
         ready_deadline: Option<Instant>,
     ) -> Result<SealedBlock, SequencerActorError> {
+        let seal_request_start = Instant::now();
+
         // Send the seal request to the engine to seal the unsealed block.
         let SealedPayload { payload, block, seal_duration } = self
             .engine_client
@@ -361,7 +363,11 @@ where
             )
             .await?;
 
-        update_seal_duration_metrics(seal_duration);
+        // The round trip covers the readiness wait as well; the engine reports the seal alone, so
+        // the difference is what the sequencer spent waiting for the payload to become ready.
+        let seal_request_duration = seal_request_start.elapsed();
+        update_seal_duration_metrics(seal_request_duration);
+        update_await_ready_duration_metrics(seal_request_duration.saturating_sub(seal_duration));
 
         let payload_transaction_count =
             unsealed_payload_handle.attributes_with_parent.count_transactions();

@@ -82,6 +82,7 @@ alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }
 alloy-consensus = { workspace = true, features = ["arbitrary"] }
 op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
 kona-derive = {workspace = true, features = ["test-utils"]}
+metrics-util = { workspace = true, features = ["debugging"] }
 
 [features]
 default = []

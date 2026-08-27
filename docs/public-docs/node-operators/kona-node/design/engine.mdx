@@ -123,13 +123,30 @@ pub struct SealTask<EngineClient_: EngineClient> {
     pub payload_id: PayloadId,
     /// The OpAttributesWithParent to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
+    /// When set, the payload is only fetched once the execution layer reports it worth sealing
+    /// or this instant passes, whichever comes first.
+    pub ready_deadline: Option<Instant>,
     /// Whether or not the payload was derived, or created by the sequencer.
     pub is_attributes_derived: bool,
-    /// An optional sender for the built OpExecutionPayloadEnvelope or the
-    /// SealTaskError that occurred during processing.
-    pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
+    /// How this seal is coupled to the build that produced `payload_id`.
+    pub coupling: BuildSealCoupling,
+    /// An optional sender to convey success/failure result of the built
+    /// OpExecutionPayloadEnvelope after the block has been built, imported, and canonicalized
+    /// or the SealTaskError that occurred during processing.
+    pub result_tx: Option<mpsc::Sender<Result<SealedPayload, SealTaskError>>>,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 ```
+
+The `SealedPayload` sent over `result_tx` carries the execution payload, the sealed block as the
+engine decoded it while importing, and how long sealing took — fetching and importing the payload,
+excluding any wait for it to become ready. That wait is what `ready_deadline` bounds: with a
+deadline set, the task first asks the execution layer whether the payload is worth sealing
+(`engine_awaitPayloadReadyV1`) and only fetches it once the answer arrives or the deadline passes.
+The sequencer sets the deadline on chains that may build several blocks per block time, so a block
+is sealed as soon as it is worth sealing rather than at a fixed cadence; without one, the task
+fetches the payload immediately.
 
 #### InsertTask
 

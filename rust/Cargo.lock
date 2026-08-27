@@ -7373,6 +7373,7 @@ dependencies = [
  "libp2p",
  "libp2p-stream",
  "metrics",
+ "metrics-util",
  "mockall",
  "op-alloy-consensus",
  "op-alloy-network",
