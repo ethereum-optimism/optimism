@@ -236,7 +236,8 @@ impl OpNode {
         let multi_block_policy = MultiBlockPolicy::new(
             args.multi_block_min_txs,
             args.multi_block_min_build_time_ms.map(Duration::from_millis),
-        );
+        )
+        .with_seal_empty(args.multi_block_seal_empty);
         Self {
             args,
             da_config: OpDAConfig::default(),
@@ -1848,6 +1849,24 @@ mod tests {
             cfg.multi_block_policy.is_ready(id),
             "builder_config must carry the node's live readiness registry, not a detached copy"
         );
+    }
+
+    /// The seal-empty opt-in lives on the policy, not on the args the builder reads, so a node
+    /// that dropped it would silently keep the default one-block-per-block-time cadence.
+    #[test]
+    fn multi_block_seal_empty_arg_reaches_the_policy() {
+        let args = RollupArgs {
+            multi_block_min_build_time_ms: Some(100),
+            multi_block_seal_empty: true,
+            ..Default::default()
+        };
+        assert!(OpNode::new(args).builder_config().multi_block_policy.seals_empty());
+
+        let node = OpNode::new(RollupArgs {
+            multi_block_min_build_time_ms: Some(100),
+            ..Default::default()
+        });
+        assert!(!node.builder_config().multi_block_policy.seals_empty());
     }
 
     /// The other half of the same registry: the engine API answers

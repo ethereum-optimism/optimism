@@ -265,6 +265,18 @@ pub struct RollupArgs {
     )]
     pub multi_block_min_build_time_ms: Option<u64>,
 
+    /// Let `--rollup.multi-block.min-build-time` seal blocks that hold no user transactions.
+    ///
+    /// The build-time threshold then makes every payload ready, turning it into a fixed block
+    /// cadence that an idle chain follows too. Off by default: without it an idle sequencer
+    /// produces one block per block time instead of a group of empty blocks.
+    #[arg(
+        long = "rollup.multi-block.seal-empty",
+        default_value_t = false,
+        requires = "multi_block_min_build_time_ms"
+    )]
+    pub multi_block_seal_empty: bool,
+
     /// A URL pointing to a secure websocket subscription that streams out flashblocks.
     ///
     /// If given, the flashblocks are received to build pending block. All request with "pending"
@@ -342,6 +354,7 @@ impl Default for RollupArgs {
             max_uncompressed_block_size: None,
             multi_block_min_txs: None,
             multi_block_min_build_time_ms: None,
+            multi_block_seal_empty: false,
             flashblocks_url: None,
             flashblock_consensus: false,
             proofs_history: false,
@@ -378,6 +391,7 @@ mod tests {
     fn test_parse_multi_block_policy_args() {
         assert_eq!(RollupArgs::default().multi_block_min_txs, None);
         assert_eq!(RollupArgs::default().multi_block_min_build_time_ms, None);
+        assert!(!RollupArgs::default().multi_block_seal_empty);
 
         let expected_args = RollupArgs {
             multi_block_min_txs: Some(4),
@@ -393,6 +407,36 @@ mod tests {
         ])
         .args;
         assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_multi_block_seal_empty_arg() {
+        let expected_args = RollupArgs {
+            multi_block_min_build_time_ms: Some(50),
+            multi_block_seal_empty: true,
+            ..Default::default()
+        };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.multi-block.min-build-time",
+            "50",
+            "--rollup.multi-block.seal-empty",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    /// Sealing empty payloads only extends the build-time threshold, so on its own the flag would
+    /// silently do nothing.
+    #[test]
+    fn test_multi_block_seal_empty_requires_min_build_time() {
+        assert!(
+            CommandParser::<RollupArgs>::try_parse_from([
+                "reth",
+                "--rollup.multi-block.seal-empty"
+            ])
+            .is_err()
+        );
     }
 
     /// A zero threshold is satisfied by the very first build, which would freeze every payload

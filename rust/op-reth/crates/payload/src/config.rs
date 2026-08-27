@@ -75,6 +75,8 @@ pub struct MultiBlockPolicy {
     min_txs: Option<u64>,
     /// Ready once a payload holding user transactions has been building for at least this long.
     min_build_time: Option<Duration>,
+    /// Whether the build-time threshold also applies to payloads holding no user transactions.
+    seal_empty: bool,
     jobs: Arc<Jobs>,
 }
 
@@ -117,7 +119,23 @@ impl MultiBlockPolicy {
     /// Creates a policy from its thresholds. `None` disables a threshold; a policy with no
     /// threshold at all is never satisfied.
     pub fn new(min_txs: Option<u64>, min_build_time: Option<Duration>) -> Self {
-        Self { min_txs, min_build_time, jobs: Default::default() }
+        Self { min_txs, min_build_time, seal_empty: false, jobs: Default::default() }
+    }
+
+    /// Extends the build-time threshold to payloads that hold no user transactions.
+    ///
+    /// An idle sequencer then produces blocks at the threshold's cadence — up to as many blocks
+    /// per block time as the consensus layer allows — instead of one block per block time. Off by
+    /// default, because a chain that sits idle otherwise fills every block time with a group of
+    /// empty blocks.
+    pub const fn with_seal_empty(mut self, seal_empty: bool) -> Self {
+        self.seal_empty = seal_empty;
+        self
+    }
+
+    /// Returns whether the build-time threshold applies to payloads holding no user transactions.
+    pub const fn seals_empty(&self) -> bool {
+        self.seal_empty
     }
 
     /// Returns whether any threshold is configured.
@@ -221,10 +239,12 @@ impl MultiBlockPolicy {
     }
 
     fn evaluate(&self, job: &JobState) -> Readiness {
-        // Build time alone must never seal an empty payload: an idle sequencer would otherwise
-        // fill every block time with a group of empty siblings.
-        let time_ready_at =
-            self.min_build_time.filter(|_| job.has_user_txs).map(|min| job.started + min);
+        // Build time alone seals an empty payload only under the seal-empty policy: otherwise an
+        // idle sequencer would fill every block time with a group of empty siblings.
+        let time_ready_at = self
+            .min_build_time
+            .filter(|_| self.seal_empty || job.has_user_txs)
+            .map(|min| job.started + min);
         Readiness {
             ready: job.ready || time_ready_at.is_some_and(|at| Instant::now() >= at),
             time_ready_at,
@@ -439,6 +459,32 @@ mod tests {
 
         // One user transaction is enough once the threshold has elapsed, even far below min-txs.
         assert!(policy.record_built_payload(id, 1));
+    }
+
+    /// Opting in to sealing empty payloads turns the build-time threshold into a fixed cadence:
+    /// an idle sequencer produces a group of blocks per block time instead of a single block.
+    #[tokio::test]
+    async fn multi_block_policy_seal_empty_seals_an_empty_payload_at_min_build_time() {
+        let policy =
+            MultiBlockPolicy::new(None, Some(Duration::from_millis(1))).with_seal_empty(true);
+        let id = PayloadId::new([8; 8]);
+
+        assert!(policy.seals_empty());
+        policy.begin_build(id, true);
+        assert!(policy.wait_ready(id, Duration::from_secs(30)).await);
+        assert!(policy.record_built_payload(id, 0), "an empty payload is worth sealing here");
+    }
+
+    /// Sealing empty payloads is a modifier on the build-time threshold, not a threshold of its
+    /// own, so on its own it leaves the consensus layer sealing at its deadline.
+    #[tokio::test]
+    async fn multi_block_policy_seal_empty_alone_is_never_ready() {
+        let policy = MultiBlockPolicy::new(Some(2), None).with_seal_empty(true);
+        let id = PayloadId::new([9; 8]);
+
+        policy.begin_build(id, true);
+        assert!(!policy.record_built_payload(id, 0));
+        assert!(!policy.wait_ready(id, Duration::from_millis(20)).await);
     }
 
     /// A payload id is a hash of the attributes and the parent, so a consensus layer that
