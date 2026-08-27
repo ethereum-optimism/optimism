@@ -1,0 +1,10 @@
+{
+  "eth-lockbox-shared-throttled": "214324",
+  "eth-lockbox-shared-unthrottled": "199484",
+  "eth-lockbox-throttled": "77021",
+  "eth-lockbox-unthrottled": "62181",
+  "l1-standard-bridge-throttled": "124119",
+  "l1-standard-bridge-unthrottled": "106877",
+  "optimism-portal-throttled": "171335",
+  "optimism-portal-unthrottled": "156495"
+}

@@ -49,7 +49,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @notice Thrown when an ETH withdrawal exceeds the available withdrawal capacity.
     error ETHLockbox_WithdrawalThrottled(uint256 requestedAmount, uint256 availableCapacity, uint256 totalCapacity);
 
-    /// @notice Withdrawal throttle state for ETH held by the lockbox.
+    /// @notice Logical withdrawal throttle state for ETH held by the lockbox.
     struct WithdrawalThrottleConfig {
         uint256 capacity;
         uint256 available;
@@ -58,6 +58,12 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
         uint64 refillRemainder;
         uint16 maxBps;
         bool enabled;
+    }
+
+    /// @notice Packed withdrawal throttle storage for ETH held by the lockbox.
+    struct WithdrawalThrottleState {
+        uint256 config;
+        uint256 bucket;
     }
 
     /// @notice Emitted when ETH is locked in the lockbox by an authorized portal.
@@ -114,7 +120,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     mapping(IETHLockbox => bool) public authorizedLockboxes;
 
     /// @notice Withdrawal throttle state for ETH held by the lockbox.
-    WithdrawalThrottleConfig internal _withdrawalThrottle;
+    WithdrawalThrottleState internal _withdrawalThrottle;
 
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
@@ -163,7 +169,8 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     }
 
     /// @notice Configures ETH withdrawal capacity as a percentage of the current lockbox balance.
-    ///         Reconfiguration preserves accrued capacity and clamps it to the new maximum.
+    ///         Reconfiguration preserves accrued whole-unit capacity, resets the fractional
+    ///         remainder, and clamps availability to the new maximum.
     /// @param _maxBps       Maximum withdrawable stock in basis points.
     /// @param _refillPeriod Time in seconds for the bucket to refill from empty to full.
     function setWithdrawalThrottle(uint16 _maxBps, uint64 _refillPeriod) external {
@@ -174,21 +181,28 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
         }
         if (_refillPeriod == 0) revert ETHLockbox_InvalidWithdrawalThrottlePeriod();
 
-        WithdrawalThrottleConfig storage throttle = _withdrawalThrottle;
-        uint256 available;
-        if (throttle.enabled) (available,) = _availableWithdrawalCapacity();
-        else available = type(uint256).max;
+        WithdrawalThrottleState storage throttle = _withdrawalThrottle;
+        uint256 oldConfig = throttle.config;
         uint256 stockSnapshot = address(this).balance;
-        uint256 capacity = WithdrawalThrottle.capacity(stockSnapshot, _maxBps);
+        uint128 available;
+        if (WithdrawalThrottle.enabled(oldConfig)) {
+            uint128 liveOldCapacity = WithdrawalThrottle.capacity(stockSnapshot, WithdrawalThrottle.maxBps(oldConfig));
+            (available,) = WithdrawalThrottle.sync(
+                WithdrawalThrottle.capacity(oldConfig),
+                throttle.bucket,
+                WithdrawalThrottle.refillPeriod(oldConfig),
+                liveOldCapacity,
+                block.timestamp
+            );
+        } else {
+            available = type(uint128).max;
+        }
+        uint128 capacity = WithdrawalThrottle.capacity(stockSnapshot, _maxBps);
         if (available > capacity) available = capacity;
 
-        throttle.capacity = capacity;
-        throttle.available = available;
-        throttle.refillPeriod = _refillPeriod;
-        throttle.lastUpdated = uint64(block.timestamp);
-        throttle.refillRemainder = 0;
-        throttle.maxBps = _maxBps;
-        throttle.enabled = true;
+        uint64 timestamp = WithdrawalThrottle.timestamp(block.timestamp);
+        throttle.config = WithdrawalThrottle.config(capacity, _refillPeriod, _maxBps, true);
+        throttle.bucket = WithdrawalThrottle.bucket(available, timestamp, 0);
 
         emit WithdrawalThrottleConfigured(_maxBps, _refillPeriod, stockSnapshot, capacity, available);
     }
@@ -197,21 +211,22 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     function refreshWithdrawalThrottle() external {
         _assertOnlyProxyAdminOwner();
 
-        WithdrawalThrottleConfig storage throttle = _withdrawalThrottle;
-        if (!throttle.enabled) revert ETHLockbox_WithdrawalThrottleNotEnabled();
+        WithdrawalThrottleState storage throttle = _withdrawalThrottle;
+        uint256 oldConfig = throttle.config;
+        if (!WithdrawalThrottle.enabled(oldConfig)) revert ETHLockbox_WithdrawalThrottleNotEnabled();
 
-        (uint256 available, uint64 refillRemainder) = _availableWithdrawalCapacity();
         uint256 stockSnapshot = address(this).balance;
-        uint256 capacity = WithdrawalThrottle.capacity(stockSnapshot, throttle.maxBps);
-        if (available >= capacity) {
-            available = capacity;
-            refillRemainder = 0;
+        uint16 maxBps = WithdrawalThrottle.maxBps(oldConfig);
+        uint64 refillPeriod = WithdrawalThrottle.refillPeriod(oldConfig);
+        uint128 capacity = WithdrawalThrottle.capacity(stockSnapshot, maxBps);
+        (uint128 available, uint64 remainder) = WithdrawalThrottle.sync(
+            WithdrawalThrottle.capacity(oldConfig), throttle.bucket, refillPeriod, capacity, block.timestamp
+        );
+        uint64 timestamp = WithdrawalThrottle.timestamp(block.timestamp);
+        if (capacity != WithdrawalThrottle.capacity(oldConfig)) {
+            throttle.config = WithdrawalThrottle.config(capacity, refillPeriod, maxBps, true);
         }
-
-        throttle.capacity = capacity;
-        throttle.available = available;
-        throttle.lastUpdated = uint64(block.timestamp);
-        throttle.refillRemainder = refillRemainder;
+        throttle.bucket = WithdrawalThrottle.bucket(available, timestamp, remainder);
 
         emit WithdrawalThrottleRefreshed(stockSnapshot, capacity, available);
     }
@@ -220,7 +235,9 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     function disableWithdrawalThrottle() external {
         _assertOnlyProxyAdminOwner();
 
-        if (!_withdrawalThrottle.enabled) revert ETHLockbox_WithdrawalThrottleNotEnabled();
+        if (!WithdrawalThrottle.enabled(_withdrawalThrottle.config)) {
+            revert ETHLockbox_WithdrawalThrottleNotEnabled();
+        }
         delete _withdrawalThrottle;
 
         emit WithdrawalThrottleDisabled();
@@ -229,14 +246,26 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @notice Returns the stored ETH withdrawal throttle state before pending refill is materialized.
     /// @return Withdrawal throttle state.
     function withdrawalThrottle() external view returns (WithdrawalThrottleConfig memory) {
-        return _withdrawalThrottle;
+        WithdrawalThrottleState storage throttle = _withdrawalThrottle;
+        uint256 config_ = throttle.config;
+        uint256 bucket_ = throttle.bucket;
+        return WithdrawalThrottleConfig({
+            capacity: WithdrawalThrottle.capacity(config_),
+            available: WithdrawalThrottle.storedAvailable(bucket_),
+            refillPeriod: WithdrawalThrottle.refillPeriod(config_),
+            lastUpdated: WithdrawalThrottle.lastUpdated(bucket_),
+            refillRemainder: WithdrawalThrottle.refillRemainder(bucket_),
+            maxBps: WithdrawalThrottle.maxBps(config_),
+            enabled: WithdrawalThrottle.enabled(config_)
+        });
     }
 
     /// @notice Returns currently available ETH withdrawal capacity.
     /// @return Available capacity, or the maximum uint256 value when throttling is disabled.
     function availableWithdrawalCapacity() external view returns (uint256) {
-        if (!_withdrawalThrottle.enabled) return type(uint256).max;
-        (,, uint256 available,) = _syncedWithdrawalCapacity();
+        uint256 config_ = _withdrawalThrottle.config;
+        if (!WithdrawalThrottle.enabled(config_)) return type(uint256).max;
+        (,, uint128 available,) = _syncedWithdrawalCapacity(config_);
         return available;
     }
 
@@ -357,40 +386,32 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @notice Consumes available ETH withdrawal capacity when the throttle is enabled.
     /// @param _amount Amount of ETH to withdraw.
     function _consumeWithdrawalCapacity(uint256 _amount) internal {
-        WithdrawalThrottleConfig storage throttle = _withdrawalThrottle;
-        if (!throttle.enabled || _amount == 0) return;
+        WithdrawalThrottleState storage throttle = _withdrawalThrottle;
+        uint256 config_ = throttle.config;
+        if (!WithdrawalThrottle.enabled(config_) || _amount == 0) return;
 
-        (uint256 stockSnapshot, uint256 capacity, uint256 available, uint64 refillRemainder) =
-            _syncedWithdrawalCapacity();
+        (uint256 stockSnapshot, uint128 capacity, uint128 available, uint64 remainder) =
+            _syncedWithdrawalCapacity(config_);
         if (_amount > available) {
             revert ETHLockbox_WithdrawalThrottled(_amount, available, capacity);
         }
 
-        uint256 remaining = available - _amount;
-        bool capacityChanged = capacity != throttle.capacity;
-        throttle.capacity = capacity;
-        throttle.available = remaining;
-        throttle.lastUpdated = uint64(block.timestamp);
-        throttle.refillRemainder = refillRemainder;
+        uint256 remainingValue = uint256(available) - _amount;
+        assert(remainingValue <= type(uint128).max);
+        uint128 remaining = uint128(remainingValue);
+        uint128 oldCapacity = WithdrawalThrottle.capacity(config_);
+        bool capacityChanged = capacity != oldCapacity;
+        uint64 timestamp = WithdrawalThrottle.timestamp(block.timestamp);
+        if (capacityChanged) {
+            throttle.config = WithdrawalThrottle.config(
+                capacity, WithdrawalThrottle.refillPeriod(config_), WithdrawalThrottle.maxBps(config_), true
+            );
+        }
+        throttle.bucket = WithdrawalThrottle.bucket(remaining, timestamp, remainder);
 
         if (capacityChanged) emit WithdrawalThrottleRefreshed(stockSnapshot, capacity, available);
         emit WithdrawalThrottleCapacityConsumed(_amount, remaining);
         if (remaining == 0) emit WithdrawalThrottleCapacityExhausted();
-    }
-
-    /// @notice Computes available ETH withdrawal capacity after its pending linear refill.
-    /// @return available_ Available capacity at the current timestamp.
-    /// @return remainder_ Fractional refill numerator to preserve when materializing the refill.
-    function _availableWithdrawalCapacity() internal view returns (uint256 available_, uint64 remainder_) {
-        WithdrawalThrottleConfig storage throttle = _withdrawalThrottle;
-        return WithdrawalThrottle.available(
-            throttle.capacity,
-            throttle.available,
-            throttle.refillRemainder,
-            throttle.refillPeriod,
-            throttle.lastUpdated,
-            block.timestamp
-        );
     }
 
     /// @notice Computes the effective bucket state against the lockbox's current ETH stock.
@@ -398,18 +419,20 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @return capacity_ Capacity derived from the current stock.
     /// @return available_ Available capacity after refill and stock synchronization.
     /// @return remainder_ Fractional refill numerator to preserve when materializing the refill.
-    function _syncedWithdrawalCapacity()
+    function _syncedWithdrawalCapacity(uint256 _config)
         internal
         view
-        returns (uint256 stock_, uint256 capacity_, uint256 available_, uint64 remainder_)
+        returns (uint256 stock_, uint128 capacity_, uint128 available_, uint64 remainder_)
     {
-        WithdrawalThrottleConfig storage throttle = _withdrawalThrottle;
-        (available_, remainder_) = _availableWithdrawalCapacity();
+        WithdrawalThrottleState storage throttle = _withdrawalThrottle;
         stock_ = address(this).balance;
-        capacity_ = WithdrawalThrottle.capacity(stock_, throttle.maxBps);
-        if (available_ >= capacity_) {
-            available_ = capacity_;
-            remainder_ = 0;
-        }
+        capacity_ = WithdrawalThrottle.capacity(stock_, WithdrawalThrottle.maxBps(_config));
+        (available_, remainder_) = WithdrawalThrottle.sync(
+            WithdrawalThrottle.capacity(_config),
+            throttle.bucket,
+            WithdrawalThrottle.refillPeriod(_config),
+            capacity_,
+            block.timestamp
+        );
     }
 }

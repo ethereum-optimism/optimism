@@ -9,6 +9,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.sol";
 
 interface IETHLockbox is IProxyAdminOwnedBase, ISemver, IReinitializableBase {
+    error WithdrawalThrottle_TimestampOverflow();
     error ETHLockbox_Unauthorized();
     error ETHLockbox_Paused();
     error ETHLockbox_InsufficientBalance();
@@ -21,6 +22,7 @@ interface IETHLockbox is IProxyAdminOwnedBase, ISemver, IReinitializableBase {
         uint256 requestedAmount, uint256 availableCapacity, uint256 totalCapacity
     );
 
+    /// @notice Stored withdrawal throttle state before pending refill is materialized.
     struct WithdrawalThrottleConfig {
         uint256 capacity;
         uint256 available;

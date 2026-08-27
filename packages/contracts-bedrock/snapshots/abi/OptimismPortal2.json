@@ -1215,5 +1215,10 @@
     "inputs": [],
     "name": "UnexpectedString",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "WithdrawalThrottle_TimestampOverflow",
+    "type": "error"
   }
 ]

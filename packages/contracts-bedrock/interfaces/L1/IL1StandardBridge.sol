@@ -8,6 +8,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
+    error WithdrawalThrottle_TimestampOverflow();
     error ReinitializableBase_ZeroInitVersion();
     error L1StandardBridge_InvalidWithdrawalThrottleToken();
     error L1StandardBridge_InvalidWithdrawalThrottleBps();
@@ -21,6 +22,7 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
         uint256 totalCapacity
     );
 
+    /// @notice Stored withdrawal throttle state before pending refill is materialized.
     struct WithdrawalThrottleConfig {
         uint256 capacity;
         uint256 available;

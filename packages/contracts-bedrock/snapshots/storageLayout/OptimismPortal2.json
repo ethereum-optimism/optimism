@@ -147,10 +147,10 @@
     "type": "bool"
   },
   {
-    "bytes": "96",
+    "bytes": "64",
     "label": "_withdrawalThrottle",
     "offset": 0,
     "slot": "64",
-    "type": "struct OptimismPortal2.WithdrawalThrottleConfig"
+    "type": "struct OptimismPortal2.WithdrawalThrottleState"
   }
 ]

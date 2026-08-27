@@ -267,6 +267,14 @@ contract OptimismPortal2_SetWithdrawalThrottle_Test is OptimismPortal2_Withdrawa
         );
         _configurePortalWithdrawalThrottle(WITHDRAWAL_MAX_BPS);
 
+        IOptimismPortal.WithdrawalThrottleConfig memory throttle = optimismPortal2.withdrawalThrottle();
+        assertEq(throttle.capacity, WITHDRAWAL_CAPACITY);
+        assertEq(throttle.available, WITHDRAWAL_CAPACITY);
+        assertEq(throttle.refillPeriod, WITHDRAWAL_REFILL_PERIOD);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
+        assertEq(throttle.maxBps, WITHDRAWAL_MAX_BPS);
+        assertTrue(throttle.enabled);
         assertEq(optimismPortal2.availableWithdrawalCapacity(), WITHDRAWAL_CAPACITY);
     }
 
@@ -1394,6 +1402,56 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
 /// @title OptimismPortal2_FinalizeWithdrawalTransaction_Test
 /// @notice Test contract for OptimismPortal2 `finalizeWithdrawalTransaction` function.
 contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_WithdrawalThrottle_TestInit {
+    /// @notice Returns the packed configuration and mutable bucket storage slots for a throttle.
+    function _withdrawalThrottleSlots(string memory _contractName)
+        internal
+        returns (bytes32 configSlot_, bytes32 bucketSlot_)
+    {
+        StorageSlot memory stateSlot = ForgeArtifacts.getSlot(_contractName, "_withdrawalThrottle");
+        configSlot_ = bytes32(stateSlot.slot);
+        bucketSlot_ = bytes32(stateSlot.slot + 1);
+    }
+
+    /// @notice Counts writes to the packed configuration and mutable bucket storage slots.
+    function _countWithdrawalThrottleWrites(
+        VmSafe.AccountAccess[] memory _accountAccesses,
+        address _account,
+        bytes32 _configSlot,
+        bytes32 _bucketSlot
+    )
+        internal
+        pure
+        returns (uint256 configWrites_, uint256 bucketWrites_)
+    {
+        for (uint256 i; i < _accountAccesses.length; i++) {
+            for (uint256 j; j < _accountAccesses[i].storageAccesses.length; j++) {
+                VmSafe.StorageAccess memory access = _accountAccesses[i].storageAccesses[j];
+                if (access.account == _account && access.isWrite) {
+                    if (access.slot == _configSlot) configWrites_++;
+                    if (access.slot == _bucketSlot) bucketWrites_++;
+                }
+            }
+        }
+    }
+
+    /// @notice Tests that consumption against unchanged stock writes only mutable bucket state.
+    function test_finalizeWithdrawalTransaction_unchangedStockOnlyWritesMutableThrottleState_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        _useDirectPortalCustody();
+        _configurePortalWithdrawalThrottle(2000);
+        _prepareDefaultWithdrawal();
+        (bytes32 configSlot, bytes32 bucketSlot) = _withdrawalThrottleSlots("OptimismPortal2");
+
+        vm.startStateDiffRecording();
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        VmSafe.AccountAccess[] memory accountAccesses = vm.stopAndReturnStateDiff();
+
+        (uint256 configWrites, uint256 bucketWrites) =
+            _countWithdrawalThrottleWrites(accountAccesses, address(optimismPortal2), configSlot, bucketSlot);
+        assertEq(configWrites, 0);
+        assertEq(bucketWrites, 1);
+    }
+
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the target is the portal
     ///         contract or the lockbox.
     function test_finalizeWithdrawalTransaction_badTarget_reverts() external {
@@ -2284,6 +2342,10 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_W
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
         assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+        IOptimismPortal.WithdrawalThrottleConfig memory throttle = optimismPortal2.withdrawalThrottle();
+        assertEq(throttle.available, 0);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
         assertEq(optimismPortal2.availableWithdrawalCapacity(), 0);
     }
 
@@ -2318,11 +2380,23 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_W
         _prepareDefaultWithdrawal();
         vm.expectEmit(address(optimismPortal2));
         emit WithdrawalThrottleRefreshed(2000, 200, WITHDRAWAL_CAPACITY);
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        (bytes32 configSlot, bytes32 bucketSlot) = _withdrawalThrottleSlots("OptimismPortal2");
 
-        assertEq(optimismPortal2.withdrawalThrottle().capacity, 200);
+        vm.startStateDiffRecording();
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        VmSafe.AccountAccess[] memory accountAccesses = vm.stopAndReturnStateDiff();
+
+        (uint256 configWrites, uint256 bucketWrites) =
+            _countWithdrawalThrottleWrites(accountAccesses, address(optimismPortal2), configSlot, bucketSlot);
+        assertEq(configWrites, 1);
+        assertEq(bucketWrites, 1);
+        IOptimismPortal.WithdrawalThrottleConfig memory throttle = optimismPortal2.withdrawalThrottle();
+        assertEq(throttle.capacity, 200);
+        assertEq(throttle.available, 0);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
         vm.warp(block.timestamp + WITHDRAWAL_REFILL_PERIOD / 2);
-        assertEq(optimismPortal2.availableWithdrawalCapacity(), WITHDRAWAL_CAPACITY);
+        assertEq(optimismPortal2.availableWithdrawalCapacity(), 95);
     }
 
     /// @notice Tests that decreased direct ETH stock immediately clamps effective availability.
@@ -2336,9 +2410,21 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_W
         _prepareDefaultWithdrawal();
         vm.expectEmit(address(optimismPortal2));
         emit WithdrawalThrottleRefreshed(500, WITHDRAWAL_CAPACITY, WITHDRAWAL_CAPACITY);
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        (bytes32 configSlot, bytes32 bucketSlot) = _withdrawalThrottleSlots("OptimismPortal2");
 
-        assertEq(optimismPortal2.withdrawalThrottle().capacity, WITHDRAWAL_CAPACITY);
+        vm.startStateDiffRecording();
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        VmSafe.AccountAccess[] memory accountAccesses = vm.stopAndReturnStateDiff();
+
+        (uint256 configWrites, uint256 bucketWrites) =
+            _countWithdrawalThrottleWrites(accountAccesses, address(optimismPortal2), configSlot, bucketSlot);
+        assertEq(configWrites, 1);
+        assertEq(bucketWrites, 1);
+        IOptimismPortal.WithdrawalThrottleConfig memory throttle = optimismPortal2.withdrawalThrottle();
+        assertEq(throttle.capacity, WITHDRAWAL_CAPACITY);
+        assertEq(throttle.available, 0);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
     }
 
     /// @notice Tests that lockbox custody bypasses a stale portal withdrawal throttle.
@@ -2994,5 +3080,121 @@ contract OptimismPortal2_Params_Test is CommonTest {
         bytes32 slot21After = vm.load(address(optimismPortal2), bytes32(uint256(21)));
         bytes32 slot21Expected = NextImpl(address(optimismPortal2)).slot21Init();
         assertEq(slot21Expected, slot21After);
+    }
+}
+
+/// @title OptimismPortal2_Gas_TestInit
+/// @notice Common cold-slot gas measurement helpers for direct and shared ETH finalization.
+abstract contract OptimismPortal2_Gas_TestInit is OptimismPortal2_WithdrawalThrottle_TestInit {
+    function _withdrawalThrottleSlots(string memory _contractName)
+        internal
+        returns (bytes32 configSlot_, bytes32 bucketSlot_)
+    {
+        StorageSlot memory stateSlot = ForgeArtifacts.getSlot(_contractName, "_withdrawalThrottle");
+        configSlot_ = bytes32(stateSlot.slot);
+        bucketSlot_ = bytes32(stateSlot.slot + 1);
+    }
+
+    function _coolPortalDependencies() internal {
+        address portalImplementation = EIP1967Helper.getImplementation(address(optimismPortal2));
+        address systemConfigImplementation = EIP1967Helper.getImplementation(address(systemConfig));
+        vm.cool(address(optimismPortal2));
+        vm.cool(portalImplementation);
+        vm.cool(address(systemConfig));
+        vm.cool(systemConfigImplementation);
+        vm.cool(address(anchorStateRegistry));
+        vm.cool(address(game));
+        vm.cool(bob);
+    }
+
+    function _measureDirectWithdrawal(string memory _snapshotName) internal {
+        (bytes32 configSlot, bytes32 bucketSlot) = _withdrawalThrottleSlots("OptimismPortal2");
+        _coolPortalDependencies();
+        vm.coolSlot(address(optimismPortal2), configSlot);
+        vm.coolSlot(address(optimismPortal2), bucketSlot);
+
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        vm.snapshotGasLastCall("WithdrawalFinalizationGas", _snapshotName);
+    }
+
+    function _measureSharedWithdrawal(string memory _snapshotName) internal {
+        address lockboxImplementation = EIP1967Helper.getImplementation(address(ethLockbox));
+        (bytes32 configSlot, bytes32 bucketSlot) = _withdrawalThrottleSlots("ETHLockbox");
+        _coolPortalDependencies();
+        vm.cool(address(ethLockbox));
+        vm.cool(lockboxImplementation);
+        vm.coolSlot(address(ethLockbox), configSlot);
+        vm.coolSlot(address(ethLockbox), bucketSlot);
+
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        vm.snapshotGasLastCall("WithdrawalFinalizationGas", _snapshotName);
+    }
+}
+
+/// @title OptimismPortal2_FinalizeWithdrawalTransaction_GasDisabled_Test
+/// @notice Measures direct ETH finalization with committed unconfigured throttle storage.
+contract OptimismPortal2_FinalizeWithdrawalTransaction_GasDisabled_Test is OptimismPortal2_Gas_TestInit {
+    function setUp() public override {
+        super.setUp();
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        _useDirectPortalCustody();
+        vm.deal(address(optimismPortal2), WITHDRAWAL_STOCK * 2);
+        _prepareDefaultWithdrawal();
+    }
+
+    function test_finalizeWithdrawalTransaction_throttleDisabledGas_benchmark() external {
+        _measureDirectWithdrawal("optimism-portal-unthrottled");
+    }
+}
+
+/// @title OptimismPortal2_FinalizeWithdrawalTransaction_GasEnabled_Test
+/// @notice Measures capacity-changing direct ETH throttling from committed storage.
+contract OptimismPortal2_FinalizeWithdrawalTransaction_GasEnabled_Test is OptimismPortal2_Gas_TestInit {
+    function setUp() public override {
+        super.setUp();
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        _useDirectPortalCustody();
+        _configurePortalWithdrawalThrottle(2000);
+        vm.deal(address(optimismPortal2), WITHDRAWAL_STOCK * 2);
+        _prepareDefaultWithdrawal();
+    }
+
+    function test_finalizeWithdrawalTransaction_throttleEnabledGas_benchmark() external {
+        _measureDirectWithdrawal("optimism-portal-throttled");
+    }
+}
+
+/// @title OptimismPortal2_FinalizeWithdrawalTransaction_SharedGasDisabled_Test
+/// @notice Measures shared-lockbox ETH finalization with committed unconfigured throttle storage.
+contract OptimismPortal2_FinalizeWithdrawalTransaction_SharedGasDisabled_Test is OptimismPortal2_Gas_TestInit {
+    function setUp() public override {
+        super.setUp();
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceEnableLockbox(address(ethLockbox));
+        vm.deal(address(ethLockbox), WITHDRAWAL_STOCK * 2);
+        _prepareDefaultWithdrawal();
+    }
+
+    function test_finalizeWithdrawalTransaction_lockboxThrottleDisabledGas_benchmark() external {
+        _measureSharedWithdrawal("eth-lockbox-shared-unthrottled");
+    }
+}
+
+/// @title OptimismPortal2_FinalizeWithdrawalTransaction_SharedGasEnabled_Test
+/// @notice Measures capacity-changing shared-lockbox ETH throttling from committed storage.
+contract OptimismPortal2_FinalizeWithdrawalTransaction_SharedGasEnabled_Test is OptimismPortal2_Gas_TestInit {
+    function setUp() public override {
+        super.setUp();
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceEnableLockbox(address(ethLockbox));
+        vm.deal(address(ethLockbox), WITHDRAWAL_STOCK);
+        vm.prank(proxyAdminOwner);
+        ethLockbox.setWithdrawalThrottle(2000, WITHDRAWAL_REFILL_PERIOD);
+        vm.deal(address(ethLockbox), WITHDRAWAL_STOCK * 2);
+        _prepareDefaultWithdrawal();
+    }
+
+    function test_finalizeWithdrawalTransaction_lockboxThrottleEnabledGas_benchmark() external {
+        _measureSharedWithdrawal("eth-lockbox-shared-throttled");
     }
 }

@@ -2401,27 +2401,32 @@ contract OPContractsManagerV2_Upgrade_WithdrawalThrottle_Test is OPContractsMana
         view
         returns (IOPContractsManagerUtils.DisputeGameConfig[] memory configs_)
     {
-        bool superRoot = GameTypes.isSuperGame(anchorStateRegistry.respectedGameType());
+        GameType respectedGameType = anchorStateRegistry.respectedGameType();
+        bool cannon = respectedGameType.raw() == GameTypes.CANNON.raw();
+        bool permissionedCannon = respectedGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw();
+        bool superPermissioned = respectedGameType.raw() == GameTypes.SUPER_PERMISSIONED.raw();
         configs_ = new IOPContractsManagerUtils.DisputeGameConfig[](6);
         configs_[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
+            enabled: cannon,
+            initBond: cannon ? DEFAULT_DISPUTE_GAME_INIT_BOND : 0,
             gameType: GameTypes.CANNON,
-            gameArgs: bytes("")
+            gameArgs: cannon
+                ? abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+                : bytes("")
         });
         configs_[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: !superRoot,
-            initBond: superRoot ? 0 : disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+            enabled: permissionedCannon,
+            initBond: permissionedCannon ? DEFAULT_DISPUTE_GAME_INIT_BOND : 0,
             gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: superRoot
-                ? bytes("")
-                : abi.encode(
+            gameArgs: permissionedCannon
+                ? abi.encode(
                     IOPContractsManagerUtils.PermissionedDisputeGameConfig({
                         absolutePrestate: cannonPrestate,
                         proposer: DisputeGames.permissionedGameProposer(disputeGameFactory),
                         challenger: DisputeGames.permissionedGameChallenger(disputeGameFactory)
                     })
                 )
+                : bytes("")
         });
         configs_[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -2430,10 +2435,10 @@ contract OPContractsManagerV2_Upgrade_WithdrawalThrottle_Test is OPContractsMana
             gameArgs: bytes("")
         });
         configs_[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: superRoot,
+            enabled: superPermissioned,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED,
-            gameArgs: superRoot
+            gameArgs: superPermissioned
                 ? abi.encode(
                     IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({
                         proposer: DisputeGames.permissionedGameProposer(disputeGameFactory)

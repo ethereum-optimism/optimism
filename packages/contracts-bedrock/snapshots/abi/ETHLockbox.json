@@ -615,5 +615,10 @@
     "inputs": [],
     "name": "ReinitializableBase_ZeroInitVersion",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "WithdrawalThrottle_TimestampOverflow",
+    "type": "error"
   }
 ]

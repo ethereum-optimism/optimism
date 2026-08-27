@@ -12,7 +12,7 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 interface IOptimismPortal2 is IProxyAdminOwnedBase {
-    /// @notice Withdrawal throttle state for ETH held directly by the portal.
+    /// @notice Stored withdrawal throttle state for ETH held directly by the portal before pending refill.
     struct WithdrawalThrottleConfig {
         uint256 capacity;
         uint256 available;
@@ -23,6 +23,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         bool enabled;
     }
 
+    error WithdrawalThrottle_TimestampOverflow();
     error ContentLengthMismatch();
     error EmptyItem();
     error InvalidDataRemainder();
