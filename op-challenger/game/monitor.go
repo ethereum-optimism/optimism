@@ -42,6 +42,11 @@ type claimer interface {
 	Schedule(blockNumber uint64, games []types.GameMetadata) error
 }
 
+// withdrawalDeleter is nil unless the OptimismPortal address is configured.
+type withdrawalDeleter interface {
+	Schedule(blockNumber uint64, games []types.GameMetadata) error
+}
+
 type gameMonitor struct {
 	logger              log.Logger
 	clock               RWClock
@@ -50,6 +55,7 @@ type gameMonitor struct {
 	preimages           preimageScheduler
 	gameWindow          time.Duration
 	claimer             claimer
+	withdrawals         withdrawalDeleter
 	gameTypes           []types.GameType
 	allowedGames        []common.Address
 	l1HeadsSub          ethereum.Subscription
@@ -79,6 +85,7 @@ func newGameMonitor(
 	preimages preimageScheduler,
 	gameWindow time.Duration,
 	claimer claimer,
+	withdrawals withdrawalDeleter,
 	gameTypes []types.GameType,
 	allowedGames []common.Address,
 	l1Source MinimalSubscriber,
@@ -92,6 +99,7 @@ func newGameMonitor(
 		source:          source,
 		gameWindow:      gameWindow,
 		claimer:         claimer,
+		withdrawals:     withdrawals,
 		gameTypes:       gameTypes,
 		allowedGames:    allowedGames,
 		l1Source:        &headSource{inner: l1Source},
@@ -147,6 +155,11 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 	}
 	if err := m.claimer.Schedule(blockNumber, gamesToClaimOrClose); err != nil {
 		return fmt.Errorf("failed to schedule bond claims: %w", err)
+	}
+	if m.withdrawals != nil {
+		if err := m.withdrawals.Schedule(blockNumber, gamesToClaimOrClose); err != nil {
+			return fmt.Errorf("failed to schedule withdrawal deletion: %w", err)
+		}
 	}
 	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")

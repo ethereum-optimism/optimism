@@ -57,17 +57,18 @@ const (
 // This also contains config options for auxiliary services.
 // It is used to initialize the challenger.
 type Config struct {
-	L1EthRpc             string                  // L1 RPC Url
-	L1RPCKind            sources.RPCProviderKind // L1 RPC kind
-	L1Beacon             string                  // L1 Beacon API Url
-	GameFactoryAddress   common.Address          // Address of the dispute game factory
-	GameAllowlist        []common.Address        // Allowlist of fault game addresses
-	GameWindow           time.Duration           // Maximum time duration to look for games to progress
-	Datadir              string                  // Data Directory
-	MaxConcurrency       uint                    // Maximum number of threads to use when progressing games
-	PollInterval         time.Duration           // Polling interval for latest-block subscription when using an HTTP RPC provider
-	AllowInvalidPrestate bool                    // Whether to allow responding to games where the prestate does not match
-	MinUpdateInterval    time.Duration           // Minimum duration the L1 head block time must advance before scheduling a new update cycle
+	L1EthRpc              string                  // L1 RPC Url
+	L1RPCKind             sources.RPCProviderKind // L1 RPC kind
+	L1Beacon              string                  // L1 Beacon API Url
+	GameFactoryAddress    common.Address          // Address of the dispute game factory
+	OptimismPortalAddress common.Address          // Address of the OptimismPortal. Deletion of invalidated withdrawal proofs is disabled when unset.
+	GameAllowlist         []common.Address        // Allowlist of fault game addresses
+	GameWindow            time.Duration           // Maximum time duration to look for games to progress
+	Datadir               string                  // Data Directory
+	MaxConcurrency        uint                    // Maximum number of threads to use when progressing games
+	PollInterval          time.Duration           // Polling interval for latest-block subscription when using an HTTP RPC provider
+	AllowInvalidPrestate  bool                    // Whether to allow responding to games where the prestate does not match
+	MinUpdateInterval     time.Duration           // Minimum duration the L1 head block time must advance before scheduling a new update cycle
 
 	AdditionalBondClaimants []common.Address // List of addresses to claim bonds for in addition to the tx manager sender
 

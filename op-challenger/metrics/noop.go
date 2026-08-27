@@ -42,6 +42,9 @@ func (*NoopMetricsImpl) RecordLargePreimageCount(_ int) {}
 func (*NoopMetricsImpl) RecordBondClaimFailed()     {}
 func (*NoopMetricsImpl) RecordBondClaimed(*big.Int) {}
 
+func (*NoopMetricsImpl) RecordWithdrawalDeleted()        {}
+func (*NoopMetricsImpl) RecordWithdrawalDeletionFailed() {}
+
 func (*NoopMetricsImpl) RecordClaimResolutionTime(t float64) {}
 func (*NoopMetricsImpl) RecordGameActTime(t float64)         {}
 

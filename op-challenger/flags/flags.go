@@ -84,6 +84,12 @@ var (
 		Usage:   "Address of the fault game factory contract.",
 		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
 	}
+	OptimismPortalAddressFlag = &cli.StringFlag{
+		Name: "optimism-portal-address",
+		Usage: "Address of the OptimismPortal contract. When set, withdrawal proofs against games that " +
+			"resolve as challenger wins are automatically deleted.",
+		EnvVars: prefixEnvVars("OPTIMISM_PORTAL_ADDRESS"),
+	}
 	GameAllowlistFlag = &cli.StringSliceFlag{
 		Name: "game-allowlist",
 		Usage: "List of Fault Game contract addresses the challenger is allowed to play. " +
@@ -277,6 +283,7 @@ var optionalFlags = []cli.Flag{
 	RollupRpcFlag,
 	NetworkFlag,
 	FactoryAddressFlag,
+	OptimismPortalAddressFlag,
 	GameTypesFlag,
 	MaxConcurrencyFlag,
 	SuperRootRpcFlag,
@@ -544,6 +551,13 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 	if err != nil {
 		return nil, err
 	}
+	var optimismPortalAddress common.Address
+	if ctx.IsSet(OptimismPortalAddressFlag.Name) {
+		optimismPortalAddress, err = opservice.ParseAddress(ctx.String(OptimismPortalAddressFlag.Name))
+		if err != nil {
+			return nil, err
+		}
+	}
 	var allowedGames []common.Address
 	if ctx.StringSlice(GameAllowlistFlag.Name) != nil {
 		for _, addr := range ctx.StringSlice(GameAllowlistFlag.Name) {
@@ -605,6 +619,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		L1Beacon:                l1Beacon,
 		GameTypes:               enabledGameTypes,
 		GameFactoryAddress:      gameFactoryAddress,
+		OptimismPortalAddress:   optimismPortalAddress,
 		GameAllowlist:           allowedGames,
 		GameWindow:              ctx.Duration(GameWindowFlag.Name),
 		MaxConcurrency:          maxConcurrency,

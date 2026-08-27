@@ -52,6 +52,9 @@ type Metricer interface {
 	RecordBondClaimFailed()
 	RecordBondClaimed(amount *big.Int)
 
+	RecordWithdrawalDeleted()
+	RecordWithdrawalDeletionFailed()
+
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 
 	RecordGameUpdateScheduled()
@@ -87,6 +90,9 @@ type Metrics struct {
 
 	bondClaimFailures prometheus.Counter
 	bondsClaimed      prometheus.Counter
+
+	withdrawalsDeleted         prometheus.Counter
+	withdrawalDeletionFailures prometheus.Counter
 
 	preimageChallenged      prometheus.Counter
 	preimageChallengeFailed prometheus.Counter
@@ -186,6 +192,16 @@ func NewMetrics() *Metrics {
 			Name:      "bonds",
 			Help:      "Number of bonds claimed by the challenge agent",
 		}),
+		withdrawalsDeleted: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "withdrawals_deleted",
+			Help:      "Number of withdrawal proofs deleted because the game they were proven against resolved as challenger wins",
+		}),
+		withdrawalDeletionFailures: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "withdrawal_deletion_failures",
+			Help:      "Number of withdrawal proof deletions that failed",
+		}),
 		preimageChallenged: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: Namespace,
 			Name:      "preimage_challenged",
@@ -274,6 +290,14 @@ func (m *Metrics) RecordLargePreimageCount(count int) {
 
 func (m *Metrics) RecordBondClaimFailed() {
 	m.bondClaimFailures.Add(1)
+}
+
+func (m *Metrics) RecordWithdrawalDeleted() {
+	m.withdrawalsDeleted.Add(1)
+}
+
+func (m *Metrics) RecordWithdrawalDeletionFailed() {
+	m.withdrawalDeletionFailures.Add(1)
 }
 
 func (m *Metrics) RecordBondClaimed(amount *big.Int) {
