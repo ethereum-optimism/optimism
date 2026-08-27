@@ -8,7 +8,8 @@ import "test/safe-tools/SafeTestTools.sol";
 // Contracts
 import { Safe } from "safe-contracts/Safe.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import { LivenessGuard } from "src/safe/LivenessGuard.sol";
+import { LivenessGuard, IModuleGuard } from "src/safe/LivenessGuard.sol";
+import { IUnorderedExecutionModule } from "interfaces/safe/IUnorderedExecutionModule.sol";
 
 // Libraries
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
@@ -18,10 +19,33 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 contract LivenessGuard_WrappedGuard_Harness is LivenessGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    constructor(Safe safe) LivenessGuard(safe) { }
+    constructor(Safe safe, IUnorderedExecutionModule module) LivenessGuard(safe, module) { }
 
     function ownersBeforeLength() public view returns (uint256) {
         return ownersBefore.length();
+    }
+
+    function moduleOwnersBeforeLength() public view returns (uint256) {
+        return moduleOwnersBefore.length();
+    }
+}
+
+/// @notice Minimal stand-in for the UnorderedExecutionModule signer-reporting API.
+contract LivenessGuard_MockUnorderedExecutionModule is IUnorderedExecutionModule {
+    address[] internal currentSigners;
+    bool internal shouldRevert;
+
+    function setSigners(address[] memory _signers) external {
+        currentSigners = _signers;
+    }
+
+    function setShouldRevert(bool _shouldRevert) external {
+        shouldRevert = _shouldRevert;
+    }
+
+    function signers() external view returns (address[] memory signers_) {
+        require(!shouldRevert, "mock signer read failed");
+        signers_ = currentSigners;
     }
 }
 
@@ -33,6 +57,7 @@ abstract contract LivenessGuard_TestInit is Test, SafeTestTools {
     event OwnerRecorded(address owner);
 
     LivenessGuard_WrappedGuard_Harness livenessGuard;
+    LivenessGuard_MockUnorderedExecutionModule unorderedExecutionModule;
     SafeInstance safeInstance;
 
     // This needs to be non-zero so that the `lastLive` mapping can record non-zero timestamps
@@ -46,7 +71,10 @@ abstract contract LivenessGuard_TestInit is Test, SafeTestTools {
         vm.warp(initTime);
         (, uint256[] memory privKeys) = SafeTestLib.makeAddrsAndKeys("test-owners", ownerCount);
         safeInstance = _setupSafe(privKeys, threshold);
-        livenessGuard = new LivenessGuard_WrappedGuard_Harness(safeInstance.safe);
+        unorderedExecutionModule = new LivenessGuard_MockUnorderedExecutionModule();
+        livenessGuard = new LivenessGuard_WrappedGuard_Harness(
+            safeInstance.safe, IUnorderedExecutionModule(address(unorderedExecutionModule))
+        );
         safeInstance.setGuard(address(livenessGuard));
     }
 }
@@ -58,7 +86,9 @@ contract LivenessGuard_Constructor_Test is LivenessGuard_TestInit {
     ///         each owner.
     function test_constructor_works() external {
         address[] memory owners = safeInstance.owners;
-        livenessGuard = new LivenessGuard_WrappedGuard_Harness(safeInstance.safe);
+        livenessGuard = new LivenessGuard_WrappedGuard_Harness(
+            safeInstance.safe, IUnorderedExecutionModule(address(unorderedExecutionModule))
+        );
         for (uint256 i; i < owners.length; i++) {
             assertEq(livenessGuard.lastLive(owners[i]), initTime);
         }
@@ -71,7 +101,17 @@ contract LivenessGuard_Safe_Test is LivenessGuard_TestInit {
     /// @notice Tests that the getters return the correct values
     function test_safe_works() external view {
         assertEq(address(livenessGuard.safe()), address(safeInstance.safe));
+        assertEq(address(livenessGuard.unorderedExecutionModule()), address(unorderedExecutionModule));
         assertEq(livenessGuard.lastLive(address(0)), 0);
+    }
+
+    /// @notice Tests support for the Safe transaction-guard and v1.5.0 module-guard interfaces.
+    function test_supportsInterface_works() external view {
+        assertEq(type(IModuleGuard).interfaceId, bytes4(0x58401ed8));
+        assertTrue(livenessGuard.supportsInterface(0xe6d7a83a));
+        assertTrue(livenessGuard.supportsInterface(0x58401ed8));
+        assertTrue(livenessGuard.supportsInterface(0x01ffc9a7));
+        assertFalse(livenessGuard.supportsInterface(0xffffffff));
     }
 }
 
@@ -137,6 +177,94 @@ contract LivenessGuard_CheckAfterExecution_Test is LivenessGuard_TestInit {
     function test_checkAfterExecution_callerIsNotSafe_reverts() external {
         vm.expectRevert("LivenessGuard: only Safe can call this function");
         livenessGuard.checkAfterExecution(bytes32(0), false);
+    }
+}
+
+/// @title LivenessGuard_CheckModuleTransaction_Test
+/// @notice Tests the Safe v1.5.0 module-guard hooks.
+contract LivenessGuard_CheckModuleTransaction_Test is LivenessGuard_TestInit {
+    using SafeTestLib for SafeInstance;
+
+    function test_checkModuleTransaction_trustedModule_recordsValidatedSigners() external {
+        address[] memory signers = new address[](2);
+        signers[0] = safeInstance.owners[0];
+        signers[1] = safeInstance.owners[1];
+        unorderedExecutionModule.setSigners(signers);
+        vm.warp(block.timestamp + 100);
+
+        vm.prank(address(safeInstance.safe));
+        bytes32 moduleTxHash = livenessGuard.checkModuleTransaction(
+            address(1111), 0, hex"abba", Enum.Operation.Call, address(unorderedExecutionModule)
+        );
+
+        assertEq(moduleTxHash, bytes32(0));
+        assertEq(livenessGuard.lastLive(signers[0]), block.timestamp);
+        assertEq(livenessGuard.lastLive(signers[1]), block.timestamp);
+        for (uint256 i = 2; i < safeInstance.owners.length; i++) {
+            assertEq(livenessGuard.lastLive(safeInstance.owners[i]), initTime);
+        }
+    }
+
+    function test_checkModuleTransaction_unknownModule_doesNotRecordLiveness() external {
+        address[] memory signers = new address[](1);
+        signers[0] = safeInstance.owners[0];
+        unorderedExecutionModule.setSigners(signers);
+        vm.warp(block.timestamp + 100);
+
+        vm.prank(address(safeInstance.safe));
+        livenessGuard.checkModuleTransaction(address(0), 0, hex"", Enum.Operation.Call, makeAddr("other module"));
+
+        assertEq(livenessGuard.lastLive(signers[0]), initTime);
+    }
+
+    function test_checkModuleTransaction_unconfiguredModule_doesNotRecordLiveness() external {
+        LivenessGuard_WrappedGuard_Harness guard =
+            new LivenessGuard_WrappedGuard_Harness(safeInstance.safe, IUnorderedExecutionModule(address(0)));
+        vm.warp(block.timestamp + 100);
+
+        vm.prank(address(safeInstance.safe));
+        guard.checkModuleTransaction(address(0), 0, hex"", Enum.Operation.Call, address(unorderedExecutionModule));
+
+        for (uint256 i = 0; i < safeInstance.owners.length; i++) {
+            assertEq(guard.lastLive(safeInstance.owners[i]), initTime);
+        }
+    }
+
+    function test_checkModuleTransaction_signerReadReverts_doesNotRevert() external {
+        unorderedExecutionModule.setShouldRevert(true);
+
+        vm.prank(address(safeInstance.safe));
+        livenessGuard.checkModuleTransaction(
+            address(0), 0, hex"", Enum.Operation.Call, address(unorderedExecutionModule)
+        );
+    }
+
+    function test_checkModuleTransaction_callerIsNotSafe_reverts() external {
+        vm.expectRevert("LivenessGuard: only Safe can call this function");
+        livenessGuard.checkModuleTransaction(
+            address(0), 0, hex"", Enum.Operation.Call, address(unorderedExecutionModule)
+        );
+    }
+
+    function test_checkAfterModuleExecution_reconcilesRemovedOwner() external {
+        address ownerToRemove = safeInstance.owners[0];
+        address prevOwner = safeInstance.getPrevOwner(ownerToRemove);
+
+        vm.startPrank(address(safeInstance.safe));
+        livenessGuard.checkModuleTransaction(address(0), 0, hex"", Enum.Operation.Call, makeAddr("other module"));
+        safeInstance.safe.removeOwner(prevOwner, ownerToRemove, threshold);
+        livenessGuard.checkAfterModuleExecution(bytes32(0), true);
+        vm.stopPrank();
+
+        assertFalse(safeInstance.safe.isOwner(ownerToRemove));
+        assertEq(livenessGuard.lastLive(ownerToRemove), 0);
+        assertEq(livenessGuard.moduleOwnersBeforeLength(), 0);
+        assertEq(livenessGuard.ownersBeforeLength(), 0);
+    }
+
+    function test_checkAfterModuleExecution_callerIsNotSafe_reverts() external {
+        vm.expectRevert("LivenessGuard: only Safe can call this function");
+        livenessGuard.checkAfterModuleExecution(bytes32(0), false);
     }
 }
 
@@ -281,7 +409,9 @@ contract LivenessGuard_Uncategorized_Test is LivenessGuard_TestInit {
         saltNonce = uint256(keccak256(bytes("LIVENESS GUARD OWNER MANAGEMENT TEST")));
         // Create the new safe and register the guard.
         SafeInstance memory safeInstance = _setupSafe(ownerkeys, threshold);
-        livenessGuard = new LivenessGuard_WrappedGuard_Harness(safeInstance.safe);
+        livenessGuard = new LivenessGuard_WrappedGuard_Harness(
+            safeInstance.safe, IUnorderedExecutionModule(address(unorderedExecutionModule))
+        );
         safeInstance.setGuard(address(livenessGuard));
 
         for (uint256 i; i < changes.length; i++) {
