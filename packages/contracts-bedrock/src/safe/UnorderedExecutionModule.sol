@@ -141,8 +141,8 @@ contract UnorderedExecutionModule is ISemver {
     mapping(Safe => mapping(uint256 => bool)) internal _executed;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 0.1.0
+    string public constant version = "0.1.0";
 
     /// @notice Getter function for whether a hash-once value has been consumed.
     ///
