@@ -43,8 +43,8 @@ pub use task_queue::{
     BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
     ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask,
-    FinalizeTaskError, InsertTask, InsertTaskError, SealTask, SealTaskError, SynchronizeTask,
-    SynchronizeTaskError,
+    FinalizeTaskError, InsertTask, InsertTaskError, SealTask, SealTaskError, SealedPayload,
+    SynchronizeTask, SynchronizeTaskError,
 };
 
 mod attributes;
@@ -55,8 +55,8 @@ pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
 mod client;
 pub use client::{
-    EngineClient, EngineClientBuilder, EngineClientError, EngineRpcClient, HyperAuthClient,
-    OpEngineClient,
+    AWAIT_PAYLOAD_READY_METHOD, EngineClient, EngineClientBuilder, EngineClientError,
+    EngineRpcClient, HyperAuthClient, OpEngineClient, PayloadReadiness,
 };
 
 mod versions;

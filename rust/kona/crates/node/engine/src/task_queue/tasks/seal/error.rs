@@ -1,8 +1,11 @@
 //! Contains error types for the [`crate::SynchronizeTask`].
 
-use crate::{EngineTaskError, InsertTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
+use crate::{
+    EngineTaskError, InsertTaskError, SealedPayload,
+    task_queue::tasks::task::EngineTaskErrorSeverity,
+};
+use alloy_rpc_types_engine::PayloadId;
 use alloy_transport::{RpcError, TransportErrorKind};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::mpsc;
 
@@ -15,6 +18,10 @@ pub enum SealTaskError {
     /// The get payload call to the engine api failed.
     #[error(transparent)]
     GetPayloadFailed(RpcError<TransportErrorKind>),
+    /// The execution layer's payload builder no longer knows the build job, so there is nothing
+    /// to seal and the block must be rebuilt.
+    #[error("Payload build job {0} is unknown to the execution layer")]
+    PayloadJobUnknown(PayloadId),
     /// A deposit-only payload failed to import.
     #[error("Deposit-only payload failed to import")]
     DepositOnlyPayloadFailed,
@@ -27,7 +34,7 @@ pub enum SealTaskError {
     HoloceneInvalidFlush,
     /// Error sending the built payload envelope.
     #[error(transparent)]
-    MpscSend(#[from] Box<mpsc::error::SendError<Result<OpExecutionPayloadEnvelope, Self>>>),
+    MpscSend(#[from] Box<mpsc::error::SendError<Result<SealedPayload, Self>>>),
     /// The clock went backwards.
     #[error("The clock went backwards")]
     ClockWentBackwards,
@@ -45,7 +52,9 @@ impl EngineTaskError for SealTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::PayloadInsertionFailed(inner) => inner.severity(),
-            Self::GetPayloadFailed(_) => EngineTaskErrorSeverity::Temporary,
+            Self::GetPayloadFailed(_) | Self::PayloadJobUnknown(_) => {
+                EngineTaskErrorSeverity::Temporary
+            }
             Self::HoloceneInvalidFlush => EngineTaskErrorSeverity::Flush,
             Self::DepositOnlyPayloadReattemptFailed |
             Self::DepositOnlyPayloadFailed |

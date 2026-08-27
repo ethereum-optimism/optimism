@@ -3,7 +3,7 @@
 use crate::Metrics;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_network::{Ethereum, Network};
-use alloy_primitives::{Address, B256, BlockHash, Bytes, StorageKey};
+use alloy_primitives::{Address, B256, BlockHash, Bytes, StorageKey, U64};
 use alloy_provider::{EthGetBlock, Provider, RootProvider, RpcWithBlock, ext::EngineApi};
 use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_engine::{
@@ -31,7 +31,12 @@ use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
-use std::{future::Future, sync::Arc, time::Instant};
+use serde::Deserialize;
+use std::{
+    future::Future,
+    sync::{Arc, Once},
+    time::{Duration, Instant},
+};
 use thiserror::Error;
 use tower::ServiceBuilder;
 use url::Url;
@@ -47,6 +52,45 @@ pub enum EngineClientError {
     #[error("An error occurred while decoding the payload: {0}")]
     BlockInfoDecodeError(#[from] FromBlockError),
 }
+
+/// The Engine API method that reports whether a payload build job is worth sealing.
+pub const AWAIT_PAYLOAD_READY_METHOD: &str = "engine_awaitPayloadReadyV1";
+
+/// The JSON-RPC error code an execution layer answers with when it does not implement a method.
+const METHOD_NOT_FOUND: i64 = -32601;
+
+/// How much longer than the requested wait the execution layer is given to answer
+/// [`AWAIT_PAYLOAD_READY_METHOD`] before the call is abandoned, covering the round trip.
+const AWAIT_PAYLOAD_READY_SLACK: Duration = Duration::from_millis(500);
+
+/// Whether a payload build job has produced a payload its builder considers worth sealing.
+///
+/// The answer to `engine_awaitPayloadReadyV1`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PayloadReadiness {
+    /// The payload satisfies the builder's sealing policy and can be fetched now.
+    Ready,
+    /// The job is still building; the caller may keep waiting or seal at its own deadline.
+    Pending,
+    /// The payload id is not (or no longer) known to the execution layer's payload builder.
+    Unknown,
+}
+
+/// Warns the operator the first time the execution layer turns out not to implement
+/// [`AWAIT_PAYLOAD_READY_METHOD`], so a misconfigured EL is visible without a log per block.
+static AWAIT_PAYLOAD_READY_UNSUPPORTED: Once = Once::new();
+
+/// Whether `err` says the execution layer does not serve the method at all, as opposed to having
+/// failed to answer this particular call.
+const fn is_unsupported_method(err: &RpcError<TransportErrorKind>) -> bool {
+    match err {
+        RpcError::ErrorResp(payload) => payload.code == METHOD_NOT_FOUND,
+        RpcError::UnsupportedFeature(_) => true,
+        _ => false,
+    }
+}
+
 /// A Hyper HTTP client with a JWT authentication layer.
 pub type HyperAuthClient<B = Full<Bytes>> = HyperClient<B, AuthService<Client<HttpConnector, B>>>;
 
@@ -80,6 +124,18 @@ pub trait EngineClient: OpEngineApi<Optimism, Http<HyperAuthClient>> + Send + Sy
         &self,
         numtag: BlockNumberOrTag,
     ) -> Result<Option<Block<Transaction>>, EngineClientError>;
+
+    /// Waits at most `max_wait` for the payload build job `payload_id` to produce a payload its
+    /// builder considers worth sealing, without resolving or stopping the job.
+    ///
+    /// An execution layer that does not serve `engine_awaitPayloadReadyV1`, or that fails to
+    /// answer in time, reports [`PayloadReadiness::Pending`]: the caller then seals at its own
+    /// deadline instead of treating a missing extension as a build failure.
+    async fn await_payload_ready(
+        &self,
+        payload_id: PayloadId,
+        max_wait: Duration,
+    ) -> PayloadReadiness;
 }
 
 /// Read-only subset of [`EngineClient`] used by the engine RPC actor.
@@ -226,6 +282,48 @@ where
         numtag: BlockNumberOrTag,
     ) -> Result<Option<Block<Transaction>>, EngineClientError> {
         Ok(self.engine.get_block_by_number(numtag).full().await?)
+    }
+
+    async fn await_payload_ready(
+        &self,
+        payload_id: PayloadId,
+        max_wait: Duration,
+    ) -> PayloadReadiness {
+        let max_wait_ms = U64::from(u64::try_from(max_wait.as_millis()).unwrap_or(u64::MAX));
+        let call = self
+            .engine
+            .client()
+            .request::<_, PayloadReadiness>(AWAIT_PAYLOAD_READY_METHOD, (payload_id, max_wait_ms));
+
+        // `maxWaitMs` is advisory, so an execution layer that never answers must not hold the
+        // caller past the deadline it computed.
+        let Ok(result) = tokio::time::timeout(max_wait + AWAIT_PAYLOAD_READY_SLACK, call).await
+        else {
+            warn!(
+                target: "engine",
+                ?max_wait,
+                "{AWAIT_PAYLOAD_READY_METHOD} did not answer in time; sealing at the caller's deadline instead"
+            );
+            return PayloadReadiness::Pending;
+        };
+
+        match result {
+            Ok(readiness) => readiness,
+            Err(err) if is_unsupported_method(&err) => {
+                AWAIT_PAYLOAD_READY_UNSUPPORTED.call_once(|| {
+                    warn!(
+                        target: "engine",
+                        %err,
+                        "{AWAIT_PAYLOAD_READY_METHOD} is not served by the execution layer; sealing at the caller's deadline instead"
+                    );
+                });
+                PayloadReadiness::Pending
+            }
+            Err(err) => {
+                warn!(target: "engine", %err, "Payload readiness request failed");
+                PayloadReadiness::Pending
+            }
+        }
     }
 }
 

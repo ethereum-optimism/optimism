@@ -14,7 +14,7 @@ use anyhow::{Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
-use kona_engine::{HyperAuthClient, OpEngineClient};
+use kona_engine::{AWAIT_PAYLOAD_READY_METHOD, HyperAuthClient, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
@@ -233,7 +233,10 @@ impl NodeCommand {
     /// Validate the jwt secret if specified by exchanging capabilities with the engine.
     /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
     /// that the jwt token passed as a cli arg is correct.
-    pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
+    ///
+    /// Returns the validated secret along with the Engine API methods the execution layer
+    /// advertises.
+    pub async fn validate_jwt(&self) -> anyhow::Result<(JwtSecret, Vec<String>)> {
         let jwt_secret = self.l2_jwt_secret()?;
 
         let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
@@ -248,9 +251,9 @@ impl NodeCommand {
             >>::exchange_capabilities(&engine, vec![])
             .await
             {
-                Ok(_) => {
+                Ok(capabilities) => {
                     debug!("Successfully exchanged capabilities with engine");
-                    Ok(jwt_secret)
+                    Ok((jwt_secret, capabilities))
                 }
                 Err(e) => {
                     if Self::is_jwt_signature_error(&e) {
@@ -300,7 +303,8 @@ impl NodeCommand {
         // If metrics are enabled, initialize the global cli metrics.
         args.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
 
-        let jwt_secret = self.validate_jwt().await?;
+        let (jwt_secret, engine_capabilities) = self.validate_jwt().await?;
+        self.check_multi_block_support(&cfg, &engine_capabilities)?;
 
         self.p2p_flags.check_ports()?;
         let p2p_config = self
@@ -338,6 +342,29 @@ impl NodeCommand {
             error!(target: "rollup_node", "Failed to start rollup node service: {e}");
             anyhow::anyhow!("{e}")
         })?;
+
+        Ok(())
+    }
+
+    /// Rejects a multi-blocks configuration the node cannot honour: one that does not describe a
+    /// buildable chain, or — when this node sequences — an execution layer that cannot say when a
+    /// payload is worth sealing, without which the sequencer could never end a block group early.
+    ///
+    /// A verifier cannot check the execution layer's own multi-blocks setting; a mismatch there
+    /// surfaces as a rejected payload.
+    fn check_multi_block_support(&self, cfg: &RollupConfig, capabilities: &[String]) -> Result<()> {
+        cfg.check_multi_block_config().map_err(|err| anyhow::anyhow!("{err}"))?;
+
+        if cfg.multi_block_time.is_none() || !self.node_mode.is_sequencer() {
+            return Ok(());
+        }
+
+        if !capabilities.iter().any(|method| method == AWAIT_PAYLOAD_READY_METHOD) {
+            bail!(
+                "the execution layer does not advertise {AWAIT_PAYLOAD_READY_METHOD}, which a \
+                 sequencer on a multi-blocks chain requires"
+            );
+        }
 
         Ok(())
     }
@@ -478,6 +505,49 @@ mod tests {
     }
 
     impl std::error::Error for MockError {}
+
+    /// A rollup config whose chain builds block groups from a valid activation.
+    fn multi_block_config() -> RollupConfig {
+        let mut cfg = RollupConfig { block_time: 2, ..Default::default() };
+        cfg.hardforks.karst_time = Some(100);
+        cfg.multi_block_time = Some(100);
+        cfg.max_multi_blocks = Some(16);
+        cfg
+    }
+
+    fn command_in_mode(node_mode: NodeMode) -> NodeCommand {
+        NodeCommand { node_mode, ..Default::default() }
+    }
+
+    #[test]
+    fn multi_block_sequencer_requires_the_await_ready_method() {
+        let cfg = multi_block_config();
+        let sequencer = command_in_mode(NodeMode::Sequencer);
+
+        let err = sequencer
+            .check_multi_block_support(&cfg, &["engine_getPayloadV4".to_string()])
+            .expect_err("a sequencer cannot end a block group early without the method");
+        assert!(err.to_string().contains(AWAIT_PAYLOAD_READY_METHOD));
+
+        sequencer
+            .check_multi_block_support(&cfg, &[AWAIT_PAYLOAD_READY_METHOD.to_string()])
+            .expect("an execution layer that advertises the method is accepted");
+
+        command_in_mode(NodeMode::Validator)
+            .check_multi_block_support(&cfg, &[])
+            .expect("a verifier does not build blocks, so it does not need the method");
+    }
+
+    #[test]
+    fn multi_block_config_is_validated_before_the_node_starts() {
+        let mut cfg = multi_block_config();
+        cfg.max_multi_blocks = Some(0);
+
+        let err = command_in_mode(NodeMode::Validator)
+            .check_multi_block_support(&cfg, &[])
+            .expect_err("a chain that cannot build a single block is rejected");
+        assert!(err.to_string().contains("max_multi_blocks"));
+    }
 
     const fn default_flags() -> &'static [&'static str] {
         &[
