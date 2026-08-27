@@ -75,7 +75,7 @@ const COMPONENTS: Component[] = [
     prefix: "op-batcher/v",
     label: "op-batcher",
     description: "L2 batch submitter",
-    intro: "**op-batcher** is responsible for data availability — it reads unsafe blocks from the sequencer and posts transaction batches to Ethereum. See the [batcher spec](https://specs.optimism.io/protocol/batcher.html).",
+    intro: "**op-batcher** is responsible for data availability — it reads unsafe blocks from the sequencer and posts transaction batches to the DA layer (L1 or Alt DA). See the [batcher spec](https://specs.optimism.io/protocol/batcher.html).",
     group: "Protocol",
     icon: "layer-group",
     repo: "optimism",
