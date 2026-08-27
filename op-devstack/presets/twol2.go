@@ -99,7 +99,8 @@ type TwoL2SupernodeInterop struct {
 	InteropFilter *sysgo.InteropFilter
 
 	// Silhouette is the proof-carried half of the system: the verifier supernode, its per-chain
-	// routes, and the proof-batch submitter. nil unless WithSilhouetteChain() was set.
+	// routes, and control/observation of the ordinary proof-encoding batcher. nil unless
+	// WithSilhouetteChain() was set.
 	Silhouette *SilhouetteTarget
 
 	timeTravel *clock.AdvancingClock
@@ -132,10 +133,10 @@ type SilhouetteTarget struct {
 	// PeerChainKey names that chain.
 	PeerChainKey string
 
-	// Submitter posts the silhouette chain's proof batches. It is under the test's control on
+	// Batcher is the ordinary op-batcher that posts the silhouette chain's proof batches. It is under the test's control on
 	// purpose: withholding the batch that covers a given block is the only way to make "cross-safe
 	// pins below the executing message" an assertion rather than a hope.
-	Submitter *sysgo.ProofBatchSubmitter
+	Batcher *sysgo.ProofBatchControl
 
 	// Runtime is the sysgo wiring, for the config paths and the startup-refusal probe.
 	Runtime *sysgo.SilhouetteRuntime
@@ -185,20 +186,6 @@ func (s *SilhouetteTarget) WaitBlockProvenance(t devtest.T, target eth.BlockID, 
 		return true
 	}, timeout, time.Second, "verifier did not derive proven block "+target.String())
 	return out
-}
-
-// SequencerPosture reports whether the SEQUENCING supernode was put into the `proven-head` posture.
-func (s *SilhouetteTarget) SequencerPosture() bool { return s.Runtime.SequencerPosture }
-
-// SequencerProvenHead asks the SEQUENCING supernode how far the chain has been proven.
-//
-// Every other read on this type is aimed at the verifier, because the verifier is where a claim about
-// proofs can be made. This one is the exception and it is the sequencer posture's whole subject: on
-// that node the chain's public safety labels are taken from the proven head rather than from a
-// derivation pipeline, and nothing in `optimism_syncStatus` shows it — those labels are the virtual
-// node's own, and they sit at genesis forever because there is no batcher behind them.
-func (s *SilhouetteTarget) SequencerProvenHead(t devtest.T) *silhouette.ProvenHeadStatus {
-	return s.Runtime.SequencerProvenHead(t)
 }
 
 // L2UserRPCURLs returns the user-RPC URLs for both L2 EL nodes in canonical

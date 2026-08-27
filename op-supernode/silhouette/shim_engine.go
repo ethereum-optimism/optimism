@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -115,6 +116,9 @@ func (e *EngineAPI) ForkchoiceUpdatedV3(ctx context.Context, state eth.Forkchoic
 		s.dropJobs()
 	}
 	s.facts.SetCursors(cursors)
+	if !s.isRewindFact(head.Hash) {
+		s.clearRewindFacts()
+	}
 
 	result := &eth.ForkchoiceUpdatedResult{
 		PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &head.Hash},
@@ -203,16 +207,40 @@ func (e *EngineAPI) getPayload(ctx context.Context, id eth.PayloadID) (*eth.Exec
 		return nil, eth.InputError{Code: eth.UnknownPayload, Inner: fmt.Errorf("no build job %s", id)}
 	}
 
+	if env, handled, err := s.buildDeniedReplacement(ctx, job); handled {
+		if err != nil {
+			s.log.Error("failed to prepare stock deposits-only replacement in the private EL",
+				"parent", job.parent.Number, "timestamp", uint64(job.attrs.Timestamp), "err", err)
+			return nil, eth.InputError{Code: eth.UnknownPayload, Inner: err}
+		}
+		s.mu.Lock()
+		delete(s.jobs, id)
+		s.mu.Unlock()
+		return env, nil
+	}
+
 	fact, err := s.factForBuild(ctx, job)
 	if err != nil {
 		// Loud, and retryable by design. The CL maps UnknownPayload to ErrSealExpired
 		// (build_seal.go), which lets the same attributes be re-attempted with a new job once the
 		// facts arrive — a proof batch is minutes away, not never. What it must not do is produce a
 		// block.
-		s.log.Error("FAIL-STOP: refusing to build a block with no proven-or-forced fact. Derivation "+
+		s.log.Error("refusing to build a block with no proven-or-forced fact. Derivation "+
 			"has outrun the proof stream, or the transcoder produced a block the facts do not cover.",
 			"parent", job.parent.Number, "timestamp", uint64(job.attrs.Timestamp), "err", err)
 		return nil, eth.InputError{Code: eth.UnknownPayload, Inner: err}
+	}
+	if fact.Replacement {
+		rendering, ok := s.facts.Rendering(fact.Hash)
+		if !ok {
+			return nil, eth.InputError{Code: eth.UnknownPayload, Inner: fmt.Errorf("replacement block %d has no retained payload", fact.Number)}
+		}
+		env := payloadEnvelope(rendering.Header, fact.Hash, rendering.Txs)
+		env.ParentBeaconBlockRoot = job.attrs.ParentBeaconBlockRoot
+		s.mu.Lock()
+		delete(s.jobs, id)
+		s.mu.Unlock()
+		return env, nil
 	}
 
 	txs := make([][]byte, len(job.attrs.Transactions))
@@ -258,6 +286,68 @@ func (e *EngineAPI) getPayload(ctx context.Context, id eth.PayloadID) (*eth.Exec
 	return env, nil
 }
 
+// buildDeniedReplacement handles the one case where a proof fact must be replaced. The stock
+// supernode has already rewound its op-node and generated deposits-only attributes. The magic EL
+// delegates execution of those exact attributes to P's real EL, then serves the resulting payload
+// back through the ordinary op-node build path.
+func (s *Shim) buildDeniedReplacement(ctx context.Context, job *buildJob) (*eth.ExecutionPayloadEnvelope, bool, error) {
+	number := job.parent.Number + 1
+	deniedFact, ok := s.facts.ByNumber(number)
+	if !ok {
+		deniedFact, ok = s.facts.DeniedFact(number)
+		if !ok {
+			return nil, false, nil
+		}
+	}
+	denied, err := s.facts.Denied(deniedFact.Number, deniedFact.Hash)
+	if err != nil {
+		return nil, true, fmt.Errorf("check denial of proof fact %d (%s): %w", deniedFact.Number, deniedFact.Hash, err)
+	}
+	if !denied {
+		return nil, false, nil
+	}
+	if !job.attrs.NoTxPool || !job.attrs.IsDepositsOnly() {
+		return nil, true, fmt.Errorf("denied block %d replacement attributes are not stock deposits-only attributes", number)
+	}
+	s.mu.Lock()
+	builder := s.replacementBuilder
+	s.mu.Unlock()
+	if builder == nil {
+		return nil, true, fmt.Errorf("denied block %d requires a private replacement engine, but none is configured", number)
+	}
+
+	parentRef, err := s.ref(job.parent)
+	if err != nil {
+		return nil, true, err
+	}
+	env, err := builder.BuildReplacement(ctx, parentRef, job.attrs)
+	if err != nil {
+		return nil, true, err
+	}
+	replacement, rendering, err := factFromReplacement(s.params.Rollup, job.parent, job.attrs, env)
+	if err != nil {
+		return nil, true, err
+	}
+
+	// Commit the handoff only after the private EL has successfully imported and the payload has
+	// passed every continuity/hash/body check. A failed external build leaves the denied facts intact
+	// and is retryable through the stock seal-expired path.
+	if s.isGenesis(job.parent.Number) {
+		s.facts.replaceAllForSupersession()
+	} else if err := s.facts.ReplaceSuffix(job.parent); err != nil {
+		return nil, true, fmt.Errorf("drop denied proof suffix at block %d: %w", number, err)
+	}
+	s.facts.RecordRendering(rendering)
+	s.mu.Lock()
+	s.replacementsByHash[replacement.Hash] = replacement
+	s.replacementsByNum[replacement.Number] = replacement
+	s.mu.Unlock()
+	s.log.Warn("prepared stock deposits-only replacement in P's private EL",
+		"number", replacement.Number, "denied_hash", deniedFact.Hash,
+		"replacement_hash", replacement.Hash, "parent", job.parent.Hash)
+	return env, true, nil
+}
+
 // factForBuild resolves the facts of the block a build job describes, computing a forced block's
 // facts on demand when the convention defines one and the store has not recorded it yet.
 //
@@ -270,17 +360,25 @@ func (s *Shim) factForBuild(ctx context.Context, job *buildJob) (Fact, error) {
 	number := job.parent.Number + 1
 	timestamp := uint64(job.attrs.Timestamp)
 	if fact, ok := s.factByNumber(number); ok {
-		if fact.Timestamp != timestamp {
-			return Fact{}, fmt.Errorf("block %d is a fact at timestamp %d, but the attributes "+
-				"ask for timestamp %d", number, fact.Timestamp, timestamp)
+		denied, err := s.facts.Denied(fact.Number, fact.Hash)
+		if err != nil {
+			return Fact{}, fmt.Errorf("check denial of proof fact %d (%s): %w", fact.Number, fact.Hash, err)
 		}
-		if parent, err := s.parentOf(fact); err != nil {
-			return Fact{}, err
-		} else if parent.Hash != job.parent.Hash {
-			return Fact{}, fmt.Errorf("block %d is a fact whose parent is %s, but the build job "+
-				"was opened on parent %s", number, parent.Hash, job.parent.Hash)
+		if denied {
+			return Fact{}, fmt.Errorf("denied proof fact %d (%s) requires the private replacement path", fact.Number, fact.Hash)
+		} else {
+			if fact.Timestamp != timestamp {
+				return Fact{}, fmt.Errorf("block %d is a fact at timestamp %d, but the attributes "+
+					"ask for timestamp %d", number, fact.Timestamp, timestamp)
+			}
+			if parent, err := s.parentOf(fact); err != nil {
+				return Fact{}, err
+			} else if parent.Hash != job.parent.Hash {
+				return Fact{}, fmt.Errorf("block %d is a fact whose parent is %s, but the build job "+
+					"was opened on parent %s", number, parent.Hash, job.parent.Hash)
+			}
+			return fact, nil
 		}
-		return fact, nil
 	}
 
 	origin, seqNumber, err := originFromAttributes(s.params.Rollup, job.attrs)
@@ -303,21 +401,17 @@ func (s *Shim) factForBuild(ctx context.Context, job *buildJob) (Fact, error) {
 	return forced, nil
 }
 
-// NewPayloadV4 checks continuity and answers VALID. It NEVER executes and it never fabricates.
+// NewPayloadV4 checks continuity and answers VALID. It NEVER executes.
 //
 // "VALID" here means exactly two things: the payload extends the chain this node knows (parent hash,
 // number and timestamp all line up with the facts) and its block hash IS the hash the proof
 // committed to at that height. Anything else is INVALID.
 //
-// A payload whose hash contradicts a fact at its own height, on a parent this node holds, is the
-// shape of the ONE thing that could hand this engine a hash outside the facts: the replacement-block
-// synthesizer, which mutates ExtraData and re-hashes (rewind.go:195 on the Cove branch). It runs only
-// on judge invalidation of the chain, and under G7 that verdict IS reachable — P declares its imports
-// on the wire and the stock judge checks them. The verifier container deliberately does not run that
-// synthesizer: it waits for a corrected proof whose committed hash is the producer's real stock
-// replacement. This guard halts if a local path nevertheless tries to invent a different hash.
-// E3's honesty assertion is therefore kept in code here. That case HALTS the shim permanently and
-// loudly.
+// The sole accepted non-fact payload is the stock chain container's exact rewind sentinel: the
+// canonical payload with only ExtraData toggled and its hash recomputed. It is a temporary fork used
+// to move the engine head to the invalid block's parent; it is never inserted into the proof facts,
+// never returned by number, and is discarded as soon as forkchoice returns to a proven head. The
+// private LightCL sequencer, not this verifier, produces the replacement block.
 //
 // A payload at a height with no fact at all is refused without halting: it is what a rewind that
 // crossed this call looks like, and the CL's own reset resolves it. Either way nothing is inserted,
@@ -361,10 +455,12 @@ func (e *EngineAPI) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayl
 		reason := fmt.Errorf("payload for block %d claims hash %s; the proven-or-forced fact for that "+
 			"height is %s", number, payload.BlockHash, fact.Hash)
 		if payload.ParentHash == parent.Hash {
-			// Same height, same parent, different hash: a block synthesised to replace one this node
-			// holds. Nothing in a proof-trusted chain may produce that.
-			s.halt(fmt.Errorf("newPayload offered a replacement for block %d on the same parent %s: %w",
-				number, parent.Hash, reason))
+			if err := s.acceptRewindPayload(payload, fact); err == nil {
+				return &eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &payload.BlockHash}, nil
+			} else {
+				s.halt(fmt.Errorf("newPayload offered a non-canonical block for block %d on the same parent %s: %w: %v",
+					number, parent.Hash, reason, err))
+			}
 		}
 		return invalid(s, payload, reason)
 	}
@@ -378,6 +474,40 @@ func (e *EngineAPI) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayl
 	}
 
 	return &eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &fact.Hash}, nil
+}
+
+// acceptRewindPayload recognizes exactly the temporary payload constructed by
+// chain_container/engine_controller.Rewind. Accepting this one mechanical fork lets the unmodified
+// stock rewind protocol operate against an execution service that otherwise accepts only facts.
+func (s *Shim) acceptRewindPayload(payload *eth.ExecutionPayload, canonical Fact) error {
+	rendering, ok := s.facts.Rendering(canonical.Hash)
+	if !ok {
+		return fmt.Errorf("canonical block %s has no rendering to validate the rewind payload against", canonical.Hash)
+	}
+	expectedEnvelope := payloadEnvelope(rendering.Header, canonical.Hash, rendering.Txs)
+	expectedEnvelope.ParentBeaconBlockRoot = rendering.Header.ParentBeaconRoot
+	expected := expectedEnvelope.ExecutionPayload
+	extra := append(eth.BytesMax32(nil), expected.ExtraData...)
+	if len(extra) == 0 {
+		extra = []byte{0x00}
+	} else {
+		extra[len(extra)-1] ^= 0xff
+	}
+	expected.ExtraData = extra
+	expectedHash, _ := expectedEnvelope.CheckBlockHash()
+	expected.BlockHash = expectedHash
+	if !reflect.DeepEqual(expected, payload) {
+		return fmt.Errorf("payload is not the stock extraData-only rewind sentinel")
+	}
+	rewind := canonical
+	rewind.Hash = expectedHash
+	hdr := types.CopyHeader(rendering.Header)
+	hdr.Extra = append([]byte(nil), extra...)
+	s.facts.RecordRendering(Rendering{Header: hdr, Txs: rendering.Txs, Hash: expectedHash})
+	s.recordRewindFact(rewind)
+	s.log.Info("accepted temporary stock rewind sentinel", "number", rewind.Number,
+		"canonical", canonical.Hash, "sentinel", expectedHash)
+	return nil
 }
 
 // invalid builds the INVALID answer, with the latest valid hash set to the head this node stands on

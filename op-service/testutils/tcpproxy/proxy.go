@@ -51,6 +51,19 @@ func (p *Proxy) SetUpstream(addr string) {
 	p.mu.Unlock()
 }
 
+// SwitchUpstream changes the destination and closes existing proxied connections. Clients with
+// persistent HTTP connections must reconnect before they can observe a destination change; plain
+// SetUpstream intentionally affects only newly accepted connections.
+func (p *Proxy) SwitchUpstream(addr string) {
+	p.mu.Lock()
+	p.upstreamAddr = addr
+	p.lgr.Info("switched upstream", "addr", addr)
+	for conn := range p.conns {
+		_ = conn.Close()
+	}
+	p.mu.Unlock()
+}
+
 // ClearUpstream unsets the upstream address; connections are refused until
 // SetUpstream is called again.
 func (p *Proxy) ClearUpstream() {

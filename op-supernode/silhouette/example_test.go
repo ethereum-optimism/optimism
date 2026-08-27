@@ -27,10 +27,7 @@ func TestV1ExampleConfigLoads(t *testing.T) {
 
 	decl, ok := m.Lookup(eth.ChainIDFromUInt64(424247))
 	require.True(t, ok)
-	labels, err := decl.LabelSource()
-	require.NoError(t, err)
-	require.Equal(t, LabelsFromDerivation, labels,
-		"a public verifier derives P itself; the proven-head posture is the sequencer's")
+	require.NoError(t, decl.CheckRole(), "a silhouette supernode has one verifier-only role")
 
 	cfg := decl.Config()
 	require.NotNil(t, cfg)

@@ -690,7 +690,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         public
         payable
-        virtual
         metered(_gasLimit)
     {
         if (_isUsingCustomGasToken()) {

@@ -64,6 +64,13 @@ func (f *FactStore) Rendering(hash common.Hash) (Rendering, bool) {
 	return r, ok
 }
 
+// DeleteRendering removes a temporary rendering, such as the stock rewind sentinel.
+func (f *FactStore) DeleteRendering(hash common.Hash) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.renderings, hash)
+}
+
 // SetCursors records where forkchoice put the three labels.
 func (f *FactStore) SetCursors(c Cursors) {
 	f.mu.Lock()

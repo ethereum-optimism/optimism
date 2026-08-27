@@ -17,27 +17,26 @@ import (
 
 // A silhouette chain, end to end, on a local multi-process devstack.
 //
-// The system these tests run on is the ordinary two-L2 supernode-interop preset with one chain — l2b,
-// called P below — turned into a silhouette chain. That means:
+// The system these tests run on is the two-L2 LightCL-sequencer interop preset with one chain —
+// l2b, called P below — turned into a silhouette chain. That means:
 //
 //   - P keeps its own sequencer and execution client. That is the PRIVATE side, and it is unchanged:
 //     P produces real blocks with real transactions in them.
-//   - P has NO batcher. Nothing puts P's blocks on L1.
-//   - An in-test submitter posts P's history to L1 as proof batches, in blobs, from a dedicated
-//     submitter address to a dedicated inbox address.
+//   - P uses the ordinary op-batcher, initially stopped for deterministic tests. Its terminal
+//     encoder posts transaction-stripped proof batches to a dedicated inbox.
 //   - A SECOND supernode is started. It holds no execution client for P at all; its entire access to
 //     P is L1. It also runs the other chain (l2a, called A below) as an ordinary chain derived from
 //     L1 in the usual way.
 //
 // Every assertion that matters here is made on that second supernode, and the reason is worth being
-// blunt about: the preset's own supernode is P's SEQUENCER. It knows P's messages from its own
-// execution client, so a cross-safety verdict it reaches about them says nothing at all about
-// proofs. Asserting there instead would be a test that cannot fail for the reason it claims to test.
+// blunt about: P's LightCL and execution client are the private producer. The verifier supernode
+// only sees P through proof batches and the magic EL, and P's LightCL follows that verifier's safety
+// route for ordinary interop invalidation decisions.
 
 // silhouetteSystem brings up the preset with l2b proof-carried.
 func silhouetteSystem(gt *testing.T) (devtest.T, *presets.TwoL2SupernodeInterop) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithSilhouetteChain(presets.SilhouetteChainB))
+	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0, presets.WithSilhouetteChain(presets.SilhouetteChainB))
 	t.Require().NotNil(sys.Silhouette, "preset did not wire the silhouette half")
 	t.Require().Equal(presets.SilhouetteChainB, sys.Silhouette.ChainKey)
 	return t, sys
@@ -54,9 +53,8 @@ func silhouetteSystem(gt *testing.T) (devtest.T, *presets.TwoL2SupernodeInterop)
 //     named at all; see TestSilhouetteRefusesWrongL1ChainConfig), the shim started and mounted, the
 //     proof-batch source injected.
 //  2. P's private side runs. Everything below is only interesting because there IS history to prove.
-//  3. P's safe head on its own SEQUENCER is still genesis. That is the batcher's absence made
-//     visible: if a batcher were running, P's history would be on L1 beside the proofs and the later
-//     gates would pass for the wrong reason.
+//  3. P's safe head on its own SEQUENCER is still genesis. No ordinary channel batch has been
+//     published; the proof-encoding batcher is initially stopped and targets a separate inbox.
 //  4. None of that private history is proven history on the verifier — its proven head is the anchor.
 //  5. Chain A, on the same verifier, derives from L1 normally. Without this, "P does not advance"
 //     would be indistinguishable from a verifier that is not working at all.
@@ -75,7 +73,8 @@ func TestSilhouetteVerifierStarts(gt *testing.T) {
 	// prove and nothing has proved it.
 	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
 
-	// (3) no batcher: blocks produced, public safe head unmoved, on the chain's OWN sequencer.
+	// (3) no ordinary channel publication: blocks produced, public safe head unmoved, on the chain's
+	// OWN sequencer.
 	require.Equal(uint64(0), sys.L2BSupernodeCL.HeadBlockRef(safety.LocalSafe).Number,
 		"the silhouette chain's safe head advanced on its own sequencer, so something IS batching it")
 
@@ -147,7 +146,7 @@ func TestSilhouetteProofBatchAdvancesVerifier(gt *testing.T) {
 	// Let the private chain produce some history worth proving.
 	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
 
-	first := sil.Submitter.SubmitNext()
+	first := sil.Batcher.SubmitNext()
 	require.NotNil(first, "the silhouette chain produced no blocks to batch")
 	firstLast := first.Blocks[len(first.Blocks)-1]
 	t.Logger().Info("posted first proof batch",
@@ -157,6 +156,7 @@ func TestSilhouetteProofBatchAdvancesVerifier(gt *testing.T) {
 	dsl.CheckAll(t,
 		sil.VerifierCL.ReachedFn(safety.LocalSafe, firstLast.Number, 120),
 		sil.VerifierCL.ReachedFn(safety.CrossSafe, firstLast.Number, 120),
+		sys.L2BCL.ReachedFn(safety.LocalSafe, firstLast.Number, 120),
 	)
 	// The head the verifier derived is the head the wire committed to — proven history is the
 	// sequencer's real history, not a re-execution of it.
@@ -165,7 +165,7 @@ func TestSilhouetteProofBatchAdvancesVerifier(gt *testing.T) {
 		"the verifier's proven head hash is not the hash the proof batch committed to")
 
 	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
-	second := sil.Submitter.SubmitNext()
+	second := sil.Batcher.SubmitNext()
 	require.NotNil(second, "no second batch to post")
 	require.Equal(firstLast.Number+1, second.Blocks[0].Number, "the second batch does not chain onto the first")
 	require.Equal(first.NewOutputRoot, second.PrevOutputRoot, "the second batch does not extend the first's output root")
@@ -212,9 +212,13 @@ func TestSilhouetteCrossChainPinsThenAdvances(gt *testing.T) {
 	// working before anything is withheld from it. A pin that started from "nothing has ever been
 	// proven" would be indistinguishable from a broken verifier.
 	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
-	warmup := sil.Submitter.SubmitNext()
+	warmup := sil.Batcher.SubmitNext()
 	require.NotNil(warmup, "no warm-up batch to post")
-	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.CrossSafe, warmup.Blocks[len(warmup.Blocks)-1].Number, 120))
+	warmupHead := warmup.Blocks[len(warmup.Blocks)-1].Number
+	dsl.CheckAll(t,
+		sil.VerifierCL.ReachedFn(safety.CrossSafe, warmupHead, 120),
+		sys.L2BCL.ReachedFn(safety.LocalSafe, warmupHead, 120),
+	)
 
 	// (1) the initiating message, on P — the private chain.
 	eventLogger := bob.DeployEventLogger()
@@ -224,9 +228,8 @@ func TestSilhouetteCrossChainPinsThenAdvances(gt *testing.T) {
 
 	// (2) prove P up to just BELOW the initiating message's block, and stop. From here the verifier
 	// holds no proof of P's log, which is the live-edge state a verifier is in between batches.
-	sil.Submitter.SubmitUpTo(initBlock.Number - 1)
-	require.Equal(initBlock.Number-1, sil.Submitter.BatchedHead(),
-		"the withheld batch boundary is not where the test needs it")
+	// The ordinary op-batcher remains stopped while this block is created, so the verifier cannot
+	// have received a proof covering it yet.
 	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.LocalSafe, initBlock.Number-1, 120))
 	require.Less(sil.VerifierCL.HeadBlockRef(safety.LocalSafe).Number, initBlock.Number,
 		"the verifier already has proof of the initiating message's block")
@@ -259,15 +262,15 @@ func TestSilhouetteCrossChainPinsThenAdvances(gt *testing.T) {
 
 	// (5) release the proof. P is proven past the initiating message, and past the executing
 	// message's timestamp, which is what an interop round needs from every chain in the set.
-	sil.Submitter.SubmitUpTo(initBlock.Number)
-	released := sil.Submitter.BatchedHead()
+	sil.Batcher.Start(2 * time.Second)
+	sil.Batcher.WaitBatched(initBlock, 5*time.Minute)
+	released := sil.Batcher.BatchedHead()
 	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.CrossSafe, initBlock.Number, 120))
 	t.Logger().Info("proof released", "proven_p_head", released, "init_block", initBlock.Number)
 
 	// P must keep being proven for the round to reach the executing message's timestamp: the
 	// interop round decides a timestamp only when EVERY chain in the dependency set has safe data
 	// covering it. On a real deployment that is the proof cadence; here it is the ticker.
-	sil.Submitter.Start(2 * time.Second)
 
 	// (4b) THE ADVANCE. Same block, by hash, now cross-safe on the ordinary chain — and the
 	// silhouette chain declares the initiating message's block PROVEN, at the hash the sequencer
@@ -299,7 +302,7 @@ func TestSilhouetteCrossChainPinsThenAdvances(gt *testing.T) {
 
 	// And the contrast that makes the claim sharp. The SEQUENCER supernode has P's receipts sitting
 	// in the execution client it drives, and it still cannot cross-safe A's block: it runs P as an
-	// ordinary chain, P has no batcher, so P's public local-safe label never moves and the round's
+	// ordinary chain, P has no ordinary channel batches, so P's public local-safe label never moves and the round's
 	// readiness check gates on every chain in the set. Proofs are what unblocked the verifier, and
 	// only the verifier has them. (In a real deployment the sequencer side runs the "proven-head"
 	// posture for exactly this reason; phase 1 leaves it ordinary so the difference is visible.)

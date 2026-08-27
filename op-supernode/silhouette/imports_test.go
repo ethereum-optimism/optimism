@@ -23,6 +23,17 @@ import (
 // fact store, decoded and in order, and — the part that is easy to get subtly wrong — the DIFFERENCE
 // between "this block imported nothing" and "this wire version does not say" has to survive the trip.
 
+type testInteropChain struct {
+	cc.InteropChain
+	id      eth.ChainID
+	payload *eth.ExecutionPayloadEnvelope
+}
+
+func (c *testInteropChain) ID() eth.ChainID { return c.id }
+func (c *testInteropChain) PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return c.payload, nil
+}
+
 // anImport is one plausible executing message: a message on some peer chain, stamped below the
 // consuming block.
 func anImport(chain uint64, blockNum uint64, logIdx uint32, ts uint64) proofbatch.ExecMsg {
@@ -72,7 +83,7 @@ func TestAcceptedBatchCarriesItsImportList(t *testing.T) {
 
 	// Through the capability, which is the surface the judge actually uses.
 	container := NewContainer(testlog.Logger(t, log.LevelError),
-		&frozenInner{id: eth.ChainIDFromUInt64(424247), rollup: e.rollup}, e.facts, LabelsFromDerivation)
+		&testInteropChain{id: eth.ChainIDFromUInt64(424247)}, e.facts, nil)
 	msgs, onWire, err := cc.ProvenExecMsgsOf(container, 1)
 	require.NoError(t, err)
 	require.True(t, onWire)
@@ -84,6 +95,31 @@ func TestAcceptedBatchCarriesItsImportList(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, onWire, "an empty import list is still a claim")
 	require.Empty(t, msgs)
+}
+
+func TestReplacementHasKnownEmptyImportSet(t *testing.T) {
+	e := newTestEnv(t, l1GenesisNum+10)
+	spec := e.goodBatch()
+	spec.imports = []proofbatch.ExecMsg{anImport(424246, 5, 0, l1GenesisT)}
+	e.plantSpec(spec)
+	require.NotEmpty(t, e.derive(spec.carrier))
+	fact, ok := e.facts.ByNumber(1)
+	require.True(t, ok)
+	require.NoError(t, e.facts.MarkDenied(fact.Number, fact.Hash))
+
+	replacementHash := common.HexToHash("0x1234")
+	chain := &testInteropChain{
+		id: eth.ChainIDFromUInt64(424247),
+		payload: &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+			BlockHash:   replacementHash,
+			BlockNumber: eth.Uint64Quantity(1),
+		}},
+	}
+	container := NewContainer(testlog.Logger(t, log.LevelError), chain, e.facts, nil)
+	msgs, onWire, err := container.ProvenExecMsgs(1)
+	require.NoError(t, err)
+	require.True(t, onWire)
+	require.Empty(t, msgs, "the deposits-only replacement must not inherit the denied proof's imports")
 }
 
 // TestSameTimestampImportIsRejectedAtAcceptance is where G7G D2 becomes an operational fact rather
@@ -142,7 +178,7 @@ func TestPreV3WireLeavesDependenciesUnknown(t *testing.T) {
 	require.Empty(t, fact.ExecMsgs)
 
 	container := NewContainer(testlog.Logger(t, log.LevelError),
-		&frozenInner{id: eth.ChainIDFromUInt64(424247), rollup: e.rollup}, e.facts, LabelsFromDerivation)
+		&testInteropChain{id: eth.ChainIDFromUInt64(424247)}, e.facts, nil)
 	msgs, onWire, err := cc.ProvenExecMsgsOf(container, 1)
 	require.NoError(t, err)
 	require.False(t, onWire, "the capability must report that this wire carries no import list")
@@ -213,31 +249,27 @@ func TestForcedBlockImportsNothingAndSaysSo(t *testing.T) {
 	require.Empty(t, forced.ExecMsgs)
 }
 
-// TestBothPosturesCarryTheImportListIdentically is gate 4.
+// TestDerivationAndStandaloneWalkerCarryTheImportListIdentically is gate 4.
 //
-// The claim the sequencer posture rests on is that it replaces NO seam of the verifier posture: it
-// adds a tracker that drives the SAME DataSource, so acceptance — and therefore the import list — is
-// one implementation, not two. Under G7 that claim gains a new field to be wrong about, and the cost
-// of being wrong is high in a specific way: the sequencer's own supernode is a member of the public
-// network, so a sequencer that recorded a different import list than every verifier would be a node
-// disagreeing with its own verifiers about what its chain consumed.
+// The standalone magic EL and supernode derivation drive the same DataSource implementation. This
+// checks that the direct L1 walker and the pipeline-facing path record identical import facts.
 //
 // So this asserts equality rather than presence, and it does it by running the two postures over the
 // same planted L1.
-func TestBothPosturesCarryTheImportListIdentically(t *testing.T) {
+func TestDerivationAndStandaloneWalkerCarryTheImportListIdentically(t *testing.T) {
 	imports := []proofbatch.ExecMsg{
 		anImport(424246, 5, 0, l1GenesisT),
 		anImport(424248, 9, 2, l1GenesisT),
 	}
 
-	// The verifier posture: the derivation pipeline pulls the source.
+	// The supernode path: the derivation pipeline pulls the source.
 	verifier := newTestEnv(t, l1GenesisNum+10)
 	vspec := verifier.goodBatch()
 	vspec.imports = imports
 	verifier.plantSpec(vspec)
 	require.NotEmpty(t, verifier.derive(vspec.carrier))
 
-	// The sequencer posture: the proven-head tracker drains the same source over the same L1.
+	// The standalone magic EL path: its walker drains the same source over the same L1.
 	seq := newTestEnv(t, l1GenesisNum+10)
 	sspec := seq.goodBatch()
 	sspec.imports = imports
@@ -255,13 +287,11 @@ func TestBothPosturesCarryTheImportListIdentically(t *testing.T) {
 	vFact, ok := verifier.facts.ByNumber(1)
 	require.True(t, ok, "the verifier posture did not accept the batch")
 	sFact, ok := seq.facts.ByNumber(1)
-	require.True(t, ok, "the sequencer posture did not accept the batch")
+	require.True(t, ok, "the standalone walker did not accept the batch")
 
 	require.Equal(t, vFact.ExecMsgsKnown, sFact.ExecMsgsKnown)
 	require.Equal(t, vFact.ExecMsgs, sFact.ExecMsgs,
-		"the two postures must record the same import list: they run one acceptance path, and a "+
-			"sequencer that recorded a different one would disagree with its own verifiers about what "+
-			"its chain consumed")
+		"the pipeline and standalone walker must record the same import list")
 	// Non-empty control: an equality assertion over two empty lists proves nothing.
 	require.Len(t, vFact.ExecMsgs, 2)
 	// ...and the rest of the fact agrees too, which is the broader claim the postures rest on.

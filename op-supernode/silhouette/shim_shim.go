@@ -78,9 +78,20 @@ type Shim struct {
 	// halted shim must not look like a slow one.
 	onHalt func(error)
 
-	mu     sync.Mutex
-	jobs   map[eth.PayloadID]*buildJob
-	halted error
+	mu   sync.Mutex
+	jobs map[eth.PayloadID]*buildJob
+	// replacements are real, deposits-only payloads prepared by P's private EL after the stock
+	// supernode invalidates a proof fact. They are intentionally outside FactStore: proof acceptance
+	// must continue to see the denied block's parent as its durable head until the corrected proof is
+	// posted.
+	replacementBuilder ReplacementBuilder
+	replacementsByHash map[common.Hash]Fact
+	replacementsByNum  map[uint64]Fact
+	// rewindFacts contains the one-block, temporary fork used by the stock supernode engine
+	// controller to make a rewind durable. These are never canonical proof facts and disappear when
+	// forkchoice returns to a proof fact.
+	rewindFacts map[common.Hash]Fact
+	halted      error
 }
 
 // buildJob is an open block-building job: a parent, and the attributes the CL asked for.
@@ -101,12 +112,23 @@ func NewShim(logger log.Logger, rollupCfg *rollup.Config, l1Chain *params.ChainC
 	l1 L1Headers, facts *FactStore,
 ) *Shim {
 	return &Shim{
-		log:    logger,
-		params: ForcedParams{Rollup: rollupCfg, L1Chain: l1Chain, SysCfg: sysCfg},
-		facts:  facts,
-		l1:     l1,
-		jobs:   make(map[eth.PayloadID]*buildJob),
+		log:                logger,
+		params:             ForcedParams{Rollup: rollupCfg, L1Chain: l1Chain, SysCfg: sysCfg},
+		facts:              facts,
+		l1:                 l1,
+		jobs:               make(map[eth.PayloadID]*buildJob),
+		rewindFacts:        make(map[common.Hash]Fact),
+		replacementsByHash: make(map[common.Hash]Fact),
+		replacementsByNum:  make(map[uint64]Fact),
 	}
+}
+
+// SetReplacementBuilder connects the magic EL to P's private Engine API for the single operation
+// the magic EL cannot perform itself: executing stock deposits-only replacement attributes.
+func (s *Shim) SetReplacementBuilder(builder ReplacementBuilder) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.replacementBuilder = builder
 }
 
 // OnHalt registers the callback invoked when the shim halts.
@@ -190,7 +212,13 @@ func (s *Shim) factByNumber(number uint64) (Fact, bool) {
 	if s.isGenesis(number) {
 		return s.genesisFact(), true
 	}
-	return s.facts.ByNumber(number)
+	if fact, ok := s.facts.ByNumber(number); ok {
+		return fact, true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fact, ok := s.replacementsByNum[number]
+	return fact, ok
 }
 
 // factByHash resolves a block hash to its facts, genesis included.
@@ -198,7 +226,50 @@ func (s *Shim) factByHash(hash common.Hash) (Fact, bool) {
 	if hash == s.params.Rollup.Genesis.L2.Hash {
 		return s.genesisFact(), true
 	}
-	return s.facts.ByHash(hash)
+	if fact, ok := s.facts.ByHash(hash); ok {
+		return fact, true
+	}
+	s.mu.Lock()
+	if replacement, ok := s.replacementsByHash[hash]; ok {
+		// A corrected proof may have occupied this height while a caller retained the temporary hash.
+		// Once that happens only the durable proof fact is canonical.
+		if canonical, exists := s.facts.ByNumber(replacement.Number); !exists || canonical.Hash == hash {
+			s.mu.Unlock()
+			return replacement, true
+		}
+	}
+	rewind, ok := s.rewindFacts[hash]
+	s.mu.Unlock()
+	if ok {
+		return rewind, true
+	}
+	return Fact{}, false
+}
+
+func (s *Shim) isRewindFact(hash common.Hash) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.rewindFacts[hash]
+	return ok
+}
+
+func (s *Shim) recordRewindFact(fact Fact) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.rewindFacts[fact.Hash] = fact
+}
+
+func (s *Shim) clearRewindFacts() {
+	s.mu.Lock()
+	hashes := make([]common.Hash, 0, len(s.rewindFacts))
+	for hash := range s.rewindFacts {
+		hashes = append(hashes, hash)
+	}
+	s.rewindFacts = make(map[common.Hash]Fact)
+	s.mu.Unlock()
+	for _, hash := range hashes {
+		s.facts.DeleteRendering(hash)
+	}
 }
 
 // parentOf returns a block's parent facts. A block whose parent has fallen out of the fact window is

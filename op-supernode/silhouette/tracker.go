@@ -12,14 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// ProvenHeadTracker walks L1 through the acceptance path to keep a fact store current on a node
-// that does NOT derive P.
-//
-// In the verifier posture nothing needs this: the derivation pipeline calls OpenData as it
-// traverses L1, so acceptance happens as a side effect of deriving the chain, and the fact store
-// fills itself. The SEQUENCER posture has no such pipeline — P's container there fronts the real
-// execution client, which is producing blocks from the private sequencer rather than deriving them
-// from anything — so the walk has to be driven explicitly.
+// ProvenHeadTracker walks L1 through the acceptance path to keep the standalone magic EL's fact
+// store current. The supernode has its own stock derivation pipeline and does not use this walker.
 //
 // It drives the SAME DataSource, which is the point. Acceptance rules, chaining, the forced
 // extension, the rendered origins and the log sink are one implementation with one set of tests,
@@ -57,7 +51,7 @@ func (t *ProvenHeadTracker) Run(ctx context.Context) {
 		advanced, err := t.Step(ctx)
 		switch {
 		case err != nil:
-			t.log.Warn("proven-head tracker step failed; retrying", "l1", t.next, "err", err)
+			t.log.Warn("proof walker step failed; retrying", "l1", t.next, "err", err)
 		case advanced:
 			continue // more L1 to read, no reason to wait
 		}

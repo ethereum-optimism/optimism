@@ -81,16 +81,17 @@ func (a *SilhouetteAPI) SelfDeclaration() *SelfDeclaration {
 	}
 }
 
-// BlockDeclaration is the per-block provenance answer: which of the two kinds of block this is, and
+// BlockDeclaration is the per-block provenance answer: which kind of block this is, and
 // the settlement-facing values it carries.
 type BlockDeclaration struct {
 	Number    hexutil.Uint64 `json:"number"`
 	Hash      common.Hash    `json:"hash"`
 	Timestamp hexutil.Uint64 `json:"timestamp"`
-	// Provenance is "proven", "forced" or "genesis" — the only three kinds that exist. "proven" means
+	// Provenance is "proven", "forced", "replacement" or "genesis". "proven" means
 	// the hash and roots came off the wire, inside an accepted proof batch. "forced" means the
 	// forced-extension convention produced them, computed identically by this node, the prover and the
-	// superroot program. "genesis" is configuration, and its roots are NOT KNOWN to this node.
+	// superroot program. "replacement" is a real deposits-only block executed by P's private EL and
+	// waiting for its proof batch. "genesis" is configuration, and its roots are NOT KNOWN here.
 	Provenance string `json:"provenance"`
 	// RootsKnown is false only for genesis, and it is a separate field so that a caller cannot read a
 	// zero root as a real one.
@@ -145,6 +146,8 @@ func (a *SilhouetteAPI) BlockProvenance(ctx context.Context, id rpc.BlockNumberO
 		out.RootsKnown = false
 	case fact.Forced:
 		out.Provenance = "forced"
+	case fact.Replacement:
+		out.Provenance = "replacement"
 	}
 	if carrier, ok := a.s.facts.CarrierOf(fact.Number); ok {
 		out.Carrier = &carrier

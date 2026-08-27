@@ -3,6 +3,7 @@ package silhouette
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,9 +17,10 @@ import (
 // Manifest is the supernode-level declaration of which chains are silhouette chains.
 //
 // It is a separate file rather than a set of per-chain CLI flags because the thing being declared
-// is not a tuning knob: it says that a chain in the supernode's chains map has no execution client
-// and no batcher, and that its history arrives as proofs. That is a statement about the deployment,
-// and a deployment statement belongs in a file an operator can diff and a runbook can name.
+// is not a tuning knob: it says that a chain in the supernode's chains map uses a proof-backed
+// magic EL and that its history arrives as proofs. The private producer still has a normal EL and
+// op-batcher. This deployment statement belongs in a file an operator can diff and a runbook can
+// name.
 //
 // The supernode reads it once at startup. A chain absent from the manifest is an ordinary driven
 // chain and nothing about its construction changes — which is the property that makes this switch
@@ -37,13 +39,9 @@ type ManifestChain struct {
 	// the anchor, the proving system. Relative paths resolve against the manifest's own directory, so a
 	// config directory can be copied to a VM as a unit.
 	VerifierConfig string `json:"verifierConfig"`
-	// Labels selects the posture: "derivation" (a verifier, which derives P itself) or
-	// "proven-head" (a sequencer-side node, which fronts P's real execution client and must take
-	// its PUBLIC labels from the proven head — see Container.OptimisticAt).
-	//
-	// Empty means "derivation". The verifier posture is the one a public node runs, and defaulting
-	// to it means a missing field cannot silently turn a verifier into a node that labels P from
-	// facts it has not derived.
+	// Labels is retained only to produce a useful migration error for old manifests. Empty and
+	// "derivation" mean the sole supported mode. Supernodes never sequence silhouette chains;
+	// private production belongs to LightCL-based sequencing nodes.
 	Labels string `json:"labels"`
 
 	// resolved holds the loaded verifier config, filled by LoadManifest.
@@ -53,15 +51,15 @@ type ManifestChain struct {
 // Config returns the loaded verifier config for this chain.
 func (m ManifestChain) Config() *Config { return m.resolved }
 
-// LabelSource resolves the declared posture.
-func (m ManifestChain) LabelSource() (LabelSource, error) {
+// CheckRole rejects the removed sequencer-side supernode posture.
+func (m ManifestChain) CheckRole() error {
 	switch m.Labels {
 	case "", "derivation":
-		return LabelsFromDerivation, nil
+		return nil
 	case "proven-head":
-		return LabelsFromProvenHead, nil
+		return errors.New("labels posture \"proven-head\" is not supported: silhouette supernodes are verifier-only; sequence with a LightCL node")
 	default:
-		return 0, fmt.Errorf("unknown labels posture %q: want \"derivation\" or \"proven-head\"", m.Labels)
+		return fmt.Errorf("unknown labels posture %q: only verifier derivation is supported", m.Labels)
 	}
 }
 
@@ -95,7 +93,7 @@ func LoadManifest(path string) (*Manifest, error) {
 			return nil, fmt.Errorf("silhouette manifest %q: chain %d declared twice", path, c.ChainID)
 		}
 		seen[c.ChainID] = struct{}{}
-		if _, err := c.LabelSource(); err != nil {
+		if err := c.CheckRole(); err != nil {
 			return nil, fmt.Errorf("silhouette manifest %q: chain %d: %w", path, c.ChainID, err)
 		}
 		if c.VerifierConfig == "" {

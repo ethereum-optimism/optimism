@@ -478,11 +478,8 @@ func TestFrontierReadinessAlsoProvidesTheWait(t *testing.T) {
 // CONTROL: P unlabelled. Twenty rounds, no progress, and the verified frontier never moves.
 // TREATMENT: P labelled from its proven head. The very next round advances.
 //
-// This is the cluster half of the sequencer-side label source. The other half — that a silhouette
-// Container in the sequencer posture supplies exactly this label from the proven head, where the
-// chain's own container supplies none — is TestSequencerLabelSourceFollowsTheProvenHead in the
-// silhouette package. Together they are the claim: without the label source A's cross-safe stalls,
-// with it A's cross-safe advances.
+// This is a generic readiness control. Production silhouette supernodes derive the proof-carried
+// chain and therefore obtain this label from their normal safe database.
 func TestFrozenProvenChainFreezesTheClusterUntilItIsLabelled(t *testing.T) {
 	t.Parallel()
 	f := newLaggingSourceFixture(t, common.Hash{})

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,11 +33,11 @@ import (
 // not a parallel pipeline that imitates derivation, but real derivation fed a synthesised input.
 //
 // Reading order: OpenData rewinds chaining state to match the L1 cursor (G2 D5), the iterator does
-// the work lazily, accept applies docs/SPEC-WIRE-V3.md's acceptance rules 1-5, and transcode turns accepted
+// the work lazily, accept applies docs/SPEC-WIRE-V4.md's acceptance rules, and transcode turns accepted
 // blocks into frames under the rendered-origin convention (G2 D4).
 
-// L1Source is the L1 access this source needs. Note what is absent: receipts. P takes no deposits
-// (DR-2) and its SystemConfig is frozen, so nothing on this path ever walks an origin's receipts.
+// L1Source is the L1 access the proof stream needs. Receipt fetching is absent here because stock
+// op-node derivation separately reads the ordinary portal's deposit events when it builds attributes.
 type L1Source interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error)
@@ -274,8 +275,14 @@ func (s *DataSource) readEnvelope(ctx context.Context, ref eth.L1BlockRef, tx *t
 	} else if err != nil {
 		return nil, derive.NewTemporaryError(fmt.Errorf("failed to fetch blobs of tx %s: %w", tx.Hash(), err))
 	}
-	payload, err := proofbatch.FromBlobs(blobs)
+	payload, _, err := proofbatch.FromBlobPrefix(blobs)
 	if err != nil {
+		// The normal batcher's empty-batch carrier may be submitted in a later transaction when the
+		// proof envelope used all target blobs. It has the same authenticated sender and stock inbox,
+		// but no KCPB prefix, so it is ordinary derivation data rather than a malformed proof.
+		if errors.Is(err, proofbatch.ErrBadMagic) {
+			return nil, nil
+		}
 		// Blob-encoding damage is the submitter's problem, not L1's: skip it and keep going, the same
 		// way a malformed envelope is skipped a stage later.
 		s.log.Warn("ignoring proof-batch transaction with undecodable blobs", "l1", ref, "tx", tx.Hash(), "err", err)
@@ -318,7 +325,7 @@ func isRetryable(err error) bool {
 
 func retryable(err error) error { return retryableError{err} }
 
-// accept applies docs/SPEC-WIRE-V3.md's verifier acceptance rules and, only if all of them hold,
+// accept applies docs/SPEC-WIRE-V4.md's verifier acceptance rules and, only if all of them hold,
 // records the batch's facts and returns the channel frames it transcodes to.
 func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockRef, txHash common.Hash) ([]byte, error) {
 	// Rule 2: the envelope, at EXACTLY the version this node is configured for. The version is part
@@ -331,17 +338,6 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 	b := &env.Batch
 	if err := b.CheckStructure(); err != nil {
 		return nil, err
-	}
-	deniedIndex := -1
-	for i, blk := range b.Blocks {
-		denied, err := s.facts.Denied(blk.Number, blk.Hash)
-		if err != nil {
-			return nil, retryable(fmt.Errorf("check durable denial for block %d (%s): %w", blk.Number, blk.Hash, err))
-		}
-		if denied {
-			deniedIndex = i
-			break
-		}
 	}
 	// Acceptance rule (G7G D2 / G7R D10): no block may consume a message stamped at or above its own
 	// timestamp. The wire format PERMITS such a batch — it is well-formed — and this node refuses it,
@@ -361,6 +357,64 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 	// derived here, from the batch's OWN l1Head rather than from this node's live cursor, which is
 	// the only race-free reading available (G2 F4).
 	head := s.head()
+	// Proof channels deliberately overlap their immediate predecessor by one block. Usually that is
+	// merely the already-proven head and is removed here. After invalidation it is instead the new
+	// verifier-built replacement above head, so it remains and becomes proof-committed. Requiring an
+	// exact fact match makes the overlap idempotent rather than an alternate way to rewrite history.
+	if first := b.Blocks[0]; first.Number == head.Number {
+		if first.Hash != head.Hash || first.Timestamp != head.Timestamp ||
+			first.StateRoot != head.StateRoot || first.MessagePasserStorageRoot != head.MessagePasserStorageRoot ||
+			common.Hash(first.OutputRoot()) != head.OutputRoot {
+			return nil, fmt.Errorf("proof-batch overlap at block %d does not match proven head %s", first.Number, head.Hash)
+		}
+		if proofbatch.VersionHasL1Origins(env.Version) &&
+			(first.L1Origin != head.L1Origin || first.SequenceNumber != head.SeqNumber) {
+			return nil, fmt.Errorf("proof-batch overlap at block %d carries L1 reference %s:%d, proven head has %s:%d",
+				first.Number, first.L1Origin, first.SequenceNumber, head.L1Origin, head.SeqNumber)
+		}
+		if proofbatch.VersionHasExecMsgs(env.Version) {
+			got := make([]any, len(first.ExecMsgs))
+			for i := range first.ExecMsgs {
+				got[i] = *first.ExecMsgs[i].Executing()
+			}
+			want := make([]any, len(head.ExecMsgs))
+			for i := range head.ExecMsgs {
+				want[i] = head.ExecMsgs[i]
+			}
+			if !head.ExecMsgsKnown || !reflect.DeepEqual(got, want) {
+				return nil, fmt.Errorf("proof-batch overlap at block %d changes its executing-message declarations", first.Number)
+			}
+		}
+		var priorRoot common.Hash
+		if head.Number == s.cfg.Anchor.BlockNumber+1 {
+			priorRoot = s.cfg.Anchor.OutputRoot
+		} else if prior, ok := s.facts.ByNumber(head.Number - 1); ok {
+			priorRoot = prior.OutputRoot
+		} else {
+			return nil, fmt.Errorf("cannot validate proof-batch overlap before block %d: prior fact is unavailable", head.Number)
+		}
+		if b.PrevOutputRoot != priorRoot {
+			return nil, fmt.Errorf("proof-batch overlap at block %d names prior output %s, expected %s",
+				head.Number, b.PrevOutputRoot, priorRoot)
+		}
+		b.Blocks = b.Blocks[1:]
+		b.PrevOutputRoot = head.OutputRoot
+		if len(b.Blocks) == 0 {
+			return nil, fmt.Errorf("proof batch only repeats already-proven block %d", head.Number)
+		}
+	}
+
+	deniedIndex := -1
+	for i, blk := range b.Blocks {
+		denied, err := s.facts.Denied(blk.Number, blk.Hash)
+		if err != nil {
+			return nil, retryable(fmt.Errorf("check durable denial for block %d (%s): %w", blk.Number, blk.Hash, err))
+		}
+		if denied {
+			deniedIndex = i
+			break
+		}
+	}
 	supersedes := false
 	if b.PrevOutputRoot != head.OutputRoot {
 		base, ok, err := s.facts.SupersessionBase(b.PrevOutputRoot)
@@ -447,24 +501,33 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 	// reintroduce that block or anything descended from it. The whole original envelope is verified
 	// above before its suffix is omitted, so every retained fact remains proof-committed.
 	blocks := b.Blocks
+	renderBlocks := blocks
 	newOutputRoot := b.NewOutputRoot
 	if deniedIndex >= 0 {
 		denied := b.Blocks[deniedIndex]
-		if deniedIndex == 0 {
-			return nil, fmt.Errorf("block %d (%s) was denied by the cross-safety judge", denied.Number, denied.Hash)
-		}
 		blocks = b.Blocks[:deniedIndex]
-		last = blocks[len(blocks)-1]
-		newOutputRoot = last.OutputRoot()
-		s.log.Warn("omitting denied proof suffix during L1 replay",
-			"denied_block", denied.Number, "denied_hash", denied.Hash,
-			"retained_first", blocks[0].Number, "retained_last", last.Number)
+		// Include the denied height in the channel returned to stock derivation, but not in the facts
+		// or log sink recorded below. Its empty singular batch is the normal Holocene replacement
+		// trigger: op-node produces deposits-only attributes, and the magic EL delegates those exact
+		// attributes to the private EL.
+		renderBlocks = b.Blocks[:deniedIndex+1]
+		if len(blocks) > 0 {
+			last = blocks[len(blocks)-1]
+			newOutputRoot = last.OutputRoot()
+			s.log.Warn("omitting denied proof suffix during L1 replay",
+				"denied_block", denied.Number, "denied_hash", denied.Hash,
+				"retained_first", blocks[0].Number, "retained_last", last.Number)
+		} else {
+			newOutputRoot = head.OutputRoot
+			s.log.Warn("replaying denied first block only as a stock replacement trigger",
+				"denied_block", denied.Number, "denied_hash", denied.Hash, "parent", head.Number)
+		}
 	}
 
 	// Accepted. Transcode BEFORE recording anything: the transcode assigns each block its rendered
 	// origin, and those origins are part of the facts. A failure here is not the batch's fault, so
 	// it must not be recorded as a rejection either — it is returned as retryable.
-	frames, origins, err := s.transcode(ctx, head, blocks, l1, b.PrevOutputRoot, newOutputRoot)
+	frames, origins, err := s.transcode(ctx, head, renderBlocks, l1, b.PrevOutputRoot, newOutputRoot, env.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -478,8 +541,17 @@ func (s *DataSource) accept(ctx context.Context, payload []byte, l1 eth.L1BlockR
 		} else if err := s.facts.ReplaceSuffix(head); err != nil {
 			return nil, err
 		}
+		newHead := head.Number
+		if len(blocks) > 0 {
+			newHead = last.Number
+		}
 		s.log.Warn("accepted a replacement proof for a denied suffix",
-			"from", head.Number+1, "old_head", oldHead.Number, "new_head", last.Number)
+			"from", head.Number+1, "old_head", oldHead.Number, "new_head", newHead)
+	}
+	if len(blocks) == 0 {
+		s.log.Info("prepared stock replacement trigger from denied proof batch",
+			"l1", l1, "tx", txHash, "block", renderBlocks[0].Number)
+		return frames, nil
 	}
 	// Seal the exported logs BEFORE the facts move. The fact table IS the proven head, so this
 	// ordering is what makes "the head can never claim history the log store does not hold" true
@@ -609,7 +681,7 @@ const maxFrameSize = 120_000
 // source renders is by construction the epoch the stock CL will read out of those same bytes. An
 // origin-mapping disagreement cannot survive the round trip, which is exactly where a
 // hand-rolled encoder would have been free to drift.
-func (s *DataSource) transcode(ctx context.Context, head Fact, blocks []proofbatch.BlockExport, carrier eth.L1BlockRef, prevRoot, newRoot common.Hash) ([]byte, []rendered, error) {
+func (s *DataSource) transcode(ctx context.Context, head Fact, blocks []proofbatch.BlockExport, carrier eth.L1BlockRef, prevRoot, newRoot common.Hash, wireVersion uint8) ([]byte, []rendered, error) {
 	compressor, err := newChannelCompressor()
 	if err != nil {
 		return nil, nil, retryable(err)
@@ -628,7 +700,11 @@ func (s *DataSource) transcode(ctx context.Context, head Fact, blocks []proofbat
 	seqNumber := head.SeqNumber
 
 	for i, blk := range blocks {
-		origin, seqNumber, err = s.advanceOrigin(ctx, origin, seqNumber, blk.Timestamp, carrier)
+		if proofbatch.VersionHasL1Origins(wireVersion) {
+			origin, seqNumber, err = s.explicitOrigin(ctx, origin, seqNumber, blk, carrier)
+		} else {
+			origin, seqNumber, err = s.advanceOrigin(ctx, origin, seqNumber, blk.Timestamp, carrier)
+		}
 		if err != nil {
 			return nil, nil, err
 		}
@@ -692,6 +768,52 @@ func (s *DataSource) transcode(ctx context.Context, head Fact, blocks []proofbat
 	return payload.Bytes(), origins, nil
 }
 
+// explicitOrigin validates the canonical block-reference metadata carried by v4. This is public
+// derivation data from the L1-info deposit, not private transaction data. Keeping it exact prevents
+// a LightCL follower from seeing the right block hash paired with a different origin and correctly
+// treating that malformed L2BlockRef as a divergent chain.
+func (s *DataSource) explicitOrigin(ctx context.Context, previous eth.L1BlockRef, previousSeq uint64, blk proofbatch.BlockExport, carrier eth.L1BlockRef) (eth.L1BlockRef, uint64, error) {
+	if blk.L1Origin.Hash == (common.Hash{}) {
+		return eth.L1BlockRef{}, 0, fmt.Errorf("block %d carries a zero L1 origin hash", blk.Number)
+	}
+	if blk.L1Origin.Number > carrier.Number {
+		return eth.L1BlockRef{}, 0, fmt.Errorf("block %d origin %d is above carrying L1 block %d",
+			blk.Number, blk.L1Origin.Number, carrier.Number)
+	}
+	origin, err := s.l1.L1BlockRefByNumber(ctx, blk.L1Origin.Number)
+	if err != nil {
+		return eth.L1BlockRef{}, 0, retryable(fmt.Errorf("fetch block %d L1 origin %d: %w", blk.Number, blk.L1Origin.Number, err))
+	}
+	if origin.Hash != blk.L1Origin.Hash {
+		return eth.L1BlockRef{}, 0, fmt.Errorf("block %d L1 origin %s is not canonical; block %d is %s",
+			blk.Number, blk.L1Origin, origin.Number, origin.Hash)
+	}
+	if origin.Time > blk.Timestamp {
+		return eth.L1BlockRef{}, 0, fmt.Errorf("block %d at %d precedes its L1 origin %d at %d",
+			blk.Number, blk.Timestamp, origin.Number, origin.Time)
+	}
+	if drift := blk.Timestamp - origin.Time; drift > s.spec.MaxSequencerDrift(origin.Time) {
+		return eth.L1BlockRef{}, 0, fmt.Errorf("block %d drifts %ds past L1 origin %d, max %ds",
+			blk.Number, drift, origin.Number, s.spec.MaxSequencerDrift(origin.Time))
+	}
+	if origin.ID() == previous.ID() {
+		if want := previousSeq + 1; blk.SequenceNumber != want {
+			return eth.L1BlockRef{}, 0, fmt.Errorf("block %d sequence number %d, expected %d in L1 origin %s",
+				blk.Number, blk.SequenceNumber, want, origin.ID())
+		}
+	} else {
+		if origin.Number <= previous.Number {
+			return eth.L1BlockRef{}, 0, fmt.Errorf("block %d L1 origin %s does not advance previous origin %s",
+				blk.Number, origin.ID(), previous.ID())
+		}
+		if blk.SequenceNumber != 0 {
+			return eth.L1BlockRef{}, 0, fmt.Errorf("block %d starts L1 origin %s at sequence number %d, expected 0",
+				blk.Number, origin.ID(), blk.SequenceNumber)
+		}
+	}
+	return origin, blk.SequenceNumber, nil
+}
+
 // channelIDFor derives a channel's ID from the batch it carries, so that re-deriving the same L1
 // history reproduces the same frames byte for byte.
 func channelIDFor(prevRoot, newRoot common.Hash) derive.ChannelID {
@@ -700,9 +822,9 @@ func channelIDFor(prevRoot, newRoot common.Hash) derive.ChannelID {
 	return id
 }
 
-// advanceOrigin is the rendered-origin rule (G2 D4): the greedy rule a stock sequencer uses, which is
+// advanceOrigin is the legacy v2/v3 rendered-origin rule (G2 D4): the greedy rule a stock sequencer uses, which is
 // to adopt the next origin as soon as its timestamp is not in the future relative to the block being
-// built. It is a convention rather than a wire fact — the wire carries no per-block origin — and it
+// built. It is a convention rather than a wire fact in those versions, and it
 // is chosen because it minimises drift and is therefore the assignment most likely to be stock-legal
 // for every block.
 //

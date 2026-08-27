@@ -27,14 +27,10 @@ type SupernodeMetrics struct {
 	// 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.
 	InteropActivityState prometheus.Gauge
 
-	// The silhouette gauges. All three exist because a proof-carried chain fails QUIETLY: a halted
-	// shim keeps its process running and refuses every request, and a proof stream that stops
-	// arriving looks exactly like a chain with nothing to say. Every one of these is exported for a
+	// The silhouette gauge is exported for a
 	// chain the moment it is declared, at zero, so that "no series" means "no silhouette chain"
 	// rather than "nothing has gone wrong yet" — an alert on an absent series never fires.
-	SilhouetteShimHalted *prometheus.GaugeVec
 	SilhouetteProvenHead *prometheus.GaugeVec
-	SilhouetteTrackerL1  *prometheus.GaugeVec
 
 	registry *prometheus.Registry
 }
@@ -126,26 +122,10 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "interop_activity_state",
 			Help:      "Interop activity lifecycle state: 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.",
 		}),
-		SilhouetteShimHalted: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "supernode",
-			Name:      "silhouette_shim_halted",
-			Help: "1 when a proof-carried chain's shim has fail-stopped (the DR-1 honesty assertion, " +
-				"logged as SILHOUETTE SHIM HALTED). The process keeps running and refuses every " +
-				"request, so this is the only machine-readable difference between halted and slow.",
-		}, []string{"chain_id"}),
 		SilhouetteProvenHead: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "supernode",
 			Name:      "silhouette_proven_head",
-			Help: "Highest block of a proof-carried chain this node holds a proven-or-forced fact for. " +
-				"In the sequencer posture this is where the chain's PUBLIC safety labels come from, " +
-				"and it is not visible in optimism_syncStatus.",
-		}, []string{"chain_id"}),
-		SilhouetteTrackerL1: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "supernode",
-			Name:      "silhouette_tracker_l1_cursor",
-			Help: "Next L1 block the sequencer posture's proven-head walk will read. Against the L1 " +
-				"head it separates 'no proofs are landing' from 'this node stopped looking', which " +
-				"are the same symptom and different incidents.",
+			Help:      "Highest block of a proof-carried chain this verifier holds a proven-or-forced fact for.",
 		}, []string{"chain_id"}),
 		registry: reg,
 	}
@@ -166,9 +146,7 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.LogBackfillRetries,
 		m.ActivityErrors,
 		m.InteropActivityState,
-		m.SilhouetteShimHalted,
 		m.SilhouetteProvenHead,
-		m.SilhouetteTrackerL1,
 	)
 	return m
 }

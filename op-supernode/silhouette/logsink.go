@@ -3,6 +3,7 @@ package silhouette
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -95,6 +96,7 @@ var ErrForeignHistory = errors.New("log store holds foreign history")
 type LogSink struct {
 	log   log.Logger
 	store LogStore
+	mu    sync.Mutex
 }
 
 // NewLogSink builds a sink over a log store.
@@ -111,6 +113,8 @@ func (s *LogSink) Accept(blocks []proofbatch.BlockExport, parentHash common.Hash
 	if s == nil || s.store == nil {
 		return nil
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if len(blocks) == 0 {
 		return nil
 	}
@@ -144,6 +148,12 @@ func (s *LogSink) Rewind(target eth.BlockID) error {
 	if s == nil || s.store == nil {
 		return nil
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.rewind(target)
+}
+
+func (s *LogSink) rewind(target eth.BlockID) error {
 	latest, ok := s.store.LatestSealedBlock()
 	if !ok || latest.Number <= target.Number {
 		return nil
@@ -151,6 +161,39 @@ func (s *LogSink) Rewind(target eth.BlockID) error {
 	s.log.Warn("unsealing proven blocks dropped by an L1 reorg", "from", latest, "to", target)
 	if err := s.store.Rewind(target); err != nil {
 		return fmt.Errorf("rewind log store to %s: %w", target, err)
+	}
+	return nil
+}
+
+// ReplaceWithEmpty mirrors the stock receipts ingester after Holocene invalidation: discard the
+// invalid proof-carried suffix and seal the deposits-only replacement as a block with no exported
+// logs. The replacement's imports are likewise empty and are reported by Container.
+func (s *LogSink) ReplaceWithEmpty(parent eth.BlockID, block eth.BlockID, timestamp uint64) error {
+	if s == nil || s.store == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if block.Number != parent.Number+1 {
+		return fmt.Errorf("replacement block %s does not immediately follow parent %s", block, parent)
+	}
+	if latest, ok := s.store.LatestSealedBlock(); ok && latest.Number >= block.Number {
+		seal, err := s.store.FindSealedBlock(block.Number)
+		if err != nil {
+			return fmt.Errorf("read replacement seal at block %d: %w", block.Number, err)
+		}
+		if seal.Hash == block.Hash {
+			return nil
+		}
+	}
+	if err := s.rewind(parent); err != nil {
+		return err
+	}
+	if latest, ok := s.store.LatestSealedBlock(); ok && latest.Number == parent.Number && latest.Hash != parent.Hash {
+		return fmt.Errorf("replacement parent %d is sealed as %s, expected %s", parent.Number, latest.Hash, parent.Hash)
+	}
+	if err := s.store.SealBlock(parent.Hash, block, timestamp); err != nil {
+		return fmt.Errorf("seal empty replacement block %s: %w", block, err)
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -16,14 +17,17 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -33,6 +37,7 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
+	"github.com/ethereum-optimism/optimism/op-supernode/proofbatch"
 	"github.com/ethereum-optimism/optimism/op-supernode/silhouette"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
 )
@@ -43,15 +48,12 @@ import (
 // Four things here are not obvious, and every one of them is a property of silhouette rather than of
 // the harness.
 //
-// A SECOND supernode is required, not a second route on the existing one. The preset's supernode is
-// chain P's SEQUENCER: it holds P's execution client and P's real receipts, so any cross-safety
-// verdict it reaches about P's messages is a statement about data it was handed directly. The thesis
-// — that a node which does NOT derive P can still cross-safe P's messages — is only testable on a
-// node whose entire access to P is L1.
+// Sequencing belongs to P's LightCL node. The silhouette supernode is verifier-only and its entire
+// access to P's public history is the proof stream on L1.
 //
-// P's BATCHER IS STOPPED. A silhouette chain has no batcher; its L1 footprint is the proof-batch
-// inbox. Left running it would put P's real history on L1 beside the proofs, and the verifier — which
-// only reads the inbox — would still work, so the gate would pass for the wrong reason.
+// P uses the ordinary op-batcher pipeline, with only its terminal encoding and destination changed.
+// It loads real blocks and follows the stock reorg/retry/txmgr path, then emits transaction-stripped
+// proof batches to the proof-batch inbox.
 //
 // The devstack L1's params.ChainConfig is written to a FILE and named in the verifier config.
 // silhouette.L1ChainConfig knows the four public networks and refuses everything else by design
@@ -66,19 +68,8 @@ import (
 // op-node always derives from its rollup config's genesis. Anchoring at genesis is the one choice
 // that needs no doctored rollup config, and it makes the whole of P's history proof-carried.
 
-// silhouetteSubmitterMnemonicIndex derives the proof-batch submitter's L1 key. It is deliberately
-// none of the chain-operator roles: the (submitter, inbox) pair is the ENTIRE authenticity rule for
-// the proof stream, so sharing a key with the batcher or the proposer would let an unrelated
-// service's transaction be considered as a proof batch.
-const silhouetteSubmitterMnemonicIndex = 10_001
-
-// silhouetteInbox is the L1 address proof batches are addressed to. It holds no code and needs none:
-// a verifier's rule is "type-3 transaction, to this address, from that sender", so the inbox is a
-// coordinate rather than a contract.
-var silhouetteInbox = common.HexToAddress("0x00000000000000000000000000000000c0be1b01")
-
 // SilhouetteRuntime is the silhouette half of a runtime: the chain that is proof-carried, the
-// verifier that consumes its proofs, and the submitter that produces them.
+// verifier that consumes its proofs, and the ordinary batcher that produces them.
 type SilhouetteRuntime struct {
 	// ChainKey is the runtime chain that is proof-carried, and ChainID its chain ID.
 	ChainKey string
@@ -90,33 +81,23 @@ type SilhouetteRuntime struct {
 	Verifier *SuperNode
 	// VerifierRoutes are the verifier's per-chain rollup routes, keyed by runtime chain key.
 	VerifierRoutes map[string]*SuperNodeProxy
-	// VerifierELs are the execution clients the verifier's ORDINARY chains drive, keyed by runtime
-	// chain key. The silhouette chain has no entry, because it has no execution client at all — the
-	// shim serves proof-committed facts and executes nothing.
+	// VerifierELs are the stateful execution clients the verifier's ORDINARY chains drive, keyed by
+	// runtime chain key. The silhouette chain has no entry: its standalone magic EL serves
+	// proof-committed facts, persists no state, and executes nothing.
 	VerifierELs map[string]L2ELNode
 	// VerifierMetricsURL is the verifier's Prometheus endpoint. It exists so a test can assert on
 	// supernode_interop_invalidations_total, which is the only honest way to say "zero
 	// invalidations" rather than "we did not notice one".
 	VerifierMetricsURL string
+	// MagicELRPC is the standalone op-silhouette-el endpoint used by the verifier virtual node.
+	MagicELRPC string
 
-	// Submitter posts P's proof batches to L1.
-	Submitter *ProofBatchSubmitter
-
-	// Sequencer is the preset's OWN supernode: the one that sequences the silhouette chain on its
-	// real execution client. It is the subject of every sequencer-posture assertion, and it is the
-	// node the hazard-3 argument is about.
-	Sequencer *SuperNode
-	// SequencerRoute is that supernode's route for the silhouette chain.
-	SequencerRoute *SuperNodeProxy
+	// Batcher drives and observes P's ordinary op-batcher in acceptance tests.
+	Batcher *ProofBatchControl
 
 	// ManifestPath and Config are the files the verifier was started from.
 	ManifestPath string
 	Config       silhouette.Config
-
-	// SequencerPosture records whether the preset's OWN supernode was restarted with a `proven-head`
-	// manifest. A test asserting the hazard and a test asserting its fix run on the same preset with
-	// the same helpers, so this is what lets each one state which system it is looking at.
-	SequencerPosture bool
 
 	configDir     string
 	l1ChainConfig *params.ChainConfig
@@ -153,11 +134,10 @@ func (s *SilhouetteRuntime) BlockProvenance(t devtest.T, number uint64) *silhoue
 // TryBlockProvenance is the non-fatal form of BlockProvenance. It is useful while a denied proof
 // suffix is being replaced, when the requested height may temporarily be absent.
 func (s *SilhouetteRuntime) TryBlockProvenance(t devtest.T, number uint64) (*silhouette.BlockDeclaration, error) {
-	route := s.VerifierRoutes[s.ChainKey]
-	if route == nil {
-		return nil, fmt.Errorf("verifier has no route for the silhouette chain")
+	if s.MagicELRPC == "" {
+		return nil, fmt.Errorf("verifier has no magic EL endpoint for the silhouette chain")
 	}
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), route.UserRPC(), client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), s.MagicELRPC, client.WithLazyDial())
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial the silhouette chain's verifier route: %w", err)
 	}
@@ -170,60 +150,54 @@ func (s *SilhouetteRuntime) TryBlockProvenance(t devtest.T, number uint64) (*sil
 	return &out, nil
 }
 
-// SequencerProvenHead asks the SEQUENCING supernode how far the chain has been proven.
-//
-// This is the sequencer posture's only public surface and the only way to read the state it turns on.
-// `optimism_syncStatus` on that node reports its virtual node's own labels, which sit at genesis
-// forever because there is no batcher behind them and are SUPPOSED to; the labels the cross-safety
-// round consults come from the proven head instead, and this is where they are visible.
-func (s *SilhouetteRuntime) SequencerProvenHead(t devtest.T) *silhouette.ProvenHeadStatus {
-	require := t.Require()
-	require.True(s.SequencerPosture,
-		"the sequencing supernode serves silhouette_provenHead only in the sequencer posture")
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), s.SequencerRoute.UserRPC(), client.WithLazyDial())
-	require.NoError(err, "failed to dial the sequencing supernode's route for the silhouette chain")
-	defer rpcCl.Close()
-
-	var out silhouette.ProvenHeadStatus
-	require.NoError(rpcCl.CallContext(t.Ctx(), &out, "silhouette_provenHead"), "silhouette_provenHead")
-	return &out
-}
-
 // ManifestWithWrongL1ChainID writes a second, complete set of silhouette config files that differ
 // from the live ones in exactly one respect: the L1 chain-config file they name is for a different
 // chain. Starting a verifier from it must fail.
 func (s *SilhouetteRuntime) ManifestWithWrongL1ChainID(t devtest.T) string {
 	wrong := *s.l1ChainConfig
 	wrong.ChainID = new(big.Int).Add(s.l1ChainConfig.ChainID, big.NewInt(1))
-	return writeSilhouetteManifest(t, filepath.Join(s.configDir, "wrong-l1"), &wrong, s.Config, s.ChainID, "derivation")
+	return writeSilhouetteManifest(t, filepath.Join(s.configDir, "wrong-l1"), &wrong, s.Config, s.ChainID)
 }
 
-// silhouettePrefundOption prefunds the proof-batch submitter on L1. Prefunding is a genesis-time
-// decision, so this has to be a deployer option rather than a transfer later: a submitter that had to
-// be funded by a transaction would make the harness's first act on L1 a nonce the test has to reason
-// about.
-func silhouettePrefundOption() DeployerOption {
-	return func(t devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
-		addr, err := keys.Address(devkeys.UserKey(silhouetteSubmitterMnemonicIndex))
-		t.Require().NoError(err, "need a silhouette proof-batch submitter address")
-		builder.L1().WithPrefundedAccount(addr, *millionEth)
-	}
-}
-
-// silhouetteBatcherStoppedOption starts the silhouette chain's batcher STOPPED.
+// silhouetteBatcherOption starts the silhouette chain's ordinary op-batcher STOPPED and swaps only
+// its terminal channel encoding and inbox. Devstack acceptance tests can control publication
+// deterministically; op-up starts this same batcher for an autonomous network.
 //
-// The batcher service is still constructed, because the preset's frontends expect every chain to have
-// one and a nil batcher would be a shape change rippling through unrelated code. Starting it stopped
-// rather than starting it and calling StopBatcher is the difference between a chain that never had a
-// batcher and one that had a batcher for a few hundred milliseconds — and a single batch of P's real
-// history on L1 would be enough to make a verifier's progress ambiguous.
-func silhouetteBatcherStoppedOption(chainID eth.ChainID) BatcherOption {
+// Everything before encoding remains the stock path: unsafe-head polling, reorg reconciliation,
+// block loading, channel retry, txmgr and blob submission. The encoder copies commitments, logs and
+// imports from each real block but deliberately has no transaction-list field.
+func silhouetteBatcherOption(chainID eth.ChainID, inbox common.Address, rollupConfigHash, depSetHash common.Hash) BatcherOption {
+	testHooks := bss.NewProofBatchTestHooks()
 	return func(target ComponentTarget, cfg *bss.CLIConfig) {
 		if target.ChainID != chainID {
 			return
 		}
 		cfg.Stopped = true
+		cfg.DataAvailabilityType = batcherFlags.BlobsType
+		// A proof batch is already a complete multi-blob payload. Keeping a single transaction in
+		// flight avoids producing overlapping ranges while the verifier's safe-head acknowledgement
+		// travels back through the LightCL follow route.
+		cfg.MaxPendingTransactions = 1
+		cfg.TargetNumFrames = params.DefaultPragueBlobConfig.Max
+		cfg.ProofBatch = &bss.ProofBatchConfig{
+			Inbox:            inbox,
+			RollupConfigHash: rollupConfigHash,
+			DepSetHash:       depSetHash,
+			WireVersion:      proofbatch.Version,
+			MaxBlocks:        300,
+			TestHooks:        testHooks,
+		}
 	}
+}
+
+type silhouetteRPCOutput struct {
+	OutputRoot            common.Hash `json:"outputRoot"`
+	StateRoot             common.Hash `json:"stateRoot"`
+	WithdrawalStorageRoot common.Hash `json:"withdrawalStorageRoot"`
+	BlockRef              struct {
+		Hash common.Hash `json:"hash"`
+		Time uint64      `json:"timestamp"`
+	} `json:"blockRef"`
 }
 
 // silhouetteAnchor reads P's genesis as the anchor of proven history.
@@ -268,7 +242,7 @@ func silhouetteAnchor(t devtest.T, logger log.Logger, rollupRPC string, genesisL
 // the manifest path. The verifier config is taken by value because this function OWNS setting
 // L1ChainConfigPath: the path is a property of where the files were written, not of the caller's
 // intent.
-func writeSilhouetteManifest(t devtest.T, dir string, l1Chain *params.ChainConfig, cfg silhouette.Config, chainID eth.ChainID, labels string) string {
+func writeSilhouetteManifest(t devtest.T, dir string, l1Chain *params.ChainConfig, cfg silhouette.Config, chainID eth.ChainID) string {
 	require := t.Require()
 	require.NoError(os.MkdirAll(dir, 0o755), "create silhouette config dir %s", dir)
 
@@ -285,7 +259,6 @@ func writeSilhouetteManifest(t devtest.T, dir string, l1Chain *params.ChainConfi
 	return write("manifest.json", silhouette.Manifest{Chains: []silhouette.ManifestChain{{
 		ChainID:        eth.EvilChainIDToUInt64(chainID),
 		VerifierConfig: cfgPath,
-		Labels:         labels,
 	}}})
 }
 
@@ -295,16 +268,10 @@ func writeSilhouetteManifest(t devtest.T, dir string, l1Chain *params.ChainConfi
 // derived under — so they are configuration on both sides. Hashing the artifacts the chain actually
 // runs, rather than picking constants, buys the property that matters: change the chain and the
 // commitment changes, so a batch built for one chain cannot be accepted as another's history.
-func silhouetteBindings(t devtest.T, rollupCfg any, depSet *depset.StaticConfigDependencySet) (rollupConfigHash, depSetHash common.Hash) {
-	require := t.Require()
-	raw, err := json.Marshal(rollupCfg)
-	require.NoError(err, "encode the silhouette chain's rollup config for its commitment")
-	rollupConfigHash = crypto.Keccak256Hash([]byte("devstack-silhouette-rollup-config:"), raw)
-
-	require.NotNil(depSet, "a silhouette chain needs a dependency set: outside one, nobody can reference its messages")
-	raw, err = json.Marshal(depSet)
-	require.NoError(err, "encode the dependency set for its commitment")
-	depSetHash = crypto.Keccak256Hash([]byte("devstack-silhouette-depset:"), raw)
+func silhouetteBindings(t devtest.T, rollupCfg *rollup.Config, depSet *depset.StaticConfigDependencySet) (rollupConfigHash, depSetHash common.Hash) {
+	var err error
+	rollupConfigHash, depSetHash, err = silhouette.BindingHashes(rollupCfg, depSet)
+	t.Require().NoError(err, "compute silhouette artifact bindings")
 	return rollupConfigHash, depSetHash
 }
 
@@ -340,8 +307,13 @@ func silhouetteInteropActivation(t devtest.T, clusterActivation *uint64, anchor 
 
 // silhouetteVerifierChain is one chain as the verifier supernode should see it.
 type silhouetteVerifierChain struct {
-	key string
-	net *L2Network
+	key       string
+	net       *L2Network
+	engineRPC string
+	// rollup overrides the private network's producer config for proof rendering. The generated
+	// silhouette config keeps every fork active at genesis, so a verifier never has to reconstruct
+	// an activation header from the deliberately minimal public rendering.
+	rollup *rollup.Config
 	// el is the execution client this chain's virtual node drives. It is nil for the silhouette
 	// chain, which has none.
 	el L2ELNode
@@ -368,13 +340,11 @@ func startSilhouetteVerifier(
 		if chain.el != nil {
 			engineAddr = chain.el.EngineRPC()
 		} else {
-			// The silhouette chain's L2 endpoint is REPLACED by silhouette.Assemble with an
-			// in-process client to the shim, before the chain container is built. The value here is
-			// only ever read by opnodeconfig.Config.Check, which insists on a non-empty address. It
-			// is deliberately unroutable rather than P's real engine: if anything ever did dial it,
-			// a connection refusal is a loud bug and talking to the sequencer's engine would be a
-			// silent one.
-			engineAddr = "http://127.0.0.1:1"
+			engineAddr = chain.engineRPC
+		}
+		rollupCfg := chain.net.rollupCfg
+		if chain.rollup != nil {
+			rollupCfg = chain.rollup
 		}
 		cfg := &opnodeconfig.Config{
 			L1: &opnodeconfig.L1EndpointConfig{
@@ -397,7 +367,7 @@ func startSilhouetteVerifier(
 			// the ordinary chains' batchers may use them too.
 			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
 			Driver:                          driver.Config{SequencerEnabled: false, SequencerConfDepth: 2},
-			Rollup:                          *chain.net.rollupCfg,
+			Rollup:                          *rollupCfg,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			L1EpochPollInterval:             2 * time.Second,
 			RuntimeConfigReloadInterval:     0,
@@ -511,8 +481,8 @@ func freeLoopbackPort(t devtest.T) int {
 }
 
 // setUpSilhouette turns one already-running chain of a multi-chain runtime into a proof-carried
-// chain: it writes the config the verifier reads, starts the verifier supernode, and builds the
-// submitter that feeds it.
+// chain: it writes the config the verifier reads, starts the verifier supernode, and connects the
+// already-created ordinary op-batcher to the verifier.
 //
 // It runs LAST in the runtime, after the sequencer supernode and the batchers, for one reason that is
 // not stylistic: the anchor is read from the chain itself over RPC, so the chain has to be answering
@@ -529,29 +499,28 @@ func setUpSilhouette(
 	interopActivationTimestamp *uint64,
 	jwtPath string,
 	jwtSecret [32]byte,
-	sequencerSupernode *SuperNode,
-	sequencerPosture bool,
+	sharedSupernode *SuperNode,
 ) *SilhouetteRuntime {
 	require := t.Require()
 	logger := t.Logger().New("component", "silhouette")
 
 	p := runtimeChains[chainKey]
 	require.NotNilf(p, "silhouette chain %q is not in the runtime", chainKey)
-	require.NotNil(p.SupernodeCL, "the silhouette chain needs its sequencer-side rollup route to read its anchor from")
+	require.NotNil(p.CL, "the silhouette chain needs its LightCL sequencing node to read its anchor from")
 	pChainID := p.Network.ChainID()
 
 	rollupConfigHash, depSetHash := silhouetteBindings(t, p.Network.rollupCfg, depSet)
-	submitterKey, err := keys.Secret(devkeys.UserKey(silhouetteSubmitterMnemonicIndex))
-	require.NoError(err, "need the silhouette proof-batch submitter key")
+	submitterKey, err := keys.Secret(devkeys.BatcherRole.Key(pChainID.ToBig()))
+	require.NoError(err, "need the silhouette chain's batcher key")
 	submitterAddr := crypto.PubkeyToAddress(submitterKey.PublicKey)
 
-	anchor := silhouetteAnchor(t, logger, p.SupernodeCL.UserRPC(),
+	anchor := silhouetteAnchor(t, logger, p.CL.UserRPC(),
 		p.Network.rollupCfg.Genesis.L2, p.Network.rollupCfg.Genesis.L2Time, p.Network.rollupCfg.Genesis.L1)
 
 	cfg := silhouette.Config{
 		L1ChainID:        eth.EvilChainIDToUInt64(l1Net.ChainID()),
 		Submitter:        submitterAddr,
-		Inbox:            silhouetteInbox,
+		Inbox:            p.Network.rollupCfg.BatchInboxAddress,
 		RollupConfigHash: rollupConfigHash,
 		DepSetHash:       depSetHash,
 		// Proven history is re-derived from here on every restart, and P starts at its own genesis,
@@ -564,9 +533,16 @@ func setUpSilhouette(
 		// v1 configuration, not a test shortcut. See TRUST-MODEL.md.
 		ProofType: silhouette.ProofTypeAttested,
 	}
+	verifierRollup := silhouetteVerifierRollup(t, p.Network.rollupCfg)
 
 	configDir := t.TempDirWithPrefix("silhouette-config")
-	manifestPath := writeSilhouetteManifest(t, filepath.Join(configDir, "live"), l1Net.genesis.Config, cfg, pChainID, "derivation")
+	liveConfigDir := filepath.Join(configDir, "live")
+	manifestPath := writeSilhouetteManifest(t, liveConfigDir, l1Net.genesis.Config, cfg, pChainID)
+	// writeSilhouetteManifest takes cfg by value and fills this path in the file it writes. The
+	// standalone magic EL consumes the same config directly, so give its copy the identical path.
+	cfg.L1ChainConfigPath = filepath.Join(liveConfigDir, "l1-chain-config.json")
+	magicELRPC, magicFacts := startSilhouetteEL(t, logger, sharedSupernode, verifierRollup, cfg,
+		p.EL, jwtSecret)
 
 	// Every ordinary chain gets its own execution client on the verifier side. The silhouette chain
 	// gets none: that absence is the deliverable.
@@ -579,6 +555,9 @@ func setUpSilhouette(
 			vc.el = startL2ELForKey(t, chain.Network, jwtPath, jwtSecret, "silhouette-verifier",
 				NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
 			verifierELs[key] = vc.el
+		} else {
+			vc.engineRPC = magicELRPC
+			vc.rollup = verifierRollup
 		}
 		chains = append(chains, vc)
 	}
@@ -587,30 +566,23 @@ func setUpSilhouette(
 		t, l1Net, l1EL, l1CL, chains, pChainID, manifestPath, depSet,
 		silhouetteInteropActivation(t, interopActivationTimestamp, anchor, p.Network.rollupCfg.BlockTime),
 		jwtSecret)
-
-	submitter := newProofBatchSubmitter(t, logger.New("component", "proofbatch-submitter"), ProofBatchSubmitterConfig{
-		Inbox:            silhouetteInbox,
-		SubmitterKey:     submitterKey,
-		RollupConfigHash: rollupConfigHash,
-		DepSetHash:       depSetHash,
-		AnchorBlock:      anchor.BlockNumber,
-		AnchorOutputRoot: anchor.OutputRoot,
-		MaxBlocks:        300,
-		// One block of margin below the L1 head: the claimed l1Head must be canonical on the
-		// verifier and no higher than the block that carries the batch, and both hold trivially for
-		// a block that is already a parent by the time the transaction lands.
-		L1Lag: 1,
-	}, l1EL.UserRPC(), p.EL.UserRPC(), p.SupernodeCL.UserRPC())
-
-	// And the sequencer side, if the preset asked for it. LAST: the posture is applied to a node that
-	// has been sequencing all along, which is what a cutover does.
-	if sequencerPosture {
-		applySequencerPosture(t, logger, sequencerSupernode, configDir, l1Net.genesis.Config, cfg,
-			pChainID)
+	// Follow-source forkchoice carries only block references. For ordinary chains, the replacement
+	// payload itself lives first in the verifier supernode's EL, so peer that EL with the LightCL
+	// sequencer's EL exactly as the normal light-sequencer topology does. The silhouette chain needs
+	// no such link: its magic EL builds the replacement directly in P's private sequencing EL.
+	for _, key := range sortedChainKeys(runtimeChains) {
+		verifierEL, ok := verifierELs[key]
+		if !ok {
+			continue
+		}
+		connectL2ELPeers(t, logger, verifierEL.UserRPC(), runtimeChains[key].EL.UserRPC())
 	}
+	attachSilhouetteDeniedChecker(t, logger, magicFacts, verifier.UserRPC(), pChainID)
+
+	batcherControl := newProofBatchControl(t, p.Batcher)
 
 	logger.Info("silhouette chain configured",
-		"chain", pChainID, "submitter", submitterAddr, "inbox", silhouetteInbox,
+		"chain", pChainID, "submitter", submitterAddr, "inbox", cfg.Inbox,
 		"anchor_block", anchor.BlockNumber, "anchor_output_root", anchor.OutputRoot,
 		"rollup_config_hash", rollupConfigHash, "dep_set_hash", depSetHash,
 		"manifest", manifestPath)
@@ -622,82 +594,112 @@ func setUpSilhouette(
 		VerifierRoutes:     routes,
 		VerifierELs:        verifierELs,
 		VerifierMetricsURL: metricsURL,
-		Submitter:          submitter,
+		MagicELRPC:         magicELRPC,
+		Batcher:            batcherControl,
 		ManifestPath:       manifestPath,
 		Config:             cfg,
-		Sequencer:          sequencerSupernode,
-		SequencerRoute: &SuperNodeProxy{p: t, logger: logger, userRPC: sequencerSupernode.UserRPC() +
-			"/" + strconv.FormatUint(eth.EvilChainIDToUInt64(pChainID), 10)},
-		SequencerPosture: sequencerPosture,
-		configDir:        configDir,
-		l1ChainConfig:    l1Net.genesis.Config,
-		tryVerifier:      tryVerifier,
+		configDir:          configDir,
+		l1ChainConfig:      l1Net.genesis.Config,
+		tryVerifier:        tryVerifier,
 	}
 }
 
-// applySequencerPosture restarts the preset's OWN supernode — the one that sequences the silhouette
-// chain on its real execution client — with a `proven-head` manifest.
-//
-// A RESTART rather than a startup flag, and that is faithful rather than expedient. The manifest
-// names the chain's anchor, the anchor is read off the chain over RPC, and the chain only answers
-// because this supernode is already up sequencing it. The rotation runbook has the same shape for
-// the same reason: the sequencer-side posture is the LAST step, applied to a running cluster.
-//
-// A FRESH DATA DIRECTORY, which is the part that would be a silent failure if it were forgotten.
-// Before this call the supernode ingested the chain's initiating messages from RECEIPTS, because it
-// had them; from here it seals them from the wire, because the public network's view of the chain is
-// the set of messages the chain chose to export and a node ingesting from receipts would hold a
-// strictly larger set than every verifier (G4 D1). Those two histories do not chain: the log sink
-// COMPARES rather than re-seals on restart and refuses foreign history outright. So the data
-// directory has to go, exactly as the runbook's anchor-move step says.
-//
-// Everything else about the node is left alone. It keeps sequencing, it keeps its execution client,
-// and the posture branch in silhouette.Assemble is what declines to take any of that away.
-func applySequencerPosture(
-	t devtest.T,
-	logger log.Logger,
-	sn *SuperNode,
-	configDir string,
-	l1Chain *params.ChainConfig,
-	cfg silhouette.Config,
-	chainID eth.ChainID,
-) {
+// silhouetteVerifierRollup derives the public verifier's rollup config from the private producer's
+// config. Chain identity, timing, portal and genesis SystemConfig stay identical. Forks are active
+// from genesis because the magic EL intentionally does not expose enough header interior to
+// reconstruct one-time activation gas from an earlier rendered block.
+func silhouetteVerifierRollup(t devtest.T, producer *rollup.Config) *rollup.Config {
 	require := t.Require()
-	require.NotNil(sn, "the sequencer posture needs the preset's own supernode")
+	require.NotNil(producer)
+	scalar := producer.Genesis.SystemConfig.Scalar
+	eip1559Params := producer.Genesis.SystemConfig.EIP1559Params
+	if eip1559Params == (eth.Bytes8{}) {
+		require.NotNil(producer.ChainOpConfig,
+			"producer rollup config needs chain-op defaults when genesis EIP-1559 params are zero")
+		require.LessOrEqual(producer.ChainOpConfig.EIP1559Denominator, uint64(^uint32(0)))
+		require.LessOrEqual(producer.ChainOpConfig.EIP1559Elasticity, uint64(^uint32(0)))
+		binary.BigEndian.PutUint32(eip1559Params[:4], uint32(producer.ChainOpConfig.EIP1559Denominator))
+		binary.BigEndian.PutUint32(eip1559Params[4:], uint32(producer.ChainOpConfig.EIP1559Elasticity))
+	}
+	cfg, err := silhouette.RollupConfigFor(silhouette.SilhouetteParams{
+		L2ChainID:         producer.L2ChainID,
+		L1ChainID:         producer.L1ChainID,
+		L1Genesis:         producer.Genesis.L1,
+		L2Genesis:         producer.Genesis.L2,
+		L2Time:            producer.Genesis.L2Time,
+		BlockTime:         producer.BlockTime,
+		SeqWindowSize:     silhouette.DefaultSeqWindowSize,
+		MaxSequencerDrift: producer.MaxSequencerDrift,
+		DepositContract:   producer.DepositContractAddress,
+		BatchInbox:        producer.BatchInboxAddress,
+		SystemConfigProxy: producer.L1SystemConfigAddress,
+		GasLimit:          producer.Genesis.SystemConfig.GasLimit,
+		EIP1559Params:     eip1559Params,
+		MinBaseFee:        producer.Genesis.SystemConfig.MinBaseFee,
+		BatcherAddr:       producer.Genesis.SystemConfig.BatcherAddr,
+		BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
+		BlobBaseFeeScalar: binary.BigEndian.Uint32(scalar[24:28]),
+	})
+	require.NoError(err, "generate silhouette verifier rollup config")
+	return cfg
+}
 
-	manifest := writeSilhouetteManifest(t, filepath.Join(configDir, "sequencer"), l1Chain, cfg,
-		chainID, "proven-head")
+// startSilhouetteEL starts the devstack equivalent of the op-silhouette-el binary. It has its own
+// fact store and proof walker; only the L1 transports are shared with the harness process.
+func startSilhouetteEL(t devtest.T, logger log.Logger, sn *SuperNode, rollupCfg *rollup.Config,
+	cfg silhouette.Config, privateEL L2ELNode, jwtSecret [32]byte,
+) (string, *silhouette.FactStore) {
+	require := t.Require()
+	require.NotNil(sn, "the magic EL needs the runtime's shared L1 clients")
+	require.NotNil(sn.L1Client())
+	require.NotNil(sn.BeaconClient())
 
-	logger.Info("applying the silhouette sequencer posture to the sequencing supernode",
-		"chain", chainID, "manifest", manifest)
-	sn.Stop()
+	l1Chain, err := silhouette.L1ChainConfig(&cfg)
+	require.NoError(err)
+	verifier, err := cfg.NewVerifier()
+	require.NoError(err)
+	facts := &silhouette.FactStore{}
+	source := silhouette.NewDataSource(logger.New("component", "magic-el-proof-source"), &cfg, rollupCfg,
+		l1Chain, rollupCfg.Genesis.SystemConfig, sn.L1Client(), sn.BeaconClient(), verifier, facts)
+	shim := silhouette.NewShim(logger.New("component", "magic-el"), rollupCfg, l1Chain,
+		rollupCfg.Genesis.SystemConfig, sn.L1Client(), facts)
+	replacementRPC, err := client.NewRPC(t.Ctx(), logger, privateEL.EngineRPC(),
+		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))),
+		client.WithCallTimeout(30*time.Second))
+	require.NoError(err, "dial private replacement engine")
+	t.Cleanup(replacementRPC.Close)
+	replacementEngine, err := sources.NewEngineClient(replacementRPC, logger.New("component", "replacement-engine"),
+		nil, sources.EngineClientDefaultConfig(rollupCfg))
+	require.NoError(err, "create private replacement engine client")
+	shim.SetReplacementBuilder(silhouette.NewEngineReplacementBuilder(replacementEngine))
+	start := cfg.L1StartBlock
+	if start == 0 {
+		start = rollupCfg.Genesis.L1.Number
+	}
+	tracker := silhouette.NewProvenHeadTracker(logger.New("component", "magic-el-proof-walker"),
+		source, sn.L1Client(), start, 100*time.Millisecond)
+	server := shim.Standalone("127.0.0.1", 0)
+	require.NoError(server.Start())
+	t.Cleanup(func() { require.NoError(server.Stop()) })
+	go tracker.Run(t.Ctx())
+	rpcURL := "http://" + server.Endpoint()
+	logger.Info("started standalone silhouette magic EL", "rpc", rpcURL, "chain", rollupCfg.L2ChainID)
+	return rpcURL, facts
+}
 
-	sn.snCfg.SilhouetteManifestPath = manifest
-
-	// THE DATA DIRECTORY IS KEPT, and the reason is a property of this harness rather than a shortcut.
-	//
-	// The rotation clears it (RUNBOOK §5.1) because P is being re-genesised onto a new anchor and a log
-	// store built under a different anchor cannot chain. Here there is nothing to clear: P has had no
-	// batcher since the cluster came up, so its public safe head never left genesis, so nothing was
-	// ever sealed into its log store. The posture change from receipts to wire (G4 D1) has no receipt
-	// history to contradict.
-	//
-	// Wiping anyway was tried and is INSTRUCTIVE, so it is written down here rather than lost: it
-	// stalls the node permanently, and not through the log store. `checkChainsReady` asks every chain
-	// `OptimisticAt(ts)`, which for an ordinary chain is answered from its SafeDB — and a wiped SafeDB
-	// is refilled only as that chain's safe head ADVANCES, in the jumps its batcher's batches arrive
-	// in. The round, restarting at the activation timestamp, then asks for a timestamp below the first
-	// entry that will ever exist and gets `not ready` forever, while every log line reports health.
-	// That is the same shape as hazard 3 and it is what RUNBOOK §5.1 and G4 D10 exist to prevent — but
-	// reproducing it here would be testing the harness's own anchor placement (P anchored at the
-	// CLUSTER's genesis, hours of chain history below the restart) rather than the posture.
-	//
-	// So the restart is a restart and nothing else: same data, same activation timestamp, one manifest
-	// added. That is the smallest change that puts this node in the posture, which makes it the right
-	// one for a test whose subject is the posture.
-	sn.Start()
-	logger.Info("sequencing supernode restarted in the sequencer posture",
-		"chain", chainID, "rpc", sn.UserRPC(), "data_dir", sn.snCfg.DataDir)
+// attachSilhouetteDeniedChecker gives the standalone magic EL the verifier's durable denial view.
+// It is attached after the verifier starts because the verifier needs the EL endpoint during its
+// own startup. No proof submitter is running yet, so no replacement proof can race this attachment.
+func attachSilhouetteDeniedChecker(t devtest.T, logger log.Logger, facts *silhouette.FactStore, supernodeRPC string, chainID eth.ChainID) {
+	rpcCl, err := client.NewRPC(t.Ctx(), logger, supernodeRPC, client.WithLazyDial(), client.WithCallTimeout(10*time.Second))
+	t.Require().NoError(err)
+	t.Cleanup(rpcCl.Close)
+	supernodeClient := sources.NewSuperNodeClient(rpcCl)
+	facts.SetDeniedChecker(func(number uint64, hash common.Hash) (bool, error) {
+		ctx, cancel := context.WithTimeout(t.Ctx(), 10*time.Second)
+		defer cancel()
+		return supernodeClient.IsDenied(ctx, chainID, number, hash)
+	})
 }
 
 // sortedChainKeys keeps chain iteration deterministic, so the verifier's chain order and its EL

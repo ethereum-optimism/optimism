@@ -166,10 +166,9 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 
 // silhouetteTargetFromRuntime exposes the verifier supernode and the proof stream.
 //
-// The silhouette chain gets a rollup route and NO execution-layer frontend, and that is not an
-// omission: on the verifier it has no execution client at all. Its query surface is the shim, served
-// at its own route by the chain container's extra APIs, so anything a test needs to ask about the
-// chain it asks the route.
+// The silhouette chain gets a rollup route and no stateful execution-layer frontend. Its query
+// surface is the standalone magic EL and the proof-backed route, so anything a test needs to ask
+// about the verifier's view of the chain goes through that route.
 func silhouetteTargetFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *SilhouetteTarget {
 	s := runtime.Silhouette
 	if s == nil {
@@ -216,7 +215,7 @@ func silhouetteTargetFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) 
 		PeerCL:       dsl.NewL2CLNode(peerCL),
 		PeerEL:       dsl.NewL2ELNode(peerEL),
 		PeerChainKey: peerKey,
-		Submitter:    s.Submitter,
+		Batcher:      s.Batcher,
 		Runtime:      s,
 	}
 }

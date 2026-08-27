@@ -72,16 +72,8 @@ type Config struct {
 	// DepSetHash is the dependency set the batch's interop attributes were built from. A batch
 	// derived under a different dep set is a different chain's history.
 	DepSetHash common.Hash `json:"depSetHash"`
-	// L1StartBlock is the first L1 block the SEQUENCER posture's proven-head tracker scans for proof
-	// batches. Zero means the anchor's L1 origin, which is the lowest block that can carry a batch
-	// this node would accept, and it is refused if it sits above that floor rather than clamped —
-	// see trackerStartBlock.
-	//
-	// It is NOT read in the verifier posture, and saying so is the honest half. There, the derivation
-	// pipeline is what traverses L1, and op-node starts it from the rollup config's genesis; there is
-	// no seam at which a verifier could be told to start higher, and the fact store is ephemeral
-	// (facts.go) with no resumable cursor in the data directory. So setting this does not bound a
-	// verifier's restart cost — the rollup config's genesis does.
+	// L1StartBlock is retained for standalone proof-source walkers such as the magic EL service.
+	// The supernode verifier's stock derivation pipeline starts from the rollup genesis instead.
 	L1StartBlock uint64 `json:"l1StartBlock"`
 	// L1HeadMaxDepth bounds how far below the L1 block that carried a batch its claimed l1Head may
 	// sit.

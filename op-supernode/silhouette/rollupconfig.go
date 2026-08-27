@@ -14,17 +14,15 @@ import (
 )
 
 // The silhouette rollup config is OUR artifact, not something read from the superchain registry: a
-// silhouette chain is not in any registry, and its config differs from a stock chain's in exactly
-// three ways that matter. Generating it here rather than hand-writing JSON is what keeps those three
-// differences visible and checked.
+// silhouette chain is not in any registry, and its config differs from a stock chain in the ways
+// listed below. Generating it here rather than hand-writing JSON is what keeps those differences
+// visible and checked.
 //
 //  1. The sequencing window is FINITE and short (DR-2). Stock's 12-hour default is far too coarse
 //     against a ten-minute proof cadence: the forced extension is meant to be a liveness backstop
 //     that fires within an hour or two of a prover dying, not half a day later.
-//  2. deposit_contract_address points at the GATED portal. It is deployed and it reverts on deposit.
-//     The address must still be real and correct, because stock derivation reads deposit events from
-//     it — it just never finds any, which is what makes every epoch derive deposit-free by
-//     construction and a prover's L1 walk headers-only.
+//  2. deposit_contract_address is the chain's stock OptimismPortal. Stock derivation reads its
+//     TransactionDeposited events exactly as it does for an ordinary OP Stack chain.
 //  3. Every fork is active at genesis. That is what removes activation blocks, which in turn is what
 //     keeps a forced block single-transaction (an activation block would carry the fork's upgrade
 //     transactions and an inflated gas limit) — see G2 D2.1.
@@ -44,11 +42,10 @@ type SilhouetteParams struct {
 	SeqWindowSize uint64
 	// MaxSequencerDrift bounds how far an L2 block's timestamp may run ahead of its L1 origin.
 	MaxSequencerDrift uint64
-	// GatedPortal is the deployed-but-gated OptimismPortal: real address, reverts on deposit.
-	GatedPortal common.Address
-	// BatchInbox is retained for shape only. A silhouette chain HAS no batcher — its L1 footprint is
-	// the proof-batch inbox — but the field is not optional in a rollup config, and the stock CL uses
-	// it only to filter transactions this chain's data source never reads.
+	// DepositContract is the chain's stock OptimismPortal address.
+	DepositContract common.Address
+	// BatchInbox is the ordinary rollup-config inbox. The silhouette op-batcher overrides its terminal
+	// destination with the proof-batch inbox, while the field remains required by stock rollup config.
 	BatchInbox common.Address
 	// SystemConfigProxy is the L1 SystemConfig address. It is frozen: no ConfigUpdate event is ever
 	// emitted, which is the precondition G2 D2 relies on to treat gasLimit and eip1559Params as
@@ -90,8 +87,8 @@ func RollupConfigFor(p SilhouetteParams) (*rollup.Config, error) {
 	if p.BlockTime == 0 {
 		return nil, errors.New("blockTime is required")
 	}
-	if p.GatedPortal == (common.Address{}) {
-		return nil, errors.New("gatedPortal is required: stock derivation reads deposit events from it")
+	if p.DepositContract == (common.Address{}) {
+		return nil, errors.New("depositContract is required: stock derivation reads deposit events from it")
 	}
 	if p.BaseFeeScalar == 0 {
 		return nil, errors.New("baseFeeScalar is required: a zero genesis scalar is rejected outright")
@@ -138,7 +135,7 @@ func RollupConfigFor(p SilhouetteParams) (*rollup.Config, error) {
 		L1ChainID:              p.L1ChainID,
 		L2ChainID:              p.L2ChainID,
 		BatchInboxAddress:      p.BatchInbox,
-		DepositContractAddress: p.GatedPortal,
+		DepositContractAddress: p.DepositContract,
 		L1SystemConfigAddress:  p.SystemConfigProxy,
 		RegolithTime:           genesisActive,
 		CanyonTime:             genesisActive,

@@ -15,6 +15,7 @@ import (
 	"github.com/holiman/uint256"
 
 	coreparams "github.com/ethereum-optimism/optimism/op-core/params"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -56,6 +57,18 @@ type fakeL1 struct {
 	reorgAbove uint64
 	// calls counts L1 reads, so a test can assert the hot path stays free of them.
 	calls int
+}
+
+func (f *fakeL1) FetchReceipts(_ context.Context, hash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {
+	num, ok := f.byHash(hash)
+	if !ok {
+		return nil, nil, ethereum.NotFound
+	}
+	return f.info(num), optypes.Receipts{}, nil
+}
+
+func (f *fakeL1) L1BlockRefByLabel(_ context.Context, _ eth.BlockLabel) (eth.L1BlockRef, error) {
+	return f.ref(f.head), nil
 }
 
 func newFakeL1(head uint64) *fakeL1 {
@@ -327,14 +340,22 @@ func (e *testEnv) buildBatch(s batchSpec) *proofbatch.ProofBatch {
 	}
 	for i := 0; i < s.count; i++ {
 		num := s.firstBlock + uint64(i)
+		timestamp := s.firstTime + uint64(i)*l2BlockTime
 		seed := new(big.Int).SetUint64(num).Bytes()
-		b.Blocks = append(b.Blocks, proofbatch.BlockExport{
+		block := proofbatch.BlockExport{
 			Number:                   num,
-			Timestamp:                s.firstTime + uint64(i)*l2BlockTime,
+			Timestamp:                timestamp,
 			Hash:                     crypto.Keccak256Hash([]byte("l2"), seed),
 			StateRoot:                crypto.Keccak256Hash([]byte("state"), seed),
 			MessagePasserStorageRoot: crypto.Keccak256Hash([]byte("mp"), seed),
-		})
+		}
+		if proofbatch.VersionHasL1Origins(s.version()) {
+			originNumber := l1GenesisNum + (timestamp-l1GenesisT)/l1BlockTime
+			originNumber = min(originNumber, s.l1Head)
+			block.L1Origin = eth.BlockID{Hash: e.l1.hashOf(originNumber), Number: originNumber}
+			block.SequenceNumber = (timestamp - l1Time(originNumber)) / l2BlockTime
+		}
+		b.Blocks = append(b.Blocks, block)
 	}
 	if len(s.imports) > 0 {
 		b.Blocks[0].ExecMsgs = s.imports
@@ -384,7 +405,7 @@ func (e *testEnv) derive(l1Number uint64) [][]byte {
 	return out
 }
 
-// ecdsaKey is the proof-batch submitter: the authenticity rule for the whole envelope stream is
+// ecdsaKey is the proof-batch submitter key: the authenticity rule for the whole envelope stream is
 // "from this address, to that inbox", so a test that wants a batch accepted has to sign like it.
 type ecdsaKey struct {
 	priv *ecdsa.PrivateKey

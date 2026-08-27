@@ -8,7 +8,6 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
-	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/silhouette"
@@ -33,27 +32,25 @@ func (s *Supernode) assembleSilhouette(
 	log gethlog.Logger,
 	decl silhouette.ManifestChain,
 	vnCfg *opnodecfg.Config,
-	overrides *rollupNode.InitializationOverrides,
-) (*silhouette.Assembly, silhouette.LabelSource, error) {
+) (*silhouette.Assembly, error) {
 	chainID := eth.ChainIDFromUInt64(decl.ChainID)
 	cfg := decl.Config()
 
-	labels, err := decl.LabelSource()
-	if err != nil {
-		return nil, 0, err
+	if err := decl.CheckRole(); err != nil {
+		return nil, err
 	}
 	if s.beaconClient == nil {
 		// A silhouette chain's history travels in blobs, so a beacon endpoint is not optional the
 		// way it is for a calldata rollup. Saying so at startup beats deriving nothing and looking
 		// like a stalled prover.
-		return nil, 0, fmt.Errorf("chain %s is a silhouette chain and needs an L1 beacon endpoint", chainID)
+		return nil, fmt.Errorf("chain %s is a silhouette chain and needs an L1 beacon endpoint", chainID)
 	}
 	l1Chain, err := silhouette.L1ChainConfig(cfg)
 	if err != nil {
-		return nil, 0, fmt.Errorf("chain %s: %w", chainID, err)
+		return nil, fmt.Errorf("chain %s: %w", chainID, err)
 	}
 	if got := bigs.Uint64Strict(vnCfg.Rollup.L2ChainID); got != decl.ChainID {
-		return nil, 0, fmt.Errorf("silhouette manifest declares chain %d but its rollup config is for chain %d",
+		return nil, fmt.Errorf("silhouette manifest declares chain %d but its rollup config is for chain %d",
 			decl.ChainID, got)
 	}
 
@@ -68,34 +65,11 @@ func (s *Supernode) assembleSilhouette(
 		L1:        l1,
 		L1Headers: l1,
 		Blobs:     resources.NewNonCloseableL1BeaconClient(s.beaconClient),
-		Labels:    labels,
-	}, vnCfg, overrides)
+	}, vnCfg)
 	if err != nil {
-		return nil, 0, fmt.Errorf("assemble silhouette chain %s: %w", chainID, err)
-	}
-	// THE HALT, MADE OBSERVABLE. G3 D4 deliberately declines to call log.Crit for the fail-stop —
-	// killing the process is this layer's decision, not the shim's — and left the callback unwired,
-	// which meant a halted shim looked SLOW rather than dead: the process stays up, the RPC route
-	// stays up, and every request is refused.
-	//
-	// The decision this layer makes is to say so loudly and keep running, not to exit. A halt is a
-	// disagreement about proven history, and the state of a node that has stopped serving a wrong
-	// answer is worth an operator's inspection; a process that killed itself would take its own
-	// evidence with it, and on a multi-chain supernode it would take the OTHER chains down with it
-	// too. So: a gauge to alert on, and a log line at the layer that owns the deployment.
-	if assembly.Shim != nil {
-		metrics := s.supernodeMetrics
-		id := chainID.String()
-		metrics.SilhouetteShimHalted.WithLabelValues(id).Set(0)
-		assembly.Shim.OnHalt(func(reason error) {
-			metrics.SilhouetteShimHalted.WithLabelValues(id).Set(1)
-			log.Error("silhouette chain has fail-stopped and will refuse every further request; "+
-				"this supernode's other chains are unaffected and this process is NOT exiting",
-				"chain", chainID, "reason", reason)
-		})
+		return nil, fmt.Errorf("assemble silhouette chain %s: %w", chainID, err)
 	}
 	s.supernodeMetrics.SilhouetteProvenHead.WithLabelValues(chainID.String()).Set(0)
-	s.supernodeMetrics.SilhouetteTrackerL1.WithLabelValues(chainID.String()).Set(0)
 
 	// proofType and dependenciesVerified are in the startup line because they are the two properties
 	// of a silhouette verifier that are invisible from the outside: every proving system and both wire
@@ -105,13 +79,12 @@ func (s *Supernode) assembleSilhouette(
 	// boot.
 	log.Info("assembled silhouette chain",
 		"chain", chainID,
-		"labels", decl.Labels,
 		"wireVersion", cfg.EffectiveWireVersion(),
 		"dependenciesVerified", cfg.DependenciesVerified(),
 		"proofType", cfg.ProofType,
 		"anchor", cfg.Anchor.BlockNumber,
 		"anchorOutputRoot", cfg.Anchor.OutputRoot)
-	return assembly, labels, nil
+	return assembly, nil
 }
 
 // attachSilhouetteLogStores closes the loop between each silhouette chain's data source and the
@@ -158,9 +131,6 @@ func (s *Supernode) observeSilhouettes(ctx context.Context) {
 			if head, ok := assembly.Facts.Head(); ok {
 				s.supernodeMetrics.SilhouetteProvenHead.WithLabelValues(id).Set(float64(head.Number))
 			}
-			if assembly.Tracker != nil {
-				s.supernodeMetrics.SilhouetteTrackerL1.WithLabelValues(id).Set(float64(assembly.Tracker.Cursor()))
-			}
 		}
 		select {
 		case <-ctx.Done():
@@ -172,9 +142,9 @@ func (s *Supernode) observeSilhouettes(ctx context.Context) {
 
 // wrapSilhouetteChain gives a stock container the silhouette behaviours: proven ingestion, the
 // import list its proofs declared, refusal to fetch receipts, replacement-aware invalidation, and
-// (in the sequencer posture) labels from the proven head.
-func wrapSilhouetteChain(log gethlog.Logger, inner cc.InteropChain, a *silhouette.Assembly, labels silhouette.LabelSource) cc.InteropChain {
+// proof-aware invalidation.
+func wrapSilhouetteChain(log gethlog.Logger, inner cc.InteropChain, a *silhouette.Assembly) cc.InteropChain {
 	logger := log.New("chain", a.ChainID)
 	a.Facts.SetDeniedChecker(inner.IsDenied)
-	return silhouette.NewContainer(logger, inner, a.Facts, labels)
+	return silhouette.NewContainer(logger, inner, a.Facts, a.LogSink)
 }

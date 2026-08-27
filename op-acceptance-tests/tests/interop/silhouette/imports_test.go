@@ -48,23 +48,21 @@ var tamperedMsgHash = common.HexToHash("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbe
 // message database on the verifier, so a test that raced ahead of that would be asserting on a "wait"
 // it had caused itself — and the wait path is already covered, in the other direction, by
 // TestSilhouetteCrossChainPinsThenAdvances.
-func newProvenImportFixture(gt *testing.T, sequencerPosture bool) (devtest.T, *presets.TwoL2SupernodeInterop, *dsl.InitMessage, eth.BlockID) {
-	var t devtest.T
-	var sys *presets.TwoL2SupernodeInterop
-	if sequencerPosture {
-		t, sys = sequencerPostureSystem(gt)
-	} else {
-		t, sys = silhouetteSystem(gt)
-	}
+func newProvenImportFixture(gt *testing.T) (devtest.T, *presets.TwoL2SupernodeInterop, *dsl.InitMessage, eth.BlockID) {
+	t, sys := silhouetteSystem(gt)
 	require := t.Require()
 	sil := sys.Silhouette
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// Warm the proof pipeline first, so a later failure cannot be "proofs never worked here".
 	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
-	warmup := sil.Submitter.SubmitNext()
+	warmup := sil.Batcher.SubmitNext()
 	require.NotNil(warmup, "no warm-up batch to post")
-	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.CrossSafe, warmup.Blocks[len(warmup.Blocks)-1].Number, 120))
+	warmupHead := warmup.Blocks[len(warmup.Blocks)-1].Number
+	dsl.CheckAll(t,
+		sil.VerifierCL.ReachedFn(safety.CrossSafe, warmupHead, 120),
+		sys.L2BCL.ReachedFn(safety.LocalSafe, warmupHead, 120),
+	)
 
 	// THE CADENCE MUST RUN FROM HERE ON, and finding out why cost this test its first run.
 	//
@@ -73,7 +71,7 @@ func newProvenImportFixture(gt *testing.T, sequencerPosture bool) (devtest.T, *p
 	// pins on P's readiness — `notReady="chain 902 not ready for timestamp ..."` in the round log.
 	// Waiting on A's cross-safe below would then wait forever, on a stall this test had caused itself.
 	// On a real deployment the cadence is the submitter's; here it is a ticker.
-	sil.Submitter.Start(2 * time.Second)
+	sil.Batcher.Start(2 * time.Second)
 
 	// (1) the initiating message, on A — the ORDINARY chain. This is the direction reversal: in
 	// silhouette_test.go the initiating message is P's.
@@ -97,11 +95,11 @@ func newProvenImportFixture(gt *testing.T, sequencerPosture bool) (devtest.T, *p
 // the wire rather than about what the test hoped the wire said — and it works regardless of which
 // batch happened to cover the block, which matters because the cadence ticker chooses that, not the
 // test.
-func exportOnTheWire(t devtest.T, sys *presets.TwoL2SupernodeInterop, block uint64) proofbatch.BlockExport {
+func exportOnTheWire(t devtest.T, sys *presets.TwoL2SupernodeInterop, block eth.BlockID) proofbatch.BlockExport {
 	sil := sys.Silhouette
-	sil.Submitter.WaitBatched(block, 5*time.Minute)
-	export, ok := sil.Submitter.PostedExport(block)
-	t.Require().True(ok, "proven history passed block %d without a recorded export for it", block)
+	sil.Batcher.WaitBatched(block, 5*time.Minute)
+	export, ok := sil.Batcher.PostedExport(block)
+	t.Require().True(ok, "proven history passed block %s without a recorded export for it", block)
 	return export
 }
 
@@ -113,7 +111,7 @@ func exportOnTheWire(t devtest.T, sys *presets.TwoL2SupernodeInterop, block uint
 //	verifier       judge validates P's declared dependency against A's own log database,
 //	               THEN cross-safes P's block N
 func TestSilhouetteImportsAMessageAndTheDependencyIsVerified(gt *testing.T) {
-	t, sys, initMsg, initID := newProvenImportFixture(gt, false)
+	t, sys, initMsg, initID := newProvenImportFixture(gt)
 	require := t.Require()
 	sil := sys.Silhouette
 
@@ -128,7 +126,7 @@ func TestSilhouetteImportsAMessageAndTheDependencyIsVerified(gt *testing.T) {
 	// (4) THE IMPORT ON THE WIRE. This is the new field, carrying the one thing v2 omitted, and it is
 	// asserted against A's real message rather than against a shape: the identifier must name A's
 	// chain, A's block and A's log.
-	export := exportOnTheWire(t, sys, execID.Number)
+	export := exportOnTheWire(t, sys, execID)
 	require.Len(export.ExecMsgs, 1,
 		"P's block executed one cross-chain message, so its wire export must declare exactly one import")
 	declared := export.ExecMsgs[0]
@@ -200,10 +198,11 @@ func TestSilhouetteImportsAMessageAndTheDependencyIsVerified(gt *testing.T) {
 //     derivation pipeline accepts it. Dependency validity is not the codec's business.
 //   - the judge resolves the declared import against A's log database, finds nothing, and returns a
 //     verdict of invalid;
-//   - the sequencing supernode replaces the real P block through the stock deposits-only path;
+//   - the private LightCL follows the verifier verdict and replaces the real P block through the
+//     stock deposits-only path;
 //   - the corrected proof supersedes the denied suffix and the verifier cross-safes the replacement.
 func TestSilhouetteImportThatIsFalseIsReplaced(gt *testing.T) {
-	t, sys, initMsg, _ := newProvenImportFixture(gt, true)
+	t, sys, initMsg, _ := newProvenImportFixture(gt)
 	require := t.Require()
 	sil := sys.Silhouette
 
@@ -212,7 +211,7 @@ func TestSilhouetteImportThatIsFalseIsReplaced(gt *testing.T) {
 	// import list, and it is applied before the structural check — so the batch this posts is one the
 	// wire codec ACCEPTS, and the replacement below is therefore evidence about the judge rather than
 	// about the codec.
-	sil.Submitter.MutateUntilApplied(func(b *proofbatch.ProofBatch) bool {
+	sil.Batcher.MutateUntilApplied(func(b *proofbatch.ProofBatch) bool {
 		applied := false
 		for i := range b.Blocks {
 			for j := range b.Blocks[i].ExecMsgs {
@@ -228,31 +227,39 @@ func TestSilhouetteImportThatIsFalseIsReplaced(gt *testing.T) {
 	execID := execMsg.BlockID()
 	t.Logger().Info("executing message on the silhouette chain", "block", execID.Number)
 
-	export := exportOnTheWire(t, sys, execID.Number)
+	export := exportOnTheWire(t, sys, execID)
 	require.Len(export.ExecMsgs, 1, "the tampered batch must still declare exactly one import")
 	require.Equal(tamperedMsgHash, export.ExecMsgs[0].PayloadHash,
 		"the posted batch does not carry the false import this test is about")
 
-	// LOCAL-safe: the wire object is fine and the pipeline accepts it.
-	//
-	// Waited on by NUMBER and asserted by HEIGHT, never off the head's hash. `ReachedFn` returns once
-	// the head is at OR PAST the target and local-safe keeps moving — a batch covers many blocks — so
-	// the head's hash belongs to some later block. Comparing it to this block's passed for a while on
-	// timing alone and then failed on a system that was working correctly. Same trap as in the positive
-	// test above; the read path for a chain with no EL on the verifier is its declaration RPC.
-	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.LocalSafe, execID.Number, 240))
-	require.Equal(execID.Hash, sil.BlockProvenance(t, execID.Number).Hash,
-		"the verifier derived a different block at the consuming height")
+	// The wire object is structurally valid and is therefore accepted into local-safe before the
+	// judge sees it. The invalidation counter below is the durable observation of that transition:
+	// waiting for the invalid hash to remain the current local-safe head races the immediate rewind.
+	require.Eventually(func() bool {
+		return sil.InteropInvalidations(t) > 0
+	}, 2*time.Minute, time.Second, "the judge never invalidated the false dependency")
 
-	// The sequencing supernode uses the ordinary deny-list and deposits-only replacement path on
-	// P's real execution client. This is the same externally visible result as a driven chain.
+	// The verifier uses the ordinary deny-list and rewind path; P's LightCL follows that verdict and
+	// uses the ordinary deposits-only replacement path on its real execution client.
 	dsl.CheckAll(t, sys.L2ELB.ReorgTriggeredFn(eth.L2BlockRef{Hash: execID.Hash, Number: execID.Number}, 90))
-	replacement := sys.L2ELB.BlockRefByNumber(execID.Number)
 
-	// The proof submitter follows that reorg and posts a replacement proof. The verifier accepts it
-	// as a supersession of the suffix containing the denied hash, then its unmodified op-node derives
-	// the same replacement block.
-	sil.WaitBlockProvenance(t, replacement.ID(), 5*time.Minute)
+	// The ordinary op-batcher follows that reorg and posts a replacement proof. The verifier accepts it
+	// as a supersession of the suffix containing the denied hash, then its unmodified op-node derives a
+	// replacement at the same height. Read the replacement after it reaches the proof stream: the
+	// private EL may briefly expose an intermediate replacement while the verifier-side stock build is
+	// still completing, and that intermediate is not the canonical result this assertion is about.
+	var replacementHash common.Hash
+	require.Eventually(func() bool {
+		decl, err := sil.TryBlockProvenance(t, execID.Number)
+		if err != nil || decl.Hash == execID.Hash {
+			return false
+		}
+		replacementHash = decl.Hash
+		return true
+	}, 5*time.Minute, time.Second, "verifier did not derive a replacement for "+execID.String())
+	replacement := sys.L2ELB.BlockRefByNumber(execID.Number)
+	require.Equal(replacementHash, replacement.Hash,
+		"private EL and verifier must agree on the canonical replacement")
 	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.CrossSafe, execID.Number, 240))
 
 	require.Positive(sil.InteropInvalidations(t),

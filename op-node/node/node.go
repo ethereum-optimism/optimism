@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -100,8 +99,6 @@ type OpNode struct {
 	metrics    *metrics.Metrics
 
 	superAuthority rollup.SuperAuthority // Supernode authority for payload validation (may be nil)
-	// dataSourceOverride replaces the derivation pipeline's L1 data-source factory (may be nil)
-	dataSourceOverride derive.DataAvailabilitySource
 
 	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
 	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
@@ -190,18 +187,6 @@ type InitializationOverrides struct {
 	RPCHandler      *oprpc.Handler
 	MetricsRegistry func(*prometheus.Registry)
 	SuperAuthority  rollup.SuperAuthority // Supernode authority for payload validation
-	// DataSourceOverride replaces the derivation pipeline's L1 data-source factory. A chain whose
-	// derivation input is not batcher transactions supplies one here; everything downstream of
-	// retrieval stays stock.
-	DataSourceOverride derive.DataAvailabilitySource
-	// ExtraAPIs are additional RPC namespaces registered alongside the node's own, on the same
-	// handler and therefore at the same route.
-	//
-	// It exists for a chain whose execution client is in-process: an embedder that replaces the L2
-	// endpoint with a service of its own has, by doing so, removed that service from the network,
-	// and this is how it puts it back. Namespaces are registered as given and collisions are
-	// reported rather than silently overriding the node's own.
-	ExtraAPIs []rpc.API
 }
 
 // init progressively creates and sets up all the components of the OpNode
@@ -229,7 +214,6 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 
 	// Store the supernode authority for payload validation
 	n.superAuthority = overrides.SuperAuthority
-	n.dataSourceOverride = overrides.DataSourceOverride
 
 	if overrides.Beacon == nil {
 		beacon, err := initL1BeaconAPI(ctx, cfg, n)
@@ -282,9 +266,6 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 		if err != nil {
 			return fmt.Errorf("failed to init the RPC server: %w", err)
 		}
-		if err := registerExtraAPIs(n, n.server.Handler, overrides.ExtraAPIs); err != nil {
-			return fmt.Errorf("failed to register extra APIs: %w", err)
-		}
 	} else {
 		// the node registers to an existing RPC server's handler if provided
 		// the node assumes the RPC server is already started
@@ -293,9 +274,6 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 		if err != nil {
 			// panic here is to match the behavior of oprcp.Server.AddAPI,
 			// which wraps the Handler and panics if the API can't be added.
-			panic(fmt.Errorf("invalid API: %w", err))
-		}
-		if err := registerExtraAPIs(n, overrides.RPCHandler, overrides.ExtraAPIs); err != nil {
 			panic(fmt.Errorf("invalid API: %w", err))
 		}
 	}
@@ -591,7 +569,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	}
 
 	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, upstreamFollowSource,
-		node.beacon, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, node.superAuthority, node.dataSourceOverride)
+		node.beacon, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, node.superAuthority)
 
 	return l2Source, l2Driver, safeDB, nil
 }
@@ -623,18 +601,6 @@ func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {
 	}
 	node.log.Info("Started JSON-RPC server", "addr", server.Endpoint())
 	return server, nil
-}
-
-// registerExtraAPIs mounts an embedder's own namespaces on the node's handler, after the node's own
-// so that a collision is the embedder's problem and never a silent replacement of `optimism`.
-func registerExtraAPIs(node *OpNode, handler *oprpc.Handler, extra []rpc.API) error {
-	for _, api := range extra {
-		if err := handler.AddAPI(api); err != nil {
-			return fmt.Errorf("failed to add %q API: %w", api.Namespace, err)
-		}
-		node.log.Info("registered embedder API", "namespace", api.Namespace)
-	}
-	return nil
 }
 
 func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) error {

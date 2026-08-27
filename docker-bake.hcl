@@ -57,7 +57,7 @@ variable "OP_SUPERNODE_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable "PROOFBATCH_SUBMITTER_VERSION" {
+variable "OP_SILHOUETTE_EL_VERSION" {
   default = "${GIT_VERSION}"
 }
 
@@ -197,17 +197,17 @@ target "op-supernode" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supernode:${tag}"]
 }
 
-target "proofbatch-submitter" {
+target "op-silhouette-el" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
   args = {
     GIT_COMMIT = "${GIT_COMMIT}"
     GIT_DATE = "${GIT_DATE}"
-    PROOFBATCH_SUBMITTER_VERSION = "${PROOFBATCH_SUBMITTER_VERSION}"
+    OP_SILHOUETTE_EL_VERSION = "${OP_SILHOUETTE_EL_VERSION}"
   }
-  target = "proofbatch-submitter-target"
+  target = "op-silhouette-el-target"
   platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proofbatch-submitter:${tag}"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-silhouette-el:${tag}"]
 }
 
 target "op-interop-filter" {

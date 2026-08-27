@@ -1,7 +1,8 @@
 # Silhouette — private interoperable chains
 
-**A private L2 that participates in a public interop dependency set. No data availability layer. No
-deposits. Its entire public footprint is one signed blob per cadence.**
+**A private L2 that participates in a public interop dependency set. Its private transactions are
+not published; its public footprint is a signed proof envelope plus a transaction-stripped standard
+derivation carrier per cadence.**
 
 The public network verifies the private chain's *outline* — block numbers, timestamps, real block
 hashes, real output roots, the messages it chooses to export and the messages it imports — and never
@@ -11,10 +12,11 @@ reads its interior. There is no DA layer to read it from.
 
 **A proven chain is a chain whose execution client is a verifier.**
 
-A stock `op-node` derives the private chain through its completely standard pipeline. One injected
-data source sits where DA plugins sit: it filters the L1 inbox transactions, checks the acceptance
-rules, and transcodes the proven blocks into stock channel frames. Everything from `FrameQueue`
-onward is unmodified derivation running for real. The execution client is a **shim** — a small
+A stock `op-node` derives the private chain through its completely standard pipeline and its normal
+batch inbox. The ordinary `op-batcher` appends standard carrier frames, with user transactions
+removed, after the proof envelope. Stock derivation ignores the proof blob's unknown format byte and
+consumes the carrier. Independently, the proof observer checks the envelope and supplies facts to the
+execution client. The execution client is a **shim** — a small
 service speaking the Engine API and the `eth_` query surface that never executes anything, and
 "builds" blocks by serving the proof-committed facts from the wire.
 
@@ -43,50 +45,34 @@ passes. A limitation documented only in prose is a limitation the next reader wi
 
 One thing to be clear about early, because it shapes the whole diff: **v1 has no on-chain settlement
 path.** No proposer, no dispute game, no output-root claim, nothing on L1 adjudicating whether the
-private chain told the truth. The L1 contracts here gate the portal shut and bound ETH flow; they do
-not settle. The cross-chain consistency that would otherwise need settling is enforced **live, in the
+private chain told the truth. The portal is the stock OptimismPortal; deposits are read by stock
+derivation. The L1 contracts here bound ETH flow but do not settle. Cross-chain consistency is enforced **live, in the
 node**, by the stock cross-safety judge, on every block. The proof-shaped upgrade path — `attested`
 → `proven`, same wire, same slot, same rules — is real and the seam is built for it; it lives on the
 shelf branches, and §"What is deliberately not here" says where.
 
-## The diff
+## The implementation shape
 
-Measured against the upstream base this branch was cut from, `9104d734a9`:
+There are **no changes under `op-node/`**. The verifier is a stock op-node assembled by
+`op-supernode`; its configured L2 endpoint is `op-silhouette-el`, which serves proof-committed facts
+and delegates stock replacement-block construction to the private chain's authenticated Engine API.
 
-| Category | Files | + | − | What |
-|---|---:|---:|---:|---|
-| **The op-node seam** | **3** | **71** | **3** | `DataSourceOverride` + `ExtraAPIs`. **The entire consensus-layer change.** |
-| The silhouette Go stack | 41 | 10,426 | 0 | Decode source, transcoder, fact store, shim EL, log sink, assembly, postures — and its tests |
-| Wire codec (Go) | 4 | 2,641 | 0 | The v3 envelope, and the acceptance structure checked before anything else looks at it |
-| Fixture corpus | 131 | 3,406 | 0 | 35 v3 fixtures + 25 frozen v2 envelopes — the bytes that pin the wire, in either language |
-| Producer + ops tools | 6 | 1,816 | 0 | The submitter (the send is the attestation), `silhouette-config`, `proofbatch-inspect` |
-| Interop plumbing | 16 | 1,902 | 22 | The judge flip, the third verdict, the capability seams — none behind a chain-kind branch |
-| Devstack + acceptance | 14 | 2,714 | 29 | The multi-process two-chain system and the 11-test v1 gate |
-| Contracts | 19 | 2,404 | 10 | The gated portal; the ETH net-flow solvency cap; the home-pinned bridge |
-| kona-derive | 3 | 36 | 2 | The op-stack blob payload decoder, exported for any kona-based reader |
-| Docs | 5 | 1,441 | 0 | This file, the trust model, the runbook, two specs |
-| Images | 3 | 50 | 1 | A bake target for the submitter, and the two build recipes behind it. The supernode's image already existed upstream |
-| Misc | 1 | 5 | 0 | `.gitignore` for locally-built binaries |
-| **Total** | **246** | **26,912** | **67** | |
-
-**The number to look at first is 71.** A private chain in a public dependency set costs the
-consensus layer three files and two seams, both in the pattern of seams already there. Everything
-else is a service beside `op-node`, not a change to it.
-
-Sizes, for the record: the verifier core (`silhouette` + `proofbatch`, non-test) is **5,858 lines**
-of Go; **7,045** including the submitter and the two tools; **8,020** lines of Go tests. There is no
-ZK toolchain in the build or in the run.
+There is no separate batch submitter or custom inbox. The normal `op-batcher` loads real blocks,
+output roots and receipts, follows its ordinary reorg/channel/txmgr lifecycle, and drops private
+transaction data only at its terminal encoding seam. The three runtime images are `op-batcher`, `op-supernode`, and
+`op-silhouette-el`. There is no ZK toolchain in the v1 build or run.
 
 ## How to read it
 
 1. `docs/TRUST-MODEL.md` — on what authority the public network believes any of this. Read first.
-2. `op-node/` (71 lines) — the whole CL touch.
-3. `source.go` — the decode source: acceptance rules, chaining, transcode to stock frames.
-4. `facts.go` + `forced.go` — the fact store and the forced-extension convention (a dead prover must
+2. `source.go` — the independent proof observer: acceptance rules, chaining and fact ingestion.
+3. `facts.go` + `forced.go` — the fact store and the forced-extension convention (a dead prover must
    never stall the dependency set's frontier, so stock derivation force-generates empty blocks).
-5. `shim_engine.go` + `shim_shim.go` — the execution client that verifies instead of executing.
-6. `docs/RUNNING-V1.md` — build, configure, run, and the four traps that have actually bitten.
-7. `docs/SPEC-WIRE-V3.md` — the cross-language wire contract.
+4. `shim_engine.go` + `shim_shim.go` — the execution client that verifies instead of executing.
+5. `op-batcher/batcher/proof_batch.go` — the normal batcher's terminal proof-batch encoder.
+6. `docs/RUNNING-V1.md` — build, configure, run, and the operational differences.
+7. `docs/SPEC-WIRE-V4.md` — the current cross-language wire contract (`SPEC-WIRE-V3.md` is its
+   import-list predecessor).
 
 To see all of it run, in one command, with no cluster:
 
@@ -95,7 +81,7 @@ go test ./op-acceptance-tests/tests/interop/silhouette/ -v -timeout 45m
 ```
 
 Two chains, two supernodes, real execution clients as subprocesses, a real L1, real blob
-transactions. 11 tests, ~90s.
+transactions, including invalid-dependency replacement through the stock interop path.
 
 ## What is deliberately not here
 
@@ -127,9 +113,9 @@ not do:
   operational history rather than code, and its frozen configs use a config spelling this binary
   now refuses. Branch `karl/silhouette`.
 
-Also absent by design, from the architecture rather than the branch: any DA layer for the private
-chain, any deposit path into it (the portal is deployed and gated — an open portal would let a
-stranger force a transaction into a private chain), and any batcher on it.
+Also absent by design is any publication of the private transaction list. The portal and deposit
+derivation are stock, and the producer is the ordinary op-batcher with a proof-batch terminal
+encoder; neither requires a custom contract.
 
 The project's design record — the plan, the decision log, and the proving-key lineage — lives with
 the Silhouette project outside this repository, alongside the shelf branches above. None of it is

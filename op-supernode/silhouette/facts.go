@@ -28,15 +28,15 @@ const (
 // Fact is everything this node knows about one L2 block of a chain it never executes: a table of
 // facts standing in for state.
 //
-// It covers both kinds of block, and the distinction is load-bearing rather than cosmetic:
+// It covers the two durable kinds of block, plus a short-lived replacement handoff:
 //
 //   - a PROVEN block's roots and hash came off the wire, inside an accepted proof batch;
+//
 //   - a FORCED block's came from the forced-extension convention (G2 D2/D7), computed identically
 //     by this node, the producer and the superroot program.
 //
-// Those are the only two provenances that exist. G3's shim serves getPayload from this table and
-// fails stop on anything absent from it, so "proven-or-forced facts, nothing else" is enforced by
-// the table having no third kind of row.
+//   - a REPLACEMENT block was executed by P's real EL from stock deposits-only attributes and is
+//     retained by the magic EL only until the proof submitter publishes that same block.
 type Fact struct {
 	Number                   uint64
 	Timestamp                uint64
@@ -46,13 +46,17 @@ type Fact struct {
 	// OutputRoot is derived rather than carried: it is a function of the other three roots, and
 	// deriving it here is what proves a batch's own newOutputRoot is consistent with its last block.
 	OutputRoot common.Hash
-	// L1Origin is the block's RENDERED L1 origin — a convention, not a wire fact (G2 D4). The wire
-	// carries no per-block origin, so this is what the greedy origin rule reconstructed.
+	// L1Origin is the block's L1 origin. Wire v4 carries it explicitly; legacy v2/v3 batches use the
+	// greedy rendered-origin convention.
 	L1Origin eth.BlockID
 	// SeqNumber is the block's position within its epoch, which its L1-info transaction commits to.
 	SeqNumber uint64
 	// Forced marks a block the forced-extension convention produced rather than a proof.
 	Forced bool
+	// Replacement marks the temporary handoff of a stock Holocene replacement payload. Replacement
+	// facts live in the shim, not the durable FactStore, and become ordinary proven facts when the
+	// proof submitter publishes the same block.
+	Replacement bool
 	// ExecMsgs are the executing messages this block consumed, in the wire's canonical order, as
 	// the cross-safety judge consumes them. This is G7's import list, and it is what makes P's
 	// dependencies checkable by the STOCK machinery instead of trusted.
@@ -121,6 +125,10 @@ type FactStore struct {
 	// proof may supersede the suffix containing one of these blocks, but the original proof may
 	// never become canonical again when the L1 source is replayed.
 	denied map[common.Hash]uint64
+	// deniedFacts retains the full fact at each denied height after the canonical suffix is
+	// truncated. The magic EL needs it exactly once more: to recognize the stock deposits-only build
+	// job for that height and delegate it to the private execution engine.
+	deniedFacts map[uint64]Fact
 	// deniedChecker reads the chain container's durable denylist. It lets an L1 replay reconstruct
 	// the same supersession decision after this in-memory table has been rebuilt.
 	deniedChecker func(uint64, common.Hash) (bool, error)
@@ -161,8 +169,20 @@ func (f *FactStore) MarkDenied(number uint64, hash common.Hash) error {
 	if f.denied == nil {
 		f.denied = make(map[common.Hash]uint64)
 	}
+	if f.deniedFacts == nil {
+		f.deniedFacts = make(map[uint64]Fact)
+	}
 	f.denied[hash] = number
+	f.deniedFacts[number] = fact
 	return nil
+}
+
+// DeniedFact returns the proof-committed fact retained for replacement construction.
+func (f *FactStore) DeniedFact(number uint64) (Fact, bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	fact, ok := f.deniedFacts[number]
+	return fact, ok
 }
 
 // IsDenied reports whether a block hash has received an invalid cross-safety verdict.
@@ -454,7 +474,7 @@ func (f *FactStore) CarrierOf(number uint64) (eth.BlockID, bool) {
 // L1 block below ref.Number has been processed". Forward progress makes this a no-op; a stock
 // pipeline reset makes it the correct rewind. There is no separate reset protocol and no reset hook
 // on the data-source interface, which is why acceptance stays a pure function of L1 — the same
-// property docs/SPEC-WIRE-V3.md rule 4 already demands when it measures l1Head depth against the
+// property docs/SPEC-WIRE-V4.md already demands when it measures l1Head depth against the
 // carrying block rather than the live head.
 //
 // Forced blocks are dropped with the batch they sat on top of: they are a function of the proven

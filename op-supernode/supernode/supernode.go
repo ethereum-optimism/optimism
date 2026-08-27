@@ -114,18 +114,16 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		// The silhouette switch. A declared chain has its execution client and its derivation input
-		// replaced IN the config and overrides the stock constructor below is about to read, so the
-		// container it builds is a stock container pointed at two replaced endpoints — a wiring
-		// statement rather than a new kind of chain.
+		// The silhouette switch leaves the stock virtual-node pipeline intact. Its L2 endpoint is the
+		// standalone magic EL and its normal L1 input is the producer's empty-batch carrier; a separate
+		// proof observer supplies public imports to the interop judge.
 		var assembly *silhouette.Assembly
-		var labels silhouette.LabelSource
 		if decl, ok := silhouettes.Lookup(chainID); ok {
-			a, l, err := s.assembleSilhouette(log, decl, vnCfgs[chainID], initOverrides)
+			a, err := s.assembleSilhouette(log, decl, vnCfgs[chainID])
 			if err != nil {
 				return nil, err
 			}
-			assembly, labels = a, l
+			assembly = a
 			s.silhouettes[chainID] = a
 		}
 
@@ -134,7 +132,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 			return nil, fmt.Errorf("failed to create chain container for chain %s: %w", chainID, err)
 		}
 		if assembly != nil {
-			s.chains[chainID] = wrapSilhouetteChain(log, container, assembly, labels)
+			s.chains[chainID] = wrapSilhouetteChain(log, container, assembly)
 			continue
 		}
 		s.chains[chainID] = container
@@ -333,24 +331,15 @@ func (s *Supernode) Start(ctx context.Context) error {
 			}
 		}(chainID, chain)
 	}
-	// The sequencer posture's proven-head walk. It is started here, after the chains and after the
-	// interop activity, for the reason that ordering usually matters in this file: the walk's first
-	// step can accept a proof batch, and accepting one seals its exported logs into the chain's
-	// interop log database, which does not exist until the interop activity built it
-	// (attachSilhouetteLogStores). Started earlier it would fail its first step on a nil sink and
-	// retry until it did.
-	//
-	// Assembly.Run is a no-op in the verifier posture, so this loop is unconditional rather than
-	// guarded: there is exactly one place that knows which postures have something to drive, and it
-	// is the assembly.
-	for chainID, assembly := range s.silhouettes {
-		s.wg.Add(1)
-		go func(chainID eth.ChainID, assembly *silhouette.Assembly) {
-			defer s.wg.Done()
-			assembly.Run(lifecycleCtx)
-		}(chainID, assembly)
-	}
 	if len(s.silhouettes) > 0 {
+		for chainID, assembly := range s.silhouettes {
+			s.wg.Add(1)
+			go func(chainID eth.ChainID, assembly *silhouette.Assembly) {
+				defer s.wg.Done()
+				s.log.Info("starting silhouette proof observer", "chain_id", chainID.String())
+				assembly.Run(lifecycleCtx)
+			}(chainID, assembly)
+		}
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
@@ -547,13 +536,16 @@ func (s *Supernode) initBeaconClient(ctx context.Context, cfg *config.CLIConfig)
 
 	// Create beacon client
 	basicClient := client.NewBasicHTTPClient(cfg.L1BeaconAddr, s.log)
-	beaconHTTPClient := sources.NewBeaconHTTPClient(basicClient)
+	beaconOpts := []sources.BeaconHTTPClientOption{
+		sources.WithSlotDurationOverride(cfg.L1BeaconSlotDurationOverride),
+	}
+	beaconHTTPClient := sources.NewBeaconHTTPClient(basicClient, beaconOpts...)
 
 	// Create fallback beacon clients (e.g. blob archiver)
 	var fallbacks []apis.BeaconClient
 	for _, addr := range cfg.L1BeaconFallbackAddrs {
 		fb := client.NewBasicHTTPClient(addr, s.log)
-		fallbacks = append(fallbacks, sources.NewBeaconHTTPClient(fb))
+		fallbacks = append(fallbacks, sources.NewBeaconHTTPClient(fb, beaconOpts...))
 	}
 
 	// Create L1 Beacon client with default config

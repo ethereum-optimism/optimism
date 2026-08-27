@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -25,6 +26,11 @@ func (c *SuperNodeClient) SuperRootAtTimestamp(ctx context.Context, timestamp ui
 
 func (c *SuperNodeClient) SyncStatus(ctx context.Context) (result eth.SuperNodeSyncStatusResponse, err error) {
 	err = c.rpc.CallContext(ctx, &result, "supernode_syncStatus")
+	return
+}
+
+func (c *SuperNodeClient) IsDenied(ctx context.Context, chainID eth.ChainID, blockNumber uint64, payloadHash common.Hash) (result bool, err error) {
+	err = c.rpc.CallContext(ctx, &result, "supernode_isDenied", chainID, blockNumber, payloadHash)
 	return
 }
 

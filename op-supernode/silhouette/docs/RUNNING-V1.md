@@ -1,7 +1,7 @@
 # Running Silhouette v1
 
-**A private, interoperable L2 whose public footprint is one signed blob per cadence — in ~6k lines of
-Go, with no ZK toolchain in the build or in the run.**
+**A private, interoperable L2 whose public footprint is signed proof-batch blobs, with no ZK
+toolchain in the v1 build or run.**
 
 This is the whole v1 system: what to build, what to configure, what to start, and the four traps that
 have actually bitten. It assumes you have read `TRUST-MODEL.md` — v1 rests P's state on its
@@ -18,15 +18,11 @@ checkable locally, which is how §5 asks you to check it.
 ```
   P (private)                                          A (public)
   ┌──────────────────────────┐                         ┌──────────────────┐
-  │ op-node + real EL        │                         │ op-node + EL     │
-  │ real blocks, real txs    │                         │ + batcher        │
-  │ NO batcher               │                         └────────┬─────────┘
-  └───────────┬──────────────┘                                  │ batches
-              │ safe/unsafe head, output roots                  │
-     ┌────────▼─────────┐                                       │
-     │ proofbatch-      │  blob tx, SIGNED BY THE OPERATOR      │
-     │ submitter        ├──────────────────┐                    │
-     └──────────────────┘                  │                    │
+  │ LightCL op-node + EL      │                        │ op-node + EL     │
+  │ real blocks, real txs     │                        │ + op-batcher     │
+  │ + ordinary op-batcher    ├──────────────┐         └────────┬─────────┘
+  └───────────────────────────┘ proof + stock carrier blobs    │ batches
+                                            │                  │
                                      ┌─────▼────────────────────▼──────┐
                                      │             L1                  │
                                      └─────┬───────────────────────────┘
@@ -34,41 +30,35 @@ checkable locally, which is how §5 asks you to check it.
                             ┌──────────────▼───────────────────────────┐
                             │ VERIFIER SUPERNODE                       │
                             │  A: ordinary chain, derived from L1      │
-                            │  P: silhouette chain — NO execution      │
-                            │     client at all. Proof-batch source    │
-                            │     + shim EL serving proven facts.      │
+                            │  P: silhouette chain — no stateful EL.   │
+                            │     Proof source + magic EL serving      │
+                            │     proven facts.                         │
                             │  stock interop judge over both.          │
                             └──────────────────────────────────────────┘
 ```
 
 Three things to notice, because they are the deliverable:
 
-1. **P has no batcher.** Nothing puts P's blocks on L1. The only public record of P is the batch
-   stream.
-2. **The verifier has no execution client for P.** Its entire knowledge of P is signed blobs. That
-   absence is the product, not a limitation of the harness.
+1. **P uses the ordinary op-batcher and ordinary batch inbox.** It reads real private blocks and
+   their receipts. Its terminal encoder emits the proof envelope followed by a standard carrier
+   channel for the same blocks with user transactions removed. Deposits remain in the carrier.
+2. **The verifier has no stateful execution client for P.** It points at `op-silhouette-el`; that
+   in-memory Engine API learns P only from signed blobs and delegates replacement construction to
+   P's private EL.
 3. **A is unmodified.** No fork, no plugin, no special casing. It is a stock chain that happens to
    have a silhouette chain in its dependency set.
 
 ---
 
-## 1. Build (four Go binaries, no toolchain beyond Go)
+## 1. Build (three runtime images)
 
 ```
-go build -o op-supernode           ./op-supernode/cmd
-go build -o proofbatch-submitter   ./op-supernode/cmd/proofbatch-submitter
-go build -o silhouette-config      ./op-supernode/cmd/silhouette-config
-go build -o proofbatch-inspect     ./op-supernode/cmd/proofbatch-inspect
+docker buildx bake op-batcher op-supernode op-silhouette-el
 ```
 
-There is no `cargo`, no prover, and no proving artefact of any kind anywhere in this list — which is
-the v1 pitch stated as a build. `TestAttestedChainIsRenderedWithoutAProvingToolchain` asserts the
-configuration half of the same claim.
-
-Size, for the record: the verifier core (`op-supernode/silhouette` + `op-supernode/proofbatch`,
-non-test) is **5,858 lines** of Go; **7,045** including the submitter, the config generator and the
-inspect tool; **8,020** lines of tests. Nothing in that build verifies a proof, so nothing in it
-needs a toolchain that could.
+The images are named `op-batcher`, `op-supernode`, and `op-silhouette-el`. `op-node` and the L1/L2
+execution images are the same images used by a normal interop network. There is no separate
+silhouette submitter image or binary.
 
 ---
 
@@ -81,13 +71,14 @@ silently rot).
 ### 2a. P's rollup config — generated, not hand-written
 
 ```
-silhouette-config --l2-chain-id … --l1-chain-id … --gated-portal 0x… --seq-window … …
+silhouette-config --l2-chain-id … --l1-chain-id … --deposit-contract 0x… --seq-window … …
 ```
 
 Generate it. A silhouette chain's rollup config differs from a stock chain's in three ways that a
 hand-edited file loses silently: a **finite** sequencing window (the forced-extension convention
-depends on it), a `deposit_contract_address` pointing at the **gated** portal, and every fork active
-at genesis. The generator runs the invariant checks over its own output.
+depends on it) and every fork active at genesis. `deposit_contract_address` is the ordinary deployed
+OptimismPortal, so deposits are derived by the stock path. The generator runs the invariant checks
+over its own output.
 
 Its `rollupConfigHash` is what the wire binds and what the verifier requires. Compute it the way the
 runbook describes — from the *parsed* config — never with a second implementation of the hash.
@@ -102,7 +93,7 @@ runbook describes — from the *parsed* config — never with a second implement
   "rollupConfigHash": "0x…",
   "depSetHash": "0x…",
   "proofType": "attested",
-  "wireVersion": 3,
+  "wireVersion": 4,
   "anchor": { "outputRoot": "0x…", "blockNumber": 0, "blockHash": "0x…",
               "timestamp": …, "l1Origin": { "hash": "0x…", "number": … } }
 }
@@ -119,8 +110,8 @@ without reasoning about behaviour:
   build implements exactly one. `proofType: groth16` is recognised and refused with an error saying
   so; when it is implemented it is this same file plus the proving program's key, and nothing else
   changes.
-- **`wireVersion: 3`** — the version carrying the import list, which is what puts P's dependencies
-  under the stock cross-safety judge. Exactly one version is accepted, refused at load if unreadable.
+- **`wireVersion: 4`** — the version carrying both the import list and the exact L1-origin/sequence
+  metadata followed by LightCL. Exactly one version is accepted, refused at load if unreadable.
 
 `anchor` is where this verifier's proven history begins. On a fresh chain that is P's genesis:
 `blockNumber: 0`, P's real genesis hash, and the output root read off P at block 0.
@@ -128,34 +119,48 @@ without reasoning about behaviour:
 ### 2c. The manifest — which chains are silhouette chains
 
 ```json
-{ "chains": [ { "chainID": 424247, "verifierConfig": "verifier-p.json", "labels": "derivation" } ] }
+{ "chains": [ { "chainID": 424247, "verifierConfig": "verifier-p.json" } ] }
 ```
 
 Chain A is **absent**, and its absence is the two-chain story: a chain not in the manifest is an
 ordinary driven chain and nothing about its construction changes. That is what makes one binary safe
 to run over a mixed cluster.
 
-`labels` selects the posture: `derivation` for a public verifier (it derives P itself), `proven-head`
-for the sequencer-side node (it fronts P's real EL and must take its **public** labels from the
-proven head — mandatory there, or a frozen P local-safe freezes A cluster-wide).
+There is one role: verifier. A `labels: "proven-head"` entry is rejected. Private sequencing belongs
+to a LightCL-based sequencing node, not to `op-supernode`.
 
 ---
 
 ## 3. Run
 
+### The magic EL
+
+```
+op-silhouette-el --l1 $L1_RPC --l1.beacon $L1_BEACON --supernode $SUPERNODE_RPC \
+  --rollup-config rollup-p.json --verifier-config verifier-p.json \
+  --replacement-engine $PRIVATE_ENGINE_AUTH_RPC \
+  --replacement-engine.jwt-secret jwt.txt \
+  --rpc.addr 0.0.0.0 --rpc.port 9545
+```
+
+This is the proof-backed, in-memory EL. It independently watches the authenticated proof stream and
+serves Engine/eth RPC. It executes no EVM code and stores no persistent chain state. The replacement
+engine is the private chain's normal EL; it is used only when stock interop invalidation asks op-node
+to build a Holocene deposits-only replacement. On accelerated devnets, pass the same
+`--l1.beacon.slot-duration-override` to this process and `op-supernode`.
+
 ### The verifier supernode
 
 ```
 op-supernode --chains … --dependency-set depset.json --silhouette manifest.json \
-             --vn.<P>.l2 http://127.0.0.1:1 --vn.<P>.interop.dependency-set depset.json …
+             --vn.<P>.l2 http://op-silhouette-el:9545 \
+             --vn.<P>.interop.dependency-set depset.json …
 ```
 
 Two invocation details that are not obvious and cost time if guessed:
 
-- **`--vn.<P>.l2` must be present and is never dialled.** The assembly replaces the L2 endpoint with
-  an in-process client to the shim before the container is built; op-node's config builder only
-  requires the flag to exist. A placeholder is correct and is not a lie waiting to be discovered —
-  nothing connects to it.
+- **`--vn.<P>.l2` is the real `op-silhouette-el` URL.** The supernode does not replace it and does
+  not embed a second EL.
 - **`--vn.<P>.interop.dependency-set` must be passed in addition to the supernode-level
   `--dependency-set`**, because op-node's own config check runs before the supernode applies the
   shared set. The "virtual node flag is ignored" warning is expected; the supernode-level value wins.
@@ -163,62 +168,73 @@ Two invocation details that are not obvious and cost time if guessed:
 Read the startup line and check two words:
 
 ```
-assembled silhouette chain  chain=424247 wireVersion=3 dependenciesVerified=true proofType=attested …
+assembled silhouette chain  chain=424247 wireVersion=4 dependenciesVerified=true proofType=attested …
 ```
 
 These are the only two properties of a silhouette verifier invisible from the outside. Every proving
-system and both wire versions derive the chain, serve the same roots and report the same heads. Only
+system and all supported wire versions derive the chain, serve the same roots and report the same heads. Only
 these say what an accepted batch **meant**.
 
-### The submitter — v1's whole producer side
+### The producer batcher
 
 ```
-proofbatch-submitter --l1-eth-rpc … --private-key … --inbox 0x… --wire-version 3 \
-  --attested.rollup-rpc http://p-node:9545 --attested.l2-rpc http://p-el:8545 \
-  --attested.rollup-config-hash 0x… --attested.dep-set-hash 0x… \
-  --attested.interval 10m --attested.max-blocks 300 \
-  --attested.cursor /var/lib/silhouette/cursor.json
+op-batcher <normal batcher flags> --data-availability-type blobs --silhouette \
+  --max-pending-tx 1 --target-num-frames 6 \
+  --silhouette.inbox 0x… --silhouette.wire-version 4 \
+  --silhouette.rollup-config-hash 0x… --silhouette.dependency-set-hash 0x… \
+  --silhouette.max-blocks 300
 ```
 
-**The send IS the attestation.** The transaction is signed by `--private-key`, acceptance rule 1 binds
-every accepted batch to that key, and the proof slot goes out empty. `--wire-version` is required and
-has no default on purpose: the version a submitter posts decides whether every verifier in the
-dependency set checks P's declared imports or trusts them, and inheriting it from whichever codec the
-binary was built against is how that changes without anyone deciding it.
+All ordinary flags retain their meanings: L1 RPC, rollup RPC, L2 RPC, batcher key, polling, channel
+retry, tx manager, and blob submission. The silhouette flags augment the final channel encoding.
+`--silhouette.inbox` must equal P's normal `batch_inbox_address`; there is no second inbox or custom
+portal. One pending transaction is recommended so reorg replacement ranges are not obscured
+by speculative overlapping channels; all frames for one envelope must fit in one blob transaction.
+The send is the attestation: acceptance rule 1 binds the L1 transaction sender to the verifier
+config's `submitter`, and attested mode requires the proof slot to be empty.
 
-`--envelope <file>` is the other mode: post one pre-built envelope and exit.
+Each submission contains the following, in this order:
+
+- envelope: `KCPB` magic, wire version, public-values length and bytes, then proof length and an
+  empty proof in attested mode;
+- batch: previous output root, new output root, L1 head hash, rollup-config hash, dependency-set
+  hash, export-policy hash, and the block list;
+- each block: number, timestamp, real block hash, state root, L2-to-L1-message-passer storage root,
+  exported logs, imported messages, L1-origin hash and number, and L1 sequence number;
+- each exported log: log index, log hash, and optional preimage. The active `all-hashes` policy sends
+  the preimage as empty, so the address/topics/data are committed by the hash but not disclosed;
+- each imported message: origin address, source block number, source log index, source timestamp,
+  source chain ID, and message payload hash.
+- standard derivation carrier blobs: ordinary channel/frame/compression encoding containing a
+  singular batch per proof-committed block, with the real parent hash, epoch and timestamp, an empty
+  user-transaction list, and stock-derived deposits (including the L1-info transaction).
+
+Both parts are sent by the same normal batcher transaction to the normal batch inbox. A stock
+`op-node` rejects the `KCPB` blob as an unknown derivation-format byte, then consumes the following
+standard carrier frames. `op-silhouette-el` independently reads the proof envelope and maps those
+otherwise ordinary payload attributes to the committed block hashes and roots.
+
+No transaction bytes, transaction hashes, transaction senders, calldata, receipts, contract state,
+or full log contents are included. As with any L1 blob transaction, the transaction envelope itself
+also exposes its sender, destination inbox, nonce, fees, blob commitments, and L1 inclusion block.
 
 ---
 
-## 4. The four traps
+## 4. Operational differences from a normal interop network
 
 Each of these has actually happened. They are here rather than in a postmortem because each one
 presents as a healthy system.
 
-**1. SEED THE CURSOR BEFORE THE SUBMITTER STARTS.** Write it yourself from the verifier config's
-anchor:
-
-```json
-{ "lastBlock": 0, "outputRoot": "<the verifier config's anchor.outputRoot>" }
-```
-
-Left to itself the submitter anchors on P's **current head**, and P's sequencer starts sealing
-2-second blocks the moment its EL comes up. Its first batch would then start *above* the verifier's
-anchor, acceptance rule 3 requires a batch to extend the anchor, and **every batch would be rejected
-forever** — from two artefacts that were each individually correct.
-
-**2. `--attested.cursor` MUST BE AN ABSOLUTE PATH.** It defaults to CWD-relative, so a unit with a
-different `WorkingDirectory` silently ignores the seeded file and re-anchors on every restart. Never
-delete this file; restarting the submitter without it re-anchors on the current head, which is
-trap 1.
-
-**3. `--attested.head` defaults to `unsafe`, and must.** On a chain with no batcher the safe head is
-only ever what this tool last proved, so batching on the safe head deadlocks.
-
-**4. A verifier accepts exactly ONE wire version, and a rotation is two verifiers, not one lenient
-one.** A node that accepted both would silently apply the weaker posture — dependencies not checked
-— to a chain whose operator believes it runs the stronger one. The failure mode is not "a batch was
-rejected", it is "nothing was checked and everything looked fine".
+1. The private chain must be sequenced by a LightCL op-node. The verifier supernode is verifier-only
+   and rejects attempts to sequence the silhouette chain.
+2. The LightCL follows the verifier supernode's chain-scoped rollup route. Its own EL remains the
+   private, full execution engine; this is also where stock Holocene replacement blocks are built.
+3. The normal op-batcher points at that LightCL and private EL, receives the silhouette flags above,
+   and still submits to the rollup's normal batch inbox. It starts at the verifier's safe head and
+   follows ordinary batcher reorg handling.
+4. A verifier accepts exactly one wire version, and a rotation is two verifiers, not one lenient
+   one. A node that accepted both would silently apply the weaker posture—dependencies not
+   checked—to a chain whose operator believes it runs the stronger one.
 
 ---
 
@@ -231,13 +247,24 @@ chains, two supernodes, real ELs as subprocesses, a real L1, real blob transacti
 go test ./op-acceptance-tests/tests/interop/silhouette/ -v -timeout 45m
 ```
 
-11 tests, ~90s. It covers both cross-chain directions, both postures, the proof-slot refusal, and the
-fabricated-export honesty test. If you are evaluating this system, this command is the shortest path
-to seeing all of it run.
+It covers both cross-chain directions, proof-slot refusal, the fabricated-export honesty test, and
+invalid-import replacement. If you are evaluating this system, this command is the shortest path to
+seeing all of it run.
 
 ```
 go test ./op-supernode/...          # the unit suites, including the wire's cross-language fixtures
 ```
+
+For an interactive two-chain network with funded accounts and RPCs on `8545`/`8546:
+
+```
+go run ./op-up --silhouette
+go run ./op-up smoke-interop all
+go run ./op-up smoke-interop chained-invalid-message --require-cascade --reorg-timeout 5m
+```
+
+Run `go run ./op-up --interop` instead to compare the same smoke tools against the normal sysgo
+interop topology.
 
 **Against a live stream.** `proofbatch-inspect` reads envelope FILES (not L1) and reports the wire
 object in words, including:

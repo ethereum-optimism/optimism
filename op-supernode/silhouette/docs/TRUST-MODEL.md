@@ -57,7 +57,8 @@ inbox's — and every op-stack chain's public history already rests on it.
   blob, because the version decides whether imports are checked at all.
 
 **3. Cross-chain import consistency — genuinely verified.** This is the part that surprises people,
-and it is the reason wire v3 and the G7 judge flip stay switched ON in v1.
+and it is the reason the v3 import-list rules (retained by wire v4) and the G7 judge flip stay
+switched ON in v1.
 
 P's batches declare, per block, the executing messages that block consumed (the *import list*). The
 **stock** cross-safety judge validates that list against chain A's real, independently derived
@@ -198,4 +199,5 @@ by whoever reads the code six months from now. If it ever starts failing, someon
 trust model — which is a thing to know deliberately.
 
 See also: `README.md` (what this system is), `RUNNING-V1.md` (how to stand it up),
-`SPEC-WIRE-V3.md` (the wire), `SPEC-ETH-NETFLOW-CAP.md` (the L1-side blast-radius bound).
+`SPEC-WIRE-V4.md` (the current wire), `SPEC-WIRE-V3.md` (the import-list rules it retains), and
+`SPEC-ETH-NETFLOW-CAP.md` (the L1-side blast-radius bound).

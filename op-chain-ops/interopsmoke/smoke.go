@@ -739,7 +739,7 @@ func smokeValidMessage(env *smokeEnv) error {
 	if currentBlock.Hash != execBlockHash {
 		return fmt.Errorf("block was replaced: expected %s, got %s", execBlockHash, currentBlock.Hash)
 	}
-	if err := assertTxInBlock(env.ctx, env.chainB, execBlockNum, execMsg.Receipt.TxHash); err != nil {
+	if err := assertTxInBlock(env.ctx, env.chainB, execBlockNum, currentBlock.Hash, execMsg.Receipt.TxHash); err != nil {
 		return err
 	}
 	fmt.Fprintf(env.stderr, "    Block remained canonical after head advanced past it\n")
@@ -1223,7 +1223,7 @@ func assertControlIntact(env *smokeEnv, blockNum uint64, blockHash common.Hash, 
 		return fmt.Errorf("control message's Chain A block %d was replaced (%s -> %s); invalidation over-reached",
 			blockNum, blockHash, current.Hash)
 	}
-	if err := assertTxInBlock(env.ctx, env.chainA, blockNum, txHash); err != nil {
+	if err := assertTxInBlock(env.ctx, env.chainA, blockNum, blockHash, txHash); err != nil {
 		return fmt.Errorf("control message did not survive: %w", err)
 	}
 	fmt.Fprintf(env.stderr, "    Control message still present on Chain A block %d\n", blockNum)
@@ -1300,12 +1300,14 @@ func waitForHead(ctx context.Context, chain *remoteChain, want string, ready fun
 func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain, blockNum uint64, oldHash, txHash common.Hash, timeout time.Duration) error {
 	start := time.Now()
 	deadline := start.Add(timeout)
+	var replacementHash common.Hash
 	for attempt := 0; ; attempt++ {
 		elapsed := time.Since(start).Round(time.Second)
 		currentBlock, err := chain.ethClient.BlockRefByNumber(ctx, blockNum)
 		if err == nil {
 			if currentBlock.Hash != oldHash {
 				fmt.Fprintf(stderr, "    [%s] Reorg detected at block %d after %s: %s -> %s\n", chain.name, blockNum, elapsed, oldHash, currentBlock.Hash)
+				replacementHash = currentBlock.Hash
 				break
 			}
 			if attempt == 0 || attempt%10 == 0 {
@@ -1331,7 +1333,7 @@ func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain
 	if err := waitForHeadProgress(ctx, stderr, chain, blockNum+1, timeout); err != nil {
 		return err
 	}
-	return assertTxNotInBlock(ctx, chain, blockNum, txHash)
+	return assertTxNotInBlock(ctx, chain, blockNum, replacementHash, txHash)
 }
 
 // errChainStalled marks a block that was correctly replaced on a chain that
@@ -1384,8 +1386,8 @@ func waitForHeadProgress(ctx context.Context, stderr io.Writer, chain *remoteCha
 	}
 }
 
-func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {
-	_, txs, err := chain.ethClient.InfoAndTxsByNumber(ctx, blockNum)
+func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, blockHash, txHash common.Hash) error {
+	txs, err := blockTxsByHash(ctx, chain, blockHash)
 	if err != nil {
 		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
 	}
@@ -1397,8 +1399,8 @@ func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, t
 	return fmt.Errorf("tx %s not found in block %d on %s", txHash, blockNum, chain.name)
 }
 
-func assertTxNotInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {
-	_, txs, err := chain.ethClient.InfoAndTxsByNumber(ctx, blockNum)
+func assertTxNotInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, blockHash, txHash common.Hash) error {
+	txs, err := blockTxsByHash(ctx, chain, blockHash)
 	if err != nil {
 		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
 	}
@@ -1408,6 +1410,28 @@ func assertTxNotInBlock(ctx context.Context, chain *remoteChain, blockNum uint64
 		}
 	}
 	return nil
+}
+
+// blockTxsByHash tolerates the brief interval where a follow-mode LightCL has adopted the
+// replacement forkchoice but its EL is still fetching the immutable block body from its peer.
+func blockTxsByHash(ctx context.Context, chain *remoteChain, blockHash common.Hash) (types.Transactions, error) {
+	deadline := time.Now().Add(smokeWaitTimeout)
+	for {
+		_, txs, err := chain.ethClient.InfoAndTxsByHash(ctx, blockHash)
+		if err == nil {
+			return txs, nil
+		}
+		if !errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timed out waiting for block %s body", blockHash)
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 func randomAddress() common.Address {

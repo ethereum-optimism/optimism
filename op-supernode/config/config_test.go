@@ -1,11 +1,29 @@
 package config
 
 import (
+	"flag"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli/v2"
+
+	snflags "github.com/ethereum-optimism/optimism/op-supernode/flags"
 )
+
+func TestNewConfigSharedBeaconSlotDurationOverride(t *testing.T) {
+	set := flag.NewFlagSet("test", flag.ContinueOnError)
+	for _, f := range snflags.Flags {
+		require.NoError(t, f.Apply(set))
+	}
+	require.NoError(t, set.Parse([]string{
+		"--l1=http://l1",
+		"--l1.beacon=http://beacon",
+		"--l1.beacon.slot-duration-override=6",
+	}))
+	cfg := NewConfig(cli.NewContext(&cli.App{}, set, nil))
+	require.Equal(t, uint64(6), cfg.L1BeaconSlotDurationOverride)
+}
 
 func TestCLIConfig_Check_interopLogBackfill(t *testing.T) {
 	ptr := func(u uint64) *uint64 { return &u }

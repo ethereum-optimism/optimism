@@ -169,14 +169,12 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 FROM --platform=$BUILDPLATFORM builder AS op-supernode-builder
 ARG OP_SUPERNODE_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  cd op-supernode && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_SUPERNODE_VERSION" just op-supernode
+  cd op-supernode && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_SUPERNODE_VERSION" just op-supernode proofbatch-inspect silhouette-bindings
 
-# The producer side of a silhouette chain (op-supernode/silhouette). Shares the
-# op-supernode module directory, so it shares that component's justfile.
-FROM --platform=$BUILDPLATFORM builder AS proofbatch-submitter-builder
-ARG PROOFBATCH_SUBMITTER_VERSION=v0.0.0
+FROM --platform=$BUILDPLATFORM builder AS op-silhouette-el-builder
+ARG OP_SILHOUETTE_EL_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  cd op-supernode && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$PROOFBATCH_SUBMITTER_VERSION" just proofbatch-submitter proofbatch-inspect
+  cd op-supernode && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_SILHOUETTE_EL_VERSION" just op-silhouette-el
 
 FROM --platform=$BUILDPLATFORM builder AS op-interop-filter-builder
 ARG OP_INTEROP_FILTER_VERSION=v0.0.0
@@ -355,20 +353,14 @@ CMD ["da-server"]
 FROM $TARGET_BASE_IMAGE AS op-supernode-target
 USER 0
 COPY --from=op-supernode-builder /app/op-supernode/bin/op-supernode /usr/local/bin/
+COPY --from=op-supernode-builder /app/op-supernode/bin/proofbatch-inspect /usr/local/bin/
+COPY --from=op-supernode-builder /app/op-supernode/bin/silhouette-bindings /usr/local/bin/
 CMD ["op-supernode"]
 
-FROM $TARGET_BASE_IMAGE AS proofbatch-submitter-target
+FROM $TARGET_BASE_IMAGE AS op-silhouette-el-target
 USER 0
-COPY --from=proofbatch-submitter-builder /app/op-supernode/bin/proofbatch-submitter /usr/local/bin/
-# proofbatch-inspect rides along, against the one-binary-per-image habit, and the
-# reason is the runbook step it exists for: when a verifier rejects every batch
-# because its configured rollupConfigHash disagrees with the posted one, the
-# answer is a decode of an envelope the SUBMITTER wrote. Those envelopes are on
-# this filesystem (`--envelope` writes and reads them here), so the tool has to
-# be here too or that step needs a second image pulled mid-incident. It reads
-# files, never L1, and adds 18MB to a 31MB image.
-COPY --from=proofbatch-submitter-builder /app/op-supernode/bin/proofbatch-inspect /usr/local/bin/
-CMD ["proofbatch-submitter"]
+COPY --from=op-silhouette-el-builder /app/op-supernode/bin/op-silhouette-el /usr/local/bin/
+CMD ["op-silhouette-el"]
 
 FROM $TARGET_BASE_IMAGE AS op-interop-filter-target
 USER 0

@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
-	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -38,7 +37,7 @@ func writeManifest(t *testing.T, entry ManifestChain, verifier *Config) string {
 
 func TestManifestLoadsAndResolvesRelativeConfigPaths(t *testing.T) {
 	env := newTestEnv(t, l1GenesisNum+10)
-	path := writeManifest(t, ManifestChain{ChainID: 424250, Labels: "derivation"}, env.cfg)
+	path := writeManifest(t, ManifestChain{ChainID: 424250}, env.cfg)
 
 	m, err := LoadManifest(path)
 	require.NoError(t, err)
@@ -49,9 +48,7 @@ func TestManifestLoadsAndResolvesRelativeConfigPaths(t *testing.T) {
 	require.Equal(t, env.cfg.Submitter, decl.Config().Submitter)
 	require.Equal(t, env.cfg.Anchor.OutputRoot, decl.Config().Anchor.OutputRoot)
 
-	labels, err := decl.LabelSource()
-	require.NoError(t, err)
-	require.Equal(t, LabelsFromDerivation, labels)
+	require.NoError(t, decl.CheckRole())
 
 	// A chain the manifest says nothing about is an ordinary driven chain, and the lookup says so.
 	_, ok = m.Lookup(eth.ChainIDFromUInt64(424246))
@@ -68,20 +65,15 @@ func TestManifestDefaultsToTheVerifierPosture(t *testing.T) {
 	require.NoError(t, err)
 	decl, ok := m.Lookup(eth.ChainIDFromUInt64(424250))
 	require.True(t, ok)
-	labels, err := decl.LabelSource()
-	require.NoError(t, err)
-	require.Equal(t, LabelsFromDerivation, labels)
+	require.NoError(t, decl.CheckRole())
 }
 
-func TestManifestSequencerPosture(t *testing.T) {
+func TestManifestRejectsSequencerPosture(t *testing.T) {
 	env := newTestEnv(t, l1GenesisNum+10)
 	path := writeManifest(t, ManifestChain{ChainID: 424250, Labels: "proven-head"}, env.cfg)
-	m, err := LoadManifest(path)
-	require.NoError(t, err)
-	decl, _ := m.Lookup(eth.ChainIDFromUInt64(424250))
-	labels, err := decl.LabelSource()
-	require.NoError(t, err)
-	require.Equal(t, LabelsFromProvenHead, labels)
+	_, err := LoadManifest(path)
+	require.ErrorContains(t, err, "verifier-only")
+	require.ErrorContains(t, err, "LightCL")
 }
 
 func TestManifestRejections(t *testing.T) {
@@ -196,13 +188,14 @@ func TestL1ChainConfigFromFile(t *testing.T) {
 func TestAssembleTakesNoGossip(t *testing.T) {
 	env := newTestEnv(t, l1GenesisNum+10)
 	vncfg := &opnodecfg.Config{Rollup: *silhouetteRollupConfig()}
+	vncfg.L2 = &opnodecfg.L2EndpointConfig{L2EngineAddr: "http://magic-el"}
 	vncfg.P2P = &p2p.Config{}
 	vncfg.P2PSigner = &p2p.PreparedSigner{}
 
 	a, err := Assemble(testlog.Logger(t, log.LevelError), env.cfg, AssemblyConfig{
 		Rollup: vncfg, L1Chain: sepoliaChainConfig(), SysCfg: vncfg.Rollup.Genesis.SystemConfig,
-		L1: env.l1, Blobs: env.blobs, L1Headers: env.l1, Labels: LabelsFromDerivation,
-	}, vncfg, &rollupNode.InitializationOverrides{})
+		L1: env.l1, Blobs: env.blobs, L1Headers: env.l1,
+	}, vncfg)
 	require.NoError(t, err)
 	defer a.Close()
 
@@ -211,19 +204,18 @@ func TestAssembleTakesNoGossip(t *testing.T) {
 	require.False(t, vncfg.P2PEnabled())
 }
 
-// TestAssembleWiresBothSeams is the phase-1 claim in one test: after Assemble, the caller's
-// virtual-node config and initialization overrides are the ONLY things that changed, and the stock
-// container built from them will talk to the shim and read the proof-batch source.
-func TestAssembleWiresBothSeams(t *testing.T) {
+// TestAssembleKeepsStockDerivation pins the no-op-node-fork architecture: assembly observes proofs
+// beside the virtual node and leaves its normal L1 data path untouched.
+func TestAssembleKeepsStockDerivation(t *testing.T) {
 	env := newTestEnv(t, l1GenesisNum+10)
 	logger := testlog.Logger(t, log.LevelError)
 
 	vncfg := &opnodecfg.Config{Rollup: *silhouetteRollupConfig()}
+	externalEL := &opnodecfg.L2EndpointConfig{L2EngineAddr: "http://magic-el"}
+	vncfg.L2 = externalEL
 	// A sequencer-enabled config, so the pinning below is observed rather than assumed.
 	vncfg.Driver.SequencerEnabled = true
 	vncfg.Driver.SequencerStopped = false
-	overrides := &rollupNode.InitializationOverrides{}
-
 	a, err := Assemble(logger, env.cfg, AssemblyConfig{
 		Rollup:    vncfg,
 		L1Chain:   sepoliaChainConfig(),
@@ -231,48 +223,26 @@ func TestAssembleWiresBothSeams(t *testing.T) {
 		L1:        env.l1,
 		Blobs:     env.blobs,
 		L1Headers: env.l1,
-		Labels:    LabelsFromDerivation,
-	}, vncfg, overrides)
+	}, vncfg)
 	require.NoError(t, err)
 	defer a.Close()
 
 	require.Equal(t, eth.ChainIDFromUInt64(424250), a.ChainID)
 
-	// Seam 1: the execution client is the shim, reachable in-process.
-	prepared, ok := vncfg.L2.(*opnodecfg.PreparedL2Endpoints)
-	require.True(t, ok, "L2 endpoint must be the in-process shim client")
-	require.NotNil(t, prepared.Client)
-	var chainIDHex string
-	require.NoError(t, prepared.Client.CallContext(t.Context(), &chainIDHex, "eth_chainId"))
-	require.Equal(t, "0x6793a", chainIDHex, "the shim answers for P over the wired-in client")
-	// A virtual-node stop closes its prepared endpoint. The assembly owns this in-process client,
-	// so that close must not prevent the next virtual node from using the same endpoint.
-	prepared.Client.Close()
-	require.NoError(t, prepared.Client.CallContext(t.Context(), &chainIDHex, "eth_chainId"),
-		"the prepared shim endpoint must survive a virtual-node restart")
+	// Seam 1 is an ordinary external execution endpoint and assembly leaves it untouched.
+	require.Same(t, externalEL, vncfg.L2)
 
-	// Seam 2: the derivation input is the proof-batch source, and it is the SAME source object the
-	// assembly holds — so the log sink attached later lands on the source the pipeline reads.
-	require.Same(t, a.Source, overrides.DataSourceOverride)
+	// The proof observer is separate from op-node's stock derivation input.
+	require.NotNil(t, a.Source)
+	require.NotNil(t, a.tracker)
 
 	// A silhouette chain never sequences, whatever the config said.
 	require.False(t, vncfg.Driver.SequencerEnabled)
 	require.True(t, vncfg.Driver.SequencerStopped)
 
-	// The shim and the source share one fact table. Handing them different ones is the bug this
-	// construction order exists to make impossible, so it is asserted rather than described.
+	// The supernode's proof source and interop container share one local fact table. The standalone
+	// magic EL independently verifies the same L1 stream.
 	require.Same(t, a.Facts, a.Source.facts)
-	require.Same(t, a.Facts, a.Shim.facts)
-
-	// Seam 3: the query surface embedding the shim would otherwise have removed from the network.
-	ns := map[string]bool{}
-	for _, api := range overrides.ExtraAPIs {
-		ns[api.Namespace] = true
-	}
-	require.True(t, ns["eth"], "P's blocks must be queryable at the chain's own route")
-	require.True(t, ns["silhouette"], "G2 D8: self-declaration lives at the service layer, so it must be reachable")
-	require.False(t, ns["engine"],
-		"the Engine API is the private channel to this chain's execution client and must not be published")
 }
 
 // TestAssembleDoesNotPublishTheEngineAPI states the exclusion on its own, because it is a security
@@ -304,14 +274,14 @@ func TestAssembleRejectsMissingInputs(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	vncfg := &opnodecfg.Config{Rollup: *silhouetteRollupConfig()}
 
-	_, err := Assemble(logger, env.cfg, AssemblyConfig{Rollup: vncfg}, nil, nil)
+	_, err := Assemble(logger, env.cfg, AssemblyConfig{Rollup: vncfg}, nil)
 	require.ErrorContains(t, err, "needs a virtual-node config")
 
-	_, err = Assemble(logger, env.cfg, AssemblyConfig{}, vncfg, &rollupNode.InitializationOverrides{})
+	_, err = Assemble(logger, env.cfg, AssemblyConfig{}, vncfg)
 	require.ErrorContains(t, err, "needs P's rollup config")
 
 	bad := *env.cfg
 	bad.Inbox = bad.Submitter
-	_, err = Assemble(logger, &bad, AssemblyConfig{Rollup: vncfg}, vncfg, &rollupNode.InitializationOverrides{})
+	_, err = Assemble(logger, &bad, AssemblyConfig{Rollup: vncfg}, vncfg)
 	require.ErrorContains(t, err, "silhouette config")
 }

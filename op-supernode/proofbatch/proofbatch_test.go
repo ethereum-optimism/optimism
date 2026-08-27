@@ -166,18 +166,18 @@ func TestPublicValuesLayout(t *testing.T) {
 		"0000000000000000000000000000000000000000000000000000000000000000", // execMsgs length
 	)
 
-	got, err := EncodePublicValues(batch)
+	got, err := EncodePublicValuesAs(batch, VersionV3)
 	require.NoError(t, err)
 	require.Equal(t, hexutil.Encode(want), hexutil.Encode(got))
 
-	back, err := DecodePublicValues(got)
+	back, err := DecodePublicValuesAs(got, VersionV3)
 	require.NoError(t, err)
 	require.Equal(t, batch.Blocks[0].ExecMsgs, back.Blocks[0].ExecMsgs,
 		"the import list must round-trip field for field")
 	require.Empty(t, back.Blocks[1].ExecMsgs)
 	// ...and re-encoding a decoded batch reproduces the bytes, which is what makes the wire an
 	// object rather than a serialisation.
-	again, err := EncodePublicValues(back)
+	again, err := EncodePublicValuesAs(back, VersionV3)
 	require.NoError(t, err)
 	require.Equal(t, hexutil.Encode(got), hexutil.Encode(again))
 }
@@ -322,7 +322,7 @@ func TestEnvelopeFraming(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, []byte{'K', 'C', 'P', 'B'}, enc[0:4])
-	require.Equal(t, byte(0x03), enc[4])
+	require.Equal(t, byte(Version), enc[4])
 	require.Equal(t, uint32(len(pv)), binary.BigEndian.Uint32(enc[5:9]))
 	require.Equal(t, pv, enc[9:9+len(pv)])
 	rest := enc[9+len(pv):]
@@ -478,23 +478,23 @@ func TestDecodeRejections(t *testing.T) {
 		_, err := Decode(bad)
 		require.ErrorIs(t, err, ErrBadVersion)
 	})
-	// v2 is the version v3 replaced. A v3-configured node refuses it — the point of the rotation is
+	// v2 is an older version. A current-version node refuses it — the point of the rotation is
 	// that a node accepts exactly what its config pins — even though this codec can still read it.
-	t.Run("version 2 against a v3 node", func(t *testing.T) {
+	t.Run("version 2 against a current node", func(t *testing.T) {
 		bad := append([]byte{}, valid...)
 		bad[4] = VersionV2
 		_, err := Decode(bad)
 		require.ErrorIs(t, err, ErrBadVersion)
-		require.ErrorContains(t, err, "this node accepts 3")
+		require.ErrorContains(t, err, "this node accepts 4")
 	})
 	t.Run("version 3 against a v2 node", func(t *testing.T) {
 		_, err := DecodeAs(valid, VersionV2)
 		require.ErrorIs(t, err, ErrBadVersion)
 		require.ErrorContains(t, err, "this node accepts 2")
 	})
-	t.Run("version 4", func(t *testing.T) {
+	t.Run("version 5", func(t *testing.T) {
 		bad := append([]byte{}, valid...)
-		bad[4] = 4
+		bad[4] = 5
 		_, err := Decode(bad)
 		require.ErrorIs(t, err, ErrBadVersion)
 	})

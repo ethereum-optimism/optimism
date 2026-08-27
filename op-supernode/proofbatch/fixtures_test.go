@@ -189,7 +189,7 @@ func TestFixturesCoverCurrentVersion(t *testing.T) {
 	var idx fixtureIndex
 	readFixtureJSON(t, "index.json", &idx)
 	if idx.Version != Version {
-		t.Skipf("the canonical fixtures are version %d; wire version %d (execMsgs) is pinned only by "+
+		t.Skipf("the canonical fixtures are version %d; wire version %d (L1-origin metadata) is pinned only by "+
 			"this side's own layout tests until the corpus is regenerated. "+
 			"Byte-identity for v%d is UNVERIFIED across languages.", idx.Version, Version, Version)
 	}
@@ -274,7 +274,7 @@ func TestFixtures(t *testing.T) {
 				// asserted either way, because "the field is missing" and "the field is empty" are
 				// different claims and the version is what tells them apart.
 				require.Len(t, got.ExecMsgs, len(want.ExecMsgs), "block %d execMsg count", want.BlockNumber)
-				if version < Version {
+				if !VersionHasExecMsgs(version) {
 					require.Nil(t, got.ExecMsgs, "block %d: a v%d batch cannot carry an import list",
 						want.BlockNumber, version)
 				}

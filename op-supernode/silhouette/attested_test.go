@@ -38,7 +38,7 @@ func (e *testEnv) withVerifier(v Verifier) *testEnv {
 	return e
 }
 
-// TestTheJudgeReadsTheWireNotTheProof is v1's licence to keep wire v3 and the judge flip switched ON
+// TestTheJudgeReadsTheWireNotTheProof is v1's licence to keep wire v4 and the judge flip switched ON
 // while the proving system is attestation.
 //
 // The worry worth ruling out: G7's cross-safety flip was built and gated in a world where P's batches
@@ -95,7 +95,7 @@ func TestTheJudgeReadsTheWireNotTheProof(t *testing.T) {
 			"judge validates nothing and says it validates everything")
 	require.Len(t, aFact.ExecMsgs, 2)
 	require.True(t, attested.cfg.DependenciesVerified(),
-		"wire v3 puts P's dependencies under the judge, and the proving system has no say in it")
+		"wire v4 retains v3's imports and puts P's dependencies under the judge; the proving system has no say in it")
 
 	// And the two arms really did run different proving systems, which is what makes the equality
 	// above a finding rather than a tautology.

@@ -79,25 +79,28 @@ func TestAttestedRefusesABatchCarryingProofBytes(gt *testing.T) {
 
 	// (1) the control: an honest attested batch is accepted, and cross-safed.
 	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
-	warmup := sil.Submitter.SubmitNext()
+	warmup := sil.Batcher.SubmitNext()
 	require.NotNil(warmup, "no warm-up batch to post")
 	warmupHead := warmup.Blocks[len(warmup.Blocks)-1].Number
-	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.CrossSafe, warmupHead, 120))
+	dsl.CheckAll(t,
+		sil.VerifierCL.ReachedFn(safety.CrossSafe, warmupHead, 120),
+		sys.L2BCL.ReachedFn(safety.LocalSafe, warmupHead, 120),
+	)
 
 	// (2) the same submitter, the same chain, the next range of blocks — with bytes in the proof slot.
 	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
-	sil.Submitter.ProofBytesOnNext([]byte{0xde, 0xad, 0xbe, 0xef})
-	refused := sil.Submitter.SubmitNext()
+	sil.Batcher.ProofBytesOnNext([]byte{0xde, 0xad, 0xbe, 0xef})
+	refused := sil.Batcher.SubmitNext()
 	require.NotNil(refused, "no batch to post")
-	require.Greater(refused.Blocks[0].Number, warmupHead,
-		"the proof-carrying batch must cover blocks the verifier has not already accepted")
+	require.Greater(refused.Blocks[len(refused.Blocks)-1].Number, warmupHead,
+		"the proof-carrying batch must extend beyond blocks the verifier has already accepted")
 	t.Logger().Info("posted a batch carrying proof bytes to an attested verifier",
 		"first", refused.Blocks[0].Number, "last", refused.Blocks[len(refused.Blocks)-1].Number)
 
 	// (3) it is refused: the proven head stays where the honest batch left it. Reject-and-log, so the
 	// verifier keeps running — a node that halted here would be a node an adversary can stop by
 	// posting garbage to a public inbox.
-	dsl.CheckAll(t, staysBelowFn(t, sil.VerifierCL, safety.LocalSafe, refused.Blocks[0].Number, 15))
+	dsl.CheckAll(t, staysBelowFn(t, sil.VerifierCL, safety.LocalSafe, warmupHead+1, 15))
 	require.Zero(sil.InteropInvalidations(t),
 		"a refused batch must not invalidate anything; it was never accepted in the first place")
 
@@ -138,10 +141,14 @@ func TestAttestedFabricatedExportIsAccepted(gt *testing.T) {
 
 	// Warm up, so a later acceptance cannot be "this verifier accepts anything from the start".
 	sys.L2BCL.Advanced(safety.LocalUnsafe, 3, 60)
-	warmup := sil.Submitter.SubmitNext()
+	warmup := sil.Batcher.SubmitNext()
 	require.NotNil(warmup, "no warm-up batch to post")
-	dsl.CheckAll(t, sil.VerifierCL.ReachedFn(safety.CrossSafe, warmup.Blocks[len(warmup.Blocks)-1].Number, 120))
-	sil.Submitter.Start(2 * time.Second)
+	warmupHead := warmup.Blocks[len(warmup.Blocks)-1].Number
+	dsl.CheckAll(t,
+		sil.VerifierCL.ReachedFn(safety.CrossSafe, warmupHead, 120),
+		sys.L2BCL.ReachedFn(safety.LocalSafe, warmupHead, 120),
+	)
+	sil.Batcher.Start(2 * time.Second)
 
 	// (1) a real message on P, so the batch has a block with a real export to append the lie to. The
 	// fabrication then differs from an honest batch in exactly one entry.
@@ -156,7 +163,7 @@ func TestAttestedFabricatedExportIsAccepted(gt *testing.T) {
 	//
 	// It is armed until applied because the cadence ticker decides which batch covers this block.
 	var fabricated fabricatedLog
-	sil.Submitter.MutateUntilApplied(func(b *proofbatch.ProofBatch) bool {
+	sil.Batcher.MutateUntilApplied(func(b *proofbatch.ProofBatch) bool {
 		for i := range b.Blocks {
 			if b.Blocks[i].Number != initID.Number || len(b.Blocks[i].Logs) == 0 {
 				continue
@@ -177,7 +184,7 @@ func TestAttestedFabricatedExportIsAccepted(gt *testing.T) {
 	})
 
 	// (3) THE ACCEPTANCE. This is the assertion the trust model lives in.
-	export := exportOnTheWire(t, sys, initID.Number)
+	export := exportOnTheWire(t, sys, initID)
 	require.NotZero(fabricated.block, "the fabrication was never applied, so this test asserts nothing")
 	require.Equal(initID.Number, fabricated.block)
 

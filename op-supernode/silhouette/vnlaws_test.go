@@ -609,8 +609,7 @@ func TestShimBackedChainSatisfiesTheVirtualNodeLaws(t *testing.T) {
 	e.plant(batch, spec)
 
 	se := e.newShim(t)
-	v := se.newVerifier(t)
-	v.runToQuiescence(t, 400)
+	require.Len(t, se.deriveAndBuild(t, len(batch.Blocks)), len(batch.Blocks))
 
 	known := batch.Blocks[len(batch.Blocks)-1]
 	RunLaws(t, Subject{

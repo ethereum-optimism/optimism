@@ -20,7 +20,7 @@ func silhouetteParams() SilhouetteParams {
 		L2Time:            l1GenesisT,
 		BlockTime:         2,
 		MaxSequencerDrift: 1800,
-		GatedPortal:       common.HexToAddress("0x00000000000000000000000000000000000d0000"),
+		DepositContract:   common.HexToAddress("0x00000000000000000000000000000000000d0000"),
 		BatchInbox:        common.HexToAddress("0xff00000000000000000000000000000000424250"),
 		SystemConfigProxy: common.HexToAddress("0x00000000000000000000000000000000000c0000"),
 		GasLimit:          30_000_000,
@@ -42,8 +42,8 @@ func TestRollupConfigIsSilhouetteShaped(t *testing.T) {
 	require.Equal(t, uint64(DefaultSeqWindowSize), cfg.SeqWindowSize)
 	require.Less(t, cfg.SeqWindowSize*12, uint64(2*3600))
 
-	// The gated portal must be REAL: stock derivation reads deposit events from it and must find none.
-	require.Equal(t, silhouetteParams().GatedPortal, cfg.DepositContractAddress)
+	// The ordinary portal remains the source of stock deposit derivation.
+	require.Equal(t, silhouetteParams().DepositContract, cfg.DepositContractAddress)
 
 	// Every fork at genesis, so there is no activation block to break a forced block's single-tx shape.
 	for _, f := range []*uint64{cfg.RegolithTime, cfg.CanyonTime, cfg.DeltaTime, cfg.EcotoneTime,
@@ -80,7 +80,7 @@ func TestRollupConfigRejectsUnsilhouetteShapes(t *testing.T) {
 	}{
 		{"window too long", func(p *SilhouetteParams) { p.SeqWindowSize = 3600 }, "longer than"},
 		{"no base fee scalar", func(p *SilhouetteParams) { p.BaseFeeScalar = 0 }, "baseFeeScalar is required"},
-		{"no gated portal", func(p *SilhouetteParams) { p.GatedPortal = common.Address{} }, "gatedPortal is required"},
+		{"no deposit contract", func(p *SilhouetteParams) { p.DepositContract = common.Address{} }, "depositContract is required"},
 		{"zero gas limit", func(p *SilhouetteParams) { p.GasLimit = 0 }, "gasLimit is required"},
 		{
 			// A zero denominator would make a forced block's extraData encode zeroes, and the next

@@ -47,12 +47,25 @@ func (td *txData) Blobs() ([]*eth.Blob, error) {
 	blobs := make([]*eth.Blob, 0, len(td.frames))
 	for _, f := range td.frames {
 		var blob eth.Blob
-		if err := blob.FromData(append([]byte{params.DerivationVersion0}, f.data...)); err != nil {
+		data := f.data
+		if !f.raw {
+			data = append([]byte{params.DerivationVersion0}, f.data...)
+		}
+		if err := blob.FromData(data); err != nil {
 			return nil, err
 		}
 		blobs = append(blobs, &blob)
 	}
 	return blobs, nil
+}
+
+func (td *txData) hasRawFrames() bool {
+	for _, frame := range td.frames {
+		if frame.raw {
+			return true
+		}
+	}
+	return false
 }
 
 // Len returns the sum of all the sizes of data in all frames.

@@ -108,6 +108,34 @@ func TestAcceptAndTranscode(t *testing.T) {
 	require.Equal(t, spec.carrier, carrier.Number)
 }
 
+func TestProofBatchMayOverlapExactlyOneProvenHead(t *testing.T) {
+	e := newTestEnv(t, l1GenesisNum+8)
+	firstSpec := e.goodBatch()
+	firstSpec.count = 2
+	first := e.buildBatch(firstSpec)
+	e.plant(first, firstSpec)
+	require.Len(t, e.derive(firstSpec.carrier), 1)
+
+	nextSpec := batchSpec{
+		prevRoot: first.NewOutputRoot, firstBlock: 3,
+		firstTime: first.Blocks[1].Timestamp + l2BlockTime,
+		count:     2, l1Head: l1GenesisNum + 3, carrier: l1GenesisNum + 6,
+	}
+	next := e.buildBatch(nextSpec)
+	next.Blocks = append([]proofbatch.BlockExport{first.Blocks[1]}, next.Blocks...)
+	next.PrevOutputRoot = first.Blocks[0].OutputRoot()
+	e.plant(next, nextSpec)
+
+	payloads := e.derive(nextSpec.carrier)
+	require.Len(t, payloads, 1)
+	batches := decodeBatches(t, e.rollup, payloads[0], e.l1.ref(nextSpec.carrier))
+	require.Len(t, batches, 2, "the already-proven overlap must not be derived twice")
+	require.Equal(t, first.Blocks[1].Hash, batches[0].ParentHash)
+	head, ok := e.facts.Head()
+	require.True(t, ok)
+	require.Equal(t, next.NewOutputRoot, head.OutputRoot)
+}
+
 // TestRenderedOriginIsTheStockEpoch is the coordinator's round-trip rule: the epoch this source
 // renders must be the epoch the stock CL reads back out of the L1-info transaction bytes. The batch's
 // EpochNum/EpochHash come from PayloadToSingularBatch parsing those bytes, so asserting them against
@@ -366,12 +394,17 @@ func TestL1ReplayRetainsVerifiedPrefixBeforeDeniedBlock(t *testing.T) {
 	})
 
 	// Reopening the carrier models the stock pipeline reset after invalidation. The source must
-	// replay the proof only through the denied block's parent so a corrected proof can chain there.
+	// replay the verified prefix and one empty singular batch at the denied height. The latter is
+	// the normal Holocene deposits-only replacement trigger; the denied block itself is not restored
+	// to the proof fact table.
 	payloads := e.derive(originalSpec.carrier)
 	require.Len(t, payloads, 1)
 	batches := decodeBatches(t, e.rollup, payloads[0], e.l1.ref(originalSpec.carrier))
-	require.Len(t, batches, 1)
+	require.Len(t, batches, 2)
 	require.Equal(t, e.cfg.Anchor.BlockHash, batches[0].ParentHash)
+	require.Equal(t, original.Blocks[0].Hash, batches[1].ParentHash)
+	require.Equal(t, denied.Timestamp, batches[1].Timestamp)
+	require.Empty(t, batches[1].Transactions)
 	head, ok := e.facts.Head()
 	require.True(t, ok)
 	require.Equal(t, original.Blocks[0].Number, head.Number)

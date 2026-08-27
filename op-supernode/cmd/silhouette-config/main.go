@@ -2,16 +2,14 @@
 // operator actually decides.
 //
 // It exists because the rollup config is OUR artifact, not a registry entry, and the three ways it
-// differs from a stock chain's — a finite sequencing window, a deposit contract that reverts, every
+// differs from a stock chain's — a finite sequencing window and every
 // fork active at genesis — are properties a hand-edited JSON file loses silently. Generating it runs
 // checkSilhouetteInvariants over the result, so a config that would break the forced-extension
 // convention or a prover's headers-only L1 walk fails here rather than in a proof six hours later.
 //
 // The output is the file the verifier, the sequencer's op-node and the prover all read, and its
-// sha256-of-canonical-JSON is the rollupConfigHash the wire binds. See the rotation runbook for how
-// that hash is computed (it is kona's serialization of the PARSED config, so it is computed on the
-// proving side, not here — a second implementation of a consensus-critical hash is exactly what we
-// do not want).
+// sha256-of-compact-JSON of the parsed config is the rollupConfigHash the wire binds. The
+// silhouette-bindings command and silhouette.BindingHashes are the authoritative implementation.
 package main
 
 import (
@@ -44,10 +42,10 @@ func main() {
 		&cli.Uint64Flag{Name: "seq-window", Value: silhouette.DefaultSeqWindowSize,
 			Usage: "FINITE sequencing window in L1 blocks (DR-2)"},
 		&cli.Uint64Flag{Name: "max-sequencer-drift", Value: 600},
-		&cli.StringFlag{Name: "gated-portal", Required: true,
-			Usage: "the deployed-but-gated OptimismPortal: real address, reverts on deposit"},
+		&cli.StringFlag{Name: "deposit-contract", Required: true,
+			Usage: "the chain's stock OptimismPortal address"},
 		&cli.StringFlag{Name: "batch-inbox", Required: true,
-			Usage: "retained for shape only; a silhouette chain has no batcher"},
+			Usage: "ordinary rollup-config inbox; proof-batch destination is configured separately"},
 		&cli.StringFlag{Name: "system-config", Required: true, Usage: "L1 SystemConfig proxy (FROZEN)"},
 		&cli.StringFlag{Name: "batcher-addr", Required: true},
 		&cli.Uint64Flag{Name: "gas-limit", Required: true},
@@ -89,7 +87,7 @@ func run(ctx *cli.Context) error {
 		BlockTime:         ctx.Uint64("block-time"),
 		SeqWindowSize:     ctx.Uint64("seq-window"),
 		MaxSequencerDrift: ctx.Uint64("max-sequencer-drift"),
-		GatedPortal:       common.HexToAddress(ctx.String("gated-portal")),
+		DepositContract:   common.HexToAddress(ctx.String("deposit-contract")),
 		BatchInbox:        common.HexToAddress(ctx.String("batch-inbox")),
 		SystemConfigProxy: common.HexToAddress(ctx.String("system-config")),
 		BatcherAddr:       common.HexToAddress(ctx.String("batcher-addr")),

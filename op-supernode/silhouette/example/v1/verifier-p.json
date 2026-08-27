@@ -5,7 +5,7 @@
   "rollupConfigHash": "0x3333333333333333333333333333333333333333333333333333333333333333",
   "depSetHash": "0x4444444444444444444444444444444444444444444444444444444444444444",
   "proofType": "attested",
-  "wireVersion": 3,
+  "wireVersion": 4,
   "l1HeadMaxDepth": 7200,
   "l1StartBlock": 9000000,
   "anchor": {

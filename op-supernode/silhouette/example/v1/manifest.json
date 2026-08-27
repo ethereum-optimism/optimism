@@ -2,8 +2,7 @@
   "chains": [
     {
       "chainID": 424247,
-      "verifierConfig": "verifier-p.json",
-      "labels": "derivation"
+      "verifierConfig": "verifier-p.json"
     }
   ]
 }

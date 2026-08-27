@@ -2,18 +2,25 @@
 // chain's prover posts to L1 blobs so that a verifier which does NOT derive that chain can still
 // cross-safe its messages.
 //
-// The authoritative spec is op-supernode/silhouette/docs/SPEC-WIRE-V3.md. Two implementations build against it
+// The authoritative spec is op-supernode/silhouette/docs/SPEC-WIRE-V4.md. Two implementations build against it
 // (this one and a prover-side codec, off this branch), so everything here is byte-exact by
 // construction: the public values are the ABI encoding a proving program commits to, and the
 // envelope framing is fixed-width big-endian. Neither implementation owns the format — the fixture
 // corpus in testdata does, and fixtures_test.go checks this code against it.
 //
 //	magic     "KCPB"          4 bytes
-//	version   0x03            1 byte
+//	version   0x04            1 byte
 //	pv_len    uint32 BE       4 bytes
 //	public_values             pv_len bytes (ABI-encoded ProofBatch)
 //	proof_len uint32 BE       4 bytes
 //	proof                     proof_len bytes (the proving system's proof; EMPTY in attested mode)
+//
+// # What v4 changed, and why
+//
+// v4 adds each block's L1 origin hash/number and sequence number. These are part of the canonical
+// L2BlockRef followed by a LightCL sequencer. Reconstructing them heuristically can produce the
+// right L2 hash with different reference metadata, which correctly looks like a divergent chain to
+// the stock follow-source logic and causes unnecessary unsafe-head resets.
 //
 // # What v3 changed, and why (G7)
 //
@@ -24,8 +31,8 @@
 // only cross-chain facts it assumed are exactly these"), so the public cross-safety machinery
 // validates a proven chain's dependencies exactly like a driven chain's.
 //
-// Both versions are decodable here, and that is deliberate: a v2→v3 rotation is a config rotation, so
-// a verifier must be configurable to accept exactly one of them (see DecodeAs) rather than to guess.
+// Versions 2, 3, and 4 are decodable here, and that is deliberate: a wire rotation is a config
+// rotation, so a verifier must accept exactly one configured layout (see DecodeAs), never guess.
 package proofbatch
 
 import (
@@ -53,7 +60,7 @@ const (
 	Magic = "KCPB"
 	// Version is the current envelope version: the one this codec ENCODES, and the one a verifier
 	// accepts unless it is configured otherwise. Any field change in ProofBatch bumps it.
-	Version = 3
+	Version = 4
 	// VersionV2 is the version v3 replaced: exports only, no import list, so a v2 verifier's view of
 	// a proven chain's dependencies is empty rather than checked. It stays DECODABLE, because the
 	// rotation from v2 to v3 is a real event with two live configurations in it, and it stays a
@@ -300,6 +307,11 @@ func CanonicaliseExecMsgs(msgs []ExecMsg) []ExecMsg {
 type BlockExport struct {
 	Number    uint64
 	Timestamp uint64
+	// L1Origin and SequenceNumber are the remaining fields needed to reproduce the real block's
+	// canonical L2BlockRef. They disclose no private transaction data: both come from the public
+	// L1-info deposit transaction at the front of every L2 block.
+	L1Origin       eth.BlockID
+	SequenceNumber uint64
 	// Hash is the REAL L2 block hash. It is what a verifier seals the block under, so a
 	// proof-carried chain's LogsDB is keyed exactly like a driven chain's.
 	Hash common.Hash
@@ -517,6 +529,9 @@ type abiBlockExport struct {
 	MessagePasserStorageRoot common.Hash
 	Logs                     []abiLogExport
 	ExecMsgs                 []abiExecMsg
+	L1OriginHash             common.Hash
+	L1OriginNumber           uint64
+	SequenceNumber           uint64
 }
 
 type abiProofBatch struct {
@@ -529,12 +544,13 @@ type abiProofBatch struct {
 	Blocks           []abiBlockExport
 }
 
-// proofBatchArgsV2 / proofBatchArgsV3 encode ProofBatch as a single ABI value, which is what
+// proofBatchArgsV2 / proofBatchArgsV3 / proofBatchArgsV4 encode ProofBatch as a single ABI value, which is what
 // `abi.encode(proofBatch)` in Solidity and `ProofBatch::abi_encode()` in alloy produce: a head
 // offset word followed by the tuple body.
 var (
 	proofBatchArgsV2 = abi.Arguments{{Type: mustProofBatchType(VersionV2)}}
-	proofBatchArgsV3 = abi.Arguments{{Type: mustProofBatchType(Version)}}
+	proofBatchArgsV3 = abi.Arguments{{Type: mustProofBatchType(VersionV3)}}
+	proofBatchArgsV4 = abi.Arguments{{Type: mustProofBatchType(Version)}}
 )
 
 // argsFor returns the ABI arguments for a wire version, refusing any version this codec does not
@@ -543,8 +559,10 @@ func argsFor(version uint8) (abi.Arguments, error) {
 	switch version {
 	case VersionV2:
 		return proofBatchArgsV2, nil
-	case Version:
+	case VersionV3:
 		return proofBatchArgsV3, nil
+	case Version:
+		return proofBatchArgsV4, nil
 	default:
 		return nil, fmt.Errorf("%w: %d", ErrBadVersion, version)
 	}
@@ -555,6 +573,9 @@ func argsFor(version uint8) (abi.Arguments, error) {
 // This is the ONE predicate every consumer must ask, rather than comparing against Version. See
 // VersionV3 for what goes wrong otherwise.
 func VersionHasExecMsgs(version uint8) bool { return version >= VersionV3 }
+
+// VersionHasL1Origins reports whether block-reference origin metadata is explicit on the wire.
+func VersionHasL1Origins(version uint8) bool { return version == Version }
 
 // CheckVersion reports whether this codec implements a wire version. It is exported so a
 // configuration can be refused at load rather than at the first blob.
@@ -608,6 +629,13 @@ func mustProofBatchType(version uint8) abi.Type {
 			},
 		})
 	}
+	if VersionHasL1Origins(version) {
+		blockComponents = append(blockComponents,
+			abi.ArgumentMarshaling{Name: "l1OriginHash", Type: "bytes32"},
+			abi.ArgumentMarshaling{Name: "l1OriginNumber", Type: "uint64"},
+			abi.ArgumentMarshaling{Name: "sequenceNumber", Type: "uint64"},
+		)
+	}
 	t, err := abi.NewType("tuple", "", []abi.ArgumentMarshaling{
 		{Name: "prevOutputRoot", Type: "bytes32"},
 		{Name: "newOutputRoot", Type: "bytes32"},
@@ -643,6 +671,10 @@ func EncodePublicValuesAs(b *ProofBatch, version uint8) ([]byte, error) {
 			return nil, fmt.Errorf("cannot encode block %d's %d executing messages at wire version %d, "+
 				"which has no field for them", blk.Number, len(blk.ExecMsgs), version)
 		}
+		if !VersionHasL1Origins(version) && (blk.L1Origin != (eth.BlockID{}) || blk.SequenceNumber != 0) {
+			return nil, fmt.Errorf("cannot encode block %d's L1-origin metadata at wire version %d, which has no fields for it",
+				blk.Number, version)
+		}
 		logs := make([]abiLogExport, len(blk.Logs))
 		for j, l := range blk.Logs {
 			preimage := l.Preimage
@@ -667,6 +699,9 @@ func EncodePublicValuesAs(b *ProofBatch, version uint8) ([]byte, error) {
 		blocks[i] = abiBlockExport{
 			BlockNumber:              blk.Number,
 			Timestamp:                blk.Timestamp,
+			L1OriginHash:             blk.L1Origin.Hash,
+			L1OriginNumber:           blk.L1Origin.Number,
+			SequenceNumber:           blk.SequenceNumber,
 			BlockHash:                blk.Hash,
 			StateRoot:                blk.StateRoot,
 			MessagePasserStorageRoot: blk.MessagePasserStorageRoot,
@@ -742,6 +777,8 @@ func DecodePublicValuesAs(data []byte, version uint8) (*ProofBatch, error) {
 		blocks[i] = BlockExport{
 			Number:                   blk.BlockNumber,
 			Timestamp:                blk.Timestamp,
+			L1Origin:                 eth.BlockID{Hash: blk.L1OriginHash, Number: blk.L1OriginNumber},
+			SequenceNumber:           blk.SequenceNumber,
 			Hash:                     blk.BlockHash,
 			StateRoot:                blk.StateRoot,
 			MessagePasserStorageRoot: blk.MessagePasserStorageRoot,
@@ -904,4 +941,42 @@ func FromBlobs(blobs []*eth.Blob) ([]byte, error) {
 		out = append(out, data...)
 	}
 	return out, nil
+}
+
+// FromBlobPrefix decodes exactly one proof envelope from the leading blobs of a transaction and
+// reports how many blobs it consumed. A silhouette batch transaction may append ordinary
+// derivation-frame blobs for an unmodified op-node; those are deliberately outside the envelope.
+func FromBlobPrefix(blobs []*eth.Blob) ([]byte, int, error) {
+	var out []byte
+	total := -1
+	for i, blob := range blobs {
+		if blob == nil {
+			return nil, 0, fmt.Errorf("blob %d is missing", i)
+		}
+		data, err := blob.ToData()
+		if err != nil {
+			return nil, 0, fmt.Errorf("decode blob %d: %w", i, err)
+		}
+		out = append(out, data...)
+		if len(out) >= len(Magic) && string(out[:len(Magic)]) != Magic {
+			return nil, 0, fmt.Errorf("%w: magic %x", ErrBadMagic, out[:len(Magic)])
+		}
+		if total < 0 && len(out) >= headerLen {
+			pvLen := uint64(binary.BigEndian.Uint32(out[len(Magic)+1:]))
+			proofLenOffset := uint64(headerLen) + pvLen
+			if proofLenOffset+4 > uint64(len(out)) {
+				continue
+			}
+			proofLen := uint64(binary.BigEndian.Uint32(out[proofLenOffset:]))
+			want := proofLenOffset + 4 + proofLen
+			if want > uint64(^uint(0)>>1) {
+				return nil, 0, fmt.Errorf("proof-batch envelope length %d overflows int", want)
+			}
+			total = int(want)
+		}
+		if total >= 0 && len(out) >= total {
+			return out[:total], i + 1, nil
+		}
+	}
+	return nil, 0, fmt.Errorf("%w: proof-batch envelope spans more than %d blobs", ErrTruncated, len(blobs))
 }

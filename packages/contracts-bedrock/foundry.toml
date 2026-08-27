@@ -33,8 +33,6 @@ compilation_restrictions = [
   { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 },
-  # Inherits OptimismPortal2, so it needs the same optimizer settings to fit the size limit.
-  { paths = "src/silhouette/OptimismPortalNoDeposit.sol", optimizer_runs = 5000 },
   { paths = "src/universal/StorageSetter.sol", optimizer_runs = 5000 },
   { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 5000 }
 ]

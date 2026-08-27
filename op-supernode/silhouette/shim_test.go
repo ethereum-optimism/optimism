@@ -2,9 +2,8 @@ package silhouette
 
 import (
 	"context"
-	"errors"
-	"io"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -12,8 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -127,31 +125,38 @@ func (se *shimEnv) buildOne(t *testing.T, parent eth.L2BlockRef, attrs *eth.Payl
 	return ref, env
 }
 
-// deriveAndBuild runs the REAL derivation pipeline with the shim as its L2 source, and builds every
-// block it derives through the real build dance. This is the harness swap in its simplest form: G2's
-// `factsL2` stub is gone and the stock engine client over the shim's RPC stands where it stood.
+// deriveAndBuild drives the shim through the same Engine API build dance as op-node for consecutive
+// proof facts. Full stock-pipeline coverage lives in sysgo, where the ordinary empty-batch carrier
+// is read from L1 without an op-node injection seam.
 func (se *shimEnv) deriveAndBuild(t *testing.T, want int) []eth.L2BlockRef {
 	t.Helper()
-	pipeline := se.pipelineOverShim(t)
+	se.observeProofs(t)
 	safe := se.genesisRef(t)
 	var built []eth.L2BlockRef
-	for step := 0; step < 4000 && len(built) < want; step++ {
-		attrib, err := pipeline.Step(context.Background(), safe)
-		if err != nil {
-			if isPipelineIdle(err) {
-				continue
-			}
-			require.NoError(t, err, "pipeline step %d", step)
-		}
-		if attrib == nil {
-			continue
-		}
-		require.Equal(t, safe.Hash, attrib.Parent.Hash, "the pipeline must build on the head the shim served")
-		ref, _ := se.buildOne(t, safe, attrib.Attributes)
+	for len(built) < want {
+		fact, ok := se.facts.ByNumber(safe.Number + 1)
+		require.True(t, ok, "missing proof fact at block %d", safe.Number+1)
+		attrs := se.attributesFor(t, safe, fact.L1Origin.Number)
+		ref, _ := se.buildOne(t, safe, attrs)
 		built = append(built, ref)
 		safe = ref
 	}
 	return built
+}
+
+func (se *shimEnv) observeProofs(t *testing.T) {
+	t.Helper()
+	src, ok := se.src.(*DataSource)
+	require.True(t, ok)
+	tracker := NewProvenHeadTracker(testlog.Logger(t, 3), src, se.l1,
+		se.rollup.Genesis.L1.Number, time.Millisecond)
+	for {
+		advanced, err := tracker.Step(context.Background())
+		require.NoError(t, err)
+		if !advanced {
+			return
+		}
+	}
 }
 
 // TestShimServesTheComplianceOracle is the per-method gate: the stock clients' whole read surface,
@@ -345,13 +350,9 @@ func TestShimFailsStopBeyondTheFacts(t *testing.T) {
 	require.False(t, halted, "outrunning the facts is not the honesty assertion firing")
 }
 
-// TestShimNewPayloadRejectsAnUnknownHashAndHalts is the guarded edge (gate 4).
-//
-// rewind.go:195 on the Cove branch synthesises a replacement block by mutating ExtraData and
-// re-hashing — the only code in the supernode that could hand this engine a hash outside the facts.
-// It runs only on judge invalidation, and P is proof-trusted, so no path may reach it. E3's honesty
-// assertion is kept in code exactly here: a payload at a known height, on a known parent, with a
-// different hash, is refused AND halts the shim.
+// TestShimNewPayloadRejectsAnUnknownHashAndHalts keeps the guarded edge (gate 4): only the exact
+// stock rewind sentinel is allowed outside the proof facts. Any other same-parent payload is refused
+// and halts the shim.
 func TestShimNewPayloadRejectsAnUnknownHashAndHalts(t *testing.T) {
 	e := newTestEnv(t, l1GenesisNum+4)
 	spec := e.goodBatch()
@@ -365,8 +366,7 @@ func TestShimNewPayloadRejectsAnUnknownHashAndHalts(t *testing.T) {
 	require.Len(t, built, 2)
 	ctx := context.Background()
 
-	// Take the payload the shim itself served for block 2 and mutate its ExtraData, exactly as the
-	// replacement-block synthesiser does, then offer it back.
+	// This resembles a rewind sentinel, but it is not the exact deterministic mutation and hash.
 	payload, err := se.eng.PayloadByNumber(ctx, built[1].Number)
 	require.NoError(t, err)
 	replacement := *payload.ExecutionPayload
@@ -381,12 +381,131 @@ func TestShimNewPayloadRejectsAnUnknownHashAndHalts(t *testing.T) {
 
 	reason, halted := se.shim.Halted()
 	require.True(t, halted, "a replacement block on a known parent must halt the shim")
-	require.ErrorContains(t, reason, "newPayload offered a replacement for block")
+	require.ErrorContains(t, reason, "newPayload offered a non-canonical block for block")
 	require.Len(t, halts, 1, "the halt callback fires exactly once")
 
 	// And a halted shim refuses everything, which is the point of halting.
 	_, err = se.eng.ForkchoiceUpdate(ctx, &eth.ForkchoiceState{HeadBlockHash: built[1].Hash}, nil)
 	require.ErrorContains(t, err, "silhouette shim halted")
+}
+
+func TestShimAcceptsStockRewindSentinel(t *testing.T) {
+	e := newTestEnv(t, l1GenesisNum+4)
+	spec := e.goodBatch()
+	batch := e.buildBatch(spec)
+	e.plant(batch, spec)
+
+	se := e.newShim(t)
+	built := se.deriveAndBuild(t, 2)
+	require.Len(t, built, 2)
+	ctx := context.Background()
+
+	target, err := se.eng.PayloadByNumber(ctx, built[0].Number)
+	require.NoError(t, err)
+	synthetic := *target.ExecutionPayload
+	synthetic.ExtraData = append(eth.BytesMax32(nil), synthetic.ExtraData...)
+	if len(synthetic.ExtraData) == 0 {
+		synthetic.ExtraData = []byte{0x00}
+	} else {
+		synthetic.ExtraData[len(synthetic.ExtraData)-1] ^= 0xff
+	}
+	syntheticEnvelope := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload:      &synthetic,
+		ParentBeaconBlockRoot: target.ParentBeaconBlockRoot,
+	}
+	syntheticHash, _ := syntheticEnvelope.CheckBlockHash()
+	synthetic.BlockHash = syntheticHash
+
+	status, err := se.eng.NewPayload(ctx, &synthetic, target.ParentBeaconBlockRoot)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, status.Status)
+
+	genesis := se.shim.genesisFact()
+	res, err := se.eng.ForkchoiceUpdate(ctx, &eth.ForkchoiceState{
+		HeadBlockHash: syntheticHash, SafeBlockHash: genesis.Hash, FinalizedBlockHash: genesis.Hash,
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
+
+	status, err = se.eng.NewPayload(ctx, target.ExecutionPayload, target.ParentBeaconBlockRoot)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, status.Status)
+	res, err = se.eng.ForkchoiceUpdate(ctx, &eth.ForkchoiceState{
+		HeadBlockHash: built[0].Hash, SafeBlockHash: genesis.Hash, FinalizedBlockHash: genesis.Hash,
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
+	_, ok := se.shim.factByHash(syntheticHash)
+	require.False(t, ok, "the temporary rewind sentinel must be forgotten after returning to a proof fact")
+	_, halted := se.shim.Halted()
+	require.False(t, halted)
+}
+
+type replacementBuilderFunc func(context.Context, eth.L2BlockRef, *eth.PayloadAttributes) (*eth.ExecutionPayloadEnvelope, error)
+
+func (f replacementBuilderFunc) BuildReplacement(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes) (*eth.ExecutionPayloadEnvelope, error) {
+	return f(ctx, parent, attrs)
+}
+
+func TestShimDelegatesStockReplacementAfterDeniedProof(t *testing.T) {
+	e := newTestEnv(t, l1GenesisNum+4)
+	spec := e.goodBatch()
+	batch := e.buildBatch(spec)
+	e.plant(batch, spec)
+
+	se := e.newShim(t)
+	built := se.deriveAndBuild(t, 2)
+	require.Len(t, built, 2)
+	require.NoError(t, e.facts.MarkDenied(built[1].Number, built[1].Hash))
+
+	ctx := context.Background()
+	parent := built[0]
+	parentFact, ok := se.shim.factByHash(parent.Hash)
+	require.True(t, ok)
+	called := false
+	se.shim.SetReplacementBuilder(replacementBuilderFunc(func(ctx context.Context, gotParent eth.L2BlockRef, attrs *eth.PayloadAttributes) (*eth.ExecutionPayloadEnvelope, error) {
+		called = true
+		require.Equal(t, parent, gotParent)
+		require.True(t, attrs.IsDepositsOnly())
+		require.True(t, attrs.NoTxPool)
+		originID, _, err := originFromAttributes(e.rollup, attrs)
+		require.NoError(t, err)
+		origin, err := e.l1.InfoByHash(ctx, originID.Hash)
+		require.NoError(t, err)
+		txs := make([][]byte, len(attrs.Transactions))
+		for i := range attrs.Transactions {
+			txs[i] = attrs.Transactions[i]
+		}
+		hdr, err := RenderHeader(se.shim.params, HeaderInputs{
+			Parent: parentFact, Number: parent.Number + 1, Timestamp: uint64(attrs.Timestamp),
+			StateRoot: common.HexToHash("0x1234"), MessagePasserStorageRoot: common.HexToHash("0x5678"),
+			Origin: origin, Txs: txs,
+		})
+		require.NoError(t, err)
+		env := payloadEnvelope(hdr, hdr.Hash(), txs)
+		env.ParentBeaconBlockRoot = attrs.ParentBeaconBlockRoot
+		return env, nil
+	}))
+	genesis := se.shim.genesisFact()
+	res, err := se.eng.ForkchoiceUpdate(ctx, &eth.ForkchoiceState{
+		HeadBlockHash: parent.Hash, SafeBlockHash: parent.Hash, FinalizedBlockHash: genesis.Hash,
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
+
+	replacement, _ := se.buildOne(t, parent, se.attributesFor(t, parent, parent.L1Origin.Number))
+	require.True(t, called)
+	require.Equal(t, built[1].Number, replacement.Number)
+	require.NotEqual(t, built[1].Hash, replacement.Hash)
+	fact, ok := se.shim.factByNumber(replacement.Number)
+	require.True(t, ok)
+	require.True(t, fact.Replacement)
+	require.False(t, fact.Forced)
+	require.Equal(t, replacement.Hash, fact.Hash)
+	_, durable := e.facts.ByNumber(replacement.Number)
+	require.False(t, durable, "replacement stays temporary until the proof submitter publishes it")
+	_, halted := se.shim.Halted()
+	require.False(t, halted)
 }
 
 // TestShimRefusesAnUnknownForkchoiceHeadWithoutHalting: the CL is told to reset, not that a block is
@@ -420,23 +539,19 @@ func TestShimForkchoiceRewindsCursorsAndReDerivesIdentically(t *testing.T) {
 	e.plant(batch, spec)
 
 	se := e.newShim(t)
-	pipeline := se.pipelineOverShim(t)
+	se.observeProofs(t)
 	safe := se.genesisRef(t)
 
 	// Build the chain once, keeping every envelope and the attributes that produced it.
 	var refs []eth.L2BlockRef
 	var envs []*eth.ExecutionPayloadEnvelope
 	var attrsSeen []*eth.PayloadAttributes
-	for step := 0; step < 4000 && len(refs) < 3; step++ {
-		attrib, err := pipeline.Step(context.Background(), safe)
-		if err != nil && !isPipelineIdle(err) {
-			require.NoError(t, err)
-		}
-		if attrib == nil {
-			continue
-		}
-		ref, env := se.buildOne(t, safe, attrib.Attributes)
-		refs, envs, attrsSeen = append(refs, ref), append(envs, env), append(attrsSeen, attrib.Attributes)
+	for len(refs) < 3 {
+		fact, ok := se.facts.ByNumber(safe.Number + 1)
+		require.True(t, ok)
+		attrs := se.attributesFor(t, safe, fact.L1Origin.Number)
+		ref, env := se.buildOne(t, safe, attrs)
+		refs, envs, attrsSeen = append(refs, ref), append(envs, env), append(attrsSeen, attrs)
 		safe = ref
 	}
 	require.Len(t, refs, 3)
@@ -592,33 +707,11 @@ func (se *shimEnv) attributesFor(t *testing.T, parent eth.L2BlockRef, originNum 
 	}
 }
 
-// isPipelineIdle reports the "nothing to do yet" errors a pipeline step returns while it waits for
-// L1 data or asks to be driven again. Neither is a failure of the harness.
-func isPipelineIdle(err error) bool {
-	return errors.Is(err, io.EOF) || errors.Is(err, derive.ErrTemporary) || errors.Is(err, derive.ErrReset)
-}
-
-// pipelineOverShim is G2's real-stages pipeline with THE STUB REMOVED: `factsL2` is gone and the
-// stock op-node L2 client, talking to the shim over JSON-RPC, stands where it stood. Everything else
-// is the same stage list — L1Traversal, L1Retrieval, FrameQueue, ChannelMux, ChannelInReader,
-// BatchMux, AttributesQueue and the FetchingAttributesBuilder — with the injected data source.
-func (se *shimEnv) pipelineOverShim(t *testing.T) *derive.DerivationPipeline {
+func depositData(t *testing.T, opaque []byte) []byte {
 	t.Helper()
-	logger := testlog.Logger(t, 3)
-	pipeline := derive.NewDerivationPipeline(
-		logger,
-		se.rollup,
-		staticDepSet{chains: []eth.ChainID{eth.ChainIDFromBig(se.rollup.L2ChainID)}},
-		se.l1,
-		se.blobs,
-		altda.NewAltDA(logger, altda.CLIConfig{}, altda.Config{}, &altda.NoopMetrics{}),
-		se.eng,
-		metrics.NoopMetrics,
-		sepoliaChainConfig(),
-		derive.WithDataSource(se.src),
-	)
-	pipeline.ConfirmEngineReset()
-	return pipeline
+	dep, err := optypes.UnmarshalDepositTx(opaque)
+	require.NoError(t, err)
+	return dep.Data
 }
 
 // withRealFeeScalars gives the fixture the fee scalars and batcher address a real chain carries.

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -232,14 +233,12 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	// A silhouette chain's proof-batch submitter is prefunded on L1 at genesis. That has to be
-	// decided here, before the world is built: funding it by transaction afterwards would put a
-	// nonce on L1 that every later assertion has to reason around.
 	deployerOpts := cfg.DeployerOptions
 	if cfg.SilhouetteChain != "" {
 		require.True(enableInterop,
 			"a silhouette chain outside a dependency set is a chain nobody can reference; enable interop")
-		deployerOpts = append([]DeployerOption{silhouettePrefundOption()}, deployerOpts...)
+		require.False(supernodeSequencerEnabled,
+			"silhouette chains must be sequenced by LightCL nodes, not a supernode virtual node")
 	}
 
 	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, deployerOpts...)
@@ -335,6 +334,27 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 
 	var l2ACL L2CLNode = supernodeL2ACL
 	var l2BCL L2CLNode = supernodeL2BCL
+	followSourceA := supernodeL2ACL.UserRPC()
+	followSourceB := supernodeL2BCL.UserRPC()
+	var silhouetteFollowProxies map[string]*tcpproxy.Proxy
+	if cfg.SilhouetteChain != "" {
+		// The proof verifier needs the magic EL endpoint, while both LightCL sequencers must follow
+		// that verifier's interop verdicts. Break the startup cycle with stable proxies: initially
+		// they point at the bootstrap supernode, then both move to the proof verifier once it exists.
+		// Routing only the private chain would make B reorg normally while A's verifier-side reorg
+		// never reached A's public sequencing EL.
+		silhouetteFollowProxies = make(map[string]*tcpproxy.Proxy, 2)
+		newFollowProxy := func(key string, chainID eth.ChainID) string {
+			proxy := tcpproxy.New(t.Logger().New("proxy", "silhouette-follow-source", "chain", key))
+			require.NoError(proxy.Start())
+			t.Cleanup(func() { _ = proxy.Close() })
+			proxy.SetUpstream(ProxyAddr(require, supernode.UserRPC()))
+			silhouetteFollowProxies[key] = proxy
+			return "http://" + proxy.Addr() + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(chainID), 10)
+		}
+		followSourceA = newFollowProxy("l2a", l2ANet.ChainID())
+		followSourceB = newFollowProxy("l2b", l2BNet.ChainID())
+	}
 	// supernode VN ELs (always distinct identity from any follow-mode sequencer EL).
 	supernodeL2AEL, supernodeL2BEL := l2AEL, l2BEL
 	// sequencer ELs default to the supernode ELs in virtual-sequencer mode;
@@ -356,18 +376,23 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// When the supernode VN bootstraps + sequences, the light sequencers start
 		// stopped; a test hands off sequencing to them once they leave willStartEL.
 		lightSeqStopped := cfg.SupernodeVNSequencerForBootstrap
+		lightSyncMode := nodeSync.CLSync
+		if cfg.SupernodeVNSequencerForBootstrap {
+			// A handoff test has an existing VN chain to import before sequencing begins.
+			lightSyncMode = nodeSync.ELSync
+		}
 		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, seqL2AEL, jwtSecret, l2CLNodeStartConfig{
 			Key:              "sequencer",
 			IsSequencer:      true,
 			NoDiscovery:      true,
 			EnableReqResp:    true,
 			DependencySet:    runtimeDepSet,
-			L2FollowSource:   supernodeL2ACL.UserRPC(),
+			L2FollowSource:   followSourceA,
 			L2CLOptions:      cfg.GlobalL2CLOptions,
 			SequencerStopped: lightSeqStopped,
 			// Follow-mode sequencers reorg onto the supernode's invalid-message
 			// replacement via EL sync.
-			SyncMode: nodeSync.ELSync,
+			SyncMode: lightSyncMode,
 		})
 		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
 			Key:              "sequencer",
@@ -375,15 +400,26 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			NoDiscovery:      true,
 			EnableReqResp:    true,
 			DependencySet:    runtimeDepSet,
-			L2FollowSource:   supernodeL2BCL.UserRPC(),
+			L2FollowSource:   followSourceB,
 			L2CLOptions:      cfg.GlobalL2CLOptions,
 			SequencerStopped: lightSeqStopped,
-			SyncMode:         nodeSync.ELSync,
+			SyncMode:         lightSyncMode,
 		})
 		// CL gossip: unsafe blocks (incl. the supernode's deposits-only
-		// replacement) propagate between the sequencer CLs and the VN CLs.
-		connectL2CLPeers(t, t.Logger(), l2ACL, supernodeL2ACL)
-		connectL2CLPeers(t, t.Logger(), l2BCL, supernodeL2BCL)
+		// replacement) propagate between each ordinary sequencer CL and its VN CL.
+		//
+		// A silhouette chain is deliberately not peered with the bootstrap VN. That VN is a
+		// stock op-node, so it consumes the public empty-batch carrier from P's normal batch
+		// inbox and derives an empty history. P's LightCL instead follows the proof verifier,
+		// whose magic EL maps that same carrier onto the proof-committed private block hashes.
+		// Peering both histories would let the bootstrap VN gossip its conflicting empty fork
+		// back to P after a valid interop replacement.
+		if cfg.SilhouetteChain != "l2a" {
+			connectL2CLPeers(t, t.Logger(), l2ACL, supernodeL2ACL)
+		}
+		if cfg.SilhouetteChain != "l2b" {
+			connectL2CLPeers(t, t.Logger(), l2BCL, supernodeL2BCL)
+		}
 		// EL P2P: block bodies sync between each sequencer EL and its paired
 		// supernode EL (required for the ELSync follow path).
 		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC())
@@ -401,22 +437,37 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		batchACL, batchAEL = supernodeL2ACL, supernodeL2AEL
 		batchBCL, batchBEL = supernodeL2BCL, supernodeL2BEL
 	}
-	// The silhouette chain's batcher is constructed but never started, and it gets no proposer.
-	// Both absences are what a silhouette chain IS: its L1 footprint is the proof-batch inbox, and
-	// its safe head — the thing a proposer would propose — only exists on a node reading proofs.
+	// The silhouette batcher follows its private LightCL, just like an ordinary sequencer batcher.
+	// That node supplies the private unsafe head while importing its safe/finalized view through the
+	// stable follow proxy above. Pointing the batcher directly at the public verifier would lose the
+	// private unsafe head and create a first-proof cycle.
+	// The silhouette chain uses the normal batcher service and operator key. It starts stopped so
+	// acceptance tests retain deterministic publication control; op-up starts it after construction.
+	// Only its terminal encoding and inbox differ. It gets no proposer: the public safe head exists
+	// on the proof-reading verifier rather than the private producer.
 	batcherOpts := cfg.BatcherOptions
 	silhouetteChainID := eth.ChainID{}
+	var silhouetteRollupConfigHash, silhouetteDepSetHash common.Hash
 	switch cfg.SilhouetteChain {
 	case "l2a":
 		silhouetteChainID = l2ANet.ChainID()
+		silhouetteRollupConfigHash, silhouetteDepSetHash = silhouetteBindings(t, l2ANet.rollupCfg, depSet)
 	case "l2b":
 		silhouetteChainID = l2BNet.ChainID()
+		silhouetteRollupConfigHash, silhouetteDepSetHash = silhouetteBindings(t, l2BNet.rollupCfg, depSet)
 	case "":
 	default:
 		require.FailNowf("unknown silhouette chain", "no runtime chain %q", cfg.SilhouetteChain)
 	}
 	if silhouetteChainID != (eth.ChainID{}) {
-		batcherOpts = append(batcherOpts, silhouetteBatcherStoppedOption(silhouetteChainID))
+		var inbox common.Address
+		if cfg.SilhouetteChain == "l2a" {
+			inbox = l2ANet.rollupCfg.BatchInboxAddress
+		} else {
+			inbox = l2BNet.rollupCfg.BatchInboxAddress
+		}
+		batcherOpts = append(batcherOpts, silhouetteBatcherOption(
+			silhouetteChainID, inbox, silhouetteRollupConfigHash, silhouetteDepSetHash))
 	}
 
 	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, batchACL, batchAEL, batcherOpts...)
@@ -464,8 +515,14 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	var silhouetteRuntime *SilhouetteRuntime
 	if cfg.SilhouetteChain != "" {
 		silhouetteRuntime = setUpSilhouette(t, keys, cfg.SilhouetteChain, l1Net, l1EL, l1CL,
-			runtimeChains, depSet, interopActivationTimestamp, jwtPath, jwtSecret,
-			supernode, cfg.SilhouetteSequencerPosture)
+			runtimeChains, depSet, interopActivationTimestamp, jwtPath, jwtSecret, supernode)
+		for key, proxy := range silhouetteFollowProxies {
+			route := silhouetteRuntime.VerifierRoutes[key]
+			require.NotNil(route, "silhouette verifier route %q", key)
+			// LightCLs and batchers use persistent RPC connections. Force them to reopen so the stable
+			// addresses actually change from the bootstrap routes to this verifier.
+			proxy.SwitchUpstream(ProxyAddr(require, route.UserRPC()))
+		}
 	}
 
 	return &MultiChainRuntime{

@@ -77,7 +77,7 @@ var (
 	silhouetteFlag = &cli.BoolFlag{
 		Name: "silhouette",
 		Usage: "start a 2-chain interop devnet with L2B carried by proof batches " +
-			"instead of an ordinary batcher.",
+			"from the ordinary batcher's silhouette encoder.",
 		EnvVars: opservice.PrefixEnvVar(envPrefix, "SILHOUETTE"),
 	}
 	l2ARPCPortFlag = &cli.UintFlag{
@@ -229,11 +229,20 @@ func newSilhouetteSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop, err e
 			panic(recovered)
 		}
 	}()
-	opts := append(opUpInteropOptions(),
-		presets.WithSilhouetteChain(presets.SilhouetteChainB),
-		presets.WithSilhouetteSequencerPosture(),
-	)
-	return presets.NewTwoL2SupernodeInterop(t, opUpInteropDelay, opts...), nil
+	opts := append(opUpInteropOptions(), presets.WithSilhouetteChain(presets.SilhouetteChainB))
+	sys = presets.NewTwoL2SupernodeLightSequencerInterop(t, opUpInteropDelay, opts...)
+	// The private chains are always sequenced by their LightCL nodes. Be explicit here because the
+	// light-sequencer preset is also used by handoff tests that intentionally start them stopped.
+	for _, cl := range []*dsl.L2CLNode{sys.L2ACL, sys.L2BCL} {
+		active, activeErr := cl.Escape().RollupAPI().SequencerActive(t.Ctx())
+		if activeErr != nil {
+			return nil, activeErr
+		}
+		if !active {
+			cl.StartSequencer()
+		}
+	}
+	return sys, nil
 }
 
 // opUpInteropOptions is shared so silhouette mode changes only L2B's publication and verification
@@ -273,9 +282,16 @@ func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL
 		return err
 	}
 	if sys.Silhouette != nil {
-		sys.Silhouette.Submitter.Start(2 * time.Second)
+		switch sys.Silhouette.ChainKey {
+		case presets.SilhouetteChainA:
+			sys.L2BatcherA.Start()
+		case presets.SilhouetteChainB:
+			sys.L2BatcherB.Start()
+		default:
+			return fmt.Errorf("unknown silhouette chain %q", sys.Silhouette.ChainKey)
+		}
 		fmt.Fprintf(stderr, "L2A submitter: op-batcher\n")
-		fmt.Fprintf(stderr, "L2B submitter: proof-batch submitter (2s interval)\n")
+		fmt.Fprintf(stderr, "L2B submitter: op-batcher (silhouette proof encoding)\n")
 		fmt.Fprintf(stderr, "Silhouette verifier manifest: %s\n", sys.Silhouette.Runtime.ManifestPath)
 	}
 	l2AAddr := fmt.Sprintf("127.0.0.1:%d", l2APort)
@@ -288,9 +304,6 @@ func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL
 	go logBlocks(ctx, stderr, "L2A", sys.L2ELA)
 	go logBlocks(ctx, stderr, "L2B", sys.L2ELB)
 	go logInterop(ctx, stderr, sys)
-	if sys.Silhouette != nil {
-		go logSilhouette(ctx, stderr, sys.Silhouette)
-	}
 
 	l2AListener, err := net.Listen("tcp", l2AAddr)
 	if err != nil {
@@ -311,26 +324,6 @@ func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL
 		return nil
 	case err := <-errCh:
 		return err
-	}
-}
-
-func logSilhouette(ctx context.Context, stderr io.Writer, silhouette *presets.SilhouetteTarget) {
-	const pollInterval = 2 * time.Second
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
-
-	var lastBatched uint64
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			batched := silhouette.Submitter.BatchedHead()
-			if batched != lastBatched {
-				fmt.Fprintf(stderr, "[silhouette] L2B proof-batched through #%d\n", batched)
-				lastBatched = batched
-			}
-		}
 	}
 }
 
