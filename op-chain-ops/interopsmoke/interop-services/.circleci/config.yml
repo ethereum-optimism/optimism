@@ -1,0 +1,131 @@
+version: 2.1
+
+orbs:
+  nx: nrwl/nx@1.7.0
+  utils: ethereum-optimism/circleci-utils@1.0.17
+
+commands:
+  prepare-snapshot:
+    description: 'Prepare the snapshot name'
+    steps:
+      - run:
+          name: Setup snapshot name
+          command: |
+            SNAPSHOT_NAME=${CIRCLE_BRANCH}
+            echo "Will create snapshot using name $SNAPSHOT_NAME"
+            echo "export SNAPSHOT_NAME=${SNAPSHOT_NAME}" >> "$BASH_ENV"
+      - run:
+          name: Prepare changeset version environment
+          command: |
+            echo "export GITHUB_TOKEN=${GITHUB_TOKEN_GOVERNANCE}" >> "$BASH_ENV"
+      - run:
+          name: Create snapshot versions
+          command: pnpm release:version:snapshot
+
+  setup:
+    description: 'Setup Node.js environment with pnpm and nx'
+    steps:
+      - utils/checkout-with-mise # Install dependencies
+      - run:
+          name: Install dependencies
+          environment:
+            NPM_TOKEN: nada
+          command: |
+            pnpm i --frozen-lockfile
+      - nx/set-shas
+      - run:
+          name: clean unstaged changes in case of previous failed runs
+          command: |
+            git clean -fd
+      - run:
+          name: Log nx base and head refs
+          command: |
+            echo "BASE: $NX_BASE"
+            echo "HEAD: $NX_HEAD"
+            echo "Changed files between BASE and HEAD:"
+            git diff --name-only $NX_BASE $NX_HEAD
+            echo "Available nx projects and their targets:"
+            pnpm nx show projects --with-target test
+
+jobs:
+  publish-to-npm:
+    docker:
+      - image: cimg/node:20.11
+    parameters:
+      prepare-snapshot:
+        type: boolean
+        default: false
+    steps:
+      - setup
+      - run:
+          name: Build projects
+          environment:
+            NPM_TOKEN: nada
+          command: pnpm nx run-many --target=build
+      - run:
+          name: Check NPM Token
+          command: |
+            if [ -z "${NPM_TOKEN}" ]; then
+              echo "NPM_TOKEN is not set. Please set it in CircleCI project settings."
+              exit 1
+            fi
+      - run:
+          name: Configure NPM Token and Registry
+          command: |
+            npm config set '//registry.npmjs.org/:_authToken' "${NPM_TOKEN}"
+
+      - run:
+          name: Verify NPM Token
+          command: npm whoami
+
+      - when:
+          condition:
+            equal: [<< parameters.prepare-snapshot >>, true]
+          steps:
+            - prepare-snapshot
+
+      - utils/changesets:
+          createGithubReleases: false
+          publish: 'pnpm release:publish'
+          version: 'pnpm release:version'
+
+  check:
+    docker:
+      - image: cimg/node:20.11
+    steps:
+      - setup
+      - run:
+          name: Run Build
+          command: pnpm nx affected --base=$NX_BASE --head=$NX_HEAD --target=build
+      - run:
+          name: Run TypeChecker
+          command: pnpm nx affected --base=$NX_BASE --head=$NX_HEAD --target=typecheck
+      - run:
+          name: Run Linters
+          command: pnpm nx affected --base=$NX_BASE --head=$NX_HEAD --target=lint
+      - run:
+          name: Run Tests
+          command: pnpm nx affected --base=$NX_BASE --head=$NX_HEAD --target=test
+
+workflows:
+  release:
+    jobs:
+      - publish-to-npm:
+          name: Publish new versions
+          context:
+            - circleci-repo-ecosystem # for GITHUB_TOKEN_GOVERNANCE && NPM_TOKEN
+          filters:
+            branches:
+              only: main
+
+      - publish-to-npm:
+          name: Publish snapshot versions
+          prepare-snapshot: true
+          context:
+            - circleci-repo-ecosystem # for GITHUB_TOKEN_GOVERNANCE && NPM_TOKEN
+          filters:
+            branches:
+              only: main
+  check-workflow:
+    jobs:
+      - check

@@ -216,8 +216,8 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindSilhouetteChain
 
 // twoL2SupernodeLightSequencerPresetSupportedOptionKinds additionally accepts
-// L2 CL options: the light-sequencer runtime is the only two-L2 supernode
-// variant that wires GlobalL2CLOptions (to the light sequencer CLs), so the
-// option is accepted here and nowhere else to avoid a silent no-op.
+// L2 CL and op-reth options: this runtime wires them to the light sequencer
+// CLs and their sequencing ELs.
 const twoL2SupernodeLightSequencerPresetSupportedOptionKinds = twoL2SupernodeInteropPresetSupportedOptionKinds |
-	optionKindGlobalL2CL
+	optionKindGlobalL2CL |
+	optionKindOpReth

@@ -1,0 +1,420 @@
+name: branch build
+
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request:
+    branches:
+      - 'main'
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'Dockerfile'
+      - 'docker-bake.hcl'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/branches.yaml'
+      - '.github/docker-images.json'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      images_json: ${{ steps.detect.outputs.images_json }}
+      has_images: ${{ steps.detect.outputs.has_images }}
+      is_fork: ${{ steps.detect.outputs.is_fork }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          fetch-depth: 0
+      - name: Detect affected images
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          CONFIG=".github/docker-images.json"
+
+          IS_FORK="false"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if [[ "$HEAD_REPO" != "$THIS_REPO" ]]; then
+              IS_FORK="true"
+            fi
+          fi
+          echo "is_fork=$IS_FORK" >> "$GITHUB_OUTPUT"
+
+          # For push to main, build all images
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "Non-PR event ($EVENT_NAME): building all images"
+            ALL_IMAGES=$(jq -c '[.images | keys[]]' "$CONFIG")
+            echo "images_json=$ALL_IMAGES" >> "$GITHUB_OUTPUT"
+            echo "has_images=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # For PRs, detect which files changed
+          CHANGED_FILES=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}" 2>/dev/null || true)
+
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "WARNING: Could not detect changed files — building all images as fallback"
+            ALL_IMAGES=$(jq -c '[.images | keys[]]' "$CONFIG")
+            echo "images_json=$ALL_IMAGES" >> "$GITHUB_OUTPUT"
+            echo "has_images=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES" | head -50
+
+          matches_pattern() {
+            local file="$1"
+            local pattern="$2"
+            if [[ "$pattern" == *"/**" ]]; then
+              local prefix="${pattern%/**}"
+              [[ "$file" == "$prefix/"* ]] && return 0
+            else
+              [[ "$file" == "$pattern" ]] && return 0
+            fi
+            return 1
+          }
+
+          BUILD_ALL=false
+
+          # Check shared paths
+          SHARED_PATHS=$(jq -r '.shared_paths[]' "$CONFIG")
+          while IFS= read -r pattern; do
+            while IFS= read -r file; do
+              if matches_pattern "$file" "$pattern"; then
+                echo "Shared path match: $file matches $pattern — building all images"
+                BUILD_ALL=true
+                break 2
+              fi
+            done <<< "$CHANGED_FILES"
+          done <<< "$SHARED_PATHS"
+
+          declare -A AFFECTED
+
+          if [[ "$BUILD_ALL" == "true" ]]; then
+            while IFS= read -r name; do
+              AFFECTED["$name"]=1
+            done < <(jq -r '.images | keys[]' "$CONFIG")
+          else
+            while IFS= read -r entry; do
+              name=$(echo "$entry" | jq -r '.key')
+              [[ -n "${AFFECTED[$name]+x}" ]] && continue
+              paths=$(echo "$entry" | jq -r '.value.paths[]')
+              while IFS= read -r pattern; do
+                while IFS= read -r file; do
+                  if matches_pattern "$file" "$pattern"; then
+                    echo "Image path match: $file matches $pattern — building $name"
+                    AFFECTED["$name"]=1
+                    break 2
+                  fi
+                done <<< "$CHANGED_FILES"
+              done <<< "$paths"
+            done < <(jq -c '.images | to_entries[]' "$CONFIG")
+          fi
+
+          AFFECTED_LIST=$(printf '%s\n' "${!AFFECTED[@]}" | sort)
+
+          IMAGES_JSON="[]"
+          if [[ -n "$AFFECTED_LIST" ]]; then
+            IMAGES_JSON=$(echo "$AFFECTED_LIST" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
+          echo "Affected images: $IMAGES_JSON"
+          echo "images_json=$IMAGES_JSON" >> "$GITHUB_OUTPUT"
+
+          HAS_IMAGES=$( [[ $(echo "$IMAGES_JSON" | jq 'length') -gt 0 ]] && echo "true" || echo "false" )
+          echo "has_images=$HAS_IMAGES" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.is_fork == 'false'
+      && needs.detect-changes.outputs.has_images == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name: ${{ fromJson(needs.detect-changes.outputs.images_json) }}
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@fdcd6acceb0cbad90040e0be9f59a1ad60e65a86
+    with:
+      mode: bake
+      image_name: ${{ matrix.image_name }}
+      bake_file: docker-bake.hcl
+      target: ${{ matrix.image_name }}
+      gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/internal-images
+      set: |
+        *.args.GIT_COMMIT=${{ github.sha }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+  build-fork:
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.is_fork == 'true'
+      && needs.detect-changes.outputs.has_images == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name: ${{ fromJson(needs.detect-changes.outputs.images_json) }}
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@fdcd6acceb0cbad90040e0be9f59a1ad60e65a86
+    with:
+      mode: bake
+      image_name: ${{ matrix.image_name }}
+      bake_file: docker-bake.hcl
+      target: ${{ matrix.image_name }}
+      tag: 24h
+      registry: ttl.sh/${{ github.sha }}
+      set: |
+        *.args.GIT_COMMIT=${{ github.sha }}
+    permissions:
+      contents: read
+
+  smoke-runtime:
+    name: smoke runtime images
+    needs: [detect-changes, build]
+    if: |
+      needs.detect-changes.outputs.is_fork == 'false'
+      && contains(fromJSON(needs.detect-changes.outputs.images_json), 'ponder-interop')
+      && contains(fromJSON(needs.detect-changes.outputs.images_json), 'sponsored-sender')
+      && contains(fromJSON(needs.detect-changes.outputs.images_json), 'autorelayer-interop')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    services:
+      postgres:
+        image: postgres@sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941
+        env:
+          POSTGRES_USER: ponder
+          POSTGRES_PASSWORD: ponder
+          POSTGRES_DB: ponder
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ponder -d ponder"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@fc2174804b84f912b1f6d334e9463f484f1c552d # v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}/locations/global/workloadIdentityPools/github/providers/github-oidc
+          create_credentials_file: true
+
+      - name: Configure Docker for GCP Artifact Registry
+        run: gcloud auth configure-docker us-docker.pkg.dev --quiet
+
+      - name: Start local JSON-RPC chain
+        run: |
+          docker run --detach --rm \
+            --name runtime-smoke-anvil \
+            --network host \
+            --entrypoint anvil \
+            ghcr.io/foundry-rs/foundry@sha256:3a70bfa9bd2c732a767bb60d12c8770b40e8f9b6cca28efc4b12b1be81c7f28e \
+            --host 0.0.0.0 \
+            --port 8545 \
+            --chain-id 31337 \
+            --block-time 1
+
+          for port in 9545 9546; do
+            docker run --detach --rm \
+              --name "runtime-smoke-anvil-$port" \
+              --network host \
+              --entrypoint anvil \
+              ghcr.io/foundry-rs/foundry@sha256:3a70bfa9bd2c732a767bb60d12c8770b40e8f9b6cca28efc4b12b1be81c7f28e \
+              --host 0.0.0.0 \
+              --port "$port" \
+              --chain-id "$port" \
+              --block-time 1
+          done
+
+      - name: Start Ponder image
+        env:
+          IMAGE: us-docker.pkg.dev/oplabs-tools-artifacts/internal-images/ponder-interop:${{ github.sha }}
+        run: |
+          docker run --detach \
+            --name runtime-smoke-ponder \
+            --network host \
+            --env DATABASE_URL=postgresql://ponder:ponder@127.0.0.1:5432/ponder \
+            --env DATABASE_SCHEMA=ci_smoke \
+            --env PONDER_INTEROP_ENDPOINT_31337=http://127.0.0.1:8545 \
+            --env PONDER_START_BLOCK=1 \
+            --env GAS_TANK_CONTRACT_ADDRESS=0x1234567890123456789012345678901234567890 \
+            --env DEPOSIT_CONTRACT_ADDRESS=0x2345678901234567890123456789012345678901 \
+            --env PROMISE_CONTRACT_ADDRESS=0x3456789012345678901234567890123456789012 \
+            --env CALLBACK_CONTRACT_ADDRESS=0x4567890123456789012345678901234567890123 \
+            "$IMAGE"
+
+      - name: Verify Ponder readiness
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:42069/ready > /dev/null; then
+              curl --fail --silent http://127.0.0.1:42069/chains | jq --exit-status 'any(.[]; .id == 31337)'
+              exit 0
+            fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' runtime-smoke-ponder 2>/dev/null || true)" != "true" ]]; then
+              docker logs runtime-smoke-ponder 2>&1 || true
+              exit 1
+            fi
+            echo "Waiting for Ponder readiness ($attempt/60)"
+            sleep 2
+          done
+          docker logs runtime-smoke-ponder 2>&1 || true
+          exit 1
+
+      - name: Start sponsored sender image
+        env:
+          IMAGE: us-docker.pkg.dev/oplabs-tools-artifacts/internal-images/sponsored-sender:${{ github.sha }}
+        run: |
+          docker run --detach \
+            --name runtime-smoke-sponsored-sender \
+            --network host \
+            --env ADMIN_ENABLED=true \
+            --env ADMIN_PORT=9001 \
+            "$IMAGE" \
+            start \
+            --sender-private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+      - name: Verify sponsored sender readiness
+        run: |
+          for attempt in $(seq 1 30); do
+            if [[ "$(curl --fail --silent http://127.0.0.1:9001/readyz)" == "OK" ]]; then
+              curl --fail --silent \
+                --header 'content-type: application/json' \
+                --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' \
+                http://127.0.0.1:3000/9545 \
+                | jq --exit-status '.result == "0x2549"'
+              exit 0
+            fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' runtime-smoke-sponsored-sender 2>/dev/null || true)" != "true" ]]; then
+              docker inspect --format '{{json .State}}' runtime-smoke-sponsored-sender 2>&1 || true
+              docker logs runtime-smoke-sponsored-sender 2>&1 || true
+              exit 1
+            fi
+            echo "Waiting for sponsored sender readiness ($attempt/30)"
+            sleep 2
+          done
+          docker logs runtime-smoke-sponsored-sender 2>&1 || true
+          exit 1
+
+      - name: Start autorelayer image
+        env:
+          IMAGE: us-docker.pkg.dev/oplabs-tools-artifacts/internal-images/autorelayer-interop:${{ github.sha }}
+        run: |
+          docker run --detach \
+            --name runtime-smoke-autorelayer \
+            --network host \
+            --env ADMIN_ENABLED=true \
+            --env ADMIN_PORT=9002 \
+            --env PONDER_INTEROP_API_URL=http://127.0.0.1:42069 \
+            --env CHAIN_ENDPOINT_OVERRIDES=http://127.0.0.1:8545 \
+            --env SENDER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+            --env GAS_TANK_ADDRESS=0x420beeF000000000000000000000000000000002 \
+            --env ENABLED_MODULES=general-relay \
+            --env RELAY_FUNDS_DB_PATH=/tmp/relay-funds.sqlite \
+            --env RELAY_FAILURE_REGISTRY_DB_PATH=/tmp/relay-failures.sqlite \
+            "$IMAGE"
+
+      - name: Verify autorelayer readiness
+        run: |
+          for attempt in $(seq 1 30); do
+            if [[ "$(curl --fail --silent http://127.0.0.1:9002/readyz)" == "OK" ]]; then
+              curl --fail --silent http://127.0.0.1:9002/relayer-balance | jq --exit-status . > /dev/null
+              exit 0
+            fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' runtime-smoke-autorelayer 2>/dev/null || true)" != "true" ]]; then
+              docker inspect --format '{{json .State}}' runtime-smoke-autorelayer 2>&1 || true
+              docker logs runtime-smoke-autorelayer 2>&1 || true
+              exit 1
+            fi
+            echo "Waiting for autorelayer readiness ($attempt/30)"
+            sleep 2
+          done
+          docker logs runtime-smoke-autorelayer 2>&1 || true
+          exit 1
+
+      - name: Show runtime logs
+        if: always()
+        run: |
+          for container in runtime-smoke-ponder runtime-smoke-sponsored-sender runtime-smoke-autorelayer; do
+            echo "Logs for $container"
+            docker inspect --format '{{json .State}}' "$container" 2>&1 || true
+            docker logs "$container" 2>&1 || true
+          done
+
+      - name: Stop smoke-test containers
+        if: always()
+        run: |
+          docker rm --force \
+            runtime-smoke-autorelayer \
+            runtime-smoke-sponsored-sender \
+            runtime-smoke-ponder \
+            runtime-smoke-anvil-9546 \
+            runtime-smoke-anvil-9545 \
+            runtime-smoke-anvil \
+            2>/dev/null || true
+
+  docker-build-result:
+    needs: [detect-changes, build, build-fork, smoke-runtime]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        env:
+          HAS_IMAGES: ${{ needs.detect-changes.outputs.has_images }}
+          IS_FORK: ${{ needs.detect-changes.outputs.is_fork }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          BUILD_FORK_RESULT: ${{ needs.build-fork.result }}
+          SMOKE_RUNTIME_RESULT: ${{ needs.smoke-runtime.result }}
+          IMAGES_JSON: ${{ needs.detect-changes.outputs.images_json }}
+        run: |
+          if [[ "$HAS_IMAGES" != "true" ]]; then
+            echo "No images needed building — success"
+            exit 0
+          fi
+
+          if [[ "$IS_FORK" == "true" ]]; then
+            RESULT="$BUILD_FORK_RESULT"
+          else
+            RESULT="$BUILD_RESULT"
+          fi
+
+          if [[ "$RESULT" != "success" ]]; then
+            echo "Build failed with result: $RESULT"
+            exit 1
+          fi
+
+          if [[ "$IS_FORK" == "false" ]] \
+            && echo "$IMAGES_JSON" | jq --exit-status 'index("ponder-interop") != null and index("sponsored-sender") != null and index("autorelayer-interop") != null' > /dev/null; then
+            if [[ "$SMOKE_RUNTIME_RESULT" != "success" ]]; then
+              echo "Runtime image smoke test failed with result: $SMOKE_RUNTIME_RESULT"
+              exit 1
+            fi
+          fi
+
+          echo "All builds passed"

@@ -9,10 +9,20 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+func TestDefaultSmokeKeyUsesSignerCurve(t *testing.T) {
+	privKey, address, err := defaultSmokeKey()
+	require.NoError(t, err)
+	require.True(t, privKey.Curve == crypto.S256())
+	require.Equal(t, address, crypto.PubkeyToAddress(privKey.PublicKey))
+	_, err = crypto.Sign(crypto.Keccak256([]byte("interop smoke signer")), privKey)
+	require.NoError(t, err)
+}
 
 func TestValidateInvalidMessageOptions(t *testing.T) {
 	for _, tc := range []struct {

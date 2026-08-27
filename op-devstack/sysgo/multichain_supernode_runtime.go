@@ -116,8 +116,9 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 
 // startSupernodeEL starts an L2 EL node for the supernode runtime,
 // respecting DEVSTACK_L2EL_KIND (defaults to op-reth when unset).
-func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
-	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
+func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, opts ...OpRethOption) L2ELNode {
+	opts = append(ResolveMixedL2ELOpts(t), opts...)
+	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0), opts...)
 }
 
 // startSupernodeELWithInteropURL starts an L2 EL node with --rollup.interop-http
@@ -130,6 +131,7 @@ func startSupernodeELWithInteropURL(
 	jwtPath string,
 	jwtSecret [32]byte,
 	interopURL string,
+	opts ...OpRethOption,
 ) L2ELNode {
 	switch devstackL2ELKind() {
 	case MixedL2ELOpGeth:
@@ -148,8 +150,9 @@ func startSupernodeELWithInteropURL(
 		t.Cleanup(l2EL.Stop)
 		return l2EL
 	default: // op-reth
+		opts = append(ResolveMixedL2ELOpts(t), opts...)
 		return startMixedOpRethNodeWithInteropURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1", ResolveMixedL2ELOpts(t)...)
+			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1", opts...)
 	}
 }
 
@@ -170,7 +173,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 		l1Clock = timeTravelClock
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
-	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
+	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret, cfg.OpRethOptions...)
 
 	var depSetStatic *depset.StaticConfigDependencySet
 	if depSet != nil {
@@ -269,8 +272,8 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		interopFilterRPC = "http://" + interopFilterProxy.Addr()
 
 		// Start ELs with filter proxy URL
-		l2AEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, interopFilterRPC)
-		l2BEL = startSupernodeELWithInteropURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, interopFilterRPC)
+		l2AEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, interopFilterRPC, cfg.OpRethOptions...)
+		l2BEL = startSupernodeELWithInteropURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, interopFilterRPC, cfg.OpRethOptions...)
 
 		// Build rollup config map from L2 networks (Go structs, no file I/O)
 		interopFilterRollupConfigs = map[eth.ChainID]*rollup.Config{
@@ -279,8 +282,8 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		}
 	} else {
 		// No interop filter — ELs start without an interop filter URL (existing behavior)
-		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
-		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
+		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret, cfg.OpRethOptions...)
+		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret, cfg.OpRethOptions...)
 	}
 
 	var activationTime uint64
@@ -358,7 +361,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	if !supernodeSequencerEnabled {
 		// Production-faithful topology: each follow-mode sequencer runs its own
 		// EL, distinct from the supernode VN's EL, joined only by L1 and P2P.
-		sequencerELOpts := ResolveMixedL2ELOpts(t)
+		sequencerELOpts := append(ResolveMixedL2ELOpts(t), cfg.OpRethOptions...)
 		if cfg.UseInteropFilter {
 			sequencerELOpts = append(sequencerELOpts, OpRethWithInteropURL(interopFilterRPC))
 		}

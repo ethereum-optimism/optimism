@@ -461,6 +461,13 @@ func defaultSmokeKey() (*ecdsa.PrivateKey, common.Address, error) {
 	if err != nil {
 		return nil, common.Address{}, fmt.Errorf("secret: %w", err)
 	}
+	// The HD wallet dependency may return a compatible secp256k1 key backed by
+	// a different curve instance. Normalize it so the non-CGO geth signer used
+	// by op-up accepts the key.
+	privKey, err = crypto.ToECDSA(crypto.FromECDSA(privKey))
+	if err != nil {
+		return nil, common.Address{}, fmt.Errorf("normalize secret: %w", err)
+	}
 	address := crypto.PubkeyToAddress(privKey.PublicKey)
 	return privKey, address, nil
 }

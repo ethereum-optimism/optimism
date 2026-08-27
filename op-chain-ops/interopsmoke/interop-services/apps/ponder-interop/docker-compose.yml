@@ -1,0 +1,46 @@
+services:
+  postgres:
+    profiles:
+      - dependencies
+    image: postgres:latest
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -q -U local-db-user -d ponder-interop',
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+      start_period: 2s
+    ports:
+      - 5432:5432
+    volumes:
+      - ./setup-local-db.sql:/docker-entrypoint-initdb.d/setup-local-db.sql
+
+  ponder-interop:
+    profiles:
+      - app
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+      target: ponder-interop
+      args:
+        - DOCKER_TARGET=ponder-interop
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://local-db-user:@postgres:5432/ponder-interop
+    volumes:
+      - ../../certs/extra-ca-certificates.crt:/usr/local/share/ca-certificates/extra-ca-certificates.crt
+    healthcheck:
+      test: wget localhost:42069/health -q -O - > /dev/null 2>&1
+    ports:
+      - 42069:42069
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  db:

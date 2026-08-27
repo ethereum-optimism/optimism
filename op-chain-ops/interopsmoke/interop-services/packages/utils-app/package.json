@@ -1,0 +1,40 @@
+{
+  "name": "@eth-optimism/utils-app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/ecosystem.git",
+    "directory": "packages/utils-app"
+  },
+  "homepage": "https://github.com/ethereum-optimism/ecosystem/tree/main/packages/utils-app#readme",
+  "bugs": {
+    "url": "https://github.com/ethereum-optimism/ecosystem/issues"
+  },
+  "version": "0.0.6",
+  "type": "module",
+  "main": "./dist/App.js",
+  "module": "./dist/App.js",
+  "types": "./dist/App.d.ts",
+  "files": [
+    "dist/*"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/App.d.ts",
+      "import": "./dist/App.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc && resolve-tspaths",
+    "lint": "eslint \"**/*.{ts,tsx}\" && pnpm prettier --check \"**/*.{ts,tsx}\" --ignore-path \"../../.prettierignore\"",
+    "lint:fix": "eslint \"**/*.{ts,tsx}\" --fix && pnpm prettier \"**/*.{ts,tsx}\" --write --loglevel=warn --ignore-path \"../../.prettierignore\"",
+    "typecheck": "tsc"
+  },
+  "peerDependencies": {
+    "@hono/node-server": "^1.19.15",
+    "hono": "^4.12.34",
+    "commander": "^13.1.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "prom-client": "^15.1.0"
+  }
+}
