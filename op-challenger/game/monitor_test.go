@@ -27,7 +27,7 @@ func TestMonitorGames(t *testing.T) {
 	t.Run("Schedules games", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, sched, mockHeadSource, preimages, _, _ := setupMonitorTest(t, []common.Address{}, 0)
+		monitor, source, sched, mockHeadSource, preimages, _ := setupMonitorTest(t, []common.Address{}, 0)
 		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -72,7 +72,7 @@ func TestMonitorGames(t *testing.T) {
 	t.Run("Resubscribes on error", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, sched, mockHeadSource, preimages, _, _ := setupMonitorTest(t, []common.Address{}, 0)
+		monitor, source, sched, mockHeadSource, preimages, _ := setupMonitorTest(t, []common.Address{}, 0)
 		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -118,13 +118,13 @@ func TestMonitorGames(t *testing.T) {
 }
 
 func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
-	monitor, source, sched, _, _, _, _ := setupMonitorTest(t, []common.Address{}, 0)
+	monitor, source, sched, _, _, _ := setupMonitorTest(t, []common.Address{}, 0)
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
+	require.NoError(t, monitor.progressGames(context.Background(), blockID(0)))
 
 	require.Len(t, sched.Scheduled(), 1)
 	require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled()[0])
@@ -133,35 +133,14 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	monitor, source, sched, _, _, stubClaimer, _ := setupMonitorTest(t, []common.Address{addr2}, 0)
+	monitor, source, sched, _, _, stubClaimer := setupMonitorTest(t, []common.Address{addr2}, 0)
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
+	require.NoError(t, monitor.progressGames(context.Background(), blockID(0)))
 
 	require.Len(t, sched.Scheduled(), 1)
 	require.Equal(t, []common.Address{addr2}, sched.Scheduled()[0])
 	require.Equal(t, 1, stubClaimer.scheduledGames)
-}
-
-func TestMonitorSchedulesWithdrawalDeletion(t *testing.T) {
-	addr1 := common.Address{0xaa}
-	addr2 := common.Address{0xbb}
-	monitor, source, _, _, _, _, stubWithdrawals := setupMonitorTest(t, []common.Address{}, 0)
-	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
-
-	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 5))
-
-	require.Len(t, stubWithdrawals.scheduledBatches, 1)
-	require.Equal(t, uint64(5), stubWithdrawals.scheduledBatches[0].blockNumber)
-	require.Equal(t, source.games, stubWithdrawals.scheduledBatches[0].games)
-}
-
-func TestMonitorSkipsWithdrawalDeletionWhenDisabled(t *testing.T) {
-	monitor, source, _, _, _, _, _ := setupMonitorTest(t, []common.Address{}, 0)
-	monitor.withdrawals = nil
-	source.games = []types.GameMetadata{newFDG(common.Address{0xaa}, 9999)}
-
-	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 5))
 }
 
 func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
@@ -222,7 +201,7 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			monitor, source, playable, _, _, lifecycle, _ := setupMonitorTest(t, test.allowedGames, 0)
+			monitor, source, playable, _, _, lifecycle := setupMonitorTest(t, test.allowedGames, 0)
 			monitor.gameTypes = test.configuredTypes
 			logger, logs := testlog.CaptureLogger(t, log.LevelWarn)
 			monitor.logger = logger
@@ -230,7 +209,7 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 			source.games = []types.GameMetadata{game}
 			const blockNumber = uint64(123)
 
-			require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, blockNumber))
+			require.NoError(t, monitor.progressGames(context.Background(), blockID(blockNumber)))
 
 			require.Len(t, lifecycle.scheduledBatches, 1)
 			require.Equal(t, blockNumber, lifecycle.scheduledBatches[0].blockNumber)
@@ -243,6 +222,8 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 			}
 
 			require.Len(t, playable.Scheduled(), 1)
+			require.Equal(t, []eth.BlockID{blockID(blockNumber)}, playable.Blocks(),
+				"should schedule against the full L1 block so reads can be pinned by hash")
 			if test.expectPlayable {
 				require.Equal(t, []common.Address{gameAddr}, playable.Scheduled()[0])
 			} else {
@@ -270,7 +251,7 @@ func TestMonitorProgressGamesPreservesIndependentBatchOrder(t *testing.T) {
 	superPermissioned := newTypedFDG(common.Address{0xa4}, 9999, types.SuperPermissionedGameType)
 	allowlistedOutCannon := newTypedFDG(common.Address{0xa5}, 9999, types.CannonGameType)
 	allowedPermissioned := newTypedFDG(common.Address{0xa6}, 9999, types.PermissionedGameType)
-	monitor, source, playable, _, _, lifecycle, _ := setupMonitorTest(t, []common.Address{
+	monitor, source, playable, _, _, lifecycle := setupMonitorTest(t, []common.Address{
 		allowedCannon.Proxy,
 		allowedPermissioned.Proxy,
 	}, 0)
@@ -289,7 +270,7 @@ func TestMonitorProgressGamesPreservesIndependentBatchOrder(t *testing.T) {
 	}
 	const blockNumber = uint64(456)
 
-	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, blockNumber))
+	require.NoError(t, monitor.progressGames(context.Background(), blockID(blockNumber)))
 
 	require.Equal(t, []scheduledClaimBatch{{
 		blockNumber: blockNumber,
@@ -336,7 +317,7 @@ func TestMinUpdatePeriod(t *testing.T) {
 			}
 			addr1 := common.Address{0xaa}
 			addr2 := common.Address{0xbb}
-			monitor, source, sched, _, _, _, _ := setupMonitorTest(t, []common.Address{addr2}, test.minUpdatePeriodSeconds)
+			monitor, source, sched, _, _, _ := setupMonitorTest(t, []common.Address{addr2}, test.minUpdatePeriodSeconds)
 			source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 			monitor.onNewL1Head(context.Background(), block1)
 			expectedScheduleCount := 1
@@ -369,18 +350,21 @@ func newTypedFDG(proxy common.Address, timestamp uint64, gameType types.GameType
 	}
 }
 
+func blockID(num uint64) eth.BlockID {
+	return eth.BlockID{Hash: common.BigToHash(new(big.Int).SetUint64(num)), Number: num}
+}
+
 func setupMonitorTest(
 	t *testing.T,
 	allowedGames []common.Address,
 	minUpdatePeriodSeconds int64,
-) (*gameMonitor, *stubGameSource, *stubScheduler, *mockNewHeadSource, *stubPreimageScheduler, *mockScheduler, *mockScheduler) {
+) (*gameMonitor, *stubGameSource, *stubScheduler, *mockNewHeadSource, *stubPreimageScheduler, *mockScheduler) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	source := &stubGameSource{}
 	sched := &stubScheduler{}
 	preimages := &stubPreimageScheduler{}
 	mockHeadSource := &mockNewHeadSource{}
 	stubClaimer := &mockScheduler{}
-	stubWithdrawals := &mockScheduler{}
 	monitor := newGameMonitor(
 		logger,
 		clock.NewSimpleClock(),
@@ -389,13 +373,12 @@ func setupMonitorTest(
 		preimages,
 		time.Duration(0),
 		stubClaimer,
-		stubWithdrawals,
 		[]types.GameType{types.CannonGameType},
 		allowedGames,
 		mockHeadSource,
 		time.Duration(minUpdatePeriodSeconds)*time.Second,
 	)
-	return monitor, source, sched, mockHeadSource, preimages, stubClaimer, stubWithdrawals
+	return monitor, source, sched, mockHeadSource, preimages, stubClaimer
 }
 
 type mockNewHeadSource struct {
@@ -491,6 +474,7 @@ func (s *stubGameSource) GetGamesAtOrAfter(
 type stubScheduler struct {
 	sync.Mutex
 	scheduled [][]common.Address
+	blocks    []eth.BlockID
 }
 
 func (s *stubScheduler) Scheduled() [][]common.Address {
@@ -499,7 +483,13 @@ func (s *stubScheduler) Scheduled() [][]common.Address {
 	return s.scheduled
 }
 
-func (s *stubScheduler) Schedule(games []types.GameMetadata, blockNumber uint64) error {
+func (s *stubScheduler) Blocks() []eth.BlockID {
+	s.Lock()
+	defer s.Unlock()
+	return s.blocks
+}
+
+func (s *stubScheduler) Schedule(games []types.GameMetadata, block eth.BlockID) error {
 	s.Lock()
 	defer s.Unlock()
 	var addrs []common.Address
@@ -507,6 +497,7 @@ func (s *stubScheduler) Schedule(games []types.GameMetadata, blockNumber uint64)
 		addrs = append(addrs, game.Proxy)
 	}
 	s.scheduled = append(s.scheduled, addrs)
+	s.blocks = append(s.blocks, block)
 	return nil
 }
 

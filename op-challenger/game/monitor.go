@@ -31,7 +31,7 @@ type RWClock interface {
 }
 
 type gameScheduler interface {
-	Schedule([]types.GameMetadata, uint64) error
+	Schedule([]types.GameMetadata, eth.BlockID) error
 }
 
 type preimageScheduler interface {
@@ -39,11 +39,6 @@ type preimageScheduler interface {
 }
 
 type claimer interface {
-	Schedule(blockNumber uint64, games []types.GameMetadata) error
-}
-
-// withdrawalDeleter is nil unless the OptimismPortal address is configured.
-type withdrawalDeleter interface {
 	Schedule(blockNumber uint64, games []types.GameMetadata) error
 }
 
@@ -55,7 +50,6 @@ type gameMonitor struct {
 	preimages           preimageScheduler
 	gameWindow          time.Duration
 	claimer             claimer
-	withdrawals         withdrawalDeleter
 	gameTypes           []types.GameType
 	allowedGames        []common.Address
 	l1HeadsSub          ethereum.Subscription
@@ -85,7 +79,6 @@ func newGameMonitor(
 	preimages preimageScheduler,
 	gameWindow time.Duration,
 	claimer claimer,
-	withdrawals withdrawalDeleter,
 	gameTypes []types.GameType,
 	allowedGames []common.Address,
 	l1Source MinimalSubscriber,
@@ -99,7 +92,6 @@ func newGameMonitor(
 		source:          source,
 		gameWindow:      gameWindow,
 		claimer:         claimer,
-		withdrawals:     withdrawals,
 		gameTypes:       gameTypes,
 		allowedGames:    allowedGames,
 		l1Source:        &headSource{inner: l1Source},
@@ -123,9 +115,9 @@ func (m *gameMonitor) configuredGameType(gameType uint32) bool {
 	return slices.Contains(m.gameTypes, types.GameType(gameType))
 }
 
-func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {
+func (m *gameMonitor) progressGames(ctx context.Context, block eth.BlockID) error {
 	minGameTimestamp := clock.MinCheckedTimestamp(m.clock, m.gameWindow)
-	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, minGameTimestamp)
+	games, err := m.source.GetGamesAtOrAfter(ctx, block.Hash, minGameTimestamp)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
@@ -153,15 +145,10 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 		}
 		gamesToPlay = append(gamesToPlay, game)
 	}
-	if err := m.claimer.Schedule(blockNumber, gamesToClaimOrClose); err != nil {
+	if err := m.claimer.Schedule(block.Number, gamesToClaimOrClose); err != nil {
 		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
-	if m.withdrawals != nil {
-		if err := m.withdrawals.Schedule(blockNumber, gamesToClaimOrClose); err != nil {
-			return fmt.Errorf("failed to schedule withdrawal deletion: %w", err)
-		}
-	}
-	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
+	if err := m.scheduler.Schedule(gamesToPlay, block); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")
 	} else if err != nil {
 		return fmt.Errorf("failed to schedule games: %w", err)
@@ -176,7 +163,7 @@ func (m *gameMonitor) onNewL1Head(ctx context.Context, block eth.L1BlockRef) {
 		return
 	}
 	m.lastUpdateBlockTime = blockTime
-	if err := m.progressGames(ctx, block.Hash, block.Number); err != nil {
+	if err := m.progressGames(ctx, block.ID()); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
 	}
 	if err := m.preimages.Schedule(block.Hash, block.Number); err != nil {

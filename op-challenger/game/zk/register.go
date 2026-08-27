@@ -46,6 +46,7 @@ func RegisterGameTypes(
 	registry Registry,
 	txSender TxSender,
 	clients *client.Provider,
+	withdrawalDeleter generic.WithdrawalDeleter,
 	gameStatusProvider GameStatusProvider,
 ) error {
 	if cfg.GameTypeEnabled(gameTypes.ZKDisputeGameType) {
@@ -66,6 +67,7 @@ func RegisterGameTypes(
 				syncValidator,
 				nil,
 				clients.L1Client(),
+				withdrawalDeleter,
 				ActorCreator(l1Clock, superNodeClient, gameStatusProvider, contract, txSender),
 			)
 		})

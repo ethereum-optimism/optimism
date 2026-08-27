@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,75 +32,58 @@ type TxSender interface {
 
 type DeleterMetrics interface {
 	RecordWithdrawalDeleted()
+	RecordWithdrawalDeletionFailed()
 }
 
 type Deleter struct {
-	log        log.Logger
-	metrics    DeleterMetrics
-	portal     Portal
-	gameStates GameStateReader
-	txSender   TxSender
-	scanner    *proofScanner
+	log      log.Logger
+	metrics  DeleterMetrics
+	portal   Portal
+	l1       L1Client
+	txSender TxSender
 }
 
-var _ InvalidatedWithdrawalDeleter = (*Deleter)(nil)
-
-func NewDeleter(logger log.Logger, m DeleterMetrics, portal Portal, games GameStateReader, l1 L1Client, txSender TxSender) *Deleter {
+func NewDeleter(logger log.Logger, m DeleterMetrics, portal Portal, l1 L1Client, txSender TxSender) *Deleter {
 	return &Deleter{
-		log:        logger,
-		metrics:    m,
-		portal:     portal,
-		gameStates: games,
-		txSender:   txSender,
-		scanner:    newProofScanner(l1, portal),
+		log:      logger,
+		metrics:  m,
+		portal:   portal,
+		l1:       l1,
+		txSender: txSender,
 	}
 }
 
-func (d *Deleter) DeleteInvalidatedWithdrawals(ctx context.Context, blockNumber uint64, games []types.GameMetadata) error {
-	addrs := make([]common.Address, len(games))
-	for i, game := range games {
-		addrs[i] = game.Proxy
-	}
-	d.scanner.Retain(addrs)
-	states, err := d.gameStates.GetGameStates(ctx, rpcblock.ByNumber(blockNumber), addrs)
+// DeleteInvalidatedWithdrawals deletes the withdrawal proofs the portal still records against game,
+// which the challenger winning game has invalidated. Proofs proven from scanFrom up to and including
+// l1Head are considered. It reports whether every invalidated proof has now been deleted.
+func (d *Deleter) DeleteInvalidatedWithdrawals(ctx context.Context, game common.Address, scanFrom uint64, l1Head eth.BlockID) (bool, error) {
+	done, err := d.deleteForGame(ctx, game, scanFrom, l1Head)
 	if err != nil {
-		return fmt.Errorf("failed to load game states: %w", err)
+		d.metrics.RecordWithdrawalDeletionFailed()
+		return false, err
 	}
-	var errs error
-	for i, state := range states {
-		if state.Status != types.GameStatusChallengerWon {
-			continue
-		}
-		game := resolvedGame{addr: addrs[i], l1Head: state.L1Head}
-		if err := d.deleteForGame(ctx, game, blockNumber); err != nil {
-			errs = errors.Join(errs, fmt.Errorf("game %v: %w", game.addr, err))
-		}
-	}
-	return errs
+	return done, nil
 }
 
-func (d *Deleter) deleteForGame(ctx context.Context, game resolvedGame, blockNumber uint64) error {
-	proofs, err := d.scanner.Proofs(ctx, game, blockNumber)
+func (d *Deleter) deleteForGame(ctx context.Context, game common.Address, scanFrom uint64, l1Head eth.BlockID) (bool, error) {
+	proofs, err := d.proofs(ctx, scanFrom, l1Head.Number)
 	if err != nil {
-		return err
+		return false, err
 	}
-	invalidated, err := d.invalidated(ctx, game.addr, rpcblock.ByNumber(blockNumber), proofs)
+	invalidated, err := d.invalidated(ctx, game, rpcblock.ByHash(l1Head.Hash), proofs)
 	if err != nil {
-		return err
+		return false, err
 	}
 	truncated := len(invalidated) > maxDeletesPerGame
 	if truncated {
 		d.log.Warn("Deferring some withdrawal proof deletions to a later run",
-			"game", game.addr, "invalidated", len(invalidated), "limit", maxDeletesPerGame)
+			"game", game, "invalidated", len(invalidated), "limit", maxDeletesPerGame)
 		invalidated = invalidated[:maxDeletesPerGame]
 	}
-	if err := d.send(game.addr, invalidated); err != nil {
-		return err
+	if err := d.send(game, invalidated); err != nil {
+		return false, err
 	}
-	if !truncated {
-		d.scanner.Advance(game.addr, blockNumber)
-	}
-	return nil
+	return !truncated, nil
 }
 
 // invalidated selects the proofs the portal still records against game.

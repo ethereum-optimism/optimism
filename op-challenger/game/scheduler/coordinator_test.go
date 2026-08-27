@@ -3,11 +3,13 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"slices"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -20,7 +22,7 @@ func TestScheduleNewGames(t *testing.T) {
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
 	ctx := context.Background()
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2, gameAddr3), 0))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2, gameAddr3), blockID(0)))
 
 	require.Len(t, workQueue, 3, "should schedule job for each game")
 	require.Len(t, games.created, 3, "should have created players")
@@ -41,11 +43,11 @@ func TestSkipSchedulingInflightGames(t *testing.T) {
 	ctx := context.Background()
 
 	// Schedule the game once
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), 0))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), blockID(0)))
 	require.Len(t, workQueue, 1, "should schedule game")
 
 	// And then attempt to schedule again
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), 0))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), blockID(0)))
 	require.Len(t, workQueue, 1, "should not reschedule in-flight game")
 }
 
@@ -57,7 +59,7 @@ func TestExitWhenContextDoneWhileSchedulingJob(t *testing.T) {
 	cancel() // Context is cancelled
 
 	// Should not block because the context is done.
-	err := c.schedule(ctx, asGames(gameAddr1), 0)
+	err := c.schedule(ctx, asGames(gameAddr1), blockID(0))
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, workQueue, "should not have been able to schedule game")
 }
@@ -68,7 +70,7 @@ func TestSchedule_PrestateValidationErrors(t *testing.T) {
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
-	err := c.schedule(ctx, asGames(gameAddr1), 0)
+	err := c.schedule(ctx, asGames(gameAddr1), blockID(0))
 	require.Error(t, err)
 }
 
@@ -79,7 +81,7 @@ func TestSchedule_SkipPrestateValidationErrors(t *testing.T) {
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
-	err := c.schedule(ctx, asGames(gameAddr1), 0)
+	err := c.schedule(ctx, asGames(gameAddr1), blockID(0))
 	require.NoError(t, err)
 	errLog := logs.FindLog(testlog.NewLevelFilter(log.LevelError), testlog.NewMessageFilter("Invalid prestate"))
 	require.NotNil(t, errLog)
@@ -94,7 +96,7 @@ func TestSchedule_PrestateValidationFailure(t *testing.T) {
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
-	err := c.schedule(ctx, asGames(gameAddr1), 0)
+	err := c.schedule(ctx, asGames(gameAddr1), blockID(0))
 	require.ErrorIs(t, err, games.PrestateErr)
 }
 
@@ -104,7 +106,7 @@ func TestScheduleGameAgainAfterCompletion(t *testing.T) {
 	ctx := context.Background()
 
 	// Schedule the game once
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), 0))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), blockID(0)))
 	require.Len(t, workQueue, 1, "should schedule game")
 
 	// Read the job
@@ -115,7 +117,7 @@ func TestScheduleGameAgainAfterCompletion(t *testing.T) {
 	require.NoError(t, c.processResult(j))
 
 	// And then attempt to schedule again
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), 0))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), blockID(0)))
 	require.Len(t, workQueue, 1, "should reschedule completed game")
 }
 
@@ -149,7 +151,7 @@ func TestProcessResultsWhileJobQueueFull(t *testing.T) {
 
 	// Even though work queue length is only 1, should be able to schedule all three games
 	// by reading and processing results
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2, gameAddr3), 0))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2, gameAddr3), blockID(0)))
 	require.Len(t, games.created, 3, "should have created 3 games")
 
 loop:
@@ -175,16 +177,16 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 	ctx := context.Background()
 
 	// First get game 3 marked as resolved
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr3), 0))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr3), blockID(0)))
 	require.Len(t, workQueue, 1)
 	j := <-workQueue
-	j.status = types.GameStatusDefenderWon
+	j.status, j.done = types.GameStatusDefenderWon, true
 	require.NoError(t, c.processResult(j))
 	// But ensure its data directory is marked as existing
 	disk.DirForGame(gameAddr3)
 
 	games := asGames(gameAddr1, gameAddr2, gameAddr3)
-	require.NoError(t, c.schedule(ctx, games, 0))
+	require.NoError(t, c.schedule(ctx, games, blockID(0)))
 
 	// The work queue should only contain jobs for games 1 and 2
 	// A resolved game should not be scheduled for an update.
@@ -197,7 +199,7 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 	for i := 0; i < len(games)-1; i++ {
 		j := <-workQueue
 		if j.addr == gameAddr2 {
-			j.status = types.GameStatusDefenderWon
+			j.status, j.done = types.GameStatusDefenderWon, true
 		}
 		require.NoError(t, c.processResult(j))
 	}
@@ -209,6 +211,41 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 	require.False(t, disk.gameDirExists[gameAddr3], "game 3 data should be deleted")
 }
 
+func TestRescheduleResolvedGameWithOutstandingWork(t *testing.T) {
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
+	gameAddr1 := common.Address{0xaa}
+	ctx := context.Background()
+
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), blockID(1)))
+	require.Len(t, workQueue, 1, "should schedule game")
+
+	// The game resolved but still has work outstanding
+	j := <-workQueue
+	j.status, j.done = types.GameStatusChallengerWon, false
+	require.NoError(t, c.processResult(j))
+
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), blockID(2)))
+	require.Len(t, workQueue, 1, "should reschedule resolved game with work outstanding")
+
+	// Once the outstanding work completes it is not scheduled again
+	j = <-workQueue
+	j.status, j.done = types.GameStatusChallengerWon, true
+	require.NoError(t, c.processResult(j))
+
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), blockID(3)))
+	require.Empty(t, workQueue, "should not reschedule completed game")
+}
+
+func TestScheduleResolvedGameWithOutstandingWorkOnCreation(t *testing.T) {
+	c, workQueue, _, games, _, _ := setupCoordinatorTest(t, 10)
+	gameAddr1 := common.Address{0xaa}
+	games.createCompleted = gameAddr1
+	games.createNotDone = true
+
+	require.NoError(t, c.schedule(context.Background(), asGames(gameAddr1), blockID(1)))
+	require.Len(t, workQueue, 1, "should schedule resolved game with work outstanding")
+}
+
 func TestSchedule_RecordActedL1Block(t *testing.T) {
 	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
@@ -216,13 +253,13 @@ func TestSchedule_RecordActedL1Block(t *testing.T) {
 	ctx := context.Background()
 
 	// The first game should be tracked
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 1))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), blockID(1)))
 
 	// Process the result
 	require.Len(t, workQueue, 2)
 	j := <-workQueue
 	require.Equal(t, gameAddr1, j.addr)
-	j.status = types.GameStatusDefenderWon
+	j.status, j.done = types.GameStatusDefenderWon, true
 	require.NoError(t, c.processResult(j))
 	j = <-workQueue
 	require.Equal(t, gameAddr2, j.addr)
@@ -230,18 +267,18 @@ func TestSchedule_RecordActedL1Block(t *testing.T) {
 	require.NoError(t, c.processResult(j))
 
 	// Schedule another block
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 2))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), blockID(2)))
 
 	// Process the result (only the in-progress game gets rescheduled)
 	require.Len(t, workQueue, 1)
 	j = <-workQueue
 	require.Equal(t, gameAddr2, j.addr)
-	require.Equal(t, uint64(2), j.block)
+	require.Equal(t, uint64(2), j.block.Number)
 	j.status = types.GameStatusInProgress
 	require.NoError(t, c.processResult(j))
 
 	// Schedule a third block
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 3))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), blockID(3)))
 
 	// Process the result (only the in-progress game gets rescheduled)
 	// This is deliberately done a third time, because there was actually a bug where it worked for the first two
@@ -252,12 +289,12 @@ func TestSchedule_RecordActedL1Block(t *testing.T) {
 	require.Len(t, workQueue, 1)
 	j = <-workQueue
 	require.Equal(t, gameAddr2, j.addr)
-	require.Equal(t, uint64(3), j.block)
+	require.Equal(t, uint64(3), j.block.Number)
 	j.status = types.GameStatusInProgress
 	require.NoError(t, c.processResult(j))
 
 	// Schedule so that the metric is updated
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 4))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), blockID(4)))
 
 	// Verify that the block number is recorded by the metricer as acted upon
 	require.Equal(t, uint64(3), c.m.(*stubSchedulerMetrics).actedL1Blocks)
@@ -271,7 +308,7 @@ func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {
 	ctx := context.Background()
 
 	games := asGames(gameAddr1, gameAddr2, gameAddr3)
-	require.NoError(t, c.schedule(ctx, games, 1))
+	require.NoError(t, c.schedule(ctx, games, blockID(1)))
 	require.Len(t, workQueue, 3)
 
 	// Game 1 progresses and is still in progress
@@ -282,7 +319,7 @@ func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {
 		require.Equal(t, uint64(0), c.m.(*stubSchedulerMetrics).actedL1Blocks)
 		j := <-workQueue
 		if j.addr == gameAddr2 {
-			j.status = types.GameStatusDefenderWon
+			j.status, j.done = types.GameStatusDefenderWon, true
 		}
 		if j.addr != gameAddr3 {
 			require.NoError(t, c.processResult(j))
@@ -292,7 +329,7 @@ func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {
 	}
 
 	// Schedule so that the metric is updated
-	require.NoError(t, c.schedule(ctx, games, 2))
+	require.NoError(t, c.schedule(ctx, games, blockID(2)))
 
 	// Verify that block 1 isn't yet complete
 	require.Equal(t, uint64(0), c.m.(*stubSchedulerMetrics).actedL1Blocks)
@@ -301,7 +338,7 @@ func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {
 	require.NoError(t, c.processResult(game3Job))
 
 	// Schedule so that the metric is updated
-	require.NoError(t, c.schedule(ctx, games, 3))
+	require.NoError(t, c.schedule(ctx, games, blockID(3)))
 
 	// Verify that block 1 is now complete
 	require.Equal(t, uint64(1), c.m.(*stubSchedulerMetrics).actedL1Blocks)
@@ -314,7 +351,7 @@ func TestSchedule_RecordActedL1BlockNewGame(t *testing.T) {
 	gameAddr3 := common.Address{0xcc}
 	ctx := context.Background()
 
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), 1))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2), blockID(1)))
 	require.Len(t, workQueue, 2)
 
 	// Game 1 progresses and is still in progress
@@ -324,13 +361,13 @@ func TestSchedule_RecordActedL1BlockNewGame(t *testing.T) {
 		require.Equal(t, uint64(0), c.m.(*stubSchedulerMetrics).actedL1Blocks)
 		j := <-workQueue
 		if j.addr == gameAddr2 {
-			j.status = types.GameStatusDefenderWon
+			j.status, j.done = types.GameStatusDefenderWon, true
 		}
 		require.NoError(t, c.processResult(j))
 	}
 
 	// Schedule next block with game 3 now created
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2, gameAddr3), 2))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2, gameAddr3), blockID(2)))
 
 	// Verify that block 1 is now complete
 	require.Equal(t, uint64(1), c.m.(*stubSchedulerMetrics).actedL1Blocks)
@@ -345,7 +382,7 @@ func TestDoNotDeleteDataForGameThatFailedToCreatePlayer(t *testing.T) {
 	games.creationFails = gameAddr1
 
 	gameList := asGames(gameAddr1, gameAddr2)
-	err := c.schedule(ctx, gameList, 0)
+	err := c.schedule(ctx, gameList, blockID(0))
 	require.Error(t, err)
 
 	// Game 1 won't be scheduled because the player failed to be created
@@ -359,7 +396,7 @@ func TestDoNotDeleteDataForGameThatFailedToCreatePlayer(t *testing.T) {
 
 	// Should create player for game 1 next time its scheduled
 	games.creationFails = common.Address{}
-	require.NoError(t, c.schedule(ctx, gameList, 0))
+	require.NoError(t, c.schedule(ctx, gameList, blockID(0)))
 	require.Len(t, workQueue, len(gameList), "should schedule all games")
 
 	j := <-workQueue
@@ -376,7 +413,7 @@ func TestDropOldGameStates(t *testing.T) {
 	ctx := context.Background()
 
 	// Start tracking game 1, 2 and 3
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2, gameAddr3), 0))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1, gameAddr2, gameAddr3), blockID(0)))
 	require.Len(t, workQueue, 3, "should schedule games")
 
 	// Complete processing of games 1 and 2, leaving 3 in flight
@@ -384,7 +421,7 @@ func TestDropOldGameStates(t *testing.T) {
 	require.NoError(t, c.processResult(<-workQueue))
 
 	// Next update only has games 2 and 4
-	require.NoError(t, c.schedule(ctx, asGames(gameAddr2, gameAddr4), 0))
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr2, gameAddr4), blockID(0)))
 
 	require.NotContains(t, c.states, gameAddr1, "should drop state for game 1")
 	require.Contains(t, c.states, gameAddr2, "should keep state for game 2 (still active)")
@@ -408,6 +445,7 @@ func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan jo
 type createdGames struct {
 	t               *testing.T
 	createCompleted common.Address
+	createNotDone   bool
 	creationFails   common.Address
 	created         map[common.Address]*test.StubGamePlayer
 	PrestateErr     error
@@ -428,6 +466,7 @@ func (c *createdGames) CreateGame(fdg types.GameMetadata, dir string) (GamePlaye
 	game := &test.StubGamePlayer{
 		Addr:        addr,
 		StatusValue: status,
+		DoneValue:   !c.createNotDone,
 		Dir:         dir,
 	}
 	if c.PrestateErr != nil {
@@ -468,6 +507,10 @@ func (s *stubDiskManager) RemoveAllExcept(addrs []common.Address) error {
 		}
 	}
 	return nil
+}
+
+func blockID(num uint64) eth.BlockID {
+	return eth.BlockID{Hash: common.BigToHash(new(big.Int).SetUint64(num)), Number: num}
 }
 
 func asGames(addrs ...common.Address) []types.GameMetadata {

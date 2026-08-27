@@ -16,7 +16,7 @@ func progressGames(ctx context.Context, in <-chan job, out chan<- job, wg *sync.
 			return
 		case j := <-in:
 			threadActive()
-			j.status = j.player.ProgressGame(ctx)
+			j.status, j.done = j.player.ProgressGame(ctx, j.block)
 			select {
 			case <-ctx.Done():
 				// Context cancelled, shut down. Avoids blocking forever if the consumer has already stopped.

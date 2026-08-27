@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -23,155 +23,130 @@ import (
 var (
 	gameAddr      = common.Address{0xaa}
 	otherGameAddr = common.Address{0xbb}
-	gameL1Head    = common.Hash{0x11}
 	proofTopic    = common.Hash{0x99}
-	l1HeadNumber  = uint64(100)
+	gameL1Head    = uint64(100)
 )
 
+func l1Head(num uint64) eth.BlockID {
+	return eth.BlockID{Hash: common.BigToHash(new(big.Int).SetUint64(num)), Number: num}
+}
+
 func TestDeleter_DeletesProofsAgainstChallengerWinGame(t *testing.T) {
-	deleter, portal, games, l1, sender, m := setupDeleterTest(t)
-	games.state(gameAddr, types.GameStatusChallengerWon)
+	deleter, portal, l1, sender, m := setupDeleterTest(t)
 	proofs := l1.proofs(3)
 	portal.record(proofs[0], gameAddr, 1)
 	portal.record(proofs[1], gameAddr, 2)
 	portal.record(proofs[2], gameAddr, 3)
 
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr)))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	require.NoError(t, err)
+	require.True(t, done)
 
 	require.Equal(t, proofs, sender.sent)
 	require.Equal(t, 3, m.deleted)
+	require.Equal(t, []rpcblock.Block{rpcblock.ByHash(l1Head(200).Hash)}, portal.reads,
+		"should pin the portal read to the L1 head")
 }
 
 func TestDeleter_IgnoresProofsAgainstOtherGames(t *testing.T) {
-	deleter, portal, games, l1, sender, _ := setupDeleterTest(t)
-	games.state(gameAddr, types.GameStatusChallengerWon)
+	deleter, portal, l1, sender, _ := setupDeleterTest(t)
 	proofs := l1.proofs(2)
 	portal.record(proofs[0], otherGameAddr, 1)
 	portal.record(proofs[1], gameAddr, 2)
 
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr)))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	require.NoError(t, err)
+	require.True(t, done)
 
 	require.Equal(t, proofs[1:], sender.sent)
 }
 
 func TestDeleter_SkipsAlreadyDeletedProofs(t *testing.T) {
-	deleter, portal, games, l1, sender, m := setupDeleterTest(t)
-	games.state(gameAddr, types.GameStatusChallengerWon)
+	deleter, portal, l1, sender, m := setupDeleterTest(t)
 	proofs := l1.proofs(2)
 	portal.record(proofs[0], gameAddr, 0)
 	portal.record(proofs[1], gameAddr, 0)
 
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr)))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	require.NoError(t, err)
+	require.True(t, done)
 
 	require.Empty(t, sender.sent)
 	require.Zero(t, m.deleted)
 }
 
-func TestDeleter_IgnoresUnresolvedAndDefenderWinGames(t *testing.T) {
-	for _, status := range []types.GameStatus{types.GameStatusInProgress, types.GameStatusDefenderWon} {
-		t.Run(status.String(), func(t *testing.T) {
-			deleter, portal, games, l1, sender, _ := setupDeleterTest(t)
-			games.state(gameAddr, status)
-			proofs := l1.proofs(2)
-			portal.record(proofs[0], gameAddr, 1)
-
-			require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr)))
-
-			require.Empty(t, sender.sent)
-			require.Empty(t, l1.queries, "should not scan logs for a game the challenger did not win")
-		})
-	}
-}
-
 func TestDeleter_TruncatesAtCapAndRescansUntilComplete(t *testing.T) {
-	deleter, portal, games, l1, sender, _ := setupDeleterTest(t)
+	deleter, portal, l1, sender, _ := setupDeleterTest(t)
 	logger, logs := testlog.CaptureLogger(t, log.LevelWarn)
 	deleter.log = logger
-	games.state(gameAddr, types.GameStatusChallengerWon)
 	proofs := l1.proofs(maxDeletesPerGame + 5)
 	for i, proof := range proofs {
 		portal.record(proof, gameAddr, uint64(i+1))
 	}
 
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr)))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	require.NoError(t, err)
+	require.False(t, done, "should report the remaining proofs as outstanding")
 	require.Equal(t, proofs[:maxDeletesPerGame], sender.sent)
 	require.NotNil(t, logs.FindLog(
 		testlog.NewLevelFilter(log.LevelWarn),
 		testlog.NewMessageFilter("Deferring some withdrawal proof deletions to a later run")))
 
-	// The cursor must not have advanced, so the next run picks up the remainder.
+	// The remainder is picked up when the same range is scanned again.
 	for _, proof := range proofs[:maxDeletesPerGame] {
 		portal.record(proof, gameAddr, 0)
 	}
 	sender.sent = nil
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr)))
+	done, err = deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	require.NoError(t, err)
+	require.True(t, done)
 	require.Equal(t, proofs[maxDeletesPerGame:], sender.sent)
-	require.Equal(t, []uint64{l1HeadNumber, l1HeadNumber}, l1.queries)
+	require.Equal(t, []uint64{gameL1Head, gameL1Head}, l1.queries)
 }
 
-func TestDeleter_CursorOnlyScansNewBlocks(t *testing.T) {
-	deleter, portal, games, l1, sender, _ := setupDeleterTest(t)
-	games.state(gameAddr, types.GameStatusChallengerWon)
-	proofs := l1.proofs(1)
-	portal.record(proofs[0], gameAddr, 1)
+func TestDeleter_ScansOnlyTheRequestedRange(t *testing.T) {
+	deleter, _, l1, _, _ := setupDeleterTest(t)
 
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr)))
-	require.Equal(t, proofs, sender.sent)
+	_, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, 201, l1Head(300))
+	require.NoError(t, err)
 
-	sender.sent = nil
-	l1.logs = nil
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 300, gameList(gameAddr)))
-	require.Empty(t, sender.sent)
-	require.Equal(t, []uint64{l1HeadNumber, 201}, l1.queries)
+	require.Equal(t, []uint64{201}, l1.queries)
+	require.Equal(t, []uint64{300}, l1.toQueries)
 }
 
 func TestDeleter_RescansAfterL1Reorg(t *testing.T) {
-	deleter, portal, games, l1, _, _ := setupDeleterTest(t)
-	games.state(gameAddr, types.GameStatusChallengerWon)
-	portal.record(l1.proofs(1)[0], gameAddr, 1)
+	deleter, _, l1, _, _ := setupDeleterTest(t)
 
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr)))
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 150, gameList(gameAddr)))
+	_, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, 201, l1Head(150))
+	require.NoError(t, err)
 
-	require.Equal(t, []uint64{l1HeadNumber, 150}, l1.queries)
+	require.Equal(t, []uint64{150}, l1.queries, "should rescan from the new head")
 }
 
 func TestDeleter_ReportsSendFailures(t *testing.T) {
-	deleter, portal, games, l1, sender, m := setupDeleterTest(t)
-	games.state(gameAddr, types.GameStatusChallengerWon)
+	deleter, portal, l1, sender, m := setupDeleterTest(t)
 	proofs := l1.proofs(1)
 	portal.record(proofs[0], gameAddr, 1)
 	sender.err = errors.New("boom")
 
-	err := deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
 	require.ErrorIs(t, err, sender.err)
+	require.False(t, done)
 	require.Zero(t, m.deleted)
-
-	// The cursor must not have advanced so the failed delete is retried.
-	sender.err = nil
-	require.NoError(t, deleter.DeleteInvalidatedWithdrawals(context.Background(), 200, gameList(gameAddr)))
-	require.Equal(t, []uint64{l1HeadNumber, l1HeadNumber}, l1.queries)
+	require.Equal(t, 1, m.failed)
 }
 
-func gameList(addrs ...common.Address) []types.GameMetadata {
-	games := make([]types.GameMetadata, len(addrs))
-	for i, addr := range addrs {
-		games[i] = types.GameMetadata{Proxy: addr}
-	}
-	return games
-}
-
-func setupDeleterTest(t *testing.T) (*Deleter, *stubPortal, *stubGames, *stubL1, *stubTxSender, *stubMetrics) {
+func setupDeleterTest(t *testing.T) (*Deleter, *stubPortal, *stubL1, *stubTxSender, *stubMetrics) {
 	portal := &stubPortal{records: make(map[contracts.WithdrawalProof]contracts.ProvenWithdrawal)}
-	games := &stubGames{states: make(map[common.Address]GameState)}
 	l1 := &stubL1{}
 	sender := &stubTxSender{}
 	m := &stubMetrics{}
-	return NewDeleter(testlog.Logger(t, log.LevelDebug), m, portal, games, l1, sender), portal, games, l1, sender, m
+	return NewDeleter(testlog.Logger(t, log.LevelDebug), m, portal, l1, sender), portal, l1, sender, m
 }
 
 type stubPortal struct {
 	records map[contracts.WithdrawalProof]contracts.ProvenWithdrawal
+	reads   []rpcblock.Block
 }
 
 func (s *stubPortal) record(proof contracts.WithdrawalProof, game common.Address, timestamp uint64) {
@@ -196,7 +171,8 @@ func (s *stubPortal) DecodeWithdrawalProvenExtension1(l *ethTypes.Log) (contract
 	}, nil
 }
 
-func (s *stubPortal) GetProvenWithdrawals(_ context.Context, _ rpcblock.Block, proofs []contracts.WithdrawalProof) ([]contracts.ProvenWithdrawal, error) {
+func (s *stubPortal) GetProvenWithdrawals(_ context.Context, block rpcblock.Block, proofs []contracts.WithdrawalProof) ([]contracts.ProvenWithdrawal, error) {
+	s.reads = append(s.reads, block)
 	records := make([]contracts.ProvenWithdrawal, len(proofs))
 	for i, proof := range proofs {
 		records[i] = s.records[proof]
@@ -208,25 +184,10 @@ func (s *stubPortal) DeleteProvenWithdrawalTx(proof contracts.WithdrawalProof) (
 	return txmgr.TxCandidate{TxData: append(proof.WithdrawalHash.Bytes(), proof.ProofSubmitter.Bytes()...)}, nil
 }
 
-type stubGames struct {
-	states map[common.Address]GameState
-}
-
-func (s *stubGames) state(game common.Address, status types.GameStatus) {
-	s.states[game] = GameState{Status: status, L1Head: gameL1Head}
-}
-
-func (s *stubGames) GetGameStates(_ context.Context, _ rpcblock.Block, games []common.Address) ([]GameState, error) {
-	states := make([]GameState, len(games))
-	for i, game := range games {
-		states[i] = s.states[game]
-	}
-	return states, nil
-}
-
 type stubL1 struct {
-	logs    []ethTypes.Log
-	queries []uint64
+	logs      []ethTypes.Log
+	queries   []uint64
+	toQueries []uint64
 }
 
 // proofs adds count withdrawal proof logs to the L1 chain and returns them in log order.
@@ -246,15 +207,9 @@ func (s *stubL1) proofs(count int) []contracts.WithdrawalProof {
 	return proofs
 }
 
-func (s *stubL1) HeaderByHash(_ context.Context, hash common.Hash) (*ethTypes.Header, error) {
-	if hash != gameL1Head {
-		return nil, fmt.Errorf("unknown header %v", hash)
-	}
-	return &ethTypes.Header{Number: new(big.Int).SetUint64(l1HeadNumber)}, nil
-}
-
 func (s *stubL1) FilterLogs(_ context.Context, query ethereum.FilterQuery) ([]ethTypes.Log, error) {
 	s.queries = append(s.queries, bigs.Uint64Strict(query.FromBlock))
+	s.toQueries = append(s.toQueries, bigs.Uint64Strict(query.ToBlock))
 	return s.logs, nil
 }
 
@@ -277,8 +232,13 @@ func (s *stubTxSender) SendAndWaitDetailed(_ string, txs ...txmgr.TxCandidate) [
 
 type stubMetrics struct {
 	deleted int
+	failed  int
 }
 
 func (s *stubMetrics) RecordWithdrawalDeleted() {
 	s.deleted++
+}
+
+func (s *stubMetrics) RecordWithdrawalDeletionFailed() {
+	s.failed++
 }

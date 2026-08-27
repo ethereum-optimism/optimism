@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/generic"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/withdrawals"
@@ -53,9 +54,11 @@ type Service struct {
 	systemClock clock.Clock
 	l1Clock     *clock.SimpleClock
 
-	claimants   []common.Address
-	claimer     *claims.BondClaimScheduler
-	withdrawals *withdrawals.Scheduler
+	claimants []common.Address
+	claimer   *claims.BondClaimScheduler
+
+	// withdrawalDeleter is nil unless the OptimismPortal address is configured.
+	withdrawalDeleter generic.WithdrawalDeleter
 
 	factoryContract *contracts.DisputeGameFactoryContract
 	registry        *registry.GameTypeRegistry
@@ -107,13 +110,13 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initFactoryContract(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to create factory contract bindings: %w", err)
 	}
+	s.initWithdrawalDeleter(cfg)
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to register game types: %w", err)
 	}
 	if err := s.initBondClaims(cfg); err != nil {
 		return fmt.Errorf("failed to init bond claiming: %w", err)
 	}
-	s.initWithdrawalDeletion(cfg)
 	if err := s.initScheduler(cfg); err != nil {
 		return fmt.Errorf("failed to init scheduler: %w", err)
 	}
@@ -220,26 +223,25 @@ func (s *Service) initBondClaims(cfg *config.Config) error {
 	return nil
 }
 
-func (s *Service) initWithdrawalDeletion(cfg *config.Config) {
+func (s *Service) initWithdrawalDeleter(cfg *config.Config) {
 	if cfg.OptimismPortalAddress == (common.Address{}) {
 		return
 	}
 	s.logger.Info("Deleting withdrawal proofs invalidated by challenger wins", "portal", cfg.OptimismPortalAddress)
-	caller := batching.NewMultiCaller(s.l1RPC, batching.DefaultBatchSize)
-	portal := contracts.NewOptimismPortal2Contract(s.metrics, cfg.OptimismPortalAddress, caller)
-	deleter := withdrawals.NewDeleter(s.logger, s.metrics, portal, withdrawals.NewGameStateReader(caller), s.l1EthClient, s.txSender)
-	s.withdrawals = withdrawals.NewScheduler(s.logger, s.metrics, deleter)
+	portal := contracts.NewOptimismPortal2Contract(s.metrics, cfg.OptimismPortalAddress,
+		batching.NewMultiCaller(s.l1RPC, batching.DefaultBatchSize))
+	s.withdrawalDeleter = withdrawals.NewDeleter(s.logger, s.metrics, portal, s.l1EthClient, s.txSender)
 }
 
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	oracles := registry.NewOracleRegistry()
 	s.clientProvider = challengerClient.NewProvider(ctx, s.logger, cfg, s.l1Client, s.l1RPC)
-	err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, s.clientProvider, cfg.SelectiveClaimResolution, s.claimants)
+	err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, s.clientProvider, s.withdrawalDeleter, cfg.SelectiveClaimResolution, s.claimants)
 	if err != nil {
 		return err
 	}
-	err = zk.RegisterGameTypes(ctx, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, s.txSender, s.clientProvider, s.factoryContract)
+	err = zk.RegisterGameTypes(ctx, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, s.txSender, s.clientProvider, s.withdrawalDeleter, s.factoryContract)
 	if err != nil {
 		return err
 	}
@@ -265,20 +267,13 @@ func (s *Service) initLargePreimages() error {
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	var deleter withdrawalDeleter
-	if s.withdrawals != nil {
-		deleter = s.withdrawals
-	}
-	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, deleter, cfg.GameTypes, cfg.GameAllowlist, s.l1RPC, cfg.MinUpdateInterval)
+	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameTypes, cfg.GameAllowlist, s.l1RPC, cfg.MinUpdateInterval)
 }
 
 func (s *Service) Start(ctx context.Context) error {
 	s.logger.Info("starting scheduler")
 	s.sched.Start(ctx)
 	s.claimer.Start(ctx)
-	if s.withdrawals != nil {
-		s.withdrawals.Start(ctx)
-	}
 	s.preimages.Start(ctx)
 	s.logger.Info("starting monitoring")
 	s.monitor.StartMonitoring()
@@ -305,11 +300,6 @@ func (s *Service) Stop(ctx context.Context) error {
 	if s.claimer != nil {
 		if err := s.claimer.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close claimer: %w", err))
-		}
-	}
-	if s.withdrawals != nil {
-		if err := s.withdrawals.Close(); err != nil {
-			result = errors.Join(result, fmt.Errorf("failed to close withdrawal deleter: %w", err))
 		}
 	}
 	if s.clientProvider != nil {

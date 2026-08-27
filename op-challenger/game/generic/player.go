@@ -29,9 +29,18 @@ type L1HeaderSource interface {
 	BlockRefByHash(ctx context.Context, hash common.Hash) (eth.BlockRef, error)
 }
 
+// WithdrawalDeleter deletes the withdrawal proofs invalidated by a game resolving as a challenger
+// win. It is nil unless the OptimismPortal address is configured.
+type WithdrawalDeleter interface {
+	// DeleteInvalidatedWithdrawals deletes the proofs against game that were proven from scanFrom up
+	// to and including l1Head, reporting whether every invalidated proof has now been deleted.
+	DeleteInvalidatedWithdrawals(ctx context.Context, game common.Address, scanFrom uint64, l1Head eth.BlockID) (bool, error)
+}
+
 type ActorCreator func(ctx context.Context, logger log.Logger, l1Head eth.BlockID) (Actor, error)
 
 type GamePlayer struct {
+	addr               common.Address
 	actor              Actor
 	loader             GenericGameLoader
 	logger             log.Logger
@@ -39,6 +48,13 @@ type GamePlayer struct {
 	prestateValidators []PrestateValidator
 	status             gameTypes.GameStatus
 	gameL1Head         eth.BlockID
+	withdrawals        WithdrawalDeleter
+	// withdrawalScanFrom is the first L1 block that may hold a proof this game invalidated but that
+	// has not been deleted yet.
+	withdrawalScanFrom uint64
+	// done reports whether the game requires no further work beyond its current status. It is false
+	// while withdrawal proofs invalidated by a challenger win are still outstanding.
+	done bool
 }
 
 type actNoop struct{}
@@ -54,6 +70,7 @@ func NewGenericGamePlayer(
 	syncValidator gameTypes.SyncValidator,
 	validators []PrestateValidator,
 	l1HeaderSource L1HeaderSource,
+	withdrawalDeleter WithdrawalDeleter,
 	createActor ActorCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
@@ -62,17 +79,24 @@ func NewGenericGamePlayer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch game status: %w", err)
 	}
-	if status != gameTypes.GameStatusInProgress {
+	// Withdrawal proofs against a game the challenger won are invalidated and must be deleted. That
+	// is done by ProgressGame, on a worker thread, so the game L1 head is loaded here to scan from.
+	deleteWithdrawals := withdrawalDeleter != nil && status == gameTypes.GameStatusChallengerWon
+	resolved := status != gameTypes.GameStatusInProgress
+	if resolved {
 		logger.Info("Game already resolved", "status", status)
-		// Game is already complete so skip creating the trace provider, loading game inputs etc.
-		return &GamePlayer{
-			logger:             logger,
-			loader:             loader,
-			prestateValidators: validators,
-			status:             status,
-			// Act function does nothing because the game is already complete
-			actor: &actNoop{},
-		}, nil
+		if !deleteWithdrawals {
+			// Game is already complete so skip creating the trace provider, loading game inputs etc.
+			return &GamePlayer{
+				logger:             logger,
+				loader:             loader,
+				prestateValidators: validators,
+				status:             status,
+				done:               true,
+				// Act function does nothing because the game is already complete
+				actor: &actNoop{},
+			}, nil
+		}
 	}
 	l1HeadHash, err := loader.GetL1Head(ctx)
 	if err != nil {
@@ -84,20 +108,29 @@ func NewGenericGamePlayer(
 	}
 	l1Head := l1Header.ID()
 
-	actor, err := createActor(ctx, logger, l1Head)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create actor: %w", err)
-	}
-
-	return &GamePlayer{
-		actor:              actor,
+	player := &GamePlayer{
+		addr:               addr,
 		loader:             loader,
 		logger:             logger,
 		status:             status,
 		gameL1Head:         l1Head,
 		syncValidator:      syncValidator,
 		prestateValidators: validators,
-	}, nil
+		withdrawals:        withdrawalDeleter,
+		withdrawalScanFrom: l1Head.Number,
+		done:               !deleteWithdrawals,
+	}
+	if resolved {
+		// Skip creating the trace provider, loading game inputs etc. The actor is left unset because
+		// a resolved game is never acted on.
+		return player, nil
+	}
+	actor, err := createActor(ctx, logger, l1Head)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create actor: %w", err)
+	}
+	player.actor = actor
+	return player, nil
 }
 
 func (g *GamePlayer) ValidatePrestate(ctx context.Context) error {
@@ -113,18 +146,24 @@ func (g *GamePlayer) Status() gameTypes.GameStatus {
 	return g.status
 }
 
-func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
+// Done reports whether the game requires no further work beyond its current status.
+func (g *GamePlayer) Done() bool {
+	return g.done
+}
+
+func (g *GamePlayer) ProgressGame(ctx context.Context, l1Head eth.BlockID) (gameTypes.GameStatus, bool) {
 	if g.status != gameTypes.GameStatusInProgress {
-		// Game is already complete so don't try to perform further actions.
+		// Game is already complete so the only outstanding work is deleting invalidated withdrawals.
 		g.logger.Trace("Skipping completed game")
-		return g.status
+		g.onResolved(ctx, l1Head)
+		return g.status, g.done
 	}
 	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); errors.Is(err, gameTypes.ErrNotInSync) {
 		g.logger.Warn("Local node not sufficiently up to date", "err", err)
-		return g.status
+		return g.status, g.done
 	} else if err != nil {
 		g.logger.Error("Could not check local node was in sync", "err", err)
-		return g.status
+		return g.status, g.done
 	}
 	g.logger.Trace("Checking if actions are required")
 	if err := g.actor.Act(ctx); err != nil {
@@ -133,15 +172,38 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 	status, err := g.loader.GetStatus(ctx)
 	if err != nil {
 		g.logger.Error("Unable to retrieve game status", "err", err)
-		return gameTypes.GameStatusInProgress
+		return gameTypes.GameStatusInProgress, g.done
 	}
 	g.logGameStatus(ctx, status)
 	g.status = status
 	if status != gameTypes.GameStatusInProgress {
-		// Release the agent as we will no longer need to act on this game.
+		g.onResolved(ctx, l1Head)
+	}
+	return status, g.done
+}
+
+// onResolved deletes any withdrawal proofs the game invalidated and, once they have all been
+// deleted, releases the actor as the game will never need to be acted on again.
+func (g *GamePlayer) onResolved(ctx context.Context, l1Head eth.BlockID) {
+	g.done = g.deleteInvalidatedWithdrawals(ctx, l1Head)
+	if g.done {
 		g.actor = &actNoop{}
 	}
-	return status
+}
+
+func (g *GamePlayer) deleteInvalidatedWithdrawals(ctx context.Context, l1Head eth.BlockID) bool {
+	if g.withdrawals == nil || g.status != gameTypes.GameStatusChallengerWon {
+		return true
+	}
+	done, err := g.withdrawals.DeleteInvalidatedWithdrawals(ctx, g.addr, g.withdrawalScanFrom, l1Head)
+	if err != nil {
+		g.logger.Error("Failed to delete withdrawal proofs invalidated by the game", "err", err)
+		return false
+	}
+	if done {
+		g.withdrawalScanFrom = l1Head.Number + 1
+	}
+	return done
 }
 
 func (g *GamePlayer) logGameStatus(ctx context.Context, status gameTypes.GameStatus) {

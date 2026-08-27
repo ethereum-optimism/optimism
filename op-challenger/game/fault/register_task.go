@@ -227,6 +227,7 @@ func (e *RegisterTask) Register(
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
 	l1HeaderSource generic.L1HeaderSource,
+	withdrawalDeleter generic.WithdrawalDeleter,
 	selective bool,
 	claimants []common.Address,
 	responseDelay time.Duration,
@@ -284,6 +285,7 @@ func (e *RegisterTask) Register(
 			e.syncValidator,
 			validators,
 			l1HeaderSource,
+			withdrawalDeleter,
 			AgentCreator(systemClock, l1Clock, m, dir, txSender, contract, creator, selective, claimants, responseDelay, responseDelayAfter),
 		)
 	}
