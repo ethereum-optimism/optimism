@@ -56,6 +56,57 @@
         "internalType": "uint256",
         "name": "_hashOnce",
         "type": "uint256"
+      }
+    ],
+    "name": "encodeTransactionData",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "txHashData_",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract Safe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "enum Enum.Operation",
+            "name": "operation",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct UnorderedExecutionModule.ExecTransactionParams",
+        "name": "_params",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_hashOnce",
+        "type": "uint256"
       },
       {
         "internalType": "bytes",
@@ -93,6 +144,25 @@
         "internalType": "bool",
         "name": "executed_",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract Safe",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "signers",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "signers_",
+        "type": "address[]"
       }
     ],
     "stateMutability": "view",
@@ -191,7 +261,7 @@
     "inputs": [
       {
         "internalType": "bytes",
-        "name": "",
+        "name": "data",
         "type": "bytes"
       }
     ],
@@ -211,6 +281,11 @@
   {
     "inputs": [],
     "name": "UnorderedExecutionModule_ModuleNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnorderedExecutionModule_ReentrantExecution",
     "type": "error"
   },
   {

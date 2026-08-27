@@ -47,6 +47,57 @@ contract UnorderedExecutionModule_Emitter_Harness {
     }
 }
 
+/// @notice Reads the module's exposed signers during a task's call, standing in for a module
+///         guard such as the liveness guard.
+contract UnorderedExecutionModule_SignersReader_Harness {
+    IUnorderedExecutionModule internal module;
+    Safe internal safe;
+    address[] public seenSigners;
+
+    constructor(IUnorderedExecutionModule _module, Safe _safe) {
+        module = _module;
+        safe = _safe;
+    }
+
+    function record() external {
+        address[] memory signers = module.signers(safe);
+        for (uint256 i; i < signers.length; i++) {
+            seenSigners.push(signers[i]);
+        }
+    }
+
+    function seenSignersLength() external view returns (uint256) {
+        return seenSigners.length;
+    }
+}
+
+/// @notice Attempts to re-enter execute() for the same Safe from within a task's call and
+///         records the inner revert reason.
+contract UnorderedExecutionModule_Reenterer_Harness {
+    IUnorderedExecutionModule internal module;
+    Safe internal safe;
+    bytes4 public innerRevertSelector;
+
+    constructor(IUnorderedExecutionModule _module, Safe _safe) {
+        module = _module;
+        safe = _safe;
+    }
+
+    function reenter(
+        IUnorderedExecutionModule.ExecTransactionParams calldata _params,
+        uint256 _hashOnce,
+        bytes calldata _signatures
+    )
+        external
+    {
+        try module.execute(safe, _params, _hashOnce, _signatures) returns (bytes memory) {
+            innerRevertSelector = 0xffffffff;
+        } catch (bytes memory err) {
+            innerRevertSelector = bytes4(err);
+        }
+    }
+}
+
 /// @title UnorderedExecutionModule_TestInit
 /// @notice Reusable test initialization for `UnorderedExecutionModule` tests.
 abstract contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
@@ -208,16 +259,15 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
 
     /// @notice Transactions can carry ETH value from the Safe.
     function test_execute_withValue_succeeds() external {
-        address recipient = makeAddr("recipient");
-        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(0);
-        params.to = recipient;
+        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(8);
         params.value = 1 ether;
-        params.data = "";
         bytes memory sigs = _signTx(params, HASH_ONCE);
 
         module.execute(safe, params, HASH_ONCE, sigs);
 
-        assertEq(recipient.balance, 1 ether);
+        assertEq(target.value(), 8);
+        assertEq(target.lastMsgValue(), 1 ether);
+        assertEq(address(target).balance, 1 ether);
         assertEq(address(safe).balance, SAFE_BALANCE - 1 ether);
     }
 
@@ -286,10 +336,7 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
         IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(21);
 
         // The child Safe signs the parent Safe's encoded transaction data as a Safe message.
-        bytes memory txHashData = parentSafe.encodeTransactionData(
-            params.to, params.value, params.data, params.operation, 0, 0, 0, address(0), address(0), HASH_ONCE
-        );
-        SafeTestLib.EIP1271Sign(childInstance, txHashData);
+        SafeTestLib.EIP1271Sign(childInstance, module.encodeTransactionData(parentSafe, params, HASH_ONCE));
 
         // Contract signature: r = child Safe address, s = offset of the (empty) dynamic part,
         // v = 0.
@@ -300,6 +347,28 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
         module.execute(parentSafe, params, HASH_ONCE, sigs);
         assertEq(target.value(), 21);
         assertEq(target.lastSender(), address(parentSafe));
+    }
+
+    /// @notice The approving signers are exposed via signers() during the task's call — as a
+    ///         module guard like the liveness guard would read them — and cleared afterwards.
+    function test_execute_signersExposedDuringCall_succeeds() external {
+        UnorderedExecutionModule_SignersReader_Harness reader =
+            new UnorderedExecutionModule_SignersReader_Harness(module, safe);
+
+        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(0);
+        params.to = address(reader);
+        params.data = abi.encodeCall(UnorderedExecutionModule_SignersReader_Harness.record, ());
+        module.execute(safe, params, HASH_ONCE, _signTx(params, HASH_ONCE));
+
+        // The reader saw exactly the threshold of signers that authorized the task, in the
+        // ascending owner order the signatures were supplied in.
+        assertEq(reader.seenSignersLength(), THRESHOLD);
+        for (uint256 i; i < THRESHOLD; i++) {
+            assertEq(reader.seenSigners(i), safeInstance.owners[i]);
+        }
+
+        // The exposed signers are cleared once execution completes.
+        assertEq(module.signers(safe).length, 0);
     }
 
     /// @notice The smallest allowed hash-once value is accepted.
@@ -361,6 +430,38 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
         vm.expectRevert(IUnorderedExecutionModule.UnorderedExecutionModule_HashOnceAlreadyUsed.selector);
         module.execute(safe, params, HASH_ONCE, sigs);
         assertEq(target.value(), 0);
+    }
+
+    /// @notice A task's call cannot re-enter execute() for the same Safe, so the signers
+    ///         exposed for the outer transaction survive its whole call.
+    function test_execute_reentrantExecution_reverts() external {
+        UnorderedExecutionModule_Reenterer_Harness reenterer =
+            new UnorderedExecutionModule_Reenterer_Harness(module, safe);
+
+        // The inner task the outer task will attempt to execute reentrantly.
+        IUnorderedExecutionModule.ExecTransactionParams memory innerParams = _makeParams(5);
+        uint256 innerHashOnce = uint256(keccak256("task: inner"));
+        bytes memory innerSigs = _signTx(innerParams, innerHashOnce);
+
+        // The outer task calls the reenterer, which attempts the inner execution.
+        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(0);
+        params.to = address(reenterer);
+        params.data =
+            abi.encodeCall(UnorderedExecutionModule_Reenterer_Harness.reenter, (innerParams, innerHashOnce, innerSigs));
+        module.execute(safe, params, HASH_ONCE, _signTx(params, HASH_ONCE));
+
+        // The inner execution reverted with ReentrantExecution and consumed nothing.
+        assertEq(
+            reenterer.innerRevertSelector(),
+            IUnorderedExecutionModule.UnorderedExecutionModule_ReentrantExecution.selector
+        );
+        assertTrue(module.executed(safe, HASH_ONCE));
+        assertFalse(module.executed(safe, innerHashOnce));
+        assertEq(target.value(), 0);
+
+        // The inner task executes normally once the outer transaction has completed.
+        module.execute(safe, innerParams, innerHashOnce, innerSigs);
+        assertEq(target.value(), 5);
     }
 
     /// @notice A hash-once value small enough to collide with a real Safe nonce is rejected, so
@@ -498,6 +599,21 @@ contract UnorderedExecutionModule_TransactionHash_Test is UnorderedExecutionModu
         );
     }
 
+    /// @notice The module's locally built EIP-712 encoding matches the Safe's own
+    ///         encodeTransactionData() (present through 1.4.1, removed in 1.5.0) and hashes to
+    ///         transactionHash().
+    function test_encodeTransactionData_matchesSafe_works() external view {
+        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(1);
+        bytes memory txHashData = module.encodeTransactionData(safe, params, HASH_ONCE);
+        assertEq(
+            txHashData,
+            safe.encodeTransactionData(
+                params.to, params.value, params.data, params.operation, 0, 0, 0, address(0), address(0), HASH_ONCE
+            )
+        );
+        assertEq(keccak256(txHashData), module.transactionHash(safe, params, HASH_ONCE));
+    }
+
     /// @notice The transaction hash binds the Safe address.
     function test_transactionHash_bindsSafe_works() external {
         SafeInstance memory otherInstance = _setupExtraSafe(safeInstance.ownerPKs, THRESHOLD, 105);
@@ -531,5 +647,10 @@ contract UnorderedExecutionModule_Uncategorized_Test is UnorderedExecutionModule
     /// @notice Unknown hash-once values are unconsumed.
     function test_executed_default_works() external view {
         assertFalse(module.executed(safe, uint256(123)));
+    }
+
+    /// @notice No signers are exposed outside of an execution.
+    function test_signers_default_works() external view {
+        assertEq(module.signers(safe).length, 0);
     }
 }

@@ -16,15 +16,25 @@ interface IUnorderedExecutionModule is ISemver {
     error UnorderedExecutionModule_ModuleNotEnabled();
     error UnorderedExecutionModule_HashOnceTooSmall();
     error UnorderedExecutionModule_HashOnceAlreadyUsed();
+    error UnorderedExecutionModule_ReentrantExecution();
     error UnorderedExecutionModule_UnsupportedSafe();
-    error UnorderedExecutionModule_ExecutionFailed(bytes);
+    error UnorderedExecutionModule_ExecutionFailed(bytes data);
 
     event TransactionExecuted(Safe indexed safe, bytes32 indexed txHash, uint256 indexed hashOnce);
 
     function version() external view returns (string memory);
     function __constructor__() external;
     function executed(Safe _safe, uint256 _hashOnce) external view returns (bool executed_);
+    function signers(Safe _safe) external view returns (address[] memory signers_);
     function deriveHashOnce(string memory _input) external pure returns (uint256 hashOnce_);
+    function encodeTransactionData(
+        Safe _safe,
+        ExecTransactionParams calldata _params,
+        uint256 _hashOnce
+    )
+        external
+        view
+        returns (bytes memory txHashData_);
     function transactionHash(
         Safe _safe,
         ExecTransactionParams calldata _params,
