@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -59,7 +58,7 @@ type coordinator struct {
 // To avoid deadlock, it may process results from the inbound resultQueue while adding jobs to the outbound jobQueue.
 // Returns an error if a game couldn't be scheduled because of an error. It will continue attempting to progress
 // all games even if an error occurs with one game.
-func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, block eth.BlockID) error {
+func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, blockNumber uint64) error {
 	// First remove any game states we no longer require
 	for addr, state := range c.states {
 		if !state.inflight && !slices.ContainsFunc(games, func(candidate types.GameMetadata) bool {
@@ -78,7 +77,7 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, 
 	// Otherwise, results may start being processed before all games are recorded, resulting in existing
 	// data directories potentially being deleted for games that are required.
 	for _, game := range games {
-		if j, err := c.createJob(ctx, game, block); err != nil {
+		if j, err := c.createJob(ctx, game, blockNumber); err != nil {
 			errs = append(errs, fmt.Errorf("failed to create job for game %v: %w", game.Proxy, err))
 		} else if j != nil {
 			jobs = append(jobs, *j)
@@ -100,11 +99,11 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, 
 	}
 	c.m.RecordGamesStatus(gamesInProgress, gamesDefenderWon, gamesChallengerWon)
 
-	lowestProcessedBlockNum := block.Number
+	lowestProcessedBlockNum := blockNumber
 	for _, state := range c.states {
 		lowestProcessedBlockNum = min(lowestProcessedBlockNum, state.lastProcessedBlockNum)
 	}
-	c.lastScheduledBlockNum = block.Number
+	c.lastScheduledBlockNum = blockNumber
 	c.m.RecordActedL1Block(lowestProcessedBlockNum)
 
 	// Finally, enqueue the jobs
@@ -118,7 +117,7 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, 
 
 // createJob updates the state for the specified game and returns the job to enqueue for it, if any
 // Returns (nil, nil) when there is no error and no job to enqueue
-func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, block eth.BlockID) (*job, error) {
+func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, blockNumber uint64) (*job, error) {
 	state, ok := c.states[game.Proxy]
 	if !ok {
 		// This is the first time we're seeing this game, so its last processed block
@@ -148,11 +147,11 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, bl
 	}
 	if state.status != types.GameStatusInProgress && state.done {
 		c.logger.Debug("Not rescheduling resolved game", "game", game.Proxy, "status", state.status)
-		state.lastProcessedBlockNum = block.Number
+		state.lastProcessedBlockNum = blockNumber
 		return nil, nil
 	}
 	state.inflight = true
-	return newJob(block, game.Proxy, state.player, state.status), nil
+	return newJob(blockNumber, game.Proxy, state.player, state.status), nil
 }
 
 func (c *coordinator) enqueueJob(ctx context.Context, j job) error {
@@ -178,7 +177,7 @@ func (c *coordinator) processResult(j job) error {
 	state.inflight = false
 	state.status = j.status
 	state.done = j.done
-	state.lastProcessedBlockNum = j.block.Number
+	state.lastProcessedBlockNum = j.block
 	c.deleteResolvedGameFiles()
 	c.m.RecordGameUpdateCompleted()
 	return nil

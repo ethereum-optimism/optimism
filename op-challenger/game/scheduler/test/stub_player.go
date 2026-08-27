@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -21,7 +20,7 @@ func (g *StubGamePlayer) ValidatePrestate(_ context.Context) error {
 	return g.PrestateErr
 }
 
-func (g *StubGamePlayer) ProgressGame(_ context.Context, _ eth.BlockID) (types.GameStatus, bool) {
+func (g *StubGamePlayer) ProgressGame(_ context.Context, _ uint64) (types.GameStatus, bool) {
 	g.ProgressCount++
 	return g.StatusValue, g.DoneValue
 }

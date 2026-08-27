@@ -124,7 +124,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 	addr2 := common.Address{0xbb}
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), blockID(0)))
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
 
 	require.Len(t, sched.Scheduled(), 1)
 	require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled()[0])
@@ -136,7 +136,7 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	monitor, source, sched, _, _, stubClaimer := setupMonitorTest(t, []common.Address{addr2}, 0)
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), blockID(0)))
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
 
 	require.Len(t, sched.Scheduled(), 1)
 	require.Equal(t, []common.Address{addr2}, sched.Scheduled()[0])
@@ -209,7 +209,7 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 			source.games = []types.GameMetadata{game}
 			const blockNumber = uint64(123)
 
-			require.NoError(t, monitor.progressGames(context.Background(), blockID(blockNumber)))
+			require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, blockNumber))
 
 			require.Len(t, lifecycle.scheduledBatches, 1)
 			require.Equal(t, blockNumber, lifecycle.scheduledBatches[0].blockNumber)
@@ -222,8 +222,6 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 			}
 
 			require.Len(t, playable.Scheduled(), 1)
-			require.Equal(t, []eth.BlockID{blockID(blockNumber)}, playable.Blocks(),
-				"should schedule against the full L1 block so reads can be pinned by hash")
 			if test.expectPlayable {
 				require.Equal(t, []common.Address{gameAddr}, playable.Scheduled()[0])
 			} else {
@@ -270,7 +268,7 @@ func TestMonitorProgressGamesPreservesIndependentBatchOrder(t *testing.T) {
 	}
 	const blockNumber = uint64(456)
 
-	require.NoError(t, monitor.progressGames(context.Background(), blockID(blockNumber)))
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, blockNumber))
 
 	require.Equal(t, []scheduledClaimBatch{{
 		blockNumber: blockNumber,
@@ -348,10 +346,6 @@ func newTypedFDG(proxy common.Address, timestamp uint64, gameType types.GameType
 		GameType:  uint32(gameType),
 		Timestamp: timestamp,
 	}
-}
-
-func blockID(num uint64) eth.BlockID {
-	return eth.BlockID{Hash: common.BigToHash(new(big.Int).SetUint64(num)), Number: num}
 }
 
 func setupMonitorTest(
@@ -474,7 +468,6 @@ func (s *stubGameSource) GetGamesAtOrAfter(
 type stubScheduler struct {
 	sync.Mutex
 	scheduled [][]common.Address
-	blocks    []eth.BlockID
 }
 
 func (s *stubScheduler) Scheduled() [][]common.Address {
@@ -483,13 +476,7 @@ func (s *stubScheduler) Scheduled() [][]common.Address {
 	return s.scheduled
 }
 
-func (s *stubScheduler) Blocks() []eth.BlockID {
-	s.Lock()
-	defer s.Unlock()
-	return s.blocks
-}
-
-func (s *stubScheduler) Schedule(games []types.GameMetadata, block eth.BlockID) error {
+func (s *stubScheduler) Schedule(games []types.GameMetadata, blockNumber uint64) error {
 	s.Lock()
 	defer s.Unlock()
 	var addrs []common.Address
@@ -497,7 +484,6 @@ func (s *stubScheduler) Schedule(games []types.GameMetadata, block eth.BlockID) 
 		addrs = append(addrs, game.Proxy)
 	}
 	s.scheduled = append(s.scheduled, addrs)
-	s.blocks = append(s.blocks, block)
 	return nil
 }
 

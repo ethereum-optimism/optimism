@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -24,8 +23,8 @@ type SchedulerMetricer interface {
 }
 
 type blockGames struct {
-	block eth.BlockID
-	games []types.GameMetadata
+	blockNumber uint64
+	games       []types.GameMetadata
 }
 
 type Scheduler struct {
@@ -91,9 +90,9 @@ func (s *Scheduler) Close() error {
 	return nil
 }
 
-func (s *Scheduler) Schedule(games []types.GameMetadata, block eth.BlockID) error {
+func (s *Scheduler) Schedule(games []types.GameMetadata, blockNumber uint64) error {
 	select {
-	case s.scheduleQueue <- blockGames{block: block, games: games}:
+	case s.scheduleQueue <- blockGames{blockNumber: blockNumber, games: games}:
 		return nil
 	default:
 		return ErrBusy
@@ -107,7 +106,7 @@ func (s *Scheduler) loop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case blockGames := <-s.scheduleQueue:
-			if err := s.coordinator.schedule(ctx, blockGames.games, blockGames.block); err != nil {
+			if err := s.coordinator.schedule(ctx, blockGames.games, blockGames.blockNumber); err != nil {
 				s.logger.Error("Failed to schedule game updates", "err", err)
 			}
 		case j := <-s.resultQueue:

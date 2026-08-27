@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -27,10 +26,6 @@ var (
 	gameL1Head    = uint64(100)
 )
 
-func l1Head(num uint64) eth.BlockID {
-	return eth.BlockID{Hash: common.BigToHash(new(big.Int).SetUint64(num)), Number: num}
-}
-
 func TestDeleter_DeletesProofsAgainstChallengerWinGame(t *testing.T) {
 	deleter, portal, l1, sender, m := setupDeleterTest(t)
 	proofs := l1.proofs(3)
@@ -38,14 +33,14 @@ func TestDeleter_DeletesProofsAgainstChallengerWinGame(t *testing.T) {
 	portal.record(proofs[1], gameAddr, 2)
 	portal.record(proofs[2], gameAddr, 3)
 
-	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, 200)
 	require.NoError(t, err)
 	require.True(t, done)
 
 	require.Equal(t, proofs, sender.sent)
 	require.Equal(t, 3, m.deleted)
-	require.Equal(t, []rpcblock.Block{rpcblock.ByHash(l1Head(200).Hash)}, portal.reads,
-		"should pin the portal read to the L1 head")
+	require.Equal(t, []rpcblock.Block{rpcblock.Latest}, portal.reads,
+		"should read at latest to match the game status the caller acted on")
 }
 
 func TestDeleter_IgnoresProofsAgainstOtherGames(t *testing.T) {
@@ -54,7 +49,7 @@ func TestDeleter_IgnoresProofsAgainstOtherGames(t *testing.T) {
 	portal.record(proofs[0], otherGameAddr, 1)
 	portal.record(proofs[1], gameAddr, 2)
 
-	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, 200)
 	require.NoError(t, err)
 	require.True(t, done)
 
@@ -67,7 +62,7 @@ func TestDeleter_SkipsAlreadyDeletedProofs(t *testing.T) {
 	portal.record(proofs[0], gameAddr, 0)
 	portal.record(proofs[1], gameAddr, 0)
 
-	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, 200)
 	require.NoError(t, err)
 	require.True(t, done)
 
@@ -84,7 +79,7 @@ func TestDeleter_TruncatesAtCapAndRescansUntilComplete(t *testing.T) {
 		portal.record(proof, gameAddr, uint64(i+1))
 	}
 
-	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, 200)
 	require.NoError(t, err)
 	require.False(t, done, "should report the remaining proofs as outstanding")
 	require.Equal(t, proofs[:maxDeletesPerGame], sender.sent)
@@ -97,7 +92,7 @@ func TestDeleter_TruncatesAtCapAndRescansUntilComplete(t *testing.T) {
 		portal.record(proof, gameAddr, 0)
 	}
 	sender.sent = nil
-	done, err = deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	done, err = deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, 200)
 	require.NoError(t, err)
 	require.True(t, done)
 	require.Equal(t, proofs[maxDeletesPerGame:], sender.sent)
@@ -107,7 +102,7 @@ func TestDeleter_TruncatesAtCapAndRescansUntilComplete(t *testing.T) {
 func TestDeleter_ScansOnlyTheRequestedRange(t *testing.T) {
 	deleter, _, l1, _, _ := setupDeleterTest(t)
 
-	_, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, 201, l1Head(300))
+	_, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, 201, 300)
 	require.NoError(t, err)
 
 	require.Equal(t, []uint64{201}, l1.queries)
@@ -117,7 +112,7 @@ func TestDeleter_ScansOnlyTheRequestedRange(t *testing.T) {
 func TestDeleter_RescansAfterL1Reorg(t *testing.T) {
 	deleter, _, l1, _, _ := setupDeleterTest(t)
 
-	_, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, 201, l1Head(150))
+	_, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, 201, 150)
 	require.NoError(t, err)
 
 	require.Equal(t, []uint64{150}, l1.queries, "should rescan from the new head")
@@ -129,7 +124,7 @@ func TestDeleter_ReportsSendFailures(t *testing.T) {
 	portal.record(proofs[0], gameAddr, 1)
 	sender.err = errors.New("boom")
 
-	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, l1Head(200))
+	done, err := deleter.DeleteInvalidatedWithdrawals(context.Background(), gameAddr, gameL1Head, 200)
 	require.ErrorIs(t, err, sender.err)
 	require.False(t, done)
 	require.Zero(t, m.deleted)

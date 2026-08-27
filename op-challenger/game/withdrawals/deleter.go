@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -55,9 +54,9 @@ func NewDeleter(logger log.Logger, m DeleterMetrics, portal Portal, l1 L1Client,
 
 // DeleteInvalidatedWithdrawals deletes the withdrawal proofs the portal still records against game,
 // which the challenger winning game has invalidated. Proofs proven from scanFrom up to and including
-// l1Head are considered. It reports whether every invalidated proof has now been deleted.
-func (d *Deleter) DeleteInvalidatedWithdrawals(ctx context.Context, game common.Address, scanFrom uint64, l1Head eth.BlockID) (bool, error) {
-	done, err := d.deleteForGame(ctx, game, scanFrom, l1Head)
+// toBlock are considered. It reports whether every invalidated proof has now been deleted.
+func (d *Deleter) DeleteInvalidatedWithdrawals(ctx context.Context, game common.Address, scanFrom uint64, toBlock uint64) (bool, error) {
+	done, err := d.deleteForGame(ctx, game, scanFrom, toBlock)
 	if err != nil {
 		d.metrics.RecordWithdrawalDeletionFailed()
 		return false, err
@@ -65,12 +64,13 @@ func (d *Deleter) DeleteInvalidatedWithdrawals(ctx context.Context, game common.
 	return done, nil
 }
 
-func (d *Deleter) deleteForGame(ctx context.Context, game common.Address, scanFrom uint64, l1Head eth.BlockID) (bool, error) {
-	proofs, err := d.proofs(ctx, scanFrom, l1Head.Number)
+func (d *Deleter) deleteForGame(ctx context.Context, game common.Address, scanFrom uint64, toBlock uint64) (bool, error) {
+	proofs, err := d.proofs(ctx, scanFrom, toBlock)
 	if err != nil {
 		return false, err
 	}
-	invalidated, err := d.invalidated(ctx, game, rpcblock.ByHash(l1Head.Hash), proofs)
+	// Read at latest to match the game status the caller acted on, which is also read at latest.
+	invalidated, err := d.invalidated(ctx, game, rpcblock.Latest, proofs)
 	if err != nil {
 		return false, err
 	}

@@ -31,7 +31,7 @@ type RWClock interface {
 }
 
 type gameScheduler interface {
-	Schedule([]types.GameMetadata, eth.BlockID) error
+	Schedule([]types.GameMetadata, uint64) error
 }
 
 type preimageScheduler interface {
@@ -115,9 +115,9 @@ func (m *gameMonitor) configuredGameType(gameType uint32) bool {
 	return slices.Contains(m.gameTypes, types.GameType(gameType))
 }
 
-func (m *gameMonitor) progressGames(ctx context.Context, block eth.BlockID) error {
+func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {
 	minGameTimestamp := clock.MinCheckedTimestamp(m.clock, m.gameWindow)
-	games, err := m.source.GetGamesAtOrAfter(ctx, block.Hash, minGameTimestamp)
+	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, minGameTimestamp)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
@@ -145,10 +145,10 @@ func (m *gameMonitor) progressGames(ctx context.Context, block eth.BlockID) erro
 		}
 		gamesToPlay = append(gamesToPlay, game)
 	}
-	if err := m.claimer.Schedule(block.Number, gamesToClaimOrClose); err != nil {
+	if err := m.claimer.Schedule(blockNumber, gamesToClaimOrClose); err != nil {
 		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
-	if err := m.scheduler.Schedule(gamesToPlay, block); errors.Is(err, scheduler.ErrBusy) {
+	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")
 	} else if err != nil {
 		return fmt.Errorf("failed to schedule games: %w", err)
@@ -163,7 +163,7 @@ func (m *gameMonitor) onNewL1Head(ctx context.Context, block eth.L1BlockRef) {
 		return
 	}
 	m.lastUpdateBlockTime = blockTime
-	if err := m.progressGames(ctx, block.ID()); err != nil {
+	if err := m.progressGames(ctx, block.Hash, block.Number); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
 	}
 	if err := m.preimages.Schedule(block.Hash, block.Number); err != nil {

@@ -18,13 +18,13 @@ var (
 	mockValidatorError = fmt.Errorf("mock validator error")
 	gameAddr           = common.Address{0xba}
 	gameL1HeadNumber   = uint64(32)
-	currentL1Head      = eth.BlockID{Hash: common.Hash{0x2b}, Number: 64}
+	currentL1Block     = uint64(64)
 )
 
 func TestProgressGame_LogErrorFromAct(t *testing.T) {
 	handler, game, actor, _ := setupProgressGameTest(t)
 	actor.actErr = errors.New("boom")
-	status, _ := game.ProgressGame(context.Background(), currentL1Head)
+	status, _ := game.ProgressGame(context.Background(), currentL1Block)
 	require.Equal(t, types.GameStatusInProgress, status)
 	require.Equal(t, 1, actor.callCount, "should perform next actions")
 	levelFilter := testlog.NewLevelFilter(log.LevelError)
@@ -69,7 +69,7 @@ func TestProgressGame_LogGameStatus(t *testing.T) {
 			handler, game, gameState, _ := setupProgressGameTest(t)
 			gameState.status = test.status
 
-			status, _ := game.ProgressGame(context.Background(), currentL1Head)
+			status, _ := game.ProgressGame(context.Background(), currentL1Block)
 			require.Equal(t, 1, gameState.callCount, "should perform next actions")
 			require.Equal(t, test.status, status)
 			levelFilter := testlog.NewLevelFilter(log.LevelInfo)
@@ -87,13 +87,13 @@ func TestDoNotActOnCompleteGame(t *testing.T) {
 			_, game, gameState, _ := setupProgressGameTest(t)
 			gameState.status = status
 
-			fetched, done := game.ProgressGame(context.Background(), currentL1Head)
+			fetched, done := game.ProgressGame(context.Background(), currentL1Block)
 			require.Equal(t, 1, gameState.callCount, "acts the first time")
 			require.Equal(t, status, fetched)
 			require.True(t, done)
 
 			// Should not act when it knows the game is already complete
-			fetched, _ = game.ProgressGame(context.Background(), currentL1Head)
+			fetched, _ = game.ProgressGame(context.Background(), currentL1Block)
 			require.Equal(t, 1, gameState.callCount, "does not act after game is complete")
 			require.Equal(t, status, fetched)
 
@@ -113,10 +113,10 @@ func TestDeleteInvalidatedWithdrawalsBeforeReleasingActor(t *testing.T) {
 	var actorAtDelete Actor
 	deleter.onDelete = func() { actorAtDelete = game.actor }
 
-	status, done := game.ProgressGame(context.Background(), currentL1Head)
+	status, done := game.ProgressGame(context.Background(), currentL1Block)
 	require.Equal(t, types.GameStatusChallengerWon, status)
 	require.True(t, done)
-	require.Equal(t, []deleteCall{{game: gameAddr, scanFrom: gameL1HeadNumber, l1Head: currentL1Head}}, deleter.calls)
+	require.Equal(t, []deleteCall{{game: gameAddr, scanFrom: gameL1HeadNumber, toBlock: currentL1Block}}, deleter.calls)
 	require.Same(t, gameState, actorAtDelete, "should delete proofs before releasing the actor")
 	require.IsType(t, &actNoop{}, game.actor)
 }
@@ -135,14 +135,14 @@ func TestKeepActorUntilWithdrawalDeletionCompletes(t *testing.T) {
 			game.withdrawals = test.deleter
 			gameState.status = types.GameStatusChallengerWon
 
-			status, done := game.ProgressGame(context.Background(), currentL1Head)
+			status, done := game.ProgressGame(context.Background(), currentL1Block)
 			require.Equal(t, types.GameStatusChallengerWon, status)
 			require.False(t, done)
 			require.Same(t, gameState, game.actor, "should not release the actor")
 
 			// The game keeps being progressed until deletion completes
 			test.deleter.done, test.deleter.err = true, nil
-			_, done = game.ProgressGame(context.Background(), currentL1Head)
+			_, done = game.ProgressGame(context.Background(), currentL1Block)
 			require.True(t, done)
 			require.Equal(t, 1, gameState.callCount, "should not act on the resolved game")
 			require.Len(t, test.deleter.calls, 2)
@@ -160,7 +160,7 @@ func TestNoWithdrawalDeletionUnlessChallengerWon(t *testing.T) {
 			game.withdrawals = deleter
 			gameState.status = status
 
-			_, done := game.ProgressGame(context.Background(), currentL1Head)
+			_, done := game.ProgressGame(context.Background(), currentL1Block)
 			require.True(t, done)
 			require.Empty(t, deleter.calls)
 		})
@@ -171,7 +171,7 @@ func TestNoWithdrawalDeleterIsNoOp(t *testing.T) {
 	_, game, gameState, _ := setupProgressGameTest(t)
 	gameState.status = types.GameStatusChallengerWon
 
-	status, done := game.ProgressGame(context.Background(), currentL1Head)
+	status, done := game.ProgressGame(context.Background(), currentL1Block)
 	require.Equal(t, types.GameStatusChallengerWon, status)
 	require.True(t, done)
 	require.IsType(t, &actNoop{}, game.actor)
@@ -210,11 +210,11 @@ func TestNewGamePlayer_AlreadyResolvedGame(t *testing.T) {
 func TestValidateLocalNodeSync(t *testing.T) {
 	_, game, gameState, syncValidator := setupProgressGameTest(t)
 
-	game.ProgressGame(context.Background(), currentL1Head)
+	game.ProgressGame(context.Background(), currentL1Block)
 	require.Equal(t, 1, gameState.callCount, "acts when in sync")
 
 	syncValidator.result = errors.New("boom")
-	game.ProgressGame(context.Background(), currentL1Head)
+	game.ProgressGame(context.Background(), currentL1Block)
 	require.Equal(t, 1, gameState.callCount, "does not act when not in sync")
 }
 
@@ -277,7 +277,7 @@ func (m *mockValidator) Validate(_ context.Context) error {
 type deleteCall struct {
 	game     common.Address
 	scanFrom uint64
-	l1Head   eth.BlockID
+	toBlock  uint64
 }
 
 type stubWithdrawalDeleter struct {
@@ -287,8 +287,8 @@ type stubWithdrawalDeleter struct {
 	onDelete func()
 }
 
-func (s *stubWithdrawalDeleter) DeleteInvalidatedWithdrawals(_ context.Context, game common.Address, scanFrom uint64, l1Head eth.BlockID) (bool, error) {
-	s.calls = append(s.calls, deleteCall{game: game, scanFrom: scanFrom, l1Head: l1Head})
+func (s *stubWithdrawalDeleter) DeleteInvalidatedWithdrawals(_ context.Context, game common.Address, scanFrom uint64, toBlock uint64) (bool, error) {
+	s.calls = append(s.calls, deleteCall{game: game, scanFrom: scanFrom, toBlock: toBlock})
 	if s.onDelete != nil {
 		s.onDelete()
 	}

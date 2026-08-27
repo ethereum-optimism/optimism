@@ -33,8 +33,8 @@ type L1HeaderSource interface {
 // win. It is nil unless the OptimismPortal address is configured.
 type WithdrawalDeleter interface {
 	// DeleteInvalidatedWithdrawals deletes the proofs against game that were proven from scanFrom up
-	// to and including l1Head, reporting whether every invalidated proof has now been deleted.
-	DeleteInvalidatedWithdrawals(ctx context.Context, game common.Address, scanFrom uint64, l1Head eth.BlockID) (bool, error)
+	// to and including toBlock, reporting whether every invalidated proof has now been deleted.
+	DeleteInvalidatedWithdrawals(ctx context.Context, game common.Address, scanFrom uint64, toBlock uint64) (bool, error)
 }
 
 type ActorCreator func(ctx context.Context, logger log.Logger, l1Head eth.BlockID) (Actor, error)
@@ -153,11 +153,11 @@ func (g *GamePlayer) Done() bool {
 	return g.done
 }
 
-func (g *GamePlayer) ProgressGame(ctx context.Context, l1Head eth.BlockID) (gameTypes.GameStatus, bool) {
+func (g *GamePlayer) ProgressGame(ctx context.Context, l1BlockNumber uint64) (gameTypes.GameStatus, bool) {
 	if g.status != gameTypes.GameStatusInProgress {
 		// Game is already complete so the only outstanding work is deleting invalidated withdrawals.
 		g.logger.Trace("Skipping completed game")
-		g.onResolved(ctx, l1Head)
+		g.onResolved(ctx, l1BlockNumber)
 		return g.status, g.done
 	}
 	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); errors.Is(err, gameTypes.ErrNotInSync) {
@@ -179,31 +179,31 @@ func (g *GamePlayer) ProgressGame(ctx context.Context, l1Head eth.BlockID) (game
 	g.logGameStatus(ctx, status)
 	g.status = status
 	if status != gameTypes.GameStatusInProgress {
-		g.onResolved(ctx, l1Head)
+		g.onResolved(ctx, l1BlockNumber)
 	}
 	return status, g.done
 }
 
 // onResolved deletes any withdrawal proofs the game invalidated and, once they have all been
 // deleted, releases the actor as the game will never need to be acted on again.
-func (g *GamePlayer) onResolved(ctx context.Context, l1Head eth.BlockID) {
-	g.done = g.deleteInvalidatedWithdrawals(ctx, l1Head)
+func (g *GamePlayer) onResolved(ctx context.Context, l1BlockNumber uint64) {
+	g.done = g.deleteInvalidatedWithdrawals(ctx, l1BlockNumber)
 	if g.done {
 		g.actor = &actNoop{}
 	}
 }
 
-func (g *GamePlayer) deleteInvalidatedWithdrawals(ctx context.Context, l1Head eth.BlockID) bool {
+func (g *GamePlayer) deleteInvalidatedWithdrawals(ctx context.Context, l1BlockNumber uint64) bool {
 	if g.withdrawals == nil || g.status != gameTypes.GameStatusChallengerWon {
 		return true
 	}
-	done, err := g.withdrawals.DeleteInvalidatedWithdrawals(ctx, g.addr, g.withdrawalScanFrom, l1Head)
+	done, err := g.withdrawals.DeleteInvalidatedWithdrawals(ctx, g.addr, g.withdrawalScanFrom, l1BlockNumber)
 	if err != nil {
 		g.logger.Error("Failed to delete withdrawal proofs invalidated by the game", "err", err)
 		return false
 	}
 	if done {
-		g.withdrawalScanFrom = l1Head.Number + 1
+		g.withdrawalScanFrom = l1BlockNumber + 1
 	}
 	return done
 }
