@@ -52,7 +52,7 @@ contract UnorderedExecutionModule_Emitter_Harness {
 abstract contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
-    event TransactionExecuted(address indexed safe, bytes32 indexed txHash);
+    event TransactionExecuted(address indexed safe, bytes32 indexed txHash, uint256 indexed hashOnce);
     event Emitted(address self);
 
     uint256 internal constant INIT_TIME = 1_000_000;
@@ -109,12 +109,7 @@ abstract contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
             to: address(target),
             value: 0,
             data: abi.encodeCall(UnorderedExecutionModule_Target_Harness.setValue, (_value)),
-            operation: Enum.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0))
+            operation: Enum.Operation.Call
         });
     }
 
@@ -155,7 +150,7 @@ abstract contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
 contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestInit {
     using SafeTestLib for SafeInstance;
 
-    /// @notice A signed transaction executes the call, is marked executed, and emits
+    /// @notice A signed transaction executes the call, consumes the hash-once value, and emits
     ///         TransactionExecuted.
     function test_execute_succeeds() external {
         IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(42);
@@ -163,12 +158,12 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
         bytes32 txHash = module.transactionHash(safe, params, HASH_ONCE);
 
         vm.expectEmit(address(module));
-        emit TransactionExecuted(address(safe), txHash);
+        emit TransactionExecuted(address(safe), txHash, HASH_ONCE);
         module.execute(safe, params, HASH_ONCE, sigs);
 
         assertEq(target.value(), 42);
         assertEq(target.lastSender(), address(safe));
-        assertTrue(module.executed(safe, txHash));
+        assertTrue(module.executed(safe, HASH_ONCE));
     }
 
     /// @notice Transactions execute in any order relative to the order they were signed in, and
@@ -247,8 +242,6 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
         uint256 hashOnce1 = uint256(keccak256("task: first run"));
         uint256 hashOnce2 = uint256(keccak256("task: second run"));
 
-        assertTrue(module.transactionHash(safe, params, hashOnce1) != module.transactionHash(safe, params, hashOnce2));
-
         module.execute(safe, params, hashOnce1, _signTx(params, hashOnce1));
         module.execute(safe, params, hashOnce2, _signTx(params, hashOnce2));
         assertEq(target.value(), 5);
@@ -294,16 +287,7 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
 
         // The child Safe signs the parent Safe's encoded transaction data as a Safe message.
         bytes memory txHashData = parentSafe.encodeTransactionData(
-            params.to,
-            params.value,
-            params.data,
-            params.operation,
-            params.safeTxGas,
-            params.baseGas,
-            params.gasPrice,
-            params.gasToken,
-            params.refundReceiver,
-            HASH_ONCE
+            params.to, params.value, params.data, params.operation, 0, 0, 0, address(0), address(0), HASH_ONCE
         );
         SafeTestLib.EIP1271Sign(childInstance, txHashData);
 
@@ -318,15 +302,6 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
         assertEq(target.lastSender(), address(parentSafe));
     }
 
-    /// @notice A Safe reporting version 1.3.0 is accepted.
-    function test_execute_safeVersion130_succeeds() external {
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(address(safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.3.0"));
-        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(9);
-        module.execute(safe, params, HASH_ONCE, _signTx(params, HASH_ONCE));
-        assertEq(target.value(), 9);
-    }
-
     /// @notice The smallest allowed hash-once value is accepted.
     function test_execute_hashOnceAtBoundary_succeeds() external {
         uint256 hashOnce = uint256(type(uint128).max) + 1;
@@ -335,32 +310,24 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
         assertEq(target.value(), 4);
     }
 
-    /// @notice A transaction with a signed safeTxGas executes when enough gas is supplied.
-    function test_execute_safeTxGasSatisfied_succeeds() external {
-        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(13);
-        params.safeTxGas = 100_000;
-        module.execute(safe, params, HASH_ONCE, _signTx(params, HASH_ONCE));
-        assertEq(target.value(), 13);
-    }
-
-    /// @notice A failed transaction reverts, remains unexecuted, and can be retried.
+    /// @notice A failed transaction reverts, leaves the hash-once value unconsumed, and can be
+    ///         retried.
     function test_execute_retryAfterFailure_succeeds() external {
         IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(0);
         params.data = abi.encodeCall(UnorderedExecutionModule_Target_Harness.conditionalRevert, ());
         bytes memory sigs = _signTx(params, HASH_ONCE);
-        bytes32 txHash = module.transactionHash(safe, params, HASH_ONCE);
 
         target.setShouldRevert(true);
         vm.expectPartialRevert(IUnorderedExecutionModule.UnorderedExecutionModule_ExecutionFailed.selector);
         module.execute(safe, params, HASH_ONCE, sigs);
 
-        // The failed execution left the transaction unexecuted.
-        assertFalse(module.executed(safe, txHash));
+        // The failed execution left the hash-once value unconsumed.
+        assertFalse(module.executed(safe, HASH_ONCE));
 
         // The same signatures work once the call can succeed.
         target.setShouldRevert(false);
         module.execute(safe, params, HASH_ONCE, sigs);
-        assertTrue(module.executed(safe, txHash));
+        assertTrue(module.executed(safe, HASH_ONCE));
     }
 
     /// @notice A transaction cannot be executed twice with the same signatures.
@@ -370,8 +337,30 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
 
         module.execute(safe, params, HASH_ONCE, sigs);
 
-        vm.expectRevert(IUnorderedExecutionModule.UnorderedExecutionModule_AlreadyExecuted.selector);
+        vm.expectRevert(IUnorderedExecutionModule.UnorderedExecutionModule_HashOnceAlreadyUsed.selector);
         module.execute(safe, params, HASH_ONCE, sigs);
+    }
+
+    /// @notice A signed task is cancelled by executing a no-op transaction with the same
+    ///         hash-once value, which consumes it and blocks the unwanted task forever.
+    function test_execute_cancelledByNoOp_reverts() external {
+        // The unwanted task.
+        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(666);
+        bytes memory sigs = _signTx(params, HASH_ONCE);
+
+        // The no-op cancellation task, signed with the same hash-once value.
+        IUnorderedExecutionModule.ExecTransactionParams memory noOp = IUnorderedExecutionModule.ExecTransactionParams({
+            to: address(0),
+            value: 0,
+            data: "",
+            operation: Enum.Operation.Call
+        });
+        module.execute(safe, noOp, HASH_ONCE, _signTx(noOp, HASH_ONCE));
+
+        // The unwanted task can no longer be executed.
+        vm.expectRevert(IUnorderedExecutionModule.UnorderedExecutionModule_HashOnceAlreadyUsed.selector);
+        module.execute(safe, params, HASH_ONCE, sigs);
+        assertEq(target.value(), 0);
     }
 
     /// @notice A hash-once value small enough to collide with a real Safe nonce is rejected, so
@@ -386,30 +375,19 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
         module.execute(safe, params, hashOnce, sigs);
     }
 
-    /// @notice A transaction promising a gas refund is rejected, since the module pays none.
-    function test_execute_refundNotSupported_reverts() external {
+    /// @notice A Safe whose getTransactionHash() diverges from the keccak256 of its
+    ///         encodeTransactionData() is rejected.
+    function test_execute_hashSchemeMismatch_reverts() external {
         IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(1);
-        params.gasPrice = 1;
         bytes memory sigs = _signTx(params, HASH_ONCE);
 
-        vm.expectRevert(IUnorderedExecutionModule.UnorderedExecutionModule_RefundNotSupported.selector);
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(
+            address(safe), abi.encodeWithSelector(safe.getTransactionHash.selector), abi.encode(bytes32(uint256(1)))
+        );
+
+        vm.expectRevert(IUnorderedExecutionModule.UnorderedExecutionModule_UnsupportedSafe.selector);
         module.execute(safe, params, HASH_ONCE, sigs);
-    }
-
-    /// @notice A transaction cannot be executed with less gas available than its signed
-    ///         safeTxGas, so a relayer cannot consume the transaction with a partial, low-gas
-    ///         execution.
-    function test_execute_insufficientGas_reverts() external {
-        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(13);
-        params.safeTxGas = 30_000_000;
-        bytes memory sigs = _signTx(params, HASH_ONCE);
-        bytes32 txHash = module.transactionHash(safe, params, HASH_ONCE);
-
-        vm.expectRevert(IUnorderedExecutionModule.UnorderedExecutionModule_InsufficientGas.selector);
-        module.execute{ gas: 1_000_000 }(safe, params, HASH_ONCE, sigs);
-
-        // The transaction remains executable with sufficient gas.
-        assertFalse(module.executed(safe, txHash));
     }
 
     /// @notice Fewer signatures than the Safe's threshold are rejected.
@@ -490,30 +468,17 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
         module.execute(otherSafe, params, HASH_ONCE, sigs);
     }
 
-    /// @notice Safes with unsupported versions are rejected.
-    function test_execute_invalidSafeVersion_reverts() external {
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(address(safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.5.0"));
-
-        IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(1);
-        bytes memory sigs = _signTx(params, HASH_ONCE);
-
-        vm.expectRevert(IUnorderedExecutionModule.UnorderedExecutionModule_InvalidSafeVersion.selector);
-        module.execute(safe, params, HASH_ONCE, sigs);
-    }
-
     /// @notice Any signed transaction with valid parameters executes.
     function testFuzz_execute_succeeds(uint256 _value, uint256 _hashOnce) external {
         _hashOnce = bound(_hashOnce, uint256(type(uint128).max) + 1, type(uint256).max);
 
         IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(_value);
         bytes memory sigs = _signTx(params, _hashOnce);
-        bytes32 txHash = module.transactionHash(safe, params, _hashOnce);
 
         module.execute(safe, params, _hashOnce, sigs);
 
         assertEq(target.value(), _value);
-        assertTrue(module.executed(safe, txHash));
+        assertTrue(module.executed(safe, _hashOnce));
     }
 }
 
@@ -521,22 +486,14 @@ contract UnorderedExecutionModule_Execute_Test is UnorderedExecutionModule_TestI
 /// @notice Tests for the `transactionHash` function.
 contract UnorderedExecutionModule_TransactionHash_Test is UnorderedExecutionModule_TestInit {
     /// @notice transactionHash() is exactly the Safe's own getTransactionHash() with the
-    ///         hash-once value in the nonce slot, so existing signing tooling works unchanged.
+    ///         hash-once value in the nonce slot and zeroed gas and refund fields, so existing
+    ///         signing tooling works unchanged.
     function test_transactionHash_matchesSafe_works() external view {
         IUnorderedExecutionModule.ExecTransactionParams memory params = _makeParams(1);
         assertEq(
             module.transactionHash(safe, params, HASH_ONCE),
             safe.getTransactionHash(
-                params.to,
-                params.value,
-                params.data,
-                params.operation,
-                params.safeTxGas,
-                params.baseGas,
-                params.gasPrice,
-                params.gasToken,
-                params.refundReceiver,
-                HASH_ONCE
+                params.to, params.value, params.data, params.operation, 0, 0, 0, address(0), address(0), HASH_ONCE
             )
         );
     }
@@ -571,8 +528,8 @@ contract UnorderedExecutionModule_Uncategorized_Test is UnorderedExecutionModule
         assertTrue(module.deriveHashOnce(input) > uint256(type(uint128).max));
     }
 
-    /// @notice Unknown transaction hashes are unexecuted.
+    /// @notice Unknown hash-once values are unconsumed.
     function test_executed_default_works() external view {
-        assertFalse(module.executed(safe, bytes32(uint256(123))));
+        assertFalse(module.executed(safe, uint256(123)));
     }
 }

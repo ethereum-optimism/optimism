@@ -46,31 +46,6 @@
             "internalType": "enum Enum.Operation",
             "name": "operation",
             "type": "uint8"
-          },
-          {
-            "internalType": "uint256",
-            "name": "safeTxGas",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "baseGas",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "gasPrice",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "gasToken",
-            "type": "address"
-          },
-          {
-            "internalType": "address payable",
-            "name": "refundReceiver",
-            "type": "address"
           }
         ],
         "internalType": "struct UnorderedExecutionModule.ExecTransactionParams",
@@ -107,9 +82,9 @@
         "type": "address"
       },
       {
-        "internalType": "bytes32",
-        "name": "_txHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "_hashOnce",
+        "type": "uint256"
       }
     ],
     "name": "executed",
@@ -151,31 +126,6 @@
             "internalType": "enum Enum.Operation",
             "name": "operation",
             "type": "uint8"
-          },
-          {
-            "internalType": "uint256",
-            "name": "safeTxGas",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "baseGas",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "gasPrice",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "gasToken",
-            "type": "address"
-          },
-          {
-            "internalType": "address payable",
-            "name": "refundReceiver",
-            "type": "address"
           }
         ],
         "internalType": "struct UnorderedExecutionModule.ExecTransactionParams",
@@ -226,20 +176,16 @@
         "internalType": "bytes32",
         "name": "txHash",
         "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "hashOnce",
+        "type": "uint256"
       }
     ],
     "name": "TransactionExecuted",
     "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "SemverComp_InvalidSemverParts",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "UnorderedExecutionModule_AlreadyExecuted",
-    "type": "error"
   },
   {
     "inputs": [
@@ -254,17 +200,12 @@
   },
   {
     "inputs": [],
+    "name": "UnorderedExecutionModule_HashOnceAlreadyUsed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "UnorderedExecutionModule_HashOnceTooSmall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "UnorderedExecutionModule_InsufficientGas",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "UnorderedExecutionModule_InvalidSafeVersion",
     "type": "error"
   },
   {
@@ -274,7 +215,7 @@
   },
   {
     "inputs": [],
-    "name": "UnorderedExecutionModule_RefundNotSupported",
+    "name": "UnorderedExecutionModule_UnsupportedSafe",
     "type": "error"
   }
 ]

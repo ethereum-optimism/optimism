@@ -4,6 +4,6 @@
     "label": "_executed",
     "offset": 0,
     "slot": "0",
-    "type": "mapping(contract Safe => mapping(bytes32 => bool))"
+    "type": "mapping(contract Safe => mapping(uint256 => bool))"
   }
 ]
