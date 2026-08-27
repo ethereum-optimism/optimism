@@ -73,4 +73,6 @@ pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     superchain_config_address: Some(address!("C2Be75506d5724086DEB7245bd260Cc9753911Be")),
     da_challenge_address: None,
     blobs_enabled_l1_timestamp: None,
+    multi_block_time: None,
+    max_multi_blocks: None,
 };

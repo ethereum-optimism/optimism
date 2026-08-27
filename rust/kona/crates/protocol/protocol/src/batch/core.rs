@@ -51,8 +51,8 @@ impl Batch {
                     SingleBatch::decode(r).map_err(BatchDecodingError::AlloyRlpError)?;
                 Ok(Self::Single(single_batch))
             }
-            BatchType::Span => {
-                let mut raw_span_batch = RawSpanBatch::decode(r)?;
+            BatchType::Span | BatchType::SpanV2 => {
+                let mut raw_span_batch = RawSpanBatch::decode(r, batch_type)?;
                 let span_batch = raw_span_batch
                     .derive(cfg.block_time, cfg.genesis.l2_time, cfg.l2_chain_id.id())
                     .map_err(BatchDecodingError::SpanBatchError)?;
@@ -69,9 +69,9 @@ impl Batch {
                 sb.encode(out);
             }
             Self::Span(sb) => {
-                out.put_u8(BatchType::Span as u8);
                 let raw_span_batch =
                     sb.to_raw_span_batch().map_err(BatchEncodingError::SpanBatchError)?;
+                out.put_u8(sb.version as u8);
                 raw_span_batch.encode(out).map_err(BatchEncodingError::SpanBatchError)?;
             }
         }
@@ -130,6 +130,41 @@ mod tests {
             txs: SpanBatchTransactions::default(),
             ..Default::default()
         }), decoded);
+    }
+
+    /// The type byte is the only thing that tells the two span formats apart, so it must both be
+    /// emitted from and restored onto the span.
+    #[test]
+    fn test_span_batch_v2_encode_decode() {
+        let cfg = RollupConfig {
+            block_time: 2,
+            genesis: kona_genesis::ChainGenesis { l2_time: 1000, ..Default::default() },
+            ..Default::default()
+        };
+        let batch = Batch::Span(SpanBatch {
+            version: BatchType::SpanV2,
+            genesis_timestamp: cfg.genesis.l2_time,
+            block_tx_counts: vec![0, 0],
+            same_ts_bits: Some(crate::SpanBatchBits::new(vec![0b11])),
+            batches: vec![
+                SpanBatchElement { epoch_num: 5, timestamp: 1020, transactions: vec![] },
+                SpanBatchElement { epoch_num: 5, timestamp: 1020, transactions: vec![] },
+            ],
+            ..Default::default()
+        });
+
+        let mut out = Vec::new();
+        batch.encode(&mut out).unwrap();
+        assert_eq!(out[0], crate::SPAN_BATCH_V2_TYPE);
+
+        let Batch::Span(decoded) = Batch::decode(&mut out.as_slice(), &cfg).unwrap() else {
+            panic!("expected a span batch");
+        };
+        assert_eq!(decoded.version, BatchType::SpanV2);
+        assert_eq!(
+            decoded.batches.iter().map(|b| b.timestamp).collect::<Vec<_>>(),
+            vec![1020, 1020]
+        );
     }
 
     #[test]

@@ -13,8 +13,8 @@ use op_alloy_consensus::OpTxType;
 use tracing::{info, warn};
 
 use crate::{
-    BatchDropReason, BatchValidationProvider, BatchValidity, BlockInfo, L2BlockInfo, RawSpanBatch,
-    SingleBatch, SpanBatchBits, SpanBatchElement, SpanBatchError, SpanBatchPayload,
+    BatchDropReason, BatchType, BatchValidationProvider, BatchValidity, BlockInfo, L2BlockInfo,
+    RawSpanBatch, SingleBatch, SpanBatchBits, SpanBatchElement, SpanBatchError, SpanBatchPayload,
     SpanBatchPrefix, SpanBatchTransactions,
 };
 
@@ -63,8 +63,13 @@ use crate::{
 /// - **L1 origin check**: Ensures proper L1 origin binding
 /// - **Transaction count validation**: Verifies transaction distribution
 /// - **Bit field consistency**: Ensures origin bits match block count
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpanBatch {
+    /// The wire version this span was decoded from, and the one it re-encodes to.
+    ///
+    /// Only [`BatchType::SpanV2`] can express sibling blocks; [`BatchType::Span`] is the Delta
+    /// format, where every element is one block time after its predecessor.
+    pub version: BatchType,
     /// First 20 bytes of the parent hash of the first block in the span.
     ///
     /// This field provides a collision-resistant check to ensure the span batch
@@ -101,6 +106,12 @@ pub struct SpanBatch {
     /// in the span advance to a new L1 origin. Bit `i` is set if block `i+1`
     /// has a different L1 origin than block `i`.
     pub origin_bits: SpanBatchBits,
+    /// Cached bit array marking the elements that share their predecessor's timestamp.
+    ///
+    /// Present exactly for [`BatchType::SpanV2`] spans. Bit `i` is set if element `i` has the
+    /// timestamp of element `i - 1`; bit 0 is set if the first element is a sibling of the
+    /// span's parent block.
+    pub same_ts_bits: Option<SpanBatchBits>,
     /// Cached transaction count for each block in the span.
     ///
     /// Pre-computed transaction counts enable efficient random access to
@@ -113,6 +124,25 @@ pub struct SpanBatch {
     /// enables efficient encoding and decoding. Transactions are grouped and
     /// compressed using span-specific techniques.
     pub txs: SpanBatchTransactions,
+}
+
+// Manually implemented because [`BatchType`] has no meaningful `Default`: a span defaults to the
+// Delta format, not to the first batch type.
+impl Default for SpanBatch {
+    fn default() -> Self {
+        Self {
+            version: BatchType::Span,
+            parent_check: FixedBytes::default(),
+            l1_origin_check: FixedBytes::default(),
+            genesis_timestamp: 0,
+            chain_id: 0,
+            batches: Vec::new(),
+            origin_bits: SpanBatchBits::default(),
+            same_ts_bits: None,
+            block_tx_counts: Vec::new(),
+            txs: SpanBatchTransactions::default(),
+        }
+    }
 }
 
 impl SpanBatch {
@@ -270,6 +300,9 @@ impl SpanBatch {
     ///
     /// This enables efficient timestamp encoding in the serialized format.
     pub fn to_raw_span_batch(&self) -> Result<RawSpanBatch, SpanBatchError> {
+        if !self.version.is_span() {
+            return Err(SpanBatchError::NotASpanVersion);
+        }
         if self.batches.is_empty() {
             return Err(SpanBatchError::EmptySpanBatch);
         }
@@ -279,6 +312,7 @@ impl SpanBatch {
         let span_end = self.batches.last().ok_or(SpanBatchError::EmptySpanBatch)?;
 
         Ok(RawSpanBatch {
+            version: self.version,
             prefix: SpanBatchPrefix {
                 rel_timestamp: span_start.timestamp - self.genesis_timestamp,
                 l1_origin_num: span_end.epoch_num,
@@ -288,6 +322,7 @@ impl SpanBatch {
             payload: SpanBatchPayload {
                 block_count: self.batches.len() as u64,
                 origin_bits: self.origin_bits.clone(),
+                same_ts_bits: self.same_ts_bits.clone(),
                 block_tx_counts: self.block_tx_counts.clone(),
                 txs: self.txs.clone(),
             },
@@ -335,16 +370,30 @@ impl SpanBatch {
     }
 
     /// Append a [`SingleBatch`] to the [`SpanBatch`]. Updates the L1 origin check if need be.
+    ///
+    /// `parent_timestamp` is the timestamp of the span's parent block, i.e. the block the first
+    /// element builds on. It is the only way to tell whether that first element is a sibling of
+    /// the parent, which a span cannot observe from its own elements.
     pub fn append_singular_batch(
         &mut self,
         singular_batch: SingleBatch,
         seq_num: u64,
+        parent_timestamp: u64,
     ) -> Result<(), SpanBatchError> {
         // If the new element is not ordered with respect to the last element, panic.
         assert!(
             self.batches.is_empty() || self.peek(0).timestamp <= singular_batch.timestamp,
             "Batch is not ordered"
         );
+
+        // Decided before any mutation: a v1 span cannot express a sibling, so the rejected append
+        // must leave the span untouched rather than half-written.
+        let predecessor_timestamp =
+            self.batches.last().map_or(parent_timestamp, |batch| batch.timestamp);
+        let same_ts_bit = predecessor_timestamp == singular_batch.timestamp;
+        if same_ts_bit && !self.version.has_same_ts_bits() {
+            return Err(SpanBatchError::SameTimestampBitsMismatch);
+        }
 
         let SingleBatch { epoch_hash, parent_hash, .. } = singular_batch;
 
@@ -365,6 +414,12 @@ impl SpanBatch {
 
         // Set the respective bit in the origin bits.
         self.origin_bits.set_bit(self.batches.len() - 1, epoch_bit);
+
+        if self.version.has_same_ts_bits() {
+            self.same_ts_bits
+                .get_or_insert_with(SpanBatchBits::default)
+                .set_bit(self.batches.len() - 1, same_ts_bit);
+        }
 
         let new_txs = self.peek(0).transactions.clone();
 
@@ -911,7 +966,7 @@ mod tests {
             timestamp: 10,
             transactions: vec![],
         };
-        assert!(batch.append_singular_batch(singular_batch, 0).is_ok());
+        assert!(batch.append_singular_batch(singular_batch, 0, 8).is_ok());
         assert_eq!(batch.batches.len(), 1);
         assert_eq!(batch.origin_bits.get_bit(0), Some(1));
         assert_eq!(batch.block_tx_counts, vec![0]);
@@ -925,7 +980,110 @@ mod tests {
             timestamp: 20,
             transactions: vec![],
         };
-        assert!(batch.append_singular_batch(singular_batch, 1).is_ok());
+        assert!(batch.append_singular_batch(singular_batch, 1, 8).is_ok());
+    }
+
+    fn sibling_singular_batch(epoch_num: u64, timestamp: u64) -> SingleBatch {
+        SingleBatch {
+            epoch_num,
+            epoch_hash: FixedBytes::from([17u8; 32]),
+            parent_hash: FixedBytes::from([19u8; 32]),
+            timestamp,
+            transactions: vec![],
+        }
+    }
+
+    /// Bit 0 is the only bit a span cannot derive from its own elements: it relates the first
+    /// element to the block the span builds on.
+    #[test]
+    fn test_append_singular_batch_sets_same_ts_bit_zero() {
+        let mut batch = SpanBatch { version: BatchType::SpanV2, ..Default::default() };
+        batch.append_singular_batch(sibling_singular_batch(10, 100), 1, 100).unwrap();
+        let same_ts_bits = batch.same_ts_bits.as_ref().unwrap();
+        assert_eq!(same_ts_bits.get_bit(0), Some(1));
+
+        let mut batch = SpanBatch { version: BatchType::SpanV2, ..Default::default() };
+        batch.append_singular_batch(sibling_singular_batch(10, 100), 1, 98).unwrap();
+        assert_eq!(batch.same_ts_bits.as_ref().unwrap().get_bit(0), Some(0));
+    }
+
+    /// A v1 span has no way to encode a sibling, so appending one is an encoder error rather than
+    /// a silently dropped bit — and it must leave the span exactly as it was.
+    #[test]
+    fn test_append_sibling_to_v1_span_errors() {
+        let mut batch = SpanBatch::default();
+        let err = batch.append_singular_batch(sibling_singular_batch(10, 100), 1, 100).unwrap_err();
+        assert_eq!(err, SpanBatchError::SameTimestampBitsMismatch);
+        assert_eq!(batch, SpanBatch::default());
+    }
+
+    /// A span batch can only be encoded as one of the span wire versions, so the type byte
+    /// [`crate::Batch::encode`] writes can never mislabel the payload that follows it.
+    #[test]
+    fn test_to_raw_span_batch_rejects_non_span_version() {
+        let batch = SpanBatch {
+            version: BatchType::Single,
+            batches: vec![SpanBatchElement { epoch_num: 1, timestamp: 100, transactions: vec![] }],
+            ..Default::default()
+        };
+        assert_eq!(batch.to_raw_span_batch().unwrap_err(), SpanBatchError::NotASpanVersion);
+    }
+
+    /// A group of two siblings followed by a second group of two, appended and then re-derived
+    /// through the wire format.
+    #[test]
+    fn test_span_batch_v2_round_trip() {
+        let block_time = 2;
+        let genesis_timestamp = 1000;
+        let mut batch =
+            SpanBatch { version: BatchType::SpanV2, genesis_timestamp, ..Default::default() };
+        for (seq_num, timestamp) in [1020, 1020, 1022, 1022].into_iter().enumerate() {
+            batch
+                .append_singular_batch(sibling_singular_batch(100, timestamp), seq_num as u64, 1018)
+                .unwrap();
+        }
+        assert_eq!(batch.same_ts_bits, Some(SpanBatchBits::new(vec![0b1010])));
+
+        let mut encoded = Vec::new();
+        let raw = batch.to_raw_span_batch().unwrap();
+        raw.encode(&mut encoded).unwrap();
+
+        let mut decoded = RawSpanBatch::decode(&mut encoded.as_slice(), BatchType::SpanV2).unwrap();
+        let derived = decoded.derive(block_time, genesis_timestamp, 10).unwrap();
+        assert_eq!(derived.version, BatchType::SpanV2);
+        assert_eq!(
+            derived.batches.iter().map(|b| b.timestamp).collect::<Vec<_>>(),
+            vec![1020, 1020, 1022, 1022]
+        );
+        // The bits reach validity checking through the derived span, not just the raw one.
+        assert_eq!(derived.same_ts_bits, batch.same_ts_bits);
+    }
+
+    /// The same elements without siblings, as a v1 span: the derived span carries no bitlist at
+    /// all, so nothing downstream can mistake it for a span that could hold siblings.
+    #[test]
+    fn test_span_batch_v1_carries_no_same_ts_bits() {
+        let block_time = 2;
+        let genesis_timestamp = 1000;
+        let mut batch = SpanBatch { genesis_timestamp, ..Default::default() };
+        for (seq_num, timestamp) in [1020, 1022].into_iter().enumerate() {
+            batch
+                .append_singular_batch(sibling_singular_batch(100, timestamp), seq_num as u64, 1018)
+                .unwrap();
+        }
+        assert_eq!(batch.same_ts_bits, None);
+
+        let mut encoded = Vec::new();
+        batch.to_raw_span_batch().unwrap().encode(&mut encoded).unwrap();
+
+        let mut decoded = RawSpanBatch::decode(&mut encoded.as_slice(), BatchType::Span).unwrap();
+        let derived = decoded.derive(block_time, genesis_timestamp, 10).unwrap();
+        assert_eq!(derived.version, BatchType::Span);
+        assert_eq!(derived.same_ts_bits, None);
+        assert_eq!(
+            derived.batches.iter().map(|b| b.timestamp).collect::<Vec<_>>(),
+            vec![1020, 1022]
+        );
     }
 
     #[test]

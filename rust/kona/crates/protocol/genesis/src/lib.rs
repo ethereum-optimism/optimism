@@ -71,5 +71,5 @@ pub use genesis::ChainGenesis;
 mod rollup;
 pub use rollup::{
     FJORD_MAX_SEQUENCER_DRIFT, GRANITE_CHANNEL_TIMEOUT, MAX_RLP_BYTES_PER_CHANNEL_BEDROCK,
-    MAX_RLP_BYTES_PER_CHANNEL_FJORD, RollupConfig,
+    MAX_RLP_BYTES_PER_CHANNEL_FJORD, MultiBlockConfigError, RollupConfig,
 };

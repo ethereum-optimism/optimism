@@ -21,6 +21,12 @@ pub enum SpanBatchError {
     /// Missing L1 origin
     #[error("Missing L1 origin")]
     MissingL1Origin,
+    /// The presence of the same-timestamp bitlist disagrees with the span batch version
+    #[error("The same-timestamp bitlist does not match the span batch version")]
+    SameTimestampBitsMismatch,
+    /// The batch type labelling a span batch is not a span batch wire version
+    #[error("Batch type is not a span batch version")]
+    NotASpanVersion,
     /// Decoding errors
     #[error("Span batch decoding error: {0}")]
     Decoding(#[from] SpanDecodingError),
@@ -72,6 +78,9 @@ pub enum SpanDecodingError {
     /// Failed to decode block count
     #[error("Failed to decode block count")]
     BlockCount,
+    /// Failed to decode the same-timestamp bits
+    #[error("Failed to decode the same-timestamp bits")]
+    SameTimestampBits,
     /// Failed to decode block tx counts
     #[error("Failed to decode block tx counts")]
     BlockTxCounts,

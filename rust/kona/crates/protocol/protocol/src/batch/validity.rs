@@ -68,6 +68,18 @@ pub enum BatchDropReason {
     L2BlockInfoExtractionFailed,
     /// Overlapped block's L1 origin number does not match.
     OverlappedL1OriginMismatch,
+
+    // === Multi-block drops ===
+    /// Span batch v2 included in an L1 block before multi-blocks activate.
+    SpanBatchV2PreActivation,
+    /// Span batch v2 received by the pre-Holocene batch queue, which cannot validate siblings.
+    SpanBatchV2PreHolocene,
+    /// More than `max_multi_blocks` consecutive blocks share a timestamp.
+    MultiBlockGroupTooLarge,
+    /// A block shares its parent's timestamp where siblings are not allowed.
+    SiblingsNotAllowed,
+    /// A sibling block does not share its parent's L1 origin.
+    SiblingOriginMismatch,
 }
 
 impl core::fmt::Display for BatchDropReason {
@@ -116,6 +128,21 @@ impl core::fmt::Display for BatchDropReason {
             }
             Self::OverlappedL1OriginMismatch => {
                 write!(f, "overlapped block L1 origin number mismatch")
+            }
+            Self::SpanBatchV2PreActivation => {
+                write!(f, "span batch v2 included before multi-block activation")
+            }
+            Self::SpanBatchV2PreHolocene => {
+                write!(f, "span batch v2 received before Holocene")
+            }
+            Self::MultiBlockGroupTooLarge => {
+                write!(f, "more blocks share a timestamp than max_multi_blocks allows")
+            }
+            Self::SiblingsNotAllowed => {
+                write!(f, "block shares its parent's timestamp where siblings are not allowed")
+            }
+            Self::SiblingOriginMismatch => {
+                write!(f, "sibling block does not share its parent's L1 origin")
             }
         }
     }
