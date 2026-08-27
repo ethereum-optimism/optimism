@@ -6,8 +6,16 @@ import { Test } from "test/setup/Test.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+
 // Interfaces
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { IL1EventRegistry } from "interfaces/L1/IL1EventRegistry.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
+import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
+import { ILocalLogOracle } from "interfaces/L2/ILocalLogOracle.sol";
 
 /// @title CrossL2Inbox_ValidateMessageRelayer_Harness
 /// @notice For test contract used to validate multiple messages in a single tx.
@@ -43,22 +51,113 @@ contract CrossL2Inbox_ValidateMessageRelayer_Harness is Test {
 /// @notice Reusable test initialization for `CrossL2Inbox` tests.
 abstract contract CrossL2Inbox_TestInit is CommonTest {
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
+    event ExecutingCertifiedMessage(bytes32 indexed msgHash, Identifier id);
+    event EventExported(bytes32 indexed checksum, bytes32 indexed payloadHash, Identifier id);
+    event EventImported(bytes32 indexed checksum, bytes32 indexed payloadHash, Identifier id);
 
     CrossL2Inbox_ValidateMessageRelayer_Harness public validateMessageRelayer;
 
     mapping(bytes32 => bool) public relayedMessages;
     mapping(bytes32 => bool) public warmedSlots;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         useInteropOverride = true;
         super.setUp();
         validateMessageRelayer = new CrossL2Inbox_ValidateMessageRelayer_Harness(address(crossL2Inbox));
     }
 }
 
+/// @title CrossL2Inbox_CertifiedEvent_TestInit
+/// @notice Tests exporting and importing event certificates through L1.
+abstract contract CrossL2Inbox_CertifiedEvent_TestInit is CrossL2Inbox_TestInit {
+    address internal l1EventRegistry = makeAddr("l1EventRegistry");
+    Identifier internal id;
+    bytes32 internal payloadHash = keccak256("payload");
+
+    function setUp() public override {
+        super.setUp();
+
+        vm.prank(IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        crossL2Inbox.setL1EventRegistry(l1EventRegistry);
+
+        vm.roll(100);
+        vm.warp(1_000_000);
+        id = Identifier({
+            origin: makeAddr("origin"),
+            blockNumber: block.number - 1,
+            logIndex: 2,
+            timestamp: block.timestamp,
+            chainId: block.chainid
+        });
+    }
+}
+
+/// @title CrossL2Inbox_ExportEvent_Test
+/// @notice Tests the `exportEvent` function of the `CrossL2Inbox` contract.
+contract CrossL2Inbox_ExportEvent_Test is CrossL2Inbox_CertifiedEvent_TestInit {
+    function test_exportEvent_succeeds() external {
+        // The exact seven-day boundary remains eligible.
+        id.timestamp = block.timestamp - crossL2Inbox.EVENT_LOOKUP_WINDOW();
+        bytes memory oracleCall = abi.encodeCall(ILocalLogOracle.containsLog, (id, payloadHash));
+        vm.mockCall(Predeploys.LOCAL_LOG_ORACLE, oracleCall, abi.encode(true));
+
+        bytes memory registryCall = abi.encodeCall(IL1EventRegistry.registerEvent, (id, payloadHash));
+        bytes memory withdrawalCall = abi.encodeCall(
+            IL2ToL1MessagePasser.initiateWithdrawal,
+            (l1EventRegistry, crossL2Inbox.REGISTER_EVENT_GAS_LIMIT(), registryCall)
+        );
+        vm.mockCall(Predeploys.L2_TO_L1_MESSAGE_PASSER, withdrawalCall, bytes(""));
+        vm.expectCall(Predeploys.LOCAL_LOG_ORACLE, oracleCall);
+        vm.expectCall(Predeploys.L2_TO_L1_MESSAGE_PASSER, withdrawalCall);
+
+        bytes32 checksum = crossL2Inbox.calculateChecksum(id, payloadHash);
+        vm.expectEmit(address(crossL2Inbox));
+        emit EventExported(checksum, payloadHash, id);
+        crossL2Inbox.exportEvent(id, payloadHash);
+    }
+
+    function test_exportEvent_tooOld_reverts() external {
+        id.timestamp = block.timestamp - crossL2Inbox.EVENT_LOOKUP_WINDOW() - 1;
+
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_EventTooOld.selector);
+        crossL2Inbox.exportEvent(id, payloadHash);
+    }
+}
+
+/// @title CrossL2Inbox_ImportEvent_Test
+/// @notice Tests the `importEvent` function of the `CrossL2Inbox` contract.
+contract CrossL2Inbox_ImportEvent_Test is CrossL2Inbox_CertifiedEvent_TestInit {
+    function test_importEvent_succeeds() external {
+        bytes32 checksum = crossL2Inbox.calculateChecksum(id, payloadHash);
+
+        vm.expectEmit(address(crossL2Inbox));
+        emit EventImported(checksum, payloadHash, id);
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(l1EventRegistry));
+        crossL2Inbox.importEvent(id, payloadHash);
+
+        assertTrue(crossL2Inbox.certifiedMessages(checksum));
+    }
+
+    function test_importEvent_untrustedSender_reverts() external {
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_NotEventRegistry.selector);
+        crossL2Inbox.importEvent(id, payloadHash);
+    }
+}
+
 /// @title CrossL2Inbox_ValidateMessage_Test
 /// @notice Tests the `validateMessage` function of the `CrossL2Inbox` contract.
-contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
+contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_CertifiedEvent_TestInit {
+    function test_validateMessage_certifiedDeposit_succeeds() external {
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(l1EventRegistry));
+        crossL2Inbox.importEvent(id, payloadHash);
+
+        vm.fee(1);
+        vm.txGasPrice(0);
+        vm.expectEmit(address(crossL2Inbox));
+        emit ExecutingCertifiedMessage(payloadHash, id);
+        crossL2Inbox.validateMessage(id, payloadHash);
+    }
+
     /// @notice Test that `validateMessage` reverts when executed in a deposit transaction.
     function testFuzz_validateMessage_depositTransaction_reverts(
         Identifier memory _id,
