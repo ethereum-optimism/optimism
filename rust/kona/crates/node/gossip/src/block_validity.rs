@@ -96,7 +96,7 @@ impl BlockHandler {
     ///
     /// The entries pruned must be old enough that a new block for that height would be rejected
     /// anyway, or the cache stops preventing replays. A block is only accepted inside
-    /// [`Self::ACCEPTANCE_WINDOW_SECS`], which spans one height per block time — or
+    /// the acceptance window (`ACCEPTANCE_WINDOW_SECS`), which spans one height per block time — or
     /// `max_multi_blocks` heights, on a chain where blocks may share a timestamp.
     pub fn seen_hash_cache_size(&self) -> usize {
         let heights_per_timestamp = self.rollup_config.max_multi_blocks();
