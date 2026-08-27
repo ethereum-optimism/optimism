@@ -75,6 +75,7 @@ func (el *L2ELNode) VerifyTimestampGroups(from, to uint64, cfg *rollup.Config) {
 	el.require.NotZero(cfg.BlockTime, "block time must be set")
 
 	maxGroup := cfg.MaxMultiBlocksOrDefault()
+	defer el.pinBranch(from, to)()
 	prev := el.BlockRefByNumber(from)
 	groupLen := uint64(1)
 	for num := from + 1; num <= to; num++ {
@@ -98,5 +99,109 @@ func (el *L2ELNode) VerifyTimestampGroups(from, to uint64, cfg *rollup.Config) {
 				num, block.Time, prev.Time))
 		}
 		prev = block
+	}
+}
+
+// VerifyNoSiblingBlocks checks that no two blocks in the inclusive range [from, to] share a
+// timestamp: every block links to its predecessor by parent hash and sits exactly one block time
+// later. That is the chain shape before the multi-blocks activation, and the shape an idle
+// sequencer keeps producing after it.
+func (el *L2ELNode) VerifyNoSiblingBlocks(from, to uint64, cfg *rollup.Config) {
+	el.require.LessOrEqual(from, to, "block range must not be empty")
+	el.require.NotZero(cfg.BlockTime, "block time must be set")
+
+	el.log.Info("Verifying no sibling blocks", "name", el.inner.Name(), "chain", el.ChainID(), "from", from, "to", to)
+	defer el.pinBranch(from, to)()
+	prev := el.BlockRefByNumber(from)
+	for num := from + 1; num <= to; num++ {
+		block := el.BlockRefByNumber(num)
+		el.require.Equalf(prev.Hash, block.ParentHash,
+			"block %d must link to block %d by parent hash", num, num-1)
+		el.require.Equalf(prev.Time+cfg.BlockTime, block.Time,
+			"block %d must sit one block time after block %d at timestamp %d, but sits at %d",
+			num, num-1, prev.Time, block.Time)
+		prev = block
+	}
+}
+
+// WaitForHeadPastTime waits until the head at the given label carries a timestamp strictly greater
+// than the given one, and returns that head. Past the multi-blocks activation a timestamp no longer
+// maps to a single block number, so tests reaching for "the chain got beyond this point in time"
+// have to ask by timestamp rather than by block number.
+func (el *L2ELNode) WaitForHeadPastTime(label eth.BlockLabel, timestamp uint64, timeout time.Duration) eth.L2BlockRef {
+	ctx, cancel := context.WithTimeout(el.ctx, timeout)
+	defer cancel()
+
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "label", label, "target_time", timestamp)
+	logger.Info("Waiting for head past timestamp")
+
+	var head eth.L2BlockRef
+	err := wait.For(ctx, 250*time.Millisecond, func() (bool, error) {
+		next, err := el.blockRefByLabel(label)
+		if err != nil {
+			logger.Warn("Head lookup failed; will retry", "err", err)
+			return false, nil
+		}
+		head = next
+		logger.Info("Head", "head", head, "time", head.Time)
+		return head.Time > timestamp, nil
+	})
+	el.require.NoError(err,
+		"expected the %s head on chain %s to pass timestamp %d within %s, last saw %s at timestamp %d",
+		label, el.ChainID(), timestamp, timeout, head, head.Time)
+	return head
+}
+
+// VerifyMatchesChain waits until this node's head at the given label covers block `to`, then checks
+// that every block in the inclusive range [from, to] is hash-identical to the source node's.
+// With eth.Unsafe it asserts a node followed the sequencer over P2P; with eth.Safe it asserts a
+// node derived the same chain from what the batcher submitted to L1.
+func (el *L2ELNode) VerifyMatchesChain(source *L2ELNode, label eth.BlockLabel, from, to uint64, timeout time.Duration) {
+	el.require.LessOrEqual(from, to, "block range must not be empty")
+
+	ctx, cancel := context.WithTimeout(el.ctx, timeout)
+	defer cancel()
+
+	logger := el.log.With("name", el.inner.Name(), "source", source.inner.Name(),
+		"chain", el.ChainID(), "label", label, "target", to)
+	logger.Info("Waiting for head to cover the source range", "from", from)
+
+	var head eth.L2BlockRef
+	err := wait.For(ctx, 250*time.Millisecond, func() (bool, error) {
+		next, err := el.blockRefByLabel(label)
+		if err != nil {
+			logger.Warn("Head lookup failed; will retry", "err", err)
+			return false, nil
+		}
+		head = next
+		logger.Info("Head", "head", head)
+		return head.Number >= to, nil
+	})
+	el.require.NoError(err,
+		"expected the %s head on chain %s to reach block %d within %s, last saw %s",
+		label, el.ChainID(), to, timeout, head)
+
+	defer el.pinBranch(from, to)()
+	defer source.pinBranch(from, to)()
+	for num := from; num <= to; num++ {
+		want := source.BlockRefByNumber(num)
+		got := el.BlockRefByNumber(num)
+		el.require.Equalf(want.Hash, got.Hash,
+			"block %d must match %s: expected %s at timestamp %d, got %s at timestamp %d",
+			num, source.inner.Name(), want.Hash, want.Time, got.Hash, got.Time)
+	}
+	logger.Info("Chain range matches source", "from", from, "to", to)
+}
+
+// pinBranch records the block at `to` and returns a check to run once the caller has finished
+// walking [from, to]. A chain that moved under the walk makes every rule the caller checked
+// meaningless, and the resulting failures read as consensus violations rather than as a reorg, so
+// name the reorg instead.
+func (el *L2ELNode) pinBranch(from, to uint64) func() {
+	pinned := el.BlockRefByNumber(to)
+	return func() {
+		el.require.Equalf(pinned.Hash, el.BlockRefByNumber(to).Hash,
+			"chain on %s reorged at block %d while verifying [%d, %d]; the checks above describe a chain that no longer exists",
+			el.inner.Name(), to, from, to)
 	}
 }

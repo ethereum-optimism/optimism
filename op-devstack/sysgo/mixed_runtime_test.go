@@ -2,11 +2,32 @@ package sysgo
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
+
+// TestOpRethDurationArg pins the two shapes op-reth's duration parser accepts. Go's own
+// Duration.String renders "1.5s" and "2m0s", which the node rejects at startup with a clap error
+// that only surfaces minutes later as an RPC timeout.
+func TestOpRethDurationArg(t *testing.T) {
+	for _, tc := range []struct {
+		in   time.Duration
+		want string
+	}{
+		{in: 25 * time.Millisecond, want: "25ms"},
+		{in: 100 * time.Millisecond, want: "100ms"},
+		{in: 1500 * time.Millisecond, want: "1500ms"},
+		{in: time.Second, want: "1"},
+		{in: 2 * time.Minute, want: "120"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			require.Equal(t, tc.want, opRethDurationArg(tc.in))
+		})
+	}
+}
 
 func TestMixedL2ELOptsFromEnv(t *testing.T) {
 	for _, tc := range []struct {

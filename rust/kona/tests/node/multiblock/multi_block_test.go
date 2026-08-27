@@ -55,8 +55,8 @@ func newMultiBlockPreset(t devtest.T) *node_utils.MixedOpKonaPreset {
 			sysgo.OpRethWithExtraArgs(
 				"--rollup.multi-block.min-txs", "1",
 				"--rollup.multi-block.min-build-time", "100",
-				"--builder.interval", "50ms",
 			),
+			sysgo.OpRethWithBuilderInterval(50 * time.Millisecond),
 		},
 	})
 	return node_utils.NewMixedOpKonaFromRuntime(t, runtime)

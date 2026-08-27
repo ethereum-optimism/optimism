@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -41,6 +43,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/noopsigner"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
+
+// defaultOpRethBuilderInterval is how often an op-reth payload job rebuilds its payload unless a
+// node asks for something else via OpRethWithBuilderInterval.
+const defaultOpRethBuilderInterval = 100 * time.Millisecond
+
+// opRethDurationArg renders d in the only two shapes op-reth's duration flags parse: a whole number
+// of seconds, or a whole number of milliseconds suffixed with "ms". Go's own Duration.String would
+// produce "1.5s" or "2m0s", which op-reth rejects at startup.
+func opRethDurationArg(d time.Duration) string {
+	if d%time.Second == 0 {
+		return strconv.FormatInt(int64(d/time.Second), 10)
+	}
+	return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
+}
 
 type MixedL2ELKind string
 
@@ -450,6 +466,11 @@ func buildMixedOpRethNode(
 	}.EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or set RUST_BINARY_PATH_<NAME> for a binary built from another repo)", elBinary)
 
+	builderInterval := defaultOpRethBuilderInterval
+	if opRethCfg.BuilderInterval > 0 {
+		builderInterval = opRethCfg.BuilderInterval
+	}
+
 	args := []string{
 		"node",
 		"--addr=127.0.0.1",
@@ -457,7 +478,7 @@ func buildMixedOpRethNode(
 		"--authrpc.jwtsecret=" + jwtPath,
 		"--authrpc.port=0",
 		"--builder.deadline=2",
-		"--builder.interval=100ms",
+		"--builder.interval=" + opRethDurationArg(builderInterval),
 		"--chain=" + chainConfigPath,
 		"--color=never",
 		"--datadir=" + dataDirPath,
@@ -523,6 +544,19 @@ func buildMixedOpRethNode(
 		)
 	}
 
+	// op-reth rejects a flag passed twice, and a node that dies on a clap error only surfaces
+	// minutes later as an RPC timeout. Name the offending flag here instead.
+	generated := make(map[string]struct{}, len(args))
+	for _, arg := range args {
+		name, _, _ := strings.Cut(arg, "=")
+		generated[name] = struct{}{}
+	}
+	for _, arg := range opRethCfg.ExtraArgs {
+		name, _, _ := strings.Cut(arg, "=")
+		_, dup := generated[name]
+		t.Require().Falsef(dup,
+			"op-reth extra arg %s repeats a flag the runtime already sets; use the dedicated OpReth option", name)
+	}
 	args = append(args, opRethCfg.ExtraArgs...)
 
 	return &OpReth{
