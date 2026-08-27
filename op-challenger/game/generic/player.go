@@ -121,8 +121,10 @@ func NewGenericGamePlayer(
 		done:               !deleteWithdrawals,
 	}
 	if resolved {
-		// Skip creating the trace provider, loading game inputs etc. The actor is left unset because
-		// a resolved game is never acted on.
+		// Skip creating the trace provider, loading game inputs etc. Act does nothing because a
+		// resolved game is never acted on; the outstanding withdrawal deletions are done by
+		// ProgressGame, which keeps done false until they complete.
+		player.actor = &actNoop{}
 		return player, nil
 	}
 	actor, err := createActor(ctx, logger, l1Head)

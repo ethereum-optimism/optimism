@@ -199,6 +199,7 @@ func TestNewGamePlayer_AlreadyResolvedGame(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.status, player.Status())
 			require.Equal(t, test.done, player.Done())
+			require.IsType(t, &actNoop{}, player.actor, "should always have a no-op actor for a resolved game")
 			if !test.done {
 				require.Equal(t, gameL1HeadNumber, player.withdrawalScanFrom, "should scan from the game L1 head")
 			}
