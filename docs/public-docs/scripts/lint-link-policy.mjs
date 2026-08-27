@@ -62,6 +62,8 @@ const RETIRED_SPEC_PATHS = {
   "/experimental/fault-proof/stage-one/dispute-game-interface.html": "/fault-proof/stage-one/dispute-game-interface.html",
   "/experimental/fault-proof/stage-one/fault-dispute-game.html": "/fault-proof/stage-one/fault-dispute-game.html",
   "/experimental/fault-proof/stage-one/honest-challenger-fdg.html": "/fault-proof/stage-one/honest-challenger-fdg.html",
+  "/experimental/plasma.html": "/protocol/derivation.html#batcher-transaction-format",
+  "/experimental/alt-da.html": "/protocol/derivation.html#batcher-transaction-format",
   "/fjord/overview.html": "/protocol/fjord/overview.html",
   "/fjord/derivation.html": "/protocol/fjord/derivation.html",
   "/fjord/exec-engine.html": "/protocol/fjord/exec-engine.html",
