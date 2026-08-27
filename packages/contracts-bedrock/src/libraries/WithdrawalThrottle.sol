@@ -2,8 +2,27 @@
 pragma solidity 0.8.15;
 
 /// @title WithdrawalThrottle
-/// @notice Arithmetic and packing helpers for percentage-based withdrawal token buckets.
+/// @notice Storage, arithmetic, and packing helpers for percentage-based withdrawal token buckets.
 library WithdrawalThrottle {
+    /// @notice Two-slot packed token-bucket state.
+    /// @custom:field config Capacity, refill period, maximum basis points, and enabled flag.
+    /// @custom:field bucket Available capacity, last-updated timestamp, and fractional remainder.
+    struct State {
+        uint256 config;
+        uint256 bucket;
+    }
+
+    /// @notice Logical view of a packed token-bucket state.
+    struct Snapshot {
+        uint128 capacity;
+        uint128 available;
+        uint64 refillPeriod;
+        uint64 lastUpdated;
+        uint64 refillRemainder;
+        uint16 maxBps;
+        bool enabled;
+    }
+
     /// @notice Thrown when a timestamp cannot be represented by the packed bucket.
     error WithdrawalThrottle_TimestampOverflow();
 
@@ -170,5 +189,131 @@ library WithdrawalThrottle {
         uint128 refillCapacity = _oldCapacity < _newCapacity ? _oldCapacity : _newCapacity;
         (available_, remainder_) = available(refillCapacity, _bucket, _refillPeriod, _timestamp);
         if (available_ >= _newCapacity) return (_newCapacity, 0);
+    }
+
+    /// @notice Returns a logical snapshot of the stored state before pending refill is materialized.
+    function snapshot(State storage _state) internal view returns (Snapshot memory snapshot_) {
+        uint256 config_ = _state.config;
+        uint256 bucket_ = _state.bucket;
+        snapshot_ = Snapshot({
+            capacity: capacity(config_),
+            available: storedAvailable(bucket_),
+            refillPeriod: refillPeriod(config_),
+            lastUpdated: lastUpdated(bucket_),
+            refillRemainder: refillRemainder(bucket_),
+            maxBps: maxBps(config_),
+            enabled: enabled(config_)
+        });
+    }
+
+    /// @notice Configures a throttle against a live stock value.
+    ///         Reconfiguration preserves accrued whole units, resets the fractional remainder,
+    ///         and clamps availability to the new capacity.
+    function configure(
+        State storage _state,
+        uint256 _stock,
+        uint16 _maxBps,
+        uint64 _refillPeriod,
+        uint256 _timestamp
+    )
+        internal
+        returns (uint128 capacity_, uint128 available_)
+    {
+        uint256 oldConfig = _state.config;
+        if (enabled(oldConfig)) {
+            uint128 liveOldCapacity = capacity(_stock, maxBps(oldConfig));
+            (available_,) =
+                sync(capacity(oldConfig), _state.bucket, refillPeriod(oldConfig), liveOldCapacity, _timestamp);
+        } else {
+            available_ = type(uint128).max;
+        }
+
+        capacity_ = capacity(_stock, _maxBps);
+        if (available_ > capacity_) available_ = capacity_;
+
+        uint64 updated = timestamp(_timestamp);
+        _state.config = config(capacity_, _refillPeriod, _maxBps, true);
+        _state.bucket = bucket(available_, updated, 0);
+    }
+
+    /// @notice Synchronizes a configured throttle against a live stock value and materializes refill.
+    /// @dev The caller must pass the state's current config word and ensure the throttle is enabled.
+    function refresh(
+        State storage _state,
+        uint256 _config,
+        uint256 _stock,
+        uint256 _timestamp
+    )
+        internal
+        returns (uint128 capacity_, uint128 available_)
+    {
+        uint16 maxBps_ = maxBps(_config);
+        uint64 refillPeriod_ = refillPeriod(_config);
+        capacity_ = capacity(_stock, maxBps_);
+        uint64 remainder;
+        (available_, remainder) = sync(capacity(_config), _state.bucket, refillPeriod_, capacity_, _timestamp);
+
+        uint64 updated = timestamp(_timestamp);
+        if (capacity_ != capacity(_config)) {
+            _state.config = config(capacity_, refillPeriod_, maxBps_, true);
+        }
+        _state.bucket = bucket(available_, updated, remainder);
+    }
+
+    /// @notice Returns currently available capacity against a live stock value.
+    /// @dev The caller must pass the state's current config word and ensure the throttle is enabled.
+    function availableCapacity(
+        State storage _state,
+        uint256 _config,
+        uint256 _stock,
+        uint256 _timestamp
+    )
+        internal
+        view
+        returns (uint128 available_)
+    {
+        uint128 liveCapacity = capacity(_stock, maxBps(_config));
+        (available_,) = sync(capacity(_config), _state.bucket, refillPeriod(_config), liveCapacity, _timestamp);
+    }
+
+    /// @notice Attempts to consume capacity against a live stock value.
+    /// @dev The caller must pass the state's current config word and ensure the throttle is enabled
+    ///      and the amount is non-zero. State is unchanged when the requested amount exceeds
+    ///      available capacity.
+    /// @return capacity_        Capacity synchronized to the supplied live stock.
+    /// @return available_       Available capacity before consumption.
+    /// @return remaining_       Available capacity after consumption when allowed.
+    /// @return capacityChanged_ Whether live-stock synchronization changed stored capacity.
+    function consume(
+        State storage _state,
+        uint256 _config,
+        uint256 _stock,
+        uint256 _amount,
+        uint256 _timestamp
+    )
+        internal
+        returns (uint128 capacity_, uint128 available_, uint128 remaining_, bool capacityChanged_)
+    {
+        capacity_ = capacity(_stock, maxBps(_config));
+        uint64 remainder;
+        (available_, remainder) = sync(capacity(_config), _state.bucket, refillPeriod(_config), capacity_, _timestamp);
+        if (_amount > available_) return (capacity_, available_, 0, false);
+
+        uint256 remainingValue = uint256(available_) - _amount;
+        assert(remainingValue <= type(uint128).max);
+        remaining_ = uint128(remainingValue);
+        capacityChanged_ = capacity_ != capacity(_config);
+
+        uint64 updated = timestamp(_timestamp);
+        if (capacityChanged_) {
+            _state.config = config(capacity_, refillPeriod(_config), maxBps(_config), true);
+        }
+        _state.bucket = bucket(remaining_, updated, remainder);
+    }
+
+    /// @notice Disables a throttle and clears both packed slots.
+    function disable(State storage _state) internal {
+        _state.config = 0;
+        _state.bucket = 0;
     }
 }

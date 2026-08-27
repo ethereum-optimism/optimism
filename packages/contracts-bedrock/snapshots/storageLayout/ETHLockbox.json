@@ -39,6 +39,6 @@
     "label": "_withdrawalThrottle",
     "offset": 0,
     "slot": "3",
-    "type": "struct ETHLockbox.WithdrawalThrottleState"
+    "type": "struct WithdrawalThrottle.State"
   }
 ]

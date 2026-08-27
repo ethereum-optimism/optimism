@@ -81,6 +81,6 @@
     "label": "_withdrawalThrottles",
     "offset": 0,
     "slot": "53",
-    "type": "mapping(address => struct L1StandardBridge.WithdrawalThrottleState)"
+    "type": "mapping(address => struct WithdrawalThrottle.State)"
   }
 ]

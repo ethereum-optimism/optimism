@@ -36,6 +36,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase, ProxyAdminOwnedBase, ISemver {
+    using WithdrawalThrottle for WithdrawalThrottle.State;
+
     /// @notice Represents a proven withdrawal.
     /// @custom:field disputeGameProxy Game that the withdrawal was proven against.
     /// @custom:field timestamp        Timestamp at which the withdrawal was proven.
@@ -53,12 +55,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         uint64 refillRemainder;
         uint16 maxBps;
         bool enabled;
-    }
-
-    /// @notice Packed withdrawal throttle storage for ETH held directly by the portal.
-    struct WithdrawalThrottleState {
-        uint256 config;
-        uint256 bucket;
     }
 
     /// @notice The delay between when a withdrawal is proven and when it may be finalized.
@@ -150,7 +146,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     bool private spacer_63_20_1;
 
     /// @notice Withdrawal throttle state for ETH held directly by the portal.
-    WithdrawalThrottleState internal _withdrawalThrottle;
+    WithdrawalThrottle.State internal _withdrawalThrottle;
 
     /// @notice Emitted when the Portal is migrated.
     /// @param oldLockbox The lockbox before the migration
@@ -294,9 +290,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     event WithdrawalThrottleCapacityExhausted();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.0.0
+    /// @custom:semver 6.1.0
     function version() public pure virtual returns (string memory) {
-        return "6.0.0";
+        return "6.1.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -376,28 +372,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
         if (_refillPeriod == 0) revert OptimismPortal_InvalidWithdrawalThrottlePeriod();
 
-        WithdrawalThrottleState storage throttle = _withdrawalThrottle;
-        uint256 oldConfig = throttle.config;
+        WithdrawalThrottle.State storage throttle = _withdrawalThrottle;
         uint256 stockSnapshot = address(this).balance;
-        uint128 available;
-        if (WithdrawalThrottle.enabled(oldConfig)) {
-            uint128 liveOldCapacity = WithdrawalThrottle.capacity(stockSnapshot, WithdrawalThrottle.maxBps(oldConfig));
-            (available,) = WithdrawalThrottle.sync(
-                WithdrawalThrottle.capacity(oldConfig),
-                throttle.bucket,
-                WithdrawalThrottle.refillPeriod(oldConfig),
-                liveOldCapacity,
-                block.timestamp
-            );
-        } else {
-            available = type(uint128).max;
-        }
-        uint128 capacity = WithdrawalThrottle.capacity(stockSnapshot, _maxBps);
-        if (available > capacity) available = capacity;
-
-        uint64 timestamp = WithdrawalThrottle.timestamp(block.timestamp);
-        throttle.config = WithdrawalThrottle.config(capacity, _refillPeriod, _maxBps, true);
-        throttle.bucket = WithdrawalThrottle.bucket(available, timestamp, 0);
+        (uint128 capacity, uint128 available) =
+            throttle.configure(stockSnapshot, _maxBps, _refillPeriod, block.timestamp);
 
         emit WithdrawalThrottleConfigured(_maxBps, _refillPeriod, stockSnapshot, capacity, available);
     }
@@ -409,7 +387,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         if (!WithdrawalThrottle.enabled(_withdrawalThrottle.config)) {
             revert OptimismPortal_WithdrawalThrottleNotEnabled();
         }
-        delete _withdrawalThrottle;
+        _withdrawalThrottle.disable();
 
         emit WithdrawalThrottleDisabled();
     }
@@ -417,17 +395,15 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Returns the stored portal ETH withdrawal throttle state before pending refill is materialized.
     /// @return Withdrawal throttle state.
     function withdrawalThrottle() external view returns (WithdrawalThrottleConfig memory) {
-        WithdrawalThrottleState storage throttle = _withdrawalThrottle;
-        uint256 config_ = throttle.config;
-        uint256 bucket_ = throttle.bucket;
+        WithdrawalThrottle.Snapshot memory throttle = _withdrawalThrottle.snapshot();
         return WithdrawalThrottleConfig({
-            capacity: WithdrawalThrottle.capacity(config_),
-            available: WithdrawalThrottle.storedAvailable(bucket_),
-            refillPeriod: WithdrawalThrottle.refillPeriod(config_),
-            lastUpdated: WithdrawalThrottle.lastUpdated(bucket_),
-            refillRemainder: WithdrawalThrottle.refillRemainder(bucket_),
-            maxBps: WithdrawalThrottle.maxBps(config_),
-            enabled: WithdrawalThrottle.enabled(config_)
+            capacity: throttle.capacity,
+            available: throttle.available,
+            refillPeriod: throttle.refillPeriod,
+            lastUpdated: throttle.lastUpdated,
+            refillRemainder: throttle.refillRemainder,
+            maxBps: throttle.maxBps,
+            enabled: throttle.enabled
         });
     }
 
@@ -436,8 +412,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function availableWithdrawalCapacity() external view returns (uint256) {
         uint256 config_ = _withdrawalThrottle.config;
         if (!WithdrawalThrottle.enabled(config_)) return type(uint256).max;
-        (,, uint128 available,) = _syncedWithdrawalCapacity(config_);
-        return available;
+        return _withdrawalThrottle.availableCapacity(config_, address(this).balance, block.timestamp);
     }
 
     /// @custom:legacy
@@ -890,54 +865,20 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Consumes available ETH withdrawal capacity when the throttle is enabled.
     /// @param _amount Amount of ETH to withdraw.
     function _consumeWithdrawalCapacity(uint256 _amount) internal {
-        WithdrawalThrottleState storage throttle = _withdrawalThrottle;
+        WithdrawalThrottle.State storage throttle = _withdrawalThrottle;
         uint256 config_ = throttle.config;
         if (!WithdrawalThrottle.enabled(config_) || _amount == 0) return;
 
-        (uint256 stockSnapshot, uint128 capacity, uint128 available, uint64 remainder) =
-            _syncedWithdrawalCapacity(config_);
+        uint256 stockSnapshot = address(this).balance;
+        (uint128 capacity, uint128 available, uint128 remaining, bool capacityChanged) =
+            throttle.consume(config_, stockSnapshot, _amount, block.timestamp);
         if (_amount > available) {
             revert OptimismPortal_WithdrawalThrottled(_amount, available, capacity);
         }
 
-        uint256 remainingValue = uint256(available) - _amount;
-        assert(remainingValue <= type(uint128).max);
-        uint128 remaining = uint128(remainingValue);
-        uint128 oldCapacity = WithdrawalThrottle.capacity(config_);
-        bool capacityChanged = capacity != oldCapacity;
-        uint64 timestamp = WithdrawalThrottle.timestamp(block.timestamp);
-        if (capacityChanged) {
-            throttle.config = WithdrawalThrottle.config(
-                capacity, WithdrawalThrottle.refillPeriod(config_), WithdrawalThrottle.maxBps(config_), true
-            );
-        }
-        throttle.bucket = WithdrawalThrottle.bucket(remaining, timestamp, remainder);
-
         if (capacityChanged) emit WithdrawalThrottleRefreshed(stockSnapshot, capacity, available);
         emit WithdrawalThrottleCapacityConsumed(_amount, remaining);
         if (remaining == 0) emit WithdrawalThrottleCapacityExhausted();
-    }
-
-    /// @notice Computes the effective bucket state against the portal's current ETH stock.
-    /// @return stock_ Current portal balance.
-    /// @return capacity_ Capacity derived from the current stock.
-    /// @return available_ Available capacity after refill and stock synchronization.
-    /// @return remainder_ Fractional refill numerator to preserve when materializing the refill.
-    function _syncedWithdrawalCapacity(uint256 _config)
-        internal
-        view
-        returns (uint256 stock_, uint128 capacity_, uint128 available_, uint64 remainder_)
-    {
-        WithdrawalThrottleState storage throttle = _withdrawalThrottle;
-        stock_ = address(this).balance;
-        capacity_ = WithdrawalThrottle.capacity(stock_, WithdrawalThrottle.maxBps(_config));
-        (available_, remainder_) = WithdrawalThrottle.sync(
-            WithdrawalThrottle.capacity(_config),
-            throttle.bucket,
-            WithdrawalThrottle.refillPeriod(_config),
-            capacity_,
-            block.timestamp
-        );
     }
 
     /// @notice Checks if the Interop feature is enabled.

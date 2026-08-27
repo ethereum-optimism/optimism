@@ -151,6 +151,6 @@
     "label": "_withdrawalThrottle",
     "offset": 0,
     "slot": "64",
-    "type": "struct OptimismPortal2.WithdrawalThrottleState"
+    "type": "struct WithdrawalThrottle.State"
   }
 ]
