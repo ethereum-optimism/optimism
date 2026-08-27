@@ -1,5 +1,31 @@
 [
   {
+    "inputs": [],
+    "name": "EVENT_LOOKUP_WINDOW",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "REGISTER_EVENT_GAS_LIMIT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "components": [
@@ -48,6 +74,212 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "certifiedMessages",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Identifier",
+        "name": "_id",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_payloadHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "exportEvent",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Identifier",
+        "name": "_id",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_sentMessage",
+        "type": "bytes"
+      }
+    ],
+    "name": "importAndExecute",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Identifier",
+        "name": "_id",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_payloadHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "importEvent",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "l1EventRegistry",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proxyAdmin",
+    "outputs": [
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proxyAdminOwner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_l1EventRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "setL1EventRegistry",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -114,6 +346,156 @@
       {
         "indexed": true,
         "internalType": "bytes32",
+        "name": "checksum",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "payloadHash",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct Identifier",
+        "name": "id",
+        "type": "tuple"
+      }
+    ],
+    "name": "EventExported",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "checksum",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "payloadHash",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct Identifier",
+        "name": "id",
+        "type": "tuple"
+      }
+    ],
+    "name": "EventImported",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "msgHash",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct Identifier",
+        "name": "id",
+        "type": "tuple"
+      }
+    ],
+    "name": "ExecutingCertifiedMessage",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "msgHash",
         "type": "bytes32"
       },
@@ -155,13 +537,62 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oldRegistry",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "L1EventRegistryUpdated",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "BlockNumberTooHigh",
     "type": "error"
   },
   {
     "inputs": [],
+    "name": "CrossL2Inbox_EventFromAnotherChain",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CrossL2Inbox_EventNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CrossL2Inbox_EventNotInPreviousBlock",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CrossL2Inbox_EventTooOld",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CrossL2Inbox_InvalidEventRegistry",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "CrossL2Inbox_NoExecutingDeposits",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CrossL2Inbox_NotEventRegistry",
     "type": "error"
   },
   {
@@ -172,6 +603,36 @@
   {
     "inputs": [],
     "name": "NotInAccessList",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdmin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotResolvedDelegateProxy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotSharedProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_ProxyAdminNotFound",
     "type": "error"
   },
   {
