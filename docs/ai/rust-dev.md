@@ -53,7 +53,7 @@ just build-lokahi   # lokahi
 
 ### superchain-registry submodule (op-reth)
 
-The `reth-optimism-chainspec` crate's `build.rs` materializes its chain-config archive (`res/superchain-configs.tar`, gitignored) from the `superchain-registry` submodule at the repo root. Any op-reth build that enables the `superchain-configs` feature (the `op-reth` binary, `clippy --all-features`, the chainspec tests) needs that submodule checked out, or the build fails. Initialize it with `just update-superchain-registry-submodule` (or `just sync-superchain`, which also does it). Once `res/` holds the archive, later builds reuse it without touching the submodule (default mode mirrors kona's `KONA_SYNC_SUPERCHAIN`); set `OP_RETH_SYNC_SUPERCHAIN=1` to force a regeneration.
+The `reth-optimism-chainspec` crate's `build.rs` materializes its chain-config archive (`res/superchain-configs.tar`, gitignored) from the `superchain-registry` submodule at the repo root. Any op-reth build that enables the `superchain-configs` feature (the `op-reth` binary, `clippy --all-features`, the chainspec tests) needs that submodule checked out, or the build fails. Initialize it from the repo root with `just update-superchain-registry-submodule` (or `just sync-superchain`, which also does it). Once `res/` holds the archive, later builds reuse it without touching the submodule (default mode mirrors kona's `KONA_SYNC_SUPERCHAIN`); set `OP_RETH_SYNC_SUPERCHAIN=1` to force a regeneration.
 
 ### Running Tests
 
@@ -74,7 +74,7 @@ just test-docs
 
 ### Running op-reth E2E Tests
 
-The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-geth (sequencer) and op-reth (validator). They require two build prerequisites:
+The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL. They require two build prerequisites:
 
 1. **Forge artifacts** — the devnet deploys contracts from compiled artifacts:
    ```bash
@@ -82,7 +82,7 @@ The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-g
    mise exec -- just build-no-tests
    ```
 
-2. **op-reth release binary** — the test harness (`op-devstack/sysgo/rust_binary.go`) only searches `target/release/`, not `target/debug/`. Options:
+2. **op-reth binary** — the test harness (`op-devstack/shared/rustbin/rust_binary.go`) uses the most recently built binary under `target/release/` or `target/debug/`. Options:
    ```bash
    # Option A: let the test build it (slow first run, cached after)
    RUST_JIT_BUILD=1 go test -v -run TestName ./rust/op-reth/tests/proofs/core/

@@ -45,14 +45,14 @@ single fragment:
 # 1. Merge the fragments into /tmp/merged-config.yml (uses mise's yq; resolves anchors).
 mise exec -- bash .circleci/scripts/merge-configs.sh
 
-# 2. Validate it. --org is REQUIRED: the private org orb
+# 2. Validate it. --org-slug is REQUIRED: the private org orb
 #    ethereum-optimism/circleci-utils won't resolve without it (and the CLI
-#    needs CIRCLE_TOKEN set to resolve --org).
-export CIRCLE_TOKEN="<your token>"
-circleci config validate --org gh/ethereum-optimism /tmp/merged-config.yml
+#    needs CIRCLECI_CLI_TOKEN set to resolve --org-slug).
+export CIRCLECI_CLI_TOKEN="<your token>"
+circleci config validate --org-slug gh/ethereum-optimism /tmp/merged-config.yml
 
 # 3. The setup config imports the private orb too, so it needs the same flag.
-circleci config validate --org gh/ethereum-optimism .circleci/config.yml
+circleci config validate --org-slug gh/ethereum-optimism .circleci/config.yml
 ```
 
 Install the CLI without sudo:
@@ -77,8 +77,8 @@ here, fastest-signal/highest-cost first:
 - **develop-only** — `filters:` restricting to the `develop`/`main` branch; runs
   post-merge. For checks too slow, flaky, or expensive to block every PR but where
   you still want fast signal on the integration branch.
-- **Scheduled** — a `scheduled_*` workflow gated on a `c-run_scheduled_*` param and
-  dispatched by the schedule-name mapping in `config.yml` (`build_four_hours` /
+- **Scheduled** — a `scheduled-*` workflow gated on a `c-run_scheduled_*` param and
+  dispatched by the schedule-name mapping in `routing.yml` (`build_four_hours` /
   `build_daily` / `build_weekly`). For exhaustive/expensive suites (full Cannon,
   heavy fuzz, reproducibility, link checks). A new scheduled job not added to that
   mapping never fires — verify the wiring, not just the workflow definition.
@@ -145,9 +145,9 @@ here. Treat items 1–4 as **blocking**.
    output on lockfile+source+profile+features). Fallback `restore` keys are
    deliberate: a chain restores a near-match and recompiles the delta; no fallback
    forces a full refresh (right for download caches, so they can't accrete stale
-   versions). Keys carry a version buster (`-v16-`, `go-cache-version`) for manual
-   invalidation when the key formula itself is wrong. Check `save` and `restore`
-   keys stay consistent.
+   versions). Keys carry a version buster (`rust-cache-version`, `go-cache-version`)
+   for manual invalidation when the key formula itself is wrong. Check `save` and
+   `restore` keys stay consistent.
 
    Also check **cache coverage**: every job that builds or compiles should restore
    the relevant dependency cache, at minimum — a Go job should restore the Go
