@@ -65,7 +65,15 @@ Two guards fail loudly on a field left unwired:
 - **Strict decoding** rejects registry keys that no struct field models —
   `jsonutil.DecodeTOMLStrict` (Go, used by `op-core/superchain`) and
   `#[serde(deny_unknown_fields)]` (kona's `ChainConfig` / `HardForkConfig`). A registry bump that
-  adds an unmodeled field fails to load until the struct consumes it.
+  adds an unmodeled field fails to load until the struct consumes it. kona's `RollupConfig` and the
+  nested types it holds are strict the same way, so an operator-supplied `rollup.json` carrying a
+  key kona does not model fails to load instead of being silently dropped. op-node's
+  `ParseRollupConfig` is lenient, which makes the asymmetry cut both ways: a **new** `rollup.Config`
+  field has to be modeled in kona before a config carrying it loads in kona-node
+  (`TestKonaRollupConfigFixture`, `op-node/rollup/kona_rollup_config_test.go`, fails when the two
+  drift apart), and a **retired** one that op-node simply stops modeling has to stay modeled-and-
+  ignored in kona, or configs still carrying it stop loading there while op-node keeps accepting
+  them.
 - **A reflection completeness test** (`TestRollupConfigFromRegistry_AllFieldsSet`) asserts every
   `rollup.Config` field is populated from a fully-populated `ChainConfig`, catching a field that
   is modeled but never copied in the conversion.

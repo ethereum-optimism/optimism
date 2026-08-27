@@ -34,6 +34,17 @@ const fn default_fjord_max_sequencer_drift() -> u64 {
 /// The Rollup configuration.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+// Reject any `rollup.json` key this struct does not model. The rollup config is the chain's
+// consensus-parameter file, so a key that is dropped is a parameter that is not honored: the node
+// boots and derives a chain other than the one the config describes. Every nested type in the
+// `rollup.json` tree is strict the same way.
+//
+// `hardforks` is `#[serde(flatten)]`ed, a combination serde's documentation calls unsupported. It
+// works: the derive checks the keys left over after every flattened field has taken its own, so the
+// hardfork keys still parse and anything else is an error. The flattened `HardForkConfig`'s own
+// `deny_unknown_fields` is inert and does not contribute. Since that rests on derive behavior
+// rather than a documented guarantee, `test_rollup_config_rejects_unknown_field` pins both halves.
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct RollupConfig {
     /// The genesis state of the rollup.
     pub genesis: ChainGenesis,
@@ -931,10 +942,9 @@ mod tests {
         }
     }
 
-    #[test]
+    /// A reference `rollup.json`, of the shape op-deployer writes for a devnet chain.
     #[cfg(feature = "serde")]
-    fn test_deserialize_reference_rollup_config() {
-        let raw: &str = r#"
+    const REFERENCE_ROLLUP_CONFIG_JSON: &str = r#"
         {
           "genesis": {
             "l1": {
@@ -984,65 +994,143 @@ mod tests {
         }
         "#;
 
-        let expected = expected_rollup_config();
-        let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
-        assert_eq!(deserialized, expected);
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_deserialize_reference_rollup_config() {
+        let deserialized: RollupConfig =
+            serde_json::from_str(REFERENCE_ROLLUP_CONFIG_JSON).unwrap();
+        assert_eq!(deserialized, expected_rollup_config());
     }
 
-    #[test]
-    fn test_rollup_config_unknown_field() {
-        let raw: &str = r#"
-        {
-          "genesis": {
-            "l1": {
-              "hash": "0x481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54",
-              "number": 10
-            },
-            "l2": {
-              "hash": "0x88aedfbf7dea6bfa2c4ff315784ad1a7f145d8f650969359c003bbed68c87631",
-              "number": 0
-            },
-            "l2_time": 1725557164,
-            "system_config": {
-              "batcherAddr": "0xc81f87a644b41e49b3221f41251f15c6cb00ce03",
-              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
-              "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
-              "gasLimit": 30000000,
-              "baseFeeScalar": 1234,
-              "blobBaseFeeScalar": 5678,
-              "eip1559Denominator": 10,
-              "eip1559Elasticity": 20,
-              "operatorFeeScalar": 30,
-              "operatorFeeConstant": 40,
-              "minBaseFee": 50,
-              "daFootprintGasScalar": 10
-            }
-          },
-          "block_time": 2,
-          "max_sequencer_drift": 600,
-          "seq_window_size": 3600,
-          "channel_timeout": 300,
-          "l1_chain_id": 3151908,
-          "l2_chain_id": 1337,
-          "regolith_time": 0,
-          "canyon_time": 0,
-          "delta_time": 0,
-          "ecotone_time": 0,
-          "fjord_time": 0,
-          "batch_inbox_address": "0xff00000000000000000000000000000000042069",
-          "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
-          "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
-          "chain_op_config": {
-            "eip1559_elasticity": 6,
-            "eip1559_denominator": 50,
-            "eip1559_denominator_canyon": 250
-          },
-          "unknown_field": "unknown"
-        }
-        "#;
+    /// Adds `key` to `REFERENCE_ROLLUP_CONFIG_JSON`, at the top level when `object` is `None` and
+    /// inside that nested object otherwise, so a rejection test differs from the config that
+    /// parses by exactly that one key.
+    #[cfg(feature = "serde")]
+    fn reference_config_with_extra_key(object: Option<&str>, key: &str) -> alloc::string::String {
+        let mut value: serde_json::Value =
+            serde_json::from_str(REFERENCE_ROLLUP_CONFIG_JSON).unwrap();
+        let target = match object {
+            Some(name) => value.get_mut(name).expect("nested object is present"),
+            None => &mut value,
+        };
+        target
+            .as_object_mut()
+            .expect("object")
+            .insert(key.into(), serde_json::Value::from("unknown"));
+        value.to_string()
+    }
 
-        let expected = expected_rollup_config();
-        let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
+    /// A `rollup.json` key that [`RollupConfig`] does not model must be rejected, not ignored: an
+    /// ignored consensus parameter is one the node does not honor, so it would derive a chain other
+    /// than the one the config describes. The input is the reference config, which parses, plus one
+    /// unknown key — and it carries flattened hardfork keys, so this also pins that
+    /// `deny_unknown_fields` still lets the flattened `HardForkConfig` take its own.
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_rollup_config_rejects_unknown_field() {
+        for object in [None, Some("genesis"), Some("chain_op_config")] {
+            let raw = reference_config_with_extra_key(object, "unknown_field");
+            let err = serde_json::from_str::<RollupConfig>(&raw).unwrap_err();
+            assert!(
+                err.to_string().contains("unknown field `unknown_field`"),
+                "expected the unknown key in {object:?} to be rejected, got: {err}"
+            );
+        }
+    }
+
+    /// Every key op-node can write to a `rollup.json` has to parse here. op-node's `rollup.Config`
+    /// is what op-deployer emits, and [`RollupConfig`] rejects keys it does not model, so a field
+    /// added there and not here is a config kona-node refuses to start on. The fixture is generated
+    /// from a fully-populated `rollup.Config` by `TestKonaRollupConfigFixture`
+    /// (`op-node/rollup/kona_rollup_config_test.go`), which fails when the two drift apart.
+    ///
+    /// It pins the maximal shape. op-deployer also writes a pre-Holocene `system_config` — only
+    /// `batcherAddr`, `overhead`, `scalar` and `gasLimit` — which parses because everything else
+    /// is optional.
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_op_node_rollup_config_parses() {
+        use crate::SystemConfig;
+        use alloc::string::ToString;
+
+        let raw = include_str!("../tests/fixtures/op_node_rollup_config.json");
+        let deserialized: RollupConfig =
+            serde_json::from_str(raw).expect("op-node rollup.json must parse");
+
+        let expected = RollupConfig {
+            genesis: ChainGenesis {
+                l1: BlockNumHash {
+                    hash: b256!("00000000000000000000000000000000000000000000000000000000000000aa"),
+                    number: 100,
+                },
+                l2: BlockNumHash {
+                    hash: b256!("00000000000000000000000000000000000000000000000000000000000000bb"),
+                    number: 1,
+                },
+                l2_time: 1725557164,
+                system_config: Some(SystemConfig {
+                    batcher_address: address!("1111111111111111111111111111111111111111"),
+                    overhead: U256::from(0xbc),
+                    scalar: U256::from(0xa6fe0),
+                    gas_limit: 30_000_000,
+                    base_fee_scalar: None,
+                    blob_base_fee_scalar: None,
+                    // Decoded from the packed `eip1559Params` op-node writes.
+                    eip1559_denominator: Some(101),
+                    eip1559_elasticity: Some(7),
+                    // Decoded from the packed `operatorFeeParams` op-node writes.
+                    operator_fee_scalar: Some(23),
+                    operator_fee_constant: Some(42),
+                    min_base_fee: Some(1_000_000),
+                    da_footprint_gas_scalar: Some(400),
+                }),
+            },
+            block_time: 2,
+            max_sequencer_drift: 600,
+            seq_window_size: 3600,
+            channel_timeout: 300,
+            // op-node has no such config field; it hardcodes the same value
+            // (`opparams.ChannelTimeoutGranite`), so the default is parity.
+            granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
+            l1_chain_id: 1,
+            l2_chain_id: Chain::from_id(10),
+            hardforks: HardForkConfig {
+                regolith_time: Some(1),
+                canyon_time: Some(2),
+                delta_time: Some(3),
+                ecotone_time: Some(4),
+                fjord_time: Some(5),
+                granite_time: Some(6),
+                holocene_time: Some(7),
+                pectra_blob_schedule_time: Some(12),
+                isthmus_time: Some(8),
+                jovian_time: Some(9),
+                karst_time: Some(10),
+                keep_karst_upgrade_gas: true,
+                lagoon_time: Some(11),
+            },
+            batch_inbox_address: address!("ff00000000000000000000000000000000000010"),
+            deposit_contract_address: address!("2222222222222222222222222222222222222222"),
+            l1_system_config_address: address!("3333333333333333333333333333333333333333"),
+            superchain_config_address: None,
+            blobs_enabled_l1_timestamp: None,
+            da_challenge_address: None,
+            alt_da_config: Some(AltDAConfig {
+                da_challenge_address: Some(address!("4444444444444444444444444444444444444444")),
+                da_challenge_window: Some(160),
+                da_resolve_window: Some(180),
+                da_commitment_type: Some("KeccakCommitment".to_string()),
+                da_max_input_size: Some(130_672),
+            }),
+            chain_op_config: BaseFeeConfig {
+                eip1559_elasticity: 6,
+                eip1559_denominator: 50,
+                eip1559_denominator_canyon: 250,
+            },
+        };
+
         assert_eq!(deserialized, expected);
     }
 

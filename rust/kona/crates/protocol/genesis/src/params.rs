@@ -148,6 +148,9 @@ pub const BASE_MAINNET_BASE_FEE_CONFIG: BaseFeeConfig = BaseFeeConfig {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+// Strict like every other type in the `rollup.json` tree: these are the chain's EIP-1559 consensus
+// parameters, so a key that is dropped is a parameter that is not honored.
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct BaseFeeConfig {
     /// EIP 1559 Elasticity Parameter
     #[cfg_attr(

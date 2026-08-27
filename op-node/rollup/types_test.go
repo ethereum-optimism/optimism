@@ -68,12 +68,15 @@ func randConfig() *Config {
 }
 
 func TestConfigJSON(t *testing.T) {
-	config := randConfig()
-	data, err := json.Marshal(config)
-	assert.NoError(t, err)
-	var roundTripped Config
-	assert.NoError(t, json.Unmarshal(data, &roundTripped))
-	assert.Equal(t, &roundTripped, config)
+	// fullyPopulatedConfig covers the optional fields randConfig leaves nil, where a
+	// marshal/unmarshal tag mismatch would otherwise be invisible.
+	for _, config := range []*Config{randConfig(), fullyPopulatedConfig()} {
+		data, err := json.Marshal(config)
+		assert.NoError(t, err)
+		var roundTripped Config
+		assert.NoError(t, json.Unmarshal(data, &roundTripped))
+		assert.Equal(t, &roundTripped, config)
+	}
 }
 
 func TestAltDAConfigMaxInputSize(t *testing.T) {
