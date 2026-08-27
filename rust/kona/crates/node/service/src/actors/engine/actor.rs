@@ -99,6 +99,12 @@ where
         // Reset the engine.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
 
+        // The reset moved the unsafe head. Publish it before the awaits below, which can block on
+        // a full derivation-actor channel, so that a caller woken by its dropped request cannot
+        // read a pre-reset head. This is also what lets the sequencer's first build after startup
+        // see a real unsafe head rather than the channel's default.
+        self.publish_unsafe_head();
+
         // Signal the derivation actor to reset.
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
         match self.derivation_client.send_signal(signal).await {
@@ -112,6 +118,17 @@ where
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         Ok(())
+    }
+
+    /// Publishes the engine's current unsafe head to the outbound channel, if the node is in
+    /// sequencer mode.
+    fn publish_unsafe_head(&self) {
+        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
+            unsafe_head_tx.send_if_modified(|val| {
+                let new_head = self.engine.state().sync_state.unsafe_head();
+                (*val != new_head).then(|| *val = new_head).is_some()
+            });
+        }
     }
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
@@ -222,12 +239,7 @@ where
             .inspect_err(|err| error!(target: "engine", ?err, "Failed to drain engine tasks"))?;
 
         // If the unsafe head has updated, propagate it to the outbound channels.
-        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
-            unsafe_head_tx.send_if_modified(|val| {
-                let new_head = self.engine.state().sync_state.unsafe_head();
-                (*val != new_head).then(|| *val = new_head).is_some()
-            });
-        }
+        self.publish_unsafe_head();
 
         // Wait for the next processing request.
         let request = self.inbound_request_rx.recv().await.ok_or_else(|| {
@@ -242,6 +254,9 @@ where
                     self.client.clone(),
                     self.rollup.clone(),
                     attributes,
+                    // The requester chose the parent from its own snapshot of the unsafe head,
+                    // which the engine may have moved since.
+                    BuildSealCoupling::Detached,
                     Some(result_tx),
                 )));
                 self.engine.enqueue(task);

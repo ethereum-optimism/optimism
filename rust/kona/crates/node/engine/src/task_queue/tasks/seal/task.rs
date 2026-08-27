@@ -15,16 +15,31 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Instant};
 use tokio::sync::mpsc;
 
-/// How a [`SealTask`] is coupled to the build that produced its payload.
+/// How a [`crate::BuildTask`] and the [`SealTask`] that finishes its payload are coupled.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BuildSealCoupling {
     /// Build and seal run inside the same engine task, so no other task can advance the unsafe
-    /// head between them. The unsafe-head staleness check is skipped: a derivation-driven reorg
-    /// legitimately seals a payload whose parent differs from the current unsafe head.
+    /// head between them, and the parent was chosen from the engine state itself. The unsafe-head
+    /// staleness check is skipped on both: a derivation-driven reorg legitimately builds and seals
+    /// a payload whose parent differs from the current unsafe head.
     Atomic,
-    /// The seal is enqueued as a task separate from its build, so another task may advance the
-    /// unsafe head in between, invalidating the built payload as stale.
+    /// Build and seal are enqueued as separate tasks on behalf of an external caller that picked
+    /// the parent from its own snapshot of the unsafe head. Another task may advance the unsafe
+    /// head before either runs, making the job stale.
     Detached,
+}
+
+impl BuildSealCoupling {
+    /// Whether a job whose attributes build on `parent` no longer extends the engine's unsafe
+    /// head, and so must be re-created by its caller rather than sent to the execution layer.
+    pub(in crate::task_queue) fn job_is_stale(
+        self,
+        state: &EngineState,
+        parent: &L2BlockInfo,
+    ) -> bool {
+        self == Self::Detached &&
+            state.sync_state.unsafe_head().block_info.hash != parent.block_info.hash
+    }
 }
 
 /// Task for block sealing and canonicalization.
@@ -283,18 +298,11 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
             "Starting new seal job"
         );
 
-        let unsafe_block_info = state.sync_state.unsafe_head().block_info;
-        let parent_block_info = self.attributes.parent.block_info;
-
-        let build_is_stale = self.coupling == BuildSealCoupling::Detached &&
-            (unsafe_block_info.hash != parent_block_info.hash ||
-                unsafe_block_info.number != parent_block_info.number);
-
-        let res = if build_is_stale {
+        let res = if self.coupling.job_is_stale(state, &self.attributes.parent) {
             info!(
                 target: "engine",
-                unsafe_block_info = ?unsafe_block_info,
-                parent_block_info = ?parent_block_info,
+                unsafe_block_info = ?state.sync_state.unsafe_head().block_info,
+                parent_block_info = ?self.attributes.parent.block_info,
                 "Seal attributes parent does not match unsafe head, returning rebuild error"
             );
             Err(SealTaskError::UnsafeHeadChangedSinceBuild)
