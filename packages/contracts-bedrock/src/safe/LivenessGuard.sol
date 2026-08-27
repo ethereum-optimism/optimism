@@ -13,22 +13,8 @@ import { SafeSigners } from "src/safe/SafeSigners.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IModuleGuard } from "interfaces/safe/IModuleGuard.sol";
 import { IUnorderedExecutionModule } from "interfaces/safe/IUnorderedExecutionModule.sol";
-
-/// @notice Safe v1.5.0 module guard interface (interfaceId 0x58401ed8).
-interface IModuleGuard is IERC165 {
-    function checkModuleTransaction(
-        address _to,
-        uint256 _value,
-        bytes memory _data,
-        Enum.Operation _operation,
-        address _module
-    )
-        external
-        returns (bytes32 moduleTxHash_);
-
-    function checkAfterModuleExecution(bytes32 _txHash, bool _success) external;
-}
 
 /// @title LivenessGuard
 /// @notice This Guard contract is used to track the liveness of Safe owners.
@@ -172,8 +158,9 @@ contract LivenessGuard is ISemver, BaseGuard, IModuleGuard {
     ///      module exposes the signer set it already validated via Safe.checkSignatures earlier in
     ///      this same call, so no unvalidated signatures are ever parsed here and every reported
     ///      signer is necessarily a current owner. Executions by any other module (e.g. the
-    ///      LivenessModule evicting a stale owner) record nothing and cannot be reverted by the
-    ///      recording logic, so liveness tracking can never block module execution.
+    ///      LivenessModule evicting a stale owner) perform no recording at all, so liveness
+    ///      tracking can never block third-party module execution. For the trusted module the
+    ///      signer read is a simple view call into a contract deployed alongside this guard.
     function checkModuleTransaction(
         address,
         uint256,
@@ -195,12 +182,11 @@ contract LivenessGuard is ISemver, BaseGuard, IModuleGuard {
 
         IUnorderedExecutionModule module = UNORDERED_EXECUTION_MODULE;
         if (address(module) != address(0) && _module == address(module)) {
-            try module.signers() returns (address[] memory signers) {
-                for (uint256 i = 0; i < signers.length; i++) {
-                    lastLive[signers[i]] = block.timestamp;
-                    emit OwnerRecorded(signers[i]);
-                }
-            } catch { }
+            address[] memory signers = module.signers(SAFE);
+            for (uint256 i = 0; i < signers.length; i++) {
+                lastLive[signers[i]] = block.timestamp;
+                emit OwnerRecorded(signers[i]);
+            }
         }
         return bytes32(0);
     }

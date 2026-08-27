@@ -1,11 +1,54 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @title IUnorderedExecutionModule
-/// @notice Interface used by the LivenessGuard to read the signers of an in-flight unordered execution.
-interface IUnorderedExecutionModule {
-    /// @notice Returns the owners whose signatures were validated for the current module execution.
-    /// @dev The implementation must populate this value only after Safe.checkSignatures succeeds and clear it after
-    ///      execTransactionFromModule returns. The value must be scoped to the Safe currently executing the module call.
-    function signers() external view returns (address[] memory signers_);
+import { Safe } from "safe-contracts/Safe.sol";
+import { Enum } from "safe-contracts/common/Enum.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
+
+interface IUnorderedExecutionModule is ISemver {
+    struct ExecTransactionParams {
+        address to;
+        uint256 value;
+        bytes data;
+        Enum.Operation operation;
+    }
+
+    error UnorderedExecutionModule_ModuleNotEnabled();
+    error UnorderedExecutionModule_HashOnceTooSmall();
+    error UnorderedExecutionModule_HashOnceAlreadyUsed();
+    error UnorderedExecutionModule_ReentrantExecution();
+    error UnorderedExecutionModule_UnsupportedSafe();
+    error UnorderedExecutionModule_ExecutionFailed(bytes data);
+
+    event TransactionExecuted(Safe indexed safe, bytes32 indexed txHash, uint256 indexed hashOnce);
+
+    function version() external view returns (string memory);
+    function __constructor__() external;
+    function executed(Safe _safe, uint256 _hashOnce) external view returns (bool executed_);
+    function signers(Safe _safe) external view returns (address[] memory signers_);
+    function deriveHashOnce(string memory _input) external pure returns (uint256 hashOnce_);
+    function encodeTransactionData(
+        Safe _safe,
+        ExecTransactionParams calldata _params,
+        uint256 _hashOnce
+    )
+        external
+        view
+        returns (bytes memory txHashData_);
+    function transactionHash(
+        Safe _safe,
+        ExecTransactionParams calldata _params,
+        uint256 _hashOnce
+    )
+        external
+        view
+        returns (bytes32 txHash_);
+    function execute(
+        Safe _safe,
+        ExecTransactionParams calldata _params,
+        uint256 _hashOnce,
+        bytes calldata _signatures
+    )
+        external
+        returns (bytes memory returnData_);
 }

@@ -8,7 +8,8 @@ import "test/safe-tools/SafeTestTools.sol";
 // Contracts
 import { Safe } from "safe-contracts/Safe.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import { LivenessGuard, IModuleGuard } from "src/safe/LivenessGuard.sol";
+import { LivenessGuard } from "src/safe/LivenessGuard.sol";
+import { IModuleGuard } from "interfaces/safe/IModuleGuard.sol";
 import { IUnorderedExecutionModule } from "interfaces/safe/IUnorderedExecutionModule.sol";
 
 // Libraries
@@ -30,8 +31,10 @@ contract LivenessGuard_WrappedGuard_Harness is LivenessGuard {
     }
 }
 
-/// @notice Minimal stand-in for the UnorderedExecutionModule signer-reporting API.
-contract LivenessGuard_MockUnorderedExecutionModule is IUnorderedExecutionModule {
+/// @notice Minimal stand-in for the UnorderedExecutionModule signer-reporting API. Only the
+///         signers(Safe) getter the guard consumes is implemented, so this does not declare
+///         itself as an IUnorderedExecutionModule implementation.
+contract LivenessGuard_MockUnorderedExecutionModule_Harness {
     address[] internal currentSigners;
     bool internal shouldRevert;
 
@@ -43,8 +46,8 @@ contract LivenessGuard_MockUnorderedExecutionModule is IUnorderedExecutionModule
         shouldRevert = _shouldRevert;
     }
 
-    function signers() external view returns (address[] memory signers_) {
-        require(!shouldRevert, "mock signer read failed");
+    function signers(Safe) external view returns (address[] memory signers_) {
+        require(!shouldRevert, "LivenessGuard_MockUnorderedExecutionModule_Harness: signer read failed");
         signers_ = currentSigners;
     }
 }
@@ -57,7 +60,7 @@ abstract contract LivenessGuard_TestInit is Test, SafeTestTools {
     event OwnerRecorded(address owner);
 
     LivenessGuard_WrappedGuard_Harness livenessGuard;
-    LivenessGuard_MockUnorderedExecutionModule unorderedExecutionModule;
+    LivenessGuard_MockUnorderedExecutionModule_Harness unorderedExecutionModule;
     SafeInstance safeInstance;
 
     // This needs to be non-zero so that the `lastLive` mapping can record non-zero timestamps
@@ -71,7 +74,7 @@ abstract contract LivenessGuard_TestInit is Test, SafeTestTools {
         vm.warp(initTime);
         (, uint256[] memory privKeys) = SafeTestLib.makeAddrsAndKeys("test-owners", ownerCount);
         safeInstance = _setupSafe(privKeys, threshold);
-        unorderedExecutionModule = new LivenessGuard_MockUnorderedExecutionModule();
+        unorderedExecutionModule = new LivenessGuard_MockUnorderedExecutionModule_Harness();
         livenessGuard = new LivenessGuard_WrappedGuard_Harness(
             safeInstance.safe, IUnorderedExecutionModule(address(unorderedExecutionModule))
         );
@@ -185,7 +188,9 @@ contract LivenessGuard_CheckAfterExecution_Test is LivenessGuard_TestInit {
 contract LivenessGuard_CheckModuleTransaction_Test is LivenessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
-    function test_checkModuleTransaction_trustedModule_recordsValidatedSigners() external {
+    /// @notice Tests that an execution by the trusted module records liveness for exactly the
+    ///         signers the module reports.
+    function test_checkModuleTransaction_trustedModule_succeeds() external {
         address[] memory signers = new address[](2);
         signers[0] = safeInstance.owners[0];
         signers[1] = safeInstance.owners[1];
@@ -205,7 +210,9 @@ contract LivenessGuard_CheckModuleTransaction_Test is LivenessGuard_TestInit {
         }
     }
 
-    function test_checkModuleTransaction_unknownModule_doesNotRecordLiveness() external {
+    /// @notice Tests that an execution by an unknown module records no liveness and does not
+    ///         revert.
+    function test_checkModuleTransaction_unknownModule_succeeds() external {
         address[] memory signers = new address[](1);
         signers[0] = safeInstance.owners[0];
         unorderedExecutionModule.setSigners(signers);
@@ -217,7 +224,9 @@ contract LivenessGuard_CheckModuleTransaction_Test is LivenessGuard_TestInit {
         assertEq(livenessGuard.lastLive(signers[0]), initTime);
     }
 
-    function test_checkModuleTransaction_unconfiguredModule_doesNotRecordLiveness() external {
+    /// @notice Tests that a guard deployed without a trusted module records no liveness on the
+    ///         module path and does not revert.
+    function test_checkModuleTransaction_unconfiguredModule_succeeds() external {
         LivenessGuard_WrappedGuard_Harness guard =
             new LivenessGuard_WrappedGuard_Harness(safeInstance.safe, IUnorderedExecutionModule(address(0)));
         vm.warp(block.timestamp + 100);
@@ -230,10 +239,14 @@ contract LivenessGuard_CheckModuleTransaction_Test is LivenessGuard_TestInit {
         }
     }
 
-    function test_checkModuleTransaction_signerReadReverts_doesNotRevert() external {
+    /// @notice Tests that a revert while reading the trusted module's signers bubbles up. The
+    ///         trusted module is deployed alongside this guard, so a failure there is a bug that
+    ///         should surface loudly rather than silently skip liveness recording.
+    function test_checkModuleTransaction_signerReadReverts_reverts() external {
         unorderedExecutionModule.setShouldRevert(true);
 
         vm.prank(address(safeInstance.safe));
+        vm.expectRevert("LivenessGuard_MockUnorderedExecutionModule_Harness: signer read failed");
         livenessGuard.checkModuleTransaction(
             address(0), 0, hex"", Enum.Operation.Call, address(unorderedExecutionModule)
         );
@@ -246,7 +259,9 @@ contract LivenessGuard_CheckModuleTransaction_Test is LivenessGuard_TestInit {
         );
     }
 
-    function test_checkAfterModuleExecution_reconcilesRemovedOwner() external {
+    /// @notice Tests that the module-path post-hook reconciles an owner removed during the module
+    ///         execution, using the module-path snapshot.
+    function test_checkAfterModuleExecution_removedOwner_succeeds() external {
         address ownerToRemove = safeInstance.owners[0];
         address prevOwner = safeInstance.getPrevOwner(ownerToRemove);
 
