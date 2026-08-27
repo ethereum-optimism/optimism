@@ -12,6 +12,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { Features } from "src/libraries/Features.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { GameStatus } from "src/dispute/lib/Types.sol";
 import { OptimismPortal2 as OptimismPortal2Implementation } from "src/L1/OptimismPortal2.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -48,6 +49,9 @@ contract OptimismPortal2Kontrol is DeploymentSummaryFaultProofs, KontrolUtils {
     address internal constant WITHDRAWAL_TARGET = address(0xBEEF);
     bytes32 internal constant WITHDRAWAL_HASH = 0x39a1f3252bf31160a6debb698e5f9b4afceabcfbb8657ef197fadffcc584d7d6;
     uint256 internal constant PROVEN_WITHDRAWALS_SLOT = 57;
+    uint256 internal constant L2_SENDER_SLOT = 50;
+    uint256 internal constant SYSTEM_CONFIG_SLOT = 55;
+    uint256 internal constant ANCHOR_STATE_REGISTRY_SLOT = 62;
     uint256 internal constant ETH_LOCKBOX_SLOT = 63;
     uint256 internal constant SYSTEM_CONFIG_FEATURES_SLOT = 109;
     uint256 internal constant LOCKBOX_BALANCE = type(uint128).max;
@@ -167,6 +171,122 @@ contract OptimismPortal2Kontrol is DeploymentSummaryFaultProofs, KontrolUtils {
         }
     }
 
+    /// @notice The following proofs partition all current state-changing Portal entry points.
+    ///         Each uses canonical ABI calldata from this attacker contract, proves that the
+    ///         authorization invariant is preserved, and then attempts both finalization paths
+    ///         for a challenger-backed withdrawal in the same timestamp. The external-ABI manifest
+    ///         fails if a new selector is introduced or an existing view becomes state-mutating.
+    function prove_depositPreCall_cannotFinalizeChallengerWithdrawal() external {
+        _provePreCallCannotFinalizeChallengerWithdrawal(
+            abi.encodeCall(
+                OptimismPortal2Implementation.depositTransaction, (address(0xD3E0), 0, 21_000, false, bytes(""))
+            )
+        );
+    }
+
+    function prove_donatePreCall_cannotFinalizeChallengerWithdrawal() external {
+        _provePreCallCannotFinalizeChallengerWithdrawal(abi.encodeCall(OptimismPortal2Implementation.donateETH, ()));
+    }
+
+    function prove_receivePreCall_cannotFinalizeChallengerWithdrawal() external {
+        _provePreCallCannotFinalizeChallengerWithdrawal(hex"");
+    }
+
+    function prove_initializePreCall_cannotFinalizeChallengerWithdrawal() external {
+        _provePreCallCannotFinalizeChallengerWithdrawal(
+            abi.encodeCall(
+                OptimismPortal2Implementation.initialize,
+                (ISystemConfig(address(0)), IAnchorStateRegistry(address(0)), IETHLockbox(address(0)))
+            )
+        );
+    }
+
+    function prove_migrateLiquidityPreCall_cannotFinalizeChallengerWithdrawal() external {
+        _provePreCallCannotFinalizeChallengerWithdrawal(
+            abi.encodeCall(OptimismPortal2Implementation.migrateLiquidity, ())
+        );
+    }
+
+    function prove_migrateGamePreCall_cannotFinalizeChallengerWithdrawal() external {
+        _provePreCallCannotFinalizeChallengerWithdrawal(
+            abi.encodeCall(
+                OptimismPortal2Implementation.migrateToSharedDisputeGame,
+                (IETHLockbox(address(0)), IAnchorStateRegistry(address(0)))
+            )
+        );
+    }
+
+    function prove_proveWithdrawalPreCall_cannotFinalizeChallengerWithdrawal() external {
+        bytes[] memory withdrawalProof = new bytes[](0);
+        _provePreCallCannotFinalizeChallengerWithdrawal(
+            abi.encodeCall(
+                OptimismPortal2Implementation.proveWithdrawalTransaction,
+                (
+                    _withdrawal(),
+                    0,
+                    Types.OutputRootProof(bytes32(0), bytes32(0), bytes32(0), bytes32(0)),
+                    withdrawalProof
+                )
+            )
+        );
+    }
+
+    function _provePreCallCannotFinalizeChallengerWithdrawal(bytes memory _preCallData) internal {
+        AirgapGame_Harness game = new AirgapGame_Harness();
+        game.setState(1, 2, GameStatus.CHALLENGER_WINS);
+        AirgapFactory_Harness factory = new AirgapFactory_Harness(IDisputeGame(address(game)));
+        AirgapSystemConfig_Harness systemConfig = new AirgapSystemConfig_Harness();
+        AnchorStateRegistryAirgap_Harness registry = new AnchorStateRegistryAirgap_Harness(7 days);
+        registry.configure(ISystemConfig(address(systemConfig)), IDisputeGameFactory(address(factory)));
+
+        OptimismPortal2Implementation portal = new OptimismPortal2Implementation(7 days);
+        vm.store(address(portal), bytes32(L2_SENDER_SLOT), bytes32(uint256(uint160(Constants.DEFAULT_L2_SENDER))));
+        vm.store(address(portal), bytes32(SYSTEM_CONFIG_SLOT), bytes32(uint256(uint160(address(systemConfig)))));
+        vm.store(address(portal), bytes32(ANCHOR_STATE_REGISTRY_SLOT), bytes32(uint256(uint160(address(registry)))));
+        _recordProvenWithdrawalOn(address(portal), WITHDRAWAL_HASH, address(this), IDisputeGame(address(game)), 2);
+        vm.warp(2 + 7 days + 1);
+
+        // The preparatory call may succeed or revert. In either case, it must preserve every
+        // authorization-critical field and cannot create a path around the registry decision.
+        (bool preCallSucceeded,) = address(portal).call(_preCallData);
+        if (preCallSucceeded) {
+            _assertChallengerAuthorizationInvariant(portal, registry, game);
+        } else {
+            _assertChallengerAuthorizationInvariant(portal, registry, game);
+        }
+
+        Types.WithdrawalTransaction memory withdrawal = _withdrawal();
+        assert(Hashing.hashWithdrawal(withdrawal) == WITHDRAWAL_HASH);
+        (bool finalized,) = address(portal).call(abi.encodeCall(portal.finalizeWithdrawalTransaction, (withdrawal)));
+
+        assert(!finalized);
+        assert(!portal.finalizedWithdrawals(WITHDRAWAL_HASH));
+
+        (bool finalizedWithExternalProof,) = address(portal).call(
+            abi.encodeCall(portal.finalizeWithdrawalTransactionExternalProof, (withdrawal, address(this)))
+        );
+        assert(!finalizedWithExternalProof);
+        assert(!portal.finalizedWithdrawals(WITHDRAWAL_HASH));
+    }
+
+    function _assertChallengerAuthorizationInvariant(
+        OptimismPortal2Implementation _portal,
+        AnchorStateRegistryAirgap_Harness _registry,
+        AirgapGame_Harness _game
+    )
+        internal
+        view
+    {
+        (IDisputeGame storedGame, uint64 storedAt) = _portal.provenWithdrawals(WITHDRAWAL_HASH, address(this));
+        assert(storedGame == IDisputeGame(address(_game)));
+        assert(storedAt == 2);
+        assert(!_portal.finalizedWithdrawals(WITHDRAWAL_HASH));
+        assert(_portal.anchorStateRegistry() == IAnchorStateRegistry(address(_registry)));
+        assert(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
+        assert(_game.status() == GameStatus.CHALLENGER_WINS);
+        assert(_game.resolvedAt().raw() == 2);
+    }
+
     /// @notice Proves for every symbolic value that the real ETHLockbox transfers exactly that
     ///         amount to its authorized Portal and cannot debit more than requested.
     function prove_ethLockbox_unlocksExactValue(uint96 _value) external {
@@ -217,6 +337,21 @@ contract OptimismPortal2Kontrol is DeploymentSummaryFaultProofs, KontrolUtils {
             abi.encodeCall(anchorStateRegistry.isGameClaimValid, (disputeGame)),
             abi.encode(true)
         );
+    }
+
+    function _recordProvenWithdrawalOn(
+        address _portal,
+        bytes32 _withdrawalHash,
+        address _proofSubmitter,
+        IDisputeGame _game,
+        uint64 _provenAt
+    )
+        internal
+    {
+        bytes32 outerSlot = keccak256(abi.encode(_withdrawalHash, PROVEN_WITHDRAWALS_SLOT));
+        bytes32 provenWithdrawalSlot = keccak256(abi.encode(_proofSubmitter, outerSlot));
+        uint256 packedProvenWithdrawal = uint256(uint160(address(_game))) | uint256(_provenAt) << 160;
+        vm.store(_portal, provenWithdrawalSlot, bytes32(packedProvenWithdrawal));
     }
 
     function _enableLockbox() internal {

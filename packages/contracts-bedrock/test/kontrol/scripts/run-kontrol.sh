@@ -140,6 +140,13 @@ if [ "$SCRIPT_TESTS" == true ]; then
     "OptimismPortal2Kontrol.prove_provenWithdrawal_cannotFinalizeBeforeProofMaturity"
     "OptimismPortal2Kontrol.prove_checkWithdrawal_trustsAnchorStateRegistry"
     "OptimismPortal2Kontrol.prove_checkWithdrawal_successRequiresBothAirgaps"
+    "OptimismPortal2Kontrol.prove_depositPreCall_cannotFinalizeChallengerWithdrawal"
+    "OptimismPortal2Kontrol.prove_donatePreCall_cannotFinalizeChallengerWithdrawal"
+    "OptimismPortal2Kontrol.prove_receivePreCall_cannotFinalizeChallengerWithdrawal"
+    "OptimismPortal2Kontrol.prove_initializePreCall_cannotFinalizeChallengerWithdrawal"
+    "OptimismPortal2Kontrol.prove_migrateLiquidityPreCall_cannotFinalizeChallengerWithdrawal"
+    "OptimismPortal2Kontrol.prove_migrateGamePreCall_cannotFinalizeChallengerWithdrawal"
+    "OptimismPortal2Kontrol.prove_proveWithdrawalPreCall_cannotFinalizeChallengerWithdrawal"
     "OptimismPortal2Kontrol.prove_ethLockbox_unlocksExactValue"
     "OptimismPortal2Kontrol.prove_ethLockbox_roundTripPreservesValue"
     "DisputeGameStatusKontrol.prove_faultDisputeGame_challengerWinsIsTerminal"
@@ -208,6 +215,9 @@ if [ "${results[0]}" -ne 0 ]; then
   echo "Kontrol Build Failed"
   exit 1
 fi
+
+notif "External Method Coverage"
+run ./test/kontrol/scripts/check-airgap-external-methods.sh
 
 # Run kontrol_prove and store the result
 kontrol_prove

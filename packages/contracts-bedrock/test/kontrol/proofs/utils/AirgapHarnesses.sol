@@ -35,10 +35,18 @@ contract AirgapFactory_Harness {
     function games(GameType, Claim, bytes memory) external view returns (IDisputeGame, Timestamp) {
         return (GAME, Timestamp.wrap(1));
     }
+
+    function gameAtIndex(uint256) external view returns (GameType, Timestamp, IDisputeGame) {
+        return (GameType.wrap(1), Timestamp.wrap(1), GAME);
+    }
 }
 
 contract AirgapSystemConfig_Harness {
     function paused() external pure returns (bool) {
+        return false;
+    }
+
+    function isFeatureEnabled(bytes32) external pure returns (bool) {
         return false;
     }
 }
