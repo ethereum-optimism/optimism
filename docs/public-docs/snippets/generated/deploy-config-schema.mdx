@@ -12,7 +12,7 @@
 
 Generated from the [`DeployConfig` struct](https://github.com/ethereum-optimism/optimism/blob/op-deployer%2Fv0.7.1/op-chain-ops/genesis/config.go)
 in `op-chain-ops/genesis` at [`op-deployer/v0.7.1`](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer%2Fv0.7.1):
-115 values in 19 groups. The JSON key for each value is its `json:"..."` struct
+122 values in 20 groups. The JSON key for each value is its `json:"..."` struct
 tag there; descriptions are the Go doc comments. When this page and the source
 disagree, the source wins.
 
@@ -166,6 +166,19 @@ L2CoreDeployConfig configures the core protocol parameters of the chain.
 | `minBaseFee` | number | MinBaseFee is the minimum base applied to each block. |
 | `daFootprintGasScalar` | number | DAFootprintGasScalar is the scalar used to compute the DAFootprint of each block. |
 
+### Alt-DA mode
+
+AltDADeployConfig configures optional AltDA functionality.
+
+| JSON key | Type | Description |
+| --- | --- | --- |
+| `useAltDA` | boolean | UseAltDA is a flag that indicates if the system is using op-alt-da |
+| `daCommitmentType` | string | DACommitmentType specifies the allowed commitment |
+| `daChallengeWindow` | number | DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged. |
+| `daResolveWindow` | number | DAResolveWindow represents the block interval during which a data availability challenge can be resolved. |
+| `daBondSize` | number | DABondSize represents the required bond size to initiate a data availability challenge. |
+| `daResolverRefundPercentage` | number | DAResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver such as 100 means 100% refund. |
+
 ### Development L1 genesis
 
 DevL1DeployConfig is used to configure a L1 chain for development/testing purposes. A production L2 deployment does not utilize this configuration, except of a L1BlockTime sanity-check (set this to 12 for L1 Ethereum).
@@ -244,6 +257,7 @@ L1DependenciesConfig is the set of addresses that affect the L2 genesis construc
 | `l1ERC721BridgeProxy` | address | L1ERC721BridgeProxy represents the address of the L1ERC721Bridge on L1 and is used as part of building the L2 genesis state. |
 | `systemConfigProxy` | address | SystemConfigProxy represents the address of the SystemConfigProxy on L1 and is used as part of the derivation pipeline. |
 | `optimismPortalProxy` | address | OptimismPortalProxy represents the address of the OptimismPortalProxy on L1 and is used as part of the derivation pipeline. |
+| `daChallengeProxy` | address | DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract. |
 
 ### Legacy fields
 
