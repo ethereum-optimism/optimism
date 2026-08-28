@@ -107,8 +107,14 @@ _amsterdam-forge-dir:
   fi
   cd "$(dirname "$AMSTERDAM_FORGE")" && pwd
 
-# Runs standard contract tests. Everything outside test/L2 runs against the Amsterdam EVM
-# version (Amsterdam activates on L1 only); test/L2 runs at the default EVM version.
+# Test files that must run at the default EVM version rather than Amsterdam. Everything
+# under test/L2, plus ExecuteNUTBundle: it lives in test/scripts but drives the L2 upgrade
+# path, so Amsterdam's gas schedule does not apply to it.
+DEFAULT_EVM_TESTS := '^test/L2/|^test/scripts/ExecuteNUTBundle\.t\.sol$'
+
+# Runs standard contract tests. Amsterdam activates on L1 only, so files matching
+# DEFAULT_EVM_TESTS run at the default EVM version and everything else runs against
+# the Amsterdam EVM version.
 #
 # Env:
 # - TEST_FILES: optional newline-separated list of test files to run, relative to the
@@ -123,8 +129,8 @@ test *ARGS:
   #!/bin/bash
   set -euo pipefail
   TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol')}"
-  L1_FILES=$(echo "$TEST_FILES" | grep -v '^test/L2/' || true)
-  L2_FILES=$(echo "$TEST_FILES" | grep '^test/L2/' || true)
+  L1_FILES=$(echo "$TEST_FILES" | grep -vE '{{DEFAULT_EVM_TESTS}}' || true)
+  L2_FILES=$(echo "$TEST_FILES" | grep -E '{{DEFAULT_EVM_TESTS}}' || true)
   if [ -n "$L1_FILES" ]; then
     AMSTERDAM_FORGE_DIR="$(just _amsterdam-forge-dir)"
     export PATH="$AMSTERDAM_FORGE_DIR:$PATH"
@@ -178,13 +184,13 @@ test *ARGS:
 test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
 
-# Runs only the Amsterdam half of the suite (everything outside test/L2).
+# Runs only the Amsterdam half of the suite (everything not in DEFAULT_EVM_TESTS).
 test-amsterdam *ARGS:
-  TEST_FILES="$(find test -name '*.t.sol' -not -path 'test/L2/*')" just test {{ARGS}}
+  TEST_FILES="$(find test -name '*.t.sol' | grep -vE '{{DEFAULT_EVM_TESTS}}')" just test {{ARGS}}
 
-# Runs only the test/L2 suite, at the default EVM version (the L2 EVM is not changing).
+# Runs only the default-EVM suite (the L2 EVM is not changing).
 test-l2 *ARGS:
-  TEST_FILES="$(find test/L2 -name '*.t.sol')" just test {{ARGS}}
+  TEST_FILES="$(find test -name '*.t.sol' | grep -E '{{DEFAULT_EVM_TESTS}}')" just test {{ARGS}}
 
 # Enforces the EIP-7825 per-transaction gas cap (2^24) on every contract operation the
 # non-L2 suite exercises under the Amsterdam EVM. Runs the suite with forge's gas report
@@ -199,7 +205,7 @@ check-gas-cap *ARGS: build-go-ffi
   #!/bin/bash
   set -euo pipefail
   export PATH="$(just _amsterdam-forge-dir):$PATH"
-  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol' -not -path 'test/L2/*')}"
+  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol' | grep -vE '{{DEFAULT_EVM_TESTS}}')}"
   REPORT=cache/gas-report-amsterdam.json
   mkdir -p cache
   echo "check-gas-cap: running the non-L2 suite under Amsterdam with the gas report enabled..."
