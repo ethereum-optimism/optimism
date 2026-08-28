@@ -39,7 +39,7 @@ contract LibGameArgs_Decode_Test is Test {
         address challenger;
     }
 
-    function test_encodeAndDecodeRoundTrip_succeeds() public {
+    function test_encodeAndDecodeRoundTrip_succeeds() public view {
         LibGameArgs.GameArgs memory args = LibGameArgs.GameArgs({
             absolutePrestate: keccak256(abi.encodePacked("absolutePrestate")),
             vm: vm.randomAddress(),
@@ -62,7 +62,7 @@ contract LibGameArgs_Decode_Test is Test {
         assertEq(decoded.challenger, args.challenger);
     }
 
-    function test_encodePartialRoundTrip_succeeds() public {
+    function test_encodePartialRoundTrip_succeeds() public view {
         LibGameArgs.GameArgs memory args = LibGameArgs.GameArgs({
             absolutePrestate: keccak256(abi.encodePacked("absolutePrestate")),
             vm: vm.randomAddress(),
@@ -79,7 +79,7 @@ contract LibGameArgs_Decode_Test is Test {
         assertEq(encoded, expected);
     }
 
-    function test_decodeFull_succeeds() public {
+    function test_decodeFull_succeeds() public view {
         GameArgs memory args = GameArgs({
             absolutePrestate: keccak256(abi.encodePacked("absolutePrestate")),
             vm: vm.randomAddress(),
@@ -103,7 +103,7 @@ contract LibGameArgs_Decode_Test is Test {
         assertEq(decoded.challenger, args.challenger);
     }
 
-    function test_decodeShort_succeeds() public {
+    function test_decodeShort_succeeds() public view {
         GameArgs memory args = GameArgs({
             absolutePrestate: keccak256(abi.encodePacked("absolutePrestate")),
             vm: vm.randomAddress(),
