@@ -1,0 +1,35 @@
+{
+  "../../superchain-registry": {
+    "rev": "7715c7dc14049b9b2162b8e166fbf89b7ae5ab69"
+  },
+  "lib/forge-std": {
+    "rev": "6853b9ec7df5dc0c213b05ae67785ad4f4baa0ea"
+  },
+  "lib/kontrol-cheatcodes": {
+    "rev": "2c48ae1ab44228c199dca29414c0b4b18a3434e6"
+  },
+  "lib/lib-keccak": {
+    "rev": "3b1e7bbb4cc23e9228097cfebe42aedaf3b8f2b9"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "ecd2ca2cd7cac116f7a37d0e474bbb3d7d5e1c4d"
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "rev": "0a2cb9a445c365870ed7a8ab461b12acf3e27d63"
+  },
+  "lib/openzeppelin-contracts-v5": {
+    "rev": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+  },
+  "lib/safe-contracts": {
+    "branch": {
+      "name": "v1.4.1",
+      "rev": "dc437e8fba8b4805d76bcbd1c668c9fd3d1e83be"
+    }
+  },
+  "lib/solady": {
+    "rev": "502cc1ea718e6fa73b380635ee0868b0740595f0"
+  },
+  "lib/solmate": {
+    "rev": "8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
+  }
+}
