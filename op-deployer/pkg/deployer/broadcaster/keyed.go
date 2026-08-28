@@ -23,7 +23,15 @@ import (
 )
 
 const (
-	GasPadFactor = 1.2
+	// GasPadFactor scales the simulation's gas-used into a tx gas limit. The pad must
+	// absorb gas charges the simulator's EVM does not model — e.g. Glamsterdam's
+	// EIP-8037 state gas, which prices code deposits at ~1530 gas/byte (~7x the classic
+	// creation cost). Node-side estimation is not an alternative — txs within a batch
+	// depend on each other's state, which the node has not seen yet. Over-padding is
+	// cheap: unused gas is refunded, and the limit is clamped to the block gas limit.
+	// Do not clamp to the EIP-7825 cap: that cap applies to execution gas only, and
+	// tx.gas must exceed it to fund the state-gas reservoir of large deployments.
+	GasPadFactor = 10.0
 )
 
 type KeyedBroadcaster struct {
@@ -114,13 +122,13 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 	futures := make([]<-chan txmgr.SendResponse, len(bcasts))
 	ids := make([]common.Hash, len(bcasts))
 
-	latestBlock, err := t.client.BlockByNumber(ctx, nil)
+	latestHeader, err := t.client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get latest block: %w", err)
+		return nil, fmt.Errorf("failed to get latest header: %w", err)
 	}
 
 	for i, bcast := range bcasts {
-		futures[i], ids[i] = t.broadcast(ctx, bcast, latestBlock.GasLimit())
+		futures[i], ids[i] = t.broadcast(ctx, bcast, latestHeader.GasLimit)
 		t.lgr.Info(
 			"transaction broadcasted",
 			"id", ids[i],
@@ -224,9 +232,9 @@ func asTxCandidate(bcast script.Broadcast, blockGasLimit uint64) txmgr.TxCandida
 	return candidate
 }
 
-// padGasLimit calculates the gas limit for a transaction based on the intrinsic gas and the gas used by
-// the underlying call. Values are multiplied by a pad factor to account for any discrepancies. The output
-// is clamped to the block gas limit since Geth will reject transactions that exceed it before letting them
+// padGasLimit calculates the gas limit for a transaction based on the intrinsic gas and the
+// gas used by the underlying call, scaled by GasPadFactor. The output is clamped to the
+// block gas limit since Geth will reject transactions that exceed it before letting them
 // into the mempool.
 func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint64) uint64 {
 	intrinsicGas, err := core.IntrinsicGas(data, nil, nil, creation, true, true, false)
