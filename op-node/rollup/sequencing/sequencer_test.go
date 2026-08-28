@@ -1293,6 +1293,52 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 	return seq, deps
 }
 
+func TestSequencerUsesInjectedRuntimeClock(t *testing.T) {
+	log := testlog.Logger(t, log.LevelInfo)
+	_, deps := createSequencer(log)
+	runtimeClock := clock.NewDeterministicClock(time.Unix(1_000, 0))
+
+	seq := NewSequencerWithClock(context.Background(), log, deps.cfg, defaultSealingDuration, deps.attribBuilder,
+		deps.l1OriginSelector, deps.seqState, deps.conductor, deps.asyncGossip, metrics.NoopMetrics, deps.eng, nil, runtimeClock)
+
+	require.Equal(t, runtimeClock.Now(), seq.timeNow())
+}
+
+func TestCatchupSequencerParksBeforeDriftDisablesTxPool(t *testing.T) {
+	s := newSeqSetup(t)
+	release := CatchupRelease{
+		CheckpointID: "sha256:checkpoint", DeploymentID: "shadow", ResetGeneration: "1",
+		CheckpointNumber: s.head.Number, CheckpointHash: s.head.Hash, CheckpointTimestamp: s.head.Time,
+		OriginNumber: s.l1Origin.Number, OriginTimestamp: s.l1Origin.Time,
+		L1BlockTime: 12, L2BlockTime: s.deps.cfg.BlockTime,
+		TargetLead: 60, HardCap: 1_200, CatchupMultiplier: 10,
+		ReleaseUnixNano: uint64(s.clock.Now().UnixNano()),
+	}
+	require.NoError(t, release.Seal())
+	schedule, err := NewCatchupSchedule(release)
+	require.NoError(t, err)
+	s.seq.catchupSchedule = schedule
+	s.seq.scheduleNextAction(s.head)
+
+	nextPayloadTimestamp := s.head.Time + s.deps.cfg.BlockTime
+	maxDrift := s.seq.spec.MaxSequencerDrift(s.l1Origin.Time)
+	origin := s.l1Origin
+	origin.Time = nextPayloadTimestamp - (maxDrift - release.TargetLead)
+	s.deps.l1OriginSelector.l1OriginFn = func(eth.L2BlockRef) (eth.L1BlockRef, error) {
+		return origin, nil
+	}
+	s.deps.eng.startBuildFn = func(context.Context, *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		t.Fatal("catch-up sequencer must park before building a drift-boundary payload")
+		return nil, nil
+	}
+
+	s.seq.RunAction()
+	require.Equal(t, BuildingState{}, s.seq.building)
+	next, armed := s.seq.NextAction()
+	require.True(t, armed)
+	require.Equal(t, s.clock.Now().Add(schedule.OriginRetryDelay()), next)
+}
+
 // TestSequencerStaysParkedUntilResetConfirmed pins the reset ordering: the
 // engine emits the rewound forkchoice update before EngineResetConfirmedEvent.
 // If that update re-armed the sequencer, the confirmation's deliberate

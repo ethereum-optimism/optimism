@@ -4,9 +4,13 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
 type Config struct {
+	RuntimeClock clock.Clock `json:"-"`
+
 	// VerifierConfDepth is the distance to keep from the L1 head when reading L1 data for L2 derivation.
 	VerifierConfDepth uint64 `json:"verifier_conf_depth"`
 
@@ -35,6 +39,9 @@ type Config struct {
 	// (i.e. it will fetch the payload from the execution engine this much prior to the block's timestamp).
 	// If this is <= 0 it is automatically adjusted to 50ms.
 	SequencerSealingDuration time.Duration `json:"sequencer_sealing_duration"`
+
+	// CatchupSchedule optionally paces a restored sequencer from its checkpoint clock.
+	CatchupSchedule *sequencing.CatchupSchedule `json:"-"`
 
 	// Finalizer contains runtime configuration for finality behavior.
 	Finalizer *finality.Config `json:"finalizer,omitempty"`

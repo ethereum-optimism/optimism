@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
@@ -139,6 +140,8 @@ type Sequencer struct {
 
 	// toBlockRef converts a payload to a block-ref, and is only configurable for test-purposes
 	toBlockRef func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error)
+
+	catchupSchedule *CatchupSchedule
 }
 
 var _ SequencerIface = (*Sequencer)(nil)
@@ -152,6 +155,22 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 	asyncGossip AsyncGossiper,
 	metrics Metrics,
 	eng SequencerEngine,
+) *Sequencer {
+	return NewSequencerWithClock(driverCtx, log, rollupCfg, sealingDuration, attributesBuilder, l1OriginSelector,
+		listener, conductor, asyncGossip, metrics, eng, nil, clock.SystemClock)
+}
+
+func NewSequencerWithClock(driverCtx context.Context, log log.Logger, rollupCfg *rollup.Config,
+	sealingDuration time.Duration,
+	attributesBuilder derive.AttributesBuilder,
+	l1OriginSelector L1OriginSelectorIface,
+	listener SequencerStateListener,
+	conductor conductor.SequencerConductor,
+	asyncGossip AsyncGossiper,
+	metrics Metrics,
+	eng SequencerEngine,
+	catchupSchedule *CatchupSchedule,
+	runtimeClock clock.Clock,
 ) *Sequencer {
 	if sealingDuration <= 0 {
 		sealingDuration = defaultSealingDuration
@@ -169,9 +188,10 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 		l1OriginSelector: l1OriginSelector,
 		metrics:          metrics,
 		eng:              eng,
-		timeNow:          time.Now,
+		timeNow:          runtimeClock.Now,
 		wakeCh:           make(chan struct{}, 1),
 		toBlockRef:       derive.PayloadToBlockRef,
+		catchupSchedule:  catchupSchedule,
 	}
 }
 
@@ -619,6 +639,23 @@ func (s *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 func (s *Sequencer) scheduleNextAction(newHead eth.L2BlockRef) {
 	s.nextActionArmed = true
 	now := s.timeNow()
+	if s.catchupSchedule != nil {
+		deadline, _, err := s.catchupSchedule.BuildDeadline(newHead, s.sealingDuration)
+		if err != nil {
+			s.log.Error("Invalid checkpoint-relative catch-up schedule", "err", err, "head", newHead)
+			s.metrics.RecordSequencingError()
+			s.nextActionArmed = false
+			s.setUnsafeHead(newHead)
+			return
+		}
+		if deadline.Before(now) {
+			deadline = now
+		}
+		s.nextAction = deadline
+		s.setUnsafeHead(newHead)
+		s.evalMaxSafeLag()
+		return
+	}
 	blockTime := time.Duration(s.rollupCfg.BlockTime) * time.Second
 	payloadTime := time.Unix(int64(newHead.Time+s.rollupCfg.BlockTime), 0)
 	remainingTime := payloadTime.Sub(now)
@@ -751,7 +788,15 @@ func (s *Sequencer) startBuildingBlock() {
 	// empty blocks (other than the L1 info deposit and any user deposits). We handle this by
 	// setting NoTxPool to true, which will cause the Sequencer to not include any transactions
 	// from the transaction pool.
-	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+s.spec.MaxSequencerDrift(l1Origin.Time)
+	maxDrift := s.spec.MaxSequencerDrift(l1Origin.Time)
+	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+maxDrift
+	if s.catchupSchedule != nil && s.catchupSchedule.ShouldParkForOrigin(uint64(attrs.Timestamp), l1Origin.Time, maxDrift) {
+		s.nextAction = s.timeNow().Add(s.catchupSchedule.OriginRetryDelay())
+		s.nextActionArmed = s.active.Load()
+		s.log.Warn("Parking checkpoint catch-up until private L1 restores origin headroom",
+			"payload_time", uint64(attrs.Timestamp), "origin_time", l1Origin.Time, "max_drift", maxDrift)
+		return
+	}
 
 	// For the Ecotone activation block we shouldn't include any sequencer transactions.
 	if s.rollupCfg.IsEcotoneActivationBlock(uint64(attrs.Timestamp)) {
@@ -858,6 +903,20 @@ func (s *Sequencer) startBuildingBlock() {
 
 	// schedule sealing
 	now := s.timeNow()
+	if s.catchupSchedule != nil {
+		deadline, err := s.catchupSchedule.SealDeadline(result.Parent, s.sealingDuration)
+		if err != nil {
+			s.log.Error("Invalid checkpoint-relative catch-up seal schedule", "err", err, "parent", result.Parent)
+			s.metrics.RecordSequencingError()
+			s.handleInvalid()
+			return
+		}
+		if deadline.Before(now) {
+			deadline = now
+		}
+		s.nextAction = deadline
+		return
+	}
 	payloadTime := time.Unix(int64(result.Parent.Time+s.rollupCfg.BlockTime), 0)
 	remainingTime := payloadTime.Sub(now)
 	if remainingTime < s.sealingDuration {

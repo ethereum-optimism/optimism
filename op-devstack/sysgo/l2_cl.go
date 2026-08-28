@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
 type L2CLNode interface {
@@ -14,6 +15,8 @@ type L2CLNode interface {
 }
 
 type L2CLConfig struct {
+	RuntimeClock clock.Clock
+
 	// SyncMode to run, if this is a sequencer
 	SequencerSyncMode nodeSync.Mode
 	// SyncMode to run, if this is a verifier
@@ -40,6 +43,15 @@ type L2CLConfig struct {
 	SequencerMaxSafeLag uint64
 }
 
+func L2CLRuntimeClock(runtimeClock clock.Clock) L2CLOption {
+	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		if runtimeClock == nil {
+			p.Require().Fail("L2 CL runtime clock is required")
+		}
+		cfg.RuntimeClock = runtimeClock
+	})
+}
+
 func L2CLSequencer() L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.IsSequencer = true
@@ -62,6 +74,7 @@ func L2CLSequencerMaxSafeLag(maxSafeLag uint64) L2CLOption {
 
 func DefaultL2CLConfig() *L2CLConfig {
 	return &L2CLConfig{
+		RuntimeClock:      clock.SystemClock,
 		SequencerSyncMode: nodeSync.CLSync,
 		VerifierSyncMode:  nodeSync.CLSync,
 		SafeDBPath:        "",

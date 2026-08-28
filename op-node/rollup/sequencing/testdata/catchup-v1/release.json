@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "sha256:148faa1418dad536d9bad7ef7bb79ab9e39f9c26df957ec6f5ed2b7b65b3e063",
+  "checkpoint_id": "sha256:checkpoint",
+  "deployment_id": "shadow-public-local-v2",
+  "reset_generation": "1",
+  "checkpoint_number": 47990874,
+  "checkpoint_hash": "0x0000000000000000000000000000000000000000000000000000000000000500",
+  "checkpoint_timestamp": 1787784288,
+  "origin_number": 11573858,
+  "origin_timestamp": 1787784216,
+  "l1_block_time": 12,
+  "l2_block_time": 2,
+  "target_lead": 60,
+  "hard_cap": 1200,
+  "catchup_multiplier": 10,
+  "release_unix_nano": 2000000000000000000
+}

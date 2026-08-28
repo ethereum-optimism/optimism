@@ -6,6 +6,7 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -39,6 +40,7 @@ func (c ZKDisputeGameConfig) validate() error {
 // PresetConfig captures preset constructor mutations.
 // It is independent from orchestrator lifecycle hooks.
 type PresetConfig struct {
+	L1Clock                    clock.Clock
 	LocalContractArtifactsPath string
 	DeployerOptions            []DeployerOption
 	BatcherOptions             []BatcherOption

@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -57,7 +58,10 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 
 	configPersistence := NewConfigPersistence(ctx)
 
-	driverConfig := NewDriverConfig(ctx)
+	driverConfig, err := NewDriverConfig(ctx, rollupConfig)
+	if err != nil {
+		return nil, err
+	}
 
 	p2pSignerSetup, err := p2pcli.LoadSignerSetup(ctx, log)
 	if err != nil {
@@ -192,7 +196,7 @@ func NewConfigPersistence(ctx cliiface.Context) config.ConfigPersistence {
 	return config.NewConfigPersistence(stateFile)
 }
 
-func NewDriverConfig(ctx cliiface.Context) *driver.Config {
+func NewDriverConfig(ctx cliiface.Context, rollupConfig *rollup.Config) (*driver.Config, error) {
 	cfg := &driver.Config{
 		VerifierConfDepth:        ctx.Uint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth:       ctx.Uint64(flags.SequencerL1Confs.Name),
@@ -201,6 +205,19 @@ func NewDriverConfig(ctx cliiface.Context) *driver.Config {
 		SequencerMaxSafeLag:      ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
 		RecoverMode:              ctx.Bool(flags.SequencerRecoverMode.Name),
 		SequencerSealingDuration: ctx.Duration(flags.SequencerSealingDurationFlag.Name),
+	}
+	if releaseURL := ctx.String(flags.SequencerCatchupReleaseURLFlag.Name); releaseURL != "" {
+		if !cfg.SequencerEnabled {
+			return nil, fmt.Errorf("sequencer catch-up release requires sequencing to be enabled")
+		}
+		schedule, err := sequencing.FetchCatchupSchedule(context.Background(), releaseURL)
+		if err != nil {
+			return nil, err
+		}
+		if err := schedule.ValidateCheckpoint(rollupConfig.Genesis.L2.Number, rollupConfig.Genesis.L2.Hash, rollupConfig.Genesis.L2Time, rollupConfig.BlockTime); err != nil {
+			return nil, err
+		}
+		cfg.CatchupSchedule = schedule
 	}
 
 	// Populate finality config from flags. A finality config with null fields
@@ -215,7 +232,7 @@ func NewDriverConfig(ctx cliiface.Context) *driver.Config {
 		cfg.Finalizer.FinalityDelay = &delay
 	}
 
-	return cfg
+	return cfg, nil
 }
 
 func NewRollupConfigFromCLI(log log.Logger, ctx cliiface.Context) (*rollup.Config, error) {

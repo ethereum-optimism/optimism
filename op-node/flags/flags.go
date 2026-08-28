@@ -298,6 +298,12 @@ var (
 		Value:    50 * time.Millisecond,
 		Category: SequencerCategory,
 	}
+	SequencerCatchupReleaseURLFlag = &cli.StringFlag{
+		Name:     "sequencer.catchup-release-url",
+		Usage:    "Internal checkpoint catch-up release contract URL. Disabled when empty.",
+		EnvVars:  prefixEnvVars("SEQUENCER_CATCHUP_RELEASE_URL"),
+		Category: SequencerCategory,
+	}
 	FinalityLookbackFlag = &cli.Uint64Flag{
 		Name:     "finality.lookback",
 		Usage:    "Number of L1 blocks to look back for finality verification. Uses default calculation if 0 (considers alt-DA challenge/resolve windows if applicable).",
@@ -472,6 +478,7 @@ var optionalFlags = []cli.Flag{
 	SequencerL1Confs,
 	SequencerRecoverMode,
 	SequencerSealingDurationFlag,
+	SequencerCatchupReleaseURLFlag,
 	FinalityLookbackFlag,
 	FinalityDelayFlag,
 	L1EpochPollIntervalFlag,

@@ -128,11 +128,14 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	world := spec.BuildWorld(t, keys, cfg)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 
-	l1Clock := clock.SystemClock
+	l1Clock := cfg.L1Clock
 	var timeTravelClock *clock.AdvancingClock
-	if cfg.EnableTimeTravel {
+	if l1Clock == nil && cfg.EnableTimeTravel {
 		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
+	}
+	if l1Clock == nil {
+		l1Clock = clock.SystemClock
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, world.L1Network, jwtPath, l1Clock, cfg)
 

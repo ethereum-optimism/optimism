@@ -25,7 +25,6 @@ import (
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -429,7 +428,7 @@ func startL2CLNode(
 		syncMode: syncMode,
 		p:        t,
 		logger:   logger,
-		clock:    clock.SystemClock,
+		clock:    cfg.RuntimeClock,
 	}
 	l2CL.Start()
 	t.Cleanup(l2CL.Stop)
