@@ -2,11 +2,13 @@ package env
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -68,9 +70,23 @@ func DefaultForkedScriptHost(
 ) (*script.Host, error) {
 	client := ethclient.NewClient(forkRPC)
 
-	latest, err := client.HeaderByNumber(ctx, nil)
-	if err != nil {
+	// Fetch the head block raw and take the node's reported hash rather than
+	// recomputing it locally: the chain may include header fields unknown to our
+	// geth types (e.g. Glamsterdam's blockAccessListHash), which would make a
+	// locally computed hash diverge from the canonical one.
+	var rawHead json.RawMessage
+	if err := forkRPC.CallContext(ctx, &rawHead, "eth_getBlockByNumber", "latest", false); err != nil {
 		return nil, fmt.Errorf("failed to get latest block: %w", err)
+	}
+	var latest types.Header
+	if err := json.Unmarshal(rawHead, &latest); err != nil {
+		return nil, fmt.Errorf("failed to decode latest block header: %w", err)
+	}
+	var reportedHash struct {
+		Hash common.Hash `json:"hash"`
+	}
+	if err := json.Unmarshal(rawHead, &reportedHash); err != nil {
+		return nil, fmt.Errorf("failed to decode latest block hash: %w", err)
 	}
 	chainID, err := client.ChainID(ctx)
 	if err != nil {
@@ -95,7 +111,7 @@ func DefaultForkedScriptHost(
 		forkRPC,
 		latest.Number,
 		scriptCtx,
-		latest.Hash(),
+		reportedHash.Hash,
 		additionalOpts...,
 	)
 }
