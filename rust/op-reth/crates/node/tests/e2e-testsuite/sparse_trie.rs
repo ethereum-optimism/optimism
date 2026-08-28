@@ -1,3 +1,4 @@
+use alloy_consensus::BlockHeader;
 use alloy_genesis::Genesis;
 use reth_e2e_test_utils::setup_engine;
 use reth_node_api::TreeConfig;
@@ -7,7 +8,7 @@ use reth_optimism_node::{
     OpNode,
     utils::{advance_chain, optimism_payload_attributes},
 };
-use reth_provider::BlockNumReader;
+use reth_provider::{BlockNumReader, HeaderProvider, StateProviderFactory};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -65,6 +66,13 @@ async fn test_share_sparse_trie_with_payload_builder() -> eyre::Result<()> {
         "expected at least {num_blocks} roots from the shared trie, got {from_shared_trie} \
          ({fallbacks} fallbacks)"
     );
+
+    // Independently walk the canonical database trie and compare its root with the payload header.
+    // This catches a shared-trie wiring bug even if the engine accepts the same incorrect result.
+    let header =
+        node.inner.provider.header_by_number(best_block)?.expect("best block header should exist");
+    let synchronous_root = node.inner.provider.latest()?.state_root(Default::default())?;
+    assert_eq!(synchronous_root, header.state_root());
 
     Ok(())
 }
