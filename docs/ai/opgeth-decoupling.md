@@ -552,8 +552,7 @@ import op-geth-only symbols by design).
 ## 20. Downstream repos — consumers outside this monorepo
 
 The monorepo is not the only holder of an op-geth `replace`. Other OP Labs Go repos pin op-geth
-directly, and inherit the fork's dependency graph with it (the trigger for this section was
-cloud-security#324: Pion CVEs reaching six repos through op-geth's P2P/NAT dependencies). They
+directly, and inherit the fork's dependency graph with it. They
 are **not** in the scope defined at the top of this doc — they are separate modules that can flip
 independently and ahead of #20266 — but their blockers are ours, so they belong on this map.
 
