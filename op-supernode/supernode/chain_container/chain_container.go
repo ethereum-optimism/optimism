@@ -190,6 +190,10 @@ type simpleChainContainer struct {
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
+	// extraRPCRoutes are optional sibling routes mounted on this chain's own handler, at
+	// <base>/<chainID>/<route>. Empty unless a caller passed WithExtraRPCRoutes; see
+	// extra_rpc_routes.go.
+	extraRPCRoutes []ExtraRPCRoute
 
 	// verifierMu guards writes and reads of the verifier.
 	verifierMu sync.RWMutex
@@ -215,6 +219,7 @@ func NewChainContainer(
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
 	metrics *resources.SupernodeMetrics,
 	appVersion string,
+	opts ...ChainContainerOption,
 ) (InteropChain, error) {
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
@@ -232,6 +237,11 @@ func NewChainContainer(
 		appVersion:         appVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 		metrics:            metrics,
+	}
+	// Options are applied before any I/O so that an option can only ever add configuration, never
+	// react to a half-built container. With no options this is a no-op.
+	for _, opt := range opts {
+		opt(c)
 	}
 	vncfg.SafeDBPath = c.subPath("safe_db")
 	vncfg.RPC = cfg.RPCConfig
@@ -377,6 +387,8 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		c.initOverload.RPCHandler = h
 		c.rpcHandler = h
+		// Mount any optional sibling routes on the fresh handler. No-op when none are configured.
+		c.registerExtraRPCRoutes(h)
 		// attach in-proc rollup client for this handler
 		if err := c.attachInProcRollupClient(); err != nil {
 			c.log.Warn("failed to attach in-proc rollup client", "err", err)
