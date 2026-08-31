@@ -36,7 +36,7 @@ pub use rpc::{
 };
 
 mod behaviour;
-pub use behaviour::{Behaviour, BehaviourError};
+pub use behaviour::{Behaviour, BehaviourError, Gossipsub};
 
 mod config;
 pub use config::{
