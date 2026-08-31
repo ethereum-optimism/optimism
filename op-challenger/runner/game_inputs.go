@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -40,7 +41,7 @@ func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources
 		if superRoots == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires super root RPC to be set", gameType)
 		}
-		return createGameInputsInterop(ctx, log, superRoots, typeName)
+		return createGameInputsInterop(ctx, log, superRoots, l1Client, typeName)
 	default:
 		if rollupClient == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires rollup rpc to be set", gameType)
@@ -170,7 +171,23 @@ func hasNonZeroSafeHead(ctx context.Context, client *sources.RollupClient, l1Num
 	return safeHead.SafeHead.Number > 0, nil
 }
 
-func createGameInputsInterop(ctx context.Context, log log.Logger, client super.SuperNodeRootProvider, typeName string) (utils.LocalGameInputs, error) {
+// fullyProcessedL1Head returns the highest L1 block the node has fully processed. Only blocks
+// strictly below CurrentL1 are fully processed, and the super root trace provider serves
+// claims only when the node's CurrentL1 is above the game's L1 head, so CurrentL1 itself is
+// never usable as one: every claim fails with ErrNotInSync however well synced the node is.
+func fullyProcessedL1Head(ctx context.Context, l1Client l1BlockHashSource, currentL1 eth.BlockID) (eth.BlockID, error) {
+	if currentL1.Number == 0 {
+		return eth.BlockID{}, errors.New("l1 head is 0")
+	}
+	headNum := currentL1.Number - 1
+	header, err := l1Client.HeaderByNumber(ctx, new(big.Int).SetUint64(headNum))
+	if err != nil {
+		return eth.BlockID{}, fmt.Errorf("failed to fetch l1 head at block %v: %w", headNum, err)
+	}
+	return eth.BlockID{Number: headNum, Hash: header.Hash()}, nil
+}
+
+func createGameInputsInterop(ctx context.Context, log log.Logger, client super.SuperNodeRootProvider, l1Client l1BlockHashSource, typeName string) (utils.LocalGameInputs, error) {
 	// superroot_atTimestamp carries the same finalized timestamp and L1 head as
 	// supernode_syncStatus, and is served by op-supernode and by op-node (which has no
 	// supernode namespace), so a single-chain rollup can be its own super root source.
@@ -186,11 +203,11 @@ func createGameInputsInterop(ctx context.Context, log log.Logger, client super.S
 	if claimTimestamp == 0 {
 		return utils.LocalGameInputs{}, errors.New("finalized timestamp is 0")
 	}
-	l1Head := status.CurrentL1
-	log.Info("Using L1 head", "head", l1Head, "type", typeName)
-	if l1Head.Number == 0 {
-		return utils.LocalGameInputs{}, errors.New("l1 head is 0")
+	l1Head, err := fullyProcessedL1Head(ctx, l1Client, status.CurrentL1)
+	if err != nil {
+		return utils.LocalGameInputs{}, err
 	}
+	log.Info("Using L1 head", "head", l1Head, "currentL1", status.CurrentL1, "type", typeName)
 
 	prestateProvider := super.NewSuperNodePrestateProvider(client, agreedTimestamp)
 	gameDepth := types.Depth(30)
