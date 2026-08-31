@@ -127,6 +127,28 @@ var (
 		EnvVars: prefixEnvVars("FETCH_CONCURRENCY"),
 		Value:   DefaultFetchConcurrency,
 	}
+	RenderTransformChainsFlag = &cli.StringSliceFlag{
+		Name: "render-transform-chains",
+		Usage: "Chain IDs (decimal, or 0x-prefixed hex) whose logs are stored at their RENDERED positions " +
+			"instead of their raw block-level positions. For a listed chain, blocks and receipts are fetched and " +
+			"verified exactly as for any other chain, and the transformation is then applied in-process to the " +
+			"verified logs before they reach the logs DB: logs outside the emitter set are dropped and the " +
+			"survivors are renumbered densely from zero, while the block is still sealed under its real hash. " +
+			"This is for a PRIVATE chain in a public dependency set, whose messages are published as a separate " +
+			"public rendering chain: the rendered positions, not the private ones, are the canonical identity of " +
+			"its messages, so admission gating must be decided against them. List only the operator's own private " +
+			"chain — never a counterparty chain, whose logs are already canonical as fetched.",
+		EnvVars: prefixEnvVars("RENDER_TRANSFORM_CHAINS"),
+	}
+	RenderExtraEmittersFlag = &cli.StringSliceFlag{
+		Name: "render-extra-emitters",
+		Usage: "Extra emitter addresses for --render-transform-chains, on top of the two standard interop " +
+			"predeploys, which are always included. This MUST match the emitter set the chain's rendering builder " +
+			"is configured with (a genesis-time choice, not a per-message policy): the two derive the same log " +
+			"positions only if they filter by the same rule, and a mismatch silently renumbers messages. Has no " +
+			"effect unless --render-transform-chains is set.",
+		EnvVars: prefixEnvVars("RENDER_EXTRA_EMITTERS"),
+	}
 	SupportLegacyCheckAccessListFormatFlag = &cli.BoolFlag{
 		Name:    "support-legacy-check-access-list-format",
 		Usage:   "Support legacy interop_checkAccessList requests that omit executing chainID. DANGEROUS: intended only for compatibility with legacy clients; access-list source-chain validation still runs.",
@@ -160,6 +182,8 @@ var optionalFlags = []cli.Flag{
 	FailsafeLogIntervalFlag,
 	RPCConcurrencyFlag,
 	FetchConcurrencyFlag,
+	RenderTransformChainsFlag,
+	RenderExtraEmittersFlag,
 	SupportLegacyCheckAccessListFormatFlag,
 	DangerouslyEnablePassthroughFlag,
 }
