@@ -15,6 +15,10 @@
     'data-website-id': '1e9518c7-51d1-4ac5-a237-14befea6148f',
     'data-project-name': 'OP Labs',
     'data-project-color': '#FF0420',
+    // Root-relative so it resolves on both the preview and production
+    // origins. Must be set explicitly: the logo configured in the Kapa
+    // dashboard is a via.placeholder.com URL, and that service is dead.
+    'data-project-logo': '/public/apple-touch-icon.png',
     'data-modal-title': 'Optimism Docs Assistant ✨',
     'data-modal-example-questions': 'What is the OP Stack?, How do I get started with Supersim?, How do I create a SuperERC20 token?, How do I get faucet funds?',
     'data-modal-ask-ai-input-placeholder': 'Ask me a question about building on Optimism',
