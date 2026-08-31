@@ -86,6 +86,10 @@ type PresetConfig struct {
 	// an hour so chain-progression hiccups under CI load cannot flip a healthy
 	// sequencer to unhealthy.
 	ConductorFastHealthChecks bool
+	// PrivateInterop, when non-nil, makes the preset's SECOND L2 chain a private-interop pair:
+	// a private sequenced chain plus the public rendering that is its identity in the dependency
+	// set. Nil on every ordinary preset, which is what keeps an ordinary preset unchanged.
+	PrivateInterop *PrivateInteropConfig
 }
 
 func NewPresetConfig() PresetConfig {
