@@ -1,0 +1,11 @@
+{
+  "name": "trailing-bytes",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "invalid",
+  "description": "A complete, otherwise-valid encoding with four extra bytes after it. The ABI decoder alone would ignore them; canonical form refuses them. Bytes that decode at all must decode to EXACTLY one claim, or a transaction carries a second object that only some readers see.",
+  "bin": "trailing-bytes.bin",
+  "bytes": 388,
+  "keccak": "0x9ad43e64030c0a6421a558e023b5586b6a0e4c32efe65ba431e54cd6a2d6029c",
+  "proofHex": "0x",
+  "refusal": "non-canonical"
+}
