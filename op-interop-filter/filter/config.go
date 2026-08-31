@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/flags"
@@ -41,6 +43,16 @@ type Config struct {
 	LegacyCheckAccessListFormat bool          // If true, allows access list requests that omit executing chainID
 	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
 	FetchConcurrency            int           // Number of blocks to fetch concurrently (default: 64)
+
+	// RenderTransformChains is the set of chain IDs whose verified logs are transformed to their
+	// rendered positions before storage. See flags.RenderTransformChainsFlag and
+	// LogsDBChainIngester.processBlockLogs. Empty (the default) stores every chain's logs exactly
+	// as fetched, which is what a filter watching only other people's chains wants.
+	RenderTransformChains map[eth.ChainID]bool
+	// RenderExtraEmitters are the non-standard emitter addresses of the rendering transformation,
+	// on top of the two interop predeploys that render.EmitterSet always includes. It must match
+	// the rendering builder's configuration for the chains listed above.
+	RenderExtraEmitters []common.Address
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -84,6 +96,19 @@ func (c *Config) Check() error {
 	}
 	if c.FetchConcurrency > c.RPCConcurrency {
 		result = errors.Join(result, errors.New("fetch-concurrency must be less than or equal to rpc-concurrency"))
+	}
+	// A render-transform entry for a chain this filter does not ingest is always a typo, and this
+	// is the one misconfiguration that would otherwise be silent: the intended chain keeps storing
+	// raw positions, so every one of its messages is filed under a number no counterparty will ever
+	// reference, and the filter simply rejects them.
+	for chainID := range c.RenderTransformChains {
+		if _, ok := c.RollupConfigs[chainID]; !ok {
+			result = errors.Join(result, fmt.Errorf(
+				"render-transform-chains lists chain %s, which has no rollup config", chainID))
+		}
+	}
+	if len(c.RenderExtraEmitters) > 0 && len(c.RenderTransformChains) == 0 {
+		result = errors.Join(result, errors.New("render-extra-emitters requires render-transform-chains"))
 	}
 	result = errors.Join(result, c.MetricsConfig.Check())
 	result = errors.Join(result, c.PprofConfig.Check())
@@ -129,6 +154,17 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		return nil, fmt.Errorf("fetch-concurrency (%d) must be less than or equal to rpc-concurrency (%d)", fetchConcurrency, rpcConcurrency)
 	}
 
+	renderTransformChains, err := parseChainIDs(
+		ctx.StringSlice(flags.RenderTransformChainsFlag.Name), flags.RenderTransformChainsFlag.Name)
+	if err != nil {
+		return nil, err
+	}
+	renderExtraEmitters, err := parseAddresses(
+		ctx.StringSlice(flags.RenderExtraEmittersFlag.Name), flags.RenderExtraEmittersFlag.Name)
+	if err != nil {
+		return nil, err
+	}
+
 	// Load rollup configs from --networks and --rollup-configs
 	rollupConfigs, err := loadRollupConfigs(
 		ctx.StringSlice(flags.NetworksFlag.Name),
@@ -159,10 +195,47 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		LegacyCheckAccessListFormat: ctx.Bool(flags.SupportLegacyCheckAccessListFormatFlag.Name),
 		RPCConcurrency:              rpcConcurrency,
 		FetchConcurrency:            fetchConcurrency,
+		RenderTransformChains:       renderTransformChains,
+		RenderExtraEmitters:         renderExtraEmitters,
 		LogConfig:                   oplog.ReadCLIConfig(ctx),
 		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                 oppprof.ReadCLIConfig(ctx),
 	}, nil
+}
+
+// parseChainIDs parses a chain-ID list flag into a set. Returns nil for an empty list, so the
+// common case carries no state at all.
+func parseChainIDs(values []string, flagName string) (map[eth.ChainID]bool, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	out := make(map[eth.ChainID]bool, len(values))
+	for _, v := range values {
+		chainID, err := eth.ChainIDFromString(strings.TrimSpace(v))
+		if err != nil {
+			return nil, fmt.Errorf("invalid chain ID %q in %s: %w", v, flagName, err)
+		}
+		out[chainID] = true
+	}
+	return out, nil
+}
+
+// parseAddresses parses an address list flag. Addresses are checked for well-formedness rather than
+// accepted through common.HexToAddress, which silently turns anything unparseable into the zero
+// address.
+func parseAddresses(values []string, flagName string) ([]common.Address, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	out := make([]common.Address, 0, len(values))
+	for _, v := range values {
+		v = strings.TrimSpace(v)
+		if !common.IsHexAddress(v) {
+			return nil, fmt.Errorf("invalid address %q in %s", v, flagName)
+		}
+		out = append(out, common.HexToAddress(v))
+	}
+	return out, nil
 }
 
 // loadRollupConfigs loads rollup configs from networks (superchain registry) and custom JSON files.

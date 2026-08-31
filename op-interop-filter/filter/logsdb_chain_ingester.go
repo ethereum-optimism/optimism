@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -61,6 +63,9 @@ type LogsDBChainIngester struct {
 	pollInterval     time.Duration
 	rollupCfg        *rollup.Config // Rollup config for block number calculation
 	fetchConcurrency int
+	// renderTransform, when non-nil, is the emitter set this chain's logs are rendered
+	// through before storage. See processBlockLogs.
+	renderTransform *render.EmitterSet
 
 	stopped atomic.Bool
 
@@ -85,6 +90,11 @@ type LogsDBChainIngester struct {
 // NewLogsDBChainIngester creates a new LogsDBChainIngester for the given chain.
 // startTimestamp is when we report Ready() = true (typically now).
 // backfillDuration is how far back from startTimestamp to begin ingestion.
+//
+// renderTransform, when non-nil, is the emitter set this chain's verified logs are rendered through
+// before storage — see processBlockLogs and flags.RenderTransformChainsFlag. It is a pointer
+// because the ZERO EmitterSet is itself meaningful (the two standard interop predeploys), so nil is
+// the only honest way to spell "no transformation". Per-chain: nil for every ordinary chain.
 func NewLogsDBChainIngester(
 	parentCtx context.Context,
 	logger log.Logger,
@@ -98,6 +108,7 @@ func NewLogsDBChainIngester(
 	rollupCfg *rollup.Config,
 	rpcConcurrency int,
 	fetchConcurrency int,
+	renderTransform *render.EmitterSet,
 ) (*LogsDBChainIngester, error) {
 	ctx, cancel := context.WithCancel(parentCtx)
 
@@ -109,6 +120,27 @@ func NewLogsDBChainIngester(
 		return nil, fmt.Errorf("failed to create RPC client for chain %s: %w", chainID, err)
 	}
 
+	if renderTransform != nil {
+		logger.Info("Render transform enabled: this chain's logs are stored at their rendered positions")
+	}
+
+	// TrustRPC stays FALSE for every chain, including a render-transformed one. The source is always
+	// a real execution client serving self-consistent blocks, so the block hash is recomputed from
+	// the header, the block body is verified, and the receipts are validated in full — the
+	// transformation happens after all of that, on data this process has already checked. Nothing
+	// here relies on relaxing verification, and nothing should: an earlier iteration of this feature
+	// consumed a transforming RPC proxy instead, and needed TrustRPC to do it.
+	//
+	// Worth keeping written down from that iteration, because it is a live trap for anyone who
+	// reaches for TrustRPC in op-service/sources: TRUSTRPC GATES VERIFICATION BUT NOT IDENTITY
+	// DERIVATION. sources.EthClient.InfoByNumber and InfoByLabel wrap their header in
+	// eth.HeaderBlockInfo (op-service/eth/block_info.go), which DERIVES the block hash from the
+	// header fields unconditionally; TrustRPC only decides whether that derived hash is checked
+	// against the one the RPC reported, not which of the two becomes the block's identity. Against
+	// any source whose header is not self-consistent, a TrustRPC client therefore does not merely
+	// skip a check — it silently adopts a block hash that is no block's, and would go on to seal it.
+	// The by-hash accessors are not affected: they use eth.HeaderBlockInfoTrusted with the requested
+	// hash. Reading a real node makes the whole question moot, which is the point.
 	ethClient, err := sources.NewEthClient(
 		rpcClient,
 		logger,
@@ -143,6 +175,7 @@ func NewLogsDBChainIngester(
 		pollInterval:     pollInterval,
 		rollupCfg:        rollupCfg,
 		fetchConcurrency: fetchConcurrency,
+		renderTransform:  renderTransform,
 		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
@@ -821,44 +854,81 @@ func (c *LogsDBChainIngester) recordIngestionProgress(blockNum, head uint64) {
 	}
 }
 
+// blockLogs is the block's complete log sequence in block order: receipts in transaction order,
+// each receipt's logs in emission order. Position in this slice IS a log's block-level index, and
+// the fetch already validated that it agrees with every log's own Index field.
+func blockLogs(receipts optypes.Receipts) []*gethTypes.Log {
+	var out []*gethTypes.Log
+	for _, receipt := range receipts {
+		out = append(out, receipt.Logs...)
+	}
+	return out
+}
+
 func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID eth.BlockID,
 	receipts optypes.Receipts, blockNum uint64) (uint32, error) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var logIndex uint32
-
 	parentBlock := eth.BlockID{Hash: blockInfo.ParentHash(), Number: blockNum - 1}
 	if blockNum == 0 {
 		parentBlock = eth.BlockID{}
 	}
 
-	for _, receipt := range receipts {
-		for _, l := range receipt.Logs {
-			logHash := messages.LogToLogHash(l)
-
-			execMsg, err := messages.DecodeExecutingMessageLog(l)
-			if err != nil {
-				return 0, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
-			}
-
-			if execMsg != nil {
-				c.log.Debug("Found executing message in block",
-					"block", blockNum,
-					"log_index", logIndex,
-					"src_chain", execMsg.ChainID,
-					"src_block", execMsg.BlockNum,
-					"src_log_index", execMsg.LogIdx,
-					"src_timestamp", execMsg.Timestamp,
-				)
-			}
-
-			if err := c.logsDB.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {
-				return 0, fmt.Errorf("failed to add log: %w", err)
-			}
-			logIndex++
+	// The stored sequence. Ordinarily it is the block's logs as fetched, each at its own block-level
+	// index. For a render-transformed chain it is render.RenderedLogs of that same sequence: the
+	// logs restricted to the emitter set, in their original interleaved order, renumbered densely
+	// from zero.
+	//
+	// That renumbering is the whole point. A private chain in a public dependency set publishes its
+	// messages as a separate public rendering chain, and a message's identity — the (block, log
+	// index) every counterparty and every judge references — is its position THERE, not its position
+	// among the private chain's own logs. Storing raw positions would file every message under a
+	// number nobody will ever cite. The block is still sealed under its REAL hash: only the log
+	// sequence is transformed, and only for the chains the operator listed.
+	//
+	// RenderedLogs is imported, never reimplemented. It is the same call the rendering builder makes
+	// when it constructs the replay transactions, and the two must agree about every index for the
+	// filter's admission decisions to mean anything; a second copy of the emitter predicate here
+	// would be a divergence waiting for a block that interleaves.
+	logs := blockLogs(receipts)
+	stored := make([]*gethTypes.Log, 0, len(logs))
+	if c.renderTransform == nil {
+		stored = append(stored, logs...)
+	} else {
+		for _, rl := range render.RenderedLogs(logs, *c.renderTransform) {
+			// rl.RenderedLogIndex is the position in this same slice, so appending in order is
+			// enough; the log itself is stored unmodified, because its index is carried by the
+			// logs DB entry rather than by the log.
+			stored = append(stored, rl.Log)
 		}
+	}
+
+	var logIndex uint32
+	for _, l := range stored {
+		logHash := messages.LogToLogHash(l)
+
+		execMsg, err := messages.DecodeExecutingMessageLog(l)
+		if err != nil {
+			return 0, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
+		}
+
+		if execMsg != nil {
+			c.log.Debug("Found executing message in block",
+				"block", blockNum,
+				"log_index", logIndex,
+				"src_chain", execMsg.ChainID,
+				"src_block", execMsg.BlockNum,
+				"src_log_index", execMsg.LogIdx,
+				"src_timestamp", execMsg.Timestamp,
+			)
+		}
+
+		if err := c.logsDB.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {
+			return 0, fmt.Errorf("failed to add log: %w", err)
+		}
+		logIndex++
 	}
 
 	if err := c.logsDB.SealBlock(blockInfo.ParentHash(), blockID, blockInfo.Time()); err != nil {
