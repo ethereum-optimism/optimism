@@ -603,11 +603,8 @@ mod tests {
             Mutex<VecDeque<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)>>,
         details: Mutex<Option<ProofRequest>>,
         status_ids: Mutex<Vec<ProofId>>,
-        detail_ids: Mutex<Vec<ProofId>>,
-        cancel_ids: Mutex<Vec<ProofId>>,
         request_calls: AtomicUsize,
         status_calls: AtomicUsize,
-        cancel_calls: AtomicUsize,
     }
 
     impl ScriptedNetworkApi {
@@ -619,11 +616,8 @@ mod tests {
                 statuses: Mutex::new(statuses.into()),
                 details: Mutex::new(details),
                 status_ids: Mutex::new(Vec::new()),
-                detail_ids: Mutex::new(Vec::new()),
-                cancel_ids: Mutex::new(Vec::new()),
                 request_calls: AtomicUsize::new(0),
                 status_calls: AtomicUsize::new(0),
-                cancel_calls: AtomicUsize::new(0),
             }
         }
     }
@@ -659,14 +653,11 @@ mod tests {
             self.statuses.lock().pop_front().context("no scripted proof status")
         }
 
-        async fn get_proof_request(&self, proof_id: ProofId) -> Result<Option<ProofRequest>> {
-            self.detail_ids.lock().push(proof_id);
+        async fn get_proof_request(&self, _proof_id: ProofId) -> Result<Option<ProofRequest>> {
             Ok(self.details.lock().clone())
         }
 
-        async fn cancel_request(&self, proof_id: ProofId) -> Result<()> {
-            self.cancel_calls.fetch_add(1, Ordering::SeqCst);
-            self.cancel_ids.lock().push(proof_id);
+        async fn cancel_request(&self, _proof_id: ProofId) -> Result<()> {
             if let Some(details) = self.details.lock().as_mut() {
                 details.is_canceled = true;
             }
