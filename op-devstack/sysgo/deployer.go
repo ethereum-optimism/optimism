@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
@@ -212,6 +213,13 @@ type worldBuilder struct {
 	preForkPredeployAllocs types.GenesisAlloc
 
 	builder intentbuilder.Builder
+
+	// deployerAddr and deployerCacheDir are the two pipeline inputs a later, partial re-run of one
+	// stage needs and cannot recover from the state: the address scripts are pranked as, and where
+	// the contract artifacts were resolved to. A private interop pair re-runs the L2-genesis stage
+	// to produce its second half (see private_interop_genesis.go).
+	deployerAddr     common.Address
+	deployerCacheDir string
 
 	output          *state.State
 	outL1Genesis    *core.Genesis
@@ -460,6 +468,48 @@ func WithCustomGasToken(name, symbol string, initialLiquidity *big.Int, liquidit
 	}
 }
 
+// WithCustomGasTokenOn enables the custom gas token on ONE chain and leaves every other L2 in the
+// intent paying in ETH.
+//
+// The op-deployer intent has always been per-chain -- CustomGasToken is a field on ChainIntent --
+// but the only devstack door to it fans out over builder.L2s(), so a preset could ask for "custom
+// gas token" or "no custom gas token" and nothing in between. A private interop pair needs exactly
+// the in-between: the private chain IS a custom gas token chain and its interop counterparty is
+// not, and neither is the private chain's own public rendering, whose replay transactions pay gas
+// in the rendering's own ETH.
+func WithCustomGasTokenOn(
+	chainID eth.ChainID,
+	name, symbol string,
+	initialLiquidity *big.Int,
+	liquidityControllerOwner common.Address,
+) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		l2Cfg := findL2(p, builder, chainID)
+		l2Cfg.WithCustomGasToken(name, symbol, initialLiquidity, liquidityControllerOwner)
+	}
+}
+
+// WithPrivateInterop marks ONE chain in the intent as a half of a private interop pair, so its
+// genesis renders that half. Ordinary chains in the same intent are untouched.
+func WithPrivateInterop(chainID eth.ChainID, cfg *state.PrivateInterop) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		findL2(p, builder, chainID).WithPrivateInterop(cfg)
+	}
+}
+
+// findL2 returns the configurator for one chain, failing loudly rather than silently doing nothing
+// when the intent has no such chain -- a per-chain option that matches nothing is the failure mode
+// worth catching.
+func findL2(p devtest.T, builder intentbuilder.Builder, chainID eth.ChainID) intentbuilder.L2Configurator {
+	for _, l2Cfg := range builder.L2s() {
+		if l2Cfg.ChainID() == chainID {
+			return l2Cfg
+		}
+	}
+	p.Require().FailNow("no L2 with chain ID " + chainID.String() + " in the intent")
+	return nil
+}
+
 func (wb *worldBuilder) buildL1Genesis() {
 	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis outer config")
 	wb.require.NotNil(wb.output.L1StateDump, "must have L1 genesis alloc")
@@ -592,6 +642,8 @@ func (wb *worldBuilder) Build() {
 	for _, opt := range wb.deployerPipelineOptions {
 		opt(wb, intent, &pipelineOpts)
 	}
+	wb.deployerAddr = crypto.PubkeyToAddress(deployerKey.PublicKey)
+	wb.deployerCacheDir = pipelineOpts.CacheDir
 
 	err = deployer.ApplyPipeline(wb.p.Ctx(), pipelineOpts)
 	wb.require.NoError(err)
