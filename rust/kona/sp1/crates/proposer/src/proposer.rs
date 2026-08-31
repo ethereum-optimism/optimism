@@ -2760,7 +2760,7 @@ impl Proposer {
 
         let inputs = self.game_proof_inputs(proof_inputs, prestate);
         let responses = fetch_span_responses(self.superroot_source.as_ref(), &inputs).await?;
-        let proof_bytes = self.proof_engine.prove(keys, inputs, responses).await?;
+        let proof_bytes = self.proof_engine.prove(game_address, keys, inputs, responses).await?;
 
         // Pre-submit re-check: proving can take long; avoid a guaranteed
         // revert when the game was proven by someone else, resolved, hit
@@ -2770,6 +2770,7 @@ impl Proposer {
         }
 
         let transaction_hash = self.action_executor.prove_game(game_address, proof_bytes).await?;
+        self.proof_engine.clear(game_address);
 
         ProposerGauge::GamesProven.increment(1.0);
         ProposerGauge::ProvingDurationSeconds.set(start_time.elapsed().as_secs_f64());
@@ -3466,12 +3467,16 @@ mod tests {
         calls: StdMutex<Vec<(GameProofInputs, Vec<SuperRootAtTimestampResponse>)>>,
         proof: Vec<u8>,
         fail: bool,
+        cleared: StdMutex<Vec<Address>>,
+        cached: StdMutex<Option<Vec<u8>>>,
+        generations: std::sync::atomic::AtomicUsize,
     }
 
     #[async_trait]
     impl ProofEngine for RecordingProofEngine {
         async fn prove(
             &self,
+            _game_address: Address,
             _keys: Option<Arc<ProofKeys>>,
             game: GameProofInputs,
             responses: Vec<SuperRootAtTimestampResponse>,
@@ -3480,7 +3485,18 @@ mod tests {
             if self.fail {
                 anyhow::bail!("proof execution failed")
             }
+            let mut cached = self.cached.lock().unwrap();
+            if let Some(proof) = cached.as_ref() {
+                return Ok(proof.clone());
+            }
+            self.generations.fetch_add(1, AtomicOrdering::SeqCst);
+            *cached = Some(self.proof.clone());
             Ok(self.proof.clone())
+        }
+
+        fn clear(&self, game_address: Address) {
+            *self.cached.lock().unwrap() = None;
+            self.cleared.lock().unwrap().push(game_address);
         }
     }
 
@@ -3502,6 +3518,7 @@ mod tests {
     struct RecordingActionExecutor {
         calls: StdMutex<Vec<ActionCall>>,
         create_failure: Option<CreateFailure>,
+        prove_failures: StdMutex<usize>,
     }
 
     #[async_trait]
@@ -3534,6 +3551,11 @@ mod tests {
 
         async fn prove_game(&self, game: Address, proof: Vec<u8>) -> anyhow::Result<B256> {
             self.calls.lock().unwrap().push(ActionCall::Prove { game, proof });
+            let mut failures = self.prove_failures.lock().unwrap();
+            if *failures > 0 {
+                *failures -= 1;
+                anyhow::bail!("prove transaction failed");
+            }
             Ok(B256::left_padding_from(&[0xc3]))
         }
 
@@ -4971,7 +4993,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn proof_port_forwards_validated_inputs_and_opaque_bytes() {
+    async fn l1_submission_retry_reuses_cached_proof() {
         let starting_root = B256::repeat_byte(0x11);
         let root_claim = B256::repeat_byte(0x22);
         let proof = vec![0xaa, 0xbb];
@@ -4991,8 +5013,14 @@ mod tests {
             calls: StdMutex::new(Vec::new()),
             proof: proof.clone(),
             fail: false,
+            cleared: StdMutex::new(Vec::new()),
+            cached: StdMutex::new(None),
+            generations: std::sync::atomic::AtomicUsize::new(0),
         });
-        let actions = Arc::new(RecordingActionExecutor::default());
+        let actions = Arc::new(RecordingActionExecutor {
+            prove_failures: StdMutex::new(1),
+            ..Default::default()
+        });
         let mut proposer = test_proposer().await;
         proposer.l1_view = view;
         proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
@@ -5006,19 +5034,28 @@ mod tests {
         proposer.action_executor = actions.clone();
         proposer.state.write().await.games.insert(game.index, game.clone());
 
+        assert!(proposer.prove_game(game.address).await.is_err());
+        assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
+        assert!(engine.cleared.lock().unwrap().is_empty());
+
         proposer.prove_game(game.address).await.unwrap();
 
         let calls = engine.calls.lock().unwrap();
-        assert_eq!(calls.len(), 1);
+        assert_eq!(calls.len(), 2);
         assert_eq!(calls[0].0.starting_root, starting_root);
         assert_eq!(calls[0].0.root_claim, root_claim);
         assert_eq!(calls[0].0.prover, proposer.proposer_address);
         assert_eq!(calls[0].1.len(), 2);
         drop(calls);
+        assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
         assert_eq!(
             *actions.calls.lock().unwrap(),
-            vec![ActionCall::Prove { game: game.address, proof }]
+            vec![
+                ActionCall::Prove { game: game.address, proof: proof.clone() },
+                ActionCall::Prove { game: game.address, proof },
+            ]
         );
+        assert_eq!(*engine.cleared.lock().unwrap(), vec![game.address]);
     }
 
     #[tokio::test]
@@ -5050,6 +5087,9 @@ mod tests {
                 calls: StdMutex::new(Vec::new()),
                 proof: vec![0xaa],
                 fail,
+                cleared: StdMutex::new(Vec::new()),
+                cached: StdMutex::new(None),
+                generations: std::sync::atomic::AtomicUsize::new(0),
             });
             let actions = Arc::new(RecordingActionExecutor::default());
             let mut proposer = test_proposer().await;
