@@ -243,13 +243,20 @@ SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network
 | `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | overall proof timeout (default `14400`) |
 | `KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` | individual network-call timeout (default `15`) |
-| `KONA_SP1_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `60`) |
+| `KONA_SP1_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `300`) |
 | `KONA_SP1_PROPOSER_RANGE_CYCLE_LIMIT` | range request cycle limit (default `1e12`) |
 | `KONA_SP1_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `1e12`) |
 | `KONA_SP1_PROPOSER_AGG_CYCLE_LIMIT` | aggregation request cycle limit (default `1e12`) |
 | `KONA_SP1_PROPOSER_AGG_GAS_LIMIT` | aggregation request gas limit (default `1e12`) |
-| `KONA_SP1_PROPOSER_MAX_PRICE_PER_PGU` | maximum price per proving gas unit (default `3e8`) |
-| `KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `1`) |
+| `KONA_SP1_PROPOSER_MAX_PRICE_PER_PGU` | maximum price per proving gas unit (default `1e9`, i.e. 1.0 PROVE per billion PGU) |
+| `KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `30`) |
+
+`MAX_PRICE_PER_PGU` is a ceiling, not the price paid: the auction settles at the
+winning bid, which tracks the network's clearing price. A ceiling *below* that
+price leaves a request unbid until its deadline, since nothing re-auctions it.
+`MIN_AUCTION_PERIOD` is a floor every request waits out, so it needs to cover bid
+arrival (3-10s) and no more, and must stay under `AUCTION_TIMEOUT` — which is
+generous because cancelling discards the whole defense task's witness work.
 
 Transaction signing requires one of these configurations:
 
