@@ -15,9 +15,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/claimfollow"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	supernodeactivity "github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/supernode"
@@ -26,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	rpc "github.com/ethereum/go-ethereum/rpc"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 )
@@ -80,6 +83,15 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 	s.supernodeMetrics = resources.NewSupernodeMetrics()
 	s.supernodeMetrics.Info.WithLabelValues(version, commit).Set(1)
 	s.metricsFanIn.AddGatherer(s.supernodeMetrics.Registry())
+
+	// The Private Interop follow module. Dormant unless --private-interop.enabled is set: when it
+	// is not, claimFollow stays nil, no route is registered, no activity is added, and every chain
+	// container is built exactly as it was before this group existed.
+	claimFollow, claimFollowRoutes, err := s.initClaimFollow(cfg, vnCfgs)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, id := range cfg.Chains {
 		chainID := eth.ChainIDFromUInt64(id)
 		initOverrides := &rollupNode.InitializationOverrides{
@@ -91,11 +103,18 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		container, err := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics, version)
+		container, err := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics, version,
+			cc.WithExtraRPCRoutes(claimFollowRoutes[chainID]...))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create chain container for chain %s: %w", chainID, err)
 		}
 		s.chains[chainID] = container
+	}
+
+	if claimFollow != nil {
+		// The module reads the chain the supernode already drives, in process: no dial, no
+		// credential, no second view of the same blocks.
+		claimFollow.Module().Attach(s.chains[claimFollow.ChainID()])
 	}
 
 	// Narrow the chain map to ChainContainer for activities that must not invoke
@@ -137,6 +156,10 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 		superroot.New(log.New("activity", "superroot"), narrowChains, verifiedReader),
 	}
 
+	if claimFollow != nil {
+		s.activities = append(s.activities, claimFollow)
+	}
+
 	if interopActivity != nil {
 		s.activities = append(s.activities, interopActivity)
 		for _, chain := range s.chains {
@@ -159,6 +182,52 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 		s.metrics = resources.NewMetricsService(log, cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort, s.metricsFanIn)
 	}
 	return s, nil
+}
+
+// initClaimFollow builds the Private Interop follow module, if the operator asked for it.
+//
+// It returns (nil, an empty route map, nil) when the flag group is unset, which is the dormant
+// path: no state, no goroutine, no route, and chain containers built with zero options. The
+// returned map is keyed by chain ID and is indexed unconditionally by the chain loop — a lookup
+// that misses yields a nil slice, and cc.WithExtraRPCRoutes of nothing registers nothing.
+//
+// The two validations here are the ones only the supernode can make: that the configured chain is
+// actually one this process runs, and that its rollup config is loaded. Both would otherwise
+// surface as a module that scanned nothing and served an error forever.
+func (s *Supernode) initClaimFollow(cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*claimfollow.Activity, map[eth.ChainID][]cc.ExtraRPCRoute, error) {
+	routes := map[eth.ChainID][]cc.ExtraRPCRoute{}
+	cliCfg := claimfollow.ReadCLIConfig(cfg.RawCtx)
+	if err := cliCfg.Check(); err != nil {
+		return nil, nil, fmt.Errorf("private interop follow module: %w", err)
+	}
+	if !cliCfg.Enabled {
+		return nil, routes, nil
+	}
+	chainID, modCfg, route, err := cliCfg.Resolve()
+	if err != nil {
+		return nil, nil, fmt.Errorf("private interop follow module: %w", err)
+	}
+	vnCfg := vnCfgs[chainID]
+	if vnCfg == nil {
+		return nil, nil, fmt.Errorf("private interop follow module: chain %s is not one of this supernode's chains", chainID)
+	}
+
+	lgr := s.log.New("activity", "claim-follow", "chain_id", chainID.String())
+	metricsReg := prometheus.NewRegistry()
+	metrics := claimfollow.NewPromMetrics(opmetrics.With(metricsReg), "supernode")
+	s.metricsFanIn.AddGatherer(metricsReg)
+
+	mod := claimfollow.New(modCfg, &vnCfg.Rollup, lgr, metrics)
+	routes[chainID] = []cc.ExtraRPCRoute{{
+		Route: route,
+		// The follow protocol is one method in the standard namespace, served at a sibling route
+		// rather than added to the chain's own: see claimfollow.API.
+		API: rpc.API{Namespace: "optimism", Service: claimfollow.NewAPI(mod)},
+	}}
+	act := claimfollow.NewActivity(lgr, chainID, mod, time.Duration(vnCfg.Rollup.BlockTime)*time.Second)
+	s.log.Info("private interop follow module enabled",
+		"chain_id", chainID.String(), "route", route, "registry", modCfg.Registry)
+	return act, routes, nil
 }
 
 func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*uint64, error) {
