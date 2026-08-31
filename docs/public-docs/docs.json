@@ -40,7 +40,8 @@
     "/styles/homepage.css"
   ],
   "customJS": [
-    "/mixpanel-custom.js"
+    "/mixpanel-custom.js",
+    "/kapa-widget.js"
   ],
   "integrations": {
     "mixpanel": {
