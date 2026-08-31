@@ -1089,15 +1089,15 @@
     },
     {
       "source": "/operators/chain-operators/features/alt-da-mode",
-      "destination": "/chain-operators/guides/configuration/batcher#batcher-policy"
+      "destination": "/op-stack/features/alt-da-mode"
     },
     {
       "source": "/chain-operators/reference/features/alt-da-mode",
-      "destination": "/chain-operators/guides/configuration/batcher#batcher-policy"
+      "destination": "/op-stack/features/alt-da-mode"
     },
     {
       "source": "/chain-operators/guides/features/alt-da-mode-guide",
-      "destination": "/chain-operators/guides/configuration/batcher#batcher-policy"
+      "destination": "/op-stack/features/alt-da-mode"
     },
     {
       "source": "/operators/chain-operators/features/bridged-usdc-standard",
@@ -1209,11 +1209,11 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/integrating-da-layer",
-      "destination": "/op-stack/components/op-batcher"
+      "destination": "/op-stack/features/alt-da-mode"
     },
     {
       "source": "/chain-operators/tutorials/integrating-da-layer",
-      "destination": "/op-stack/components/op-batcher"
+      "destination": "/op-stack/features/alt-da-mode"
     },
     {
       "source": "/operators/chain-operators/tutorials/migrating-permissionless",
@@ -1341,15 +1341,15 @@
     },
     {
       "source": "/stack/beta-features/alt-da-mode",
-      "destination": "/op-stack/protocol/components#data-availability"
+      "destination": "/op-stack/features/alt-da-mode"
     },
     {
       "source": "/op-stack/features/experimental/alt-da-mode",
-      "destination": "/op-stack/protocol/components#data-availability"
+      "destination": "/op-stack/features/alt-da-mode"
     },
     {
       "source": "/op-stack/features/experimental/alt-da-mode#faqs",
-      "destination": "/op-stack/protocol/components#data-availability"
+      "destination": "/op-stack/features/alt-da-mode"
     },
     {
       "source": "/stack/design-principles",
@@ -3417,7 +3417,8 @@
               "op-stack/features/send-raw-transaction-conditional",
               "op-stack/features/l2-contract-manager",
               "op-stack/features/osaka-on-l2",
-              "op-stack/features/preinstalls"
+              "op-stack/features/preinstalls",
+              "op-stack/features/alt-da-mode"
             ]
           },
           {

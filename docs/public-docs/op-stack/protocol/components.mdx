@@ -33,10 +33,14 @@ The Data Availability Layer defines where the raw inputs to an OP Stack based ch
 
 #### Ethereum DA
 
-The current OP Stack implementation supports Ethereum as its Data Availability Layer. Source data can be derived from any piece of information accessible on the Ethereum blockchain, including calldata, events, and EIP-4844 data blobs.
+Ethereum DA is the default Data Availability module for the public OP Stack release. Source data can be derived from any piece of information accessible on the Ethereum blockchain, including calldata, events, and EIP-4844 data blobs.
 
 *   [Specifications](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#batch-submission-wire-format)
 *   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-batcher) (as of `v1.1.4`)
+
+#### Alt-DA
+
+Alt-DA deployments source chain input data from a data availability layer other than Ethereum through a custom integration. The selected layer and integration define the chain's additional security and availability assumptions. See [Alt-DA Mode](/op-stack/features/alt-da-mode) for an overview and availability information.
 
 ### Sequencing
 

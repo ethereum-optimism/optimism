@@ -14,8 +14,8 @@ While the OP Stack allows for full customization, standard OP Stack chains adher
 | **Throughput<sup>1</sup>**        | 32.5Mgas/s                    | 50Mgas/s                    |
 | **Gas limit<sup>2</sup>**         | 200M                          | 200M                        |
 | **Blocktimes<sup>3</sup>**        | 200ms                         | 200ms                       |
-| **Data availability support**     | Ethereum                      | Ethereum                    |
-| **Gas token support<sup>4</sup>** | ETH                           | ETH, Custom Gas Token       |
+| **Data availability support<sup>4</sup>** | Ethereum                      | Ethereum, custom integrations |
+| **Gas token support<sup>5</sup>** | ETH                           | ETH, Custom Gas Token       |
 | **Upgrades**                      | Facilitated via OP Governance | Self-managed                |
 | **EVM compatibility**             | Equivalent                    | Variable                    |
 
@@ -25,5 +25,6 @@ While the OP Stack allows for full customization, standard OP Stack chains adher
 
 <sup>3</sup>While protocol blocktimes can be lowered to 1 second, subsecond pre-confirmations are delivered by [Subblocks](/op-stack/features/subblocks).
 
-<sup>4</sup>OP Stack chains can use [Custom Gas Token](/op-stack/features/custom-gas-token) to enable any asset as the native fee currency. Standard OP Stack chains use ETH as the gas token, though chain operators can achieve similar UX using an ERC-20 paymaster.
+<sup>4</sup>Alternative DA deployments use custom integrations. See [Alt-DA Mode](/op-stack/features/alt-da-mode) and contact [OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise) to discuss supported architectures.
 
+<sup>5</sup>OP Stack chains can use [Custom Gas Token](/op-stack/features/custom-gas-token) to enable any asset as the native fee currency. Standard OP Stack chains use ETH as the gas token, though chain operators can achieve similar UX using an ERC-20 paymaster.

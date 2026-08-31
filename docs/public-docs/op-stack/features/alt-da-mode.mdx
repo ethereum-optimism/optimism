@@ -1,0 +1,36 @@
+---
+title: Alt-DA Mode
+description: Understand the benefits and security considerations of using an alternative data availability layer with an OP Stack chain.
+diataxis: explanation
+---
+
+Alt-DA Mode lets an OP Stack chain use a data availability (DA) layer other
+than Ethereum. It can reduce data-publication costs and increase capacity,
+while changing the chain's security and availability assumptions.
+
+## Why use alternative data availability
+
+Publishing transaction data is often a chain's largest operating cost. An
+alternative DA layer can offer lower prices or additional throughput for
+chains whose requirements justify a different security model.
+
+## How it works
+
+An Alt-DA deployment adapts batch publication and derivation to the selected DA
+layer. The sequencer publishes transaction data through that integration, and
+node operators retrieve the same data to derive the chain. The exact commitment
+and verification model depends on the selected layer and integration.
+
+## Security and operational considerations
+
+Alt-DA adds dependencies beyond Ethereum. Operators must evaluate the DA
+layer's availability guarantees, commitment or verification model,
+decentralization, recovery procedures, and the effect of a DA outage on node
+synchronization. These assumptions are specific to each integration.
+
+## Availability
+
+Alt-DA deployments are scoped for each chain rather than provided as a public
+self-service tutorial. Organizations evaluating Alt-DA can [contact OP
+Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise)
+to discuss requirements and supported architectures.
