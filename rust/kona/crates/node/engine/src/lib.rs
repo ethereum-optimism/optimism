@@ -42,9 +42,9 @@ mod task_queue;
 pub use task_queue::{
     BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
     ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask,
-    FinalizeTaskError, InsertTask, InsertTaskError, SealTask, SealTaskError, SynchronizeTask,
-    SynchronizeTaskError,
+    EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt, EngineTaskKind, FinalizeBlockId,
+    FinalizeTask, FinalizeTaskError, InsertTask, InsertTaskError, SealTask, SealTaskError,
+    SynchronizeTask, SynchronizeTaskError,
 };
 
 mod attributes;

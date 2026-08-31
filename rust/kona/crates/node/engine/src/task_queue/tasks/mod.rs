@@ -3,6 +3,7 @@
 mod task;
 pub use task::{
     EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt,
+    EngineTaskKind,
 };
 
 mod synchronize;
