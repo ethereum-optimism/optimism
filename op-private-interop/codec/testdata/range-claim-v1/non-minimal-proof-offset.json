@@ -1,0 +1,11 @@
+{
+  "name": "non-minimal-proof-offset",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "invalid",
+  "description": "The head's offset to `proof` points 32 bytes past the canonical position, with the length word duplicated there so a lenient decoder still finds an empty proof and reports success. Two encodings of one value is one encoding too many when the value is going to be hashed; canonical form refuses it.",
+  "bin": "non-minimal-proof-offset.bin",
+  "bytes": 416,
+  "keccak": "0x220b9818e26b78b5f5c4ac55a8a58c6cc249e30a9fdc354df91d982bae91419c",
+  "proofHex": "0x",
+  "refusal": "non-canonical"
+}
