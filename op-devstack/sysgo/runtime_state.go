@@ -12,6 +12,7 @@ import (
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
@@ -121,8 +122,15 @@ func (r *SingleChainRuntime) VMConfig(t devtest.T, dir string) *vm.Config {
 }
 
 type MultiChainNodeRuntime struct {
-	Name    string
+	Name string
+	// Network is the chain a test transacts against. For a private interop pair it is the PRIVATE
+	// half: internally a stock sequenced chain, and the only one of the two that has a mempool.
 	Network *L2Network
+	// RenderingNetwork is non-nil only for a private interop pair, where it is the chain's PUBLIC
+	// rendering: the same chain ID, a different genesis, and the thing the supernode actually
+	// derives. Handing the supernode side the private config instead would fail at the first block
+	// ref, because the genesis hashes differ -- which is the point of there being two.
+	RenderingNetwork *L2Network
 	// EL is the chain's primary EL. In light-sequencer presets it is the
 	// follow-mode sequencer's own EL; in virtual-sequencer presets it is the
 	// same EL the supernode VN drives.
@@ -160,6 +168,10 @@ type MultiChainRuntime struct {
 	DelaySeconds       uint64
 	InteropFilter      *InteropFilter // nil if not using interop filter
 	SyncTester         *SyncTesterRuntime
+	// PrivateInterop is non-nil when one of the chains is a private interop pair. It holds the
+	// pieces that have no home on a per-chain runtime: the claim-follower, the object store, and the
+	// operator identity the rendering's transactions are signed with.
+	PrivateInterop *privateInteropRuntime
 }
 
 // StartZKProposer starts the configured kona-sp1-proposer. It is intended for
@@ -176,4 +188,16 @@ func (r *MultiChainRuntime) StartZKProposer(t devtest.T) {
 // empty unless metrics are enabled and the proposer has started.
 func (r *MultiChainRuntime) ZKProposerMetricsAddr() string {
 	return r.zkMetricsAddr
+}
+
+// SupernodeRollupConfig is the rollup config describing the chain this node's SUPERNODE-SIDE
+// execution client is running.
+//
+// For an ordinary chain it is the chain's own. For a private interop pair it is the RENDERING's:
+// same chain ID, different genesis, and the only one of the two the supernode ever derives.
+func (r *MultiChainNodeRuntime) SupernodeRollupConfig() *rollup.Config {
+	if r.RenderingNetwork != nil {
+		return r.RenderingNetwork.RollupConfig()
+	}
+	return r.Network.RollupConfig()
 }
