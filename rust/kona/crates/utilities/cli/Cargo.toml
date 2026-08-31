@@ -1,6 +1,6 @@
 [package]
 name = "kona-cli"
-version = "0.3.2"
+version = "0.4.0"
 description = "Shared CLI utilities for Kona crates"
 edition.workspace = true
 license.workspace = true
@@ -14,6 +14,7 @@ workspace = true
 [dependencies]
 # Workspace
 kona-genesis.workspace = true
+kona-metrics.workspace = true
 kona-registry.workspace = true
 
 # Alloy
@@ -27,6 +28,8 @@ tracing-subscriber = { workspace = true, features = ["fmt", "env-filter", "json"
 tracing-appender.workspace = true
 metrics-exporter-prometheus = { workspace = true, features = ["http-listener"] }
 metrics-process.workspace = true
+metrics.workspace = true
+tokio = { workspace = true, features = ["rt"] }
 thiserror.workspace = true
 
 # `secrets` feature

@@ -62,7 +62,7 @@ impl Cli {
         }
 
         // Initialize unified metrics
-        init_unified_metrics(&self.global.metrics)?;
+        init_unified_metrics(&self.global, self.metrics_chain_id()?)?;
 
         // Allow subcommands to initialize cli metrics.
         match self.subcommand {
@@ -79,6 +79,17 @@ impl Cli {
             Commands::Registry(registry) => registry.run(&self.global),
             Commands::Bootstore(bootstore) => bootstore.run(&self.global),
             Commands::Info(info) => info.run(&self.global),
+        }
+    }
+
+    /// The chain the metrics recorder labels this process with.
+    ///
+    /// `node --l2-config-file` overrides `--chain`, and the actors scope themselves from that
+    /// file, so the recorder has to agree.
+    fn metrics_chain_id(&self) -> Result<u64> {
+        match &self.subcommand {
+            Commands::Node(node) => Ok(node.get_l2_config(&self.global)?.l2_chain_id.id()),
+            _ => Ok(self.global.l2_chain_id.id()),
         }
     }
 
