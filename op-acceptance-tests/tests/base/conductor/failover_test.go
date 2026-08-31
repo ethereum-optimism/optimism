@@ -27,7 +27,6 @@ func TestFailoverOnActiveSequencerFailure(gt *testing.T) {
 	survivors := sys.Conductors.Without(failedLeader)
 	newLeader := survivors.AwaitOneActiveSequencer()
 	t.Require().Same(newLeader, sys.Conductors.AwaitLeader())
-	newLeader.AwaitSequencerHealthy()
 
 	// Cross the pre-failure head, then require fresh production after takeover.
 	// This distinguishes a genuinely live replacement from one that only

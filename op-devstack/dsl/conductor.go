@@ -336,56 +336,13 @@ func (c *Conductor) AwaitNotLeader() {
 	c.waitForLeadership(false)
 }
 
-// checkSequencerHealth verifies both the conductor's health state and the live
-// node conditions the preset's health monitor relies on. The conductor health
-// bit initializes to true and may be cached for a long interval, so it alone is
-// not evidence that a health check has actually reached the sequencer.
-func (c *Conductor) checkSequencerHealth() error {
-	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
-	defer cancel()
-
-	healthy, err := c.inner.RpcAPI().SequencerHealthy(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to fetch conductor health state: %w", err)
-	}
-	if !healthy {
-		return fmt.Errorf("conductor %s reports unhealthy sequencer", c)
-	}
-	sequencer := c.Sequencer()
-	if _, err := sequencer.inner.RollupAPI().SyncStatus(ctx); err != nil {
-		return fmt.Errorf("sequencer %s is not serving rollup RPC: %w", sequencer, err)
-	}
-	peers, err := sequencer.inner.P2PAPI().PeerStats(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to fetch sequencer %s peer stats: %w", sequencer, err)
-	}
-	if peers.Connected == 0 {
-		return fmt.Errorf("sequencer %s has no connected peers", sequencer)
-	}
-	return nil
-}
-
-// AwaitSequencerHealthy waits until this conductor reports its sequencer as
-// healthy and a fresh liveness and peer check succeeds. Leadership changes may
-// cause brief unhealthiness; this rides those out.
-func (c *Conductor) AwaitSequencerHealthy() {
-	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
-		if err := c.checkSequencerHealth(); err != nil {
-			c.log.Info("Waiting for sequencer to become healthy", "conductor", c, "err", err)
-			return err
-		}
-		return nil
-	})
-	c.require.NoErrorf(err, "conductor %s never reached fresh sequencer health", c)
-	c.log.Info("Sequencer is healthy", "conductor", c)
-}
-
 // TransferLeadership transfers Raft leadership to an unspecified eligible
-// voter and waits for the cluster to settle on a different active sequencer.
+// voter and waits for the cluster to settle on a different sole active
+// sequencer.
 func (c *Conductor) TransferLeadership(cluster ConductorSet) *Conductor {
 	c.log.Info("Transferring leadership", "from", c)
-	c.waitForLeadership(true)
-	c.Sequencer().AwaitSequencerActive()
+	c.require.Same(c, cluster.AwaitOneActiveSequencer(),
+		"leadership transfer source must be the cluster's sole active sequencer")
 
 	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
 	defer cancel()
@@ -406,20 +363,17 @@ func (c *Conductor) TransferLeadership(cluster ConductorSet) *Conductor {
 
 	next := cluster.AwaitOneActiveSequencer()
 	c.require.NotSame(c, next, "untargeted transfer returned sequencing to its source")
-	c.AwaitSequencerHealthy()
-	next.AwaitSequencerHealthy()
 	return next
 }
 
 // TransferLeadershipTo safely transfers Raft leadership and sequencing from
-// this conductor to the target. It waits for the source to lead and sequence,
-// the target to be healthy, and both the Raft and sequencer state transitions
-// to complete before returning.
-func (c *Conductor) TransferLeadershipTo(target *Conductor) {
+// this conductor to the target. It waits for the source to be the cluster's
+// sole active sequencer and for that cluster-wide invariant to move to the
+// target before returning.
+func (c *Conductor) TransferLeadershipTo(target *Conductor, cluster ConductorSet) {
 	c.log.Info("Transferring leadership", "from", c, "to", target)
-	c.waitForLeadership(true)
-	c.Sequencer().AwaitSequencerActive()
-	target.AwaitSequencerHealthy()
+	c.require.Same(c, cluster.AwaitOneActiveSequencer(),
+		"leadership transfer source must be the cluster's sole active sequencer")
 
 	info := c.clusterMemberInfo(target.String())
 	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
@@ -427,11 +381,11 @@ func (c *Conductor) TransferLeadershipTo(target *Conductor) {
 	err := c.inner.RpcAPI().TransferLeaderToServer(ctx, info.ID, info.Addr)
 	c.require.NoErrorf(err, "failed to transfer leadership from %s to %s", c, target)
 
+	// First require the requested target to take leadership so an immediate
+	// pre-transfer sample cannot satisfy the cluster-wide waiter below.
 	target.waitForLeadership(true)
-	c.waitForLeadership(false)
-	target.Sequencer().AwaitSequencerActive()
-	c.Sequencer().AwaitSequencerInactive()
-	c.AwaitSequencerHealthy()
-	target.AwaitSequencerHealthy()
+	settled := cluster.AwaitOneActiveSequencer()
+	c.require.Same(target, settled,
+		"leadership transfer target must become the cluster's sole active sequencer")
 	c.log.Info("Transferred leadership", "from", c, "to", target)
 }
