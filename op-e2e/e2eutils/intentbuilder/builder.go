@@ -53,6 +53,7 @@ type L2Configurator interface {
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
 	WithCustomGasToken(name string, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address)
+	WithPrivateInterop(cfg *state.PrivateInterop)
 	ContractsConfigurator
 	L2VaultsConfigurator
 	L2RolesConfigurator
@@ -488,6 +489,12 @@ func (c *l2Configurator) WithCustomGasToken(name, symbol string, initialLiquidit
 		InitialLiquidity:         (*hexutil.Big)(initialLiquidity),
 		LiquidityControllerOwner: liquidityControllerOwner,
 	}
+}
+
+// WithPrivateInterop marks this chain as one half of a private interop pair. A nil config clears
+// the marking, which is what every ordinary chain carries.
+func (c *l2Configurator) WithPrivateInterop(cfg *state.PrivateInterop) {
+	c.builder.intent.Chains[c.chainIndex].PrivateInterop = cfg
 }
 
 func (c *l2Configurator) WithEIP1559Elasticity(value uint64) {

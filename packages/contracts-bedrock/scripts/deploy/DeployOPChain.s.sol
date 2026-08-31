@@ -192,7 +192,7 @@ contract DeployOPChain is Script {
             blobBasefeeScalar: _input.blobBaseFeeScalar,
             gasLimit: _input.gasLimit,
             l2ChainId: _input.l2ChainId,
-            resourceConfig: _resourceConfigForGasLimit(_input.gasLimit),
+            resourceConfig: _resourceConfig(_input),
             disputeGameConfigs: disputeGameConfigs,
             useCustomGasToken: _input.useCustomGasToken
         });
@@ -228,6 +228,29 @@ contract DeployOPChain is Script {
             delayedWETHPermissionedGameProxy: _chainContracts.delayedWETH,
             delayedWETHPermissionlessGameProxy: IDelayedWETH(payable(_chainContracts.delayedWETH))
         });
+    }
+
+    /// @notice Resolves the resource config a chain is initialized with: the caller's override when
+    ///         one is supplied, otherwise the gas-limit-derived default.
+    /// @dev The override is validated by `SystemConfig._setResourceConfig`, which is the authority
+    ///      on what a coherent resource config is, so nothing is re-checked here. The one thing
+    ///      worth saying: `maxResourceLimit = 0` is a legal config, and it is the deposit gate --
+    ///      see Types.ResourceConfigOverride.
+    /// @param _input The deploy input.
+    /// @return cfg_ The resource config to initialize SystemConfig with.
+    function _resourceConfig(Types.DeployOPChainInput memory _input)
+        internal
+        pure
+        returns (IResourceMetering.ResourceConfig memory cfg_)
+    {
+        if (!_input.resourceConfigOverride.enabled) {
+            return _resourceConfigForGasLimit(_input.gasLimit);
+        }
+
+        cfg_ = Constants.DEFAULT_RESOURCE_CONFIG();
+        cfg_.maxResourceLimit = _input.resourceConfigOverride.maxResourceLimit;
+        cfg_.elasticityMultiplier = _input.resourceConfigOverride.elasticityMultiplier;
+        cfg_.systemTxMaxGas = _input.resourceConfigOverride.systemTxMaxGas;
     }
 
     /// @notice Derives a ResourceConfig sized to fit the requested L2 gas limit.
