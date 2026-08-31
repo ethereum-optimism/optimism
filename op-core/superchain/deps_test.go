@@ -60,12 +60,6 @@ var bundleAllowed = []string{
 	// networks, so the package is inherently about the registry.
 	"github.com/ethereum-optimism/optimism/op-service/flags",
 
-	// Uses chaincfg's registry-derived chain-ID→name map in its startup log
-	// banner only; its rollup config comes from the rollup node RPC. Slated to
-	// log the bare chain ID instead, which would remove these entries (#22678).
-	"github.com/ethereum-optimism/optimism/op-batcher/batcher",
-	"github.com/ethereum-optimism/optimism/op-batcher/cmd",
-
 	// Generates flag documentation for the registry consumers above.
 	"github.com/ethereum-optimism/optimism/docs/public-docs/scripts/gen-flags",
 
