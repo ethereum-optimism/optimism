@@ -421,10 +421,12 @@ impl NetworkProofProvider {
             "proof request deadline exceeded"
         );
         ProposerGauge::DeadlineExceededError.increment(1.0);
-        Err(ProofWaitError::Uncertain(anyhow::anyhow!(
-            "proof request deadline exceeded: proof_id={proof_id}, deadline={deadline}, \
-             current_time={current_time}"
-        )))
+        Err(Self::terminal_error(
+            proof_id,
+            ProofTerminalState::Expired,
+            FulfillmentStatus::Expired as i32,
+            ExecutionStatus::Unexecuted as i32,
+        ))
     }
 
     const fn terminal_error(
@@ -700,10 +702,18 @@ mod tests {
         fulfillment_status: FulfillmentStatus,
         execution_status: ExecutionStatus,
     ) -> GetProofRequestStatusResponse {
+        proof_status_with_deadline(fulfillment_status, execution_status, u64::MAX)
+    }
+
+    fn proof_status_with_deadline(
+        fulfillment_status: FulfillmentStatus,
+        execution_status: ExecutionStatus,
+        deadline: u64,
+    ) -> GetProofRequestStatusResponse {
         auction_types::GetProofRequestStatusResponse {
             fulfillment_status: fulfillment_status as i32,
             execution_status: execution_status as i32,
-            deadline: u64::MAX,
+            deadline,
             ..Default::default()
         }
         .into()
@@ -765,6 +775,24 @@ mod tests {
         for (deadline, current, expected) in cases {
             assert_eq!(check_deadline(deadline, current), expected, "d={deadline} t={current}");
         }
+    }
+
+    #[test]
+    fn server_deadline_is_retryable_terminal() {
+        let provider = provider_with_api(
+            Arc::new(ScriptedNetworkApi::new(Vec::new(), None)),
+            NetworkMode::Reserved,
+        );
+        let proof_id = B256::repeat_byte(0x44);
+        let status = proof_status_with_deadline(
+            FulfillmentStatus::Requested,
+            ExecutionStatus::Unexecuted,
+            100,
+        );
+
+        let err = provider.ensure_before_deadline(proof_id, &status, 101).unwrap_err();
+
+        assert!(matches!(err, ProofWaitError::Terminal { state: ProofTerminalState::Expired, .. }));
     }
 
     #[test]

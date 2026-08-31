@@ -254,16 +254,6 @@ impl GameProgress {
         let chunks = (0..identity.chunks.len()).map(|_| ChunkProgress::default()).collect();
         Self { identity, chunks, aggregation_request: Mutex::new(RequestState::Missing) }
     }
-
-    fn has_owned_requests(&self) -> bool {
-        let owned = |state: &Mutex<RequestState>| {
-            matches!(*state.lock(), RequestState::Submitting | RequestState::Submitted(_))
-        };
-        self.chunks
-            .iter()
-            .any(|chunk| owned(&chunk.range_request) || owned(&chunk.consolidation_request)) ||
-            owned(&self.aggregation_request)
-    }
 }
 
 /// Process-local proof work retained across scheduler retries.
@@ -283,21 +273,21 @@ impl InMemoryProofProgress {
         &self,
         game_address: Address,
         identity: AttemptIdentity,
-    ) -> Result<Arc<GameProgress>> {
+    ) -> Arc<GameProgress> {
         let mut games = self.games.lock();
         if let Some(progress) = games.get(&game_address) {
             if progress.identity == identity {
-                return Ok(Arc::clone(progress));
+                return Arc::clone(progress);
             }
-            ensure!(
-                !progress.has_owned_requests(),
-                "proving inputs changed while SPN requests remain owned"
+            tracing::warn!(
+                %game_address,
+                "Proving inputs changed; replacing cached proof progress"
             );
         }
 
         let progress = Arc::new(GameProgress::new(identity));
         games.insert(game_address, Arc::clone(&progress));
-        Ok(progress)
+        progress
     }
 
     pub(crate) fn clear(&self, game_address: Address) {
@@ -751,7 +741,7 @@ pub async fn prove_game_inner(
             provider: provider_identity(provider, keys)?,
             chunks: chunk_identities,
         },
-    )?;
+    );
 
     if !provider.is_mock() {
         let fulfilled = match &*progress.aggregation_request.lock() {
@@ -1088,7 +1078,7 @@ mod tests {
         let address = Address::repeat_byte(0x46);
         let cache = InMemoryProofProgress::default();
         let generations = Arc::new([AtomicUsize::new(0), AtomicUsize::new(0)]);
-        let first_progress = cache.load_or_create(address, attempt_identity(game.clone())).unwrap();
+        let first_progress = cache.load_or_create(address, attempt_identity(game.clone()));
         let first_done = Arc::new(tokio::sync::Notify::new());
         let first_attempt = (0..2)
             .map(|index| {
@@ -1130,7 +1120,7 @@ mod tests {
 
         let mut changed = game;
         changed.root_claim = B256::repeat_byte(0x47);
-        let changed_progress = cache.load_or_create(address, attempt_identity(changed)).unwrap();
+        let changed_progress = cache.load_or_create(address, attempt_identity(changed));
         let changed_attempt = (0..2)
             .map(|index| {
                 let generations = Arc::clone(&generations);
@@ -1146,20 +1136,21 @@ mod tests {
     }
 
     #[test]
-    fn changed_identity_does_not_discard_submitted_request() {
+    fn changed_identity_replaces_submitted_request_for_liveness() {
         let start = response_at(100, 0x01, 5);
         let end = response_at(101, 0x02, 5);
         let game = game_for(&start, &end, 10);
         let address = Address::repeat_byte(0x48);
         let cache = InMemoryProofProgress::default();
-        let progress = cache.load_or_create(address, attempt_identity(game.clone())).unwrap();
+        let progress = cache.load_or_create(address, attempt_identity(game.clone()));
         *progress.chunks[0].range_request.lock() = RequestState::Submitted(B256::repeat_byte(0x49));
 
         let mut changed = game;
         changed.root_claim = B256::repeat_byte(0x4a);
-        let err = cache.load_or_create(address, attempt_identity(changed)).err().unwrap();
+        let replacement = cache.load_or_create(address, attempt_identity(changed));
 
-        assert!(err.to_string().contains("requests remain owned"));
+        assert!(!Arc::ptr_eq(&progress, &replacement));
+        assert!(matches!(*replacement.chunks[0].range_request.lock(), RequestState::Missing));
     }
 
     #[tokio::test]
