@@ -13,6 +13,7 @@ import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title SuperchainETHBridge_TestInit
 /// @notice Reusable test initialization for `SuperchainETHBridge` tests.
@@ -175,5 +176,69 @@ contract SuperchainETHBridge_RelayETH_Test is SuperchainETHBridge_TestInit {
         superchainETHBridge.relayETH(_from, _to, _amount);
 
         assertEq(_to.balance, _toBalanceBefore + _amount);
+    }
+
+    /// @notice Tests the `relayETH` function reverts when the source chain has been banned. A
+    ///         custom gas token chain's `sendETH` burns its own native unit rather than ETH, so
+    ///         honoring the message here would mint ETH against a burn of something else.
+    function testFuzz_relayETH_bannedSource_reverts(
+        address _from,
+        address _to,
+        uint256 _amount,
+        uint256 _source
+    )
+        public
+    {
+        vm.prank(IProxyAdminOwnedBase(address(superchainETHBridge)).proxyAdminOwner());
+        superchainETHBridge.setBannedSource(_source, true);
+
+        vm.mockCall(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageContext, ()),
+            abi.encode(address(superchainETHBridge), _source)
+        );
+
+        // The mint must never be reached.
+        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.mint, (_amount)), 0);
+
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_BannedSource.selector);
+        vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        superchainETHBridge.relayETH(_from, _to, _amount);
+    }
+}
+
+/// @title SuperchainETHBridge_SetBannedSource_Test
+/// @notice Tests the `setBannedSource` function of the `SuperchainETHBridge` contract.
+contract SuperchainETHBridge_SetBannedSource_Test is SuperchainETHBridge_TestInit {
+    event BannedSourceSet(uint256 indexed chainId, bool banned);
+
+    /// @notice Tests that the ProxyAdmin owner can ban and unban a source chain.
+    function testFuzz_setBannedSource_succeeds(uint256 _chainId) public {
+        address owner = IProxyAdminOwnedBase(address(superchainETHBridge)).proxyAdminOwner();
+
+        assertFalse(superchainETHBridge.bannedSources(_chainId));
+
+        vm.expectEmit(address(superchainETHBridge));
+        emit BannedSourceSet(_chainId, true);
+        vm.prank(owner);
+        superchainETHBridge.setBannedSource(_chainId, true);
+        assertTrue(superchainETHBridge.bannedSources(_chainId));
+
+        vm.expectEmit(address(superchainETHBridge));
+        emit BannedSourceSet(_chainId, false);
+        vm.prank(owner);
+        superchainETHBridge.setBannedSource(_chainId, false);
+        assertFalse(superchainETHBridge.bannedSources(_chainId));
+    }
+
+    /// @notice Tests that anyone other than the ProxyAdmin owner cannot ban a source chain.
+    function testFuzz_setBannedSource_notProxyAdminOwner_reverts(address _caller, uint256 _chainId) public {
+        vm.assume(_caller != IProxyAdminOwnedBase(address(superchainETHBridge)).proxyAdminOwner());
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        superchainETHBridge.setBannedSource(_chainId, true);
+
+        assertFalse(superchainETHBridge.bannedSources(_chainId));
     }
 }

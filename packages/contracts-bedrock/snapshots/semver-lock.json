@@ -132,8 +132,8 @@
     "sourceCodeHash": "0x5e91f103e14750fdc05bbd3c6d121547a76dfed86b94431e1cee6fe229bdbfdd"
   },
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
-    "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
-    "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
+    "initCodeHash": "0xf8e1974f78773563f6123b543e8760be3696c9a6331cb192cc31edf3a22ef690",
+    "sourceCodeHash": "0x9698ba3ce24ae74109ebb4086241cd790b571fce9f4e6fb3ff85cc3c220157cc"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",
@@ -198,6 +198,26 @@
   "src/periphery/staking/PolicyEngineStaking.sol:PolicyEngineStaking": {
     "initCodeHash": "0x0dd679c6e955a4bf4af7d98da8c42ac7fd48c5c28af4c61eaeddb782690d6223",
     "sourceCodeHash": "0x24fe77ae2b0dacad1f61f6dd65026ce3a34df7c4d0331eadc661b2e062d6bb54"
+  },
+  "src/private-interop/ClaimRegistry.sol:ClaimRegistry": {
+    "initCodeHash": "0xbce216b4d0aea41a0bac4a19aefb47af1b040e65319687e3f273ad9859480b18",
+    "sourceCodeHash": "0xd8a2e29a6ea45db27bf921c1751fd8faa772a4afbdda146fc5d1572aa164e3ef"
+  },
+  "src/private-interop/ETHLockVault.sol:ETHLockVault": {
+    "initCodeHash": "0x05d8fe95d807ad4b1be2c0e5a1794db963e5d67c11bc381ed5f7bb2f0e32049e",
+    "sourceCodeHash": "0xa99370b96e1032edfae6d998cf7184030abd46153ab4167c66a84c055e6d1128"
+  },
+  "src/private-interop/EventReplayer.sol:EventReplayer": {
+    "initCodeHash": "0xb8f6f3c997f7722e606814fbb94ffd9c7456fa2f405d6d205b769863a83ab771",
+    "sourceCodeHash": "0x0cef2bbbb5cb4bfc9c07a3e399e032c016ece08d60fd183d944ca858759bcff0"
+  },
+  "src/private-interop/L2ToL2CrossDomainMessengerReplay.sol:L2ToL2CrossDomainMessengerReplay": {
+    "initCodeHash": "0x979c9479ac8b44d1310b2e97b32bc2ffc577bf304d0e71719771aa58e5107d9d",
+    "sourceCodeHash": "0xa406c6f33397778546ee200a6558a1b347e62fcd906edfb1264fb3e1f7f344af"
+  },
+  "src/private-interop/NativeMintBridge.sol:NativeMintBridge": {
+    "initCodeHash": "0x285c47338be6e85fe7a23e53fb48dfc6e6d0ca51c23c140d75963dea3de1ca82",
+    "sourceCodeHash": "0xc198956c35173df3e9f76930e38bf2aa38a0a44589254384ee865874a8724702"
   },
   "src/safe/DeputyPauseModule.sol:DeputyPauseModule": {
     "initCodeHash": "0x18422b48c4901ed6fd9338d76d3c5aecfff9a7add34b05c6e21c23d0011ed6bf",

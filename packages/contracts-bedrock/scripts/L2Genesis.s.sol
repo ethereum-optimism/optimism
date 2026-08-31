@@ -34,6 +34,8 @@ import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+import { IEventReplayer } from "interfaces/private-interop/IEventReplayer.sol";
+import { INativeMintBridge } from "interfaces/private-interop/INativeMintBridge.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 
@@ -75,6 +77,10 @@ contract L2Genesis is Script {
         uint256 nativeAssetLiquidityAmount;
         address liquidityControllerOwner;
         bytes32 devFeatureBitmap;
+        address privateInteropOperator;
+        uint256 privateInteropOperatorBalance;
+        uint256 privateInteropCounterpartyChainID;
+        address privateInteropLockVault;
     }
 
     using ForkUtils for Fork;
@@ -132,6 +138,7 @@ contract L2Genesis is Script {
                 == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
             "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
         );
+        _checkPrivateInteropInput(_input);
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
         vm.chainId(_input.l2ChainID);
@@ -298,6 +305,67 @@ contract L2Genesis is Script {
         setL2DevFeatureFlags(_input); // 2D
         // deploy() upgrades ConditionalDeployer and L2DevFeatureFlags, so it must run after both are set.
         _deployPredeploysViaL2CM(_input);
+        // Private interop runs last, after a complete stock genesis exists. The rendering half
+        // REPLACES an implementation the L2ContractsManager has just installed, and the private
+        // half authorizes a minter on a LiquidityController that L2CM has just initialized, so
+        // neither can observe a half-finished state.
+        if (_isPrivateInteropRendering(_input)) {
+            setPrivateInteropRendering(_input);
+        }
+        if (_isPrivateInteropPrivateChain(_input)) {
+            setPrivateInteropPrivateChain(_input);
+        }
+    }
+
+    /// @notice Validates the private interop half selection before any state is written.
+    /// @dev The two halves share a chain ID but are different chains in content, and a genesis that
+    ///      claimed to be both would be neither. The rendering carries no custom gas token: its
+    ///      replay transactions pay gas in the rendering's own ETH, premined to the operator.
+    function _checkPrivateInteropInput(Input memory _input) internal pure {
+        bool rendering = _isPrivateInteropRendering(_input);
+        bool privateChain = _isPrivateInteropPrivateChain(_input);
+
+        require(
+            !(rendering && privateChain),
+            "L2Genesis: PRIVATE_INTEROP_RENDERING and PRIVATE_INTEROP_PRIVATE_CHAIN are mutually exclusive"
+        );
+
+        if (rendering) {
+            require(
+                _isGenesisInteropEnabled(_input), "L2Genesis: private interop rendering requires interop at genesis"
+            );
+            require(
+                !_input.useCustomGasToken, "L2Genesis: private interop rendering must not be a custom gas token chain"
+            );
+            require(_input.privateInteropOperator != address(0), "L2Genesis: private interop operator must be set");
+        }
+
+        if (privateChain) {
+            require(
+                _isGenesisInteropEnabled(_input), "L2Genesis: private interop private chain requires interop at genesis"
+            );
+            require(_input.useCustomGasToken, "L2Genesis: private interop private chain requires a custom gas token");
+            require(_input.privateInteropOperator != address(0), "L2Genesis: private interop operator must be set");
+            require(
+                _input.privateInteropCounterpartyChainID != 0,
+                "L2Genesis: private interop counterparty chain ID must be set"
+            );
+            require(_input.privateInteropLockVault != address(0), "L2Genesis: private interop lock vault must be set");
+            require(
+                _input.privateInteropOperatorBalance <= _input.nativeAssetLiquidityAmount,
+                "L2Genesis: private interop operator balance exceeds the native asset liquidity reserve"
+            );
+        }
+    }
+
+    /// @notice Returns true when this genesis is the PUBLIC RENDERING half of a private interop pair.
+    function _isPrivateInteropRendering(Input memory _input) internal pure returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.PRIVATE_INTEROP_RENDERING);
+    }
+
+    /// @notice Returns true when this genesis is the PRIVATE half of a private interop pair.
+    function _isPrivateInteropPrivateChain(Input memory _input) internal pure returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.PRIVATE_INTEROP_PRIVATE_CHAIN);
     }
 
     /// @notice Builds the implementation records for the temporary L2ContractsManager.
@@ -672,6 +740,149 @@ contract L2Genesis is Script {
         _setImplementationCode(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).setDevFeatureBitmap(_input.devFeatureBitmap);
+    }
+
+    /// @notice Renders the PUBLIC RENDERING half of a private interop pair.
+    /// @dev The rendering is a derived-only chain whose blocks are a deterministic function of a
+    ///      private chain's messenger traffic. It is a stock interop chain except in three places:
+    ///      the messenger predeploy carries the replay implementation, the ClaimRegistry holds the
+    ///      operator's per-range commitments, and the EventReplayer re-emits everything the export
+    ///      policy makes public. All three are operator-gated on the SAME address.
+    function setPrivateInteropRendering(Input memory _input) internal {
+        installReplayMessenger(_input);
+        setClaimRegistry(_input);
+        setEventReplayer(_input);
+
+        // The operator EOA signs every transaction this chain will ever carry: the claim that opens
+        // each range, and one replay per exported or imported message. Those transactions execute
+        // on the RENDERING, so the balance that pays for them has to be in the RENDERING's state --
+        // the private chain's premine is a different chain's ledger and cannot pay here. Nothing
+        // else on this chain ever spends: there is no sequencer, no mempool, and deposits are
+        // impossible (the L1 SystemConfig is initialized with maxResourceLimit = 0), so this single
+        // premine is the chain's entire gas supply for its lifetime and can never be topped up.
+        vm.deal(_input.privateInteropOperator, _input.privateInteropOperatorBalance);
+    }
+
+    /// @notice Installs the replay implementation at the standard L2ToL2CrossDomainMessenger
+    ///         predeploy address, replacing the stock implementation the L2ContractsManager put
+    ///         there moments ago.
+    /// @dev Installing at the STANDARD address is the whole point: a replayed `SentMessage` then
+    ///      carries the emitter every stock consumer already expects, so the message database, the
+    ///      cross-safety judge and counterparty relayers need to know nothing about renderings.
+    ///      The replayer address is written straight into slot 0 rather than through
+    ///      `initialize()`: L2CM upgrades this proxy with `upgradeTo` (no call), so the proxy has
+    ///      never been initialized and its slot 0 is empty -- the stock messenger keeps only a
+    ///      mapping there. Slot 0 of the replay implementation packs OpenZeppelin's `_initialized`
+    ///      (byte 0) and `_initializing` (byte 1) beneath `replayer` (bytes 2..21); writing
+    ///      `_initialized = 1` closes the initializer for good.
+    function installReplayMessenger(Input memory _input) internal {
+        address impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.etch(impl, DeployUtils.getDeployedCode("L2ToL2CrossDomainMessengerReplay"));
+        EIP1967Helper.setAdmin(impl, Predeploys.PROXY_ADMIN);
+
+        vm.store(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            bytes32(0),
+            bytes32((uint256(uint160(_input.privateInteropOperator)) << 16) | 1)
+        );
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    /// @dev Initialized by a direct slot write for the same reason as the replay messenger: slot 0
+    ///      packs `_initialized`, `_initializing` and `operator`, and the posted-range cursor that
+    ///      follows it must start at zero, which is exactly what an untouched genesis gives.
+    function setClaimRegistry(Input memory _input) internal {
+        _setPrivateInteropImplementation(Predeploys.CLAIM_REGISTRY, DeployUtils.getDeployedCode("ClaimRegistry"));
+
+        vm.store(
+            Predeploys.CLAIM_REGISTRY,
+            bytes32(0),
+            bytes32((uint256(uint160(_input.privateInteropOperator)) << 16) | 1)
+        );
+    }
+
+    /// @notice This predeploy is following the safety invariant #2: the authorized replayer is an
+    ///         immutable, so the implementation must be constructed rather than etched from
+    ///         precompiled deployed code.
+    function setEventReplayer(Input memory _input) internal {
+        IEventReplayer replayer = IEventReplayer(
+            DeployUtils.create1({
+                _name: "EventReplayer",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IEventReplayer.__constructor__, (_input.privateInteropOperator))
+                )
+            })
+        );
+        _setPrivateInteropImplementation(Predeploys.EVENT_REPLAYER, address(replayer).code);
+
+        /// Reset so its not included in the state dump
+        vm.etch(address(replayer), "");
+        vm.resetNonce(address(replayer));
+    }
+
+    /// @notice Renders the PRIVATE half of a private interop pair.
+    /// @dev The private chain is a stock custom gas token chain plus one contract: the
+    ///      NativeMintBridge, authorized as a LiquidityController minter so that ETH locked on the
+    ///      counterparty can be minted here as native asset. The protocol ETH path stays closed --
+    ///      `SuperchainETHBridge` would burn the custom unit while asking a counterparty to mint
+    ///      real ETH -- so this bridge is the only way ETH-denominated value crosses the boundary.
+    function setPrivateInteropPrivateChain(Input memory _input) internal {
+        setNativeMintBridge(_input);
+
+        // Authorizing the minter is an owner-only call on the LiquidityController proxy, which
+        // L2CM initialized with this owner a moment ago.
+        vm.prank(_input.liquidityControllerOwner);
+        ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).authorizeMinter(Predeploys.NATIVE_MINT_BRIDGE);
+
+        // Mint the operator's opening liquidity. A runtime mint moves native asset OUT of the
+        // NativeAssetLiquidity reserve and into the recipient, so a genesis mint has to do both
+        // halves or the chain would start with more native asset in circulation than the reserve
+        // ever accounted for.
+        vm.deal(_input.privateInteropOperator, _input.privateInteropOperatorBalance);
+        vm.deal(
+            Predeploys.NATIVE_ASSET_LIQUIDITY, _input.nativeAssetLiquidityAmount - _input.privateInteropOperatorBalance
+        );
+    }
+
+    /// @notice This predeploy is following the safety invariant #2: the counterparty chain ID and
+    ///         the counterparty's lock vault address are immutables.
+    function setNativeMintBridge(Input memory _input) internal {
+        INativeMintBridge bridge = INativeMintBridge(
+            DeployUtils.create1({
+                _name: "NativeMintBridge",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        INativeMintBridge.__constructor__,
+                        (_input.privateInteropCounterpartyChainID, _input.privateInteropLockVault)
+                    )
+                )
+            })
+        );
+        _setPrivateInteropImplementation(Predeploys.NATIVE_MINT_BRIDGE, address(bridge).code);
+
+        /// Reset so its not included in the state dump
+        vm.etch(address(bridge), "");
+        vm.resetNonce(address(bridge));
+    }
+
+    /// @notice Sets a private interop predeploy's implementation code and points its proxy at it.
+    /// @dev The three private interop addresses sit outside the predeploy registry (Predeploys.sol
+    ///      explains why), so the registry-driven `setPredeployProxies` etches their Proxy but
+    ///      leaves the implementation slot empty, and `_setImplementationCode` cannot look their
+    ///      names up. This does both halves explicitly, matching what the registry path produces
+    ///      for every other proxied predeploy: implementation code at the code-namespace
+    ///      counterpart, admin slot set on both, implementation slot set on the proxy.
+    function _setPrivateInteropImplementation(
+        address _proxy,
+        bytes memory _deployedCode
+    )
+        internal
+        returns (address impl_)
+    {
+        impl_ = Predeploys.predeployToCodeNamespace(_proxy);
+        vm.etch(impl_, _deployedCode);
+        EIP1967Helper.setAdmin(impl_, Predeploys.PROXY_ADMIN);
+        EIP1967Helper.setImplementation(_proxy, impl_);
     }
 
     /// @notice Sets all the preinstalls.
