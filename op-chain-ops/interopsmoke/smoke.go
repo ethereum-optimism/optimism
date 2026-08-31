@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"slices"
 	"strings"
 	"sync"
 	"text/tabwriter"
@@ -59,6 +60,7 @@ const (
 	invalidDirectionFlagName  = "direction"
 	reorgTimeoutFlagName      = "reorg-timeout"
 	requireCascadeFlagName    = "require-cascade"
+	privatePairBFlagName      = "private-pair-b"
 )
 
 const (
@@ -70,24 +72,36 @@ const (
 // bridgeTimeout bounds a single A->B bridge (send, relay, and balance check).
 const bridgeTimeout = 2 * time.Minute
 
+// The endpoints a devnet on this host serves by default, and what an unset Config URL means.
+const (
+	defaultL2AURL = "http://localhost:8545"
+	defaultL2BURL = "http://localhost:8546"
+)
+
 func smokeFlags(envPrefix string) []cli.Flag {
 	return cliapp.ProtectFlags([]cli.Flag{
 		&cli.StringFlag{
 			Name:    l2AURLFlagName,
 			Usage:   "RPC URL for chain A.",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2A_RPC"),
-			Value:   "http://localhost:8545",
+			Value:   defaultL2AURL,
 		},
 		&cli.StringFlag{
 			Name:    l2BURLFlagName,
 			Usage:   "RPC URL for chain B.",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2B_RPC"),
-			Value:   "http://localhost:8546",
+			Value:   defaultL2BURL,
 		},
 		&cli.StringFlag{
 			Name:    privateKeyFlagName,
 			Usage:   "Private key to fund smoke-test transactions. If empty, uses the default dev key.",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_KEY"),
+		},
+		&cli.BoolFlag{
+			Name: privatePairBFlagName,
+			Usage: "Declare chain B the private half of a private-interop pair. Rejected here: the profile needs " +
+				"the identifier resolver, which exists only in the process that built the pair.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_PAIR_B"),
 		},
 	})
 }
@@ -98,6 +112,16 @@ type remoteChain struct {
 	rpc       opclient.RPC
 	ethClient apis.EthClient
 	chainID   eth.ChainID
+	// waitTimeout bounds each wait on this chain's head or on a balance. Zero means the package
+	// default; a private-interop pair raises it, see privatePairWaitTimeout.
+	waitTimeout time.Duration
+}
+
+func (c *remoteChain) waitBudget() time.Duration {
+	if c.waitTimeout > 0 {
+		return c.waitTimeout
+	}
+	return smokeWaitTimeout
 }
 
 type remoteUser struct {
@@ -144,6 +168,43 @@ type smokeEnv struct {
 	direction         string
 	reorgTimeout      time.Duration
 	requireCascade    bool
+	// privatePairB selects the private-pair profile: see private_pair.go.
+	privatePairB bool
+}
+
+// Config is one smoke run: which chains, whose key, which tests, and the options the individual
+// tests take. The zero value of every option means "the default for the tests being run".
+type Config struct {
+	// L2AURL and L2BURL are the user RPCs of the two chains. Empty means the standalone tool's
+	// default localhost endpoints.
+	L2AURL string
+	L2BURL string
+
+	// PrivateKey funds every transaction, hex, with or without the 0x prefix. Empty means the
+	// devkeys funder the devstack premines.
+	PrivateKey string
+
+	// Tests names the tests to run, by the same names the subcommands carry. Empty, or the single
+	// name "all", is the standard suite.
+	Tests []string
+
+	// Direction restricts the invalid-message test to one init-chain -> exec-chain pairing.
+	Direction string
+
+	// ReorgTimeout bounds the wait for an invalidated block to be replaced.
+	ReorgTimeout time.Duration
+
+	// InvalidBlocks and InvalidTxPerBlock size the invalid-message test.
+	InvalidBlocks     uint
+	InvalidTxPerBlock uint
+
+	// RequireCascade fails chained-invalid-message when no dependent message was ever included,
+	// since transitive invalidation was then never exercised.
+	RequireCascade bool
+
+	// PrivatePairB says chain B is the PRIVATE half of a private-interop pair, and selects the
+	// profile in private_pair.go. It is only honoured in-process: see errPrivatePairOutOfProcess.
+	PrivatePairB bool
 }
 
 func (m *initMessage) BlockNumber() uint64 {
@@ -383,34 +444,45 @@ func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
 	return logger
 }
 
-func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateKey string) (*smokeEnv, func(), error) {
+func newSmokeEnv(ctx context.Context, stderr io.Writer, cfg Config) (*smokeEnv, func(), error) {
 	logger := newLogger(ctx, stderr)
 
-	chainA, err := connectRemoteChain(ctx, logger, "L2A", l2AURL)
+	chainA, err := connectRemoteChain(ctx, logger, "L2A", cfg.L2AURL)
 	if err != nil {
 		return nil, nil, err
 	}
-	chainB, err := connectRemoteChain(ctx, logger, "L2B", l2BURL)
+	chainB, err := connectRemoteChain(ctx, logger, "L2B", cfg.L2BURL)
 	if err != nil {
 		chainA.ethClient.Close()
 		return nil, nil, err
 	}
 
-	privKey, address, err := resolveSmokeKey(privateKey)
+	privKey, address, err := resolveSmokeKey(cfg.PrivateKey)
 	if err != nil {
 		chainA.ethClient.Close()
 		chainB.ethClient.Close()
 		return nil, nil, err
 	}
 
+	if cfg.PrivatePairB {
+		chainA.waitTimeout = privatePairWaitTimeout
+		chainB.waitTimeout = privatePairWaitTimeout
+	}
+
 	env := &smokeEnv{
-		ctx:    ctx,
-		stderr: stderr,
-		logger: logger,
-		chainA: chainA,
-		chainB: chainB,
-		userA:  &remoteUser{chain: chainA, privKey: privKey, address: address},
-		userB:  &remoteUser{chain: chainB, privKey: privKey, address: address},
+		ctx:               ctx,
+		stderr:            stderr,
+		logger:            logger,
+		chainA:            chainA,
+		chainB:            chainB,
+		userA:             &remoteUser{chain: chainA, privKey: privKey, address: address},
+		userB:             &remoteUser{chain: chainB, privKey: privKey, address: address},
+		invalidBlocks:     cfg.InvalidBlocks,
+		invalidTxPerBlock: cfg.InvalidTxPerBlock,
+		direction:         cfg.Direction,
+		reorgTimeout:      cfg.ReorgTimeout,
+		requireCascade:    cfg.RequireCascade,
+		privatePairB:      cfg.PrivatePairB,
 	}
 	cleanup := func() {
 		chainA.ethClient.Close()
@@ -476,16 +548,150 @@ func resolveSmokeKey(privateKey string) (*ecdsa.PrivateKey, common.Address, erro
 	return privKey, crypto.PubkeyToAddress(privKey.PublicKey), nil
 }
 
-func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error) error {
-	ctx := cliCtx.Context
-	stderr := cliCtx.App.ErrWriter
-	l2AURL := cliCtx.String(l2AURLFlagName)
-	l2BURL := cliCtx.String(l2BURLFlagName)
-	privateKey := cliCtx.String(privateKeyFlagName)
+// Test names. They are the subcommand names, so a caller embedding this package names a test the
+// same way an operator does on the command line.
+const (
+	TestAll                   = "all"
+	TestIdentity              = "identity"
+	TestTransfer              = "transfer"
+	TestBridge                = "bridge"
+	TestValidMessage          = "valid-message"
+	TestInvalidMessage        = "invalid-message"
+	TestChainedInvalidMessage = "chained-invalid-message"
+)
 
-	fmt.Fprintf(stderr, "\nSmoke: %s\n\n", name)
+// smokeTest is one named test: the key a caller selects it by, the name a run reports it under,
+// and the check itself.
+type smokeTest struct {
+	key  string
+	name string
+	// privateName replaces name when chain B is a private-interop pair, where the ordinary name
+	// would say something untrue about the run. Empty means name.
+	privateName string
+	fn          func(env *smokeEnv) error
+}
 
-	env, cleanup, err := newSmokeEnv(ctx, stderr, l2AURL, l2BURL, privateKey)
+func (t smokeTest) displayName(privatePairB bool) string {
+	if privatePairB && t.privateName != "" {
+		return t.privateName
+	}
+	return t.name
+}
+
+// suiteTests is what `all` runs, in order.
+//
+// chained-invalid-message is deliberately not here: it waits on a second reorg cascade after this
+// one, which would roughly double the worst-case runtime of `all`. Run it as its own test.
+var suiteTests = []string{TestIdentity, TestTransfer, TestBridge, TestValidMessage, TestInvalidMessage}
+
+func smokeTests() []smokeTest {
+	return []smokeTest{
+		{key: TestIdentity, name: "Chain Identity", fn: smokeIdentity},
+		// A private chain in a pair is a custom-gas-token chain: what its funder holds and what a
+		// transfer moves is its own native unit, and calling that ETH would be wrong.
+		{key: TestTransfer, name: "ETH Transfers", privateName: "Native-Unit Transfers", fn: smokeTransfer},
+		{key: TestBridge, name: "Cross-Chain ETH Bridge", fn: smokeBridge},
+		{key: TestValidMessage, name: "Valid Exec Message", privateName: "Valid Exec Message (both directions)", fn: smokeValidMessage},
+		{key: TestInvalidMessage, name: "Invalid Exec Message (reorg)", fn: smokeInvalidMessage},
+		{key: TestChainedInvalidMessage, name: "Chained Invalid Exec Message (transitive reorg)", fn: smokeChainedInvalidMessage},
+	}
+}
+
+func lookupSmokeTest(key string) (smokeTest, bool) {
+	for _, test := range smokeTests() {
+		if test.key == key {
+			return test, true
+		}
+	}
+	return smokeTest{}, false
+}
+
+// smokePlan is a resolved run: what to call it, what to run, and the configuration the tests read.
+type smokePlan struct {
+	name  string
+	tests []smokeTest
+	// suite reports each test's own result as it goes, rather than letting a single test's output
+	// stand for the whole run.
+	suite bool
+	cfg   Config
+}
+
+// planSmoke resolves cfg.Tests and fills in the defaults of a suite run.
+//
+// Defaults are applied ONLY to a suite, which is the one caller that has no per-test flags to speak
+// with; a single test is handed its configuration verbatim, so an explicit `--blocks=0` still
+// reaches the test that rejects it rather than being quietly turned into a one.
+func planSmoke(cfg Config) (smokePlan, error) {
+	keys := cfg.Tests
+	if len(keys) == 0 {
+		keys = []string{TestAll}
+	}
+	suite := false
+	if slices.Contains(keys, TestAll) {
+		if len(keys) != 1 {
+			return smokePlan{}, fmt.Errorf("%q runs the whole suite and cannot be combined with %v", TestAll, keys)
+		}
+		keys = suiteTests
+		suite = true
+	} else if len(keys) > 1 {
+		suite = true
+	}
+
+	plan := smokePlan{suite: suite, cfg: cfg}
+	if plan.cfg.L2AURL == "" {
+		plan.cfg.L2AURL = defaultL2AURL
+	}
+	if plan.cfg.L2BURL == "" {
+		plan.cfg.L2BURL = defaultL2BURL
+	}
+	for _, key := range keys {
+		test, ok := lookupSmokeTest(key)
+		if !ok {
+			return smokePlan{}, fmt.Errorf("unknown smoke test %q", key)
+		}
+		plan.tests = append(plan.tests, test)
+	}
+
+	switch {
+	case !suite:
+		plan.name = plan.tests[0].displayName(cfg.PrivatePairB)
+	case slices.Equal(keys, suiteTests):
+		plan.name = "All Tests"
+	default:
+		plan.name = "Selected Tests"
+	}
+
+	if suite {
+		if plan.cfg.InvalidBlocks == 0 {
+			plan.cfg.InvalidBlocks = 1
+		}
+		if plan.cfg.InvalidTxPerBlock == 0 {
+			plan.cfg.InvalidTxPerBlock = 1
+		}
+		if plan.cfg.Direction == "" {
+			plan.cfg.Direction = defaultDirection(plan.cfg.PrivatePairB)
+		}
+		if plan.cfg.ReorgTimeout == 0 {
+			plan.cfg.ReorgTimeout = defaultReorgTimeout
+		}
+	}
+	return plan, nil
+}
+
+// Run connects to both chains and runs the requested smoke tests.
+//
+// It is the whole of this package's behaviour; the CLI is an adapter over it. Running in-process
+// matters for more than convenience where a chain's message identifiers are resolved by the host
+// process (see PrivatePairB).
+func Run(ctx context.Context, stderr io.Writer, cfg Config) error {
+	plan, err := planSmoke(cfg)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(stderr, "\nSmoke: %s\n\n", plan.name)
+
+	env, cleanup, err := newSmokeEnv(ctx, stderr, plan.cfg)
 	if err != nil {
 		return err
 	}
@@ -494,13 +700,73 @@ func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error
 	fmt.Fprintf(stderr, "Chain A RPC: %s (chain ID %s)\n", env.chainA.url, env.chainA.chainID)
 	fmt.Fprintf(stderr, "Chain B RPC: %s (chain ID %s)\n", env.chainB.url, env.chainB.chainID)
 	fmt.Fprintf(stderr, "Smoke Sender Address: %s\n\n", env.userA.address)
+	if env.privatePairB {
+		printPrivatePairProfile(env)
+	}
 
-	if err := fn(env); err != nil {
-		fmt.Fprintf(stderr, "\nFAIL: %s (%v)\n", name, err)
+	if err := plan.run(env); err != nil {
+		// A single test that does not apply to this topology is the run's whole result, and
+		// reporting it as a pass would claim a check that never happened.
+		var skip *smokeSkip
+		if errors.As(err, &skip) {
+			fmt.Fprintf(stderr, "\nSKIP: %s (%s)\n", plan.name, skip.reason)
+			return nil
+		}
+		fmt.Fprintf(stderr, "\nFAIL: %s (%v)\n", plan.name, err)
 		return err
 	}
-	fmt.Fprintf(stderr, "\nPASS: %s\n", name)
+	fmt.Fprintf(stderr, "\nPASS: %s\n", plan.name)
 	return nil
+}
+
+// run executes the plan's tests. A suite runs all of them and reports every failure; a single test
+// is its own report.
+//
+// A test that does not apply to the topology does not fail the run and is never silent: in a suite
+// its reason is printed where its result would be, and on its own the skip is returned for Run to
+// report as the result of the whole run.
+func (p smokePlan) run(env *smokeEnv) error {
+	if !p.suite {
+		return p.tests[0].fn(env)
+	}
+
+	var failed []string
+	for _, test := range p.tests {
+		fmt.Fprintf(env.stderr, "--- %s\n", test.displayName(env.privatePairB))
+		err := test.fn(env)
+		var skip *smokeSkip
+		switch {
+		case errors.As(err, &skip):
+			fmt.Fprintf(env.stderr, "    SKIP: %s\n", skip.reason)
+		case err != nil:
+			fmt.Fprintf(env.stderr, "    FAIL: %v\n", err)
+			failed = append(failed, test.displayName(env.privatePairB))
+		default:
+			fmt.Fprintf(env.stderr, "    PASS\n")
+		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("failed tests: %v", failed)
+	}
+	return nil
+}
+
+// runSmokeTest is the CLI adapter: it reads the common flags, lets the subcommand add its own, and
+// hands the result to Run.
+func runSmokeTest(cliCtx *cli.Context, test string, withFlags func(cfg *Config)) error {
+	if cliCtx.Bool(privatePairBFlagName) {
+		return errPrivatePairOutOfProcess
+	}
+	cfg := Config{
+		L2AURL:     cliCtx.String(l2AURLFlagName),
+		L2BURL:     cliCtx.String(l2BURLFlagName),
+		PrivateKey: cliCtx.String(privateKeyFlagName),
+		Tests:      []string{test},
+	}
+	if withFlags != nil {
+		withFlags(&cfg)
+	}
+	return Run(cliCtx.Context, cliCtx.App.ErrWriter, cfg)
 }
 
 // Command returns the `smoke-interop` command tree for embedding in a host
@@ -521,47 +787,47 @@ func Subcommands(envPrefix string) []*cli.Command {
 
 	return []*cli.Command{
 		{
-			Name:  "all",
+			Name:  TestAll,
 			Usage: "run all smoke tests sequentially",
 			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
-				return withSmokeEnv(cliCtx, "All Tests", smokeAll)
+				return runSmokeTest(cliCtx, TestAll, nil)
 			},
 		},
 		{
-			Name:  "identity",
+			Name:  TestIdentity,
 			Usage: "verify both chains have different chain IDs",
 			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
-				return withSmokeEnv(cliCtx, "Chain Identity", smokeIdentity)
+				return runSmokeTest(cliCtx, TestIdentity, nil)
 			},
 		},
 		{
-			Name:  "transfer",
+			Name:  TestTransfer,
 			Usage: "send ETH transfers on both chains",
 			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
-				return withSmokeEnv(cliCtx, "ETH Transfers", smokeTransfer)
+				return runSmokeTest(cliCtx, TestTransfer, nil)
 			},
 		},
 		{
-			Name:  "bridge",
+			Name:  TestBridge,
 			Usage: "bridge ETH from chain A to chain B via SuperchainETHBridge",
 			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
-				return withSmokeEnv(cliCtx, "Cross-Chain ETH Bridge", smokeBridge)
+				return runSmokeTest(cliCtx, TestBridge, nil)
 			},
 		},
 		{
-			Name:  "valid-message",
+			Name:  TestValidMessage,
 			Usage: "send a valid executing message and verify it stays in-chain",
 			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
-				return withSmokeEnv(cliCtx, "Valid Exec Message", smokeValidMessage)
+				return runSmokeTest(cliCtx, TestValidMessage, nil)
 			},
 		},
 		{
-			Name:  "invalid-message",
+			Name:  TestInvalidMessage,
 			Usage: "send invalid executing messages on both chains at once and verify they are reorged out",
 			Flags: append(flags,
 				&cli.UintFlag{
@@ -591,17 +857,16 @@ func Subcommands(envPrefix string) []*cli.Command {
 				},
 			),
 			Action: func(cliCtx *cli.Context) error {
-				return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", func(env *smokeEnv) error {
-					env.invalidBlocks = cliCtx.Uint(invalidBlocksFlagName)
-					env.invalidTxPerBlock = cliCtx.Uint(invalidTxPerBlockFlagName)
-					env.direction = cliCtx.String(invalidDirectionFlagName)
-					env.reorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
-					return smokeInvalidMessage(env)
+				return runSmokeTest(cliCtx, TestInvalidMessage, func(cfg *Config) {
+					cfg.InvalidBlocks = cliCtx.Uint(invalidBlocksFlagName)
+					cfg.InvalidTxPerBlock = cliCtx.Uint(invalidTxPerBlockFlagName)
+					cfg.Direction = cliCtx.String(invalidDirectionFlagName)
+					cfg.ReorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
 				})
 			},
 		},
 		{
-			Name:  "chained-invalid-message",
+			Name:  TestChainedInvalidMessage,
 			Usage: "chain a valid executing message to an invalid one and verify invalidation propagates",
 			Flags: append(flags,
 				&cli.DurationFlag{
@@ -617,50 +882,13 @@ func Subcommands(envPrefix string) []*cli.Command {
 				},
 			),
 			Action: func(cliCtx *cli.Context) error {
-				return withSmokeEnv(cliCtx, "Chained Invalid Exec Message (transitive reorg)", func(env *smokeEnv) error {
-					env.reorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
-					env.requireCascade = cliCtx.Bool(requireCascadeFlagName)
-					return smokeChainedInvalidMessage(env)
+				return runSmokeTest(cliCtx, TestChainedInvalidMessage, func(cfg *Config) {
+					cfg.ReorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
+					cfg.RequireCascade = cliCtx.Bool(requireCascadeFlagName)
 				})
 			},
 		},
 	}
-}
-
-func smokeAll(env *smokeEnv) error {
-	env.invalidBlocks = 1
-	env.invalidTxPerBlock = 1
-	env.direction = directionBoth
-	env.reorgTimeout = defaultReorgTimeout
-	tests := []struct {
-		name string
-		fn   func(env *smokeEnv) error
-	}{
-		{"Chain Identity", smokeIdentity},
-		{"ETH Transfers", smokeTransfer},
-		{"Cross-Chain ETH Bridge", smokeBridge},
-		{"Valid Exec Message", smokeValidMessage},
-		{"Invalid Exec Message (reorg)", smokeInvalidMessage},
-		// chained-invalid-message is deliberately not here: it waits on a second
-		// reorg cascade after this one, which would roughly double the worst-case
-		// runtime of `all`. Run it as its own subcommand.
-	}
-
-	var failed []string
-	for _, test := range tests {
-		fmt.Fprintf(env.stderr, "--- %s\n", test.name)
-		if err := test.fn(env); err != nil {
-			fmt.Fprintf(env.stderr, "    FAIL: %v\n", err)
-			failed = append(failed, test.name)
-		} else {
-			fmt.Fprintf(env.stderr, "    PASS\n")
-		}
-	}
-
-	if len(failed) > 0 {
-		return fmt.Errorf("failed tests: %v", failed)
-	}
-	return nil
 }
 
 func smokeIdentity(env *smokeEnv) error {
@@ -681,6 +909,10 @@ func smokeTransfer(env *smokeEnv) error {
 	}
 	fmt.Fprintf(env.stderr, "    Chain A transfer: OK\n")
 
+	if env.privatePairB {
+		// The amount is a quantity of wei either way; what it buys is not ETH here.
+		fmt.Fprintf(env.stderr, "    Chain B moves its own native unit, not ETH: the private chain is custom-gas-token\n")
+	}
 	recipientB := randomAddress()
 	if _, err := env.userB.transfer(env.ctx, recipientB, eth.OneHundredthEther); err != nil {
 		return fmt.Errorf("chain B transfer failed: %w", err)
@@ -693,6 +925,9 @@ func smokeTransfer(env *smokeEnv) error {
 }
 
 func smokeBridge(env *smokeEnv) error {
+	if env.privatePairB {
+		return errBridgeOnPrivatePair
+	}
 	ctx, cancel := context.WithTimeout(env.ctx, bridgeTimeout)
 	defer cancel()
 	return interopbridge.BridgeETH(ctx, env.logger, env.chainA.ethClient, env.chainB.ethClient,
@@ -723,23 +958,32 @@ func smokeValidMessage(env *smokeEnv) error {
 	if execMsg.Receipt.Status != types.ReceiptStatusSuccessful {
 		return fmt.Errorf("exec tx reverted")
 	}
+	fmt.Fprintf(env.stderr, "    Exec message sent on Chain B (block %d)\n", execMsg.BlockNumber())
 
-	execBlockNum := execMsg.BlockNumber()
-	execBlockHash := execMsg.BlockHash()
-	fmt.Fprintf(env.stderr, "    Exec message sent on Chain B (block %d)\n", execBlockNum)
-
-	if err := waitForHeadAtLeast(env.ctx, env.chainB, execBlockNum+2); err != nil {
+	if err := assertBlockSurvives(env, env.chainB, execMsg.BlockNumber(), execMsg.BlockHash(), execMsg.Receipt.TxHash); err != nil {
 		return err
 	}
 
-	currentBlock, err := env.chainB.ethClient.BlockRefByNumber(env.ctx, execBlockNum)
+	if !env.privatePairB {
+		return nil
+	}
+	return env.privateMirrorLeg()
+}
+
+// assertBlockSurvives checks that a block containing an executing message is still canonical, and
+// still carries that message, once the head has moved past it.
+func assertBlockSurvives(env *smokeEnv, chain *remoteChain, blockNum uint64, blockHash, txHash common.Hash) error {
+	if err := waitForHeadAtLeast(env.ctx, chain, blockNum+2); err != nil {
+		return err
+	}
+	currentBlock, err := chain.ethClient.BlockRefByNumber(env.ctx, blockNum)
 	if err != nil {
-		return fmt.Errorf("fetch block %d: %w", execBlockNum, err)
+		return fmt.Errorf("fetch block %d: %w", blockNum, err)
 	}
-	if currentBlock.Hash != execBlockHash {
-		return fmt.Errorf("block was replaced: expected %s, got %s", execBlockHash, currentBlock.Hash)
+	if currentBlock.Hash != blockHash {
+		return fmt.Errorf("block was replaced: expected %s, got %s", blockHash, currentBlock.Hash)
 	}
-	if err := assertTxInBlock(env.ctx, env.chainB, execBlockNum, execMsg.Receipt.TxHash); err != nil {
+	if err := assertTxInBlock(env.ctx, chain, blockNum, txHash); err != nil {
 		return err
 	}
 	fmt.Fprintf(env.stderr, "    Block remained canonical after head advanced past it\n")
@@ -773,6 +1017,11 @@ type invalidDirection struct {
 func smokeInvalidMessage(env *smokeEnv) error {
 	if err := validateInvalidMessageOptions(env.invalidBlocks, env.invalidTxPerBlock); err != nil {
 		return err
+	}
+	if env.privatePairB {
+		if err := env.usePrivatePairDirection(); err != nil {
+			return err
+		}
 	}
 	if env.reorgTimeout <= 0 {
 		return fmt.Errorf("reorg-timeout must be greater than zero")
@@ -980,6 +1229,9 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 // still be present at the end, so that a node which simply discards a swathe of
 // recent chain A blocks does not pass.
 func smokeChainedInvalidMessage(env *smokeEnv) error {
+	if env.privatePairB {
+		return errChainedInvalidOnPrivatePair
+	}
 	if env.reorgTimeout <= 0 {
 		return fmt.Errorf("reorg-timeout must be greater than zero")
 	}
@@ -1238,7 +1490,7 @@ func validateInvalidMessageOptions(blocks, txPerBlock uint) error {
 }
 
 func waitForBalance(ctx context.Context, chain *remoteChain, addr common.Address, want eth.ETH) error {
-	deadline := time.Now().Add(smokeWaitTimeout)
+	deadline := time.Now().Add(chain.waitBudget())
 	for {
 		balance, err := chain.ethClient.BalanceAt(ctx, addr, nil)
 		if err == nil && balance.Cmp(want.ToBig()) == 0 {
@@ -1277,7 +1529,7 @@ func waitForHeadAtLeast(ctx context.Context, chain *remoteChain, target uint64) 
 // waitForHead polls the unsafe head until ready accepts it. Lookup failures are transient on a
 // live chain, so they are only reported if the head never becomes ready.
 func waitForHead(ctx context.Context, chain *remoteChain, want string, ready func(eth.BlockRef) bool) error {
-	deadline := time.Now().Add(smokeWaitTimeout)
+	deadline := time.Now().Add(chain.waitBudget())
 	for {
 		head, err := chain.ethClient.BlockRefByLabel(ctx, eth.Unsafe)
 		if err == nil && ready(head) {
