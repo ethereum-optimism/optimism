@@ -180,12 +180,24 @@ func (cfg *Config) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	var compatibility struct {
-		AltDA json.RawMessage `json:"alt_da"`
+		AltDA                      json.RawMessage `json:"alt_da"`
+		PlasmaConfig               json.RawMessage `json:"plasma_config"`
+		UsePlasma                  *bool           `json:"use_plasma"`
+		DAChallengeAddress         *common.Address `json:"da_challenge_address"`
+		DAChallengeContractAddress *common.Address `json:"da_challenge_contract_address"`
+		DAChallengeWindow          *uint64         `json:"da_challenge_window"`
+		DAResolveWindow            *uint64         `json:"da_resolve_window"`
 	}
 	if err := json.Unmarshal(data, &compatibility); err != nil {
 		return err
 	}
-	if hasUnsupportedAltDA(compatibility.AltDA) {
+	// Historical Ethereum-DA configs also emitted nonzero challenge and resolve
+	// windows, so those scalar fields alone do not indicate that Alt-DA was active.
+	if hasUnsupportedAltDA(compatibility.AltDA) ||
+		hasUnsupportedAltDA(compatibility.PlasmaConfig) ||
+		(compatibility.UsePlasma != nil && *compatibility.UsePlasma) ||
+		(compatibility.DAChallengeAddress != nil && *compatibility.DAChallengeAddress != (common.Address{})) ||
+		(compatibility.DAChallengeContractAddress != nil && *compatibility.DAChallengeContractAddress != (common.Address{})) {
 		return errAltDANoLongerSupported
 	}
 	*cfg = Config(decoded)

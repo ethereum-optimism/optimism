@@ -145,12 +145,22 @@ var ErrZKDisputeGameParamOutOfRange = fmt.Errorf("ZK dispute game param is out o
 var ErrAltDANoLongerSupported = fmt.Errorf("Alt-DA is no longer supported")
 
 func (c *ChainIntent) rejectUnsupportedAltDA() error {
-	if c.LegacyDangerousAltDAConfig.isSet() {
-		return fmt.Errorf("%w: chain %s contains dangerousAltDAConfig", ErrAltDANoLongerSupported, c.ID)
+	if err := c.checkUnsupportedAltDA(); err != nil {
+		return err
 	}
 	// Do not carry forward an empty compatibility-only field when rewriting an
 	// intent or serializing it into deployment state.
 	c.LegacyDangerousAltDAConfig = nil
+	return nil
+}
+
+func (c *ChainIntent) checkUnsupportedAltDA() error {
+	if key, ok := findUnsupportedAltDADeployOverride(c.DeployOverrides); ok {
+		return fmt.Errorf("%w: chain %s deployOverrides contains removed Alt-DA key %q", ErrAltDANoLongerSupported, c.ID, key)
+	}
+	if c.LegacyDangerousAltDAConfig.isSet() {
+		return fmt.Errorf("%w: chain %s contains dangerousAltDAConfig", ErrAltDANoLongerSupported, c.ID)
+	}
 	return nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -285,18 +286,54 @@ func (c *Intent) Check() error {
 	return nil
 }
 
-// RejectUnsupportedAltDA rejects non-empty legacy Alt-DA configuration and
-// clears empty decode-only compatibility fields.
+// RejectUnsupportedAltDA rejects removed Alt-DA deployment overrides and
+// non-empty legacy configuration, and clears empty decode-only compatibility
+// fields.
 func (c *Intent) RejectUnsupportedAltDA() error {
+	if err := c.checkUnsupportedAltDA(); err != nil {
+		return err
+	}
+	c.clearLegacyAltDACompatibilityFields()
+	return nil
+}
+
+func (c *Intent) clearLegacyAltDACompatibilityFields() {
+	for _, chain := range c.Chains {
+		if chain != nil {
+			chain.LegacyDangerousAltDAConfig = nil
+		}
+	}
+}
+
+func (c *Intent) checkUnsupportedAltDA() error {
+	if key, ok := findUnsupportedAltDADeployOverride(c.GlobalDeployOverrides); ok {
+		return fmt.Errorf("%w: globalDeployOverrides contains removed Alt-DA key %q", ErrAltDANoLongerSupported, key)
+	}
 	for _, chain := range c.Chains {
 		if chain == nil {
 			continue
 		}
-		if err := chain.rejectUnsupportedAltDA(); err != nil {
+		if err := chain.checkUnsupportedAltDA(); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func findUnsupportedAltDADeployOverride(overrides map[string]any) (string, bool) {
+	for key := range overrides {
+		switch strings.ToLower(key) {
+		case "usealtda",
+			"dabondsize",
+			"dacommitmenttype",
+			"dachallengeproxy",
+			"dachallengewindow",
+			"daresolvewindow",
+			"daresolverrefundpercentage":
+			return key, true
+		}
+	}
+	return "", false
 }
 
 func (c *Intent) Chain(id common.Hash) (*ChainIntent, error) {

@@ -30,7 +30,41 @@ useAltDA = true
 `), 0o600))
 
 	_, err := ReadIntent(dir)
-	require.ErrorContains(t, err, state.ErrAltDANoLongerSupported.Error())
+	require.ErrorIs(t, err, state.ErrAltDANoLongerSupported)
+}
+
+func TestReadIntentRejectsAltDADeployOverrides(t *testing.T) {
+	tests := []struct {
+		name   string
+		intent string
+	}{
+		{
+			name: "global override",
+			intent: `
+[globalDeployOverrides]
+USEALTDA = false
+`,
+		},
+		{
+			name: "chain override",
+			intent: `
+[[chains]]
+
+[chains.deployOverrides]
+DaChAlLeNgEpRoXy = "0x0000000000000000000000000000000000000000"
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "intent.toml"), []byte(tt.intent), 0o600))
+
+			_, err := ReadIntent(dir)
+			require.ErrorIs(t, err, state.ErrAltDANoLongerSupported)
+		})
+	}
 }
 
 func TestReadStateRejectsLegacyAltDAChallengeAddress(t *testing.T) {
@@ -43,7 +77,7 @@ func TestReadStateRejectsLegacyAltDAChallengeAddress(t *testing.T) {
 }`), 0o600))
 
 	_, err := ReadState(dir)
-	require.ErrorContains(t, err, state.ErrAltDANoLongerSupported.Error())
+	require.ErrorIs(t, err, state.ErrAltDANoLongerSupported)
 }
 
 func TestReadStateRejectsLegacyAltDAConfig(t *testing.T) {
@@ -59,7 +93,49 @@ func TestReadStateRejectsLegacyAltDAConfig(t *testing.T) {
 }`), 0o600))
 
 	_, err := ReadState(dir)
-	require.ErrorContains(t, err, state.ErrAltDANoLongerSupported.Error())
+	require.ErrorIs(t, err, state.ErrAltDANoLongerSupported)
+}
+
+func TestReadStateRejectsAltDADeployOverrides(t *testing.T) {
+	tests := []struct {
+		name  string
+		state string
+	}{
+		{
+			name: "applied global override",
+			state: `{
+  "appliedIntent": {
+    "globalDeployOverrides": {
+      "DaBoNdSiZe": 0
+    }
+  }
+}`,
+		},
+		{
+			name: "prepared chain override",
+			state: `{
+  "preparedDeployment": {
+    "intent": {
+      "chains": [{
+        "deployOverrides": {
+          "DARESOLVEWINDOW": 0
+        }
+      }]
+    }
+  }
+}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "state.json"), []byte(tt.state), 0o600))
+
+			_, err := ReadState(dir)
+			require.ErrorIs(t, err, state.ErrAltDANoLongerSupported)
+		})
+	}
 }
 
 func TestReadStateDropsEmptyLegacyAltDAFields(t *testing.T) {

@@ -72,6 +72,10 @@ func main() {
 }
 
 func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+	if err := opservice.RejectEnvVarPrefixes(flags.EnvVarPrefix + "_ALTDA_"); err != nil {
+		return nil, fmt.Errorf("Alt-DA configuration is no longer supported: %w", err)
+	}
+
 	logCfg := oplog.ReadCLIConfig(ctx)
 	log := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
 	oplog.SetGlobalLogHandler(log.Handler())

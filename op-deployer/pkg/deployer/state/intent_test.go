@@ -2,6 +2,7 @@ package state
 
 import (
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -38,6 +39,55 @@ func TestIntentClone(t *testing.T) {
 	require.Equal(t, common.HexToAddress("0x11"), proxy)
 	require.NotEqual(t, common.HexToAddress("0x33"), intent.Chains[0].Roles.Challenger)
 	require.Equal(t, float64(73), intent.GlobalDeployOverrides["faultGameMaxDepth"])
+}
+
+func TestIntentRejectUnsupportedAltDA_DeployOverrides(t *testing.T) {
+	removedKeys := []string{
+		"useAltDA",
+		"daBondSize",
+		"daCommitmentType",
+		"daChallengeProxy",
+		"daChallengeWindow",
+		"daResolveWindow",
+		"daResolverRefundPercentage",
+	}
+	tests := []struct {
+		name string
+		set  func(*Intent, string)
+	}{
+		{
+			name: "global overrides",
+			set: func(intent *Intent, key string) {
+				intent.GlobalDeployOverrides = map[string]any{key: nil}
+			},
+		},
+		{
+			name: "chain overrides",
+			set: func(intent *Intent, key string) {
+				intent.Chains[0].DeployOverrides = map[string]any{key: nil}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, key := range removedKeys {
+				for _, overrideKey := range []string{key, strings.ToUpper(key)} {
+					t.Run(overrideKey, func(t *testing.T) {
+						intent := &Intent{Chains: []*ChainIntent{{ID: common.HexToHash("0x01")}}}
+						tt.set(intent, overrideKey)
+
+						err := intent.RejectUnsupportedAltDA()
+						require.ErrorIs(t, err, ErrAltDANoLongerSupported)
+						require.ErrorContains(t, err, overrideKey)
+
+						err = intent.Check()
+						require.ErrorIs(t, err, ErrAltDANoLongerSupported)
+					})
+				}
+			}
+		})
+	}
 }
 
 func TestValidateStandardValues(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +37,17 @@ func ValidateEnvVars(prefix string, flags []cli.Flag, log log.Logger) {
 	for _, envVar := range validateEnvVars(prefix, os.Environ(), cliFlagsToEnvVars(flags)) {
 		log.Warn("Unknown env var", "prefix", prefix, "env_var", envVar)
 	}
+}
+
+// RejectEnvVarPrefixes returns an error if any environment-variable name starts
+// with one of the supplied prefixes. It is intended for removed configuration
+// that must fail closed instead of being treated as an unknown environment variable.
+func RejectEnvVarPrefixes(prefixes ...string) error {
+	envVars := envVarsWithPrefixes(os.Environ(), prefixes...)
+	if len(envVars) == 0 {
+		return nil
+	}
+	return fmt.Errorf("unsupported environment variables are set: %s", strings.Join(envVars, ", "))
 }
 
 func FlagNameToEnvVarName(f string, prefix string) string {
@@ -70,6 +82,21 @@ func validateEnvVars(prefix string, providedEnvVars []string, definedEnvVars map
 			}
 		}
 	}
+	return out
+}
+
+func envVarsWithPrefixes(providedEnvVars []string, prefixes ...string) []string {
+	var out []string
+	for _, envVar := range providedEnvVars {
+		key, _, _ := strings.Cut(envVar, "=")
+		for _, prefix := range prefixes {
+			if prefix != "" && strings.HasPrefix(key, prefix) {
+				out = append(out, key)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
 	return out
 }
 

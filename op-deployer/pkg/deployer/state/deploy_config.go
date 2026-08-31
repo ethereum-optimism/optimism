@@ -42,6 +42,10 @@ func FindPinnedOverrideKey(overrides map[string]any) (string, bool) {
 }
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
+	if err := checkCombineDeployConfigAltDA(intent, chainIntent, state, chainState); err != nil {
+		return genesis.DeployConfig{}, err
+	}
+
 	upgradeSchedule := standard.DefaultHardforkSchedule()
 
 	cfg := genesis.DeployConfig{
@@ -197,6 +201,26 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 	}
 
 	return cfg, nil
+}
+
+func checkCombineDeployConfigAltDA(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) error {
+	if err := intent.checkUnsupportedAltDA(); err != nil {
+		return err
+	}
+	// chainIntent may be a detached copy that is not present in intent.Chains.
+	if err := chainIntent.checkUnsupportedAltDA(); err != nil {
+		return err
+	}
+	if state != nil {
+		if err := state.checkUnsupportedAltDA(); err != nil {
+			return err
+		}
+	}
+	return checkLegacyAltDAAddresses(
+		chainState.ID,
+		chainState.LegacyAltDAChallengeProxy,
+		chainState.LegacyAltDAChallengeImpl,
+	)
 }
 
 func calculateBatchInboxAddr(chainID common.Hash) common.Address {

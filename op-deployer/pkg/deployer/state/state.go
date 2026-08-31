@@ -251,10 +251,17 @@ type ChainState struct {
 	GenesisBlockHash *common.Hash `json:"genesisBlockHash,omitempty"`
 }
 
-func rejectLegacyAltDAAddresses(id common.Hash, proxy, impl **common.Address) error {
-	if (*proxy != nil && **proxy != (common.Address{})) ||
-		(*impl != nil && **impl != (common.Address{})) {
+func checkLegacyAltDAAddresses(id common.Hash, proxy, impl *common.Address) error {
+	if (proxy != nil && *proxy != (common.Address{})) ||
+		(impl != nil && *impl != (common.Address{})) {
 		return fmt.Errorf("%w: chain %s contains legacy Alt-DA challenge addresses", ErrAltDANoLongerSupported, id)
+	}
+	return nil
+}
+
+func rejectLegacyAltDAAddresses(id common.Hash, proxy, impl **common.Address) error {
+	if err := checkLegacyAltDAAddresses(id, *proxy, *impl); err != nil {
+		return err
 	}
 	// Empty addresses were emitted by older op-deployer versions even when
 	// Alt-DA was disabled. Accept them, but never write them back out.
@@ -266,15 +273,14 @@ func rejectLegacyAltDAAddresses(id common.Hash, proxy, impl **common.Address) er
 // RejectUnsupportedAltDA rejects non-empty legacy Alt-DA state and clears
 // empty decode-only compatibility fields.
 func (s *State) RejectUnsupportedAltDA() error {
+	if err := s.checkUnsupportedAltDA(); err != nil {
+		return err
+	}
 	if s.AppliedIntent != nil {
-		if err := s.AppliedIntent.RejectUnsupportedAltDA(); err != nil {
-			return err
-		}
+		s.AppliedIntent.clearLegacyAltDACompatibilityFields()
 	}
 	if s.PreparedDeployment != nil && s.PreparedDeployment.Intent != nil {
-		if err := s.PreparedDeployment.Intent.RejectUnsupportedAltDA(); err != nil {
-			return err
-		}
+		s.PreparedDeployment.Intent.clearLegacyAltDACompatibilityFields()
 	}
 	for _, chain := range s.Chains {
 		if chain == nil {
@@ -298,6 +304,38 @@ func (s *State) RejectUnsupportedAltDA() error {
 				&chain.LegacyAltDAChallengeProxy,
 				&chain.LegacyAltDAChallengeImpl,
 			); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *State) checkUnsupportedAltDA() error {
+	if s.AppliedIntent != nil {
+		if err := s.AppliedIntent.checkUnsupportedAltDA(); err != nil {
+			return err
+		}
+	}
+	if s.PreparedDeployment != nil && s.PreparedDeployment.Intent != nil {
+		if err := s.PreparedDeployment.Intent.checkUnsupportedAltDA(); err != nil {
+			return err
+		}
+	}
+	for _, chain := range s.Chains {
+		if chain == nil {
+			continue
+		}
+		if err := checkLegacyAltDAAddresses(chain.ID, chain.LegacyAltDAChallengeProxy, chain.LegacyAltDAChallengeImpl); err != nil {
+			return err
+		}
+	}
+	if s.PreparedDeployment != nil {
+		for _, chain := range s.PreparedDeployment.Chains {
+			if chain == nil {
+				continue
+			}
+			if err := checkLegacyAltDAAddresses(chain.ID, chain.LegacyAltDAChallengeProxy, chain.LegacyAltDAChallengeImpl); err != nil {
 				return err
 			}
 		}

@@ -76,15 +76,33 @@ func TestConfigJSON(t *testing.T) {
 }
 
 func TestConfigRejectsLegacyAltDA(t *testing.T) {
-	cfg := randConfig()
-	require.EqualError(t,
-		json.Unmarshal([]byte(`{"alt_da":{"da_commitment_type":"KeccakCommitment"}}`), cfg),
-		"alt-DA is no longer supported",
-	)
+	rejected := []string{
+		`{"alt_da":{"da_commitment_type":"KeccakCommitment"}}`,
+		`{"plasma_config":{}}`,
+		`{"use_plasma":true}`,
+		`{"da_challenge_address":"0x0000000000000000000000000000000000000001"}`,
+		`{"da_challenge_contract_address":"0x0000000000000000000000000000000000000001"}`,
+	}
+	for _, input := range rejected {
+		cfg := randConfig()
+		require.ErrorIs(t, json.Unmarshal([]byte(input), cfg), errAltDANoLongerSupported, input)
+	}
 
-	cfg = randConfig()
-	require.NoError(t, json.Unmarshal([]byte(`{"alt_da":null}`), cfg))
-	require.NoError(t, cfg.Check())
+	accepted := []string{
+		`{"alt_da":null}`,
+		`{"plasma_config":null}`,
+		`{"use_plasma":false}`,
+		`{"da_challenge_address":"0x0000000000000000000000000000000000000000"}`,
+		`{"da_challenge_contract_address":"0x0000000000000000000000000000000000000000"}`,
+		`{"da_challenge_window":0}`,
+		`{"da_resolve_window":0}`,
+		`{"use_plasma":false,"da_challenge_window":160,"da_resolve_window":160}`,
+	}
+	for _, input := range accepted {
+		cfg := randConfig()
+		require.NoError(t, json.Unmarshal([]byte(input), cfg), input)
+		require.NoError(t, cfg.Check(), input)
+	}
 }
 
 // TestConfigChainOpConfigJSONWireFormat pins the on-the-wire serialization of the
