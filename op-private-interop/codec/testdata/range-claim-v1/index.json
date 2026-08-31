@@ -1,0 +1,131 @@
+{
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "version": 1,
+  "transport": "Range N's claim is the LEADING user transaction of range N's first block, and it describes range N itself. That is possible rather than circular because privateTerminalBlockHash names the PRIVATE chain's block at lastBlock, and the private chain runs ahead of its public rendering, so the hash is a known past fact at build time. There is therefore no genesis edge: range 0 opens with range 0's claim. These bytes are the registry call's struct argument; the selector, the function name and the registry's storage layout belong to the registry binding, not to this codec.",
+  "payloadEncoding": "abi.encode(RangeClaim). The struct has a dynamic member (`proof`), so the encoding is the offset word 0x20, then the tuple: ten head words (nine statics plus the tuple-relative offset to `proof`, which is 0x140 canonically), then the proof's length word and its bytes padded to a multiple of 32.",
+  "payloadFields": [
+    "version",
+    "firstBlock",
+    "lastBlock",
+    "privateTerminalBlockHash",
+    "privateTerminalParentHash",
+    "l1Head",
+    "rollupConfigHash",
+    "depSetHash",
+    "privateDataHash",
+    "proof"
+  ],
+  "payloadSolidityTypes": [
+    "uint8",
+    "uint64",
+    "uint64",
+    "bytes32",
+    "bytes32",
+    "bytes32",
+    "bytes32",
+    "bytes32",
+    "bytes32",
+    "bytes"
+  ],
+  "encodedBytesEmptyProof": 384,
+  "maxProofBytes": 65536,
+  "maxEncodedBytes": 65920,
+  "registry": "postClaim(RangeClaim calldata claim) — calldata is a 4-byte selector followed by exactly these bytes. THERE IS NO EVENT: the registry is log-less by ratified design, because a claim leads its range and a rendering-only log at the front of a range-opening block would shift every message index in that block. The durable record is the calldata itself, plus a storage hash chain the registry exposes through a getter, so a reader scans transactions addressed to the registry and reads the chain via that getter rather than filtering logs. Nothing re-encodes calldata on the way in, so canonicality is a property a reader must CHECK rather than assume — which is why the decoder insists on canonical form, and why agreement with solc is pinned by testdata/solidity/RangeClaimVector.t.sol and by TestSolidityProducesTheSameBytes. Contiguity between consecutive ranges is REGISTRY policy; the truth of privateTerminalBlockHash is off-chain verifier/tooling policy, and could not be anything else — the public chain's EVM cannot see the private chain at all.",
+  "refusedVersions": [
+    0,
+    2,
+    255
+  ],
+  "cases": [
+    {
+      "name": "range-0",
+      "kind": "valid",
+      "bin": "range-0.bin",
+      "json": "range-0.json"
+    },
+    {
+      "name": "cadence-300-blocks",
+      "kind": "valid",
+      "bin": "cadence-300-blocks.bin",
+      "json": "cadence-300-blocks.json"
+    },
+    {
+      "name": "single-block-range",
+      "kind": "valid",
+      "bin": "single-block-range.bin",
+      "json": "single-block-range.json"
+    },
+    {
+      "name": "max-widths",
+      "kind": "valid",
+      "bin": "max-widths.bin",
+      "json": "max-widths.json"
+    },
+    {
+      "name": "proven-slot",
+      "kind": "valid-proven",
+      "bin": "proven-slot.bin",
+      "json": "proven-slot.json"
+    },
+    {
+      "name": "version-00",
+      "kind": "invalid",
+      "bin": "version-00.bin",
+      "json": "version-00.json"
+    },
+    {
+      "name": "version-02",
+      "kind": "invalid",
+      "bin": "version-02.bin",
+      "json": "version-02.json"
+    },
+    {
+      "name": "version-ff",
+      "kind": "invalid",
+      "bin": "version-ff.bin",
+      "json": "version-ff.json"
+    },
+    {
+      "name": "inverted-range",
+      "kind": "invalid",
+      "bin": "inverted-range.bin",
+      "json": "inverted-range.json"
+    },
+    {
+      "name": "trailing-bytes",
+      "kind": "invalid",
+      "bin": "trailing-bytes.bin",
+      "json": "trailing-bytes.json"
+    },
+    {
+      "name": "dirty-version-word",
+      "kind": "invalid",
+      "bin": "dirty-version-word.bin",
+      "json": "dirty-version-word.json"
+    },
+    {
+      "name": "non-minimal-proof-offset",
+      "kind": "invalid",
+      "bin": "non-minimal-proof-offset.bin",
+      "json": "non-minimal-proof-offset.json"
+    },
+    {
+      "name": "proof-too-large",
+      "kind": "invalid",
+      "bin": "proof-too-large.bin",
+      "json": "proof-too-large.json"
+    },
+    {
+      "name": "truncated-one-word",
+      "kind": "invalid",
+      "bin": "truncated-one-word.bin",
+      "json": "truncated-one-word.json"
+    },
+    {
+      "name": "empty",
+      "kind": "invalid",
+      "bin": "empty.bin",
+      "json": "empty.json"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "cadence-300-blocks",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "valid",
+  "description": "The operating point: one 10-minute cadence at 2 s block time, 300 public blocks, mid-chain. Note it is the same 352 bytes as every other empty-proof claim — v1 carries no per-block data, so claim size is independent of range size.",
+  "bin": "cadence-300-blocks.bin",
+  "bytes": 384,
+  "keccak": "0x33df72848893d0f360fdc1a795371326b98bae7347c20511279986268734e7cf",
+  "proofHex": "0x",
+  "body": {
+    "version": 1,
+    "firstBlock": 9000001,
+    "lastBlock": 9000300,
+    "privateTerminalBlockHash": "0x30769e2e044a988976d8d18bf2d0465dc1d6d12a8c7a2b7f719e3398c7f3c7b8",
+    "privateTerminalParentHash": "0x667f7bfccb94adcf41b902416d194be46058f5f2851c866abb260ca7355ff90f",
+    "l1Head": "0x6b4fcbda4ecaf73396dd7228cc36ba4cce73bfd433041964738f31e5e3004f6c",
+    "rollupConfigHash": "0x607001feeb5f2f03986486ecd26843f665dbb034482df8dde0018590fc9cb7e0",
+    "depSetHash": "0x8f3df71af63d40d10250a10eb13da43e3fd62d85bec4dc1dfd8641f067fb879e",
+    "privateDataHash": "0x4c9b598083bfc73ac17fa9ac533b30652d898fdc1fdde79dc3500e40da4d88f3"
+  }
+}
