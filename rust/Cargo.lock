@@ -6988,6 +6988,7 @@ dependencies = [
  "kona-peers",
  "libp2p",
  "metrics",
+ "metrics-util",
  "rand 0.9.4",
  "serde_json",
  "tempfile",
@@ -7575,6 +7576,7 @@ dependencies = [
  "kona-providers-local",
  "lru 0.18.2",
  "metrics",
+ "metrics-util",
  "op-alloy-consensus",
  "op-alloy-network",
  "reqwest 0.13.2",
@@ -7601,6 +7603,7 @@ dependencies = [
  "kona-protocol",
  "lru 0.18.2",
  "metrics",
+ "metrics-util",
  "op-alloy-consensus",
  "rstest",
  "thiserror 2.0.18",
@@ -7629,6 +7632,7 @@ dependencies = [
 name = "kona-rpc"
 version = "0.3.2"
 dependencies = [
+ "alloy-consensus 2.1.1",
  "alloy-eips 2.1.1",
  "alloy-primitives",
  "alloy-rpc-client",
@@ -7646,6 +7650,7 @@ dependencies = [
  "kona-protocol",
  "libp2p",
  "metrics",
+ "metrics-util",
  "op-alloy-consensus",
  "op-alloy-rpc-jsonrpsee",
  "op-alloy-rpc-types",

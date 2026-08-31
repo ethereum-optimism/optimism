@@ -8,9 +8,6 @@ impl Metrics {
     /// Identifier for the gauge that tracks gossip events.
     pub const GOSSIP_EVENT: &str = "kona_node_gossip_events";
 
-    /// Identifier for the gauge that tracks libp2p gossipsub events.
-    pub const GOSSIPSUB_EVENT: &str = "kona_node_gossipsub_events";
-
     /// Identifier for the gauge that tracks libp2p gossipsub connections.
     pub const GOSSIPSUB_CONNECTION: &str = "kona_node_gossipsub_connection";
 
@@ -90,9 +87,10 @@ impl Metrics {
     #[cfg(feature = "metrics")]
     pub fn describe() {
         metrics::describe_gauge!(Self::RPC_CALLS, "Calls made to the Gossip RPC module");
+        metrics::describe_gauge!(Self::GOSSIP_EVENT, "Events received from the libp2p Swarm");
         metrics::describe_gauge!(
-            Self::GOSSIPSUB_EVENT,
-            "Events received by the libp2p gossipsub Swarm"
+            Self::DIAL_PEER_ERROR,
+            "Number of failed peer dials by the libp2p Swarm, by reason"
         );
         metrics::describe_gauge!(Self::DIAL_PEER, "Number of peers dialed by the libp2p Swarm");
         metrics::describe_gauge!(
@@ -150,35 +148,54 @@ impl Metrics {
     /// metrics.
     #[cfg(feature = "metrics")]
     pub fn zero() {
-        // RPC Calls
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_self", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_peerCount", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_peers", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_peerStats", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_discoveryTable", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_blockPeer", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_listBlockedPeers", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_blockAddr", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_unblockAddr", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_listBlockedAddrs", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_blockSubnet", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_unblockSubnet", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_listBlockedSubnets", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_protectPeer", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_unprotectPeer", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_connectPeer", 0);
-        kona_macros::set!(gauge, Self::RPC_CALLS, "method", "opp2p_disconnectPeer", 0);
+        // The emits live in `kona-rpc`: `opp2p_*` in `p2p.rs`, `admin_postUnsafePayload` in
+        // `admin.rs`.
+        for method in [
+            "opp2p_self",
+            "opp2p_peerCount",
+            "opp2p_peers",
+            "opp2p_peerStats",
+            "opp2p_discoveryTable",
+            "opp2p_blockPeer",
+            "opp2p_unblockPeer",
+            "opp2p_listBlockedPeers",
+            "opp2p_blockAddr",
+            "opp2p_unblockAddr",
+            "opp2p_listBlockedAddrs",
+            "opp2p_blockSubnet",
+            "opp2p_unblockSubnet",
+            "opp2p_listBlockedSubnets",
+            "opp2p_protectPeer",
+            "opp2p_unprotectPeer",
+            "opp2p_connectPeer",
+            "opp2p_disconnectPeer",
+            "admin_postUnsafePayload",
+        ] {
+            kona_macros::set!(gauge, Self::RPC_CALLS, "method", method, 0);
+        }
 
-        // Gossip Events
-        kona_macros::set!(gauge, Self::GOSSIP_EVENT, "type", "message", 0);
-        kona_macros::set!(gauge, Self::GOSSIP_EVENT, "type", "subscribed", 0);
-        kona_macros::set!(gauge, Self::GOSSIP_EVENT, "type", "unsubscribed", 0);
+        // The other three types also carry a `topic`, and for `subscribed`/`unsubscribed` that
+        // topic comes from remote peers, so their value set is not knowable here.
         kona_macros::set!(gauge, Self::GOSSIP_EVENT, "type", "slow_peer", 0);
         kona_macros::set!(gauge, Self::GOSSIP_EVENT, "type", "not_supported", 0);
 
         // Peer dials
         kona_macros::set!(gauge, Self::DIAL_PEER, 0);
-        kona_macros::set!(gauge, Self::DIAL_PEER_ERROR, 0);
+
+        // The reasons emitted by `driver.rs` and `gater.rs`.
+        for reason in [
+            "invalid_enr",
+            "invalid_multiaddr",
+            "already_connected",
+            "already_dialing",
+            "connection_error",
+            "threshold_reached",
+            "blocked_peer",
+            "blocked_address",
+            "blocked_subnet",
+        ] {
+            kona_macros::set!(gauge, Self::DIAL_PEER_ERROR, "type", reason, 0);
+        }
 
         // Unsafe Blocks
         kona_macros::set!(gauge, Self::UNSAFE_BLOCK_PUBLISHED, 0);
@@ -187,57 +204,119 @@ impl Metrics {
         kona_macros::set!(gauge, Self::GOSSIP_PEER_COUNT, 0);
 
         // Connection
-        kona_macros::set!(gauge, Self::GOSSIPSUB_CONNECTION, "type", "connected", 0);
-        kona_macros::set!(gauge, Self::GOSSIPSUB_CONNECTION, "type", "outgoing_error", 0);
-        kona_macros::set!(gauge, Self::GOSSIPSUB_CONNECTION, "type", "incoming_error", 0);
-        kona_macros::set!(gauge, Self::GOSSIPSUB_CONNECTION, "type", "closed", 0);
+        for event in ["connected", "outgoing_error", "incoming_error", "closed"] {
+            kona_macros::set!(gauge, Self::GOSSIPSUB_CONNECTION, "type", event, 0);
+        }
 
-        // Gossipsub Events
-        kona_macros::set!(gauge, Self::GOSSIPSUB_EVENT, "type", "subscribed", 0);
-        kona_macros::set!(gauge, Self::GOSSIPSUB_EVENT, "type", "unsubscribed", 0);
-        kona_macros::set!(gauge, Self::GOSSIPSUB_EVENT, "type", "gossipsub_not_supported", 0);
-        kona_macros::set!(gauge, Self::GOSSIPSUB_EVENT, "type", "slow_peer", 0);
-        kona_macros::set!(gauge, Self::GOSSIPSUB_EVENT, "type", "message_received", 0);
-
-        // Banned Peers
-        kona_macros::set!(gauge, Self::BANNED_PEERS, 0);
+        // `BANNED_PEERS` is absent: its emit carries `peer_id`, so there is no finite series set.
 
         // Block validation metrics
         kona_macros::set!(counter, Self::BLOCK_VALIDATION_TOTAL, 0);
         kona_macros::set!(counter, Self::BLOCK_VALIDATION_SUCCESS, 0);
 
-        // Block validation failures by reason
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "timestamp_future", 0);
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "timestamp_past", 0);
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "invalid_hash", 0);
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "invalid_signature", 0);
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "invalid_signer", 0);
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "too_many_blocks", 0);
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "block_seen", 0);
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "invalid_block", 0);
-        kona_macros::set!(
-            counter,
-            Self::BLOCK_VALIDATION_FAILED,
-            "reason",
-            "parent_beacon_root",
-            0
-        );
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "blob_gas_used", 0);
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "excess_blob_gas", 0);
-        kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", "withdrawals_root", 0);
+        // The reasons come from the `match` in `BlockValidator::block_valid`.
+        for reason in [
+            "timestamp_future",
+            "timestamp_past",
+            "invalid_hash",
+            "invalid_signature",
+            "invalid_signer",
+            "too_many_blocks",
+            "block_seen",
+            "invalid_block",
+            "blob_gas_used",
+            "excess_blob_gas",
+            "withdrawals_root",
+        ] {
+            kona_macros::set!(counter, Self::BLOCK_VALIDATION_FAILED, "reason", reason, 0);
+        }
 
         // Block versions
-        kona_macros::set!(counter, Self::BLOCK_VERSION, "version", "v1", 0);
-        kona_macros::set!(counter, Self::BLOCK_VERSION, "version", "v2", 0);
-        kona_macros::set!(counter, Self::BLOCK_VERSION, "version", "v3", 0);
-        kona_macros::set!(counter, Self::BLOCK_VERSION, "version", "v4", 0);
+        for version in ["v1", "v2", "v3", "v4"] {
+            kona_macros::set!(counter, Self::BLOCK_VERSION, "version", version, 0);
+        }
 
         // Messages rejected by the block handler before validation, by reason
-        kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "invalid_snappy_length", 0);
-        kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "decode_error", 0);
-        kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "unknown_topic", 0);
+        for reason in ["invalid_snappy_length", "decode_error", "unknown_topic"] {
+            kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", reason, 0);
+        }
 
         // Malformed frames caught in the message-id function (per receipt, before dedup)
         kona_macros::set!(counter, Self::MESSAGE_ID_INVALID_SNAPPY, 0);
+    }
+}
+
+#[cfg(all(test, feature = "metrics"))]
+mod tests {
+    use super::Metrics;
+    use metrics_util::debugging::DebuggingRecorder;
+    use std::collections::BTreeSet;
+
+    /// The `label` values that `zero()` pre-creates for `metric`, or `None` for a series with no
+    /// such label.
+    fn zeroed(metric: &str, label: &str) -> BTreeSet<Option<String>> {
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, Metrics::zero);
+
+        snapshotter
+            .snapshot()
+            .into_vec()
+            .into_iter()
+            .map(|(ckey, ..)| ckey)
+            .filter(|ckey| ckey.key().name() == metric)
+            .map(|ckey| {
+                ckey.key().labels().find(|l| l.key() == label).map(|l| l.value().to_string())
+            })
+            .collect()
+    }
+
+    fn expect(metric: &str, label: &str, values: &[&str]) {
+        let expected: BTreeSet<_> = values.iter().map(|v| Some(v.to_string())).collect();
+        assert_eq!(zeroed(metric, label), expected, "{metric} pre-created the wrong {label} set");
+    }
+
+    #[test]
+    fn dial_peer_errors_are_pre_created_per_reason() {
+        // The nine reasons emitted by `driver.rs` and `gater.rs`.
+        expect(
+            Metrics::DIAL_PEER_ERROR,
+            "type",
+            &[
+                "invalid_enr",
+                "invalid_multiaddr",
+                "already_connected",
+                "already_dialing",
+                "connection_error",
+                "threshold_reached",
+                "blocked_peer",
+                "blocked_address",
+                "blocked_subnet",
+            ],
+        );
+    }
+
+    #[test]
+    fn gossip_events_pre_create_only_the_topic_free_types() {
+        expect(Metrics::GOSSIP_EVENT, "type", &["slow_peer", "not_supported"]);
+    }
+
+    #[test]
+    fn block_validation_failures_omit_the_unreachable_reason() {
+        // `BlockInvalidError` has no variant that yields `parent_beacon_root`.
+        assert!(
+            !zeroed(Metrics::BLOCK_VALIDATION_FAILED, "reason")
+                .contains(&Some("parent_beacon_root".to_string()))
+        );
+    }
+
+    #[test]
+    fn banned_peers_is_not_pre_created() {
+        assert!(zeroed(Metrics::BANNED_PEERS, "peer_id").is_empty());
+    }
+
+    #[test]
+    fn no_series_is_pre_created_without_an_emit() {
+        assert!(zeroed("kona_node_gossipsub_events", "type").is_empty());
     }
 }

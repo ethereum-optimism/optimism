@@ -57,6 +57,32 @@ impl Metrics {
 
         // Peer Counts
         kona_macros::set!(gauge, Self::DISCOVERY_PEER_COUNT, 0);
-        kona_macros::set!(gauge, Self::FIND_NODE_REQUEST, 0);
+
+        // The emit carries a constant `find_node` label, which the shipped dashboard selects on.
+        kona_macros::set!(gauge, Self::FIND_NODE_REQUEST, "find_node", "find_node", 0);
+    }
+}
+
+#[cfg(all(test, feature = "metrics"))]
+mod tests {
+    use super::Metrics;
+    use metrics_util::debugging::DebuggingRecorder;
+
+    #[test]
+    fn find_node_requests_carry_the_label_the_emit_uses() {
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, Metrics::zero);
+
+        let labelled = snapshotter
+            .snapshot()
+            .into_vec()
+            .into_iter()
+            .filter(|(ckey, ..)| ckey.key().name() == Metrics::FIND_NODE_REQUEST)
+            .any(|(ckey, ..)| {
+                ckey.key().labels().any(|l| l.key() == "find_node" && l.value() == "find_node")
+            });
+
+        assert!(labelled, "the pre-created find-node series must carry the emitted label");
     }
 }
