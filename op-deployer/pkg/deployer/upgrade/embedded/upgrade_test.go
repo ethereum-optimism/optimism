@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"testing"
 
@@ -244,6 +245,39 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 				},
 			},
 			errorContains: "MaxProveDuration must be > 0",
+			shouldPass:    false,
+		},
+		{
+			// Durations above uint32 max overflow the game's uint64 deadline cast on-chain.
+			name: "ZK_DISPUTE_GAME with out-of-range MaxChallengeDuration returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					MaxChallengeDuration: math.MaxUint64,
+					MaxProveDuration:     7200,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "MaxChallengeDuration must be <=",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with out-of-range MaxProveDuration returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     math.MaxUint32 + 1,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "MaxProveDuration must be <=",
 			shouldPass:    false,
 		},
 		{

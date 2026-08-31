@@ -2409,6 +2409,30 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         assertEq("ZKDG-100", _validate(true));
     }
 
+    /// @notice Tests ZKDG-90 when the maxChallengeDuration encoded in the ZK game args is above
+    ///         uint32 max, which would overflow the uint64 deadline cast in ZKDisputeGame.
+    function test_validate_zkDisputeGameOversizedMaxChallengeDuration_succeeds() public {
+        // maxChallengeDuration occupies bytes [52-59] (uint64).
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 52, abi.encodePacked(type(uint64).max));
+        assertEq("ZKDG-90", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-100 when the maxProveDuration encoded in the ZK game args is above
+    ///         uint32 max.
+    function test_validate_zkDisputeGameOversizedMaxProveDuration_succeeds() public {
+        // maxProveDuration occupies bytes [60-67] (uint64).
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 60, abi.encodePacked(type(uint64).max));
+        assertEq("ZKDG-100", _validate(true));
+    }
+
+    /// @notice Tests that both ZK durations are accepted at exactly uint32 max, pinning the bound
+    ///         as inclusive.
+    function test_validate_zkDisputeGameMaxAllowedDurations_succeeds() public {
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 52, abi.encodePacked(uint64(type(uint32).max)));
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 60, abi.encodePacked(uint64(type(uint32).max)));
+        assertEq("", _validate(true));
+    }
+
     /// @notice Tests ZKDG-110 when the challengerBond encoded in the ZK game args is zero.
     function test_validate_zkDisputeGameZeroChallengerBond_succeeds() public {
         // challengerBond occupies bytes [68-99] (uint256).
