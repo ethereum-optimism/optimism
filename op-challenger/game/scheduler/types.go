@@ -10,8 +10,11 @@ import (
 
 type GamePlayer interface {
 	ValidatePrestate(ctx context.Context) error
-	ProgressGame(ctx context.Context) types.GameStatus
+	// ProgressGame acts on the game as required at the given L1 block, returning the game's status and
+	// whether it requires no further work beyond that status.
+	ProgressGame(ctx context.Context, l1BlockNumber uint64) (types.GameStatus, bool)
 	Status() types.GameStatus
+	Done() bool
 }
 
 type DiskManager interface {
@@ -24,6 +27,7 @@ type job struct {
 	addr   common.Address
 	player GamePlayer
 	status types.GameStatus
+	done   bool
 }
 
 func newJob(block uint64, addr common.Address, player GamePlayer, status types.GameStatus) *job {

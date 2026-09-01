@@ -17,7 +17,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 	ctx := context.Background()
 	createPlayer := func(g types.GameMetadata, dir string) (GamePlayer, error) {
-		return &test.StubGamePlayer{}, nil
+		return &test.StubGamePlayer{DoneValue: true}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}
@@ -45,7 +45,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 func TestReturnBusyWhenScheduleQueueFull(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 	createPlayer := func(game types.GameMetadata, dir string) (GamePlayer, error) {
-		return &test.StubGamePlayer{}, nil
+		return &test.StubGamePlayer{DoneValue: true}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}

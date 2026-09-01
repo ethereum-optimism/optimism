@@ -178,7 +178,7 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 	require.NoError(t, c.schedule(ctx, asGames(gameAddr3), 0))
 	require.Len(t, workQueue, 1)
 	j := <-workQueue
-	j.status = types.GameStatusDefenderWon
+	j.status, j.done = types.GameStatusDefenderWon, true
 	require.NoError(t, c.processResult(j))
 	// But ensure its data directory is marked as existing
 	disk.DirForGame(gameAddr3)
@@ -197,7 +197,7 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 	for i := 0; i < len(games)-1; i++ {
 		j := <-workQueue
 		if j.addr == gameAddr2 {
-			j.status = types.GameStatusDefenderWon
+			j.status, j.done = types.GameStatusDefenderWon, true
 		}
 		require.NoError(t, c.processResult(j))
 	}
@@ -207,6 +207,41 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 	// Game 3 never got marked as in-flight because it was already resolved so got skipped.
 	// We shouldn't be able to have a known-resolved game that is also in-flight because we always skip processing it.
 	require.False(t, disk.gameDirExists[gameAddr3], "game 3 data should be deleted")
+}
+
+func TestRescheduleResolvedGameWithOutstandingWork(t *testing.T) {
+	c, workQueue, _, _, _, _ := setupCoordinatorTest(t, 10)
+	gameAddr1 := common.Address{0xaa}
+	ctx := context.Background()
+
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), 1))
+	require.Len(t, workQueue, 1, "should schedule game")
+
+	// The game resolved but still has work outstanding
+	j := <-workQueue
+	j.status, j.done = types.GameStatusChallengerWon, false
+	require.NoError(t, c.processResult(j))
+
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), 2))
+	require.Len(t, workQueue, 1, "should reschedule resolved game with work outstanding")
+
+	// Once the outstanding work completes it is not scheduled again
+	j = <-workQueue
+	j.status, j.done = types.GameStatusChallengerWon, true
+	require.NoError(t, c.processResult(j))
+
+	require.NoError(t, c.schedule(ctx, asGames(gameAddr1), 3))
+	require.Empty(t, workQueue, "should not reschedule completed game")
+}
+
+func TestScheduleResolvedGameWithOutstandingWorkOnCreation(t *testing.T) {
+	c, workQueue, _, games, _, _ := setupCoordinatorTest(t, 10)
+	gameAddr1 := common.Address{0xaa}
+	games.createCompleted = gameAddr1
+	games.createNotDone = true
+
+	require.NoError(t, c.schedule(context.Background(), asGames(gameAddr1), 1))
+	require.Len(t, workQueue, 1, "should schedule resolved game with work outstanding")
 }
 
 func TestSchedule_RecordActedL1Block(t *testing.T) {
@@ -222,7 +257,7 @@ func TestSchedule_RecordActedL1Block(t *testing.T) {
 	require.Len(t, workQueue, 2)
 	j := <-workQueue
 	require.Equal(t, gameAddr1, j.addr)
-	j.status = types.GameStatusDefenderWon
+	j.status, j.done = types.GameStatusDefenderWon, true
 	require.NoError(t, c.processResult(j))
 	j = <-workQueue
 	require.Equal(t, gameAddr2, j.addr)
@@ -282,7 +317,7 @@ func TestSchedule_RecordActedL1BlockMultipleGames(t *testing.T) {
 		require.Equal(t, uint64(0), c.m.(*stubSchedulerMetrics).actedL1Blocks)
 		j := <-workQueue
 		if j.addr == gameAddr2 {
-			j.status = types.GameStatusDefenderWon
+			j.status, j.done = types.GameStatusDefenderWon, true
 		}
 		if j.addr != gameAddr3 {
 			require.NoError(t, c.processResult(j))
@@ -324,7 +359,7 @@ func TestSchedule_RecordActedL1BlockNewGame(t *testing.T) {
 		require.Equal(t, uint64(0), c.m.(*stubSchedulerMetrics).actedL1Blocks)
 		j := <-workQueue
 		if j.addr == gameAddr2 {
-			j.status = types.GameStatusDefenderWon
+			j.status, j.done = types.GameStatusDefenderWon, true
 		}
 		require.NoError(t, c.processResult(j))
 	}
@@ -408,6 +443,7 @@ func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan jo
 type createdGames struct {
 	t               *testing.T
 	createCompleted common.Address
+	createNotDone   bool
 	creationFails   common.Address
 	created         map[common.Address]*test.StubGamePlayer
 	PrestateErr     error
@@ -428,6 +464,7 @@ func (c *createdGames) CreateGame(fdg types.GameMetadata, dir string) (GamePlaye
 	game := &test.StubGamePlayer{
 		Addr:        addr,
 		StatusValue: status,
+		DoneValue:   !c.createNotDone,
 		Dir:         dir,
 	}
 	if c.PrestateErr != nil {

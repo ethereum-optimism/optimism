@@ -28,6 +28,7 @@ type gameState struct {
 	inflight              bool
 	lastProcessedBlockNum uint64
 	status                types.GameStatus
+	done                  bool
 }
 
 // coordinator manages the set of current games, queues games to be played (on separate worker threads) and
@@ -142,8 +143,9 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, bl
 		}
 		state.player = player
 		state.status = player.Status()
+		state.done = player.Done()
 	}
-	if state.status != types.GameStatusInProgress {
+	if state.status != types.GameStatusInProgress && state.done {
 		c.logger.Debug("Not rescheduling resolved game", "game", game.Proxy, "status", state.status)
 		state.lastProcessedBlockNum = blockNumber
 		return nil, nil
@@ -174,6 +176,7 @@ func (c *coordinator) processResult(j job) error {
 	}
 	state.inflight = false
 	state.status = j.status
+	state.done = j.done
 	state.lastProcessedBlockNum = j.block
 	c.deleteResolvedGameFiles()
 	c.m.RecordGameUpdateCompleted()

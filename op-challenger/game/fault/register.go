@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/generic"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -70,6 +71,7 @@ func RegisterGameTypes(
 	txSender TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	clients *client.Provider,
+	withdrawalDeleter generic.WithdrawalDeleter,
 	selective bool,
 	claimants []common.Address,
 ) error {
@@ -117,7 +119,7 @@ func RegisterGameTypes(
 		registerTasks = append(registerTasks, NewAlphabetRegisterTask(gameTypes.AlphabetGameType, l2HeaderSource, rollupClient, syncValidator))
 	}
 	for _, task := range registerTasks {
-		if err := task.Register(ctx, registry, oracles, systemClock, l1Clock, logger, m, txSender, gameFactory, clients.MultiCaller(), clients.L1Client(), selective, claimants, cfg.ResponseDelay, cfg.ResponseDelayAfter); err != nil {
+		if err := task.Register(ctx, registry, oracles, systemClock, l1Clock, logger, m, txSender, gameFactory, clients.MultiCaller(), clients.L1Client(), withdrawalDeleter, selective, claimants, cfg.ResponseDelay, cfg.ResponseDelayAfter); err != nil {
 			return fmt.Errorf("failed to register %v game type: %w", task.gameType, err)
 		}
 	}

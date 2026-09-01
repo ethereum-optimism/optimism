@@ -40,6 +40,9 @@ var crossL2Inbox []byte
 //go:embed abi/AnchorStateRegistry.json
 var anchorStateRegistry []byte
 
+//go:embed abi/OptimismPortal2.json
+var optimismPortal2 []byte
+
 func LoadDisputeGameFactoryABI() *abi.ABI {
 	return loadABI(disputeGameFactory)
 }
@@ -81,6 +84,10 @@ func LoadCrossL2InboxABI() *abi.ABI {
 
 func LoadAnchorStateRegistryABI() *abi.ABI {
 	return loadABI(anchorStateRegistry)
+}
+
+func LoadOptimismPortal2ABI() *abi.ABI {
+	return loadABI(optimismPortal2)
 }
 
 func loadABI(json []byte) *abi.ABI {

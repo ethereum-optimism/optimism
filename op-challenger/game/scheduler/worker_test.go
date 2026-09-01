@@ -36,7 +36,7 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 	require.EqualValues(t, ms.idleCalls.Load(), 1)
 
 	in <- job{
-		player: &test.StubGamePlayer{StatusValue: types.GameStatusDefenderWon},
+		player: &test.StubGamePlayer{StatusValue: types.GameStatusDefenderWon, DoneValue: true},
 	}
 	waitErr = wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
 		return ms.activeCalls.Load() >= 2, nil
@@ -50,6 +50,7 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 
 	require.Equal(t, result1.status, types.GameStatusInProgress)
 	require.Equal(t, result2.status, types.GameStatusDefenderWon)
+	require.True(t, result2.done)
 
 	// Cancel the context which should exit the worker
 	cancel()

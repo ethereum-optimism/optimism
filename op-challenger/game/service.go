@@ -22,8 +22,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/generic"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -54,6 +56,9 @@ type Service struct {
 
 	claimants []common.Address
 	claimer   *claims.BondClaimScheduler
+
+	// withdrawalDeleter is nil unless the OptimismPortal address is configured.
+	withdrawalDeleter generic.WithdrawalDeleter
 
 	factoryContract *contracts.DisputeGameFactoryContract
 	registry        *registry.GameTypeRegistry
@@ -105,6 +110,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initFactoryContract(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to create factory contract bindings: %w", err)
 	}
+	s.initWithdrawalDeleter(cfg)
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to register game types: %w", err)
 	}
@@ -217,15 +223,25 @@ func (s *Service) initBondClaims(cfg *config.Config) error {
 	return nil
 }
 
+func (s *Service) initWithdrawalDeleter(cfg *config.Config) {
+	if cfg.OptimismPortalAddress == (common.Address{}) {
+		return
+	}
+	s.logger.Info("Deleting withdrawal proofs invalidated by challenger wins", "portal", cfg.OptimismPortalAddress)
+	portal := contracts.NewOptimismPortal2Contract(s.metrics, cfg.OptimismPortalAddress,
+		batching.NewMultiCaller(s.l1RPC, batching.DefaultBatchSize))
+	s.withdrawalDeleter = withdrawals.NewDeleter(s.logger, s.metrics, portal, s.l1EthClient, s.txSender)
+}
+
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	oracles := registry.NewOracleRegistry()
 	s.clientProvider = challengerClient.NewProvider(ctx, s.logger, cfg, s.l1Client, s.l1RPC)
-	err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, s.clientProvider, cfg.SelectiveClaimResolution, s.claimants)
+	err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, s.clientProvider, s.withdrawalDeleter, cfg.SelectiveClaimResolution, s.claimants)
 	if err != nil {
 		return err
 	}
-	err = zk.RegisterGameTypes(ctx, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, s.txSender, s.clientProvider, s.factoryContract)
+	err = zk.RegisterGameTypes(ctx, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, s.txSender, s.clientProvider, s.withdrawalDeleter, s.factoryContract)
 	if err != nil {
 		return err
 	}
