@@ -169,8 +169,7 @@ type MultiChainRuntime struct {
 	InteropFilter      *InteropFilter // nil if not using interop filter
 	SyncTester         *SyncTesterRuntime
 	// PrivateInterop is non-nil when one of the chains is a private interop pair. It holds the
-	// pieces that have no home on a per-chain runtime: the claim-follower, the object store, and the
-	// operator identity the rendering's transactions are signed with.
+	// pieces that have no home on a per-chain runtime: the public rendering and claimed-head route.
 	PrivateInterop *privateInteropRuntime
 }
 

@@ -107,9 +107,9 @@ type PrivateInteropRangeSourceConfig struct {
 	RenderingRollup *rollup.Config
 	// Rendering is the rendering follower.
 	Rendering RenderingFollower
-	// Operator is the EOA that signs the rendering's transactions; its nonce continues across
-	// ranges and is read from the rendering, never remembered.
-	Operator common.Address
+	// Batcher is the standard SystemConfig batcher account. The same account signs the inner
+	// rendering transactions; its nonce continues across ranges and is read from the rendering.
+	Batcher common.Address
 	// NetworkTimeout bounds each L1 call.
 	NetworkTimeout time.Duration
 }
@@ -131,8 +131,8 @@ func NewPrivateInteropRangeSource(cfg PrivateInteropRangeSourceConfig) (RangeSou
 	if cfg.Rendering == nil {
 		return nil, errors.New("private interop range source: no rendering follower")
 	}
-	if cfg.Operator == (common.Address{}) {
-		return nil, errors.New("private interop range source: no operator address")
+	if cfg.Batcher == (common.Address{}) {
+		return nil, errors.New("private interop range source: no batcher address")
 	}
 	if cfg.NetworkTimeout == 0 {
 		cfg.NetworkTimeout = 10 * time.Second
@@ -146,7 +146,7 @@ func NewPrivateInteropRangeSource(cfg PrivateInteropRangeSourceConfig) (RangeSou
 // RangeStart reads everything the range beginning at firstBlock continues from off the rendering.
 //
 // The rendering's block at firstBlock-1 carries both answers: its hash is the span's parent check,
-// and the operator's nonce as of it is the range's starting nonce. Reading the nonce from the chain
+// and the batcher's nonce as of it is the range's starting nonce. Reading the nonce from the chain
 // rather than remembering it is what makes a restarted batcher rebuild the same range.
 //
 // It used to read the origin and sequence number to continue from out of that block's attributes
@@ -168,9 +168,9 @@ func (s *privateInteropRangeSource) RangeStart(ctx context.Context, firstBlock u
 		return RangeStart{}, fmt.Errorf("asked the rendering for block %d and got %d", prev, blk.Number)
 	}
 
-	nonce, err := s.cfg.Rendering.NonceAt(ctx, s.cfg.Operator, prev)
+	nonce, err := s.cfg.Rendering.NonceAt(ctx, s.cfg.Batcher, prev)
 	if err != nil {
-		return RangeStart{}, fmt.Errorf("reading the operator's nonce at rendering block %d: %w", prev, err)
+		return RangeStart{}, fmt.Errorf("reading the batcher's nonce at rendering block %d: %w", prev, err)
 	}
 
 	s.cfg.Log.Info("Private interop range start resolved",

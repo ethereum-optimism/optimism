@@ -1,44 +1,23 @@
 [
   {
-    "bytes": "1",
-    "label": "_initialized",
-    "offset": 0,
-    "slot": "0",
-    "type": "uint8"
-  },
-  {
-    "bytes": "1",
-    "label": "_initializing",
-    "offset": 1,
-    "slot": "0",
-    "type": "bool"
-  },
-  {
-    "bytes": "20",
-    "label": "operator",
-    "offset": 2,
-    "slot": "0",
-    "type": "address"
-  },
-  {
     "bytes": "8",
     "label": "rangeCount",
-    "offset": 22,
+    "offset": 0,
     "slot": "0",
     "type": "uint64"
   },
   {
     "bytes": "8",
     "label": "lastPostedLastBlock",
-    "offset": 0,
-    "slot": "1",
+    "offset": 8,
+    "slot": "0",
     "type": "uint64"
   },
   {
     "bytes": "32",
     "label": "lastClaimHash",
     "offset": 0,
-    "slot": "2",
+    "slot": "1",
     "type": "bytes32"
   }
 ]

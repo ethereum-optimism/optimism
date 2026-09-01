@@ -60,10 +60,6 @@ func applyAmbientPrivateInterop(t devtest.T, presetName string, cfg *sysgo.Prese
 			"preset", presetName, "env", DevstackPrivateInteropEnvVar)
 		return
 	}
-	if cfg.UseInteropFilter {
-		t.Skipf("%s asked for the in-process interop filter, which the private-interop pair's runtime does not wire; "+
-			"the filter reads a chain's own blocks, and a pair's public blocks are its rendering's", presetName)
-	}
 	pi := sysgo.DefaultPrivateInteropConfig()
 	if raw := os.Getenv(DevstackPrivateInteropCadenceEnvVar); raw != "" {
 		cadence, err := strconv.ParseUint(raw, 10, 64)

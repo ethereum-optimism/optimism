@@ -15,8 +15,8 @@
 //
 // # Byte-determinism is the point
 //
-// The whole payload must be a pure function of private-chain data plus two inputs the operator
-// supplies: the previous range's terminal RENDERING hash, and the operator EOA's starting nonce.
+// The whole payload must be a pure function of private-chain data plus two inputs the batcher
+// supplies: the previous range's terminal RENDERING hash, and its account's starting nonce.
 // Given those, building the same range twice from fresh state produces identical span-batch bytes,
 // identical frames and identical blobs. TestRangeIsByteDeterministic is the gate.
 //
@@ -77,6 +77,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 
 	derivepar "github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
 	"github.com/ethereum/go-ethereum/common"
@@ -101,6 +102,10 @@ var (
 	ErrNoOrigin = errors.New("private block has no L1 origin to copy")
 )
 
+// MaxBlobsPerTx is the maximum channel footprint this builder permits. A private-interop range is
+// intentionally posted atomically in one L1 blob transaction, avoiding partial-channel timeout.
+const MaxBlobsPerTx = 6
+
 // Config is the builder's static configuration.
 type Config struct {
 	// Rollup is the RENDERING's rollup config. Only the genesis timestamp, the chain ID, the block
@@ -114,6 +119,10 @@ type Config struct {
 	// Compression is the channel compression algorithm. Stock batchers default to zlib, and both
 	// zlib and brotli are deterministic functions of (input, level).
 	Compression derive.CompressionAlgo
+	// MaxBlockGas bounds the sum of declared gas limits of synthetic transactions in one rendering
+	// block. Zero disables the check for standalone callers; production sets it below the
+	// rendering's EIP-1559 target so zero-priced transactions cannot raise the next base fee.
+	MaxBlockGas uint64
 }
 
 // DefaultMaxFrameSize is one frame per blob, which is what the stock batcher targets for blob DA.
@@ -142,10 +151,10 @@ type Range struct {
 	// PrevTerminalRenderingHash is the previous range's terminal rendering block hash, read off a
 	// node following the rendering. It is the span's parent check and the channel ID's seed.
 	PrevTerminalRenderingHash common.Hash
-	// Claim carries the operator-supplied part of THIS range's claim. It is required: every range,
+	// Claim carries the batcher-supplied part of THIS range's claim. It is required: every range,
 	// including the chain's first, opens with its own claim.
 	Claim *ClaimInput
-	// StartNonce is the operator EOA's nonce for the first transaction of the range.
+	// StartNonce is the standard batcher account's nonce for the first transaction of the range.
 	StartNonce uint64
 }
 
@@ -199,7 +208,7 @@ type BuiltRange struct {
 	// Blobs are the frames as blobs, each with the 0x00 derivation version byte in front — exactly
 	// what op-batcher's txData.Blobs() produces from stock frames.
 	Blobs []*eth.Blob
-	// NextNonce is the operator EOA's nonce after the range, which is the next range's StartNonce.
+	// NextNonce is the standard batcher account's nonce after the range.
 	NextNonce uint64
 }
 
@@ -276,9 +285,13 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 			return nil, fmt.Errorf("%w: block %d", ErrNoOrigin, blk.Number)
 		}
 
-		txs, err := b.blockTxs(blk, i == 0, claim)
+		txs, declaredGas, err := b.blockTxs(blk, i == 0, claim)
 		if err != nil {
 			return nil, err
+		}
+		if b.cfg.MaxBlockGas != 0 && declaredGas > b.cfg.MaxBlockGas {
+			return nil, fmt.Errorf("%w: rendering block %d declares %d gas, exceeding its %d gas budget",
+				ErrRange, blk.Number, declaredGas, b.cfg.MaxBlockGas)
 		}
 		out.Blocks = append(out.Blocks, BuiltBlock{
 			Number: blk.Number, Timestamp: blk.Timestamp, Origin: origin, SeqNum: seqNum, Txs: txs,
@@ -315,6 +328,12 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 		return nil, err
 	}
 	out.Frames = frames(out.ChannelID, out.ChannelData, b.cfg.MaxFrameSize)
+	if len(out.Frames) > MaxBlobsPerTx {
+		return nil, fmt.Errorf(
+			"%w: range %d-%d requires %d blobs, exceeding the one-transaction limit of %d",
+			ErrRange, first.Number, last.Number, len(out.Frames), MaxBlobsPerTx,
+		)
+	}
 	if out.Blobs, err = blobs(out.Frames); err != nil {
 		return nil, err
 	}
@@ -337,8 +356,9 @@ func ChannelID(prevTerminalRenderingHash common.Hash, firstBlock uint64) derive.
 // The claim can lead because the registry emits no log. A logging registry would put a
 // rendering-only log at index 0 of every range-opening block and push every message in it up by
 // one, which is the one thing the canonical-position rule cannot survive.
-func (b *Builder) blockTxs(blk *render.RenderedBlock, isFirst bool, claim *codec.RangeClaim) ([]hexutil.Bytes, error) {
+func (b *Builder) blockTxs(blk *render.RenderedBlock, isFirst bool, claim *codec.RangeClaim) ([]hexutil.Bytes, uint64, error) {
 	var out []hexutil.Bytes
+	var declaredGas uint64
 	appendTx := func(tx *types.Transaction) error {
 		raw, err := tx.MarshalBinary()
 		if err != nil {
@@ -349,28 +369,32 @@ func (b *Builder) blockTxs(blk *render.RenderedBlock, isFirst bool, claim *codec
 			// rendering has no deposits by construction. Catch it here rather than at a verifier.
 			return fmt.Errorf("%w: block %d contains a deposit-type transaction", ErrRange, blk.Number)
 		}
+		if tx.Gas() > math.MaxUint64-declaredGas {
+			return fmt.Errorf("%w: rendering block %d declared gas overflows uint64", ErrRange, blk.Number)
+		}
+		declaredGas += tx.Gas()
 		out = append(out, raw)
 		return nil
 	}
 	if isFirst {
 		tx, err := b.txs.ClaimTx(claim)
 		if err != nil {
-			return nil, fmt.Errorf("block %d, claim for range %d-%d: %w", blk.Number, claim.FirstBlock, claim.LastBlock, err)
+			return nil, 0, fmt.Errorf("block %d, claim for range %d-%d: %w", blk.Number, claim.FirstBlock, claim.LastBlock, err)
 		}
 		if err := appendTx(tx); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
 	for _, act := range blk.Actions {
 		tx, err := b.txs.ReplayTx(act)
 		if err != nil {
-			return nil, fmt.Errorf("block %d, rendered index %d: %w", blk.Number, act.RenderedLogIndex, err)
+			return nil, 0, fmt.Errorf("block %d, rendered index %d: %w", blk.Number, act.RenderedLogIndex, err)
 		}
 		if err := appendTx(tx); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return out, nil
+	return out, declaredGas, nil
 }
 
 func (b *Builder) checkContiguous(blocks []*render.RenderedBlock) error {

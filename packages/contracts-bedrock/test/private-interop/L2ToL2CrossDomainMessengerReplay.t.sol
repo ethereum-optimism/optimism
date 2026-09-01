@@ -17,7 +17,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 // Interfaces
 import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
-import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IL2ToL2CrossDomainMessengerReplay } from "interfaces/private-interop/IL2ToL2CrossDomainMessengerReplay.sol";
 
 /// @title L2ToL2CrossDomainMessengerReplay_TestInit
@@ -29,91 +28,22 @@ abstract contract L2ToL2CrossDomainMessengerReplay_TestInit is Test {
         uint256 indexed destination, address indexed target, uint256 indexed messageNonce, address sender, bytes message
     );
 
-    /// @notice Emitted when the authorized replayer address is set.
-    event ReplayerSet(address indexed replayer);
-
     /// @notice Replay messenger under test, behind a proxy.
     IL2ToL2CrossDomainMessengerReplay internal replayMessenger;
 
     /// @notice ProxyAdmin that owns the proxy.
     ProxyAdmin internal proxyAdmin;
 
-    /// @notice Owner of the ProxyAdmin.
-    address internal proxyAdminOwner;
-
-    /// @notice Address authorized to replay messages.
-    address internal replayer;
-
     /// @notice Test setup.
     function setUp() public virtual {
-        proxyAdminOwner = makeAddr("proxyAdminOwner");
-        replayer = makeAddr("replayer");
-
-        proxyAdmin = new ProxyAdmin(proxyAdminOwner);
+        proxyAdmin = new ProxyAdmin(makeAddr("proxyAdminOwner"));
         Proxy proxy = new Proxy(address(proxyAdmin));
         L2ToL2CrossDomainMessengerReplay impl = new L2ToL2CrossDomainMessengerReplay();
 
-        vm.prank(address(proxyAdmin));
-        proxy.upgradeToAndCall(address(impl), abi.encodeCall(L2ToL2CrossDomainMessengerReplay.initialize, (replayer)));
-
-        replayMessenger = IL2ToL2CrossDomainMessengerReplay(address(proxy));
-    }
-}
-
-/// @title L2ToL2CrossDomainMessengerReplay_Initialize_Test
-/// @notice Tests the `initialize` function of the `L2ToL2CrossDomainMessengerReplay` contract.
-contract L2ToL2CrossDomainMessengerReplay_Initialize_Test is L2ToL2CrossDomainMessengerReplay_TestInit {
-    /// @notice Tests that the initializer sets the replayer.
-    function test_initialize_succeeds() external view {
-        assertEq(replayMessenger.replayer(), replayer);
-    }
-
-    /// @notice Tests that the initializer cannot be run twice.
-    function test_initialize_alreadyInitialized_reverts() external {
-        vm.expectRevert("Initializable: contract is already initialized");
-        vm.prank(proxyAdminOwner);
-        replayMessenger.initialize(address(0xdead));
-    }
-
-    /// @notice Tests that a caller that is neither the ProxyAdmin nor its owner cannot initialize
-    ///         a fresh proxy.
-    function testFuzz_initialize_notProxyAdminOrOwner_reverts(address _caller) external {
-        vm.assume(_caller != address(proxyAdmin) && _caller != proxyAdminOwner);
-
-        Proxy proxy = new Proxy(address(proxyAdmin));
-        L2ToL2CrossDomainMessengerReplay impl = new L2ToL2CrossDomainMessengerReplay();
         vm.prank(address(proxyAdmin));
         proxy.upgradeTo(address(impl));
 
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
-        vm.prank(_caller);
-        IL2ToL2CrossDomainMessengerReplay(address(proxy)).initialize(_caller);
-    }
-}
-
-/// @title L2ToL2CrossDomainMessengerReplay_SetReplayer_Test
-/// @notice Tests the `setReplayer` function of the `L2ToL2CrossDomainMessengerReplay` contract.
-contract L2ToL2CrossDomainMessengerReplay_SetReplayer_Test is L2ToL2CrossDomainMessengerReplay_TestInit {
-    /// @notice Tests that the ProxyAdmin owner can rotate the replayer.
-    function testFuzz_setReplayer_succeeds(address _newReplayer) external {
-        vm.expectEmit(address(replayMessenger));
-        emit ReplayerSet(_newReplayer);
-
-        vm.prank(proxyAdminOwner);
-        replayMessenger.setReplayer(_newReplayer);
-
-        assertEq(replayMessenger.replayer(), _newReplayer);
-    }
-
-    /// @notice Tests that anyone other than the ProxyAdmin owner cannot rotate the replayer.
-    function testFuzz_setReplayer_notProxyAdminOwner_reverts(address _caller) external {
-        vm.assume(_caller != proxyAdminOwner && _caller != address(proxyAdmin));
-
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
-        vm.prank(_caller);
-        replayMessenger.setReplayer(address(0xdead));
-
-        assertEq(replayMessenger.replayer(), replayer);
+        replayMessenger = IL2ToL2CrossDomainMessengerReplay(address(proxy));
     }
 }
 
@@ -138,7 +68,6 @@ contract L2ToL2CrossDomainMessengerReplay_ReplaySentMessage_Test is L2ToL2CrossD
         vm.expectEmit(address(replayMessenger));
         emit SentMessage(_destination, _target, _nonce, _sender, _message);
 
-        vm.prank(replayer);
         bytes32 messageHash = replayMessenger.replaySentMessage(_destination, _nonce, _sender, _target, _message);
 
         assertEq(
@@ -154,15 +83,6 @@ contract L2ToL2CrossDomainMessengerReplay_ReplaySentMessage_Test is L2ToL2CrossD
         );
     }
 
-    /// @notice Tests that only the authorized replayer can replay a message.
-    function testFuzz_replaySentMessage_notReplayer_reverts(address _caller) external {
-        vm.assume(_caller != replayer);
-
-        vm.expectRevert(IL2ToL2CrossDomainMessengerReplay.L2ToL2CrossDomainMessengerReplay_Unauthorized.selector);
-        vm.prank(_caller);
-        replayMessenger.replaySentMessage(420, 0, address(0xbeef), address(0xcafe), hex"1234");
-    }
-
     /// @notice Tests that a message whose embedded sender is the `SuperchainETHBridge` predeploy is
     ///         refused. The private chain is a custom gas token chain, so the protocol ETH path
     ///         must never be rendered into a public, relayable log.
@@ -175,7 +95,6 @@ contract L2ToL2CrossDomainMessengerReplay_ReplaySentMessage_Test is L2ToL2CrossD
         external
     {
         vm.expectRevert(IL2ToL2CrossDomainMessengerReplay.L2ToL2CrossDomainMessengerReplay_ETHBridgeSender.selector);
-        vm.prank(replayer);
         replayMessenger.replaySentMessage(_destination, _nonce, Predeploys.SUPERCHAIN_ETH_BRIDGE, _target, _message);
     }
 
@@ -194,7 +113,6 @@ contract L2ToL2CrossDomainMessengerReplay_ReplaySentMessage_Test is L2ToL2CrossD
         vm.assume(_sender != Predeploys.SUPERCHAIN_ETH_BRIDGE);
 
         vm.expectRevert(IL2ToL2CrossDomainMessengerReplay.L2ToL2CrossDomainMessengerReplay_ETHBridgeTarget.selector);
-        vm.prank(replayer);
         replayMessenger.replaySentMessage(_destination, _nonce, _sender, Predeploys.SUPERCHAIN_ETH_BRIDGE, _message);
     }
 
@@ -230,13 +148,7 @@ contract L2ToL2CrossDomainMessengerReplay_ReplaySentMessage_Test is L2ToL2CrossD
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             vm.getDeployedCode("L2ToL2CrossDomainMessengerReplay.sol:L2ToL2CrossDomainMessengerReplay")
         );
-        // `replayer` packs into slot 0 at offset 2, after OpenZeppelin's `Initializable` fields.
-        // The assertion below fails loudly if that layout ever moves.
-        vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, bytes32(0), bytes32(uint256(uint160(replayer)) << 16));
-        assertEq(IL2ToL2CrossDomainMessengerReplay(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).replayer(), replayer);
-
         vm.recordLogs();
-        vm.prank(replayer);
         IL2ToL2CrossDomainMessengerReplay(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).replaySentMessage(
             destination, nonce, sender, target, message
         );

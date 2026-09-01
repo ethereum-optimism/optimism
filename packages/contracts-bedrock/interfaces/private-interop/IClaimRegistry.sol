@@ -39,25 +39,17 @@ struct RangeClaim {
 /// @title IClaimRegistry
 /// @notice Interface for the ClaimRegistry contract.
 interface IClaimRegistry is ISemver, IProxyAdminOwnedBase {
-    error ClaimRegistry_Unauthorized();
     error ClaimRegistry_UnsupportedClaimVersion();
     error ClaimRegistry_ProofNotSupported();
     error ClaimRegistry_InvalidRange();
     error ClaimRegistry_OverlappingRange();
 
-    event Initialized(uint8 version);
-
-    event OperatorSet(address indexed operator);
-
     function CLAIM_VERSION() external view returns (uint8);
     function MAX_PROOF_LENGTH() external view returns (uint256);
-    function operator() external view returns (address);
     function rangeCount() external view returns (uint64);
     function lastPostedLastBlock() external view returns (uint64);
     function lastClaimHash() external view returns (bytes32);
 
-    function initialize(address _operator) external;
-    function setOperator(address _operator) external;
     function postClaim(RangeClaim calldata _claim) external;
 
     function __constructor__() external;

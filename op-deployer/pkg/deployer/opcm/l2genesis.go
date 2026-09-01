@@ -40,8 +40,6 @@ type L2GenesisInput struct {
 	// Private interop. Inert on every ordinary chain: which half (if any) a genesis renders is
 	// decided by the PRIVATE_INTEROP_* bits in DevFeatureBitmap, and with neither bit set the
 	// script never reads these.
-	PrivateInteropOperator            common.Address
-	PrivateInteropOperatorBalance     *big.Int
 	PrivateInteropCounterpartyChainID *big.Int
 	PrivateInteropLockVault           common.Address
 }

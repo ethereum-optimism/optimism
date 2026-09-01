@@ -11,43 +11,35 @@ import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { ClaimRegistry } from "src/private-interop/ClaimRegistry.sol";
 
 // Interfaces
-import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IClaimRegistry, RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 
 /// @title ClaimRegistry_TestInit
 /// @notice Reusable test initialization for `ClaimRegistry` tests.
 abstract contract ClaimRegistry_TestInit is Test {
-    /// @notice Emitted when the authorized operator address is set.
-    event OperatorSet(address indexed operator);
-
     /// @notice Registry under test, behind a proxy.
     IClaimRegistry internal registry;
 
     /// @notice ProxyAdmin that owns the proxy.
     ProxyAdmin internal proxyAdmin;
 
-    /// @notice Owner of the ProxyAdmin.
-    address internal proxyAdminOwner;
-
-    /// @notice Address authorized to post claims.
+    /// @notice Representative batcher address used by tests; the outer batch authenticates it.
     address internal operator;
 
     /// @notice Test setup.
     function setUp() public virtual {
-        proxyAdminOwner = makeAddr("proxyAdminOwner");
         operator = makeAddr("operator");
 
-        proxyAdmin = new ProxyAdmin(proxyAdminOwner);
+        proxyAdmin = new ProxyAdmin(makeAddr("proxyAdminOwner"));
         registry = _freshRegistry();
     }
 
-    /// @notice Deploys a fresh registry behind its own proxy, initialized to the same operator.
+    /// @notice Deploys a fresh registry behind its own proxy.
     function _freshRegistry() internal returns (IClaimRegistry registry_) {
         Proxy proxy = new Proxy(address(proxyAdmin));
         ClaimRegistry impl = new ClaimRegistry();
 
         vm.prank(address(proxyAdmin));
-        proxy.upgradeToAndCall(address(impl), abi.encodeCall(ClaimRegistry.initialize, (operator)));
+        proxy.upgradeTo(address(impl));
 
         registry_ = IClaimRegistry(address(proxy));
     }
@@ -68,53 +60,6 @@ abstract contract ClaimRegistry_TestInit is Test {
             privateDataHash: keccak256(abi.encode("privateData", _firstBlock, _lastBlock)),
             proof: hex""
         });
-    }
-}
-
-/// @title ClaimRegistry_Initialize_Test
-/// @notice Tests the `initialize` function of the `ClaimRegistry` contract.
-contract ClaimRegistry_Initialize_Test is ClaimRegistry_TestInit {
-    /// @notice Tests that the initializer sets the operator and leaves the range state empty.
-    function test_initialize_succeeds() external view {
-        assertEq(registry.operator(), operator);
-        assertEq(registry.rangeCount(), 0);
-        assertEq(registry.lastPostedLastBlock(), 0);
-        assertEq(registry.lastClaimHash(), bytes32(0));
-        assertEq(registry.CLAIM_VERSION(), 1);
-        assertEq(registry.MAX_PROOF_LENGTH(), 65_536);
-    }
-
-    /// @notice Tests that the initializer cannot be run twice.
-    function test_initialize_alreadyInitialized_reverts() external {
-        vm.expectRevert("Initializable: contract is already initialized");
-        vm.prank(proxyAdminOwner);
-        registry.initialize(address(0xdead));
-    }
-}
-
-/// @title ClaimRegistry_SetOperator_Test
-/// @notice Tests the `setOperator` function of the `ClaimRegistry` contract.
-contract ClaimRegistry_SetOperator_Test is ClaimRegistry_TestInit {
-    /// @notice Tests that the ProxyAdmin owner can rotate the operator.
-    function testFuzz_setOperator_succeeds(address _newOperator) external {
-        vm.expectEmit(address(registry));
-        emit OperatorSet(_newOperator);
-
-        vm.prank(proxyAdminOwner);
-        registry.setOperator(_newOperator);
-
-        assertEq(registry.operator(), _newOperator);
-    }
-
-    /// @notice Tests that anyone other than the ProxyAdmin owner cannot rotate the operator.
-    function testFuzz_setOperator_notProxyAdminOwner_reverts(address _caller) external {
-        vm.assume(_caller != proxyAdminOwner && _caller != address(proxyAdmin));
-
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
-        vm.prank(_caller);
-        registry.setOperator(address(0xdead));
-
-        assertEq(registry.operator(), operator);
     }
 }
 
@@ -274,15 +219,6 @@ contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
         vm.expectRevert(IClaimRegistry.ClaimRegistry_ProofNotSupported.selector);
         vm.prank(operator);
         registry.postClaim(claim);
-    }
-
-    /// @notice Tests that only the authorized operator can post a claim.
-    function testFuzz_postClaim_notOperator_reverts(address _caller) external {
-        vm.assume(_caller != operator);
-
-        vm.expectRevert(IClaimRegistry.ClaimRegistry_Unauthorized.selector);
-        vm.prank(_caller);
-        registry.postClaim(_claim(100, 399));
     }
 
     /// @notice Tests that a rejected post leaves the range state untouched.

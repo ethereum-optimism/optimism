@@ -88,6 +88,7 @@ contract ETHLockVault_Lock_Test is ETHLockVault_TestInit {
 
         assertEq(msgHash, _msgHash);
         assertEq(address(vault).balance, vaultBalanceBefore + _amount);
+        assertEq(vault.totalLocked(), _amount);
     }
 
     /// @notice Tests that locking to the zero address reverts.
@@ -114,7 +115,18 @@ contract ETHLockVault_Unlock_Test is ETHLockVault_TestInit {
         assumeNotForgeAddress(_to);
         vm.assume(_to != address(vault));
         _amount = bound(_amount, 1, type(uint128).max);
-        vm.deal(address(vault), _amount);
+        address locker = makeAddr("locker");
+        vm.deal(locker, _amount);
+        _mockAndExpect(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeCall(
+                IL2ToL2CrossDomainMessenger.sendMessage,
+                (PRIVATE_CHAIN_ID, privateBridge, abi.encodeCall(INativeMintBridge.relayMint, (locker, _amount)))
+            ),
+            abi.encode(bytes32(uint256(1)))
+        );
+        vm.prank(locker);
+        vault.lock{ value: _amount }(locker);
 
         _mockContext(privateBridge, PRIVATE_CHAIN_ID);
 
@@ -128,6 +140,7 @@ contract ETHLockVault_Unlock_Test is ETHLockVault_TestInit {
 
         assertEq(_to.balance, toBalanceBefore + _amount);
         assertEq(address(vault).balance, 0);
+        assertEq(vault.totalLocked(), 0);
     }
 
     /// @notice Tests that a caller other than the messenger cannot unlock.
@@ -181,15 +194,15 @@ contract ETHLockVault_Unlock_Test is ETHLockVault_TestInit {
         vault.unlock(address(0xbeef), 0);
     }
 
-    /// @notice Tests that the vault balance is a hard cap: the private chain cannot withdraw more
-    ///         than was ever locked, no matter what its message claims.
-    function test_unlock_insufficientBalance_reverts() external {
+    /// @notice Tests that forced ETH does not let the private chain withdraw more than entered
+    ///         through the authenticated lock path.
+    function test_unlock_insufficientLocked_reverts() external {
         vm.deal(address(vault), 1 ether);
         _mockContext(privateBridge, PRIVATE_CHAIN_ID);
 
-        vm.expectRevert();
+        vm.expectRevert(IETHLockVault.ETHLockVault_InsufficientLocked.selector);
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        vault.unlock(address(0xbeef), 2 ether);
+        vault.unlock(address(0xbeef), 1 ether);
     }
 }
 
@@ -245,6 +258,7 @@ contract ETHLockVault_Integration_Test is ETHLockVault_TestInit {
         vault.lock{ value: amount }(alice);
 
         assertEq(address(vault).balance, amount);
+        assertEq(vault.totalLocked(), amount);
         assertEq(alice.balance, 0);
 
         // 2. The message is relayed on the private chain and mints native asset to Alice.
@@ -275,5 +289,6 @@ contract ETHLockVault_Integration_Test is ETHLockVault_TestInit {
 
         assertEq(bob.balance, amount);
         assertEq(address(vault).balance, 0);
+        assertEq(vault.totalLocked(), 0);
     }
 }

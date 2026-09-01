@@ -2,17 +2,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_replayer",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "bytes32[]",
         "name": "_topics",
         "type": "bytes32[]"
@@ -26,19 +15,6 @@
     "name": "replayEvent",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "replayer",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -57,11 +33,6 @@
   {
     "inputs": [],
     "name": "EventReplayer_TooManyTopics",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "EventReplayer_Unauthorized",
     "type": "error"
   }
 ]

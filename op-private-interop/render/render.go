@@ -4,7 +4,7 @@
 // The architecture is op-private-interop/docs/DESIGN.md, sections "Canonical message positions"
 // and "Replay transactions". A private L2's public presence is an
 // ordinary derived OP chain — "the rendering" — with one public block per private block at the same
-// number and timestamp, containing the stock L1-attributes deposit plus one operator-signed REPLAY
+// number and timestamp, containing the stock L1-attributes deposit plus one batcher-signed REPLAY
 // transaction per exported or imported message. This package is the single definition of which
 // messages those are and what order they go in.
 //
@@ -85,6 +85,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+const (
+	// MaxRenderableMessageSize is the protocol ceiling for a private SentMessage payload. It is
+	// mirrored by L2ToL2CrossDomainMessenger on the private half: checking it again here keeps the
+	// rendering safe when reading historical or otherwise malformed private-chain data.
+	MaxRenderableMessageSize = 64 * 1024
 )
 
 var (
@@ -396,6 +403,18 @@ func actionFor(rl RenderedLog) (ReplayAction, error) {
 		sent, err := DecodeSentMessage(rl.Log.Topics, rl.Log.Data)
 		if err != nil {
 			return unrenderable(err)
+		}
+		if sent.Sender == predeploys.SuperchainETHBridgeAddr {
+			return unrenderable(errors.New("SentMessage sender is the SuperchainETHBridge"))
+		}
+		if sent.Target == predeploys.SuperchainETHBridgeAddr {
+			return unrenderable(errors.New("SentMessage target is the SuperchainETHBridge"))
+		}
+		if len(sent.Message) > MaxRenderableMessageSize {
+			return unrenderable(fmt.Errorf(
+				"SentMessage payload is %d bytes, exceeding the %d-byte rendering limit",
+				len(sent.Message), MaxRenderableMessageSize,
+			))
 		}
 		act.Kind = ReplayExport
 		act.Export = sent

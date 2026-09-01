@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title EventReplayer
-/// @notice Generic operator-gated log emitter, deployed at a fixed address in the genesis of a
+/// @notice Generic batch-authenticated log emitter, deployed at a fixed address in the genesis of a
 ///         private chain's public rendering. `L2ToL2CrossDomainMessengerReplay` renders the
 ///         messenger's exports at the messenger's own predeploy address; this contract renders
 ///         everything else a devnet export policy chooses to make public, at one well-known
@@ -15,32 +15,12 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         mistaken for the private chain's messenger traffic. Nothing consumes them as protocol
 ///         input; they exist for indexers, explorers and tests observing the public rendering.
 contract EventReplayer is ISemver {
-    /// @notice Thrown when the caller is not the authorized replayer.
-    error EventReplayer_Unauthorized();
-
     /// @notice Thrown when more than four topics are supplied. The EVM has no `log5`.
     error EventReplayer_TooManyTopics();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
-
-    /// @notice Address authorized to replay logs. Immutable because this contract is deployed
-    ///         directly into genesis rather than behind a proxy: the operator address is baked
-    ///         into the deployed bytecode by the genesis builder.
-    address internal immutable REPLAYER;
-
-    /// @param _replayer Address authorized to replay logs.
-    constructor(address _replayer) {
-        REPLAYER = _replayer;
-    }
-
-    /// @notice Getter for the address authorized to replay logs.
-    ///
-    /// @return Address authorized to replay logs.
-    function replayer() public view returns (address) {
-        return REPLAYER;
-    }
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Emits an arbitrary log with zero to four topics. The log is emitted verbatim: no
     ///         topic is derived, added or reordered, so an operator can reproduce any log shape
@@ -49,8 +29,6 @@ contract EventReplayer is ISemver {
     /// @param _topics Topics of the log, in order. At most four.
     /// @param _data   Data section of the log.
     function replayEvent(bytes32[] calldata _topics, bytes calldata _data) external {
-        if (msg.sender != REPLAYER) revert EventReplayer_Unauthorized();
-
         uint256 count = _topics.length;
         if (count > 4) revert EventReplayer_TooManyTopics();
 
