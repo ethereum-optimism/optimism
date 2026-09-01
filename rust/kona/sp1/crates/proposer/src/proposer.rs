@@ -229,6 +229,7 @@ impl ProposerState {
 
     /// Marks a game and every cached descendant as terminally invalid, removes
     /// the subtree, and returns the removed game addresses.
+    #[must_use]
     fn invalidate_subtree(&mut self, root_index: U256) -> Vec<Address> {
         let invalid_subtree = self.descendants_of(root_index);
         self.invalid_games.extend(invalid_subtree.iter().copied());
@@ -290,6 +291,7 @@ impl ProposerState {
 
     /// Drops all cached state tied to the prior factory history and returns
     /// the removed game addresses.
+    #[must_use]
     fn reset_factory_cache(&mut self) -> Vec<Address> {
         self.anchor_game = None;
         self.canonical_head_index = None;

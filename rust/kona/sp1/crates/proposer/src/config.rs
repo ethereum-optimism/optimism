@@ -318,8 +318,7 @@ const DEFAULT_MAX_PRICE_PER_PGU: u64 = 1_000_000_000;
 /// cost of ~90s per defense (range, consolidation and agg wait it out in turn).
 const DEFAULT_MIN_AUCTION_PERIOD_SECONDS: u64 = 30;
 
-/// Grace for an unassigned request. Cancelling fails the whole defense task and
-/// discards every chunk's witness work, so waiting beats restarting.
+/// Grace for an unassigned request before cancellation and retry.
 const DEFAULT_AUCTION_TIMEOUT_SECONDS: u64 = 300;
 
 /// Room between an auction closing and its request being cancelled: the
@@ -365,8 +364,8 @@ impl ProofProviderConfig {
         let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?;
         anyhow::ensure!(
             timeout > 0,
-            "{} must be positive: 0 would abandon every proof request at its first poll, right \
-             after paying to submit it",
+            "{} must be positive: 0 would stop every proof polling attempt immediately after \
+             submission",
             env_var("SP1_TIMEOUT_SECONDS")
         );
         let network_calls_timeout = parsed_env_or("NETWORK_CALLS_TIMEOUT", 15u64)?;
@@ -760,8 +759,7 @@ mod tests {
         /// is `unsafe` on edition 2024.
         #[test]
         fn auction_period_crowding_the_cancel_timeout_is_rejected() {
-            // Otherwise requests are cancelled around the moment their auction
-            // closes, discarding a whole defense task's witness work each time.
+            // An auction needs assignment margin before the cancellation timeout.
             set_proposer_env("AUCTION_TIMEOUT", "300");
             for crowding in ["300", "290"] {
                 set_proposer_env("MIN_AUCTION_PERIOD", crowding);
@@ -837,9 +835,8 @@ mod tests {
             );
         }
 
-        /// Zero SPN timeouts are configuration errors, not degraded modes:
-        /// each would spin or abandon paid work at the first poll. Safe
-        /// under nextest's process-per-test model.
+        /// Zero SPN timeouts prevent useful polling. Safe under nextest's
+        /// process-per-test model.
         #[test]
         fn zero_spn_timeouts_are_rejected() {
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
