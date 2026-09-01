@@ -367,25 +367,37 @@ func (c *Conductor) TransferLeadership(cluster ConductorSet) *Conductor {
 }
 
 // TransferLeadershipTo safely transfers Raft leadership and sequencing from
-// this conductor to the target. It waits for the source to be the cluster's
-// sole active sequencer and for that cluster-wide invariant to move to the
-// target before returning.
-func (c *Conductor) TransferLeadershipTo(target *Conductor, cluster ConductorSet) {
-	c.log.Info("Transferring leadership", "from", c, "to", target)
-	c.require.Same(c, cluster.AwaitOneActiveSequencer(),
+// source to target. It waits for source to be the set's sole active sequencer
+// and for that cluster-wide invariant to move to target before returning.
+func (s ConductorSet) TransferLeadershipTo(source, target *Conductor) {
+	c := s.common()
+	contains := func(want *Conductor) bool {
+		for _, conductor := range s {
+			if conductor == want {
+				return true
+			}
+		}
+		return false
+	}
+	c.require.Truef(contains(source), "leadership transfer source %s is not in the conductor set", source)
+	c.require.Truef(contains(target), "leadership transfer target %s is not in the conductor set", target)
+	c.require.NotSame(source, target, "leadership transfer source and target must differ")
+
+	source.log.Info("Transferring leadership", "from", source, "to", target)
+	c.require.Same(source, s.AwaitOneActiveSequencer(),
 		"leadership transfer source must be the cluster's sole active sequencer")
 
-	info := c.clusterMemberInfo(target.String())
-	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	info := source.clusterMemberInfo(target.String())
+	ctx, cancel := context.WithTimeout(source.ctx, DefaultTimeout)
 	defer cancel()
-	err := c.inner.RpcAPI().TransferLeaderToServer(ctx, info.ID, info.Addr)
-	c.require.NoErrorf(err, "failed to transfer leadership from %s to %s", c, target)
+	err := source.inner.RpcAPI().TransferLeaderToServer(ctx, info.ID, info.Addr)
+	c.require.NoErrorf(err, "failed to transfer leadership from %s to %s", source, target)
 
 	// First require the requested target to take leadership so an immediate
 	// pre-transfer sample cannot satisfy the cluster-wide waiter below.
 	target.waitForLeadership(true)
-	settled := cluster.AwaitOneActiveSequencer()
+	settled := s.AwaitOneActiveSequencer()
 	c.require.Same(target, settled,
 		"leadership transfer target must become the cluster's sole active sequencer")
-	c.log.Info("Transferred leadership", "from", c, "to", target)
+	source.log.Info("Transferred leadership", "from", source, "to", target)
 }
