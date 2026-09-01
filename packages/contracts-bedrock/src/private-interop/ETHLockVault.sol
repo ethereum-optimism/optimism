@@ -77,10 +77,12 @@ contract ETHLockVault is ISemver {
     uint256 public totalLocked;
 
     /// @notice Chain ID of the private chain this vault bridges to.
+    // nosemgrep: sol-safety-no-immutable-variables -- this is a directly deployed, non-proxied vault.
     uint256 internal immutable PRIVATE_CHAIN_ID;
 
     /// @notice Address of the `NativeMintBridge` on the private chain. The only cross domain
     ///         message sender allowed to unlock ETH from this vault.
+    // nosemgrep: sol-safety-no-immutable-variables -- this is a directly deployed, non-proxied vault.
     address internal immutable PRIVATE_BRIDGE;
 
     /// @param _privateChainId Chain ID of the private chain this vault bridges to.
