@@ -46,26 +46,19 @@ library DevFeatures {
     bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =
         bytes32(0x0000000000000000000000000000000000000000000000000000000010000000);
 
-    /// @notice The feature that renders a chain's genesis as the PUBLIC RENDERING half of a private
-    ///         interop pair: the `ClaimRegistry` and `EventReplayer` predeploys exist, and the
-    ///         `L2ToL2CrossDomainMessenger` predeploy carries the replay implementation instead of
-    ///         the stock one. Never set on an ordinary chain.
-    bytes32 public constant PRIVATE_INTEROP_RENDERING =
-        bytes32(0x0000000000000000000000000000000000000000000000000000000100000000);
-
-    /// @notice The feature that renders a chain's genesis as the PRIVATE half of a private interop
-    ///         pair: the `NativeMintBridge` predeploy exists and is authorized as a
+    /// @notice The feature that renders a private interop chain genesis: the `NativeMintBridge`
+    ///         predeploy exists and is authorized as a
     ///         `LiquidityController` minter. Requires the CUSTOM_GAS_TOKEN system feature; the two
-    ///         halves are mutually exclusive. Never set on an ordinary chain.
+    ///         public projection is derived from the resulting genesis. Never set on an ordinary chain.
     ///
-    /// @dev NOTE on step 5 of the checklist above, deliberately not done for either private interop
-    ///      bit: neither gets a `&features_matrix` row. The matrix reruns the contract test suite
-    ///      with a bit set, and these two bits have no contract-test surface -- they gate genesis
+    /// @dev NOTE on step 5 of the checklist above, deliberately not done for the private interop
+    ///      bit: it does not get a `&features_matrix` row. The matrix reruns the contract test suite
+    ///      with a bit set, and this bit has no contract-test surface -- it gates genesis
     ///      GENERATION, in scripts/L2Genesis.s.sol, which the suite reaches through a fixed input
-    ///      that never sets them. A row would rerun thousands of unrelated tests to exercise
+    ///      that never sets it. A row would rerun thousands of unrelated tests to exercise
     ///      nothing. The coverage lives where the feature does, in op-deployer's genesis allocs
-    ///      tests, which run the real apply pipeline for both halves.
-    bytes32 public constant PRIVATE_INTEROP_PRIVATE_CHAIN =
+    ///      tests, which run the real apply pipeline.
+    bytes32 public constant PRIVATE_INTEROP =
         bytes32(0x0000000000000000000000000000000000000000000000000000001000000000);
 
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check

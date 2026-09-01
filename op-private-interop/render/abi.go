@@ -34,8 +34,8 @@ import (
 // is a selector followed by exactly what codec.Encode produces.
 //
 // This file holds NO contract addresses. The EventReplayer and the ClaimRegistry are predeploys on
-// the rendering -- predeploys.EventReplayerAddr (0x...002F) and predeploys.ClaimRegistryAddr
-// (0x...002E), placed by the PRIVATE_INTEROP_RENDERING genesis -- but a BatcherTxBuilder starts
+// the public projection -- predeploys.EventReplayerAddr (0x...002F) and predeploys.ClaimRegistryAddr
+// (0x...002E), placed by the deterministic public-projection genesis -- but a BatcherTxBuilder starts
 // with both unset and REFUSES to construct a transaction until a caller wires them in
 // (SetEventReplayer, SetRegistry). Defaulting them here would trade a loud configuration error for
 // a silent one: a deployment that placed either contract elsewhere would then send to the standard

@@ -5,11 +5,11 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -17,7 +17,6 @@ import (
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -62,7 +61,7 @@ import (
 // # The not-yet state, and the bootstrap deadlock it used to cause
 //
 // Until the first claim lands the module serves the PRIVATE chain's GENESIS ref — one configured
-// hash (--private-interop.genesis-hash, wired below from the private network's own rollup config)
+// hash (derived below from the private network's genesis)
 // plus five fields it derives from the rendering's config and the definition of a genesis block.
 //
 // It is worth recording why, because this runtime is what found it. An earlier module ERRORED until
@@ -125,26 +124,13 @@ type privateInteropRuntime struct {
 // and everything downstream of that -- ReadCLIConfig, the all-or-nothing Check, Resolve -- is the
 // code an operator's flags go through. Inventing a second door would leave the operator's path
 // untested and test one nothing runs.
-func privateInteropFollowFlags(t devtest.T, renderingChainID eth.ChainID, privateGenesisHash common.Hash) *cli.Context {
+func privateInteropFollowFlags(t devtest.T, privateGenesisPath string) *cli.Context {
 	set := flag.NewFlagSet("private-interop-follow", flag.ContinueOnError)
 	for _, f := range claimfollow.Flags {
 		t.Require().NoError(f.Apply(set), "registering %s", f.Names()[0])
 	}
-	chainID, ok := renderingChainID.Uint64()
-	t.Require().True(ok, "the rendering's chain ID does not fit in a uint64")
-
 	for _, kv := range [][2]string{
-		{claimfollow.EnabledFlag.Name, "true"},
-		{claimfollow.ChainIDFlag.Name, strconv.FormatUint(chainID, 10)},
-		// The registry is a predeploy on the rendering, so its address is the same on every
-		// deployment and there is nothing to look up.
-		{claimfollow.ClaimRegistryFlag.Name, predeploys.ClaimRegistryAddr.Hex()},
-		// The PRIVATE chain's genesis hash: the one field of the private genesis ref that no public
-		// data carries, and the reason the module has anything to say before the first claim. It
-		// comes from the private network's own rollup config here; an operator reads it off their
-		// own genesis. Getting it from the RENDERING's config would be the classic mistake -- the
-		// two chains share a chain ID and a genesis timestamp and differ in exactly this field.
-		{claimfollow.GenesisHashFlag.Name, privateGenesisHash.Hex()},
+		{claimfollow.GenesisPathFlag.Name, privateGenesisPath},
 		// Scanning from genesis is right here and wrong in production, where an operator enabling
 		// the module against a long-lived rendering sets it to the block the first claim landed in
 		// rather than walking the whole chain.
@@ -220,7 +206,7 @@ func privateInteropBatcherOption(
 	t devtest.T,
 	cfg PrivateInteropConfig,
 	renderingRollup *rollup.Config,
-	renderingRollupPath string,
+	privateGenesisPath string,
 	renderingRPC string,
 	depSetHash common.Hash,
 ) BatcherOption {
@@ -236,18 +222,13 @@ func privateInteropBatcherOption(
 		// Zero disables the duration check entirely (op-batcher/batcher/channel_config.go:24).
 		c.MaxChannelDuration = 0
 		c.PrivateInterop = bss.PrivateInteropCLIConfig{
-			Enabled:                   true,
-			RenderingRollupConfigPath: renderingRollupPath,
-			RenderingRPC:              renderingRPC,
-			MaxBlocksPerRange:         cfg.MaxBlocksPerRange,
-			MaxRangeBytes:             batcherFlags.DefaultPrivateInteropMaxRangeBytes,
+			PrivateChainGenesisPath: privateGenesisPath,
+			PublicProjectionRPC:     renderingRPC,
+			MaxBlocksPerRange:       cfg.MaxBlocksPerRange,
+			MaxRangeBytes:           batcherFlags.DefaultPrivateInteropMaxRangeBytes,
 			// No L1 confirmation depth, and no L1 view at all: under origin-copy the transformation
 			// reuses each private block's OWN L1 origin as the rendering block's epoch, so there is
 			// no origin to choose and nothing for a shallow L1 reorg to orphan.
-
-			ClaimRegistry:   predeploys.ClaimRegistryAddr.Hex(),
-			EventReplayer:   predeploys.EventReplayerAddr.Hex(),
-			ReplayMessenger: predeploys.L2toL2CrossDomainMessengerAddr.Hex(),
 
 			RollupConfigHash: rollupConfigHash.Hex(),
 			DepSetHash:       depSetHash.Hex(),
@@ -274,19 +255,14 @@ func hashOfJSON(t devtest.T, v any, what string) common.Hash {
 	return crypto.Keccak256Hash(encoded)
 }
 
-// writeRenderingRollupConfig puts the rendering's rollup.json where the batcher's flag can point at
-// it.
-//
-// The batcher loads it from a FILE rather than from a node, and that is not an oversight: no node in
-// the batcher's reach serves the rendering's config. Its own --rollup-rpc points at the private
-// chain's op-node, whose config is the private one, and the two differ in the one field that would
-// make every signed transaction wrong if it were confused -- the genesis.
-func writeRenderingRollupConfig(t devtest.T, cfg *rollup.Config) string {
-	dir := t.TempDirWithPrefix("private-interop-rendering")
-	path := filepath.Join(dir, "rollup.json")
-	encoded, err := json.Marshal(cfg)
-	t.Require().NoError(err, "encoding the rendering's rollup config")
-	t.Require().NoError(os.WriteFile(path, encoded, 0o644), "writing the rendering's rollup config")
+// writePrivateChainGenesis puts the private-chain genesis where consumers can derive the public
+// projection from the same artifact that is supplied to the private execution client.
+func writePrivateChainGenesis(t devtest.T, genesis *core.Genesis) string {
+	dir := t.TempDirWithPrefix("private-interop")
+	path := filepath.Join(dir, "genesis.json")
+	encoded, err := json.Marshal(genesis)
+	t.Require().NoError(err, "encoding the private-chain genesis")
+	t.Require().NoError(os.WriteFile(path, encoded, 0o644), "writing the private-chain genesis")
 	return path
 }
 
@@ -330,8 +306,8 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, true, delaySeconds, cfg.LocalContractArtifactsPath, deployerOpts...)
 
 	// The second half. Nothing about the world changes; the rendering is rendered from it.
-	renderingGenesis, renderingRollup := renderPrivateInteropRendering(t, wb, privateID)
-	renderingNet := privateInteropRenderingNetwork(l2BNet, renderingGenesis, renderingRollup)
+	renderingGenesis, renderingRollup := projectPrivateInteropGenesis(t, wb, privateID)
+	renderingNet := privateInteropPublicProjectionNetwork(l2BNet, renderingGenesis, renderingRollup)
 
 	migration := newInteropMigrationState(wb)
 	jwtPath, jwtSecret := writeJWTSecret(t)
@@ -387,6 +363,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 		"the world's chains must share a genesis timestamp for one interop activation to fit them all")
 
 	depSet, runtimeDepSet := resolveRuntimeDepSet(t, wb, cfg)
+	privateGenesisPath := writePrivateChainGenesis(t, l2BNet.genesis)
 
 	// The supernode judges {chain A, the RENDERING} and has no idea a private chain exists. That is
 	// the design's central claim about the public side, and it is true here by construction: the
@@ -402,7 +379,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 		false, // verifier routes only; chain A is sequenced by its light CL
 		// The follow module, enabled HERE rather than after the fact: the module has to exist before
 		// anything points a LightCL at its route, because a disabled module's route is not a 404.
-		privateInteropFollowFlags(t, renderingNet.ChainID(), l2BNet.rollupCfg.Genesis.L2.Hash),
+		privateInteropFollowFlags(t, privateGenesisPath),
 	)
 
 	// Construct-last edge 1, and the sharp edge: the supernode above was built WITH the follow module
@@ -452,10 +429,9 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	// No connectL2CLPeers and no connectL2ELPeers across the pair. This absence is the severance.
 
 	// Construct-last edge 3: the batchers, which read both chains.
-	renderingRollupPath := writeRenderingRollupConfig(t, renderingNet.rollupCfg)
 	depSetHash := hashOfJSON(t, runtimeDepSet, "the dependency set")
 	piBatcherOpt := privateInteropBatcherOption(
-		t, pi, renderingNet.rollupCfg, renderingRollupPath, renderingEL.UserRPC(),
+		t, pi, renderingNet.rollupCfg, privateGenesisPath, renderingEL.UserRPC(),
 		depSetHash,
 	)
 

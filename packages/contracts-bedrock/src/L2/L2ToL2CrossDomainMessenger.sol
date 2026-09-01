@@ -170,10 +170,10 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         emit SentMessage(_destination, _target, nonce, msg.sender, _message);
     }
 
-    /// @notice Returns whether this messenger is installed on the private half of a private interop pair.
+    /// @notice Returns whether this messenger is installed on a private interop chain.
     function _isPrivateInteropChain() internal view returns (bool) {
         (bool success, bytes memory returndata) = Predeploys.L2_DEV_FEATURE_FLAGS.staticcall(
-            abi.encodeCall(IL2DevFeatureFlags.isDevFeatureEnabled, (DevFeatures.PRIVATE_INTEROP_PRIVATE_CHAIN))
+            abi.encodeCall(IL2DevFeatureFlags.isDevFeatureEnabled, (DevFeatures.PRIVATE_INTEROP))
         );
         return success && returndata.length == 32 && abi.decode(returndata, (bool));
     }

@@ -14,12 +14,14 @@ import (
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opnodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
+	projectiongenesis "github.com/ethereum-optimism/optimism/op-private-interop/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/claimfollow"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -77,6 +79,9 @@ func main() {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create virtual node configs: %w", err)
 		}
+		if err := applyPrivateInteropProjection(cliCtx, vnCfgs); err != nil {
+			return nil, fmt.Errorf("failed to configure private interop public projection: %w", err)
+		}
 
 		// Populate config with an explicit CLI or env override if one is set.
 		// Otherwise the supernode will derive interop activation from the loaded rollup configs.
@@ -106,6 +111,35 @@ func main() {
 	if err := app.RunContext(ctx, os.Args); err != nil {
 		log.Crit("Application failed", "message", err)
 	}
+}
+
+// applyPrivateInteropProjection replaces exactly one virtual node's private-chain rollup config
+// with the deterministic public-projection config. The private-chain genesis is loaded locally;
+// the projection itself remains a pure function and performs no network or filesystem I/O.
+func applyPrivateInteropProjection(cliCtx *cli.Context, vnCfgs map[eth.ChainID]*opnodecfg.Config) error {
+	privateInterop := claimfollow.ReadCLIConfig(cliCtx)
+	chainID, enabled, err := supernode.FindPrivateInteropChain(vnCfgs)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return nil
+	}
+	privateChainGenesis, err := privateInterop.LoadPrivateChainGenesis()
+	if err != nil {
+		return err
+	}
+	publicProjectionGenesis, err := projectiongenesis.ProjectGenesisFrom(privateChainGenesis)
+	if err != nil {
+		return err
+	}
+	vnCfg := vnCfgs[chainID]
+	publicProjectionRollup, err := projectiongenesis.ProjectRollupConfigFrom(&vnCfg.Rollup, publicProjectionGenesis)
+	if err != nil {
+		return err
+	}
+	vnCfg.Rollup = *publicProjectionRollup
+	return nil
 }
 
 func createVirtualNodeConfigs(cliCtx *cli.Context, cfg *config.CLIConfig, l log.Logger) (map[eth.ChainID]*opnodecfg.Config, error) {

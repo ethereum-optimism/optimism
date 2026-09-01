@@ -1,6 +1,6 @@
 # Private Interop — the design
 
-**Status:** RATIFIED (Karl, 2026-08-30 and 2026-08-31, in-conversation; written up by Fable).
+**Status:** RATIFIED (Karl, 2026-08-30 through 2026-09-01, in-conversation; written up by Fable).
 
 This is the project's ONLY design document (Karl, 2026-08-31). The separate proven-mode note and
 testing plan were folded in below; the work plan and the alt-DA option survey were deleted. Git
@@ -12,9 +12,12 @@ Every mechanical claim marked *(spike)* was verified by a runnable test against 
 
 ## Ratified decisions (Karl, 2026-08-30, in-conversation)
 
-1. **No custom execution client, no supernode changes.** The public verifier stack is stock
-   op-node + stock op-reth + a rollup.json. The judge machinery is stock because the private
-   chain's cross-chain messages become ordinary transactions on the public chain.
+1. **One private-chain deployment, deterministic public projection.** Op-deployer emits one
+   private-chain genesis and rollup config. Go and Rust clients independently implement the same
+   pure `ProjectGenesisFrom(privateChainGenesis)` transform. The private EL consumes the source
+   genesis unchanged; the public-projection op-reth applies it under `--rollup.private`. The
+   supernode and batcher derive the same projection locally from the same file. No transform makes
+   a network call, and there is no second op-deployer role or apply run.
 2. **Messenger-only interop.** The private chain exports and imports exclusively through the
    L2ToL2CrossDomainMessenger. Accepted consequence: exported message content is public (
    previously unconsumed exports leaked only a hash).
@@ -33,10 +36,11 @@ Every mechanical claim marked *(spike)* was verified by a runnable test against 
    with no publication behind it. An off-chain archive, if an operator wants one, is an external
    sidecar reading its own private node; out of scope here.
 6. **Same chain ID**: the public chain is the private chain's identity in the dependency set.
-7. **Deposits prevented at the L1 portal** (`OptimismPortalNoDeposit` reverts), so derivation and
-   attribute handling are never touched — no user deposit can exist for stock derivation to see.
-   Note the batch layer independently enforces this: deposit-type transactions inside batch data
-   are dropped by stock validation *(spike)*.
+7. **Deposits prevented with stock L1 contracts.** Private interop makes op-deployer initialize the
+   ordinary SystemConfig resource config with `maxResourceLimit = 0`. Every portal deposit has a
+   positive gas limit and therefore reverts under the stock resource-metering path. Derivation and
+   attribute handling never see a user deposit. The batch layer independently enforces the same
+   boundary: deposit-type transactions inside batch data are dropped by stock validation *(spike)*.
 
 ## The architecture in one paragraph
 
@@ -53,6 +57,24 @@ operator posts one L1 blob transaction carrying nothing but stock channel frames
 private derivation data, and an empty proof slot that a real ZK proof fills later — rides INSIDE
 that batch, as the leading L2 transaction of the range's first block. The batch transaction's own
 signature is the v1 attestation, checked by the stock inbox filter.
+
+## Genesis and rollup projection
+
+The private-chain genesis is the only deployment artifact. It contains the custom gas token path,
+`NativeMintBridge`, the counterparty vault binding, and the `PRIVATE_INTEROP` development-feature
+bit. The public projection clones that genesis and deterministically:
+
+- restores ordinary ETH semantics and the stock interop ETH path;
+- removes the private liquidity controller, native-asset liquidity and mint bridge;
+- installs the replay messenger, ClaimRegistry and EventReplayer implementations;
+- clears only the `PRIVATE_INTEROP` bit while retaining unrelated development features; and
+- sets the zero-fee, maximum-gas execution parameters used by synthesized public blocks.
+
+The projected rollup config copies the private config, substitutes the projected L2 genesis hash,
+and applies the matching gas and fee parameters. Its `private_interop` metadata remains available
+to the batcher and supernode as the relationship and emitter policy; it is not an on-chain claim
+that the projected state is private. Go and Rust share a JSON golden input, expected state root and
+expected block hash, while keeping independent transform implementations.
 
 ## L1 layout (AMENDED, Karl 2026-08-30: the claim is an L2 transaction, not a blob)
 
@@ -82,7 +104,7 @@ Rules, each verified by the span spike against stock validation:
 - **Contiguity**: first block timestamp = safe head time + block time; start epoch ∈
   {parent's origin, parent's origin + 1}; emit **non-overlapping** ranges only (overlap must be
   byte-exact against the canonical chain or the whole batch drops).
-- **Origins (AMENDED 2026-08-31: COPIED, not chosen)**: each rendering block reuses the private
+- **Origins (AMENDED 2026-08-31: COPIED, not chosen)**: each public projection block reuses the private
   block's OWN L1 origin, read from its L1-info deposit — origins and sequence numbers equal by
   construction, validity transferring since the private sequencer already satisfied the identical
   stock rules at identical timestamps (pinned: a copied-origin range passes derive.CheckBatch).
@@ -96,13 +118,13 @@ Rules, each verified by the span spike against stock validation:
 
 ## Canonical message positions (normative; Karl 2026-08-30)
 
-The public rendering's log positions are THE identity of the private chain's messages, for every
+The public projection's log positions are THE identity of the private chain's messages, for every
 component symmetrically: the counterparty judge, the interop filter, the operator's OWN supernode
-(which judges the rendering, never the private receipts — feeding it private positions would make
+(which judges the public projection, never the private receipts — feeding it private positions would make
 it invalidate counterparties' valid executing messages), relayers, and tooling. The private
 chain's real receipts are never an interop source of truth for anyone.
 
-**The rendering transformation (normative primitive, Karl 2026-08-30; block-level packaging
+**The public projection transformation (normative primitive, Karl 2026-08-30; block-level packaging
 ratified same day).** The primitive is exposed at two levels from ONE implementation:
 `RenderedLogs` (below) and `RenderBlock(private block + receipts) → rendered block content` (the
 replay transactions plus the rendered log sequence). Both callers are IN-PROCESS: the builder's
@@ -110,10 +132,10 @@ write path, and — for the one consumer needing canonical positions at unsafe-h
 sequencer's interop filter — the transformation applied inside the filter's ingestion (see "The
 filter's own-chain integration" below). There is no RPC service in front of it.
 Boundary, stated plainly: a pure transformation cannot produce execution-derived fields (the
-rendering's stateRoot, hence its blockHash), so a caller reporting on a private block gets
+public projection's stateRoot, hence its blockHash), so a caller reporting on a private block gets
 PRIVATE identity + RENDERED content; that is sound because message validity never touches block
-hashes (positions and log hashes only), and the rendering's real identity comes from the
-RENDERING NODE the builder reads anyway (component 3: it supplies the span's parent check and the
+hashes (positions and log hashes only), and the public projection's real identity comes from the
+PUBLIC PROJECTION NODE the builder reads anyway (component 3: it supplies the span's parent check and the
 channel-ID seed). One pure function, defined once and used by every component that needs the
 public view of a private block:
 
@@ -128,17 +150,17 @@ value, and no process accepts an independent emitter override. Topic-filtered, n
 address-based, because the set defines which logs are CLAIMS: the messenger also emits bookkeeping
 events
 (RelayedMessage on every import) which are not claims — and since stock interop treats ANY log
-as a potential initiating message, rendering one at a replayer's address would be a publicly
+as a potential initiating message, replaying one at a replayer's address would be a publicly
 consumable message at the wrong address, a broken claim rather than harmless noise. Within the
 filtered set there is still no per-message selection: every SentMessage is exported, every
-ExecutingMessage is public. A rendering block's log sequence IS `RenderedLogs` of the
-corresponding private block; the k-th rendered log has rendering log index k (the "relative log
+ExecutingMessage is public. A public projection block's log sequence IS `RenderedLogs` of the
+corresponding private block; the k-th rendered log has public projection log index k (the "relative log
 index"). Consumers: (1) the builder — it constructs the replay transactions in exactly this
 order; (2) the OPERATOR-SIDE supernode and interop-filter backend — they seed the private
 chain's message database by applying the transformation to real private blocks directly, giving
 canonical positions at unsafe-head latency with no batch/derive round trip; (3) identifier
 resolution in tooling and the devstack. The standing equivalence invariant, asserted live in
-testing: for every block, `RenderedLogs(private block)` equals the derived rendering block's log
+testing: for every block, `RenderedLogs(private block)` equals the derived public projection block's log
 sequence exactly.
 
 ## Replay transactions
@@ -146,22 +168,22 @@ sequence exactly.
 Ordinary signed EIP-1559 transactions from the chain's standard batcher EOA (nonce-sequential,
 zero fee cap and zero tip). There is no second private-interop operator key: the L1 transaction
 carrying the channel and the L2 transactions inside it use the same standard batcher signer, whose
-rotation remains `SystemConfig.setBatcherHash`. The rendering genesis base fee and minimum base fee
-are zero, so a newly rotated batcher needs no rendering-chain premine. Rendering genesis uses the
+rotation remains `SystemConfig.setBatcherHash`. The public projection genesis base fee and minimum base fee
+are zero, so a newly rotated batcher needs no public projection-chain premine. Public projection genesis uses the
 execution protocol's maximum gas limit (`2^63-1`). The builder reserves half of its EIP-1559 target
 for deposits/upgrades and refuses synthetic transactions whose declared gas exceeds the other half;
 consequently the base fee remains zero. This fee policy applies only to the
-synthetic rendering transactions — the outer channel transaction still pays ordinary L1 fees.
+synthetic public projection transactions — the outer channel transaction still pays ordinary L1 fees.
 
-**Shared-chain-ID replay caveat.** Because the private chain and rendering deliberately share a
+**Shared-chain-ID replay caveat.** Because the private chain and public projection deliberately share a
 chain ID, a signed transaction is not cryptographically domain-separated between the two ledgers.
-This is true in both directions. In particular, a published rendering import transaction targets
+This is true in both directions. In particular, a published public projection import transaction targets
 the stock `CrossL2Inbox` that exists on the private chain too, so including that raw transaction on
 the private chain could create a spurious `ExecutingMessage` and consume the batcher's nonce. The
-private sequencer has no obligation to accept public transactions and MUST reject raw rendering
-transactions; conversely, the derived-only rendering has no mempool and its batcher MUST include
+private sequencer has no obligation to accept public transactions and MUST reject raw public projection
+transactions; conversely, the derived-only public projection has no mempool and its batcher MUST include
 only transactions synthesized by this builder. This is an operational boundary, not an on-chain
-replay-protection guarantee. The two halves' private-interop address maps must not converge without
+replay-protection guarantee. The two views' private-interop address maps must not converge without
 adding explicit transaction-domain separation.
 
 The replay transactions have two kinds, in a **normative deterministic order** so the batch is a
@@ -174,14 +196,14 @@ superseded) — one public block per private block at the same height and timest
 no obligation to include every submitted private-chain transaction and may reject an oversized
 message before inclusion. Once a private block contains a selected `SentMessage`, however, its
 export replay is mandatory: omitting it, or allowing its replay transaction to revert, removes a
-rendering log and renumbers every later rendered log in that block. This is not the ordinary
+public projection log and renumbers every later rendered log in that block. This is not the ordinary
 retryable `relayMessage` failure case. Retrying delivery or calling `resendMessage` creates a later
 log; neither repairs the missing log at its original canonical position.
 
 Accordingly, every `SentMessage` admitted to the private chain MUST be renderable within the public
 chain's configured block-gas policy. The private messenger MUST enforce a protocol-level maximum
 message size so this property does not depend only on discretionary sequencer censorship (which
-cannot reliably detect messenger calls nested inside arbitrary contracts). The rendering builder
+cannot reliably detect messenger calls nested inside arbitrary contracts). The public projection builder
 MUST derive export-replay gas deterministically from the encoded message length and MUST retain a
 larger hard ceiling as defence in depth. The enforced ceiling is 64 KiB and export gas is the
 configured base plus 28 gas per message byte. These conservative policy values still require
@@ -201,7 +223,7 @@ measurement before a production deployment.
 
 ## The claim-chain framing and the range claim (REINSTATED, Karl 2026-08-30, final)
 
-**The rendering is a chain of claims.** Every transaction on it is a metadata transaction about
+**The public projection is a chain of claims.** Every transaction on it is a metadata transaction about
 the private chain: each replay transaction claims "the private chain exported this message" /
 "imported that one," and the range claim claims "the range ended with this identity, backed by
 data at this content hash." There is ONE class of content (claims) with ONE
@@ -233,7 +255,7 @@ struct RangeClaim {
                                       // L1 origin — DERIVED, never operator-supplied. With
                                       // origin-copy this is the newest L1 the range actually
                                       // consumed, needs no live-L1 access to produce, and is
-                                      // VERIFIABLE: the rendering's terminal block carries the
+                                      // VERIFIABLE: the public projection's terminal block carries the
                                       // same origin, so a claim cannot name L1 the range never
                                       // saw.
     bytes32 rollupConfigHash;
@@ -248,13 +270,13 @@ struct RangeClaim {
 
 What changed from the earlier (trailing) envelope and why:
 - **Leading, describing its own range**: possible because nothing in the claim references the
-  rendering's identity — the RENDERING hash is gone from the claim entirely (its only consumers,
+  public projection's identity — the PUBLIC PROJECTION hash is gone from the claim entirely (its only consumers,
   the span parent check and audit, live at the batch layer / in the chain itself). The one-range
   lag and the genesis edge case both die: range 0 opens with its own claim.
 - **The registry emits NO event** (log-less: contiguity check + storage update only; the calldata
-  is the record, read by scanning transactions to the registry). A leading rendering-only log
+  is the record, read by scanning transactions to the registry). A leading public projection-only log
   would shift every message's log index in range-opening blocks and break the canonical-position
-  rule; log-less placement keeps rendering indices equal to RenderedLogs ranks with zero
+  rule; log-less placement keeps public projection indices equal to RenderedLogs ranks with zero
   exceptions.
 - **A per-range PRIVATE terminal commitment is now published** (one 32-byte hash per range). This
   deliberately supersedes the earlier leak-minimization exclusion, which was about PER-BLOCK
@@ -279,13 +301,13 @@ What changed from the earlier (trailing) envelope and why:
 The claim's two configuration commitments are computed from JSON, not from a bespoke binary
 encoding:
 
-    rollupConfigHash = keccak256( canonical JSON of the RENDERING's rollup config,
+    rollupConfigHash = keccak256( canonical JSON of the PUBLIC PROJECTION's rollup config,
                                   as marshaled by op-node's rollup.Config JSON encoding )
     depSetHash       = keccak256( canonical JSON of the dependency set )
 
 JSON rather than a new binary format because the marshaling already exists, is the form operators
 already exchange (`rollup.json`), is cross-client readable, and needs no second spec to disagree
-about. The rollup config hashed is the RENDERING's — the chain the claim speaks for and the chain
+about. The rollup config hashed is the PUBLIC PROJECTION's — the chain the claim speaks for and the chain
 a public verifier holds — not the private chain's.
 
 This closes the hole the Silhouette-era wire documented and never did ("the spec does not say WHAT
@@ -294,18 +316,18 @@ is hashed"). Both values are frozen configuration, so the batcher takes them as 
 them per range.
 
 **Today the devstack injects the values directly**, computing exactly this convention inline at
-pair construction (`keccak256(json.Marshal(...))` over the rendering's `rollup.Config` and over the
+pair construction (`keccak256(json.Marshal(...))` over the public projection's `rollup.Config` and over the
 dependency set). A SHARED HELPER that both the devstack and an operator's tooling call — so that
 "what a claim binds" has one implementation rather than one per caller — is a devnet-prep item, not
 built here. Until it exists, an operator computing these by hand must reproduce the recipe above
 byte for byte; a mismatch is a claim that commits to a config nobody else can name.
 
-## Hardfork adoption on the rendering (constraint recorded 2026-08-31, genesis lane)
+## Hardfork adoption on the public projection (constraint recorded 2026-08-31, genesis lane)
 
 Two facts every future fork adoption must reckon with:
 
 1. **Network-upgrade transactions are injected by stock derivation at fork-activation blocks** —
-   deterministic on every verifier, never carried in batches, executed on the rendering like on
+   deterministic on every verifier, never carried in batches, executed on the public projection like on
    any chain. The builder's byte-determinism is unaffected (batch bytes never contain them), and
    the private chain executes the same upgrade transactions at the same timestamp. BUT: (a) any
    upgrade transaction that emits logs would shift the absolute log indices of that block's
@@ -321,21 +343,20 @@ Two facts every future fork adoption must reckon with:
    inbox transactions at the activation timestamp) enforced by a builder check; one message-free
    block per fork, and absolute-index correspondence never matters at the only blocks where the
    halves' log counts can differ;** (b) **a fork bundle that upgrades the L2ToL2CrossDomainMessenger predeploy
-   would REPLACE the rendering's replay implementation with a stock messenger**, breaking every
+   would REPLACE the public projection's replay implementation with a stock messenger**, breaking every
    subsequent replay transaction. Adopting such a fork requires a design decision (there is no
-   in-band way to re-install the replay impl; the rendering's three private-interop predeploys
+   in-band way to re-install the replay impl; the public projection's three private-interop predeploys
    are deliberately outside the standard upgrade path already). Until then: the operator pins the
    fork schedule and audits bundles before adoption.
-2. **Both op-deployer runs of a pair MUST pin the same `l1StartBlockHash`** — otherwise the two
-   halves' genesis timestamps diverge and the builder can never emit a block at both the private
-   chain's number and its timestamp (caught as a real 2-second mismatch by the rollup-config
-   test, where the rule is recorded).
+2. **The projection inherits its timing from the private genesis.** A single op-deployer run fixes
+   the L1 start block, L2 genesis timestamp, chain ID and block time for both views. The pure
+   projection changes state and fee parameters, never timing or identity fields.
 
 ## Invalidation semantics (Karl question, 2026-08-30 — stated as a design rule)
 
 Nothing ever invalidates the chain; validity failures pin the TRUST FRONTIER. The span batch's
 only admission rule is the stock submitter-signature check — whatever the operator posts IS the
-canonical rendering, and no verifier rejects a batch for semantic content (that would be a diff).
+canonical public projection, and no verifier rejects a batch for semantic content (that would be a diff).
 The claim carries trust, not derivation validity:
 
 - **v1 (attested)**: the registry enforces structure at post time — version, EMPTY proof slot,
@@ -353,7 +374,7 @@ The claim carries trust, not derivation validity:
 The leading claim transaction makes alt-DA mode on the private side redundant: the public batch
 itself carries the private chain's safety information (`privateTerminalBlockHash` per range). The
 private chain's SAFE label is CLAIM-DRIVEN: a range is safe once its claim has landed in an L1
-batch the rendering has derived. Reorging the private chain below a landed claim would contradict
+batch the public projection has derived. Reorging the private chain below a landed claim would contradict
 the operator's public commitment, which is exactly what a safe label must anchor.
 
 What happens when the local chain DISAGREES with a landed claim was re-ratified the same day, and
@@ -364,11 +385,11 @@ alert, and a claim naming a block that exists nowhere stalls loudly in sync. See
 follow module" below; the earlier withhold-latch rule is superseded there.
 
 **Components (NORMATIVE NUMBERING — code comments cite these numbers).** Four, and no new binary
-in any of them: one LightCL, one batcher, one rendering node, one supernode.
+in any of them: one LightCL, one batcher, one public projection node, one supernode.
 
-1. **Private sequencer**: stock op-reth + STOCK LightCL, whose follow-source URL points at the
-   supernode's claimed route (component 4) instead of a same-chain CL — "the slightly different
-   thing it queries in private mode". No op-node changes.
+1. **Private sequencer**: op-reth consuming the private genesis unchanged + STOCK LightCL, whose
+   follow-source URL points at the supernode's claimed route (component 4) instead of a same-chain
+   CL — "the slightly different thing it queries in private mode". No op-node changes.
 2. **op-batcher with `--private-interop` flags** — the builder. It renders, computes the range's
    full private derivation input and commits to its keccak as the claim's `privateDataHash`, and
    posts ONE public batch tx per cadence. The object is hashed and the bytes dropped — nothing
@@ -379,10 +400,12 @@ in any of them: one LightCL, one batcher, one rendering node, one supernode.
    replica or recovery driver replays it through stock machinery and verifies the executed result
    against the claim's terminal hash. There is no separate batching binary: everything the
    terminal seam needs is a flag on the stock service.
-3. **Rendering node**: stock op-node + op-reth on the public config. It is the builder's
-   parent-check follower (component 2 reads the previous range's terminal hash and the operator's
-   nonce off it) and the follow module's source. It may be a dedicated node or the supernode's own
-   public route — read-only public data either way, so no coupling is created by sharing it.
+3. **Public projection node**: stock op-node + op-reth given the private genesis with
+   `--rollup.private`. Op-reth derives the public genesis before database initialization. The node
+   is the builder's parent-check follower (component 2 reads the previous range's terminal hash and
+   the operator's nonce off it) and the follow module's source. It may be a dedicated node or the
+   supernode's own public route — read-only public data either way, so no coupling is created by
+   sharing it.
 4. **The public supernode**: judges the dependency set (the sequencer's interop filter dials it
    for import gating — the private side's only cross-chain touchpoint), AND hosts the follow
    module that serves the claimed private view at `<base>/<chainID>/claimed`. It is pure public:
@@ -397,11 +420,11 @@ HASH-ONLY.** The follow endpoint must serve complete L2BlockRefs (verified first
 followUpstream hash-checks each served ref's L1 origin against real L1, and consolidation is
 full-struct equality). The claim publishes the two fields that cannot be derived —
 `privateTerminalBlockHash` and `privateTerminalParentHash` — and origin-copy supplies the rest
-from the rendering block at the same height, so the module completes every ref from PUBLIC data
+from the public projection block at the same height, so the module completes every ref from PUBLIC data
 alone (see "The supernode follow module"). Leak minimization stands: the private chain's block
 BODIES are never published, and they do not need to be — every legitimate consumer of the private
 chain's forkchoice refs runs INSIDE the private network by definition, outsiders follow the
-rendering. A follower is a stock LightCL pointing its follow-source at the claimed route, plus a
+public projection. A follower is a stock LightCL pointing its follow-source at the claimed route, plus a
 stock op-reth EL-syncing block bodies from private peers (FCU to the claimed head, backfill,
 execute — a follower gets exactly the claimed chain or nothing). There is no separate FCU-driver
 replica mode: the stock LightCL is the replica driver. NOBODY EVER ATTACHES A PRIVATE EL TO ANY
@@ -415,7 +438,7 @@ loud 404 into plausible-looking refs of the WRONG CHAIN — which a sequencing L
 onto. Consumer inventory, for what reads what: the interop filter reads the SEQUENCER NODE
 directly and transforms positions in-process at ingestion (admission gating needs unsafe latency —
 see "The filter's own-chain integration"); the LightCL reads the claimed route; the builder reads
-the rendering EL. No private-side component consumes the supernode's PUBLIC view of this chain.
+the public projection EL. No private-side component consumes the supernode's PUBLIC view of this chain.
 
 **Private data availability (FINAL, Karl 2026-08-31): the operator's P2P network, and the store
 is DELETED.** The store had already demoted to disaster recovery and third-party audit; the
@@ -438,30 +461,31 @@ is out of scope for this design and for the batcher process.
 **The supernode follow module (RATIFIED, Karl 2026-08-31, final round): the follower binary is
 DELETED; the public supernode serves the follow endpoint from public data.** Three amendments
 make it possible, all blessed: (1) **origin-copy** — the batcher's transformation reuses each
-private block's OWN L1 origin (read from its L1-info deposit) as the rendering block's epoch,
-instead of independently re-deriving origins; private and rendering origins (and therefore
+private block's OWN L1 origin (read from its L1-info deposit) as the public projection block's epoch,
+instead of independently re-deriving origins; private and public projection origins (and therefore
 sequence numbers) are equal by construction, and the builder's origin-selection/L1-view
 machinery is deleted. (2) The claim gains **privateTerminalParentHash** (one field). With both,
 every field of the six-field L2BlockRef the follow protocol demands is public: hash+parentHash
-from the claim, number/timestamp/origin/seqNumber from the supernode's own rendering block.
+from the claim, number/timestamp/origin/seqNumber from the supernode's own public projection block.
 (3) **Snap-to-commitment replaces the withhold latch**: the module serves claims verbatim; a
 diverged sequencer's own stock consolidation force-resets it onto the publicly claimed chain —
 the claim is the operator's binding statement, so automatic recovery TO it is correct — and a
 claim naming a block that exists nowhere fail-stops as a loud unfindable-hash sync stall.
 "Chain diverged from its claims" becomes a MONITORING alert, not a serving gate; the ratified
-"divergence never self-clears" posture is superseded. The module lives in op-supernode behind
-dormant flags at a distinct per-chain route; it reads only the supernode's own derived data and
-holds no private credentials. The batcher framing, restated per the design owner: the "builder"
+"divergence never self-clears" posture is superseded. The module lives in op-supernode, activated
+by the rollup config's `private_interop` marker at a distinct per-chain route; it reads only the
+supernode's own derived data and holds no private credentials. The batcher framing, restated per
+the design owner: the "builder"
 IS the stock batch submitter — stock lifecycle walking the private chain block-for-block — with
 one per-block transformation: strip private txs, insert the claim tx (range-opening block), and
 insert the replay txs; block progression is never altered.
 
 **Sharp edge (recorded 2026-08-31, module lane): a DISABLED follow module's route is not a 404.**
 The supernode's per-chain handler mounts its root JSON-RPC at "/", so with the module disabled,
-`<base>/<chainID>/claimed` falls through and answers `optimism_syncStatus` FOR THE RENDERING —
+`<base>/<chainID>/claimed` falls through and answers `optimism_syncStatus` FOR THE PUBLIC PROJECTION —
 plausible-looking refs of the wrong chain, the exact class the distinct-route ruling exists to
 prevent, living in the unconfigured case. Ops rule until fixed: ENABLE THE MODULE BEFORE POINTING
-ANY LIGHTCL AT THE ROUTE (the consumer-side backstop: a private LightCL fed rendering refs
+ANY LIGHTCL AT THE ROUTE (the consumer-side backstop: a private LightCL fed public projection refs
 force-resets toward a hash no private peer holds and stalls loudly in sync — bad day, not silent
 corruption). Follow-up recorded: unregistered sibling sub-paths should 404 — plausibly an
 upstream oprpc fix, the third entry on the upstream-pitch list.
@@ -476,7 +500,7 @@ in-process transformation needs no trust flag, no header rewriting, and gives th
 class nothing to exist on. (The detour's finding stays recorded as an upstream-pitch candidate
 alongside the relayETH CGT deny: stock `TrustRPC` gates verification but not identity derivation
 — the by-number accessors derive the hash from header fields regardless of trust.) With the
-detour dropped, the rendering-view RPC service it needed was deleted too: no component dials a
+detour dropped, the public projection-view RPC service it needed was deleted too: no component dials a
 rendered view of the private EL, and `RenderedLogs` is called in-process by everything that
 needs it.
 
@@ -512,7 +536,7 @@ submitter's signature is the verification, full stop. The exploratory survey beh
 below is in git history.
 
 A real proof fills the range claim's proof slot. The claim it attests: "the covered public blocks
-are exactly the deterministic rendering of a valid private chain's messenger traffic" —
+are exactly the deterministic public projection of a valid private chain's messenger traffic" —
 block-for-block correspondence keeps that simple. At settlement the superroot program derives the
 public chain fully stock.
 
@@ -545,7 +569,7 @@ blocks carrying it. Chain-durable, trivially in scope at admission, FP-servable 
 derivation already uses. Rejected transports, for the record: a carry-on blob under a non-0x00
 version byte; a `ProofPosted` event from a recording contract; blob-tx calldata (gas-priced); the
 permissioned inbox; anything storage-read (no FP hint family). Public values: the batch-content
-commitment, the covered range, the terminal rendering block hash, and the config hashes — ONE
+commitment, the covered range, the terminal public projection block hash, and the config hashes — ONE
 commitment over the batch content, so a valid proof cannot be replayed onto different bytes and
 every claim inside inherits validity transitively, with no per-claim binding.
 
@@ -556,7 +580,7 @@ point the covered timestamps back-fill as deposit-only blocks (exactly one L1-at
 zero messages) with NO re-post path afterward — a late re-post is refused by the lateness rule;
 (2) Holocene derivation has no hold state — an "undecided" span is consumed and never revisited,
 so an in-derivation gate is necessarily binary. "Wait for the proof inside derivation" is not a
-shape stock derivation can express. Embracing the binary-ness re-implements at the rendering level
+shape stock derivation can express. Embracing the binary-ness re-implements at the public projection level
 the FORCED-EXTENSION LIVENESS PHILOSOPHY this project ratified in its ZK era: a dead or slow
 prover can degrade its OWN chain to empty blocks but can never stall the dependency set. The
 window IS the proving deadline — at the ratified cadence the default 3600-L1-block window leaves
@@ -599,20 +623,20 @@ literal — a test that had an option added to its constructor is a test that wa
 proves only that the option compiles.
 
 **The identifier seam is the one thing tests cannot be naively oblivious to.** Cross-chain message
-identifiers are RENDERING positions: same block number and timestamp as the private chain, but a
-different log index (the rendering carries only emitter-set logs) and a different transaction hash.
+identifiers are PUBLIC PROJECTION positions: same block number and timestamp as the private chain, but a
+different log index (the public projection carries only emitter-set logs) and a different transaction hash.
 A test deriving an identifier from the private receipt would build a checksum the judge must
 reject. This is fixed in ONE central place, never per test: a position resolver registered through
 `txintent.RegisterPositionResolver`, keyed by the private chain's ID, from the one place that holds
 both halves of the pair. It is torn down with the test, so a suite that never builds a pair has no
 resolver registered and every stock chain's identifiers are minted exactly as before. Tests call
 the same helpers and never learn the difference — that is what makes the run-unchanged matrix run
-unchanged. Production relayers do the same thing naturally: they read the rendering.
+unchanged. Production relayers do the same thing naturally: they read the public projection.
 
 **Entry points.**
 
 - In a test: `presets.WithPrivateInteropChain()` on a two-L2 preset — the pair's second L2 becomes
-  a private chain plus its rendering.
+  a private chain plus its public projection.
 - Ambient, for running STOCK suites against a pair without editing them:
   `DEVSTACK_PRIVATE_INTEROP=true go test ./tests/interop/contract/...`. It is honoured only by
   presets that can actually build a pair; a preset that cannot is left alone rather than silently
@@ -632,7 +656,7 @@ unchanged. Production relayers do the same thing naturally: they read the render
 
 1. **The pair comes up** — the topology's own smoke test: both halves exist, are the two chains
    they are supposed to be (one chain ID, two chains — ratified decision 6, and the reason nothing
-   is peered across the boundary), and the rendering starts advancing. Deliberately separate from
+   is peered across the boundary), and the public projection starts advancing. Deliberately separate from
    the message round trip, because almost everything that can go wrong with a pair goes wrong
    before any message is sent — a genesis mismatch, a follow source that never answers, a builder
    that cannot resolve its parent check — and a failure here says WHICH.
@@ -641,10 +665,10 @@ unchanged. Production relayers do the same thing naturally: they read the render
    `interop/contract` with chain B swapped for a pair; outbound is the seam, written with the SAME
    stock helpers because the resolver centralises the position translation. The test additionally
    CHECKS the resolver by sending the outbound message at a position the private chain and the
-   rendering deliberately disagree about, and asserting the identifier names the rendering's.
+   public projection deliberately disagree about, and asserting the identifier names the public projection's.
 
 The standing invariant asserted live alongside them: for every block,
-`RenderedLogs(private block)` equals the derived rendering block's log sequence exactly, and the
+`RenderedLogs(private block)` equals the derived public projection block's log sequence exactly, and the
 two chains correspond block-for-block in number and timestamp (hashes differ BY DESIGN and are
 never compared).
 
@@ -657,12 +681,12 @@ up and says whether it works.
 
 `--private-interop` builds the ordinary two-L2 supernode devnet with `WithPrivateInteropChain`, so
 chain B is a pair: L2B's RPC is the private chain and the endpoints printed under it are the
-rendering, the private op-node's follow source, and the operator. `--smoke` then runs
+public projection, the private op-node's follow source, and the operator. `--smoke` then runs
 `op-chain-ops/interopsmoke` IN THIS PROCESS against the nodes' own RPCs and exits with its result;
 without `--private-interop` the same command runs the public control on two ordinary chains.
 
 In-process is not a convenience. A message initiated on the private chain is named by its position
-on the rendering, and that correction is made by the resolver described above, which the devstack
+on the public projection, and that correction is made by the resolver described above, which the devstack
 registers process-globally when it builds the pair. A smoke run from another process has no
 resolver: it would quote raw private receipt positions, and the legs meant to prove the naming
 works would fail or pass vacuously. The CLI therefore refuses the private-pair profile outright
@@ -679,7 +703,7 @@ else: an EventLogger log has no public position at all, so a leg built on one wo
 fabricated-import test wearing a valid-message name); invalid-message is held to `b-to-a` — the
 other directions are refused, since they land the invalid message on a chain whose blocks are
 never replaced, and even `b-to-a` proves only that the counterparty rejects a message the
-rendering does not carry, its init being an EventLogger log with no public position;
+public projection does not carry, its init being an EventLogger log with no public position;
 chained-invalid-message is refused: its cascade begins with chain B's block being replaced.
 
 **Deliberately excluded, with reasons:**
@@ -687,23 +711,23 @@ chained-invalid-message is refused: its cascade begins with chain B's block bein
 | Suite | Why |
 |---|---|
 | `tests/base/deposit`, `tests/base/withdrawal`, `dsl/bridge.go` deposit paths | Deposits revert on the private chain by the resource-config gate (`maxResourceLimit=0`; the portal itself is stock — ratified). There is nothing on the private side for a deposit suite to assert. |
-| `supernode/interop/eth_bridge` | The private half deliberately has no `SuperchainETHBridge` or `ETHLiquidity` implementation; its only ETH-denominated path is `NativeMintBridge`/`ETHLockVault`. |
-| `interop/proofs*` (~25) | Fault-proof program fixtures; the rendering settles by a different (future) proof path. Out of v1 scope by ratified decision. |
-| `interop/upgrade*` predeploy-introspection against the RENDERING | The messenger predeploy carries the replay implementation, so impl-slot equality assertions are wrong by design there. The private half is also specialized by removing the stock protocol ETH path. |
-| Anything asserting the rendering's mempool or sequencer behaviour | The rendering has neither. |
+| `supernode/interop/eth_bridge` | The private chain deliberately has no `SuperchainETHBridge` or `ETHLiquidity` implementation; its only ETH-denominated path is `NativeMintBridge`/`ETHLockVault`. |
+| `interop/proofs*` (~25) | Fault-proof program fixtures; the public projection settles by a different (future) proof path. Out of v1 scope by ratified decision. |
+| `interop/upgrade*` predeploy-introspection against the public projection | The messenger predeploy carries the replay implementation, so impl-slot equality assertions are wrong by design there. The private chain is also specialized by removing the stock protocol ETH path. |
+| Anything asserting the public projection's mempool or sequencer behaviour | The public projection has neither. |
 
 **Traps that bite, carried forward and verified still present:**
 
-- **P2P severance.** The private-side nodes and the rendering share a chain ID but are different
+- **P2P severance.** The private-side nodes and the public projection share a chain ID but are different
   chains in content. They must never gossip-peer, or a stock node re-gossips a conflicting history.
   `connectL2CLPeers`/`connectL2ELPeers` are explicit calls; the pair's runtime simply does not make
   them across the boundary, and that absence IS the severance.
-- **Interop activation timestamp** is cluster-wide. If the rendering's verification start is not
+- **Interop activation timestamp** is cluster-wide. If the public projection's verification start is not
   aligned with a block the message DB actually seals, the cross-safe frontier hangs behind a
   healthy-looking pipeline. Activation = anchor + blockTime.
 - **Emitter-set drift.** A mismatch silently renumbers message positions. The filter and builder
   accept no independent emitter flags: both load the set committed by the genesis intent into the
-  generated rendering rollup config. The private-pair devstack wires the filter with that same
+  generated public projection rollup config. The private-pair devstack wires the filter with that same
   config so acceptance runs exercise the in-process transformation.
 - **One rollup config per network handle.** The handle exposes the PUBLIC rollup.json; the private
   config exists only inside the private CL's construction. Tests reading `Escape().RollupConfig()`

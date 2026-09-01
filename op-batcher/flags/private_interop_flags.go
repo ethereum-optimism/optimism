@@ -3,7 +3,6 @@ package flags
 import (
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 )
 
@@ -14,8 +13,8 @@ import (
 // the terminal seam needs is a flag on the stock service, and the service refuses to start rather
 // than accept a value it cannot act on — see PrivateInteropCLIConfig.Check.
 //
-// The group is inert unless --private-interop.enabled is set. Nothing here changes a stock
-// batcher's behaviour by existing.
+// The group is used only when the rollup config declares private interop. Nothing here changes a
+// stock batcher's behaviour by itself.
 
 const (
 	// DefaultPrivateInteropMaxBlocksPerRange is the ratified cadence: ~300 blocks at 2 s is one span
@@ -27,26 +26,19 @@ const (
 )
 
 var (
-	PrivateInteropEnabledFlag = &cli.BoolFlag{
-		Name: "private-interop.enabled",
-		Usage: "Enable Private Interop mode: the batcher loads PRIVATE blocks and posts the bytes " +
-			"that describe their public RENDERING. Requires the rest of the --private-interop.* group.",
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_ENABLED"),
+	PrivateInteropGenesisFlag = &cli.PathFlag{
+		Name: "private-interop.genesis",
+		Usage: "Path to the private-chain genesis. The public-projection genesis and rollup config " +
+			"are derived from this local artifact and the private rollup config loaded from --rollup-rpc.",
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_GENESIS"),
 	}
-	PrivateInteropRenderingRollupConfigFlag = &cli.StringFlag{
-		Name: "private-interop.rendering-rollup-config",
-		Usage: "Path to the RENDERING's rollup.json. This is not the private chain's config: the " +
-			"span batch is encoded against the chain being described, whose genesis, chain ID and " +
-			"drift are its own. The private chain's config still comes from --rollup-rpc.",
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_RENDERING_ROLLUP_CONFIG"),
-	}
-	PrivateInteropRenderingRPCFlag = &cli.StringFlag{
-		Name: "private-interop.rendering-rpc",
-		Usage: "HTTP provider URL for an execution client following the RENDERING. It is the " +
-			"parent-check follower: the previous range's terminal rendering block hash and the standard " +
+	PrivateInteropPublicProjectionRPCFlag = &cli.StringFlag{
+		Name: "private-interop.public-projection-rpc",
+		Usage: "HTTP provider URL for an execution client following the public projection. It is the " +
+			"parent-check follower: the previous range's terminal public-projection block hash and the standard " +
 			"batcher account's nonce " +
 			"come from it, and none of them can be computed.",
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_RENDERING_RPC"),
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_PUBLIC_PROJECTION_RPC"),
 	}
 	PrivateInteropMaxBlocksPerRangeFlag = &cli.Uint64Flag{
 		Name: "private-interop.max-blocks-per-range",
@@ -57,33 +49,11 @@ var (
 	}
 	PrivateInteropMaxRangeBytesFlag = &cli.Uint64Flag{
 		Name: "private-interop.max-range-bytes",
-		Usage: "Maximum estimated uncompressed rendering transaction bytes in one range. The range " +
+		Usage: "Maximum estimated uncompressed public-projection transaction bytes in one range. The range " +
 			"closes early when this budget is reached; the builder separately refuses output requiring " +
 			"more than one six-blob L1 transaction.",
 		Value:   DefaultPrivateInteropMaxRangeBytes,
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_MAX_RANGE_BYTES"),
-	}
-	PrivateInteropClaimRegistryFlag = &cli.StringFlag{
-		Name: "private-interop.claim-registry",
-		Usage: "Address of the ClaimRegistry on the rendering. It is placed by the rendering's " +
-			"genesis builder, so it is per-deployment configuration and has no default; a zero " +
-			"address fails loudly rather than sending the range's claim into the void.",
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_CLAIM_REGISTRY"),
-	}
-	PrivateInteropEventReplayerFlag = &cli.StringFlag{
-		Name: "private-interop.event-replayer",
-		Usage: "Address of the EventReplayer on the rendering, which re-emits the logs of " +
-			"genesis-configured extra emitters. Genesis-assigned, no default, zero fails loudly.",
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_EVENT_REPLAYER"),
-	}
-	PrivateInteropReplayMessengerFlag = &cli.StringFlag{
-		Name: "private-interop.replay-messenger",
-		Usage: "Address the export replay implementation is installed at. The design pins it to the " +
-			"L2ToL2CrossDomainMessenger predeploy — a re-emitted SentMessage must carry the emitter " +
-			"every stock consumer expects — so the default is the only value that renders valid " +
-			"exports. It is a flag so a deployment that moved it fails at its own hands, not ours.",
-		Value:   predeploys.L2toL2CrossDomainMessenger,
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_REPLAY_MESSENGER"),
 	}
 	PrivateInteropRollupConfigHashFlag = &cli.StringFlag{
 		Name: "private-interop.rollup-config-hash",
@@ -126,14 +96,10 @@ var (
 // PrivateInteropFlags is the whole group. It is appended to the batcher's optional flags: the
 // group is optional as a whole, and internally all-or-nothing (Check).
 var PrivateInteropFlags = []cli.Flag{
-	PrivateInteropEnabledFlag,
-	PrivateInteropRenderingRollupConfigFlag,
-	PrivateInteropRenderingRPCFlag,
+	PrivateInteropGenesisFlag,
+	PrivateInteropPublicProjectionRPCFlag,
 	PrivateInteropMaxBlocksPerRangeFlag,
 	PrivateInteropMaxRangeBytesFlag,
-	PrivateInteropClaimRegistryFlag,
-	PrivateInteropEventReplayerFlag,
-	PrivateInteropReplayMessengerFlag,
 	PrivateInteropRollupConfigHashFlag,
 	PrivateInteropDepSetHashFlag,
 	PrivateInteropGasLimitExportFlag,

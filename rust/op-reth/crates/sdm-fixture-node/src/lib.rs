@@ -29,7 +29,7 @@ use reth_node_builder::{
     rpc::BasicEngineValidatorBuilder,
 };
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
-use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_chainspec::{OpChainSpec, project_genesis_from};
 use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
 use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
 use reth_optimism_exex::OpProofsExEx;
@@ -264,9 +264,17 @@ where
 // `FixtureOpNode` does not implement reth's `DebugNode` and acceptance tests never use reth's debug
 // launch features.
 async fn launch_fixture_node(
-    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+    mut builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     args: RollupArgs,
 ) -> eyre::Result<()> {
+    if args.private {
+        let source = builder.config().chain.genesis.clone();
+        let projected = project_genesis_from(&source)
+            .map_err(|err| eyre::eyre!("failed to project private-chain genesis: {err}"))?;
+        builder.config_mut().chain = Arc::new(OpChainSpec::from_genesis(projected));
+        info!(target: "reth::cli", "Using deterministic public-projection genesis");
+    }
+
     if !args.proofs_history {
         let handle = builder.node(FixtureOpNode::new(args)).launch().await?;
         return handle.node_exit_future.await;

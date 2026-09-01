@@ -205,10 +205,6 @@ func (c *CLIConfig) Check() error {
 	if err := c.ThrottleConfig.Check(); err != nil {
 		return err
 	}
-	if err := c.PrivateInterop.Check(); err != nil {
-		return err
-	}
-
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}

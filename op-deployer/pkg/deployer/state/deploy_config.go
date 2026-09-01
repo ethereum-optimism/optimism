@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	gethparams "github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -44,29 +43,6 @@ func FindPinnedOverrideKey(overrides map[string]any) (string, bool) {
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
 	upgradeSchedule := standard.DefaultHardforkSchedule()
-	genesisBaseFee := &l2GenesisBlockBaseFeePerGas
-	minBaseFee := chainIntent.MinBaseFee
-	genesisGasLimit := chainIntent.GasLimit
-	baseFeeScalar := standard.BasefeeScalar
-	blobBaseFeeScalar := standard.BlobBaseFeeScalar
-	operatorFeeScalar := chainIntent.OperatorFeeScalar
-	operatorFeeConstant := chainIntent.OperatorFeeConstant
-	if chainIntent.PrivateInterop.IsRendering() {
-		// Rendering transactions are zero-priced, including the OP-specific L1-data and operator
-		// fees, so no separate funded L2 signer account is required. The rendering is derived-only:
-		// it has no mempool or user transactions, so give it the execution protocol's maximum block
-		// gas limit. This absorbs the one-transaction-per-log amplification without constraining the
-		// private chain's ordinary gas limit, and makes the zero-base-fee target effectively unreachable.
-		zeroBaseFee := hexutil.Big(*new(big.Int))
-		genesisBaseFee = &zeroBaseFee
-		minBaseFee = 0
-		genesisGasLimit = gethparams.MaxGasLimit
-		baseFeeScalar = 0
-		blobBaseFeeScalar = 0
-		operatorFeeScalar = 0
-		operatorFeeConstant = 0
-	}
-
 	cfg := genesis.DeployConfig{
 		L1DependenciesConfig: genesis.L1DependenciesConfig{
 			L1StandardBridgeProxy:       chainState.L1StandardBridgeProxy,
@@ -80,8 +56,8 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				FundDevAccounts: intent.FundDevAccounts,
 			},
 			L2GenesisBlockDeployConfig: genesis.L2GenesisBlockDeployConfig{
-				L2GenesisBlockGasLimit:      hexutil.Uint64(genesisGasLimit),
-				L2GenesisBlockBaseFeePerGas: genesisBaseFee,
+				L2GenesisBlockGasLimit:      hexutil.Uint64(chainIntent.GasLimit),
+				L2GenesisBlockBaseFeePerGas: &l2GenesisBlockBaseFeePerGas,
 			},
 			L2VaultsDeployConfig: genesis.L2VaultsDeployConfig{
 				BaseFeeVaultWithdrawalNetwork:            "local",
@@ -104,10 +80,10 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				GovernanceTokenOwner:  standard.GovernanceTokenOwner,
 			},
 			GasPriceOracleDeployConfig: genesis.GasPriceOracleDeployConfig{
-				GasPriceOracleBaseFeeScalar:       baseFeeScalar,
-				GasPriceOracleBlobBaseFeeScalar:   blobBaseFeeScalar,
-				GasPriceOracleOperatorFeeScalar:   operatorFeeScalar,
-				GasPriceOracleOperatorFeeConstant: operatorFeeConstant,
+				GasPriceOracleBaseFeeScalar:       standard.BasefeeScalar,
+				GasPriceOracleBlobBaseFeeScalar:   standard.BlobBaseFeeScalar,
+				GasPriceOracleOperatorFeeScalar:   chainIntent.OperatorFeeScalar,
+				GasPriceOracleOperatorFeeConstant: chainIntent.OperatorFeeConstant,
 			},
 			EIP1559DeployConfig: genesis.EIP1559DeployConfig{
 				EIP1559Denominator:       chainIntent.Eip1559Denominator,
@@ -147,7 +123,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				FinalSystemOwner: chainIntent.Roles.L1ProxyAdminOwner,
 			},
 			FeeMarketConfig: genesis.FeeMarketConfig{
-				MinBaseFee:           minBaseFee,
+				MinBaseFee:           chainIntent.MinBaseFee,
 				DAFootprintGasScalar: chainIntent.DAFootprintGasScalar,
 			},
 		},

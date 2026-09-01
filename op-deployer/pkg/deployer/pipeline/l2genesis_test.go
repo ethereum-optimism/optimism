@@ -76,22 +76,13 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 			wantBitmap:  interopBit,
 		},
 		{
-			name:           "the rendering half sets its own bit, derived from the intent",
+			name:           "a private chain sets its own bit, derived from the intent",
 			useInterop:     true,
 			bitmap:         interopBit,
-			privateInterop: &state.PrivateInterop{Role: state.PrivateInteropRendering},
+			privateInterop: &state.PrivateInterop{},
 			wantError:      false,
 			wantBitmap: devfeatures.EnableDevFeature(
-				interopBit, devfeatures.PrivateInteropRenderingFlag),
-		},
-		{
-			name:           "the private half sets its own bit, derived from the intent",
-			useInterop:     true,
-			bitmap:         interopBit,
-			privateInterop: &state.PrivateInterop{Role: state.PrivateInteropPrivateChain},
-			wantError:      false,
-			wantBitmap: devfeatures.EnableDevFeature(
-				interopBit, devfeatures.PrivateInteropPrivateChainFlag),
+				interopBit, devfeatures.PrivateInteropFlag),
 		},
 	}
 	for _, tt := range tests {

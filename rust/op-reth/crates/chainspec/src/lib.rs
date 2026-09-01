@@ -35,6 +35,7 @@ extern crate alloc;
 mod basefee;
 mod bootnodes;
 mod dev;
+mod private_interop;
 
 #[cfg(feature = "superchain-configs")]
 mod superchain;
@@ -43,6 +44,7 @@ pub use superchain::*;
 
 pub use basefee::*;
 pub use dev::OP_DEV;
+pub use private_interop::{GenesisProjectionError, project_genesis_from};
 
 /// Re-export for convenience
 pub use reth_optimism_forks::*;

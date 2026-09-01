@@ -88,7 +88,7 @@ abstract contract L2ToL2CrossDomainMessenger_TestInit is Test {
     function enablePrivateInterop() internal {
         vm.mockCall(
             Predeploys.L2_DEV_FEATURE_FLAGS,
-            abi.encodeCall(IL2DevFeatureFlags.isDevFeatureEnabled, (DevFeatures.PRIVATE_INTEROP_PRIVATE_CHAIN)),
+            abi.encodeCall(IL2DevFeatureFlags.isDevFeatureEnabled, (DevFeatures.PRIVATE_INTEROP)),
             abi.encode(true)
         );
     }

@@ -31,22 +31,22 @@ func piRenderingCfg() *rollup.Config {
 // piRenderedBlock is a rendering block as the range source sees one: an identity, and nothing else.
 // Since origin-copy there is no attributes deposit to decode here — the rendering block's origin and
 // sequence number are its private block's own, so nothing carries across a range boundary.
-func piRenderedBlock(number uint64) *RenderingBlock {
-	return &RenderingBlock{
+func piRenderedBlock(number uint64) *PublicProjectionBlock {
+	return &PublicProjectionBlock{
 		Hash:   common.BigToHash(new(big.Int).SetUint64(0xbeef0000 + number)),
 		Number: number,
 	}
 }
 
 type fakeFollower struct {
-	blocks map[uint64]*RenderingBlock
+	blocks map[uint64]*PublicProjectionBlock
 	nonces map[uint64]uint64
 }
 
-func (f *fakeFollower) BlockByNumber(_ context.Context, number uint64) (*RenderingBlock, error) {
+func (f *fakeFollower) BlockByNumber(_ context.Context, number uint64) (*PublicProjectionBlock, error) {
 	b, ok := f.blocks[number]
 	if !ok {
-		return nil, fmt.Errorf("the rendering has no block %d yet", number)
+		return nil, fmt.Errorf("the public projection has no block %d yet", number)
 	}
 	return b, nil
 }
@@ -84,10 +84,10 @@ func refOf(h *types.Header) eth.L1BlockRef {
 func piSource(t *testing.T, follower *fakeFollower) *privateInteropRangeSource {
 	t.Helper()
 	src, err := NewPrivateInteropRangeSource(PrivateInteropRangeSourceConfig{
-		Log:             testlog.Logger(t, log.LevelError),
-		RenderingRollup: piRenderingCfg(),
-		Rendering:       follower,
-		Batcher:         piOtherAddr,
+		Log:                    testlog.Logger(t, log.LevelError),
+		PublicProjectionRollup: piRenderingCfg(),
+		PublicProjection:       follower,
+		Batcher:                piOtherAddr,
 	})
 	require.NoError(t, err)
 	return src.(*privateInteropRangeSource)
@@ -102,7 +102,7 @@ func piSource(t *testing.T, follower *fakeFollower) *privateInteropRangeSource {
 func TestRangeStartReadsTheRenderingsOwnBookkeeping(t *testing.T) {
 	prev := piRenderedBlock(950)
 	f := &fakeFollower{
-		blocks: map[uint64]*RenderingBlock{950: prev},
+		blocks: map[uint64]*PublicProjectionBlock{950: prev},
 		nonces: map[uint64]uint64{950: 42},
 	}
 	src := piSource(t, f)
@@ -117,9 +117,9 @@ func TestRangeStartReadsTheRenderingsOwnBookkeeping(t *testing.T) {
 // which used to be a special case here. Origin-copy removed the reason to read one at all, so the
 // only rule left is that a range cannot open at or below genesis.
 func TestRangeStartAtTheRenderingsFirstRange(t *testing.T) {
-	genesis := &RenderingBlock{Hash: common.Hash{0xaa}, Number: piRenderGenesis}
+	genesis := &PublicProjectionBlock{Hash: common.Hash{0xaa}, Number: piRenderGenesis}
 	f := &fakeFollower{
-		blocks: map[uint64]*RenderingBlock{piRenderGenesis: genesis},
+		blocks: map[uint64]*PublicProjectionBlock{piRenderGenesis: genesis},
 		nonces: map[uint64]uint64{piRenderGenesis: 0},
 	}
 	src := piSource(t, f)
@@ -130,13 +130,13 @@ func TestRangeStartAtTheRenderingsFirstRange(t *testing.T) {
 
 	// And a range cannot open at or below genesis: there is nothing for it to continue from.
 	_, err = src.RangeStart(context.Background(), piRenderGenesis)
-	require.ErrorContains(t, err, "the rendering's genesis is block")
+	require.ErrorContains(t, err, "the public projection's genesis is block")
 }
 
 // TestRangeStartWaitsForTheRendering: an underived predecessor is a WAIT. Failing here is the
 // design's correct behaviour — a guessed parent check is a batch every verifier drops.
 func TestRangeStartWaitsForTheRendering(t *testing.T) {
-	src := piSource(t, &fakeFollower{blocks: map[uint64]*RenderingBlock{}})
+	src := piSource(t, &fakeFollower{blocks: map[uint64]*PublicProjectionBlock{}})
 	_, err := src.RangeStart(context.Background(), 951)
-	require.ErrorContains(t, err, "reading the rendering's block 950")
+	require.ErrorContains(t, err, "reading the public projection's block 950")
 }

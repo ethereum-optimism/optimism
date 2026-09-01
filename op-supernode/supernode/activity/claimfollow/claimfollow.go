@@ -48,12 +48,12 @@
 // rewinds the scan cursor and re-derives what is above the rewind point, but it never unsays what
 // was already said.
 //
-// # Before the first claim: the private chain's GENESIS ref, from one configured hash
+// # Before the first claim: the private chain's GENESIS ref
 //
 // The not-yet state serves local_safe = safe = finalized = the private chain's genesis ref, exactly
 // as the deleted sidecar did. The sidecar read that ref from the private EL; this module has no
-// private EL, so it takes ONE flag — `--private-interop.genesis-hash`, required whenever the module
-// is enabled — and derives the other five fields from what it already holds:
+// private EL, so it reads the same local private-chain genesis artifact used to derive the public
+// projection and derives the other five fields from what it already holds:
 //
 //	number         = the rendering rollup config's genesis L2 number   (block-for-block)
 //	parentHash     = zero                                              (definition of a genesis block)
@@ -61,10 +61,9 @@
 //	l1origin       = the rendering rollup config's genesis L1          (same L1 start block, pinned)
 //	sequenceNumber = 0                                                 (definition of a genesis block)
 //
-// So it is one flag, not the "two more config values" an earlier draft of this comment declined.
 // Only the HASH is unknowable from public data; every other field of a genesis ref is a definition
-// or a value the pair's block-for-block construction already makes equal. Requiring it at Check
-// time makes a missing genesis hash a startup failure rather than a bootstrap that hangs.
+// or a value the pair's block-for-block construction already makes equal. Requiring the genesis at
+// startup makes a missing artifact a startup failure rather than a bootstrap that hangs.
 //
 // # Why erroring here was WRONG, and the lesson worth keeping
 //
@@ -126,7 +125,7 @@ import (
 var (
 	// ErrNoGenesisRef is returned by SyncStatus when the module was built without a genesis hash and
 	// no claim has been read yet — the one state in which it has nothing true to say. An operator
-	// cannot reach it: Check requires --private-interop.genesis-hash whenever the module is enabled,
+	// cannot reach it: startup requires the private-chain genesis whenever rollup config enables the module,
 	// precisely so that this is a startup failure rather than a bootstrap that silently hangs.
 	//
 	// It is kept, rather than replaced by a panic, because the follow consumer treats an erroring

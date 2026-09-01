@@ -84,7 +84,7 @@ func GenesisAndRollup(globalState *state.State, chainID common.Hash) (*core.Gene
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build rollup config: %w", err)
 	}
-	if chainIntent.PrivateInterop.IsRendering() {
+	if chainIntent.PrivateInterop != nil {
 		rollupConfig.PrivateInterop = &rollup.PrivateInteropConfig{
 			ExtraEmitters: append([]common.Address(nil), chainIntent.PrivateInterop.ExtraEmitters...),
 		}

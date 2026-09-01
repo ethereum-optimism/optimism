@@ -45,7 +45,15 @@ func TestFaultGameAbsolutePrestateOverrideKeyMatchesJSONTag(t *testing.T) {
 
 func TestPrivateInteropDerivesClosedDeposits(t *testing.T) {
 	c := validBaseChainIntent()
-	c.PrivateInterop = &PrivateInterop{Role: PrivateInteropRendering}
+	c.PrivateInterop = &PrivateInterop{
+		CounterpartyChainID: 901,
+		LockVault:           common.HexToAddress("0x1234"),
+	}
+	c.CustomGasToken = CustomGasToken{
+		Name: "Private Interop Token", Symbol: "PIT",
+		InitialLiquidity:         (*hexutil.Big)(big.NewInt(1)),
+		LiquidityControllerOwner: common.HexToAddress("0x05"),
+	}
 
 	require.NoError(t, c.Check())
 	require.Equal(t, ClosedDepositsResourceConfig(), c.EffectiveResourceConfig())
