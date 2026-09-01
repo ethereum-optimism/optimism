@@ -36,6 +36,9 @@ alloy-contract.workspace = true
 
 # general
 anyhow.workspace = true
+bincode.workspace = true
+parking_lot.workspace = true
+serde = { workspace = true, features = ["derive", "std"] }
 futures.workspace = true
 async-trait.workspace = true
 clap = { workspace = true, features = ["derive"] }
@@ -43,6 +46,7 @@ strum.workspace = true
 strum_macros.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
+thiserror.workspace = true
 flate2.workspace = true
 jsonrpsee = { workspace = true, features = ["http-client"] }
 
