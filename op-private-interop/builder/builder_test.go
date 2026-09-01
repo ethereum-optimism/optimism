@@ -236,7 +236,7 @@ func renderRange(t *testing.T, l1 []eth.L1BlockRef, head eth.L2BlockRef, count i
 func testBuilder(t *testing.T) *Builder {
 	t.Helper()
 	cfg := testRollupCfg()
-	txs := render.NewOperatorTxBuilder(cfg.L2ChainID, render.DefaultGasPolicy(), render.PrivateKeySigner(testKey, cfg.L2ChainID))
+	txs := render.NewBatcherTxBuilder(cfg.L2ChainID, render.DefaultGasPolicy(), render.PrivateKeySigner(testKey, cfg.L2ChainID))
 	txs.SetEventReplayer(testEventReplayer)
 	txs.SetRegistry(testRegistry)
 	b, err := New(Config{Rollup: cfg, Emitters: testEmitters}, txs)
@@ -322,6 +322,40 @@ func TestChannelIDIsNormative(t *testing.T) {
 	// Distinct inputs give distinct channels, which is what stops two ranges colliding on L1.
 	require.NotEqual(t, got, ChannelID(prev, 0x0102030405060709))
 	require.NotEqual(t, got, ChannelID(common.Hash{0x99}, 0x0102030405060708))
+}
+
+func TestBuildRefusesMoreThanOneBlobTransaction(t *testing.T) {
+	l1 := l1Chain(120)
+	cfg := testRollupCfg()
+	txs := render.NewBatcherTxBuilder(
+		cfg.L2ChainID, render.DefaultGasPolicy(), render.PrivateKeySigner(testKey, cfg.L2ChainID),
+	)
+	txs.SetEventReplayer(testEventReplayer)
+	txs.SetRegistry(testRegistry)
+	b, err := New(Config{
+		Rollup: cfg, Emitters: testEmitters, MaxFrameSize: derive.FrameV0OverHeadSize + 1,
+	}, txs)
+	require.NoError(t, err)
+	head := safeHead(l1, 900, l2Genesis+1800)
+	_, err = b.Build(testRange(t, l1, head, 1, testClaimInput()))
+	require.ErrorIs(t, err, ErrRange)
+	require.ErrorContains(t, err, "exceeding the one-transaction limit of 6")
+}
+
+func TestBuildRefusesRenderingBlockAboveZeroFeeGasBudget(t *testing.T) {
+	l1 := l1Chain(120)
+	cfg := testRollupCfg()
+	txs := render.NewBatcherTxBuilder(
+		cfg.L2ChainID, render.DefaultGasPolicy(), render.PrivateKeySigner(testKey, cfg.L2ChainID),
+	)
+	txs.SetEventReplayer(testEventReplayer)
+	txs.SetRegistry(testRegistry)
+	b, err := New(Config{Rollup: cfg, Emitters: testEmitters, MaxBlockGas: 499_999}, txs)
+	require.NoError(t, err)
+	head := safeHead(l1, 900, l2Genesis+1800)
+	_, err = b.Build(testRange(t, l1, head, 1, testClaimInput()))
+	require.ErrorIs(t, err, ErrRange)
+	require.ErrorContains(t, err, "exceeding its 499999 gas budget")
 }
 
 // TestSpanBatchPassesStockValidation drives the synthesized span batch through the real

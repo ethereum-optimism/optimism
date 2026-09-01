@@ -1,11 +1,6 @@
 [
   {
     "inputs": [],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "inputs": [],
     "name": "crossDomainMessageContext",
     "outputs": [
       {
@@ -49,19 +44,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_replayer",
-        "type": "address"
-      }
-    ],
-    "name": "initialize",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "messageNonce",
     "outputs": [
@@ -82,32 +64,6 @@
         "internalType": "uint16",
         "name": "",
         "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "proxyAdmin",
-    "outputs": [
-      {
-        "internalType": "contract IProxyAdmin",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "proxyAdminOwner",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -204,19 +160,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "replayer",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -306,19 +249,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_replayer",
-        "type": "address"
-      }
-    ],
-    "name": "setReplayer",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
@@ -347,32 +277,6 @@
     ],
     "stateMutability": "view",
     "type": "function"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint8",
-        "name": "version",
-        "type": "uint8"
-      }
-    ],
-    "name": "Initialized",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "replayer",
-        "type": "address"
-      }
-    ],
-    "name": "ReplayerSet",
-    "type": "event"
   },
   {
     "anonymous": false,
@@ -423,42 +327,7 @@
   },
   {
     "inputs": [],
-    "name": "L2ToL2CrossDomainMessengerReplay_Unauthorized",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "L2ToL2CrossDomainMessengerReplay_Unsupported",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotProxyAdmin",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotProxyAdminOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotResolvedDelegateProxy",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotSharedProxyAdminOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_ProxyAdminNotFound",
     "type": "error"
   }
 ]

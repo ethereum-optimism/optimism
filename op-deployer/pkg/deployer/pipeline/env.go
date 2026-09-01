@@ -149,6 +149,11 @@ func RenderGenesisAndRollup(globalState *state.State, chainID common.Hash, useGl
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build rollup config: %w", err)
 	}
+	if chainIntent.PrivateInterop.IsRendering() {
+		rollupConfig.PrivateInterop = &rollup.PrivateInteropConfig{
+			ExtraEmitters: append([]common.Address(nil), chainIntent.PrivateInterop.ExtraEmitters...),
+		}
+	}
 
 	if err := rollupConfig.Check(); err != nil {
 		return nil, nil, fmt.Errorf("generated rollup config does not pass validation: %w", err)

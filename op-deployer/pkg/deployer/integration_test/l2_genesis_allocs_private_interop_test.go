@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -30,19 +29,12 @@ import (
 // rather than two chains in one intent. These tests generate each half on its own and assert what
 // makes it that half.
 var (
-	privateInteropOperator  = common.HexToAddress("0x1111000000000000000000000000000000001111")
 	privateInteropLockVault = common.HexToAddress("0x2222000000000000000000000000000000002222")
 
 	// counterpartyChainID is the chain holding the ETHLockVault the private half mints against.
 	// Deliberately not the pair's own ID.
 	counterpartyChainID = uint64(901)
 )
-
-// operatorPremine is the operator EOA's opening balance. On the rendering it is the chain's entire
-// gas supply for its lifetime.
-func operatorPremine() *big.Int {
-	return new(big.Int).Mul(big.NewInt(1_000), big.NewInt(1e18))
-}
 
 // generatePrivateInteropL2Genesis runs the full apply pipeline for one half of a pair.
 func generatePrivateInteropL2Genesis(t *testing.T, role state.PrivateInteropRole) generatedL2Genesis {
@@ -72,11 +64,7 @@ func generatePrivateInteropPair(
 				"l2GenesisLagoonTimeOffset": "0x0",
 			}
 
-			pi := &state.PrivateInterop{
-				Role:            role,
-				Operator:        privateInteropOperator,
-				OperatorBalance: (*hexutil.Big)(operatorPremine()),
-			}
+			pi := &state.PrivateInterop{Role: role}
 			if role == state.PrivateInteropPrivateChain {
 				// The private half is a custom gas token chain: its native unit is not ETH, which
 				// is exactly why the protocol ETH path is closed and the mint bridge exists.
@@ -97,9 +85,7 @@ type appliedDeployment struct {
 	intent *state.Intent
 }
 
-// generatePrivateInteropGenesis mirrors generateL2Genesis but allows the operator EOA as a plain
-// account: the operator's premine is written by the genesis script itself, so the allocs carry an
-// EOA that the default structural check would call stray.
+// generatePrivateInteropGenesis mirrors generateL2Genesis for either half of the pair.
 func generatePrivateInteropGenesis(t *testing.T, mode allocMode) (generatedL2Genesis, *appliedDeployment) {
 	t.Helper()
 
@@ -136,10 +122,9 @@ func generatePrivateInteropGenesis(t *testing.T, mode allocMode) (generatedL2Gen
 		chainIntent: intent.Chains[0],
 	}
 
-	// The structural invariants still hold; only the operator EOA is new.
 	require.NoErrorf(t, genesis.CheckL2GenesisAllocs(
 		&foundry.ForgeAllocs{Accounts: gen.allocs},
-		genesis.CheckL2AllocsOpts{AllowedEOAs: []common.Address{privateInteropOperator}},
+		genesis.CheckL2AllocsOpts{},
 	), "[%s] global alloc invariants", mode.name)
 
 	return gen, &appliedDeployment{st: st, intent: intent}
@@ -147,8 +132,7 @@ func generatePrivateInteropGenesis(t *testing.T, mode allocMode) (generatedL2Gen
 
 // TestPrivateInteropRenderingGenesis asserts the three things that make a genesis the PUBLIC
 // RENDERING half: the replay implementation sits at the standard messenger predeploy address, the
-// ClaimRegistry and EventReplayer exist and are gated on the operator, and the operator EOA holds
-// the balance that pays for every transaction the chain will ever carry.
+// ClaimRegistry and EventReplayer exist, and zero-priced transactions need no L2 premine.
 func TestPrivateInteropRenderingGenesis(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -174,13 +158,8 @@ func TestPrivateInteropRenderingGenesis(t *testing.T) {
 		assertActiveProxy(t, gen, predeploys.L2toL2CrossDomainMessengerAddr)
 	})
 
-	t.Run("the replay messenger is gated on the operator", func(t *testing.T) {
-		assertInitializedOperatorSlot(t, gen, predeploys.L2toL2CrossDomainMessengerAddr)
-	})
-
-	t.Run("the ClaimRegistry is a live predeploy gated on the operator", func(t *testing.T) {
+	t.Run("the ClaimRegistry is a live predeploy with an empty cursor", func(t *testing.T) {
 		assertActiveProxy(t, gen, predeploys.ClaimRegistryAddr)
-		assertInitializedOperatorSlot(t, gen, predeploys.ClaimRegistryAddr)
 
 		// The posted-range cursor must start empty: a genesis that pre-advanced it would let the
 		// operator skip a range without leaving the forward gap that marks a voided one.
@@ -189,24 +168,20 @@ func TestPrivateInteropRenderingGenesis(t *testing.T) {
 		require.Equal(t, common.Hash{}, account.Storage[slot(2)], "lastClaimHash")
 	})
 
-	t.Run("the EventReplayer is a live predeploy with the operator baked in", func(t *testing.T) {
+	t.Run("the EventReplayer is a stateless live predeploy", func(t *testing.T) {
 		assertActiveProxy(t, gen, predeploys.EventReplayerAddr)
 
-		// EventReplayer holds no storage: the authorized replayer is an immutable, so it lives in
-		// the implementation's own code.
-		// The only slot on the implementation is the EIP-1967 admin, set so ProxyAdminOwnedBase
-		// can resolve the proxy admin from a direct call. EventReplayer itself has no storage:
-		// the authorized replayer is an immutable, living in the code.
 		impl := requireAccount(t, gen, codeNamespace(predeploys.EventReplayerAddr))
 		require.Len(t, impl.Storage, 1, "EventReplayer implementation has no storage of its own")
-		require.Contains(t, string(impl.Code), string(privateInteropOperator.Bytes()),
-			"the replayer immutable is baked into the implementation code")
 	})
 
-	t.Run("the operator EOA is premined", func(t *testing.T) {
-		account := requireAccount(t, gen, privateInteropOperator)
-		require.Zero(t, account.Balance.Cmp(operatorPremine()))
-		require.Empty(t, account.Code, "the operator is an EOA")
+	t.Run("the rendering charges no transaction fees", func(t *testing.T) {
+		require.Zero(t, gen.cfg.L2GenesisBlockBaseFeePerGas.ToInt().Sign())
+		require.Zero(t, gen.cfg.MinBaseFee)
+		require.Zero(t, gen.cfg.GasPriceOracleBaseFeeScalar)
+		require.Zero(t, gen.cfg.GasPriceOracleBlobBaseFeeScalar)
+		require.Zero(t, gen.cfg.GasPriceOracleOperatorFeeScalar)
+		require.Zero(t, gen.cfg.GasPriceOracleOperatorFeeConstant)
 	})
 
 	t.Run("the private half's predeploy is absent", func(t *testing.T) {
@@ -214,16 +189,14 @@ func TestPrivateInteropRenderingGenesis(t *testing.T) {
 	})
 
 	t.Run("the rendering is not a custom gas token chain", func(t *testing.T) {
-		// Replay transactions pay gas in the rendering's own ETH, which is what the operator
-		// premine above is for.
+		// Replay transactions are zero-priced, so the rendering needs no custom token or premine.
 		assertFeatureEnabled(t, gen, predeploys.L1BlockAddr, "CUSTOM_GAS_TOKEN", false)
 	})
 }
 
 // TestPrivateInteropPrivateChainGenesis asserts what makes a genesis the PRIVATE half: the custom
 // gas token feature is on, the mint bridge exists and is an authorized liquidity minter, and the
-// operator's opening liquidity has been moved out of the reserve exactly as a runtime mint would
-// move it.
+// initial liquidity remains in reserve until backed bridge mints occur.
 func TestPrivateInteropPrivateChainGenesis(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -260,20 +233,20 @@ func TestPrivateInteropPrivateChainGenesis(t *testing.T) {
 		require.Equal(t, uint64(1), value.Big().Uint64(), "minters[NativeMintBridge]")
 	})
 
-	t.Run("opening liquidity is minted to the operator out of the reserve", func(t *testing.T) {
-		operator := requireAccount(t, gen, privateInteropOperator)
-		require.Zero(t, operator.Balance.Cmp(operatorPremine()))
-
-		// A runtime mint moves native asset OUT of the reserve, so a genesis mint has to do both
-		// halves or the chain starts with more in circulation than the reserve accounted for.
+	t.Run("opening liquidity remains in the reserve", func(t *testing.T) {
 		reserve := requireAccount(t, gen, predeploys.NativeAssetLiquidityAddr)
-		expected := new(big.Int).Sub(gen.chainIntent.GetInitialLiquidity(), operatorPremine())
-		require.Zero(t, reserve.Balance.Cmp(expected), "NativeAssetLiquidity reserve")
+		require.Zero(t, reserve.Balance.Cmp(gen.chainIntent.GetInitialLiquidity()), "NativeAssetLiquidity reserve")
 	})
 
 	t.Run("the rendering's predeploys are absent", func(t *testing.T) {
 		assertInactiveProxy(t, gen, predeploys.ClaimRegistryAddr)
 		assertInactiveProxy(t, gen, predeploys.EventReplayerAddr)
+	})
+
+	t.Run("the stock ETH path is absent", func(t *testing.T) {
+		assertInactiveProxy(t, gen, predeploys.SuperchainETHBridgeAddr)
+		assertInactiveProxy(t, gen, predeploys.ETHLiquidityAddr)
+		require.Zero(t, requireAccount(t, gen, predeploys.ETHLiquidityAddr).Balance.Sign())
 	})
 
 	t.Run("the messenger keeps the stock implementation", func(t *testing.T) {
@@ -314,18 +287,6 @@ func TestPrivateInteropAbsentFromOrdinaryGenesis(t *testing.T) {
 		implAccount.Code,
 	)
 
-	_, ok := gen.allocs[privateInteropOperator]
-	require.False(t, ok, "no operator premine on an ordinary chain")
-}
-
-// assertInitializedOperatorSlot checks the shared slot-0 layout of the two operator-gated
-// rendering contracts: OpenZeppelin's `_initialized` (byte 0) and `_initializing` (byte 1) packed
-// beneath the operator address (bytes 2..21).
-func assertInitializedOperatorSlot(t *testing.T, gen generatedL2Genesis, addr common.Address) {
-	t.Helper()
-
-	assertInitializedV4(t, gen, addr, slot(0), 0)
-	assertPackedAddress(t, gen, addr, slot(0), 2, privateInteropOperator)
 }
 
 func deployedCode(t *testing.T, fs foundry.StatDirFs, file, contract string) []byte {
@@ -362,18 +323,7 @@ func TestPrivateInteropDepositGate(t *testing.T) {
 				"devFeatureBitmap":          devfeatures.OptimismPortalInteropFlag,
 				"l2GenesisLagoonTimeOffset": "0x0",
 			}
-			intent.Chains[0].PrivateInterop = &state.PrivateInterop{
-				Role:            state.PrivateInteropRendering,
-				Operator:        privateInteropOperator,
-				OperatorBalance: (*hexutil.Big)(operatorPremine()),
-			}
-			intent.Chains[0].ResourceConfig = &state.ResourceConfig{
-				MaxResourceLimit: 0,
-				// Must be positive: ResourceMetering divides by it. One is the smallest value that
-				// also divides a zero limit exactly.
-				ElasticityMultiplier: 1,
-				SystemTxMaxGas:       systemTxMaxGas,
-			}
+			intent.Chains[0].PrivateInterop = &state.PrivateInterop{Role: state.PrivateInteropRendering}
 		},
 	})
 

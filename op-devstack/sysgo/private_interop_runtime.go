@@ -3,7 +3,6 @@ package sysgo
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/claimfollow"
 )
 
@@ -115,16 +116,6 @@ type privateInteropRuntime struct {
 	// supernode's `<base>/<chainID>/claimed` sibling route. It is kept so a test can assert what the
 	// sequencer is actually pointed at, which is the one thing the sharp edge above is about.
 	FollowSource string
-	// Operator is the EOA that signs every replay and every claim on the rendering.
-	Operator common.Address
-	// ExtraEmitters is the devnet export policy's extra emitter set: addresses whose logs the
-	// rendering republishes through the EventReplayer, on top of the two interop predeploys.
-	//
-	// It is genesis-time configuration, not a per-message policy. The batcher is started with
-	// exactly this list and the devstack's identifier resolver reads exactly this list, because a
-	// writer and a reader that disagree about which logs are public disagree about every index
-	// after the first one they differ on.
-	ExtraEmitters []common.Address
 }
 
 // privateInteropFollowFlags builds the supernode's --private-interop.* flag group for this pair.
@@ -231,7 +222,6 @@ func privateInteropBatcherOption(
 	renderingRollup *rollup.Config,
 	renderingRollupPath string,
 	renderingRPC string,
-	operatorKeyHex string,
 	depSetHash common.Hash,
 ) BatcherOption {
 	rollupConfigHash := hashOfJSON(t, renderingRollup, "the rendering's rollup config")
@@ -250,6 +240,7 @@ func privateInteropBatcherOption(
 			RenderingRollupConfigPath: renderingRollupPath,
 			RenderingRPC:              renderingRPC,
 			MaxBlocksPerRange:         cfg.MaxBlocksPerRange,
+			MaxRangeBytes:             batcherFlags.DefaultPrivateInteropMaxRangeBytes,
 			// No L1 confirmation depth, and no L1 view at all: under origin-copy the transformation
 			// reuses each private block's OWN L1 origin as the rendering block's epoch, so there is
 			// no origin to choose and nothing for a shallow L1 reorg to orphan.
@@ -261,24 +252,10 @@ func privateInteropBatcherOption(
 			RollupConfigHash: rollupConfigHash.Hex(),
 			DepSetHash:       depSetHash.Hex(),
 
-			OperatorKey: operatorKeyHex,
-
 			GasLimitExport: 500_000,
 			GasLimitImport: 500_000,
 			GasLimitEvent:  500_000,
 			GasLimitClaim:  500_000,
-			// Ten gwei, an order of magnitude over the 1 gwei an OP genesis opens its base fee at
-			// (op-deployer/pkg/deployer/state/deploy_config.go:23).
-			//
-			// The flag's own default is 1_000_000 wei, which is a THOUSAND times BELOW that opening
-			// base fee, so every replay and every claim a freshly deployed rendering is offered is
-			// unpayable. The failure is quiet in the worst way: the batch still posts and the
-			// rendering still derives blocks at the right numbers and timestamps, so a pair looks
-			// alive while carrying no claims at all -- which is what this devstack found. The
-			// default belongs to the builder lane; the devstack states its own value rather than
-			// inherit one that cannot work.
-			GasFeeCap: 10_000_000_000,
-			GasTipCap: 0,
 		}
 	}
 }
@@ -339,22 +316,21 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	operatorKey, err := PrivateInteropOperatorKey(keys)
-	require.NoError(err, "deriving the private interop operator key")
-	operator := crypto.PubkeyToAddress(operatorKey.PublicKey)
-
 	privateID, counterpartyID := privateInteropChainIDs()
+	batcherKey, err := keys.Secret(devkeys.BatcherRole.Key(privateID.ToBig()))
+	require.NoError(err, "deriving the standard batcher key")
+	batcherAddr := crypto.PubkeyToAddress(batcherKey.PublicKey)
 
 	// The pair's intent stanza goes FIRST, so a test's own deployer options can still override any
 	// of it -- the same precedence buildTwoL2RuntimeWorld already gives the interop dev feature.
 	deployerOpts := append(
-		privateInteropDeployerOptions(privateID, counterpartyID, operator, pi.OperatorPremine),
+		privateInteropDeployerOptions(privateID, counterpartyID, batcherAddr),
 		cfg.DeployerOptions...,
 	)
 	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, true, delaySeconds, cfg.LocalContractArtifactsPath, deployerOpts...)
 
 	// The second half. Nothing about the world changes; the rendering is rendered from it.
-	renderingGenesis, renderingRollup := renderPrivateInteropRendering(t, wb, privateID, operator, pi.OperatorPremine)
+	renderingGenesis, renderingRollup := renderPrivateInteropRendering(t, wb, privateID)
 	renderingNet := privateInteropRenderingNetwork(l2BNet, renderingGenesis, renderingRollup)
 
 	migration := newInteropMigrationState(wb)
@@ -372,8 +348,35 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	// private chain, NEVER peered -- they share a chain ID and disagree about its content).
 	supernodeAEL := startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
 	renderingEL := startL2ELForKey(t, renderingNet, jwtPath, jwtSecret, "rendering", NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
-	seqAEL := startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
-	privateEL := startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
+	var seqAEL, privateEL L2ELNode
+	var filterProxy *tcpproxy.Proxy
+	if cfg.UseInteropFilter {
+		// Allocate the stable filter address before either sequencing EL starts. The filter itself
+		// starts after the EL RPCs exist, then the proxy is connected atomically.
+		filterProxy = tcpproxy.New(t.Logger().New("proxy", "interop-filter"))
+		require.NoError(filterProxy.Start())
+		t.Cleanup(func() { filterProxy.Close() })
+		filterRPC := "http://" + filterProxy.Addr()
+		seqAEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer-a", jwtPath, jwtSecret, filterRPC)
+		privateEL = startSupernodeELWithInteropURL(t, l2BNet, "private-sequencer", jwtPath, jwtSecret, filterRPC)
+	} else {
+		seqAEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
+		privateEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
+	}
+
+	var interopFilter *InteropFilter
+	if cfg.UseInteropFilter {
+		// The filter reads PRIVATE blocks for chain B, but its chain-B rollup config is the public
+		// rendering config. That generated config carries private_interop and the emitter set, so
+		// ingestion automatically transforms the private logs to their canonical rendered positions.
+		rollupConfigs := map[eth.ChainID]*rollup.Config{
+			eth.ChainIDFromBig(l2ANet.RollupConfig().L2ChainID):       l2ANet.RollupConfig(),
+			eth.ChainIDFromBig(renderingNet.RollupConfig().L2ChainID): renderingNet.RollupConfig(),
+		}
+		interopFilter = startInteropFilter(t, "interop-filter",
+			[]string{seqAEL.UserRPC(), privateEL.UserRPC()}, rollupConfigs)
+		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
+	}
 
 	activationTime := l2ANet.rollupCfg.Genesis.L2Time + delaySeconds
 	// Both halves take their genesis timestamp from the same L1 block, so one activation time is
@@ -453,7 +456,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	depSetHash := hashOfJSON(t, runtimeDepSet, "the dependency set")
 	piBatcherOpt := privateInteropBatcherOption(
 		t, pi, renderingNet.rollupCfg, renderingRollupPath, renderingEL.UserRPC(),
-		fmt.Sprintf("%x", crypto.FromECDSA(operatorKey)), depSetHash,
+		depSetHash,
 	)
 
 	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, seqAEL, cfg.BatcherOptions...)
@@ -498,14 +501,14 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 				Proposer:         renderingProposer,
 			},
 		},
-		Supernode:    supernode,
-		TimeTravel:   timeTravelClock,
-		DelaySeconds: delaySeconds,
+		Supernode:     supernode,
+		InteropFilter: interopFilter,
+		TimeTravel:    timeTravelClock,
+		DelaySeconds:  delaySeconds,
 		PrivateInterop: &privateInteropRuntime{
 			Config:       pi,
 			Rendering:    renderingNet,
 			FollowSource: followSource,
-			Operator:     operator,
 		},
 	}
 	// The deterministic block builder, the same one every two-L2 interop preset attaches. The
@@ -519,7 +522,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 		"activation_time", activationTime,
 		"private_genesis", l2BNet.rollupCfg.Genesis.L2.Hash,
 		"rendering_genesis", renderingNet.rollupCfg.Genesis.L2.Hash,
-		"operator", operator,
+		"batcher", batcherAddr,
 		"cadence_blocks", pi.MaxBlocksPerRange,
 	)
 	return runtime

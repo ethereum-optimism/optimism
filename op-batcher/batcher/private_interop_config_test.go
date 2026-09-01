@@ -7,7 +7,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -27,18 +26,16 @@ func validPrivateInteropCLIConfig() PrivateInteropCLIConfig {
 		RenderingRollupConfigPath: "/etc/rendering-rollup.json",
 		RenderingRPC:              "http://rendering:8545",
 		MaxBlocksPerRange:         300,
+		MaxRangeBytes:             512 * 1024,
 		ClaimRegistry:             piTestRegistry,
 		EventReplayer:             piTestReplayer,
 		ReplayMessenger:           predeploys.L2toL2CrossDomainMessenger,
 		RollupConfigHash:          piTestHashA,
 		DepSetHash:                piTestHashB,
-		OperatorKey:               piTestKey,
 		GasLimitExport:            500_000,
 		GasLimitImport:            500_000,
 		GasLimitEvent:             500_000,
 		GasLimitClaim:             500_000,
-		GasFeeCap:                 1_000_000,
-		GasTipCap:                 0,
 	}
 }
 
@@ -65,6 +62,7 @@ func TestPrivateInteropConfigCheck(t *testing.T) {
 		{"no rendering rollup config", func(c *PrivateInteropCLIConfig) { c.RenderingRollupConfigPath = "" }, "rendering-rollup-config"},
 		{"no rendering rpc", func(c *PrivateInteropCLIConfig) { c.RenderingRPC = "" }, "rendering-rpc"},
 		{"zero cadence", func(c *PrivateInteropCLIConfig) { c.MaxBlocksPerRange = 0 }, "max-blocks-per-range"},
+		{"zero range bytes", func(c *PrivateInteropCLIConfig) { c.MaxRangeBytes = 0 }, "max-range-bytes"},
 		{"no claim registry", func(c *PrivateInteropCLIConfig) { c.ClaimRegistry = "" }, "claim-registry is required"},
 		{
 			"zero claim registry",
@@ -82,12 +80,6 @@ func TestPrivateInteropConfigCheck(t *testing.T) {
 			func(c *PrivateInteropCLIConfig) { c.ReplayMessenger = "0x0000000000000000000000000000000000000000" },
 			"replay-messenger is the zero address",
 		},
-		{"malformed extra emitter", func(c *PrivateInteropCLIConfig) { c.ExtraEmitters = []string{"nope"} }, "extra-emitters is not an address"},
-		{
-			"good extra emitter",
-			func(c *PrivateInteropCLIConfig) { c.ExtraEmitters = []string{piTestReplayer} },
-			"",
-		},
 		{"no rollup config hash", func(c *PrivateInteropCLIConfig) { c.RollupConfigHash = "" }, "rollup-config-hash is required"},
 		{
 			"zero rollup config hash",
@@ -97,12 +89,8 @@ func TestPrivateInteropConfigCheck(t *testing.T) {
 			"rollup-config-hash is the zero hash",
 		},
 		{"short dep set hash", func(c *PrivateInteropCLIConfig) { c.DepSetHash = "0x1234" }, "dep-set-hash is not a 32-byte hash"},
-		{"no operator key", func(c *PrivateInteropCLIConfig) { c.OperatorKey = "" }, "operator-key is required"},
-		{"bad operator key", func(c *PrivateInteropCLIConfig) { c.OperatorKey = "zz" }, "not a valid private key"},
 		{"claim gas below intrinsic", func(c *PrivateInteropCLIConfig) { c.GasLimitClaim = 20_999 }, "gas-limit-claim"},
 		{"export gas below intrinsic", func(c *PrivateInteropCLIConfig) { c.GasLimitExport = 0 }, "gas-limit-export"},
-		{"zero fee cap", func(c *PrivateInteropCLIConfig) { c.GasFeeCap = 0 }, "gas-fee-cap must be greater than zero"},
-		{"tip above cap", func(c *PrivateInteropCLIConfig) { c.GasTipCap = c.GasFeeCap + 1 }, "exceeds"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := validPrivateInteropCLIConfig()
@@ -121,7 +109,6 @@ func TestPrivateInteropConfigCheck(t *testing.T) {
 // built from, with no silent reinterpretation.
 func TestPrivateInteropConfigResolve(t *testing.T) {
 	cfg := validPrivateInteropCLIConfig()
-	cfg.ExtraEmitters = []string{piTestReplayer}
 	s, err := cfg.Resolve()
 	require.NoError(t, err)
 
@@ -130,14 +117,8 @@ func TestPrivateInteropConfigResolve(t *testing.T) {
 	require.Equal(t, predeploys.L2toL2CrossDomainMessengerAddr, s.ReplayMessenger)
 	require.Equal(t, common.HexToHash(piTestHashA), s.RollupConfigHash)
 	require.Equal(t, common.HexToHash(piTestHashB), s.DepSetHash)
-	require.NotNil(t, s.OperatorKey)
 	require.Equal(t, uint64(500_000), s.Gas.GasLimitClaim)
-	require.Equal(t, uint64(1_000_000), s.Gas.GasFeeCap.Uint64())
-	require.Equal(t, uint64(0), s.Gas.GasTipCap.Uint64())
-	// The extra emitter is in the set, and a random address is not.
-	require.True(t, s.Emitters.Renders(&types.Log{Address: common.HexToAddress(piTestReplayer)}))
-	require.False(t, s.Emitters.Renders(&types.Log{Address: common.HexToAddress("0x00000000000000000000000000000000000abcde")}))
-
+	require.Equal(t, uint64(512*1024), s.MaxRangeBytes)
 	// A resolve of an unchecked configuration is refused rather than silently zero-valued.
 	bad := validPrivateInteropCLIConfig()
 	bad.ClaimRegistry = ""
@@ -165,10 +146,9 @@ func TestPrivateInteropFlagsParse(t *testing.T) {
 		"--private-interop.max-blocks-per-range=300",
 		"--private-interop.claim-registry=" + piTestRegistry,
 		"--private-interop.event-replayer=" + piTestReplayer,
-		"--private-interop.extra-emitters=" + piTestReplayer,
 		"--private-interop.rollup-config-hash=" + piTestHashA,
 		"--private-interop.dep-set-hash=" + piTestHashB,
-		"--private-interop.operator-key=" + piTestKey,
+		"--private-key=" + piTestKey,
 	}))
 	require.NotNil(t, got)
 	pi := got.PrivateInterop
@@ -176,7 +156,6 @@ func TestPrivateInteropFlagsParse(t *testing.T) {
 	require.Equal(t, "http://rendering-el:8545", pi.RenderingRPC)
 	require.Equal(t, uint64(300), pi.MaxBlocksPerRange)
 	require.Equal(t, predeploys.L2toL2CrossDomainMessenger, pi.ReplayMessenger)
-	require.Equal(t, []string{piTestReplayer}, pi.ExtraEmitters)
 	require.NoError(t, pi.Check())
 
 	// And a stock batcher run leaves the whole group inert.

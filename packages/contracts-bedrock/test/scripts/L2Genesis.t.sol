@@ -295,8 +295,6 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             nativeAssetLiquidityAmount: type(uint248).max,
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
             devFeatureBitmap: bytes32(0),
-            privateInteropOperator: address(0),
-            privateInteropOperatorBalance: 0,
             privateInteropCounterpartyChainID: 0,
             privateInteropLockVault: address(0)
         });

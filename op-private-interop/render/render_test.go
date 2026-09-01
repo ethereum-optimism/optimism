@@ -392,6 +392,30 @@ func TestRenderBlockRefusesBadInput(t *testing.T) {
 		require.ErrorIs(t, err, ErrUnrenderableLog)
 	})
 
+	t.Run("SentMessage from SuperchainETHBridge", func(t *testing.T) {
+		bad := exportLog(0)
+		bad.Data = sentMessageData(predeploys.SuperchainETHBridgeAddr, []byte{0x01})
+		_, err := RenderBlock(block(10, 1000, []*types.Log{bad}), EmitterSet{})
+		require.ErrorIs(t, err, ErrUnrenderableLog)
+		require.ErrorContains(t, err, "sender is the SuperchainETHBridge")
+	})
+
+	t.Run("SentMessage to SuperchainETHBridge", func(t *testing.T) {
+		bad := exportLog(0)
+		bad.Topics[2] = common.BytesToHash(predeploys.SuperchainETHBridgeAddr.Bytes())
+		_, err := RenderBlock(block(10, 1000, []*types.Log{bad}), EmitterSet{})
+		require.ErrorIs(t, err, ErrUnrenderableLog)
+		require.ErrorContains(t, err, "target is the SuperchainETHBridge")
+	})
+
+	t.Run("SentMessage payload over rendering limit", func(t *testing.T) {
+		bad := exportLog(0)
+		bad.Data = sentMessageData(otherAddr, make([]byte, MaxRenderableMessageSize+1))
+		_, err := RenderBlock(block(10, 1000, []*types.Log{bad}), EmitterSet{})
+		require.ErrorIs(t, err, ErrUnrenderableLog)
+		require.ErrorContains(t, err, "exceeding the 65536-byte rendering limit")
+	})
+
 	t.Run("inbox log with the right topic but a malformed payload", func(t *testing.T) {
 		bad := &types.Log{Address: inbox, Topics: []common.Hash{messages.ExecutingMessageEventTopic, {0x2}}, Data: []byte{0x1}}
 		b := block(10, 1000, []*types.Log{bad})

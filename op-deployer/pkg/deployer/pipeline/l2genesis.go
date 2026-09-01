@@ -131,8 +131,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		DevFeatureBitmap:           devFeatureBitmap,
 		UseInterop:                 intent.UseInterop,
 		// Private interop configuration from intent
-		PrivateInteropOperator:            pi.Operator,
-		PrivateInteropOperatorBalance:     pi.OperatorBalance,
 		PrivateInteropCounterpartyChainID: pi.CounterpartyChainID,
 		PrivateInteropLockVault:           pi.LockVault,
 	}); err != nil {
@@ -149,13 +147,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 	// Tagged L2Genesis artifacts predating the #21339 prank nonce reset leave the proxy admin
 	// owner with a bumped nonce, so allow it as a plain EOA.
 	allowedEOAs := []common.Address{thisIntent.Roles.L2ProxyAdminOwner}
-	if thisIntent.PrivateInterop != nil {
-		// The private interop operator is premined in the genesis itself rather than through the
-		// dev-genesis prefund stage, because a rendering in production needs the balance too and
-		// that stage is genesis-target-only.
-		allowedEOAs = append(allowedEOAs, thisIntent.PrivateInterop.Operator)
-	}
-
 	if err := genesis.CheckL2GenesisAllocs(dump, genesis.CheckL2AllocsOpts{
 		FundDevAccounts: overrides.FundDevAccounts,
 		AllowedEOAs:     allowedEOAs,
@@ -281,8 +272,6 @@ func lookupDevFeatureBitmap(overrides map[string]any) (common.Hash, bool) {
 // privateInteropConfig is the flattened form of the chain's privateInterop stanza that the
 // L2Genesis script takes. Zero-valued when the chain is not part of a private interop pair.
 type privateInteropConfig struct {
-	Operator            common.Address
-	OperatorBalance     *big.Int
 	CounterpartyChainID *big.Int
 	LockVault           common.Address
 }
@@ -291,13 +280,10 @@ func buildPrivateInteropConfig(intent *state.ChainIntent) privateInteropConfig {
 	pi := intent.PrivateInterop
 	if pi == nil {
 		return privateInteropConfig{
-			OperatorBalance:     big.NewInt(0),
 			CounterpartyChainID: big.NewInt(0),
 		}
 	}
 	return privateInteropConfig{
-		Operator:            pi.Operator,
-		OperatorBalance:     pi.GetOperatorBalance(),
 		CounterpartyChainID: new(big.Int).SetUint64(pi.CounterpartyChainID),
 		LockVault:           pi.LockVault,
 	}

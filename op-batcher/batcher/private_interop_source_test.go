@@ -87,7 +87,7 @@ func piSource(t *testing.T, follower *fakeFollower) *privateInteropRangeSource {
 		Log:             testlog.Logger(t, log.LevelError),
 		RenderingRollup: piRenderingCfg(),
 		Rendering:       follower,
-		Operator:        piOtherAddr,
+		Batcher:         piOtherAddr,
 	})
 	require.NoError(t, err)
 	return src.(*privateInteropRangeSource)
@@ -110,7 +110,7 @@ func TestRangeStartReadsTheRenderingsOwnBookkeeping(t *testing.T) {
 	got, err := src.RangeStart(context.Background(), 951)
 	require.NoError(t, err)
 	require.Equal(t, prev.Hash, got.PrevTerminalRenderingHash, "the span's parent check")
-	require.Equal(t, uint64(42), got.StartNonce, "the operator's nonce comes from the chain, not from memory")
+	require.Equal(t, uint64(42), got.StartNonce, "the batcher's nonce comes from the chain, not from memory")
 }
 
 // TestRangeStartAtTheRenderingsFirstRange: the rendering's genesis block has no attributes deposit,

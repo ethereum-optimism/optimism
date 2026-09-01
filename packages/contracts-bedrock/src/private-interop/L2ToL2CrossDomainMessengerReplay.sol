@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Contracts
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
-
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -19,7 +15,7 @@ import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 /// @notice Alternative implementation of the `L2ToL2CrossDomainMessenger` predeploy, installed at
 ///         the standard messenger predeploy address in the genesis of a private chain's *public
 ///         rendering*. The public rendering is a derived-only OP Stack chain whose blocks contain
-///         operator "replay" transactions: one transaction per message the private chain exported,
+///         batcher-signed "replay" transactions: one transaction per message the private chain exported,
 ///         re-emitting a `SentMessage` event that is byte-identical to the one the private chain's
 ///         stock messenger emitted. Because this implementation lives at the standard predeploy
 ///         address, the emitter address, the event topics and the event data all match what every
@@ -35,10 +31,7 @@ import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 ///         only messages the private chain actually exported; the counterparty-checked import path
 ///         is what a lying operator still cannot fake. The one message class this contract refuses
 ///         outright is the protocol ETH path (see `replaySentMessage`).
-contract L2ToL2CrossDomainMessengerReplay is ProxyAdminOwnedBase, ISemver, Initializable {
-    /// @notice Thrown when the caller is not the authorized replayer.
-    error L2ToL2CrossDomainMessengerReplay_Unauthorized();
-
+contract L2ToL2CrossDomainMessengerReplay is ISemver {
     /// @notice Thrown when attempting to replay a message whose embedded sender is the
     ///         `SuperchainETHBridge` predeploy.
     error L2ToL2CrossDomainMessengerReplay_ETHBridgeSender();
@@ -66,47 +59,13 @@ contract L2ToL2CrossDomainMessengerReplay is ProxyAdminOwnedBase, ISemver, Initi
         uint256 indexed destination, address indexed target, uint256 indexed messageNonce, address sender, bytes message
     );
 
-    /// @notice Emitted when the authorized replayer address is set.
-    ///
-    /// @param replayer Address that is now authorized to replay messages.
-    event ReplayerSet(address indexed replayer);
-
     /// @notice Current message version identifier. Matches the stock messenger so that consumers
     ///         reading the version off the predeploy see the same value.
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
-
-    /// @notice Address authorized to replay messages. Set at genesis and rotatable by the
-    ///         ProxyAdmin owner. A zero value disables replaying entirely, since `msg.sender` can
-    ///         never be the zero address.
-    /// @custom:network-specific
-    address public replayer;
-
-    constructor() {
-        _disableInitializers();
-    }
-
-    /// @notice Initializer. Only assigns `replayer` to a fixed value, so re-running it during an
-    ///         upgrade produces the same end state as running it once.
-    ///
-    /// @param _replayer Address authorized to replay messages.
-    function initialize(address _replayer) external initializer {
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-        replayer = _replayer;
-        emit ReplayerSet(_replayer);
-    }
-
-    /// @notice Sets the address authorized to replay messages. Used to rotate the operator key.
-    ///
-    /// @param _replayer Address authorized to replay messages.
-    function setReplayer(address _replayer) external {
-        _assertOnlyProxyAdminOwner();
-        replayer = _replayer;
-        emit ReplayerSet(_replayer);
-    }
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Re-emits a `SentMessage` event on behalf of the private chain. The emitted log is
     ///         byte-identical to the log the private chain's stock messenger produced for the same
@@ -121,10 +80,10 @@ contract L2ToL2CrossDomainMessengerReplay is ProxyAdminOwnedBase, ISemver, Initi
     ///         Replaying a message whose sender OR target is the `SuperchainETHBridge` predeploy is
     ///         refused. The private chain is a custom gas token chain: its native unit is not ETH,
     ///         and its `SuperchainETHBridge.sendETH` would burn that custom unit while asking a
-    ///         counterparty to mint real ETH. The protocol ETH path is closed elsewhere too (the
-    ///         counterparty refuses to relay ETH from this source, and ETH only ever enters the
-    ///         private chain through the application-level lock-mint bridge), but this contract
-    ///         must not be the weak link that renders such a message into a public, relayable log.
+    ///         counterparty to mint real ETH. The protocol ETH bridge and liquidity implementation
+    ///         are absent from the private genesis, and ETH-denominated value enters only through
+    ///         the application-level lock-mint bridge, but this contract must not be the weak link
+    ///         that renders such a message into a public, relayable log.
     ///         The two checks are deliberately symmetric: the receiving bridge's own
     ///         `InvalidCrossDomainSender` check already makes the target-side refusal redundant in
     ///         theory, but the point of a deny list is to hold without anyone having to reason
@@ -147,7 +106,6 @@ contract L2ToL2CrossDomainMessengerReplay is ProxyAdminOwnedBase, ISemver, Initi
         external
         returns (bytes32 messageHash_)
     {
-        if (msg.sender != replayer) revert L2ToL2CrossDomainMessengerReplay_Unauthorized();
         if (_sender == Predeploys.SUPERCHAIN_ETH_BRIDGE) revert L2ToL2CrossDomainMessengerReplay_ETHBridgeSender();
         if (_target == Predeploys.SUPERCHAIN_ETH_BRIDGE) revert L2ToL2CrossDomainMessengerReplay_ETHBridgeTarget();
 
@@ -176,7 +134,7 @@ contract L2ToL2CrossDomainMessengerReplay is ProxyAdminOwnedBase, ISemver, Initi
     }
 
     /// @notice Unsupported. Imports on the public rendering are executed directly against the
-    ///         stock `CrossL2Inbox` by the operator's import replay transactions.
+    ///         stock `CrossL2Inbox` by the batcher's import replay transactions.
     function relayMessage(Identifier calldata, bytes calldata) external payable returns (bytes memory) {
         revert L2ToL2CrossDomainMessengerReplay_Unsupported();
     }

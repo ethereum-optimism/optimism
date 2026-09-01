@@ -7,7 +7,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	gethparams "github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,14 +39,14 @@ import (
 //
 //	[[chains]]
 //	  [chains.customGasToken]  name = "..." symbol = "..."
-//	  [chains.privateInterop]  role = "private"  operator = "0x..."  operatorBalance = "0x..."
+//	  [chains.privateInterop]  role = "private"
 //	                           counterpartyChainID = ...  lockVault = "0x..."
 //
 // and intent-rendering.toml carries the same chain ID with the same `l1StartBlockHash` -- see the
 // timestamp note in the block-for-block subtest below for why that pinning is load-bearing --
 //
 //	[[chains]]
-//	  [chains.privateInterop]  role = "rendering"  operator = "0x..."  operatorBalance = "0x..."
+//	  [chains.privateInterop]  role = "rendering"  extraEmitters = ["0x..."]
 //
 // This test IS that runbook, executed: it renders both configs through the same code path
 // `op-deployer inspect rollup` uses and asserts the properties the pair depends on.
@@ -74,6 +76,22 @@ func TestPrivateInteropRollupConfigs(t *testing.T) {
 		// alt-DA derivation, waiting on a DA server that no longer exists.
 		require.Nil(t, rendering.AltDAConfig, "the rendering carries no alt_da block")
 		require.Nil(t, private.AltDAConfig, "the private chain carries no alt_da block")
+		require.NotNil(t, rendering.PrivateInterop, "the rendering declares its generated emitter policy")
+		require.Nil(t, private.PrivateInterop, "the private half does not enable rendering transforms")
+	})
+
+	t.Run("rendering has effectively unbounded gas", func(t *testing.T) {
+		require.Equal(t, uint64(gethparams.MaxGasLimit), rendering.Genesis.SystemConfig.GasLimit)
+		require.NotEqual(t, rendering.Genesis.SystemConfig.GasLimit, private.Genesis.SystemConfig.GasLimit)
+	})
+
+	t.Run("rendering charges no OP-specific transaction fees", func(t *testing.T) {
+		scalars, err := eth.DecodeScalar(rendering.Genesis.SystemConfig.Scalar)
+		require.NoError(t, err)
+		require.Zero(t, scalars.BaseFeeScalar)
+		require.Zero(t, scalars.BlobBaseFeeScalar)
+		require.Equal(t, eth.OperatorFeeParams{}, rendering.Genesis.SystemConfig.OperatorFee())
+		require.NotEqual(t, rendering.Genesis.SystemConfig.Scalar, private.Genesis.SystemConfig.Scalar)
 	})
 
 	t.Run("one chain ID, two configs", func(t *testing.T) {

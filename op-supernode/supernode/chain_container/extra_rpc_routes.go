@@ -1,6 +1,8 @@
 package chain_container
 
 import (
+	"fmt"
+
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -46,19 +48,18 @@ func WithExtraRPCRoutes(routes ...ExtraRPCRoute) ChainContainerOption {
 
 // registerExtraRPCRoutes mounts the configured routes on a freshly-built per-chain handler.
 //
-// Registration failures are logged rather than fatal, matching how the supernode treats a failed
-// activity API registration: the chain itself is unaffected, and the route's absence is a loud line
-// in the log for the one operator who configured it.
-func (c *simpleChainContainer) registerExtraRPCRoutes(h *oprpc.Handler) {
+// Registration failures are fatal. Continuing would leave the chain's root RPC healthy while a
+// specifically configured safety route is absent, which is indistinguishable to its consumer from
+// forgetting to enable the module.
+func (c *simpleChainContainer) registerExtraRPCRoutes(h *oprpc.Handler) error {
 	for _, r := range c.extraRPCRoutes {
 		if err := h.AddRPC(r.Route); err != nil {
-			c.log.Error("failed to create extra RPC route for chain",
-				"chain_id", c.chainID.String(), "route", r.Route, "err", err)
-			continue
+			return fmt.Errorf("create extra RPC route %q for chain %s: %w", r.Route, c.chainID, err)
 		}
 		if err := h.AddAPIToRPC(r.Route, r.API); err != nil {
-			c.log.Error("failed to register API on extra RPC route for chain",
-				"chain_id", c.chainID.String(), "route", r.Route, "namespace", r.API.Namespace, "err", err)
+			return fmt.Errorf("register namespace %q on extra RPC route %q for chain %s: %w",
+				r.API.Namespace, r.Route, c.chainID, err)
 		}
 	}
+	return nil
 }

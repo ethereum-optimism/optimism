@@ -37,12 +37,12 @@ func TestNoExtraRoutesByDefault(t *testing.T) {
 	require.Empty(t, c.extraRPCRoutes)
 
 	h := oprpc.NewHandler("", oprpc.WithLogger(c.log))
-	c.registerExtraRPCRoutes(h)
+	require.NoError(t, c.registerExtraRPCRoutes(h))
 
 	// Nothing was mounted, so the sub-route falls through to the handler's root mux and finds no
 	// JSON-RPC server there.
 	rec := post(t, h, "/claimed", "test_ping")
-	require.NotEqual(t, http.StatusOK, rec.Code)
+	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 // WithExtraRPCRoutes mounts the API at the sub-route and ONLY at the sub-route. The distinction is
@@ -56,7 +56,7 @@ func TestExtraRouteIsMountedAtTheSubRouteOnly(t *testing.T) {
 	require.Len(t, c.extraRPCRoutes, 1)
 
 	h := oprpc.NewHandler("", oprpc.WithLogger(c.log))
-	c.registerExtraRPCRoutes(h)
+	require.NoError(t, c.registerExtraRPCRoutes(h))
 
 	rec := post(t, h, "/claimed", "test_ping")
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -79,7 +79,7 @@ func TestExtraRoutesAreReRegisteredOnAFreshHandler(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		h := oprpc.NewHandler("", oprpc.WithLogger(c.log))
-		c.registerExtraRPCRoutes(h)
+		require.NoError(t, c.registerExtraRPCRoutes(h))
 		rec := post(t, h, "/claimed", "test_ping")
 		require.Equal(t, http.StatusOK, rec.Code, "restart %d", i)
 		require.Contains(t, rec.Body.String(), "pong")

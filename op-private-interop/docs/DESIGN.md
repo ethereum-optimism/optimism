@@ -122,8 +122,11 @@ public view of a private block:
 
 where emitterSet is a set of (address, topic0) FILTERS (refined 2026-08-30, builder-lane
 finding): {(L2ToL2CrossDomainMessenger, SentMessage), (CrossL2Inbox, ExecutingMessage)} ∪ the
-genesis-configured extra emitters (any topic). Topic-filtered, not purely address-based, because
-the set defines which logs are CLAIMS: the messenger also emits bookkeeping events
+genesis-configured extra emitters (any topic). The pair's generated rollup config is the sole
+runtime source of this set: the batcher, interop filter, resolver and devstack all read the same
+value, and no process accepts an independent emitter override. Topic-filtered, not purely
+address-based, because the set defines which logs are CLAIMS: the messenger also emits bookkeeping
+events
 (RelayedMessage on every import) which are not claims — and since stock interop treats ANY log
 as a potential initiating message, rendering one at a replayer's address would be a publicly
 consumable message at the wrong address, a broken claim rather than harmless noise. Within the
@@ -140,15 +143,51 @@ sequence exactly.
 
 ## Replay transactions
 
-Ordinary signed EIP-1559 transactions from a premined operator EOA (nonce-sequential, gas paid in
-the public chain's ETH; fee params are the frozen-config values the chain's extraData already
-encodes). Two kinds, in a **normative deterministic order** so the batch is a pure function of
-private-chain data — `RenderedLogs` order, which is the private block's OWN log order with
-exports and imports interleaved exactly as they occurred (an earlier draft said "exports then
-imports"; that grouping contradicts the canonical-position invariant below and is superseded) —
-one public block per private block at the same height and timestamp:
+Ordinary signed EIP-1559 transactions from the chain's standard batcher EOA (nonce-sequential,
+zero fee cap and zero tip). There is no second private-interop operator key: the L1 transaction
+carrying the channel and the L2 transactions inside it use the same standard batcher signer, whose
+rotation remains `SystemConfig.setBatcherHash`. The rendering genesis base fee and minimum base fee
+are zero, so a newly rotated batcher needs no rendering-chain premine. Rendering genesis uses the
+execution protocol's maximum gas limit (`2^63-1`). The builder reserves half of its EIP-1559 target
+for deposits/upgrades and refuses synthetic transactions whose declared gas exceeds the other half;
+consequently the base fee remains zero. This fee policy applies only to the
+synthetic rendering transactions — the outer channel transaction still pays ordinary L1 fees.
 
-1. **Export replay**: calls the operator-gated replay implementation installed at the
+**Shared-chain-ID replay caveat.** Because the private chain and rendering deliberately share a
+chain ID, a signed transaction is not cryptographically domain-separated between the two ledgers.
+This is true in both directions. In particular, a published rendering import transaction targets
+the stock `CrossL2Inbox` that exists on the private chain too, so including that raw transaction on
+the private chain could create a spurious `ExecutingMessage` and consume the batcher's nonce. The
+private sequencer has no obligation to accept public transactions and MUST reject raw rendering
+transactions; conversely, the derived-only rendering has no mempool and its batcher MUST include
+only transactions synthesized by this builder. This is an operational boundary, not an on-chain
+replay-protection guarantee. The two halves' private-interop address maps must not converge without
+adding explicit transaction-domain separation.
+
+The replay transactions have two kinds, in a **normative deterministic order** so the batch is a
+pure function of private-chain data — `RenderedLogs` order, which is the private block's OWN log
+order with exports and imports interleaved exactly as they occurred (an earlier draft said
+"exports then imports"; that grouping contradicts the canonical-position invariant below and is
+superseded) — one public block per private block at the same height and timestamp:
+
+**Message admission and replay gas (normative).** A sequencer has
+no obligation to include every submitted private-chain transaction and may reject an oversized
+message before inclusion. Once a private block contains a selected `SentMessage`, however, its
+export replay is mandatory: omitting it, or allowing its replay transaction to revert, removes a
+rendering log and renumbers every later rendered log in that block. This is not the ordinary
+retryable `relayMessage` failure case. Retrying delivery or calling `resendMessage` creates a later
+log; neither repairs the missing log at its original canonical position.
+
+Accordingly, every `SentMessage` admitted to the private chain MUST be renderable within the public
+chain's configured block-gas policy. The private messenger MUST enforce a protocol-level maximum
+message size so this property does not depend only on discretionary sequencer censorship (which
+cannot reliably detect messenger calls nested inside arbitrary contracts). The rendering builder
+MUST derive export-replay gas deterministically from the encoded message length and MUST retain a
+larger hard ceiling as defence in depth. The enforced ceiling is 64 KiB and export gas is the
+configured base plus 28 gas per message byte. These conservative policy values still require
+measurement before a production deployment.
+
+1. **Export replay**: calls the batch-authenticated replay implementation installed at the
    L2ToL2CrossDomainMessenger predeploy address in the public genesis; it emits a `SentMessage`
    event byte-identical to the private chain's (same topics, same payload). Emitter address and
    event shape therefore match what every stock consumer expects; the public position (block,
@@ -228,7 +267,7 @@ What changed from the earlier (trailing) envelope and why:
   natively, compare the batch's replay txs against the proven claim-set hash), FP-servable via
   blobs. No carry-on blob, no ProofPosted event, no separate L1 object. No circularity: the proof
   is over the REAL private data and the claim list, never over the rendered blocks that carry it.
-- Registry rules otherwise unchanged: operator-gated, on-chain contiguity — AMENDED to
+- Registry rules otherwise unchanged: batch-authenticated, on-chain contiguity — AMENDED to
   `firstBlock > lastPostedLastBlock` (no overlap, no regression, FORWARD GAPS ALLOWED: a range
   whose opening block is invalidated-and-replaced never executes its claim, so a gap in the
   record is the self-documenting mark of a voided range, not an error) — and v1 rejects
@@ -648,9 +687,9 @@ chained-invalid-message is refused: its cascade begins with chain B's block bein
 | Suite | Why |
 |---|---|
 | `tests/base/deposit`, `tests/base/withdrawal`, `dsl/bridge.go` deposit paths | Deposits revert on the private chain by the resource-config gate (`maxResourceLimit=0`; the portal itself is stock — ratified). There is nothing on the private side for a deposit suite to assert. |
-| `supernode/interop/eth_bridge` | `relayETH` from the private chain is denied — the private chain is a registered CGT source, so the SuperchainETHBridge path is closed by construction. |
+| `supernode/interop/eth_bridge` | The private half deliberately has no `SuperchainETHBridge` or `ETHLiquidity` implementation; its only ETH-denominated path is `NativeMintBridge`/`ETHLockVault`. |
 | `interop/proofs*` (~25) | Fault-proof program fixtures; the rendering settles by a different (future) proof path. Out of v1 scope by ratified decision. |
-| `interop/upgrade*` predeploy-introspection against the RENDERING | The messenger predeploy carries the replay implementation, so impl-slot equality assertions are wrong by design there. They still run against the private chain, whose predeploys are stock. |
+| `interop/upgrade*` predeploy-introspection against the RENDERING | The messenger predeploy carries the replay implementation, so impl-slot equality assertions are wrong by design there. The private half is also specialized by removing the stock protocol ETH path. |
 | Anything asserting the rendering's mempool or sequencer behaviour | The rendering has neither. |
 
 **Traps that bite, carried forward and verified still present:**
@@ -662,15 +701,10 @@ chained-invalid-message is refused: its cascade begins with chain B's block bein
 - **Interop activation timestamp** is cluster-wide. If the rendering's verification start is not
   aligned with a block the message DB actually seals, the cross-safe frontier hangs behind a
   healthy-looking pipeline. Activation = anchor + blockTime.
-- **Emitter-set drift.** The filter's render-transform configuration
-  (`--render-transform-chains` / `--render-extra-emitters`) and the builder's emitter set are two
-  separately-configured copies of ONE consensus-relevant value; a mismatch silently renumbers
-  message positions. Containment is the only backstop today. Before production: derive both from
-  one shared genesis-level config value, or add a startup cross-check. Related and still open: the
-  devstack does not set either flag, so a pair it builds runs its sequencer WITHOUT the filter's
-  in-process transformation — the transform is covered by the filter's own unit tests only. Wire
-  the private chain's entry when the filter joins the pair's topology, and do not let the two
-  values drift when you do.
+- **Emitter-set drift.** A mismatch silently renumbers message positions. The filter and builder
+  accept no independent emitter flags: both load the set committed by the genesis intent into the
+  generated rendering rollup config. The private-pair devstack wires the filter with that same
+  config so acceptance runs exercise the in-process transformation.
 - **One rollup config per network handle.** The handle exposes the PUBLIC rollup.json; the private
   config exists only inside the private CL's construction. Tests reading `Escape().RollupConfig()`
   get public values — block time and genesis are identical by construction, and the preset asserts

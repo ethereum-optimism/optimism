@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -51,11 +52,15 @@ var (
 
 func piRollupCfg() *rollup.Config {
 	cfg := &rollup.Config{
-		Genesis:           rollup.Genesis{L2Time: piL2Genesis},
+		Genesis: rollup.Genesis{
+			L2Time:       piL2Genesis,
+			SystemConfig: eth.SystemConfig{GasLimit: 60_000_000},
+		},
 		BlockTime:         piBlockTime,
 		MaxSequencerDrift: 1800,
 		SeqWindowSize:     3600,
 		L2ChainID:         piChainIDBig,
+		ChainOpConfig:     &opparams.OptimismConfig{EIP1559Elasticity: 6},
 	}
 	cfg.ActivateAtGenesis(forks.Delta)
 	return cfg
@@ -86,7 +91,7 @@ func (s *staticRanges) RangeStart(context.Context, uint64) (RangeStart, error) {
 
 var _ RangeSource = (*staticRanges)(nil)
 
-// failingClaimTxs is the operator tx builder with a switchable failure in ClaimTx: the one way a
+// failingClaimTxs is the batcher tx builder with a switchable failure in ClaimTx: the one way a
 // test can make renderChannelOut.Close fail after the private object has been encoded, which is how
 // the "no claim, no frame" ordering is asserted from the failure side.
 type failingClaimTxs struct {
@@ -194,9 +199,9 @@ func piPayload(t *testing.T, number uint64) *eth.ExecutionPayload {
 	}
 }
 
-// piTxs is the operator tx builder the seam signs with.
+// piTxs is the batcher transaction builder the seam signs with.
 func piTxs() render.ReplayTxBuilder {
-	txs := render.NewOperatorTxBuilder(piChainIDBig, render.DefaultGasPolicy(), render.PrivateKeySigner(piKey, piChainIDBig))
+	txs := render.NewBatcherTxBuilder(piChainIDBig, render.DefaultGasPolicy(), render.PrivateKeySigner(piKey, piChainIDBig))
 	txs.SetEventReplayer(piReplayer)
 	txs.SetRegistry(piRegistry)
 	return txs
@@ -220,6 +225,7 @@ func piEncoderWithTxs(t *testing.T, txs render.ReplayTxBuilder) (*PrivateInterop
 		Rollup:            piRollupCfg(),
 		PrivateRollup:     piRollupCfg(),
 		MaxBlocksPerRange: piCadence,
+		MaxRangeBytes:     512 * 1024,
 		RollupConfigHash:  common.Hash{0x1b},
 		DepSetHash:        common.Hash{0x1c},
 		Receipts:          receipts,
@@ -371,6 +377,22 @@ func TestPrivateInteropSeamStopsAtTheCadence(t *testing.T) {
 	}
 	require.ErrorIs(t, co.FullErr(), derive.ErrCompressorFull,
 		"the cadence ends the range; the batcher then closes the channel as it does for a full one")
+}
+
+func TestPrivateInteropSeamStopsAtTheRangeByteBudget(t *testing.T) {
+	enc, _, _ := piEncoder(t)
+	enc.cfg.MaxRangeBytes = 1
+	cfg := piRollupCfg()
+	out, err := enc.ChannelOut(ChannelConfig{
+		MaxFrameSize: 100_000, CompressorConfig: compressor.Config{CompressionAlgo: derive.Zlib},
+	}, cfg)
+	require.NoError(t, err)
+	p := piPayload(t, 901)
+	require.NoError(t, enc.PrepareBlock(context.Background(), p))
+	_, err = out.AddBlock(cfg, p)
+	require.NoError(t, err)
+	require.ErrorIs(t, out.FullErr(), derive.ErrCompressorFull)
+	require.Greater(t, out.InputBytes(), 1, "the budget counts estimated serialized bytes, not actions")
 }
 
 func TestPrivateInteropSeamNeedsReceipts(t *testing.T) {

@@ -92,7 +92,7 @@ type LogsDBChainIngester struct {
 // backfillDuration is how far back from startTimestamp to begin ingestion.
 //
 // renderTransform, when non-nil, is the emitter set this chain's verified logs are rendered through
-// before storage — see processBlockLogs and flags.RenderTransformChainsFlag. It is a pointer
+// before storage — see processBlockLogs. It is a pointer
 // because the ZERO EmitterSet is itself meaningful (the two standard interop predeploys), so nil is
 // the only honest way to spell "no transformation". Per-chain: nil for every ordinary chain.
 func NewLogsDBChainIngester(
@@ -886,7 +886,7 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 	// index) every counterparty and every judge references — is its position THERE, not its position
 	// among the private chain's own logs. Storing raw positions would file every message under a
 	// number nobody will ever cite. The block is still sealed under its REAL hash: only the log
-	// sequence is transformed, and only for the chains the operator listed.
+	// sequence is transformed, and only when the generated rollup config enables it.
 	//
 	// RenderedLogs is imported, never reimplemented. It is the same call the rendering builder makes
 	// when it constructs the replay transactions, and the two must agree about every index for the

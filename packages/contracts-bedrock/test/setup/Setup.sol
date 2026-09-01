@@ -451,8 +451,6 @@ abstract contract Setup is FeatureFlags {
                 devFeatureBitmap: devFeatureBitmap,
                 // Private interop is never rendered in the contract-test setup: neither half's dev
                 // feature bit is ever set here, so these are inert.
-                privateInteropOperator: address(0),
-                privateInteropOperatorBalance: 0,
                 privateInteropCounterpartyChainID: 0,
                 privateInteropLockVault: address(0)
             })

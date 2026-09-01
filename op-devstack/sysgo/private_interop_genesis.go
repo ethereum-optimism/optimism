@@ -1,14 +1,11 @@
 package sysgo
 
 import (
-	"crypto/ecdsa"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
@@ -49,24 +46,6 @@ import (
 // Nothing in the L1 half of the pipeline is re-run, and nothing about the real state is mutated:
 // the flip happens on a copy.
 
-// privateInteropOperatorMnemonicIndex derives the operator EOA, the account that signs every replay
-// and every claim on the rendering.
-//
-// It sits next to funderMnemonicIndex, outside the 30 standard role accounts, for the same reason:
-// the operator is not one of op-deployer's roles, it is an ordinary EOA that happens to hold a
-// genesis premine. Deriving it from the mnemonic rather than generating one keeps the pair's genesis
-// reproducible across runs, which is what makes a builder-determinism test possible at all.
-const privateInteropOperatorMnemonicIndex = 10_001
-
-// PrivateInteropOperatorKey returns the operator EOA's key.
-//
-// The same key reaches two places that must agree: the deployer intent, which premines the address
-// on the rendering, and the batcher, which signs the rendering's transactions with it. They are
-// derived from one function so they cannot drift.
-func PrivateInteropOperatorKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
-	return keys.Secret(devkeys.UserKey(privateInteropOperatorMnemonicIndex))
-}
-
 // devstackLockVaultPlaceholder is the private half's `lockVault` in the devstack.
 //
 // The real address is the ETHLockVault deployed on the counterparty chain, and the private half's
@@ -90,23 +69,19 @@ var devstackLockVaultPlaceholder = common.HexToAddress("0x0000000000000000000000
 // is CGT and neither its counterparty nor its own rendering is.
 func privateInteropDeployerOptions(
 	privateChainID, counterpartyChainID eth.ChainID,
-	operator common.Address,
-	premineETH uint64,
+	batcher common.Address,
 ) []DeployerOption {
-	premine := new(big.Int).Mul(new(big.Int).SetUint64(premineETH), big.NewInt(1e18))
 	counterparty, ok := counterpartyChainID.Uint64()
 	if !ok {
 		panic("private interop: the counterparty's chain ID does not fit in a uint64")
 	}
-	// The liquidity the private chain opens with. The operator's premine is minted out of it, so it
-	// must be the larger of the two; the intent's own Check enforces that ordering.
-	liquidity := new(big.Int).Mul(premine, big.NewInt(1000))
+	// Application-level bridge liquidity remains in NativeAssetLiquidity until ETH is actually
+	// locked on the counterparty; no account receives an unrelated genesis premine.
+	liquidity := new(big.Int).Mul(big.NewInt(10_000_000), big.NewInt(1e18))
 	return []DeployerOption{
-		WithCustomGasTokenOn(privateChainID, "Private Interop Token", "PIT", liquidity, operator),
+		WithCustomGasTokenOn(privateChainID, "Private Interop Token", "PIT", liquidity, batcher),
 		WithPrivateInterop(privateChainID, &state.PrivateInterop{
 			Role:                state.PrivateInteropPrivateChain,
-			Operator:            operator,
-			OperatorBalance:     (*hexutil.Big)(premine),
 			CounterpartyChainID: counterparty,
 			LockVault:           devstackLockVaultPlaceholder,
 		}),
@@ -123,8 +98,6 @@ func renderPrivateInteropRendering(
 	t devtest.T,
 	wb *worldBuilder,
 	chainID eth.ChainID,
-	operator common.Address,
-	premineETH uint64,
 ) (*core.Genesis, *rollup.Config) {
 	require := t.Require()
 	require.NotNil(wb.output, "the world must be built before its rendering can be")
@@ -132,7 +105,7 @@ func renderPrivateInteropRendering(
 
 	id := common.Hash(chainID.Bytes32())
 
-	renderingIntent := cloneIntentAsRendering(t, wb.output.AppliedIntent, id, operator, premineETH)
+	renderingIntent := cloneIntentAsRendering(t, wb.output.AppliedIntent, id)
 	renderingState := cloneStateForRerender(wb.output, id, renderingIntent)
 
 	bundle, err := artifacts.DownloadBundle(
@@ -183,15 +156,12 @@ func renderPrivateInteropRendering(
 // cloneIntentAsRendering copies the applied intent and flips one chain to the rendering half.
 //
 // Two edits, and both are forced by the intent's own Check: the stanza's role changes, and the
-// custom gas token goes away. The rendering pays gas in its own ETH -- it has to, because its replay
-// transactions are ordinary signed transactions from an EOA with a premine -- so a CGT rendering is
-// rejected outright.
+// custom gas token goes away. Rendering transactions are zero-priced and signed by the standard
+// batcher account, so the rendering needs neither a gas-token configuration nor a premine.
 func cloneIntentAsRendering(
 	t devtest.T,
 	src *state.Intent,
 	id common.Hash,
-	operator common.Address,
-	premineETH uint64,
 ) *state.Intent {
 	out := *src
 	out.Chains = make([]*state.ChainIntent, len(src.Chains))
@@ -203,11 +173,7 @@ func cloneIntentAsRendering(
 		}
 		cp := *ch
 		cp.CustomGasToken = state.CustomGasToken{}
-		cp.PrivateInterop = &state.PrivateInterop{
-			Role:            state.PrivateInteropRendering,
-			Operator:        operator,
-			OperatorBalance: (*hexutil.Big)(new(big.Int).Mul(new(big.Int).SetUint64(premineETH), big.NewInt(1e18))),
-		}
+		cp.PrivateInterop = &state.PrivateInterop{Role: state.PrivateInteropRendering}
 		out.Chains[i] = &cp
 		found = true
 	}

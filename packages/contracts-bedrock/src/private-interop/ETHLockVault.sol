@@ -18,8 +18,9 @@ import { INativeMintBridge } from "interfaces/private-interop/INativeMintBridge.
 ///         to `lock` stays here and a cross domain message instructs the private chain's
 ///         `NativeMintBridge` to mint an equal amount of the private chain's native asset; ETH
 ///         leaves only through `unlock`, which the same bridge calls back after burning that
-///         native asset. This vault's balance is therefore the solvency cap of the private chain's
-///         ETH-denominated supply: the private chain can never hand back more than was locked.
+///         native asset. `totalLocked` is therefore the solvency cap of the private chain's
+///         ETH-denominated supply: the private chain can never hand back more than entered through
+///         `lock`, even if ETH is forced into this address by another route.
 ///
 ///         The protocol ETH path (`SuperchainETHBridge`) is deliberately not used. The private
 ///         chain is a custom gas token chain, so its native unit is not ETH and the protocol path
@@ -49,6 +50,9 @@ contract ETHLockVault is ISemver {
     /// @notice Thrown when a zero amount is locked or unlocked.
     error ETHLockVault_ZeroAmount();
 
+    /// @notice Thrown when the private chain asks to unlock more ETH than entered through `lock`.
+    error ETHLockVault_InsufficientLocked();
+
     /// @notice Emitted when ETH is locked and a mint is requested on the private chain.
     ///
     /// @param from      Address that locked the ETH.
@@ -64,8 +68,13 @@ contract ETHLockVault is ISemver {
     event ETHUnlocked(address indexed to, uint256 amount);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
+
+    /// @notice Amount of ETH currently backing native asset issued through the private bridge.
+    ///         Forced ETH transfers do not increase this value and therefore cannot be withdrawn
+    ///         through an unbacked private-chain message.
+    uint256 public totalLocked;
 
     /// @notice Chain ID of the private chain this vault bridges to.
     uint256 internal immutable PRIVATE_CHAIN_ID;
@@ -107,6 +116,8 @@ contract ETHLockVault is ISemver {
         if (_recipient == address(0)) revert ETHLockVault_ZeroAddress();
         if (msg.value == 0) revert ETHLockVault_ZeroAmount();
 
+        totalLocked += msg.value;
+
         msgHash_ = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).sendMessage({
             _destination: PRIVATE_CHAIN_ID,
             _target: PRIVATE_BRIDGE,
@@ -119,7 +130,7 @@ contract ETHLockVault is ISemver {
     /// @notice Releases locked ETH. Callable only through a relay by the
     ///         `L2ToL2CrossDomainMessenger` of a message sent by the configured private-side
     ///         bridge on the configured private chain. Reverts if this vault does not hold enough
-    ///         ETH, which makes the vault balance a hard cap on what the private chain can
+    ///         ETH, which makes `totalLocked` a hard cap on what the private chain can
     ///         withdraw no matter what it claims.
     ///
     /// @param _to     Address to send the unlocked ETH to.
@@ -134,6 +145,9 @@ contract ETHLockVault is ISemver {
         if (source != PRIVATE_CHAIN_ID) revert ETHLockVault_InvalidCrossDomainSource();
         if (_to == address(0)) revert ETHLockVault_ZeroAddress();
         if (_amount == 0) revert ETHLockVault_ZeroAmount();
+        if (_amount > totalLocked) revert ETHLockVault_InsufficientLocked();
+
+        totalLocked -= _amount;
 
         // This is a forced ETH send to the recipient, the recipient should NOT expect to be called.
         new SafeSend{ value: _amount }(payable(_to));

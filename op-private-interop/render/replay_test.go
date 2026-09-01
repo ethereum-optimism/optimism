@@ -22,10 +22,10 @@ import (
 // anything but tests.
 var testKey, _ = crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
 
-func testBuilder(t *testing.T) *OperatorTxBuilder {
+func testBuilder(t *testing.T) *BatcherTxBuilder {
 	t.Helper()
 	chainID := big.NewInt(901)
-	return NewOperatorTxBuilder(chainID, DefaultGasPolicy(), PrivateKeySigner(testKey, chainID))
+	return NewBatcherTxBuilder(chainID, DefaultGasPolicy(), PrivateKeySigner(testKey, chainID))
 }
 
 // TestReplaySentMessageRoundTrips pins the decode/encode pair against the FINAL contract signature.
@@ -152,7 +152,7 @@ func TestPostClaimCalldata(t *testing.T) {
 	require.Equal(t, claim, round)
 }
 
-func TestOperatorTxBuilderClaimTx(t *testing.T) {
+func TestBatcherTxBuilderClaimTx(t *testing.T) {
 	claim := &codec.RangeClaim{FirstBlock: 0, LastBlock: 299, PrivateTerminalBlockHash: common.Hash{0x7}}
 
 	// Unconfigured, the builder refuses rather than posting the claim to the zero address.
@@ -201,7 +201,7 @@ func TestSelectorsAreStable(t *testing.T) {
 			"selector reaches a contract with no fallback and reverts")
 }
 
-func TestOperatorTxBuilderExport(t *testing.T) {
+func TestBatcherTxBuilderExport(t *testing.T) {
 	b := testBuilder(t)
 	b.Reset(7)
 	rendered, err := RenderBlock(block(50, 5000, []*types.Log{exportLog(3)}), EmitterSet{})
@@ -220,11 +220,24 @@ func TestOperatorTxBuilderExport(t *testing.T) {
 	want, err := EncodeReplaySentMessage(act.Export)
 	require.NoError(t, err)
 	require.Equal(t, want, tx.Data())
+	require.Equal(t, DefaultGasPolicy().GasLimitExport+uint64(len(act.Export.Message))*ExportGasPerMessageByte, tx.Gas())
 	require.Empty(t, tx.AccessList(), "an export re-emission needs no access list")
 	require.Equal(t, uint64(8), b.Nonce())
 }
 
-func TestOperatorTxBuilderImportReusesTxintent(t *testing.T) {
+func TestBatcherTxBuilderRefusesOversizeExport(t *testing.T) {
+	b := testBuilder(t)
+	_, err := b.ReplayTx(ReplayAction{
+		Kind: ReplayExport,
+		Export: &SentMessage{
+			Message: make([]byte, MaxRenderableMessageSize+1),
+		},
+	})
+	require.ErrorContains(t, err, "exceeding the 65536-byte rendering limit")
+	require.Zero(t, b.Nonce(), "a refused action must not consume the deterministic sender nonce")
+}
+
+func TestBatcherTxBuilderImportReusesTxintent(t *testing.T) {
 	id := sampleIdentifier(4)
 	payloadHash := common.Hash{0x99}
 	b := testBuilder(t)
@@ -252,7 +265,7 @@ func TestOperatorTxBuilderImportReusesTxintent(t *testing.T) {
 	require.NotEmpty(t, tx.AccessList(), "an import carries the checksum access list")
 }
 
-func TestOperatorTxBuilderNoncesSequentially(t *testing.T) {
+func TestBatcherTxBuilderNoncesSequentially(t *testing.T) {
 	b := testBuilder(t)
 	b.Reset(100)
 	rendered, err := RenderBlock(block(50, 5000, []*types.Log{exportLog(0)}), EmitterSet{})
@@ -265,11 +278,11 @@ func TestOperatorTxBuilderNoncesSequentially(t *testing.T) {
 	require.Equal(t, uint64(105), b.Nonce())
 }
 
-// TestOperatorTxBuilderReplayEvent covers the third kind. Only CONFIGURED EXTRA EMITTERS reach it:
+// TestBatcherTxBuilderReplayEvent covers the third kind. Only CONFIGURED EXTRA EMITTERS reach it:
 // EventReplayer emits at its own address, so nothing carrying a protocol claim may be routed here
 // (which is why the messenger's RelayedMessage is excluded from the emitter set outright rather
 // than rendered through this path).
-func TestOperatorTxBuilderReplayEvent(t *testing.T) {
+func TestBatcherTxBuilderReplayEvent(t *testing.T) {
 	extra := &types.Log{
 		Address: extraAddr,
 		Topics:  []common.Hash{{0x1}, {0x2}, {0x3}},
@@ -297,9 +310,9 @@ func TestOperatorTxBuilderReplayEvent(t *testing.T) {
 	require.Equal(t, want, tx.Data())
 }
 
-// TestOperatorTxBuilderIsDeterministic is the replay half of the byte-determinism gate: two
+// TestBatcherTxBuilderIsDeterministic is the replay half of the byte-determinism gate: two
 // independent builders at the same starting nonce must sign identical bytes.
-func TestOperatorTxBuilderIsDeterministic(t *testing.T) {
+func TestBatcherTxBuilderIsDeterministic(t *testing.T) {
 	run := func() [][]byte {
 		b := testBuilder(t)
 		b.SetRegistry(extraAddr)
@@ -325,7 +338,7 @@ func TestOperatorTxBuilderIsDeterministic(t *testing.T) {
 	require.Equal(t, run(), run())
 }
 
-func TestOperatorTxBuilderRefusesBrokenImport(t *testing.T) {
+func TestBatcherTxBuilderRefusesBrokenImport(t *testing.T) {
 	b := testBuilder(t)
 	_, err := b.ReplayTx(ReplayAction{Kind: ReplayImport})
 	require.ErrorContains(t, err, "no decoded message")

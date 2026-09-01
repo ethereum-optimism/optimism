@@ -25,7 +25,7 @@ go run ./cmd --help
 docker buildx bake op-interop-filter
 ```
 
-## Rendered positions (`--render-transform-chains`)
+## Rendered positions
 
 By default the filter stores every log a block emitted, at the block-level index it actually had.
 That is correct for any ordinary chain, where a log's position on the chain *is* its identity.
@@ -38,7 +38,8 @@ private chain's own logs, which no one outside the operator can see. A filter st
 positions files every message under a number nobody will ever cite, and then rejects the traffic it
 was deployed to admit.
 
-`--render-transform-chains` fixes that in process. For a listed chain, blocks and receipts are
+The generated rendering `rollup.json` fixes that in process. When a chain's rollup config contains
+the `private_interop` section, blocks and receipts are
 fetched and verified exactly as for every other chain — the source is an ordinary execution client
 serving self-consistent blocks, and nothing about verification is relaxed. The transformation is
 then applied to the already-verified logs, between the fetch and the logs DB:
@@ -58,12 +59,13 @@ index.
 ### Topology for a private chain's sequencer
 
 ```
-counterparty chains ──► op-interop-filter          (stock ingestion, untouched)
-own private chain   ──► op-interop-filter --render-transform-chains <own chain ID>
+counterparty chains ──► op-interop-filter  (ordinary rollup config; stock ingestion)
+own private chain   ──► op-interop-filter  (rendering rollup config; rendered positions)
 ```
 
-Both routes read a real node with full verification. Only the listed chain's logs are transformed,
-and a counterparty chain must never be listed: its logs are already canonical as fetched.
+Both routes read a real node with full verification. Only a chain whose generated config marks it
+as a rendering is transformed; counterparty configs are ordinary, so their logs remain canonical
+as fetched.
 
 **Why transform in process rather than wait for the rendering chain.** Admission gating happens while
 the sequencer is building a block, so the filter needs its own chain's canonical message positions at
@@ -74,17 +76,15 @@ applying it in place gives the same positions immediately.
 
 ### Emitter set
 
-`--render-extra-emitters` adds emitter addresses on top of the two standard interop predeploys,
-which are always included. This is a genesis-time property of the chain, not a per-message policy,
-and it **must match the rendering builder's configuration**: the filter and the builder derive the
-same positions only if they filter by the same rule, and a mismatch silently renumbers messages.
+The rendering config's `private_interop.extra_emitters` adds emitter addresses on top of the two
+standard interop predeploys, which are always included. It is generated from the deployment intent
+and is the sole runtime source for both this filter and the rendering batcher; neither process
+accepts an independent override that could silently renumber messages.
 
 ### Failure containment
 
-A misconfiguration here is contained to the listed chain. A chain's ingested data is only consulted
+A misconfiguration here is contained to the rendering chain. A chain's ingested data is only consulted
 to decide whether that chain's own executing messages may be admitted, so the blast radius of a
 wrong emitter set is the operator's own sequencer admitting or rejecting its own transactions — it
-cannot corrupt another chain's ingested data. `Config.Check` rejects a listed chain that has no
-rollup config, which is the one form of this mistake that would otherwise be silent.
-
-Both flags are dormant unless set, and every listed chain is logged as a warning at startup.
+cannot corrupt another chain's ingested data. Every config-activated transform is logged as a
+warning at startup.

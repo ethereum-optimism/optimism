@@ -376,63 +376,16 @@ func TestRenderTransform_ExtraEmitterIsCarried(t *testing.T) {
 		"a different emitter set is a different numbering: the same import is now at index 3")
 }
 
-func TestParseChainIDsAndAddresses(t *testing.T) {
+func TestRenderingEmitterSetComesFromRollupConfig(t *testing.T) {
 	t.Parallel()
 
-	empty, err := parseChainIDs(nil, "render-transform-chains")
-	require.NoError(t, err)
-	require.Nil(t, empty, "no transformed chains is the default, and carries no state")
+	ordinary := testRollupConfig(renderChainID, renderBlockNum, renderBlockTime)
+	require.Nil(t, renderingEmitterSet(ordinary))
 
-	got, err := parseChainIDs([]string{"901", " 0x386 ", "902"}, "render-transform-chains")
-	require.NoError(t, err)
-	require.Equal(t, map[eth.ChainID]bool{
-		eth.ChainIDFromUInt64(901): true,
-		eth.ChainIDFromUInt64(902): true,
-	}, got, "decimal and hex both parse; 0x386 is 902")
-
-	_, err = parseChainIDs([]string{"not-a-chain"}, "render-transform-chains")
-	require.ErrorContains(t, err, "render-transform-chains")
-
-	addrs, err := parseAddresses([]string{" 0x00000000000000000000000000000000000f00d1 "}, "render-extra-emitters")
-	require.NoError(t, err)
-	require.Equal(t, []common.Address{renderPrivateAddr}, addrs)
-
-	// common.HexToAddress would quietly return the zero address here, which as an emitter would
-	// silently change the numbering.
-	_, err = parseAddresses([]string{"0xnope"}, "render-extra-emitters")
-	require.ErrorContains(t, err, "render-extra-emitters")
-}
-
-func TestConfigChecksRenderTransform(t *testing.T) {
-	t.Parallel()
-
-	base := func() *Config {
-		return &Config{
-			L2RPCs: []string{"http://localhost:8545"},
-			RollupConfigs: map[eth.ChainID]*rollup.Config{
-				eth.ChainIDFromUInt64(renderChainID): testRollupConfig(renderChainID, renderBlockNum, renderBlockTime),
-			},
-			BackfillDuration:    time.Hour,
-			MessageExpiryWindow: 3600,
-			PollInterval:        time.Second,
-			ValidationInterval:  time.Second,
-			RPCConcurrency:      10,
-			FetchConcurrency:    4,
-		}
-	}
-
-	ok := base()
-	ok.RenderTransformChains = map[eth.ChainID]bool{eth.ChainIDFromUInt64(renderChainID): true}
-	ok.RenderExtraEmitters = []common.Address{renderPrivateAddr}
-	require.NoError(t, ok.Check())
-
-	// A typo here would otherwise be silent: the intended chain keeps storing raw positions, and
-	// every one of its messages ends up filed under a number nobody will cite.
-	unknown := base()
-	unknown.RenderTransformChains = map[eth.ChainID]bool{eth.ChainIDFromUInt64(9999): true}
-	require.ErrorContains(t, unknown.Check(), "render-transform-chains lists chain 9999")
-
-	orphan := base()
-	orphan.RenderExtraEmitters = []common.Address{renderPrivateAddr}
-	require.ErrorContains(t, orphan.Check(), "render-extra-emitters requires render-transform-chains")
+	rendering := testRollupConfig(renderChainID, renderBlockNum, renderBlockTime)
+	rendering.PrivateInterop = &rollup.PrivateInteropConfig{ExtraEmitters: []common.Address{renderPrivateAddr}}
+	set := renderingEmitterSet(rendering)
+	require.NotNil(t, set)
+	require.True(t, set.Renders(&gethTypes.Log{Address: renderPrivateAddr}))
+	require.False(t, set.Renders(&gethTypes.Log{Address: common.HexToAddress("0x00000000000000000000000000000000000abcde")}))
 }

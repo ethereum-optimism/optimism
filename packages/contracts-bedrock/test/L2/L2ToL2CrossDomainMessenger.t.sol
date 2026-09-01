@@ -9,6 +9,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Target contract
 import {
@@ -18,12 +19,15 @@ import {
     EventPayloadNotSentMessage,
     MessageDestinationNotRelayChain,
     MessageTargetL2ToL2CrossDomainMessenger,
+    MessageTargetSuperchainETHBridge,
+    MessageTooLarge,
     MessageAlreadyRelayed,
     InvalidMessage
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
 // Interfaces
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 
 /// @title L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness
 /// @notice L2ToL2CrossDomainMessenger contract with methods to modify the transient storage.
@@ -77,6 +81,15 @@ abstract contract L2ToL2CrossDomainMessenger_TestInit is Test {
         );
         l2ToL2CrossDomainMessenger = L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
+        );
+    }
+
+    /// @notice Enables the private-chain-only messenger admission rules.
+    function enablePrivateInterop() internal {
+        vm.mockCall(
+            Predeploys.L2_DEV_FEATURE_FLAGS,
+            abi.encodeCall(IL2DevFeatureFlags.isDevFeatureEnabled, (DevFeatures.PRIVATE_INTEROP_PRIVATE_CHAIN)),
+            abi.encode(true)
         );
     }
 }
@@ -277,6 +290,49 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
             _destination: _destination,
             _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             _message: _message
+        });
+    }
+
+    /// @notice The ETH bridge remains a valid target on ordinary public interop chains.
+    function test_sendMessage_targetSuperchainETHBridge_ordinaryChain_succeeds() external {
+        l2ToL2CrossDomainMessenger.sendMessage({
+            _destination: block.chainid + 1,
+            _target: Predeploys.SUPERCHAIN_ETH_BRIDGE,
+            _message: hex""
+        });
+    }
+
+    /// @notice Private interop cannot produce a message the rendering replay contract rejects.
+    function test_sendMessage_targetSuperchainETHBridge_privateInterop_reverts() external {
+        enablePrivateInterop();
+        vm.expectRevert(MessageTargetSuperchainETHBridge.selector);
+        l2ToL2CrossDomainMessenger.sendMessage({
+            _destination: block.chainid + 1,
+            _target: Predeploys.SUPERCHAIN_ETH_BRIDGE,
+            _message: hex""
+        });
+    }
+
+    /// @notice Private interop accepts a message exactly at the rendering ceiling.
+    function test_sendMessage_maxPrivateInteropMessage_succeeds() external {
+        enablePrivateInterop();
+        bytes memory message = new bytes(l2ToL2CrossDomainMessenger.MAX_PRIVATE_INTEROP_MESSAGE_SIZE());
+        l2ToL2CrossDomainMessenger.sendMessage({
+            _destination: block.chainid + 1,
+            _target: address(1),
+            _message: message
+        });
+    }
+
+    /// @notice Private interop refuses a payload that cannot be rendered safely.
+    function test_sendMessage_oversizePrivateInteropMessage_reverts() external {
+        enablePrivateInterop();
+        bytes memory message = new bytes(l2ToL2CrossDomainMessenger.MAX_PRIVATE_INTEROP_MESSAGE_SIZE() + 1);
+        vm.expectRevert(MessageTooLarge.selector);
+        l2ToL2CrossDomainMessenger.sendMessage({
+            _destination: block.chainid + 1,
+            _target: address(1),
+            _message: message
         });
     }
 }

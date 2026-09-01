@@ -29,12 +29,6 @@ type PrivateInteropConfig struct {
 	// should not need opting into. Tests that deliberately break the correspondence -- by stopping
 	// the builder, by diverging the private chain from a landed claim -- turn it off.
 	SkipRenderingInvariant bool
-
-	// OperatorPremine is the operator EOA's opening balance on the rendering, in wei.
-	//
-	// It is the rendering's entire gas supply for its lifetime: the chain has no sequencer, no
-	// mempool, and deposits are impossible on it, so nothing can ever top the operator up.
-	OperatorPremine uint64
 }
 
 // PrivateInteropOption mutates a pair's configuration.
@@ -44,9 +38,6 @@ type PrivateInteropOption func(cfg *PrivateInteropConfig)
 func DefaultPrivateInteropConfig() PrivateInteropConfig {
 	return PrivateInteropConfig{
 		MaxBlocksPerRange: 4,
-		// 10_000 ETH. The rendering pays for every replay and every claim out of this and is never
-		// refilled, so a devstack premine is deliberately far past anything a test can spend.
-		OperatorPremine: 10_000,
 	}
 }
 
@@ -65,9 +56,6 @@ func WithoutRenderingInvariantCheck() PrivateInteropOption {
 func (c *PrivateInteropConfig) Check() error {
 	if c.MaxBlocksPerRange == 0 {
 		return errors.New("private interop: the range cadence must be at least one block")
-	}
-	if c.OperatorPremine == 0 {
-		return errors.New("private interop: the rendering's operator premine is the chain's only gas, and must be positive")
 	}
 	return nil
 }
