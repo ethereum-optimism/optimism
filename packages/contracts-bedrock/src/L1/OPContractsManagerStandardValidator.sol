@@ -882,8 +882,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         if (raw != GameTypes.ZK_DISPUTE_GAME.raw()) {
             return false;
         }
-        return DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
-            && address(IDisputeGameFactory(_sysCfg.disputeGameFactory()).gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0);
+        if (!DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            return false;
+        }
+        IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        return address(factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0);
     }
 
     /// @notice Validates the configuration of the L1 contracts.
@@ -1107,6 +1110,8 @@ contract OPContractsManagerStandardValidator is ISemver {
             _errors
         );
         _errors = internalRequire(args.challengerBond > 0, string.concat(_errorPrefix, "-110"), _errors);
+        (Hash anchorRoot,) = IAnchorStateRegistry(args.anchorStateRegistry).getAnchorRoot();
+        _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
         _errors = standardValidatorUtils.assertValidDelayedWETH(
             _errors,
             _sysCfg,
@@ -1126,8 +1131,6 @@ contract OPContractsManagerStandardValidator is ISemver {
             anchorStateRegistryImpl,
             _errorPrefix
         );
-        (Hash anchorRoot,) = IAnchorStateRegistry(args.anchorStateRegistry).getAnchorRoot();
-        _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
         return _errors;
     }
 
