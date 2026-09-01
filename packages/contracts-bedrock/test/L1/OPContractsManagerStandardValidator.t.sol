@@ -1338,12 +1338,18 @@ contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         AnchorStateRegistry in the game args is not the one the OptimismPortal uses.
     function test_validate_anchorStateRegistryNotUsedByPortal_succeeds() public {
+        address otherAsr = makeAddr("otherAnchorStateRegistry");
         vm.mockCall(
-            address(optimismPortal2),
-            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
-            abi.encode(address(0xbad))
+            address(optimismPortal2), abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()), abi.encode(otherAsr)
         );
-        assertEq("ASR-RGT,PDDG-ANCHORP-70,CKDG-ANCHORP-70", _validate(true));
+        // The validator reads the respected game type from whatever registry the portal reports, so
+        // the stand-in must answer with the type this chain actually runs.
+        vm.mockCall(
+            otherAsr,
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(anchorStateRegistry.respectedGameType())
+        );
+        assertEq("PDDG-ANCHORP-70,CKDG-ANCHORP-70", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -2511,6 +2517,34 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
             abi.encode(Hash.wrap(bytes32(0)), uint256(0))
         );
         assertEq("SPDG-120,SCKDG-120,ZKDG-120", _validate(true));
+    }
+
+    /// @notice Tests that respecting ZK_DISPUTE_GAME is valid. It is a super game type that the ZK
+    ///         path registers, so ASR-RGT must not fire on a ZK-respecting chain.
+    function test_validate_zkRespectedGameType_succeeds() public {
+        IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
+        vm.mockCall(
+            address(portal.anchorStateRegistry()),
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.ZK_DISPUTE_GAME)
+        );
+        assertEq("", _validate(false));
+    }
+
+    /// @notice Tests ASR-RGT when the chain respects ZK_DISPUTE_GAME but opts out of the ZK game.
+    ///         Nothing else reports it: ZK validation returns early when no implementation is
+    ///         registered, so withdrawals would sit behind a game type that cannot resolve.
+    function test_validate_zkRespectedGameTypeWithoutImplementation_succeeds() public {
+        IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
+        vm.mockCall(
+            address(portal.anchorStateRegistry()),
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.ZK_DISPUTE_GAME)
+        );
+        vm.mockCall(
+            address(dgf), abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)), abi.encode(0)
+        );
+        assertEq("ASR-RGT", _validate(true));
     }
 }
 

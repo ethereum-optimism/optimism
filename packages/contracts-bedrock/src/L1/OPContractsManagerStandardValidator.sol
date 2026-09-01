@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 3.4.0
-    string public constant version = "3.4.0";
+    /// @custom:semver 3.5.0
+    string public constant version = "3.5.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -859,6 +859,33 @@ contract OPContractsManagerStandardValidator is ISemver {
         });
     }
 
+    /// @notice Returns whether the respected game type is one the selected validation branch
+    ///         requires to be registered. The ZK game is a super game type, but it is a per-chain
+    ///         opt-in, so it only counts as validated when its dev feature is enabled and the
+    ///         factory registers an implementation for it.
+    function isRespectedGameTypeValidated(
+        GameType _gameType,
+        bool _isSuperMode,
+        ISystemConfig _sysCfg
+    )
+        internal
+        view
+        returns (bool)
+    {
+        uint32 raw = _gameType.raw();
+        if (!_isSuperMode) {
+            return raw == GameTypes.PERMISSIONED_CANNON.raw() || raw == GameTypes.CANNON_KONA.raw();
+        }
+        if (raw == GameTypes.SUPER_PERMISSIONED.raw() || raw == GameTypes.SUPER_CANNON_KONA.raw()) {
+            return true;
+        }
+        if (raw != GameTypes.ZK_DISPUTE_GAME.raw()) {
+            return false;
+        }
+        return DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
+            && address(IDisputeGameFactory(_sysCfg.disputeGameFactory()).gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0);
+    }
+
     /// @notice Validates the configuration of the L1 contracts.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
         ValidationInputDev memory devInput = _toValidationInputDev(_input);
@@ -912,25 +939,12 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
 
-        IAnchorStateRegistry asr = IOptimismPortal2(payable(_input.sysCfg.optimismPortal())).anchorStateRegistry();
-        // Left as CANNON, which no branch accepts, when the registry is not a contract: reporting
-        // ASR-RGT keeps the remaining errors readable instead of reverting the whole run.
-        GameType rgt;
-        if (address(asr).code.length > 0) {
-            rgt = asr.respectedGameType();
-        }
-        bool isSuperMode = false;
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            isSuperMode = GameTypes.isSuperGame(rgt);
-        }
+        GameType rgt =
+            IOptimismPortal2(payable(_input.sysCfg.optimismPortal())).anchorStateRegistry().respectedGameType();
+        bool isSuperMode = DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+            && GameTypes.isSuperGame(rgt);
 
-        _errors = internalRequire(
-            isSuperMode
-                ? (rgt.raw() == GameTypes.SUPER_PERMISSIONED.raw() || rgt.raw() == GameTypes.SUPER_CANNON_KONA.raw())
-                : (rgt.raw() == GameTypes.PERMISSIONED_CANNON.raw() || rgt.raw() == GameTypes.CANNON_KONA.raw()),
-            "ASR-RGT",
-            _errors
-        );
+        _errors = internalRequire(isRespectedGameTypeValidated(rgt, isSuperMode, _input.sysCfg), "ASR-RGT", _errors);
 
         if (isSuperMode) {
             _errors = assertValidSuperRootDisputeGames(_errors, _input.sysCfg);
