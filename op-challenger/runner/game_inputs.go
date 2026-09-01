@@ -248,6 +248,13 @@ func createGameInputsInterop(ctx context.Context, log log.Logger, client super.S
 			return utils.LocalGameInputs{}, fmt.Errorf("failed to get claim: %w", err)
 		}
 	}
+	// The trace provider returns this sentinel without error whenever the game L1 head can't
+	// support a real transition, because in a real game that is the honest claim. As a runner
+	// input it is worthless: the FPP proves it trivially and the run reports success having
+	// exercised no derivation.
+	if claim == eth.InvalidTransitionHash {
+		return utils.LocalGameInputs{}, errors.New("claim is the invalid transition sentinel")
+	}
 	localInputs := utils.LocalGameInputs{
 		L1Head:           l1Head.Hash,
 		AgreedPreState:   agreedPrestate,

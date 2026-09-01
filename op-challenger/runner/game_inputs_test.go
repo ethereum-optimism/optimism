@@ -178,10 +178,10 @@ func TestCreateGameInputsInteropBuildsInputsFromSyncedNode(t *testing.T) {
 }
 
 // The other edge of the window: an L1 head below the L1 data the disputed timestamps need
-// makes every claim the InvalidTransition sentinel. That builds inputs without error, so the
-// run goes green having proven nothing - the reason the assertion above checks the sentinel
-// rather than just a non-zero claim.
-func TestCreateGameInputsInteropClaimsSentinelWhenL1HeadBelowRequiredL1(t *testing.T) {
+// makes every claim the InvalidTransition sentinel, which the trace provider returns without
+// error. The FPP would prove it trivially, so the run must fail rather than pass having
+// verified nothing.
+func TestCreateGameInputsInteropRejectsSentinelClaim(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	currentL1 := eth.BlockID{Number: 5000, Hash: common.Hash{0xaa}}
 	client := &stubSyncedSuperNode{
@@ -190,10 +190,10 @@ func TestCreateGameInputsInteropClaimsSentinelWhenL1HeadBelowRequiredL1(t *testi
 		requiredL1:  eth.BlockID{Number: currentL1.Number + 5, Hash: common.Hash{0xcc}},
 	}
 
+	// Every one of the three random trace positions must be rejected.
 	for i := 0; i < 20; i++ {
-		inputs, err := createGameInputsInterop(context.Background(), logger, client, &stubL1Headers{}, "test")
-		require.NoError(t, err)
-		require.Equal(t, eth.InvalidTransitionHash, inputs.L2Claim)
+		_, err := createGameInputsInterop(context.Background(), logger, client, &stubL1Headers{}, "test")
+		require.ErrorContains(t, err, "invalid transition sentinel")
 	}
 }
 
