@@ -13,9 +13,12 @@ import (
 // strict decoder. It fails if any config carries a key the Go structs do not model — the exact
 // drift that let keep_karst_upgrade_gas be silently dropped. A superchain-registry bump that adds a
 // field therefore cannot merge until the structs are updated to consume it.
+//
+// It also pins that each Chains index key equals the chain ID inside the config, so lookups keyed
+// by the index (e.g. chaincfg's display-name map) need not parse the TOMLs.
 func TestAllEmbeddedConfigsDecodeStrictly(t *testing.T) {
 	networks := map[string]struct{}{}
-	for _, ch := range BuiltInConfigs.Chains {
+	for chainID, ch := range BuiltInConfigs.Chains {
 		networks[ch.Network] = struct{}{}
 		t.Run(ch.Network+"/"+ch.Name, func(t *testing.T) {
 			f, err := BuiltInConfigs.configDataReader.Open(path.Join("configs", ch.Network, ch.Name+".toml"))
@@ -23,6 +26,7 @@ func TestAllEmbeddedConfigsDecodeStrictly(t *testing.T) {
 			defer f.Close()
 			var cfg ChainConfig
 			require.NoError(t, jsonutil.DecodeTOMLStrict(f, &cfg, nil))
+			require.Equal(t, cfg.ChainID, chainID, "chains.json index key must match the config's chain ID")
 		})
 	}
 
