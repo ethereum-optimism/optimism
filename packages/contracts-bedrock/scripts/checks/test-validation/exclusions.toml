@@ -34,6 +34,7 @@ src_validation = [
     "test/L2/fork/L2ForkUpgrade.t.sol",                       # Tests L2 fork upgrade workflow
     "test/L2/betanet-fork/L2VerifyBetanetForkUpgrade.t.sol",  # Tests L2 betanet fork upgrade workflow - no src counterpart
     "test/L2/L2GenesisForkUpgrade.t.sol",                     # Tests L2 genesis fork upgrade workflow
+    "test/L2/L1CrossDomainMessengerBaseGas.t.sol",            # L2 execution-cost tests for L1CrossDomainMessenger.baseGas
     "test/dispute/zk/ZKDisputeGameIntegration.t.sol",         # Integration tests for ZK dispute game lifecycle
     "test/dispute/zk/ZKDisputeGameSuperMigration.t.sol",      # Integration tests for ZK dispute game super migration
 ]
