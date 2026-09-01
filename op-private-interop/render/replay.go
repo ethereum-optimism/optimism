@@ -52,13 +52,13 @@ type ReplayTxBuilder interface {
 	ClaimTx(claim *codec.RangeClaim) (*types.Transaction, error)
 }
 
-// GasPolicy is the frozen pricing the rendering's transactions use.
+// GasPolicy is the frozen pricing the public projection's transactions use.
 //
-// Frozen, not observed: these are configuration, identical on every run, and the rendering has no
-// fee market to observe — it has no mempool and no sequencer, and the batcher is the only sender.
+// Frozen, not observed: these are configuration, identical on every run, and the public projection
+// has no fee market to observe — it has no mempool and no sequencer, and the batcher is the only sender.
 type GasPolicy struct {
 	// GasLimitExport, GasLimitImport, GasLimitEvent and GasLimitClaim are per-kind gas limits. A
-	// single limit would have to be the maximum of all four, and the rendering pays for what it
+	// single limit would have to be the maximum of all four, and the public projection pays for what it
 	// declares.
 	GasLimitExport uint64
 	GasLimitImport uint64
@@ -68,10 +68,8 @@ type GasPolicy struct {
 
 // DefaultGasPolicy is a starting point, not a measurement. The numbers are deliberately generous:
 // the batcher is the only sender on a chain with no fee competition, and an under-provisioned
-// replay transaction is a stuck rendering.
-//
-// TODO(private-interop): replace with measurements once the replay contracts are deployed
-// and W2's "replay-tx execution asserted on a derived chain" gate can run.
+// replay transaction is a stuck public projection. These values should be replaced with measured
+// costs once replay-transaction execution is exercised on a derived chain.
 func DefaultGasPolicy() GasPolicy {
 	return GasPolicy{
 		GasLimitExport: 500_000,
@@ -81,7 +79,7 @@ func DefaultGasPolicy() GasPolicy {
 	}
 }
 
-// SignerFn signs a rendering transaction. It must be deterministic; go-ethereum's secp256k1 signing
+// SignerFn signs a public-projection transaction. It must be deterministic; go-ethereum's secp256k1 signing
 // is (RFC 6979), so a plain private-key signer qualifies and a remote signer that adds entropy does
 // not.
 type SignerFn func(tx *types.Transaction) (*types.Transaction, error)

@@ -20,7 +20,7 @@ import { IETHLockVault } from "interfaces/private-interop/IETHLockVault.sol";
 ///         chain. The protocol path (`SuperchainETHBridge`) is closed: the private chain is a
 ///         custom gas token chain, so a protocol `sendETH` would burn the custom unit while asking
 ///         a counterparty to mint real ETH. The counterparty refuses to relay ETH from this chain,
-///         and the public rendering's replay messenger refuses to render messages sent by the
+///         and the public projection's replay messenger refuses to replay messages sent by the
 ///         `SuperchainETHBridge` predeploy at all.
 ///
 ///         The v1 liveness assumption documented on `ETHLockVault` applies to this half too: a
@@ -64,10 +64,12 @@ contract NativeMintBridge is ISemver {
     string public constant version = "1.0.0";
 
     /// @notice Chain ID of the counterparty chain that holds the lock vault.
+    // nosemgrep: sol-safety-no-immutable-variables -- genesis bakes this value into the per-chain implementation.
     uint256 internal immutable COUNTERPARTY_CHAIN_ID;
 
     /// @notice Address of the `ETHLockVault` on the counterparty chain. The only cross domain
     ///         message sender allowed to mint native asset on this chain.
+    // nosemgrep: sol-safety-no-immutable-variables -- genesis bakes this value into the per-chain implementation.
     address internal immutable LOCK_VAULT;
 
     /// @param _counterpartyChainId Chain ID of the counterparty chain that holds the lock vault.

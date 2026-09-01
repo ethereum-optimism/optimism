@@ -65,8 +65,8 @@ contract Encoder {
     // reencode is decode-then-encode over a calldata struct. It is the check a registry would use
     // if it ever wanted to enforce canonical calldata on chain:
     // keccak256(reencode(claim)) == keccak256(claim-as-sent).
-    function reencode(RangeClaim calldata e) external pure returns (bytes memory) {
-        return abi.encode(e);
+    function reencode(RangeClaim calldata _claim) external pure returns (bytes memory) {
+        return abi.encode(_claim);
     }
 }
 
