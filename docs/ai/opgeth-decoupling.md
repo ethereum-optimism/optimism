@@ -566,6 +566,22 @@ pin stays on a stale geth, which is how these modules drift in the first place; 
 monorepo pin will not build against a current geth anyway. Treat "drop the replace" and "bump to
 latest" as one change.
 
+Two qualifications, because that standard is not always satisfiable today.
+
+**For a module blocked only by §15, the two halves are currently mutually exclusive.** Its build
+closure reaches `op-service/log`, which calls the fork's `Logger.SetContext`, so a current
+monorepo pin *requires* op-geth. Such a module can run upstream go-ethereum on an older monorepo
+pin, or the latest monorepo pin on op-geth — not both, until §15 lands. Prefer upstream geth and
+accept the older monorepo pin: the geth half is the one carrying security relevance, and the
+monorepo pin catches up in one bump afterwards. Revisit these when §15 lands.
+
+**An accidental edge into `op-core/superchain` caps a consumer's monorepo version.** Any package
+reaching that bundle cannot be built by a downstream module at all (#22678), so a consumer that
+reaches it is stuck on the last release predating the breakage. Removing a needless edge
+therefore raises the ceiling for everything downstream of it — which is why the "reduce who
+reaches the bundle" work in §15's neighbourhood matters to these repos and not only to build
+hygiene. `op-service/oppprof` was one such edge, via `op-service/flags`.
+
 Compiling every Go module in those repos against upstream go-ethereum with the replace removed
 (2026-08) splits them three ways:
 
