@@ -1,7 +1,7 @@
 [tools]
 
 # Core dependencies
-bun = "1.2.5"
+bun = "1.4.0"
 go = "1.26.5"
 golangci-lint = "2.8.0"
 gotestsum = "1.12.3"

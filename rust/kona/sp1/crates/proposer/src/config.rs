@@ -307,6 +307,25 @@ fn parse_url_list(value: &str) -> Result<Vec<Url>> {
 
 const DEFAULT_PROOF_LIMIT: u64 = 1_000_000_000_000;
 
+/// Ceiling for one request, in wei of PROVE per PGU (1e9 = 1.0 PROVE per bPGU).
+/// A ceiling under the network's clearing price draws no bids at all, and that
+/// price moves, so this sits well above it rather than near it.
+const DEFAULT_MAX_PRICE_PER_PGU: u64 = 1_000_000_000;
+
+/// Floor on how long an auction stays open, so the field can bid and undercut
+/// rather than the fastest poller winning at the ceiling. Observed arrivals are
+/// 3-10s, on other requesters' traffic; this doubles that for margin, at the
+/// cost of ~90s per defense (range, consolidation and agg wait it out in turn).
+const DEFAULT_MIN_AUCTION_PERIOD_SECONDS: u64 = 30;
+
+/// Grace for an unassigned request. Cancelling fails the whole defense task and
+/// discards every chunk's witness work, so waiting beats restarting.
+const DEFAULT_AUCTION_TIMEOUT_SECONDS: u64 = 300;
+
+/// Room between an auction closing and its request being cancelled: the
+/// auctioneer still has to assign the winner, and the proposer to observe it.
+const AUCTION_ASSIGNMENT_MARGIN_SECONDS: u64 = 30;
+
 /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
 ///
 /// Parsed in mock mode too, but all values have defaults and require no credentials.
@@ -356,10 +375,20 @@ impl ProofProviderConfig {
             "{} must be positive: 0 would time out every SPN call before any I/O completes",
             env_var("NETWORK_CALLS_TIMEOUT")
         );
-        let auction_timeout = parsed_env_or("AUCTION_TIMEOUT", 60u64)?;
+        let auction_timeout = parsed_env_or("AUCTION_TIMEOUT", DEFAULT_AUCTION_TIMEOUT_SECONDS)?;
         anyhow::ensure!(
             auction_timeout > 0,
             "{} must be positive: 0 would cancel every mainnet request by its second poll",
+            env_var("AUCTION_TIMEOUT")
+        );
+        let min_auction_period =
+            parsed_env_or("MIN_AUCTION_PERIOD", DEFAULT_MIN_AUCTION_PERIOD_SECONDS)?;
+        anyhow::ensure!(
+            min_auction_period + AUCTION_ASSIGNMENT_MARGIN_SECONDS <= auction_timeout,
+            "{} ({min_auction_period}s) must leave {AUCTION_ASSIGNMENT_MARGIN_SECONDS}s under {} \
+             ({auction_timeout}s): requests would be cancelled before a closing auction could be \
+             assigned",
+            env_var("MIN_AUCTION_PERIOD"),
             env_var("AUCTION_TIMEOUT")
         );
         Ok(Self {
@@ -377,8 +406,8 @@ impl ProofProviderConfig {
             range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
             agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
             agg_gas_limit: parsed_env_or("AGG_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
-            max_price_per_pgu: parsed_env_or("MAX_PRICE_PER_PGU", 300_000_000u64)?,
-            min_auction_period: parsed_env_or("MIN_AUCTION_PERIOD", 1u64)?,
+            max_price_per_pgu: parsed_env_or("MAX_PRICE_PER_PGU", DEFAULT_MAX_PRICE_PER_PGU)?,
+            min_auction_period,
         })
     }
 }
@@ -725,6 +754,24 @@ mod tests {
             // Degenerate spans are rejected.
             assert!(RangeSplitCount::one().split(5, 5).is_err());
             assert!(RangeSplitCount::one().split(6, 5).is_err());
+        }
+
+        /// Safe under nextest's process-per-test model; environment mutation
+        /// is `unsafe` on edition 2024.
+        #[test]
+        fn auction_period_crowding_the_cancel_timeout_is_rejected() {
+            // Otherwise requests are cancelled around the moment their auction
+            // closes, discarding a whole defense task's witness work each time.
+            set_proposer_env("AUCTION_TIMEOUT", "300");
+            for crowding in ["300", "290"] {
+                set_proposer_env("MIN_AUCTION_PERIOD", crowding);
+                let err = ProofProviderConfig::from_env().unwrap_err().to_string();
+                assert!(err.contains("KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD"), "unexpected: {err}");
+                assert!(err.contains("KONA_SP1_PROPOSER_AUCTION_TIMEOUT"), "unexpected: {err}");
+            }
+
+            set_proposer_env("MIN_AUCTION_PERIOD", "270");
+            assert_eq!(ProofProviderConfig::from_env().unwrap().min_auction_period, 270);
         }
 
         /// Safe under nextest's process-per-test model; environment mutation
