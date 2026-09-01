@@ -552,54 +552,71 @@ import op-geth-only symbols by design).
 ## 20. Downstream repos — consumers outside this monorepo
 
 The monorepo is not the only holder of an op-geth `replace`. Other OP Labs Go repos pin op-geth
-directly, and inherit the fork's dependency graph with it. They
-are **not** in the scope defined at the top of this doc — they are separate modules that can flip
-independently and ahead of #20266 — but their blockers are ours, so they belong on this map.
+directly, and inherit the fork's dependency graph with it. They are **not** in the scope defined
+at the top of this doc — they are separate modules that can flip independently and ahead of
+#20266 — but their blockers are ours, so they belong on this map.
+
+Some of those repos are private, so this section names only public ones and describes the rest by
+shape. The engineering content is what matters here; the per-repo inventory lives with the teams
+that own them.
+
+**Decoupling a downstream repo means bumping it to the latest go-ethereum and the latest monorepo
+release, not merely deleting the `replace`.** A repo that drops the replace while keeping an old
+pin stays on a stale geth, which is how these modules drift in the first place; and an old
+monorepo pin will not build against a current geth anyway. Treat "drop the replace" and "bump to
+latest" as one change.
 
 Compiling every Go module in those repos against upstream go-ethereum with the replace removed
 (2026-08) splits them three ways:
 
-- **Never coupled** — no op-geth `replace` at all: `infra/{bailiff,cci-stats}`,
-  `infrastructure-services/{safedb-scan,snapman,trm-dataset-loader,argocd-diff-bot,
-  detection-response-webhook-monitoring}`.
-- **Decoupled now** — the replace drops with no other change:
-  `infrastructure-services/{regional-ip-blocker,snapshot-exporter-go}`.
-- **Blocked on §15** — everything else. Almost every service imports `op-service/{rpc,metrics,
-  client}` or `op-service/testlog`, so the RPC recorder hooks and log context methods gate the
-  whole fleet: `infrastructure-services/{op-host-manager,interop-filter-permissive-mock,
-  screening-service,zdd-service,netchef,op-benchmark}`, `infra/{op-signer,op-conductor-mon,
-  op-ufm,peer-mgmt-service}`, `monitorism/op-monitorism`.
+- **Never coupled** — no op-geth `replace` at all. Includes `infra/{bailiff,cci-stats}` and
+  several private service modules.
+- **Decoupled now** — the replace drops with no other change. A small number of private service
+  modules, mostly ones that only ever used geth's `log` package.
+- **Blocked on §15** — everything else, which is most of them. Almost every service imports
+  `op-service/{rpc,metrics,client}` or `op-service/testlog`, so the RPC recorder hooks and log
+  context methods gate the whole fleet: `infra/{op-signer,op-conductor-mon,op-ufm,
+  peer-mgmt-service}`, `monitorism/op-monitorism`, and most private service modules.
 
-`infrastructure-services/gke-notifier` is a case of its own: it compiles fine with the replace
-dropped, but only at its existing geth v1.10.26, and *upstream* v1.10.26 carries six high-severity
-p2p/GraphQL DoS advisories that dependency scanning flags the moment the replace goes away. The
-module was always running that vintage — op-geth v0.0.0-20230127164839 forks roughly the same
-base — so **the replace was masking the advisories rather than protecting against them**. Worth
-remembering as a general hazard of fork pins: a pseudo-versioned fork silently opts out of
-advisory matching. Bumping its geth is blocked by an ancient `op-service` v0.10.11 pin.
+One case is worth generalising because it is a trap rather than a blocker. A module pinned to a
+years-old op-geth pseudo-version compiled fine with the replace dropped, and dependency scanning
+immediately flagged multiple high-severity advisories against the *upstream* go-ethereum it then
+resolved. The module had been running that vintage all along — the fork pin was **masking the
+advisories rather than protecting against them**, because a pseudo-versioned fork silently opts
+out of advisory matching. Expect this on any long-untouched pin, and treat it as a reason to bump
+rather than a reason to keep the replace.
 
-Four repos have coupling of their own on top of §15, worth knowing about because they need
-decisions rather than just waiting:
+Some repos have coupling of their own on top of §15, and these need decisions rather than just
+waiting:
 
 - **`infra/op-txproxy`** uses op-geth-only `rpc.JsonError` and
-  `params.TransactionConditional*ErrCode` directly — the transaction-conditional feature.
-- **`infra/proxyd`** imports `core/types/interoptypes`, which has no upstream equivalent. Minor:
-  `TxToInteropAccessList` is a ~15-line pure helper over standard APIs, inlineable or replaceable
-  with `op-core/interop/messages`.
+  `params.TransactionConditional*ErrCode` directly — the transaction-conditional feature. Two
+  ways out: re-home the symbols in the monorepo (`op-service/rpc` and `op-core/params` or
+  similar) if other consumers are likely, or copy them into `infra` if op-txproxy is the only
+  user. Worth deciding before §15 lands, since the `rpc.JsonError` half rides the same work.
+- **`infra/proxyd`** imports `core/types/interoptypes`, which has no upstream equivalent. It
+  should move to `op-core` — `op-core/interop/messages` already carries the access-list
+  encoding — rather than inlining a local copy of `TxToInteropAccessList`.
 - **`monitorism/op-monitorism`** calls `ethclient.BlockByNumber` against **L2**
   (`faultproof_withdrawals/validator/l2_proxy.go`). This is §11 failure mode 1 in a downstream
-  repo: it would *compile* against upstream and then fail at runtime decoding deposit txs. A
-  silent behavioural break, and the reason §11's guidance needs to reach these repos too.
-- **`op-rbuilder`** — the Rust builder has no Go geth dependency; the coupling is entirely its Go
-  `acceptance` module, which drives op-devstack/sysgo's in-process op-geth L2 EL and therefore
-  rides §17.
+  repo: it would *compile* against upstream and then fail at runtime decoding deposit txs. The
+  fix is the same as the monorepo's — use the OP-aware client in `op-service/sources` (§11) —
+  and it is the reason §11's guidance needs to reach these repos rather than staying in-tree.
+- A private builder repo couples only through a Go acceptance-test module that drives
+  op-devstack/sysgo's in-process op-geth L2 EL, so it rides §17. Its Rust binary has no Go geth
+  dependency at all.
 
 Two things worth carrying forward. First, a downstream repo cannot "point at op-core" ahead of
 us: the op-core packages that hold the transition scaffolding (§2, §3, §5) do not compile against
 upstream by design, so a consumer needing OP types waits for the cutover regardless. Second,
-**dropping op-geth does not by itself clear the Pion findings** — after moving to upstream
-go-ethereum v1.17.5 the graph still resolves STUN v3.1.2 / DTLS v3.1.2 (below the patched floors)
-plus v2-era Pion via **libp2p**, an inbound path independent of geth entirely.
+dropping op-geth does not by itself refresh transitively-pinned dependencies — some of the ones
+that matter arrive through **libp2p**, an inbound path independent of go-ethereum entirely, so
+moving to upstream geth leaves them where they were. That is the other half of why decoupling and
+bumping belong in the same change.
+
+Related: #22678 (`op-core/superchain` is unbuildable by downstream modules because
+`superchain-configs.zip` is gitignored) is a distinct blocker for these consumers, and one the
+monorepo has to fix on their behalf.
 
 ---
 
@@ -630,5 +647,5 @@ plus v2-era Pion via **libp2p**, an inbound path independent of geth entirely.
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | open |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | CI ratchet (§19) | scheduled upstream-build job + tightening baseline | open |
-| Downstream repos outside the monorepo (§20) | drop their own op-geth `replace` | 3 modules unblocked; rest blocked on §15 |
+| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most blocked on §15 |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
