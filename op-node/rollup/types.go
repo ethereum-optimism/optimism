@@ -76,13 +76,14 @@ type AltDAConfig struct {
 	DAResolveWindow uint64 `json:"da_resolve_window"`
 }
 
-// PrivateInteropConfig marks this rollup config as the public rendering of a private-interop
-// chain. Its emitter set is consensus-relevant application configuration: both the rendering
-// builder and every interop filter must select and renumber exactly the same logs.
+// PrivateInteropConfig marks a private-interoperable chain. Consumers use this marker to derive
+// and operate its public projection. Its emitter set is consensus-relevant application
+// configuration: the projection builder and every interop filter must select and renumber exactly
+// the same logs.
 //
 // The two standard interop predeploy emitters are implicit. ExtraEmitters contains only additional
 // application emitters selected at genesis. A nil PrivateInteropConfig means this is an ordinary
-// rollup config (including the private half of a pair).
+// rollup config.
 type PrivateInteropConfig struct {
 	ExtraEmitters []common.Address `json:"extra_emitters,omitempty"`
 }

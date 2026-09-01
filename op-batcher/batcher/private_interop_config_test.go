@@ -13,29 +13,23 @@ import (
 )
 
 const (
-	piTestKey      = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-	piTestRegistry = "0x00000000000000000000000000000000000e9e9e"
-	piTestReplayer = "0x00000000000000000000000000000000000e0e0e"
-	piTestHashA    = "0x1111111111111111111111111111111111111111111111111111111111111111"
-	piTestHashB    = "0x2222222222222222222222222222222222222222222222222222222222222222"
+	piTestKey   = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+	piTestHashA = "0x1111111111111111111111111111111111111111111111111111111111111111"
+	piTestHashB = "0x2222222222222222222222222222222222222222222222222222222222222222"
 )
 
 func validPrivateInteropCLIConfig() PrivateInteropCLIConfig {
 	return PrivateInteropCLIConfig{
-		Enabled:                   true,
-		RenderingRollupConfigPath: "/etc/rendering-rollup.json",
-		RenderingRPC:              "http://rendering:8545",
-		MaxBlocksPerRange:         300,
-		MaxRangeBytes:             512 * 1024,
-		ClaimRegistry:             piTestRegistry,
-		EventReplayer:             piTestReplayer,
-		ReplayMessenger:           predeploys.L2toL2CrossDomainMessenger,
-		RollupConfigHash:          piTestHashA,
-		DepSetHash:                piTestHashB,
-		GasLimitExport:            500_000,
-		GasLimitImport:            500_000,
-		GasLimitEvent:             500_000,
-		GasLimitClaim:             500_000,
+		PrivateChainGenesisPath: "/etc/private-chain-genesis.json",
+		PublicProjectionRPC:     "http://public-projection:8545",
+		MaxBlocksPerRange:       300,
+		MaxRangeBytes:           512 * 1024,
+		RollupConfigHash:        piTestHashA,
+		DepSetHash:              piTestHashB,
+		GasLimitExport:          500_000,
+		GasLimitImport:          500_000,
+		GasLimitEvent:           500_000,
+		GasLimitClaim:           500_000,
 	}
 }
 
@@ -49,37 +43,10 @@ func TestPrivateInteropConfigCheck(t *testing.T) {
 		err    string
 	}{
 		{"valid", func(*PrivateInteropCLIConfig) {}, ""},
-		{
-			"disabled ignores everything else",
-			func(c *PrivateInteropCLIConfig) { *c = PrivateInteropCLIConfig{} },
-			"",
-		},
-		{
-			"disabled with garbage is still inert",
-			func(c *PrivateInteropCLIConfig) { c.Enabled = false; c.ClaimRegistry = "not-an-address" },
-			"",
-		},
-		{"no rendering rollup config", func(c *PrivateInteropCLIConfig) { c.RenderingRollupConfigPath = "" }, "rendering-rollup-config"},
-		{"no rendering rpc", func(c *PrivateInteropCLIConfig) { c.RenderingRPC = "" }, "rendering-rpc"},
+		{"no private genesis", func(c *PrivateInteropCLIConfig) { c.PrivateChainGenesisPath = "" }, "private-interop.genesis"},
+		{"no public projection rpc", func(c *PrivateInteropCLIConfig) { c.PublicProjectionRPC = "" }, "public-projection-rpc"},
 		{"zero cadence", func(c *PrivateInteropCLIConfig) { c.MaxBlocksPerRange = 0 }, "max-blocks-per-range"},
 		{"zero range bytes", func(c *PrivateInteropCLIConfig) { c.MaxRangeBytes = 0 }, "max-range-bytes"},
-		{"no claim registry", func(c *PrivateInteropCLIConfig) { c.ClaimRegistry = "" }, "claim-registry is required"},
-		{
-			"zero claim registry",
-			func(c *PrivateInteropCLIConfig) { c.ClaimRegistry = "0x0000000000000000000000000000000000000000" },
-			"claim-registry is the zero address",
-		},
-		{"malformed claim registry", func(c *PrivateInteropCLIConfig) { c.ClaimRegistry = "0xdeadbeef" }, "is not an address"},
-		{
-			"zero event replayer",
-			func(c *PrivateInteropCLIConfig) { c.EventReplayer = "0x0000000000000000000000000000000000000000" },
-			"event-replayer is the zero address",
-		},
-		{
-			"zero replay messenger",
-			func(c *PrivateInteropCLIConfig) { c.ReplayMessenger = "0x0000000000000000000000000000000000000000" },
-			"replay-messenger is the zero address",
-		},
 		{"no rollup config hash", func(c *PrivateInteropCLIConfig) { c.RollupConfigHash = "" }, "rollup-config-hash is required"},
 		{
 			"zero rollup config hash",
@@ -112,8 +79,8 @@ func TestPrivateInteropConfigResolve(t *testing.T) {
 	s, err := cfg.Resolve()
 	require.NoError(t, err)
 
-	require.Equal(t, common.HexToAddress(piTestRegistry), s.ClaimRegistry)
-	require.Equal(t, common.HexToAddress(piTestReplayer), s.EventReplayer)
+	require.Equal(t, predeploys.ClaimRegistryAddr, s.ClaimRegistry)
+	require.Equal(t, predeploys.EventReplayerAddr, s.EventReplayer)
 	require.Equal(t, predeploys.L2toL2CrossDomainMessengerAddr, s.ReplayMessenger)
 	require.Equal(t, common.HexToHash(piTestHashA), s.RollupConfigHash)
 	require.Equal(t, common.HexToHash(piTestHashB), s.DepSetHash)
@@ -121,7 +88,7 @@ func TestPrivateInteropConfigResolve(t *testing.T) {
 	require.Equal(t, uint64(512*1024), s.MaxRangeBytes)
 	// A resolve of an unchecked configuration is refused rather than silently zero-valued.
 	bad := validPrivateInteropCLIConfig()
-	bad.ClaimRegistry = ""
+	bad.RollupConfigHash = ""
 	_, err = bad.Resolve()
 	require.Error(t, err)
 }
@@ -140,22 +107,18 @@ func TestPrivateInteropFlagsParse(t *testing.T) {
 		"--l1-eth-rpc=http://l1:8545",
 		"--l2-eth-rpc=http://private-el:8545",
 		"--rollup-rpc=http://private-node:9545",
-		"--private-interop.enabled",
-		"--private-interop.rendering-rollup-config=/etc/rendering-rollup.json",
-		"--private-interop.rendering-rpc=http://rendering-el:8545",
+		"--private-interop.genesis=/etc/private-chain-genesis.json",
+		"--private-interop.public-projection-rpc=http://public-projection-el:8545",
 		"--private-interop.max-blocks-per-range=300",
-		"--private-interop.claim-registry=" + piTestRegistry,
-		"--private-interop.event-replayer=" + piTestReplayer,
 		"--private-interop.rollup-config-hash=" + piTestHashA,
 		"--private-interop.dep-set-hash=" + piTestHashB,
 		"--private-key=" + piTestKey,
 	}))
 	require.NotNil(t, got)
 	pi := got.PrivateInterop
-	require.True(t, pi.Enabled)
-	require.Equal(t, "http://rendering-el:8545", pi.RenderingRPC)
+	require.Equal(t, "/etc/private-chain-genesis.json", pi.PrivateChainGenesisPath)
+	require.Equal(t, "http://public-projection-el:8545", pi.PublicProjectionRPC)
 	require.Equal(t, uint64(300), pi.MaxBlocksPerRange)
-	require.Equal(t, predeploys.L2toL2CrossDomainMessenger, pi.ReplayMessenger)
 	require.NoError(t, pi.Check())
 
 	// And a stock batcher run leaves the whole group inert.
@@ -168,6 +131,5 @@ func TestPrivateInteropFlagsParse(t *testing.T) {
 	}
 	require.NoError(t, app2.Run([]string{"op-batcher",
 		"--l1-eth-rpc=http://l1:8545", "--l2-eth-rpc=http://l2:8545", "--rollup-rpc=http://node:9545"}))
-	require.False(t, stock.PrivateInterop.Enabled)
-	require.NoError(t, stock.PrivateInterop.Check())
+	require.Empty(t, stock.PrivateInterop.PrivateChainGenesisPath)
 }

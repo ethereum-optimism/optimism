@@ -250,7 +250,7 @@ type harness struct {
 	highestFinal uint64
 }
 
-// privateGenesisHash is what an operator passes as --private-interop.genesis-hash: the one field of
+// privateGenesisHash is derived from the operator's private-chain genesis: the one field of
 // the private genesis ref that no public data carries.
 func privateGenesisHash() common.Hash { return privHash(0) }
 

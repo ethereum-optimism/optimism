@@ -342,14 +342,9 @@ library Config {
         return true;
     }
 
-    /// @notice Returns true if the development feature PRIVATE_INTEROP_RENDERING is enabled.
-    function devFeaturePrivateInteropRendering() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__PRIVATE_INTEROP_RENDERING", false);
-    }
-
-    /// @notice Returns true if the development feature PRIVATE_INTEROP_PRIVATE_CHAIN is enabled.
-    function devFeaturePrivateInteropPrivateChain() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__PRIVATE_INTEROP_PRIVATE_CHAIN", false);
+    /// @notice Returns true if the development feature PRIVATE_INTEROP is enabled.
+    function devFeaturePrivateInterop() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__PRIVATE_INTEROP", false);
     }
 
     /// @notice Returns true if the system feature custom_gas_token is enabled.

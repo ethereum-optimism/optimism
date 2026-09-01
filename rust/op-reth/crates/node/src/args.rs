@@ -136,6 +136,19 @@ impl Default for ProofsHistoryBackfillArgs {
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
 #[command(next_help_heading = "Rollup")]
 pub struct RollupArgs {
+    /// Derive the public-projection genesis from the supplied private-chain genesis before the
+    /// database is initialized. This is only enabled on the public-projection execution client;
+    /// the private-chain execution client consumes the same genesis without this flag.
+    #[arg(
+        long = "rollup.private",
+        value_name = "BOOL",
+        default_value_t = false,
+        default_missing_value = "true",
+        num_args = 0..=1,
+        action = clap::ArgAction::Set,
+    )]
+    pub private: bool,
+
     /// Endpoint for the sequencer mempool (can be both HTTP and WS)
     #[arg(long = "rollup.sequencer", visible_aliases = ["rollup.sequencer-http", "rollup.sequencer-ws"])]
     pub sequencer: Option<String>,
@@ -299,6 +312,7 @@ pub struct RollupArgs {
 impl Default for RollupArgs {
     fn default() -> Self {
         Self {
+            private: false,
             sequencer: None,
             disable_txpool_gossip: false,
             compute_pending_block: false,
@@ -343,6 +357,21 @@ mod tests {
         let default_args = RollupArgs::default();
         let args = CommandParser::<RollupArgs>::parse_from(["reth"]).args;
         assert_eq!(args, default_args);
+    }
+
+    #[test]
+    fn test_parse_private_projection_args() {
+        let expected_args = RollupArgs { private: true, ..Default::default() };
+        let shorthand = CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.private"]).args;
+        assert_eq!(shorthand, expected_args);
+
+        let explicit =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.private=true"]).args;
+        assert_eq!(explicit, expected_args);
+
+        let disabled =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.private=false"]).args;
+        assert_eq!(disabled, RollupArgs::default());
     }
 
     #[test]

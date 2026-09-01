@@ -34,7 +34,6 @@ import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
-import { IEventReplayer } from "interfaces/private-interop/IEventReplayer.sol";
 import { INativeMintBridge } from "interfaces/private-interop/INativeMintBridge.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -303,45 +302,18 @@ contract L2Genesis is Script {
         setL2DevFeatureFlags(_input); // 2D
         // deploy() upgrades ConditionalDeployer and L2DevFeatureFlags, so it must run after both are set.
         _deployPredeploysViaL2CM(_input);
-        // Private interop runs last, after a complete stock genesis exists. The rendering half
-        // REPLACES an implementation the L2ContractsManager has just installed, and the private
-        // half authorizes a minter on a LiquidityController that L2CM has just initialized, so
-        // neither can observe a half-finished state.
-        if (_isPrivateInteropRendering(_input)) {
-            setPrivateInteropRendering();
-        }
-        if (_isPrivateInteropPrivateChain(_input)) {
-            setPrivateInteropPrivateChain(_input);
+        // Private interop runs last, after a complete stock genesis exists, because it authorizes a
+        // minter on the LiquidityController that L2CM has just initialized.
+        if (_isPrivateInterop(_input)) {
+            setPrivateInterop(_input);
         }
     }
 
-    /// @notice Validates the private interop half selection before any state is written.
-    /// @dev The two halves share a chain ID but are different chains in content, and a genesis that
-    ///      claimed to be both would be neither. The rendering carries no custom gas token: its
-    ///      replay transactions are zero-priced and the rendering starts with a zero base fee.
+    /// @notice Validates private interop before any state is written.
     function _checkPrivateInteropInput(Input memory _input) internal pure {
-        bool rendering = _isPrivateInteropRendering(_input);
-        bool privateChain = _isPrivateInteropPrivateChain(_input);
-
-        require(
-            !(rendering && privateChain),
-            "L2Genesis: PRIVATE_INTEROP_RENDERING and PRIVATE_INTEROP_PRIVATE_CHAIN are mutually exclusive"
-        );
-
-        if (rendering) {
-            require(
-                _isGenesisInteropEnabled(_input), "L2Genesis: private interop rendering requires interop at genesis"
-            );
-            require(
-                !_input.useCustomGasToken, "L2Genesis: private interop rendering must not be a custom gas token chain"
-            );
-        }
-
-        if (privateChain) {
-            require(
-                _isGenesisInteropEnabled(_input), "L2Genesis: private interop private chain requires interop at genesis"
-            );
-            require(_input.useCustomGasToken, "L2Genesis: private interop private chain requires a custom gas token");
+        if (_isPrivateInterop(_input)) {
+            require(_isGenesisInteropEnabled(_input), "L2Genesis: private interop requires interop at genesis");
+            require(_input.useCustomGasToken, "L2Genesis: private interop requires a custom gas token");
             require(
                 _input.privateInteropCounterpartyChainID != 0,
                 "L2Genesis: private interop counterparty chain ID must be set"
@@ -350,14 +322,9 @@ contract L2Genesis is Script {
         }
     }
 
-    /// @notice Returns true when this genesis is the PUBLIC RENDERING half of a private interop pair.
-    function _isPrivateInteropRendering(Input memory _input) internal pure returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.PRIVATE_INTEROP_RENDERING);
-    }
-
-    /// @notice Returns true when this genesis is the PRIVATE half of a private interop pair.
-    function _isPrivateInteropPrivateChain(Input memory _input) internal pure returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.PRIVATE_INTEROP_PRIVATE_CHAIN);
+    /// @notice Returns true when this genesis is a private interop chain.
+    function _isPrivateInterop(Input memory _input) internal pure returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.PRIVATE_INTEROP);
     }
 
     /// @notice Builds the implementation records for the temporary L2ContractsManager.
@@ -734,58 +701,13 @@ contract L2Genesis is Script {
         IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).setDevFeatureBitmap(_input.devFeatureBitmap);
     }
 
-    /// @notice Renders the PUBLIC RENDERING half of a private interop pair.
-    /// @dev The rendering is a derived-only chain whose blocks are a deterministic function of a
-    ///      private chain's messenger traffic. It is a stock interop chain except in three places:
-    ///      the messenger predeploy carries the replay implementation, the ClaimRegistry holds the
-    ///      batcher's per-range commitments, and the EventReplayer re-emits everything the export
-    ///      policy makes public. Authorization is inherited from the outer L1 batch transaction;
-    ///      deposits are disabled, so there is no second transaction ingress or operator role.
-    function setPrivateInteropRendering() internal {
-        installReplayMessenger();
-        setClaimRegistry();
-        setEventReplayer();
-    }
-
-    /// @notice Installs the replay implementation at the standard L2ToL2CrossDomainMessenger
-    ///         predeploy address, replacing the stock implementation the L2ContractsManager put
-    ///         there moments ago.
-    /// @dev Installing at the STANDARD address is the whole point: a replayed `SentMessage` then
-    ///      carries the emitter every stock consumer already expects, so the message database, the
-    ///      cross-safety judge and counterparty relayers need to know nothing about renderings.
-    function installReplayMessenger() internal {
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        vm.etch(impl, DeployUtils.getDeployedCode("L2ToL2CrossDomainMessengerReplay"));
-        EIP1967Helper.setAdmin(impl, Predeploys.PROXY_ADMIN);
-    }
-
-    /// @notice This predeploy is following the safety invariant #1.
-    function setClaimRegistry() internal {
-        _setPrivateInteropImplementation(Predeploys.CLAIM_REGISTRY, DeployUtils.getDeployedCode("ClaimRegistry"));
-    }
-
-    /// @notice This predeploy is following the safety invariant #2.
-    function setEventReplayer() internal {
-        IEventReplayer replayer = IEventReplayer(
-            DeployUtils.create1({
-                _name: "EventReplayer",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IEventReplayer.__constructor__, ()))
-            })
-        );
-        _setPrivateInteropImplementation(Predeploys.EVENT_REPLAYER, address(replayer).code);
-
-        /// Reset so its not included in the state dump
-        vm.etch(address(replayer), "");
-        vm.resetNonce(address(replayer));
-    }
-
-    /// @notice Renders the PRIVATE half of a private interop pair.
+    /// @notice Specializes a private interop chain.
     /// @dev The private chain is a stock custom gas token chain plus one contract: the
     ///      NativeMintBridge, authorized as a LiquidityController minter so that ETH locked on the
     ///      counterparty can be minted here as native asset. The protocol ETH path stays closed --
     ///      `SuperchainETHBridge` would burn the custom unit while asking a counterparty to mint
     ///      real ETH -- so this bridge is the only way ETH-denominated value crosses the boundary.
-    function setPrivateInteropPrivateChain(Input memory _input) internal {
+    function setPrivateInterop(Input memory _input) internal {
         removePrivateInteropProtocolETHPath();
         setNativeMintBridge(_input);
 

@@ -228,9 +228,8 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 // feature bit does not match the UseInterop intent flag. This ensures that interop feature is
 // explicitly enabled by both the intent and the boolean flag.
 //
-// The private interop bits are not written by hand: they are derived from the chain's
-// privateInterop stanza, so the intent stays the single place a half is chosen and the bitmap
-// cannot disagree with it.
+// The private interop bit is derived from the chain's privateInterop stanza, so the intent stays
+// the single source of truth and the bitmap cannot disagree with it.
 func buildDevFeatureBitmap(intent *state.Intent, thisIntent *state.ChainIntent) (common.Hash, error) {
 	devFeatureBitmap := readDevFeatureBitmap(intent.GlobalDeployOverrides)
 	if chainBitmap, ok := lookupDevFeatureBitmap(thisIntent.DeployOverrides); ok {
@@ -243,11 +242,8 @@ func buildDevFeatureBitmap(intent *state.Intent, thisIntent *state.ChainIntent) 
 		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")
 	}
 
-	switch {
-	case thisIntent.PrivateInterop.IsRendering():
-		devFeatureBitmap = devfeatures.EnableDevFeature(devFeatureBitmap, devfeatures.PrivateInteropRenderingFlag)
-	case thisIntent.PrivateInterop.IsPrivateChain():
-		devFeatureBitmap = devfeatures.EnableDevFeature(devFeatureBitmap, devfeatures.PrivateInteropPrivateChainFlag)
+	if thisIntent.PrivateInterop != nil {
+		devFeatureBitmap = devfeatures.EnableDevFeature(devFeatureBitmap, devfeatures.PrivateInteropFlag)
 	}
 
 	return devFeatureBitmap, nil

@@ -69,48 +69,20 @@ type L2DevGenesisParams struct {
 	Prefund map[common.Address]*hexutil.U256 `json:"prefund" toml:"prefund"`
 }
 
-// PrivateInteropRole names which half of a private interop pair a chain's genesis renders.
-// The two halves share a chain ID -- the public rendering IS the private chain's identity in the
-// dependency set -- so they can never be two chains in one intent, and the role is what tells one
-// deployment apart from the other.
-type PrivateInteropRole string
-
-const (
-	// PrivateInteropRendering renders the PUBLIC half: a derived-only interop chain carrying the
-	// standard batcher's replay transactions and range claims.
-	PrivateInteropRendering PrivateInteropRole = "rendering"
-	// PrivateInteropPrivateChain renders the PRIVATE half: a custom gas token chain with the
-	// application-level mint bridge authorized as a liquidity minter.
-	PrivateInteropPrivateChain PrivateInteropRole = "private"
-)
-
-// PrivateInterop configures a chain as one half of a private interop pair. Absent (nil) on every
-// ordinary chain, which is what keeps an ordinary chain's genesis byte-identical.
+// PrivateInterop configures a private chain. The public projection is derived deterministically
+// from this chain's genesis and is not a second op-deployer role.
 type PrivateInterop struct {
-	// Role selects which half this genesis renders. Required.
-	Role PrivateInteropRole `json:"role" toml:"role"`
-
 	// CounterpartyChainID is the chain holding the ETHLockVault the private chain's
-	// NativeMintBridge mints against. Private half only.
+	// NativeMintBridge mints against.
 	CounterpartyChainID uint64 `json:"counterpartyChainID,omitempty" toml:"counterpartyChainID,omitempty"`
 
-	// LockVault is the ETHLockVault's address on the counterparty chain. Private half only.
+	// LockVault is the ETHLockVault's address on the counterparty chain.
 	LockVault common.Address `json:"lockVault,omitempty" toml:"lockVault,omitempty"`
 
 	// ExtraEmitters are additional application contracts whose logs are published by the public
-	// rendering, beyond the two standard interop predeploys. Rendering half only. The generated
-	// rollup config is the runtime source of truth for this set.
+	// projection, beyond the two standard interop predeploys. The generated rollup config is the
+	// runtime source of truth for this set.
 	ExtraEmitters []common.Address `json:"extraEmitters,omitempty" toml:"extraEmitters,omitempty"`
-}
-
-// IsRendering returns true when this chain renders the public half.
-func (p *PrivateInterop) IsRendering() bool {
-	return p != nil && p.Role == PrivateInteropRendering
-}
-
-// IsPrivateChain returns true when this chain renders the private half.
-func (p *PrivateInterop) IsPrivateChain() bool {
-	return p != nil && p.Role == PrivateInteropPrivateChain
 }
 
 // Check validates the private interop configuration.
@@ -118,27 +90,11 @@ func (p *PrivateInterop) Check() error {
 	if p == nil {
 		return nil
 	}
-	switch p.Role {
-	case PrivateInteropRendering, PrivateInteropPrivateChain:
-	default:
-		return fmt.Errorf("%w: privateInterop.role must be %q or %q, got %q",
-			ErrIncompatibleValue, PrivateInteropRendering, PrivateInteropPrivateChain, p.Role)
+	if p.CounterpartyChainID == 0 {
+		return fmt.Errorf("%w: privateInterop.counterpartyChainID must be set", ErrIncompatibleValue)
 	}
-	if p.IsRendering() {
-		if p.CounterpartyChainID != 0 || p.LockVault != (common.Address{}) {
-			return fmt.Errorf("%w: privateInterop.counterpartyChainID and .lockVault belong to the "+
-				"private half, not the rendering", ErrIncompatibleValue)
-		}
-	} else if len(p.ExtraEmitters) != 0 {
-		return fmt.Errorf("%w: privateInterop.extraEmitters belongs to the rendering half", ErrIncompatibleValue)
-	}
-	if p.IsPrivateChain() {
-		if p.CounterpartyChainID == 0 {
-			return fmt.Errorf("%w: privateInterop.counterpartyChainID must be set on the private half", ErrIncompatibleValue)
-		}
-		if p.LockVault == (common.Address{}) {
-			return fmt.Errorf("%w: privateInterop.lockVault must be set on the private half", ErrIncompatibleValue)
-		}
+	if p.LockVault == (common.Address{}) {
+		return fmt.Errorf("%w: privateInterop.lockVault must be set", ErrIncompatibleValue)
 	}
 	return nil
 }
@@ -150,7 +106,7 @@ func (p *PrivateInterop) Check() error {
 // it is initialized with MaxResourceLimit = 0. Every OptimismPortal.depositTransaction is metered
 // against that limit with a gas limit of at least 21000, so every deposit reverts on L1 and no user
 // deposit ever exists for derivation or attribute handling to see. That is what a private interop
-// pair needs: its ETH solvency story rests on the public rendering never minting ETH out of a
+// chain needs: its ETH solvency story rests on the public projection never minting ETH out of a
 // deposit.
 //
 // It can only be set at initialization -- this SystemConfig has no owner-callable setter -- so a
@@ -168,9 +124,9 @@ type ResourceConfig struct {
 
 const PrivateInteropSystemTxMaxGas uint32 = 1_000_000
 
-// ClosedDepositsResourceConfig is the resource configuration every private-interop pair derives.
-// It is deliberately not a deployment option: selecting either half of a pair closes the shared
-// portal structurally, so omitting an otherwise-independent intent field cannot reopen deposits.
+// ClosedDepositsResourceConfig is the resource configuration every private-interop chain derives.
+// It is deliberately not a deployment option: selecting the chain type closes deposits
+// structurally, so omitting an otherwise-independent intent field cannot reopen them.
 func ClosedDepositsResourceConfig() *ResourceConfig {
 	return &ResourceConfig{
 		MaxResourceLimit:     0,
@@ -324,13 +280,8 @@ func (c *ChainIntent) Check() error {
 		return fmt.Errorf("%w: chainId=%s", err, c.ID)
 	}
 
-	// The private half IS a custom gas token chain; the rendering deliberately is not, because its
-	// replay transactions pay gas in the rendering's own ETH.
-	if c.PrivateInterop.IsPrivateChain() && !c.IsCustomGasTokenEnabled() {
-		return fmt.Errorf("%w: the private interop private chain requires a custom gas token, chainId=%s", ErrIncompatibleValue, c.ID)
-	}
-	if c.PrivateInterop.IsRendering() && c.IsCustomGasTokenEnabled() {
-		return fmt.Errorf("%w: the private interop rendering must not be a custom gas token chain, chainId=%s", ErrIncompatibleValue, c.ID)
+	if c.PrivateInterop != nil && !c.IsCustomGasTokenEnabled() {
+		return fmt.Errorf("%w: a private interop chain requires a custom gas token, chainId=%s", ErrIncompatibleValue, c.ID)
 	}
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)

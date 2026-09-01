@@ -119,8 +119,7 @@ func init() {
 	Predeploys["ETHLiquidity"] = &Predeploy{Address: ETHLiquidityAddr}
 	Predeploys["ConditionalDeployer"] = &Predeploy{Address: ConditionalDeployerAddr}
 	Predeploys["L2DevFeatureFlags"] = &Predeploy{Address: L2DevFeatureFlagsAddr}
-	// Private interop: present only on the two halves of a private interop pair, gated by the
-	// PRIVATE_INTEROP_RENDERING / PRIVATE_INTEROP_PRIVATE_CHAIN dev features.
+	// Private interop: activated as appropriate on the private chain or its public projection.
 	Predeploys["ClaimRegistry"] = &Predeploy{Address: ClaimRegistryAddr}
 	Predeploys["EventReplayer"] = &Predeploy{Address: EventReplayerAddr}
 	Predeploys["NativeMintBridge"] = &Predeploy{Address: NativeMintBridgeAddr}

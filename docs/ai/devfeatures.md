@@ -19,6 +19,7 @@ Active flags:
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
+| `PrivateInterop` | Private-chain genesis specialization; the public projection is derived by clients |
 
 
 The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `SuperRootGamesMigration`, which is enabled by default on both the Go and Solidity sides. The bitmap no longer acts as a circuit breaker for it; removal is tracked in #21662.
@@ -67,8 +68,9 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
+- `DEV_FEATURE__PRIVATE_INTEROP`
 
-Interop and ZK are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+Interop, ZK, and private interop are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/CommonTest.sol`, `test/setup/ForkL1Live.s.sol`, `test/setup/ForkL2Live.s.sol` — branch on individual `Config.devFeature*` returns
