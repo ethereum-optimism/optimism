@@ -1170,7 +1170,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
         _errors =
             internalRequire(gameImpl.gameAddress == zkDisputeGameImpl, string.concat(errorPrefix, "-150"), _errors);
-        return _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, errorPrefix);
+        _errors = _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, errorPrefix);
+        // ZK game creation is permissionless, so a zero init bond leaves root claims free to spam.
+        return internalRequire(
+            _factory.initBonds(GameTypes.ZK_DISPUTE_GAME) > 0, string.concat(errorPrefix, "-160"), _errors
+        );
     }
 
     /// @notice Internal function to read all information from a dispute game.

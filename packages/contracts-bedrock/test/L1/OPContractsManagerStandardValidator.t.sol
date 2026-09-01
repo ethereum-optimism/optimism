@@ -2276,6 +2276,13 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.ZK_DISPUTE_GAME)),
                 abi.encode(zkArgs)
             );
+            // The real factory has no init bond for a game type that was never registered, so mock
+            // one alongside the implementation to keep ZKDG-160 satisfied.
+            vm.mockCall(
+                address(dgf),
+                abi.encodeCall(IDisputeGameFactory.initBonds, (GameTypes.ZK_DISPUTE_GAME)),
+                abi.encode(DEFAULT_DISPUTE_GAME_INIT_BOND)
+            );
 
             address l1PAOMultisig = standardValidator.l1PAOMultisig();
             vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(l1PAOMultisig));
@@ -2545,6 +2552,15 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
             address(dgf), abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)), abi.encode(0)
         );
         assertEq("ASR-RGT", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-160 when the ZK_DISPUTE_GAME init bond is zero. ZK game creation is
+    ///         permissionless, so a zero bond makes root claims free.
+    function test_validate_zkDisputeGameZeroInitBond_succeeds() public {
+        vm.mockCall(
+            address(dgf), abi.encodeCall(IDisputeGameFactory.initBonds, (GameTypes.ZK_DISPUTE_GAME)), abi.encode(0)
+        );
+        assertEq("ZKDG-160", _validate(true));
     }
 }
 
