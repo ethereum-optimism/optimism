@@ -1691,7 +1691,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
     ///         does not have enough gas to execute.
     function test_finalizeWithdrawalTransaction_onInsufficientGas_reverts() external {
         // This number was identified through trial and error.
-        _defaultTx.gasLimit = 150_000;
+        _defaultTx.gasLimit = 400_000;
         _defaultTx.data = hex"";
 
         // Get updated proof inputs.
