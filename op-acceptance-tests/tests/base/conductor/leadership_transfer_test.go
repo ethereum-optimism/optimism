@@ -22,10 +22,10 @@ func TestLeadershipTransferMovesActiveSequencer(gt *testing.T) {
 	initialLeader := sys.Conductors.AwaitOneActiveSequencer()
 	leader := initialLeader
 	for _, target := range sys.Conductors.Without(initialLeader) {
-		leader.TransferLeadershipTo(target, sys.Conductors)
+		sys.Conductors.TransferLeadershipTo(leader, target)
 		leader = target
 	}
-	leader.TransferLeadershipTo(initialLeader, sys.Conductors)
+	sys.Conductors.TransferLeadershipTo(leader, initialLeader)
 }
 
 // TestLeadershipTransferSelectsAnotherActiveSequencer verifies an untargeted
@@ -53,7 +53,7 @@ func TestUnsafeChainAdvancesAfterLeadershipTransfer(gt *testing.T) {
 
 	leader := sys.Conductors.AwaitLeader()
 	target := sys.Conductors.Without(leader)[0]
-	leader.TransferLeadershipTo(target, sys.Conductors)
+	sys.Conductors.TransferLeadershipTo(leader, target)
 
 	// A handful of blocks is enough to prove sustained production by the new
 	// leader rather than a single lucky head advance.
