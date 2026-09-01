@@ -1,3 +1,4 @@
+# CI's go-mod cache key checksums this file; moving/renaming it breaks restore-go-mod-cache.
 go_toolchain := "go1.24.13"
 
 # Build minimal hello ELF used by diff-cannon parity checks and op-challenger

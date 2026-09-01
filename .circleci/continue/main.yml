@@ -1703,8 +1703,12 @@ jobs:
             # a flaky download doesn't fail this shared prep job and everything
             # behind it. The guest toolchain lands in the module cache too, so
             # go-tests shards don't fetch it over the network.
+            fetch() {
+              go mod download || { echo "go mod download failed" >&2; return 1; }
+              just cannon/testdata/fetch-go-toolchain || { echo "fetch-go-toolchain failed" >&2; return 1; }
+            }
             n=0
-            until go mod download && (cd cannon/testdata && just fetch-go-toolchain); do
+            until fetch; do
               n=$((n+1))
               if [ "$n" -ge 5 ]; then
                 echo "Go module/toolchain download failed after $n attempts" >&2
