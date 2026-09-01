@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -29,7 +29,12 @@ const (
 	disputeL1OffsetBlocks = uint64(7 * 24 * 60 * 60 / 12)  // 50400
 )
 
-func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1Client *ethclient.Client, typeName string, gameType gameTypes.GameType, ageGameInputs bool) (utils.LocalGameInputs, error) {
+// l1BlockHashSource resolves an L1 block number to its canonical block hash.
+type l1BlockHashSource interface {
+	HeaderByNumber(ctx context.Context, number *big.Int) (*ethTypes.Header, error)
+}
+
+func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1Client l1BlockHashSource, typeName string, gameType gameTypes.GameType, ageGameInputs bool) (utils.LocalGameInputs, error) {
 	switch gameType {
 	case gameTypes.SuperCannonKonaGameType:
 		if superRoots == nil {
@@ -44,7 +49,7 @@ func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources
 	}
 }
 
-func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources.RollupClient, l1Client *ethclient.Client, typeName string, ageGameInputs bool) (utils.LocalGameInputs, error) {
+func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources.RollupClient, l1Client l1BlockHashSource, typeName string, ageGameInputs bool) (utils.LocalGameInputs, error) {
 	status, err := client.SyncStatus(ctx)
 	if err != nil {
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get rollup sync status: %w", err)
