@@ -2350,6 +2350,13 @@ jobs:
     machine:
       image: ubuntu-2204:2024.08.1
     steps:
+      # Pin circleci-utils to v0.7.0 to pick up the stale-bot close-timing fix
+      # (ethereum-optimism/circleci-utils#33). The setup command skips its clone
+      # when /tmp/circleci-utils already exists, so this overrides the orb's
+      # default tag (v0.5.0 as of orb 1.0.30). Remove once the orb pin above is
+      # >= 1.0.31, which ships v0.7.0 as the default.
+      - utils/setup-circleci-utils-and-github-token:
+          circleci-utils-tag: v0.7.0
       - utils/github-stale:
           stale-issue-message: "This issue has been automatically marked as stale and will
             be closed in 5 days if no updates"
