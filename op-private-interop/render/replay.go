@@ -3,6 +3,7 @@ package render
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -13,10 +14,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 )
 
-// ReplayTxBuilder turns replay actions into the operator's signed transactions.
+// ExportGasPerMessageByte covers both calldata (up to 16 gas/byte) and LOG data (8 gas/byte),
+// with a conservative four-gas margin for hashing and memory expansion. GasLimitExport is the
+// fixed base; this coefficient makes the complete limit a deterministic function of the payload.
+const ExportGasPerMessageByte uint64 = 28
+
+// ReplayTxBuilder turns replay actions into the standard batcher's signed transactions.
 //
 // It is an interface for two reasons. The contracts it calls are still being finalised by the
-// sibling lane, so the encodings in abi.go are provisional; and the operator's key lives behind
+// sibling lane, so the encodings in abi.go are provisional; and the standard batcher key lives behind
 // whatever signer the deployment uses, which a pure package must not know about. Everything about
 // WHICH transactions exist and in what order is decided by RenderBlock and is not negotiable here.
 //
@@ -28,7 +34,7 @@ import (
 // every time it runs. Fees come from the frozen configuration the rendering's genesis already
 // encodes.
 type ReplayTxBuilder interface {
-	// Reset positions the builder at the operator EOA's nonce for the FIRST transaction of a range.
+	// Reset positions the builder at the batcher EOA's nonce for the FIRST transaction of a range.
 	//
 	// The builder is nonce-sequential from there. Making the starting point an explicit input, rather
 	// than something the builder discovers from a node, is what keeps a range's bytes reproducible:
@@ -49,7 +55,7 @@ type ReplayTxBuilder interface {
 // GasPolicy is the frozen pricing the rendering's transactions use.
 //
 // Frozen, not observed: these are configuration, identical on every run, and the rendering has no
-// fee market to observe — it has no mempool and no sequencer, and the operator is the only sender.
+// fee market to observe — it has no mempool and no sequencer, and the batcher is the only sender.
 type GasPolicy struct {
 	// GasLimitExport, GasLimitImport, GasLimitEvent and GasLimitClaim are per-kind gas limits. A
 	// single limit would have to be the maximum of all four, and the rendering pays for what it
@@ -58,13 +64,10 @@ type GasPolicy struct {
 	GasLimitImport uint64
 	GasLimitEvent  uint64
 	GasLimitClaim  uint64
-	// GasFeeCap and GasTipCap are the frozen EIP-1559 fee parameters.
-	GasFeeCap *big.Int
-	GasTipCap *big.Int
 }
 
 // DefaultGasPolicy is a starting point, not a measurement. The numbers are deliberately generous:
-// the operator is the only sender on a chain with no fee competition, and an under-provisioned
+// the batcher is the only sender on a chain with no fee competition, and an under-provisioned
 // replay transaction is a stuck rendering.
 //
 // TODO(private-interop): replace with measurements once the replay contracts are deployed
@@ -75,11 +78,6 @@ func DefaultGasPolicy() GasPolicy {
 		GasLimitImport: 500_000,
 		GasLimitEvent:  500_000,
 		GasLimitClaim:  500_000,
-		// 10 gwei: an OP genesis opens at a 1 gwei base fee, and the T1 devstack proved a
-		// too-low cap fails SILENTLY (the batch posts, the rendering derives the right block
-		// numbers and timestamps, and the pair looks alive while carrying no claims).
-		GasFeeCap: big.NewInt(10_000_000_000),
-		GasTipCap: big.NewInt(0),
 	}
 }
 
@@ -88,8 +86,7 @@ func DefaultGasPolicy() GasPolicy {
 // not.
 type SignerFn func(tx *types.Transaction) (*types.Transaction, error)
 
-// PrivateKeySigner is the deterministic signer used in tests and in deployments that hold the
-// operator key locally.
+// PrivateKeySigner is the deterministic signer used in tests and local-key deployments.
 func PrivateKeySigner(key *ecdsa.PrivateKey, chainID *big.Int) SignerFn {
 	signer := types.LatestSignerForChainID(chainID)
 	return func(tx *types.Transaction) (*types.Transaction, error) {
@@ -97,9 +94,9 @@ func PrivateKeySigner(key *ecdsa.PrivateKey, chainID *big.Int) SignerFn {
 	}
 }
 
-// OperatorTxBuilder is the default ReplayTxBuilder: EIP-1559 transactions from one premined
-// operator EOA, priced from a frozen policy and nonced from an explicit starting point.
-type OperatorTxBuilder struct {
+// BatcherTxBuilder is the default ReplayTxBuilder: zero-priced EIP-1559 transactions from the
+// standard SystemConfig batcher account, nonced from an explicit starting point.
+type BatcherTxBuilder struct {
 	chainID *big.Int
 	gas     GasPolicy
 	sign    SignerFn
@@ -119,13 +116,13 @@ type OperatorTxBuilder struct {
 	messenger common.Address
 }
 
-var _ ReplayTxBuilder = (*OperatorTxBuilder)(nil)
+var _ ReplayTxBuilder = (*BatcherTxBuilder)(nil)
 
-// NewOperatorTxBuilder builds the default replay-transaction builder.
-func NewOperatorTxBuilder(chainID *big.Int, gas GasPolicy, sign SignerFn) *OperatorTxBuilder {
+// NewBatcherTxBuilder builds the default replay-transaction builder.
+func NewBatcherTxBuilder(chainID *big.Int, gas GasPolicy, sign SignerFn) *BatcherTxBuilder {
 	// eventReplayer and registry stay ZERO: they are per-deployment genesis addresses with no
 	// defensible default, and every ReplayTx/ClaimTx path refuses a zero one. See abi.go.
-	return &OperatorTxBuilder{
+	return &BatcherTxBuilder{
 		chainID:   new(big.Int).Set(chainID),
 		gas:       gas,
 		sign:      sign,
@@ -137,24 +134,28 @@ func NewOperatorTxBuilder(chainID *big.Int, gas GasPolicy, sign SignerFn) *Opera
 // cannot be built, which is deliberate: sending replayEvent to the zero address would produce a
 // rendering block whose transaction reverts, and a reverting replay is a rendering that silently
 // lost a log.
-func (b *OperatorTxBuilder) SetEventReplayer(addr common.Address) { b.eventReplayer = addr }
+func (b *BatcherTxBuilder) SetEventReplayer(addr common.Address) { b.eventReplayer = addr }
 
 // SetRegistry sets the genesis-assigned ClaimRegistry address.
-func (b *OperatorTxBuilder) SetRegistry(addr common.Address) { b.registry = addr }
+func (b *BatcherTxBuilder) SetRegistry(addr common.Address) { b.registry = addr }
 
 // SetReplayMessenger sets the address the export replay implementation is installed at. The
 // constructor's default — the messenger predeploy — is the only value that renders valid exports;
 // see the field.
-func (b *OperatorTxBuilder) SetReplayMessenger(addr common.Address) { b.messenger = addr }
+func (b *BatcherTxBuilder) SetReplayMessenger(addr common.Address) { b.messenger = addr }
 
-func (b *OperatorTxBuilder) Reset(nonce uint64) { b.nonce = nonce }
-func (b *OperatorTxBuilder) Nonce() uint64      { return b.nonce }
+func (b *BatcherTxBuilder) Reset(nonce uint64) { b.nonce = nonce }
+func (b *BatcherTxBuilder) Nonce() uint64      { return b.nonce }
 
-func (b *OperatorTxBuilder) ReplayTx(act ReplayAction) (*types.Transaction, error) {
+func (b *BatcherTxBuilder) ReplayTx(act ReplayAction) (*types.Transaction, error) {
 	switch act.Kind {
 	case ReplayExport:
 		if act.Export == nil {
 			return nil, fmt.Errorf("export action at rendered index %d has no decoded SentMessage", act.RenderedLogIndex)
+		}
+		gasLimit, err := exportGasLimit(b.gas.GasLimitExport, len(act.Export.Message))
+		if err != nil {
+			return nil, fmt.Errorf("rendered index %d: %w", act.RenderedLogIndex, err)
 		}
 		data, err := EncodeReplaySentMessage(act.Export)
 		if err != nil {
@@ -165,7 +166,7 @@ func (b *OperatorTxBuilder) ReplayTx(act ReplayAction) (*types.Transaction, erro
 		}
 		// To the messenger predeploy address, where the replay implementation is installed: the
 		// re-emitted SentMessage must carry the emitter every stock consumer expects.
-		return b.sendTx(b.messenger, data, nil, b.gas.GasLimitExport)
+		return b.sendTx(b.messenger, data, nil, gasLimit)
 	case ReplayEvent:
 		if b.eventReplayer == (common.Address{}) {
 			return nil, fmt.Errorf("rendered index %d needs EventReplayer, whose genesis address is not configured", act.RenderedLogIndex)
@@ -197,7 +198,21 @@ func (b *OperatorTxBuilder) ReplayTx(act ReplayAction) (*types.Transaction, erro
 	}
 }
 
-func (b *OperatorTxBuilder) ClaimTx(claim *codec.RangeClaim) (*types.Transaction, error) {
+func exportGasLimit(base uint64, messageSize int) (uint64, error) {
+	if messageSize > MaxRenderableMessageSize {
+		return 0, fmt.Errorf(
+			"SentMessage payload is %d bytes, exceeding the %d-byte rendering limit",
+			messageSize, MaxRenderableMessageSize,
+		)
+	}
+	extra := uint64(messageSize) * ExportGasPerMessageByte
+	if base > math.MaxUint64-extra {
+		return 0, fmt.Errorf("export gas limit overflows uint64")
+	}
+	return base + extra, nil
+}
+
+func (b *BatcherTxBuilder) ClaimTx(claim *codec.RangeClaim) (*types.Transaction, error) {
 	if b.registry == (common.Address{}) {
 		return nil, fmt.Errorf("the ClaimRegistry genesis address is not configured")
 	}
@@ -208,16 +223,16 @@ func (b *OperatorTxBuilder) ClaimTx(claim *codec.RangeClaim) (*types.Transaction
 	return b.sendTx(b.registry, data, nil, b.gas.GasLimitClaim)
 }
 
-func (b *OperatorTxBuilder) sendTx(to common.Address, data []byte, al types.AccessList, gasLimit uint64) (*types.Transaction, error) {
+func (b *BatcherTxBuilder) sendTx(to common.Address, data []byte, al types.AccessList, gasLimit uint64) (*types.Transaction, error) {
 	if b.sign == nil {
-		return nil, fmt.Errorf("no signer configured for the operator EOA")
+		return nil, fmt.Errorf("no signer configured for the batcher EOA")
 	}
 	addr := to
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:    new(big.Int).Set(b.chainID),
 		Nonce:      b.nonce,
-		GasTipCap:  new(big.Int).Set(b.gas.GasTipCap),
-		GasFeeCap:  new(big.Int).Set(b.gas.GasFeeCap),
+		GasTipCap:  new(big.Int),
+		GasFeeCap:  new(big.Int),
 		Gas:        gasLimit,
 		To:         &addr,
 		Value:      new(big.Int),

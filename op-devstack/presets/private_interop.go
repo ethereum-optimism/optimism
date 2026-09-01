@@ -1,8 +1,6 @@
 package presets
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/poller"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
@@ -44,12 +42,6 @@ func (p *PrivateInterop) FollowSource() string {
 	return p.runtime.PrivateInterop.FollowSource
 }
 
-// Operator is the EOA that signs every replay transaction and every range claim on the rendering.
-// Deleted once as dead code; op-up's endpoint printout made it live again the same night.
-func (p *PrivateInterop) Operator() common.Address {
-	return p.runtime.PrivateInterop.Operator
-}
-
 // twoL2PrivateInteropFromRuntime assembles the preset for a world whose chain B is a pair.
 //
 // It is the ordinary two-L2 interop assembler plus two things: the extra handles above, and the
@@ -64,10 +56,15 @@ func twoL2PrivateInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntim
 		RenderingRollupConfig: runtime.PrivateInterop.Rendering.RollupConfig(),
 		runtime:               runtime,
 	}
+	t.Require().NotNil(pi.RenderingRollupConfig.PrivateInterop,
+		"the rendering rollup config must carry its emitter policy")
+	extraEmitters := pi.RenderingRollupConfig.PrivateInterop.ExtraEmitters
 	if !runtime.PrivateInterop.Config.SkipRenderingInvariant {
+		emitters := render.NewEmitterSet(extraEmitters...)
 		pi.Invariant = poller.StartRenderingInvariant(
 			preset.L2ELB, preset.L2BSupernodeEL,
 			preset.L2BCL, preset.L2BSupernodeCL,
+			emitters,
 		)
 	}
 
@@ -80,7 +77,7 @@ func twoL2PrivateInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntim
 		privateEL:   preset.L2ELB,
 		renderingEL: preset.L2BSupernodeEL,
 		renderingCL: preset.L2BSupernodeCL,
-		emitters:    render.NewEmitterSet(runtime.PrivateInterop.ExtraEmitters...),
+		emitters:    render.NewEmitterSet(extraEmitters...),
 		timeout:     privateInteropPositionTimeout,
 	}
 	t.Cleanup(txintent.RegisterPositionResolver(preset.L2ELB.ChainID(), resolver))

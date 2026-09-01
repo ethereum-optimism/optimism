@@ -1,14 +1,20 @@
 package poller
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // The standing rendering invariant, for a private interop pair.
@@ -29,6 +35,9 @@ import (
 //   - correspondence: at every rendering block the rendering has derived, the private chain's block
 //     at that number has the same timestamp. Hashes are NOT compared, and never will be -- the two
 //     chains have different content by design, and their genesis hashes differ on purpose;
+//   - log equality: the rendering carries exactly the logs selected from the corresponding private
+//     block, in the same order and with byte-identical topics and data. Core interop logs retain
+//     their emitter; configured extra-emitter logs move to EventReplayer by design;
 //   - monotonicity: neither the rendering's safe head nor the private chain's claim-driven safe head
 //     ever goes backwards. A regression on the private side is the sharp one: a follow-mode sequencer
 //     force-resets onto whatever local-safe ref it is told, so a follow source that reported a lower
@@ -66,6 +75,7 @@ type RenderingInvariant struct {
 	renderingEL *dsl.L2ELNode
 	privateCL   *dsl.L2CLNode
 	renderingCL *dsl.L2CLNode
+	emitters    render.EmitterSet
 
 	cancel context.CancelFunc
 	done   <-chan struct{}
@@ -90,7 +100,11 @@ type RenderingInvariant struct {
 //
 // It registers a t.Cleanup that stops the poller and then fails the test if the invariant was ever
 // broken, so a caller never manages its lifecycle and never has to remember to assert.
-func StartRenderingInvariant(privateEL, renderingEL *dsl.L2ELNode, privateCL, renderingCL *dsl.L2CLNode) *RenderingInvariant {
+func StartRenderingInvariant(
+	privateEL, renderingEL *dsl.L2ELNode,
+	privateCL, renderingCL *dsl.L2CLNode,
+	emitters render.EmitterSet,
+) *RenderingInvariant {
 	t := privateEL.Escape().T()
 	ctx, cancel := context.WithCancel(t.Ctx())
 	done := make(chan struct{})
@@ -101,6 +115,7 @@ func StartRenderingInvariant(privateEL, renderingEL *dsl.L2ELNode, privateCL, re
 		renderingEL: renderingEL,
 		privateCL:   privateCL,
 		renderingCL: renderingCL,
+		emitters:    emitters,
 		cancel:      cancel,
 		done:        done,
 	}
@@ -195,10 +210,68 @@ func (r *RenderingInvariant) checkCorrespondence(ctx context.Context, renderingS
 					"a mismatch means every message identity at or after this height names a position that does not describe the private chain",
 				num, rendered.Time, private.Time))
 		}
+		if err := r.checkLogEquality(ctx, num, private.Hash, rendered.Hash); err != nil {
+			r.countErr()
+			return
+		}
 		r.mu.Lock()
 		r.checked, r.haveChecked = num, true
 		r.mu.Unlock()
 	}
+}
+
+// checkLogEquality asserts the pair's central content invariant. It deliberately reads receipts
+// from both execution engines rather than predicting rendering execution: a reverted replay is
+// exactly the failure this check exists to expose.
+func (r *RenderingInvariant) checkLogEquality(
+	ctx context.Context,
+	number uint64,
+	privateHash common.Hash,
+	renderingHash common.Hash,
+) error {
+	privateLogs, err := blockLogs(ctx, r.privateEL, privateHash)
+	if err != nil {
+		return err
+	}
+	publicLogs, err := blockLogs(ctx, r.renderingEL, renderingHash)
+	if err != nil {
+		return err
+	}
+	expected := render.RenderedLogs(privateLogs, r.emitters)
+	if len(publicLogs) != len(expected) {
+		r.violation(fmt.Sprintf(
+			"rendering log equality broken at block %d: selected %d private logs but derived %d rendering logs; a missing or extra log renumbers every later message in the block",
+			number, len(expected), len(publicLogs)))
+		return nil
+	}
+	for i, want := range expected {
+		got := publicLogs[i]
+		wantAddress := want.Log.Address
+		if wantAddress != predeploys.L2toL2CrossDomainMessengerAddr && wantAddress != predeploys.CrossL2InboxAddr {
+			wantAddress = predeploys.EventReplayerAddr
+		}
+		if got.Index != uint(i) || got.Address != wantAddress ||
+			!slices.Equal(got.Topics, want.Log.Topics) || !bytes.Equal(got.Data, want.Log.Data) {
+			r.violation(fmt.Sprintf(
+				"rendering log equality broken at block %d index %d: got emitter=%s blockIndex=%d topics=%v data=%x; want emitter=%s blockIndex=%d topics=%v data=%x",
+				number, i, got.Address, got.Index, got.Topics, got.Data,
+				wantAddress, i, want.Log.Topics, want.Log.Data))
+			return nil
+		}
+	}
+	return nil
+}
+
+func blockLogs(ctx context.Context, el *dsl.L2ELNode, blockHash common.Hash) ([]*types.Log, error) {
+	_, receipts, err := el.Escape().L2EthClient().FetchReceipts(ctx, blockHash)
+	if err != nil {
+		return nil, err
+	}
+	var out []*types.Log
+	for _, receipt := range receipts.Geth() {
+		out = append(out, receipt.Logs...)
+	}
+	return out, nil
 }
 
 // checkClaimAgreement verifies that the safe head the follow module served names a block the private

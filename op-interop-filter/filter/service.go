@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -72,10 +73,12 @@ func Main(version string) cliapp.LifecycleAction {
 		if cfg.LegacyCheckAccessListFormat {
 			l.Warn("LEGACY CHECK ACCESS LIST FORMAT ENABLED: interop_checkAccessList will not reject missing executing chain IDs")
 		}
-		for chainID := range cfg.RenderTransformChains {
-			l.Warn("RENDER TRANSFORM: this chain's logs are stored at their RENDERED positions, not their "+
-				"raw ones. The emitter set must match the chain's rendering builder.",
-				"chain", chainID, "extra_emitters", cfg.RenderExtraEmitters)
+		for chainID, rollupCfg := range cfg.RollupConfigs {
+			if rollupCfg.PrivateInterop != nil {
+				l.Warn("RENDER TRANSFORM: enabled by generated rollup config; this chain's logs are stored "+
+					"at their rendered positions, not their raw ones.",
+					"chain", chainID, "extra_emitters", rollupCfg.PrivateInterop.ExtraEmitters)
+			}
 		}
 
 		if !cfg.MessageExpiryWindowExplicit {
@@ -196,13 +199,10 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			return fmt.Errorf("duplicate chain ID %s: multiple RPCs return the same chain ID", chainID)
 		}
 
-		// Built once per flagged chain rather than shared, so the ingester owns a value nothing
-		// else can mutate; the set itself is identical for every flagged chain.
+		// The generated rendering rollup config is the transform switch and the sole emitter-set
+		// source. The rendering batcher consumes this same field.
 		var renderTransform *render.EmitterSet
-		if cfg.RenderTransformChains[chainID] {
-			set := render.NewEmitterSet(cfg.RenderExtraEmitters...)
-			renderTransform = &set
-		}
+		renderTransform = renderingEmitterSet(rollupCfg)
 
 		s.log.Info("Creating chain ingester", "chain", chainID, "rpc", rpcURL,
 			"render_transform", renderTransform != nil)
@@ -253,6 +253,16 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 
 	s.log.Info("Created backend", "chains", len(chains))
 	return nil
+}
+
+// renderingEmitterSet derives the optional private-log transform entirely from generated chain
+// configuration. Returning nil for an ordinary config preserves the stock ingestion path.
+func renderingEmitterSet(cfg *rollup.Config) *render.EmitterSet {
+	if cfg == nil || cfg.PrivateInterop == nil {
+		return nil
+	}
+	set := render.NewEmitterSet(cfg.PrivateInterop.ExtraEmitters...)
+	return &set
 }
 
 func (s *Service) initRPCServer(cfg *Config) error {

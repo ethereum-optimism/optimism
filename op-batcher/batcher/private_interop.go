@@ -61,7 +61,7 @@ type RangeStart struct {
 	// PrevTerminalRenderingHash is the previous range's terminal rendering block hash: the span's
 	// 20-byte parent check, and the channel ID's seed.
 	PrevTerminalRenderingHash common.Hash
-	// StartNonce is the operator EOA's nonce for the range's first transaction.
+	// StartNonce is the standard batcher account's nonce for the range's first transaction.
 	StartNonce uint64
 }
 
@@ -96,6 +96,9 @@ type PrivateInteropConfig struct {
 	Emitters render.EmitterSet
 	// MaxBlocksPerRange is the cadence — ~300 blocks at 2 s is one span batch every ten minutes.
 	MaxBlocksPerRange uint64
+	// MaxRangeBytes closes a range once its conservative uncompressed rendering-size estimate
+	// reaches the producer budget.
+	MaxRangeBytes uint64
 	// RollupConfigHash and DepSetHash are the claim's two configuration commitments: which chain
 	// and which dependency set the claim speaks for. They are frozen configuration, identical for
 	// every range, which is why they live here rather than being fetched per range.
@@ -105,7 +108,7 @@ type PrivateInteropConfig struct {
 	Receipts PrivateReceipts
 	// Ranges supplies the previous range's terminal state.
 	Ranges RangeSource
-	// Txs builds the operator's signed replay and claim transactions.
+	// Txs builds the standard batcher's signed replay and claim transactions.
 	Txs render.ReplayTxBuilder
 	// MaxFrameSize caps a frame; zero takes the builder's blob-sized default.
 	MaxFrameSize uint64
@@ -120,6 +123,9 @@ func (c *PrivateInteropConfig) Check() error {
 	}
 	if c.MaxBlocksPerRange == 0 {
 		return errors.New("private interop: no cadence configured")
+	}
+	if c.MaxRangeBytes == 0 {
+		return errors.New("private interop: no range byte budget configured")
 	}
 	if c.RollupConfigHash == (common.Hash{}) {
 		return errors.New("private interop: no rollup config hash for the range claim")
@@ -136,7 +142,25 @@ func (c *PrivateInteropConfig) Check() error {
 	if c.Txs == nil {
 		return errors.New("private interop: no replay transaction builder")
 	}
+	if _, err := renderingBlockGasBudget(c.Rollup); err != nil {
+		return err
+	}
 	return nil
+}
+
+// renderingBlockGasBudget reserves half of the EIP-1559 target for the mandatory attributes
+// deposit and any protocol upgrade transactions. Synthetic claim/replay transactions must fit in
+// the other half. Since actual gas used cannot exceed declared gas, staying within this budget
+// keeps a zero base fee at zero.
+func renderingBlockGasBudget(cfg *rollup.Config) (uint64, error) {
+	if cfg == nil || cfg.ChainOpConfig == nil || cfg.ChainOpConfig.EIP1559Elasticity == 0 {
+		return 0, errors.New("private interop: rendering rollup config has no EIP-1559 elasticity")
+	}
+	target := cfg.Genesis.SystemConfig.GasLimit / cfg.ChainOpConfig.EIP1559Elasticity
+	if target < 2 {
+		return 0, errors.New("private interop: rendering EIP-1559 gas target is too small")
+	}
+	return target / 2, nil
 }
 
 // PrivateInteropEncoder is the terminal stage: it remembers each loaded private block's receipts,
@@ -199,11 +223,16 @@ func (e *PrivateInteropEncoder) ChannelOut(channelCfg ChannelConfig, rollupCfg *
 		maxFrame = uint64(channelCfg.MaxFrameSize)
 	}
 	compression := channelCfg.CompressorConfig.CompressionAlgo
+	maxBlockGas, err := renderingBlockGasBudget(e.cfg.Rollup)
+	if err != nil {
+		return nil, err
+	}
 	b, err := builder.New(builder.Config{
 		Rollup:       e.cfg.Rollup,
 		Emitters:     e.cfg.Emitters,
 		MaxFrameSize: maxFrame,
 		Compression:  compression,
+		MaxBlockGas:  maxBlockGas,
 	}, e.cfg.Txs)
 	if err != nil {
 		return nil, err
@@ -329,14 +358,23 @@ func (c *renderChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.Execu
 	c.hashes = append(c.hashes, payload.BlockHash)
 	c.privBatches = append(c.privBatches, privBatch)
 	c.privSeqNums = append(c.privSeqNums, l1Info.SequenceNumber)
-	c.inputLen += len(rendered.Actions)
-	if uint64(len(c.blocks)) >= c.enc.cfg.MaxBlocksPerRange {
-		// The cadence, not a size limit, is what ends a range: one span batch per cadence is the
-		// ratified shape, and the measured headroom against every size limit is three orders of
-		// magnitude.
+	c.inputLen += estimatedRenderedBlockBytes(rendered)
+	if uint64(len(c.blocks)) >= c.enc.cfg.MaxBlocksPerRange || uint64(c.inputLen) >= c.enc.cfg.MaxRangeBytes {
 		c.full = derive.ErrCompressorFull
 	}
 	return l1Info, nil
+}
+
+// estimatedRenderedBlockBytes conservatively bounds the signed rendering transactions before the
+// range is built. The 512-byte per-action allowance covers typed-transaction/signature and ABI
+// overhead; topic and data bytes are counted exactly. Ending early on an overestimate is harmless.
+func estimatedRenderedBlockBytes(block *render.RenderedBlock) int {
+	const transactionOverhead = 512
+	size := 0
+	for _, action := range block.Actions {
+		size += transactionOverhead + len(action.Topics)*common.HashLength + len(action.Data)
+	}
+	return size
 }
 
 // Close commits to the range's private derivation input and then builds the range.

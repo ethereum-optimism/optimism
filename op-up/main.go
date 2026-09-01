@@ -338,7 +338,6 @@ func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL
 		fmt.Fprintf(stderr, "L2B Rendering EL Node URL: %s\n", sys.L2BSupernodeEL.Escape().UserRPC())
 		fmt.Fprintf(stderr, "L2B Rendering CL Node URL: %s\n", sys.L2BSupernodeCL.Escape().UserRPC())
 		fmt.Fprintf(stderr, "L2B Private op-node follow source: %s\n", pi.FollowSource())
-		fmt.Fprintf(stderr, "L2B Rendering operator address: %s\n", pi.Operator())
 	}
 
 	go logBlocks(ctx, stderr, "L2A", sys.L2ELA)

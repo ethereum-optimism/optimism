@@ -388,7 +388,9 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		c.initOverload.RPCHandler = h
 		c.rpcHandler = h
 		// Mount any optional sibling routes on the fresh handler. No-op when none are configured.
-		c.registerExtraRPCRoutes(h)
+		if err := c.registerExtraRPCRoutes(h); err != nil {
+			return err
+		}
 		// attach in-proc rollup client for this handler
 		if err := c.attachInProcRollupClient(); err != nil {
 			c.log.Warn("failed to attach in-proc rollup client", "err", err)

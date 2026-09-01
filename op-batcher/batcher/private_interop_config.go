@@ -1,17 +1,14 @@
 package batcher
 
 import (
-	"crypto/ecdsa"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
@@ -36,28 +33,22 @@ type PrivateInteropCLIConfig struct {
 
 	// MaxBlocksPerRange is the cadence.
 	MaxBlocksPerRange uint64
+	// MaxRangeBytes is the uncompressed producer-side byte budget.
+	MaxRangeBytes uint64
 
 	// ClaimRegistry, EventReplayer and ReplayMessenger are the rendering's genesis-assigned
 	// addresses, as hex strings.
 	ClaimRegistry   string
 	EventReplayer   string
 	ReplayMessenger string
-	// ExtraEmitters are additional emitter addresses, as hex strings.
-	ExtraEmitters []string
-
 	// RollupConfigHash and DepSetHash are the claim's two configuration commitments, as hex.
 	RollupConfigHash string
 	DepSetHash       string
-
-	// OperatorKey is the operator EOA's private key, as hex.
-	OperatorKey string
 
 	GasLimitExport uint64
 	GasLimitImport uint64
 	GasLimitEvent  uint64
 	GasLimitClaim  uint64
-	GasFeeCap      uint64
-	GasTipCap      uint64
 }
 
 // ReadPrivateInteropCLIConfig parses the flag group.
@@ -67,19 +58,16 @@ func ReadPrivateInteropCLIConfig(ctx *cli.Context) PrivateInteropCLIConfig {
 		RenderingRollupConfigPath: ctx.String(flags.PrivateInteropRenderingRollupConfigFlag.Name),
 		RenderingRPC:              ctx.String(flags.PrivateInteropRenderingRPCFlag.Name),
 		MaxBlocksPerRange:         ctx.Uint64(flags.PrivateInteropMaxBlocksPerRangeFlag.Name),
+		MaxRangeBytes:             ctx.Uint64(flags.PrivateInteropMaxRangeBytesFlag.Name),
 		ClaimRegistry:             ctx.String(flags.PrivateInteropClaimRegistryFlag.Name),
 		EventReplayer:             ctx.String(flags.PrivateInteropEventReplayerFlag.Name),
 		ReplayMessenger:           ctx.String(flags.PrivateInteropReplayMessengerFlag.Name),
-		ExtraEmitters:             ctx.StringSlice(flags.PrivateInteropExtraEmittersFlag.Name),
 		RollupConfigHash:          ctx.String(flags.PrivateInteropRollupConfigHashFlag.Name),
 		DepSetHash:                ctx.String(flags.PrivateInteropDepSetHashFlag.Name),
-		OperatorKey:               ctx.String(flags.PrivateInteropOperatorKeyFlag.Name),
 		GasLimitExport:            ctx.Uint64(flags.PrivateInteropGasLimitExportFlag.Name),
 		GasLimitImport:            ctx.Uint64(flags.PrivateInteropGasLimitImportFlag.Name),
 		GasLimitEvent:             ctx.Uint64(flags.PrivateInteropGasLimitEventFlag.Name),
 		GasLimitClaim:             ctx.Uint64(flags.PrivateInteropGasLimitClaimFlag.Name),
-		GasFeeCap:                 ctx.Uint64(flags.PrivateInteropGasFeeCapFlag.Name),
-		GasTipCap:                 ctx.Uint64(flags.PrivateInteropGasTipCapFlag.Name),
 	}
 }
 
@@ -109,6 +97,9 @@ func (c *PrivateInteropCLIConfig) Check() error {
 	if c.MaxBlocksPerRange == 0 {
 		return errors.New("private interop: --private-interop.max-blocks-per-range must be greater than zero")
 	}
+	if c.MaxRangeBytes == 0 {
+		return errors.New("private interop: --private-interop.max-range-bytes must be greater than zero")
+	}
 	for _, f := range []struct {
 		flag, value string
 	}{
@@ -117,11 +108,6 @@ func (c *PrivateInteropCLIConfig) Check() error {
 		{flags.PrivateInteropReplayMessengerFlag.Name, c.ReplayMessenger},
 	} {
 		if _, err := parseAddress(f.flag, f.value); err != nil {
-			return err
-		}
-	}
-	for _, a := range c.ExtraEmitters {
-		if _, err := parseAddress(flags.PrivateInteropExtraEmittersFlag.Name, a); err != nil {
 			return err
 		}
 	}
@@ -134,9 +120,6 @@ func (c *PrivateInteropCLIConfig) Check() error {
 		if _, err := parseHash(f.flag, f.value); err != nil {
 			return err
 		}
-	}
-	if _, err := c.operatorKey(); err != nil {
-		return err
 	}
 	for _, f := range []struct {
 		flag  string
@@ -152,12 +135,6 @@ func (c *PrivateInteropCLIConfig) Check() error {
 				f.flag, f.limit, minRenderingTxGas)
 		}
 	}
-	if c.GasFeeCap == 0 {
-		return errors.New("private interop: --private-interop.gas-fee-cap must be greater than zero; a zero-priced rendering transaction is never included")
-	}
-	if c.GasTipCap > c.GasFeeCap {
-		return fmt.Errorf("private interop: --private-interop.gas-tip-cap (%d) exceeds --private-interop.gas-fee-cap (%d)", c.GasTipCap, c.GasFeeCap)
-	}
 	return nil
 }
 
@@ -166,17 +143,15 @@ type PrivateInteropSettings struct {
 	RenderingRollupConfigPath string
 	RenderingRPC              string
 	MaxBlocksPerRange         uint64
+	MaxRangeBytes             uint64
 
-	ClaimRegistry   common.Address
-	EventReplayer   common.Address
-	ReplayMessenger common.Address
-	Emitters        render.EmitterSet
-
+	ClaimRegistry    common.Address
+	EventReplayer    common.Address
+	ReplayMessenger  common.Address
 	RollupConfigHash common.Hash
 	DepSetHash       common.Hash
 
-	OperatorKey *ecdsa.PrivateKey
-	Gas         render.GasPolicy
+	Gas render.GasPolicy
 }
 
 // Resolve converts the raw group into its typed form. It re-runs Check first, so a caller cannot
@@ -191,50 +166,25 @@ func (c *PrivateInteropCLIConfig) Resolve() (*PrivateInteropSettings, error) {
 	registry, _ := parseAddress(flags.PrivateInteropClaimRegistryFlag.Name, c.ClaimRegistry)
 	replayer, _ := parseAddress(flags.PrivateInteropEventReplayerFlag.Name, c.EventReplayer)
 	messenger, _ := parseAddress(flags.PrivateInteropReplayMessengerFlag.Name, c.ReplayMessenger)
-	extra := make([]common.Address, 0, len(c.ExtraEmitters))
-	for _, a := range c.ExtraEmitters {
-		addr, _ := parseAddress(flags.PrivateInteropExtraEmittersFlag.Name, a)
-		extra = append(extra, addr)
-	}
 	rollupConfigHash, _ := parseHash(flags.PrivateInteropRollupConfigHashFlag.Name, c.RollupConfigHash)
 	depSetHash, _ := parseHash(flags.PrivateInteropDepSetHashFlag.Name, c.DepSetHash)
-	key, err := c.operatorKey()
-	if err != nil {
-		return nil, err
-	}
 	return &PrivateInteropSettings{
 		RenderingRollupConfigPath: c.RenderingRollupConfigPath,
 		RenderingRPC:              c.RenderingRPC,
 		MaxBlocksPerRange:         c.MaxBlocksPerRange,
+		MaxRangeBytes:             c.MaxRangeBytes,
 		ClaimRegistry:             registry,
 		EventReplayer:             replayer,
 		ReplayMessenger:           messenger,
-		Emitters:                  render.NewEmitterSet(extra...),
 		RollupConfigHash:          rollupConfigHash,
 		DepSetHash:                depSetHash,
-		OperatorKey:               key,
 		Gas: render.GasPolicy{
 			GasLimitExport: c.GasLimitExport,
 			GasLimitImport: c.GasLimitImport,
 			GasLimitEvent:  c.GasLimitEvent,
 			GasLimitClaim:  c.GasLimitClaim,
-			GasFeeCap:      new(big.Int).SetUint64(c.GasFeeCap),
-			GasTipCap:      new(big.Int).SetUint64(c.GasTipCap),
 		},
 	}, nil
-}
-
-func (c *PrivateInteropCLIConfig) operatorKey() (*ecdsa.PrivateKey, error) {
-	if c.OperatorKey == "" {
-		return nil, errors.New("private interop: --private-interop.operator-key is required")
-	}
-	key, err := crypto.HexToECDSA(strings.TrimPrefix(c.OperatorKey, "0x"))
-	if err != nil {
-		// Deliberately does not echo the value.
-		return nil, fmt.Errorf("private interop: --%s is not a valid private key: %w",
-			flags.PrivateInteropOperatorKeyFlag.Name, err)
-	}
-	return key, nil
 }
 
 // parseAddress accepts only a full 20-byte hex address, and never the zero address.

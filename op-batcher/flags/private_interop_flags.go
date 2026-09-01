@@ -21,6 +21,9 @@ const (
 	// DefaultPrivateInteropMaxBlocksPerRange is the ratified cadence: ~300 blocks at 2 s is one span
 	// batch every ten minutes.
 	DefaultPrivateInteropMaxBlocksPerRange = 300
+	// DefaultPrivateInteropMaxRangeBytes leaves ample room beneath the six-blob capacity of one L1
+	// transaction even when attacker-controlled payloads do not compress.
+	DefaultPrivateInteropMaxRangeBytes = 512 * 1024
 )
 
 var (
@@ -40,18 +43,25 @@ var (
 	PrivateInteropRenderingRPCFlag = &cli.StringFlag{
 		Name: "private-interop.rendering-rpc",
 		Usage: "HTTP provider URL for an execution client following the RENDERING. It is the " +
-			"parent-check follower: the previous range's terminal rendering block hash, the origin " +
-			"and sequence-number bookkeeping to continue from, and the operator EOA's nonce all " +
+			"parent-check follower: the previous range's terminal rendering block hash and the standard " +
+			"batcher account's nonce " +
 			"come from it, and none of them can be computed.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_RENDERING_RPC"),
 	}
 	PrivateInteropMaxBlocksPerRangeFlag = &cli.Uint64Flag{
 		Name: "private-interop.max-blocks-per-range",
-		Usage: "The cadence: how many private blocks one range covers. It is the cadence, not a " +
-			"size limit, that ends a range — every measured size limit has three orders of " +
-			"magnitude of headroom at the default.",
+		Usage: "Maximum cadence: how many private blocks one range covers. A range may close sooner " +
+			"when its uncompressed byte budget is reached.",
 		Value:   DefaultPrivateInteropMaxBlocksPerRange,
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_MAX_BLOCKS_PER_RANGE"),
+	}
+	PrivateInteropMaxRangeBytesFlag = &cli.Uint64Flag{
+		Name: "private-interop.max-range-bytes",
+		Usage: "Maximum estimated uncompressed rendering transaction bytes in one range. The range " +
+			"closes early when this budget is reached; the builder separately refuses output requiring " +
+			"more than one six-blob L1 transaction.",
+		Value:   DefaultPrivateInteropMaxRangeBytes,
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_MAX_RANGE_BYTES"),
 	}
 	PrivateInteropClaimRegistryFlag = &cli.StringFlag{
 		Name: "private-interop.claim-registry",
@@ -75,13 +85,6 @@ var (
 		Value:   predeploys.L2toL2CrossDomainMessenger,
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_REPLAY_MESSENGER"),
 	}
-	PrivateInteropExtraEmittersFlag = &cli.StringSliceFlag{
-		Name: "private-interop.extra-emitters",
-		Usage: "Comma-separated extra emitter addresses, whose logs render at ANY topic. This is a " +
-			"genesis-time configuration and must match the rendering's genesis exactly: it changes " +
-			"which private logs are public, hence every later log's rendered index.",
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_EXTRA_EMITTERS"),
-	}
 	PrivateInteropRollupConfigHashFlag = &cli.StringFlag{
 		Name: "private-interop.rollup-config-hash",
 		Usage: "32-byte rollupConfigHash the range claim commits to: which chain the claim speaks " +
@@ -93,14 +96,6 @@ var (
 		Usage: "32-byte depSetHash the range claim commits to: which dependency set the claim " +
 			"speaks for. A configuration value, changing only with the dependency set.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_DEP_SET_HASH"),
-	}
-	PrivateInteropOperatorKeyFlag = &cli.StringFlag{
-		Name: "private-interop.operator-key",
-		Usage: "Hex private key of the operator EOA that signs the rendering's replay and claim " +
-			"transactions. It is a LOCAL key on purpose: the rendering's transactions are consensus " +
-			"data and must be a pure function of the range, which go-ethereum's RFC 6979 signing is " +
-			"and a remote signer that adds entropy is not. Prefer the env var.",
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_OPERATOR_KEY"),
 	}
 	PrivateInteropGasLimitExportFlag = &cli.Uint64Flag{
 		Name:    "private-interop.gas-limit-export",
@@ -126,20 +121,6 @@ var (
 		Value:   render.DefaultGasPolicy().GasLimitClaim,
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_GAS_LIMIT_CLAIM"),
 	}
-	PrivateInteropGasFeeCapFlag = &cli.Uint64Flag{
-		Name: "private-interop.gas-fee-cap",
-		Usage: "EIP-1559 fee cap, in wei, for every rendering transaction. Frozen configuration, not " +
-			"an observed price: the rendering has no mempool, no fee market and one sender, and a " +
-			"builder that priced from an oracle would produce a different chain on every run.",
-		Value:   render.DefaultGasPolicy().GasFeeCap.Uint64(),
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_GAS_FEE_CAP"),
-	}
-	PrivateInteropGasTipCapFlag = &cli.Uint64Flag{
-		Name:    "private-interop.gas-tip-cap",
-		Usage:   "EIP-1559 tip cap, in wei, for every rendering transaction. Frozen configuration; see --private-interop.gas-fee-cap.",
-		Value:   render.DefaultGasPolicy().GasTipCap.Uint64(),
-		EnvVars: prefixEnvVars("PRIVATE_INTEROP_GAS_TIP_CAP"),
-	}
 )
 
 // PrivateInteropFlags is the whole group. It is appended to the batcher's optional flags: the
@@ -149,17 +130,14 @@ var PrivateInteropFlags = []cli.Flag{
 	PrivateInteropRenderingRollupConfigFlag,
 	PrivateInteropRenderingRPCFlag,
 	PrivateInteropMaxBlocksPerRangeFlag,
+	PrivateInteropMaxRangeBytesFlag,
 	PrivateInteropClaimRegistryFlag,
 	PrivateInteropEventReplayerFlag,
 	PrivateInteropReplayMessengerFlag,
-	PrivateInteropExtraEmittersFlag,
 	PrivateInteropRollupConfigHashFlag,
 	PrivateInteropDepSetHashFlag,
-	PrivateInteropOperatorKeyFlag,
 	PrivateInteropGasLimitExportFlag,
 	PrivateInteropGasLimitImportFlag,
 	PrivateInteropGasLimitEventFlag,
 	PrivateInteropGasLimitClaimFlag,
-	PrivateInteropGasFeeCapFlag,
-	PrivateInteropGasTipCapFlag,
 }

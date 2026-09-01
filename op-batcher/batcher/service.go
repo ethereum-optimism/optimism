@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -450,6 +450,9 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	if err := renderingRollup.Check(); err != nil {
 		return fmt.Errorf("invalid rendering rollup config: %w", err)
 	}
+	if renderingRollup.PrivateInterop == nil {
+		return errors.New("rendering rollup config does not declare private_interop")
+	}
 	if renderingRollup.L2ChainID.Cmp(bs.RollupConfig.L2ChainID) != 0 {
 		// The ratified design gives the rendering the private chain's chain ID: it IS the private
 		// chain's identity in the dependency set. A mismatch means one of the two configs belongs to
@@ -462,12 +465,12 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	if err != nil {
 		return err
 	}
-	operator := crypto.PubkeyToAddress(settings.OperatorKey.PublicKey)
+	batcherAddr := bs.TxManager.From()
 	ranges, err := NewPrivateInteropRangeSource(PrivateInteropRangeSourceConfig{
 		Log:             bs.Log,
 		RenderingRollup: renderingRollup,
 		Rendering:       follower,
-		Operator:        operator,
+		Batcher:         batcherAddr,
 		NetworkTimeout:  bs.NetworkTimeout,
 	})
 	if err != nil {
@@ -487,8 +490,18 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		return fmt.Errorf("building the private receipt source: %w", err)
 	}
 
-	txs := render.NewOperatorTxBuilder(renderingRollup.L2ChainID, settings.Gas,
-		render.PrivateKeySigner(settings.OperatorKey, renderingRollup.L2ChainID))
+	signerFactory, signerAddr, err := txmgr.SignerFactoryFromCLIConfig(bs.Log, cfg.TxMgrConfig)
+	if err != nil {
+		return fmt.Errorf("resolving the standard batcher signer for rendering transactions: %w", err)
+	}
+	if signerAddr != batcherAddr {
+		return fmt.Errorf("standard batcher signer address changed during startup: %s != %s", signerAddr, batcherAddr)
+	}
+	renderingSigner := signerFactory(renderingRollup.L2ChainID)
+	txs := render.NewBatcherTxBuilder(renderingRollup.L2ChainID, settings.Gas,
+		func(tx *types.Transaction) (*types.Transaction, error) {
+			return renderingSigner(ctx, batcherAddr, tx)
+		})
 	txs.SetRegistry(settings.ClaimRegistry)
 	txs.SetEventReplayer(settings.EventReplayer)
 	txs.SetReplayMessenger(settings.ReplayMessenger)
@@ -496,8 +509,9 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	enc, err := NewPrivateInteropEncoder(PrivateInteropConfig{
 		Rollup:            renderingRollup,
 		PrivateRollup:     bs.RollupConfig,
-		Emitters:          settings.Emitters,
+		Emitters:          render.NewEmitterSet(renderingRollup.PrivateInterop.ExtraEmitters...),
 		MaxBlocksPerRange: settings.MaxBlocksPerRange,
+		MaxRangeBytes:     settings.MaxRangeBytes,
 		RollupConfigHash:  settings.RollupConfigHash,
 		DepSetHash:        settings.DepSetHash,
 		Receipts:          receipts,
@@ -509,8 +523,9 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	}
 	bs.privateInterop = enc
 	bs.Log.Warn("PRIVATE INTEROP MODE: this batcher loads private blocks and posts their public rendering",
-		"rendering_chain_id", renderingRollup.L2ChainID, "operator", operator,
-		"cadence_blocks", settings.MaxBlocksPerRange, "claim_registry", settings.ClaimRegistry)
+		"rendering_chain_id", renderingRollup.L2ChainID, "batcher", batcherAddr,
+		"cadence_blocks", settings.MaxBlocksPerRange, "max_range_bytes", settings.MaxRangeBytes,
+		"claim_registry", settings.ClaimRegistry)
 	return nil
 }
 

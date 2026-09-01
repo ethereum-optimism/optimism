@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
@@ -31,8 +30,8 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         at build time. The genesis range opens with its own claim like any other; the only
 ///         special case is the first post, which has no predecessor to sit after.
 ///
-///         The registry checks exactly what it can check cheaply and locally: the operator gate,
-///         the claim version, that each range starts strictly after the last posted range ended,
+///         The registry checks exactly what it can check cheaply and locally: the claim version,
+///         that each range starts strictly after the last posted range ended,
 ///         and that the proof slot is empty. It does NOT check that the range's contents match the
 ///         private chain — in v1 that is the operator's attestation, unproven by design. Claim N's
 ///         stored hash folds into claim N+1's, so the posted sequence is a hash chain an auditor
@@ -60,10 +59,7 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         a verifier behind it; until then, accepting proof bytes here would let an operator
 ///         publish something that merely looks proven. The empty-slot rule is what makes "this
 ///         range is attested, not proven" unambiguous on-chain.
-contract ClaimRegistry is ProxyAdminOwnedBase, ISemver, Initializable {
-    /// @notice Thrown when the caller is not the authorized operator.
-    error ClaimRegistry_Unauthorized();
-
+contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     /// @notice Thrown when the claim version is not the version this registry accepts.
     error ClaimRegistry_UnsupportedClaimVersion();
 
@@ -78,13 +74,6 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver, Initializable {
     ///         not, and is accepted.
     error ClaimRegistry_OverlappingRange();
 
-    /// @notice Emitted when the authorized operator address is set. This is a configuration change
-    ///         made outside the rendering's block stream, not part of a rendered range, so it does
-    ///         not disturb any message's log position.
-    ///
-    /// @param operator Address that is now authorized to post claims.
-    event OperatorSet(address indexed operator);
-
     /// @notice Claim version this registry accepts.
     uint8 public constant CLAIM_VERSION = 1;
 
@@ -94,14 +83,8 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver, Initializable {
     uint256 public constant MAX_PROOF_LENGTH = 65_536;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
-
-    /// @notice Address authorized to post claims. Set at genesis and rotatable by the ProxyAdmin
-    ///         owner. A zero value disables posting entirely, since `msg.sender` can never be the
-    ///         zero address.
-    /// @custom:network-specific
-    address public operator;
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Number of claims posted so far. Zero means no range has been posted, which is the
     ///         only state in which an arbitrary `firstBlock` is accepted.
@@ -112,30 +95,6 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver, Initializable {
 
     /// @notice Running hash of the posted claim sequence. Zero before the first post.
     bytes32 public lastClaimHash;
-
-    constructor() {
-        _disableInitializers();
-    }
-
-    /// @notice Initializer. Only assigns `operator` to a fixed value, so re-running it during an
-    ///         upgrade produces the same end state as running it once. It deliberately does not
-    ///         touch the posted-range state, so an upgrade never rewinds the claim chain.
-    ///
-    /// @param _operator Address authorized to post claims.
-    function initialize(address _operator) external initializer {
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-        operator = _operator;
-        emit OperatorSet(_operator);
-    }
-
-    /// @notice Sets the address authorized to post claims. Used to rotate the operator key.
-    ///
-    /// @param _operator Address authorized to post claims.
-    function setOperator(address _operator) external {
-        _assertOnlyProxyAdminOwner();
-        operator = _operator;
-        emit OperatorSet(_operator);
-    }
 
     /// @notice Posts the claim for the range this transaction opens. Reverts unless the range
     ///         begins strictly after the last posted range ended, so posted ranges never overlap,
@@ -157,7 +116,6 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver, Initializable {
     ///
     /// @param _claim Claim describing the range this transaction opens.
     function postClaim(RangeClaim calldata _claim) external {
-        if (msg.sender != operator) revert ClaimRegistry_Unauthorized();
         if (_claim.version != CLAIM_VERSION) revert ClaimRegistry_UnsupportedClaimVersion();
 
         // v1 is attested, never proven: the slot must be empty. A proof-accepting registry is a
