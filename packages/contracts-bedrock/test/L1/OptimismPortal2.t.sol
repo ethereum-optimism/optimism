@@ -2456,6 +2456,57 @@ contract OptimismPortal2_DeleteProvenWithdrawal_Test is OptimismPortal2_TestInit
         optimismPortal2.finalizeWithdrawalTransactionExternalProof(_defaultTx, address(this));
     }
 
+    /// @notice Tests that a withdrawal cannot be re-proven against the same game after the proof
+    ///         was deleted because the game resolved in favor of the challenger. Deletion is only
+    ///         safe to make permissionless because `proveWithdrawalTransaction` rejects that game.
+    function test_deleteProvenWithdrawal_thenReproveChallengerWinsGame_reverts() external {
+        _resolveGameAgainstDefender();
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidDisputeGame.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        (, uint64 timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash, address(this));
+        assertEq(timestamp, 0);
+    }
+
+    /// @notice Tests that a withdrawal cannot be re-proven against the same game after the proof
+    ///         was deleted because the game was blacklisted. Deletion is only safe to make
+    ///         permissionless because `proveWithdrawalTransaction` rejects that game.
+    function test_deleteProvenWithdrawal_thenReproveBlacklistedGame_reverts() external {
+        vm.prank(optimismPortal2.guardian());
+        anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(game)));
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ImproperDisputeGame.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        (, uint64 timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash, address(this));
+        assertEq(timestamp, 0);
+    }
+
+    /// @notice Stores a CHALLENGER_WINS status in the dispute game. The status lives in slot 0 at
+    ///         offset 16. A real stored status is used instead of `vm.mockCall` so that a revert
+    ///         on re-prove cannot be an artefact of the mock.
+    function _resolveGameAgainstDefender() internal {
+        uint256 offset = 16 << 3;
+        uint256 slot = uint256(vm.load(address(game), bytes32(0)));
+        slot = (slot & ~(0xFF << offset)) | (uint256(GameStatus.CHALLENGER_WINS) << offset);
+        vm.store(address(game), bytes32(0), bytes32(slot));
+
+        assertEq(uint256(game.status()), uint256(GameStatus.CHALLENGER_WINS));
+    }
+
     /// @notice Tests that `deleteProvenWithdrawal` does not clear the replay protection applied to
     ///         a finalized withdrawal.
     function test_deleteProvenWithdrawal_finalizedWithdrawal_succeeds() external {
