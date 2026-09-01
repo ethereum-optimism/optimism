@@ -1696,21 +1696,22 @@ jobs:
           enable-mise-cache: true
       - restore-go-mod-cache
       - run:
-          name: Download Go modules
+          name: Download Go modules and pinned guest toolchain
           command: |
-            # proxy.golang.org intermittently returns transient stream errors
-            # (INTERNAL_ERROR). Retry with exponential backoff so a flaky
-            # download doesn't fail this shared prep job and everything behind
-            # it.
+            # proxy.golang.org / sum.golang.org intermittently return transient
+            # stream errors (INTERNAL_ERROR). Retry with exponential backoff so
+            # a flaky download doesn't fail this shared prep job and everything
+            # behind it. The guest toolchain lands in the module cache too, so
+            # go-tests shards don't fetch it over the network.
             n=0
-            until go mod download; do
+            until go mod download && (cd cannon/testdata && just fetch-go-toolchain); do
               n=$((n+1))
               if [ "$n" -ge 5 ]; then
-                echo "go mod download failed after $n attempts" >&2
+                echo "Go module/toolchain download failed after $n attempts" >&2
                 exit 1
               fi
               backoff=$((5 * 2 ** (n - 1)))
-              echo "go mod download failed (attempt $n); retrying in ${backoff}s..." >&2
+              echo "Go module/toolchain download failed (attempt $n); retrying in ${backoff}s..." >&2
               sleep "$backoff"
             done
       - save-go-mod-cache

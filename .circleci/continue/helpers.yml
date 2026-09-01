@@ -7,20 +7,23 @@ commands:
   # populated once by the prep-go-modules job and restored read-only everywhere
   # else, so modules are downloaded a single time per go.sum rather than once
   # per job (every download is an opportunity for a proxy.golang.org flake).
+  # The cache also holds the guest Go toolchain pinned in cannon/testdata/justfile,
+  # so that file's checksum is part of the key.
   # c-go-cache-version is the global cache-buster for breaking changes.
   restore-go-mod-cache:
     steps:
       - restore_cache:
           name: Restore Go module cache (go.sum)
           keys:
-            - go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}
+            - go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}-{{ checksum "cannon/testdata/justfile" }}
+            - go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}-
             - go-mod-<<pipeline.parameters.c-go-cache-version>>-
 
   save-go-mod-cache:
     steps:
       - save_cache:
           name: Save Go module cache (go.sum)
-          key: go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}
+          key: go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}-{{ checksum "cannon/testdata/justfile" }}
           paths:
             - ~/go/pkg/mod
 
