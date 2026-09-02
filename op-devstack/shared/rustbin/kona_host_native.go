@@ -34,21 +34,6 @@ func RunKonaSuperNative(t require.TestingT, logger log.Logger, vmConfig *vm.Conf
 	return runOracleServer(t, logger, "kona-host-super", args, dir)
 }
 
-// RunKonaSP1Range runs the kona-sp1 range-executor, which generates the witness via the kona-host
-// preimage server and runs the range guest in SP1 execute mode. Returns false if the guest rejects
-// the claim and true otherwise. The executor reuses the kona-host `single` oracle-server flags, so
-// vmConfig.Server must point at the range-executor binary.
-func RunKonaSP1Range(t require.TestingT, logger log.Logger, vmConfig *vm.Config, dir string, inputs *utils.LocalGameInputs, extraArgs ...string) bool {
-	require.NotNil(t, vmConfig)
-	require.NotNil(t, inputs)
-	// Server-mode flags (--server) satisfy the range-executor's flattened SingleChainHost parser;
-	// the executor drives the preimage server itself rather than running a client program.
-	args, err := vm.NewKonaExecutor().OracleCommand(*vmConfig, dir, *inputs)
-	require.NoError(t, err, "build kona-sp1 oracle command")
-	args = append(args, extraArgs...)
-	return runOracleServer(t, logger, "kona-sp1-range-executor", args, dir)
-}
-
 // RunKonaSP1SuperRange runs the kona-sp1 super-range executor. Returns false if the guest
 // rejects the synthesized super-range claim and true otherwise.
 func RunKonaSP1SuperRange(t require.TestingT, logger log.Logger, executorPath string, dir string, args ...string) bool {

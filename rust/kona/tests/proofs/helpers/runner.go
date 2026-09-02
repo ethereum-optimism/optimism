@@ -5,7 +5,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -72,36 +71,12 @@ func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2
 	}
 }
 
-// WithPreInteropDefaults prepares the single-chain (output-root addressed) inputs for the
-// transition into l2ClaimBlockNum. Only the kona-sp1 range guest still consumes these; the
-// kona-client path is on WithSuperDefaults.
-func WithPreInteropDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2Verifier, l2Eng *helpers.L2Engine) FixtureInputParam {
+// WithSupernode points the kona-sp1 super-range executor at an HTTP endpoint serving
+// `superroot_atTimestamp`. Ignored by the native fault-proof program, which is handed its agreed
+// pre-state and claim directly.
+func WithSupernode(address string) FixtureInputParam {
 	return func(f *FixtureInputs) {
-		// Fetch the pre and post output roots for the fault proof.
-		l2PreBlockNum := l2ClaimBlockNum - 1
-		if l2ClaimBlockNum == 0 {
-			// If we are at genesis, we assert that we don't move the chain at all.
-			l2PreBlockNum = 0
-		}
-		rollupClient := l2.RollupClient()
-		preRoot, err := rollupClient.OutputAtBlock(t.Ctx(), l2PreBlockNum)
-		require.NoError(t, err)
-		claimRoot, err := rollupClient.OutputAtBlock(t.Ctx(), l2ClaimBlockNum)
-		require.NoError(t, err)
-
-		f.L2BlockNumber = l2ClaimBlockNum
-		f.L2Claim = common.Hash(claimRoot.OutputRoot)
-		f.L2Head = preRoot.BlockRef.Hash
-		f.L2OutputRoot = common.Hash(preRoot.OutputRoot)
-		f.L2ChainID = eth.ChainIDFromBig(l2.RollupCfg.L2ChainID)
-
-		f.L2Sources = []*FaultProofProgramL2Source{
-			{
-				Node:        l2,
-				Engine:      l2Eng,
-				ChainConfig: l2Eng.L2Chain().Config(),
-			},
-		}
+		f.SupernodeAddress = address
 	}
 }
 
@@ -115,10 +90,10 @@ func RunFaultProofProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Mi
 	runProgram(t, logger, l1, RunKonaSuperNative, false, checkResult, fixtureInputParams...)
 }
 
-// RunSP1RangeProgram runs the kona-sp1 range guest in SP1 execute mode for the transition to the
-// given L2 block number from the preceding one.
-func RunSP1RangeProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
-	runProgram(t, logger, l1, RunRangeExecutor, true, checkResult, fixtureInputParams...)
+// RunSP1SuperRangeProgram runs the kona-sp1 super-range guest in SP1 execute mode over the
+// super-root transition to the given L2 block number from the preceding one.
+func RunSP1SuperRangeProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
+	runProgram(t, logger, l1, RunSuperRangeExecutor, true, checkResult, fixtureInputParams...)
 }
 
 // runProgram prepares the chain inputs (beacon, configs, L2 endpoints) for a single state
@@ -137,7 +112,7 @@ func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run P
 	// SP1-only fixture options are ignored by the native fault-proof program, so passing them to
 	// RunFaultProofProgram is a mistake that would silently pass. Fail loudly.
 	require.False(t, (fixtureInputs.CorruptClaim || fixtureInputs.SP1NativeCore) && !allowSP1Options,
-		"SP1-only fixture options are only honored by RunSP1RangeProgram; the native fault-proof program ignores them")
+		"SP1-only fixture options are only honored by RunSP1SuperRangeProgram; the native fault-proof program ignores them")
 
 	// Run the program from the state transition from L2 block l2ClaimBlockNum - 1 -> l2ClaimBlockNum.
 	workDir := t.TempDir()

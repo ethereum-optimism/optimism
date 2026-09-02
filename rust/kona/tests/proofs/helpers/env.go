@@ -166,19 +166,19 @@ func WithL2RPCTracker(tracker *L2RPCTracker) FixtureInputParam {
 	}
 }
 
-// WithCorruptClaim instructs the SP1 range executor to corrupt the claimed output root in the
-// generated witness before execution, so the guest rejects it. Used for the invalid-claim
-// (soundness) test path. Has no effect on the native fault-proof program.
+// WithCorruptClaim instructs the SP1 super-range executor to corrupt the claim the guest sees,
+// after witness collection has run on the honest one, so the guest rejects it. Used for the
+// invalid-claim (soundness) test path. Has no effect on the native fault-proof program.
 func WithCorruptClaim() FixtureInputParam {
 	return func(f *FixtureInputs) {
 		f.CorruptClaim = true
 	}
 }
 
-// WithSP1NativeCore instructs the SP1 range executor to generate the witness and then run the
-// shared range-program core natively instead of executing the SP1 ELF. This is useful for broad,
-// faster kona-sp1 coverage; keep at least one default SP1 execute test for ELF/IO smoke coverage.
-// Has no effect on the native fault-proof program.
+// WithSP1NativeCore instructs the SP1 super-range executor to collect the witnesses and then
+// replay them through the shared native cores instead of executing the SP1 ELF. This is useful for
+// broad, faster kona-sp1 coverage; keep at least one default SP1 execute test for ELF/IO smoke
+// coverage. Has no effect on the native fault-proof program.
 func WithSP1NativeCore() FixtureInputParam {
 	return func(f *FixtureInputs) {
 		f.SP1NativeCore = true
@@ -206,13 +206,21 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlock
 	RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
 }
 
-// RunSP1RangeProgram runs the kona-sp1 range guest in SP1 execute mode for a single state
-// transition, from the provided l2 block num - 1 to the provided l2 block num.
-func (env *L2FaultProofEnv) RunSP1RangeProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
-	defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
-	combinedParams := []FixtureInputParam{defaultParam}
+// RunSP1SuperRangeProgram runs the kona-sp1 super-range guest in SP1 execute mode over the
+// super-root transition into the provided l2 block num.
+//
+// The executor is a separate process that resolves the transition itself from
+// `superroot_atTimestamp`, so this serves the verifier's superroot API over loopback HTTP and
+// hands it that address. WithSuperDefaults still supplies the claimed timestamp and the L2 source
+// endpoints; its agreed pre-state and claim go unused on this path.
+func (env *L2FaultProofEnv) RunSP1SuperRangeProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
+	l2 := env.Sequencer.L2Verifier
+	combinedParams := []FixtureInputParam{
+		WithSuperDefaults(t, l2ClaimBlockNum, l2, env.Engine),
+		WithSupernode(l2.StartSuperRootHTTPRPC(t)),
+	}
 	combinedParams = append(combinedParams, fixtureInputParams...)
-	RunSP1RangeProgram(t, env.log, env.Miner, checkResult, combinedParams...)
+	RunSP1SuperRangeProgram(t, env.log, env.Miner, checkResult, combinedParams...)
 }
 
 type TestParam func(p *e2eutils.TestParams)

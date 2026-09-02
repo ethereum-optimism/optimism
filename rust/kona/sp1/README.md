@@ -322,16 +322,16 @@ just install-sp1-toolchain
 
 ## Testing (SP1 execute action tests)
 
-The `range-executor` crate (`crates/range-executor`) builds a host binary,
-`kona-sp1-range-executor`, that runs the `range` guest in SP1 **execute** mode (no
-proving) against a real chain's witness. It accepts the same boot inputs as the native
-kona-host `single` CLI, generates the witness via the kona-host preimage server, runs the
-`range` ELF in the SP1 emulator, and exits `0` (valid claim) / `1` (invalid claim) / `2`
+The `super-range-executor` crate (`crates/super-range-executor`) builds a host binary,
+`kona-sp1-super-range-executor`, that runs the `super-range` guest in SP1 **execute** mode (no
+proving) against a real chain's witness. It resolves the span from `superroot_atTimestamp`,
+collects range and consolidation witnesses through kona's `InteropHost`, runs the
+`super-range` ELF in the SP1 emulator, and exits `0` (valid claim) / `1` (invalid claim) / `2`
 (infrastructure error) — mirroring the native fault-proof program convention.
 
-The op-e2e action test `TestSP1RangeSimpleEmptyChain`
+The op-e2e action test `TestSP1SuperRangeSimpleEmptyChain`
 (`rust/kona/tests/proofs/sp1_simple_program_test.go`) drives this binary against an
-in-process action-test chain, exercising the program end-to-end on real inputs. Run it
+in-process action-test chain, exercising both guest modes end-to-end on real inputs. Run it
 with:
 
 ```bash
@@ -339,26 +339,38 @@ cd rust/kona/tests && just action-tests-sp1
 ```
 
 That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain), builds the
-`range-executor` binary, and runs the test with `KONA_SP1_RANGE_EXECUTOR_PATH` and
-`KONA_SP1_ELF_DIR` set. The executor loads the `range` ELF at runtime. The test skips when the
-executor-path variable is unset, so the heavy SP1 toolchain is only required when explicitly
-running the SP1 action tests.
+`super-range-executor` binary, and runs the test with `KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH`
+and `KONA_SP1_ELF_DIR` set — the same two variables the acceptance full-ELF suite reads. The
+executor loads the `super-range` ELF at runtime. The test skips when the executor-path variable
+is unset, so the heavy SP1 toolchain is only required when explicitly running the SP1 action
+tests.
 
-For faster coverage of the range-program logic, the same executor also supports
-`--native-core`. This mode still generates the real witness, but runs the shared range
-core natively instead of executing the SP1 ELF. Use the default SP1 execute path for a
-small smoke test of the ELF, SP1 stdin, and public-values boundary; use `--native-core`
-when broad action-test coverage would otherwise multiply SP1 emulator cost.
+Because the executor is a separate process that resolves the transition itself, the action-test
+harness serves op-node's superroot API over a loopback HTTP listener
+(`L2Verifier.StartSuperRootHTTPRPC`) and passes it as `--supernode-address`. op-node answers
+with a one-chain response, which is what the action-test chain is.
+
+For faster coverage of the super-range logic, the same executor also supports `--native-core`.
+This mode still collects the real witnesses, but replays them through the shared native cores
+instead of executing the SP1 ELF. Use the default SP1 execute path for a small smoke test of
+the ELF, SP1 stdin, and public-values boundary; use `--native-core` when broad action-test
+coverage would otherwise multiply SP1 emulator cost.
 
 The test covers both an honest claim and an invalid claim. Note the invalid-claim path is
-driven by **corrupting the claim in the witness**, not by passing a wrong claimed output
-root: witness generation runs on the configured `--claimed-l2-output-root`, and the
-host-side generator rejects a wrong one *before* the guest runs (a confusing infra error,
-exit 2). So an invalid-claim test keeps the real claim and sets the `--corrupt-claimed-root`
-flag (via `WithCorruptClaim()` in the Go harness), which tampers the claim in the generated
-witness so the guest re-derives the real root, finds the mismatch, and aborts (exit 1) — a
-soundness smoke test that a false transition cannot be executed (and thus could not be
-proven). Do **not** write an SP1 negative test by passing a junk `WithL2Claim(...)`.
+driven by **corrupting the claim the guest sees**, not by feeding the executor a wrong claim:
+the executor synthesizes the agreed pre-state and the claim from the supernode and collects
+witnesses against them, so there is nothing to pass a junk value to, and a witness collected
+against a bad claim would fail host-side before the guest ran (a confusing infra error, exit
+2). So an invalid-claim test sets `--corrupt-claimed-root` (via `WithCorruptClaim()` in the Go
+harness), which flips a bit in the claimed optimistic output root *after* witness collection,
+so the guest re-derives the real root, finds the mismatch, and aborts (exit 1) — a soundness
+smoke test that a false transition cannot be executed (and thus could not be proven). If the
+guest instead runs the tampered claim to completion and agrees with the honest outputs, the
+executor exits `2` rather than reporting the claim valid. Do **not** write an SP1 negative test
+by passing a junk `WithL2Claim(...)`.
+
+The single-chain `range-executor` no longer has an action test: it is output-root addressed and
+is being retired along with the rest of the pre-interop programs.
 
 ## Dependencies
 
