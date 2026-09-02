@@ -1,6 +1,6 @@
 //! Succinct Prover Network request submission, polling, and verification.
 
-use std::{future::Future, sync::Arc, time::Duration};
+use std::{future::Future, num::NonZeroU64, sync::Arc, time::Duration};
 
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -14,6 +14,7 @@ use sp1_sdk::{
             GetProofRequestStatusResponse,
             types::{ExecutionStatus, FulfillmentStatus, ProofRequest},
         },
+        prove::NetworkProveBuilder,
     },
 };
 use tokio::time::sleep;
@@ -79,18 +80,17 @@ impl NetworkProverApi for Sp1NetworkProverApi {
         stdin: SP1Stdin,
         config: &ProofProviderConfig,
     ) -> Result<ProofId> {
-        self.prover
+        let request = self
+            .prover
             .prove(proving_key, stdin)
             .compressed()
             .skip_simulation(true)
             .strategy(config.range_proof_strategy)
             .timeout(Duration::from_secs(config.timeout))
             .min_auction_period(config.min_auction_period)
-            .max_price_per_pgu(config.max_price_per_pgu)
             .cycle_limit(config.range_cycle_limit)
-            .gas_limit(config.range_gas_limit)
-            .request()
-            .await
+            .gas_limit(config.range_gas_limit);
+        Self::with_max_price(request, config.max_price_per_pgu).request().await
     }
 
     async fn request_aggregation_proof(
@@ -99,17 +99,16 @@ impl NetworkProverApi for Sp1NetworkProverApi {
         stdin: SP1Stdin,
         config: &ProofProviderConfig,
     ) -> Result<ProofId> {
-        self.prover
+        let request = self
+            .prover
             .prove(proving_key, stdin)
             .mode(SP1ProofMode::Plonk)
             .strategy(config.agg_proof_strategy)
             .timeout(Duration::from_secs(config.timeout))
             .min_auction_period(config.min_auction_period)
-            .max_price_per_pgu(config.max_price_per_pgu)
             .cycle_limit(config.agg_cycle_limit)
-            .gas_limit(config.agg_gas_limit)
-            .request()
-            .await
+            .gas_limit(config.agg_gas_limit);
+        Self::with_max_price(request, config.max_price_per_pgu).request().await
     }
 
     async fn get_proof_status(
@@ -135,6 +134,19 @@ impl NetworkProverApi for Sp1NetworkProverApi {
         Prover::verify(self.prover.as_ref(), proof, verifying_key, None).map_err(anyhow::Error::new)
     }
 }
+
+impl Sp1NetworkProverApi {
+    fn with_max_price(
+        request: NetworkProveBuilder<'_>,
+        max_price_per_pgu: Option<NonZeroU64>,
+    ) -> NetworkProveBuilder<'_> {
+        match max_price_per_pgu {
+            Some(max_price_per_pgu) => request.max_price_per_pgu(max_price_per_pgu.get()),
+            None => request,
+        }
+    }
+}
+
 /// Network-based proof provider using the SP1 prover network.
 #[derive(Clone)]
 pub struct NetworkProofProvider {
@@ -236,10 +248,10 @@ impl NetworkProofProvider {
             "proving timeout exceeded"
         );
         ProposerGauge::ProvingTimeoutError.increment(1.0);
-        let range_split_count = crate::env_var("RANGE_SPLIT_COUNT");
+        let proof_timeout = crate::env_var("SP1_TIMEOUT_SECONDS");
         Err(ProofWaitError::Uncertain(anyhow::anyhow!(
             "proving timeout: proof_id={proof_id}, elapsed={elapsed_secs}s, timeout={}s \
-             (consider increasing {range_split_count} to shrink per-proof workloads)",
+             (consider increasing {proof_timeout} or reducing the per-proof workload)",
             self.config.timeout
         )))
     }
@@ -691,7 +703,7 @@ mod tests {
                 range_gas_limit: 1,
                 agg_cycle_limit: 1,
                 agg_gas_limit: 1,
-                max_price_per_pgu: 1,
+                max_price_per_pgu: Some(NonZeroU64::MIN),
                 min_auction_period: 1,
             },
             network_mode,

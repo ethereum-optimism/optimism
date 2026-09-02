@@ -4060,7 +4060,7 @@ mod tests {
                 range_gas_limit: 1,
                 agg_cycle_limit: 1,
                 agg_gas_limit: 1,
-                max_price_per_pgu: 1,
+                max_price_per_pgu: Some(std::num::NonZeroU64::MIN),
                 min_auction_period: 1,
             },
         }

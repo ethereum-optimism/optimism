@@ -225,7 +225,7 @@ impl ProposerConfig {
     /// Parses the configuration from environment variables, applying defaults
     /// for optional settings and failing on missing or invalid required ones.
     pub fn from_env() -> Result<Self> {
-        let tx_confirmation_timeout = parsed_env_or("TX_CONFIRMATION_TIMEOUT", 60u64)?;
+        let tx_confirmation_timeout = parsed_env_or("TX_CONFIRMATION_TIMEOUT", 180u64)?;
         anyhow::ensure!(
             tx_confirmation_timeout > 0,
             "{} must be positive (0 would time out every transaction immediately)",
@@ -267,7 +267,11 @@ impl ProposerConfig {
                 .map(|list| list.split(',').map(|path| PathBuf::from(path.trim())).collect()),
             l1_config_path: optional_env("L1_CONFIG_PATH").map(PathBuf::from),
             dependency_set_path: optional_env("DEPENDENCY_SET_PATH").map(PathBuf::from),
-            range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::one())?,
+            range_split_count: parsed_env_or(
+                "RANGE_SPLIT_COUNT",
+                RangeSplitCount::new(RangeSplitCount::MAX)
+                    .expect("maximum is a valid range split count"),
+            )?,
             max_concurrent_range_proofs: parsed_env_or(
                 "MAX_CONCURRENT_RANGE_PROOFS",
                 NonZeroUsize::MIN,
@@ -305,12 +309,9 @@ fn parse_url_list(value: &str) -> Result<Vec<Url>> {
     Ok(urls)
 }
 
-const DEFAULT_PROOF_LIMIT: u64 = 1_000_000_000_000;
-
-/// Ceiling for one request, in wei of PROVE per PGU (1e9 = 1.0 PROVE per bPGU).
-/// A ceiling under the network's clearing price draws no bids at all, and that
-/// price moves, so this sits well above it rather than near it.
-const DEFAULT_MAX_PRICE_PER_PGU: u64 = 1_000_000_000;
+const DEFAULT_PROOF_CYCLE_LIMIT: u64 = 1_000_000_000_000;
+const DEFAULT_RANGE_GAS_LIMIT: u64 = 200_000_000_000;
+const DEFAULT_AGG_GAS_LIMIT: u64 = 1_000_000_000;
 
 /// Floor on how long an auction stays open, so the field can bid and undercut
 /// rather than the fastest poller winning at the ceiling. Observed arrivals are
@@ -331,8 +332,8 @@ const AUCTION_ASSIGNMENT_MARGIN_SECONDS: u64 = 30;
 /// `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` is read only when the network provider is built.
 #[derive(Debug, Clone)]
 pub struct ProofProviderConfig {
-    /// Overall per-proof timeout in seconds: the server-side deadline for
-    /// proof requests and the client-side maximum wait.
+    /// Per-proof timeout in seconds: the server-side deadline for proof
+    /// requests and the client-side maximum wait.
     pub timeout: u64,
     /// Timeout in seconds for individual network API calls (calls exceeding
     /// it are retried).
@@ -352,8 +353,8 @@ pub struct ProofProviderConfig {
     pub agg_cycle_limit: u64,
     /// Gas limit for the aggregation proof request.
     pub agg_gas_limit: u64,
-    /// Maximum price per proving gas unit.
-    pub max_price_per_pgu: u64,
+    /// Optional maximum price per proving gas unit.
+    pub max_price_per_pgu: Option<NonZeroU64>,
     /// Minimum auction period in seconds.
     pub min_auction_period: u64,
 }
@@ -361,7 +362,7 @@ pub struct ProofProviderConfig {
 impl ProofProviderConfig {
     /// Reads proof-provider settings from environment variables.
     pub fn from_env() -> Result<Self> {
-        let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?;
+        let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 7_200u64)?;
         anyhow::ensure!(
             timeout > 0,
             "{} must be positive: 0 would stop every proof polling attempt immediately after \
@@ -401,11 +402,12 @@ impl ProofProviderConfig {
             .with_context(|| format!("invalid {}", env_var("RANGE_PROOF_STRATEGY")))?,
             agg_proof_strategy: parse_fulfillment_strategy(env_or("AGG_PROOF_STRATEGY", "auction"))
                 .with_context(|| format!("invalid {}", env_var("AGG_PROOF_STRATEGY")))?,
-            range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
-            range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
-            agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
-            agg_gas_limit: parsed_env_or("AGG_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
-            max_price_per_pgu: parsed_env_or("MAX_PRICE_PER_PGU", DEFAULT_MAX_PRICE_PER_PGU)?,
+            range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
+            range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_RANGE_GAS_LIMIT)?,
+            agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
+            agg_gas_limit: parsed_env_or("AGG_GAS_LIMIT", DEFAULT_AGG_GAS_LIMIT)?,
+            max_price_per_pgu: parsed_optional_env::<u64>("MAX_PRICE_PER_PGU")?
+                .and_then(NonZeroU64::new),
             min_auction_period,
         })
     }
@@ -800,11 +802,12 @@ mod tests {
             assert_eq!(config.superroot_rpcs.len(), 2);
             assert_eq!(config.l2_rpcs.len(), 2);
             assert!(config.rollup_config_paths.is_none());
-            assert_eq!(config.range_split_count, RangeSplitCount::one());
+            assert_eq!(config.tx_confirmation_timeout, 180);
+            assert_eq!(config.range_split_count.to_usize(), 16);
             assert_eq!(config.max_concurrent_defense_tasks.get(), 8);
             assert!(!config.fast_finality_mode);
             assert_eq!(config.fast_finality_proving_limit.get(), 1);
-            assert_eq!(config.proof_provider_config.timeout, 14_400);
+            assert_eq!(config.proof_provider_config.timeout, 7_200);
             assert_eq!(
                 config.proof_provider_config.range_proof_strategy,
                 FulfillmentStrategy::Auction
@@ -812,6 +815,25 @@ mod tests {
             assert_eq!(
                 config.proof_provider_config.agg_proof_strategy,
                 FulfillmentStrategy::Auction
+            );
+            assert_eq!(config.proof_provider_config.range_cycle_limit, 1_000_000_000_000);
+            assert_eq!(config.proof_provider_config.range_gas_limit, 200_000_000_000);
+            assert_eq!(config.proof_provider_config.agg_cycle_limit, 1_000_000_000_000);
+            assert_eq!(config.proof_provider_config.agg_gas_limit, 1_000_000_000);
+            assert_eq!(config.proof_provider_config.max_price_per_pgu, None);
+        }
+
+        /// Zero disables the explicit SPN price ceiling while positive values
+        /// are preserved. Safe under nextest's process-per-test model.
+        #[test]
+        fn max_price_per_pgu_zero_disables_explicit_ceiling() {
+            set_proposer_env("MAX_PRICE_PER_PGU", "0");
+            assert_eq!(ProofProviderConfig::from_env().unwrap().max_price_per_pgu, None);
+
+            set_proposer_env("MAX_PRICE_PER_PGU", "123");
+            assert_eq!(
+                ProofProviderConfig::from_env().unwrap().max_price_per_pgu,
+                NonZeroU64::new(123)
             );
         }
 
