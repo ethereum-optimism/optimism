@@ -71,6 +71,9 @@ members = [
 
   # Shared build/version metadata (op-reth + kona-node)
   "op-version/",
+
+  # Lokahi
+  "lokahi/",
 ]
 default-members = [
   "kona/bin/host",
@@ -285,6 +288,7 @@ kona-sources = { path = "kona/crates/node/sources", version = "0.1.2", default-f
 kona-node-service = { path = "kona/crates/node/service", version = "0.1.3", default-features = false }
 kona-disc = { path = "kona/crates/node/disc", version = "0.1.2", default-features = false }
 kona-gossip = { path = "kona/crates/node/gossip", version = "0.1.2", default-features = false }
+kona-safedb = { path = "kona/crates/node/safedb", version = "0.1.0", default-features = false }
 
 # Providers
 kona-providers-alloy = { path = "kona/crates/providers/providers-alloy", version = "0.3.3", default-features = false }
@@ -496,7 +500,7 @@ op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-featu
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
-sp1-sdk = { version = "6.3.1", default-features = false, features = [
+sp1-sdk = { version = "6.4.0", default-features = false, features = [
   "network",
 ] }
 
@@ -576,10 +580,10 @@ tracing-loki = "0.2.6"
 tracing-subscriber = { version = "0.3.22", default-features = false }
 
 # ==================== OPENTELEMETRY ====================
-opentelemetry = { version = "0.31", features = ["logs", "trace"] }
-opentelemetry-appender-tracing = "0.31"
-opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "logs"] }
-opentelemetry_sdk = { version = "0.31", features = ["logs", "trace", "rt-tokio"] }
+opentelemetry = { version = "0.32", features = ["logs", "trace"] }
+opentelemetry-appender-tracing = "0.32"
+opentelemetry-otlp = { version = "0.32", features = ["grpc-tonic", "logs"] }
+opentelemetry_sdk = { version = "0.32.1", features = ["logs", "trace", "rt-tokio"] }
 
 # ==================== TESTING ====================
 arbitrary = { version = "1.4.2", features = ["derive"] }
@@ -666,7 +670,7 @@ jsonwebtoken = "10"
 lazy_static = { version = "1.5.0", default-features = false }
 libc = "0.2"
 linked_hash_set = "0.1"
-lru = "0.16.3"
+lru = "0.18.2"
 mini-moka = "0.10"
 modular-bitfield = "0.13.1"
 moka = "0.12"

@@ -40,12 +40,13 @@ type AltDAInputFetcher interface {
 // batch submitter transactions.
 // This is not a stage in the pipeline, but a wrapper for another stage in the pipeline
 type DataSourceFactory struct {
-	log          log.Logger
-	dsCfg        DataSourceConfig
-	fetcher      L1Fetcher
-	blobsFetcher L1BlobsFetcher
-	altDAFetcher AltDAInputFetcher
-	ecotoneTime  *uint64
+	log               log.Logger
+	dsCfg             DataSourceConfig
+	fetcher           L1Fetcher
+	blobsFetcher      L1BlobsFetcher
+	altDAFetcher      AltDAInputFetcher
+	altDAMaxInputSize uint64
+	ecotoneTime       *uint64
 }
 
 func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher, blobsFetcher L1BlobsFetcher, altDAFetcher AltDAInputFetcher) *DataSourceFactory {
@@ -55,12 +56,13 @@ func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher,
 		altDAEnabled:      cfg.AltDAEnabled(),
 	}
 	return &DataSourceFactory{
-		log:          log,
-		dsCfg:        config,
-		fetcher:      fetcher,
-		blobsFetcher: blobsFetcher,
-		altDAFetcher: altDAFetcher,
-		ecotoneTime:  cfg.EcotoneTime,
+		log:               log,
+		dsCfg:             config,
+		fetcher:           fetcher,
+		blobsFetcher:      blobsFetcher,
+		altDAFetcher:      altDAFetcher,
+		altDAMaxInputSize: cfg.AltDAConfig.MaxInputSizeOrDefault(),
+		ecotoneTime:       cfg.EcotoneTime,
 	}
 }
 
@@ -79,7 +81,7 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, b
 	}
 	if ds.dsCfg.altDAEnabled {
 		// altDA([calldata | blobdata](l1Ref)) -> data
-		return NewAltDADataSource(ds.log, src, ds.fetcher, ds.altDAFetcher, ref), nil
+		return NewAltDADataSource(ds.log, src, ds.fetcher, ds.altDAFetcher, ds.altDAMaxInputSize, ref), nil
 	}
 	return src, nil
 }

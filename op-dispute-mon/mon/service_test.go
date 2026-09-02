@@ -98,6 +98,11 @@ func TestInitMonitorWiresEveryTypedLane(t *testing.T) {
 	for i, expected := range expectedBond {
 		require.Contains(t, registeredFunctionName(service.monitor.bondMonitors[i]), expected)
 	}
+	expectedZK := []string{"(*ZKLifecycleMonitor).CheckLifecycle-fm"}
+	require.Len(t, service.monitor.zkMonitors, len(expectedZK))
+	for i, expected := range expectedZK {
+		require.Contains(t, registeredFunctionName(service.monitor.zkMonitors[i]), expected)
+	}
 }
 
 func registeredFunctionName(fn any) string {

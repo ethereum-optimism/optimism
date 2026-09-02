@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -32,11 +33,6 @@ func trySendQueueFunc(id int, candidate TxCandidate, receiptCh chan TxReceipt[in
 type queueCall struct {
 	call   queueFunc // queue call (either Send or TrySend, use function helpers above)
 	queued bool      // true if the send was queued
-	txErr  bool      // true if the tx send should return an error
-}
-
-type testTx struct {
-	sendErr bool // error to return from send for this tx
 }
 
 type mockBackendWithNonce struct {
@@ -65,7 +61,6 @@ func TestQueue_Send(t *testing.T) {
 		name   string      // name of the test
 		max    uint64      // max concurrency of the queue
 		calls  []queueCall // calls to the queue
-		txs    []testTx    // txs to generate from the factory (and potentially error in send)
 		nonces []uint64    // expected sent tx nonces after all calls are made
 		// With Holocene, it is important that transactions are included on chain in the same order as they are sent.
 		// The txmgr.Queue.Send() method should ensure nonces are determined _synchronously_ even if transactions
@@ -79,10 +74,6 @@ func TestQueue_Send(t *testing.T) {
 				{call: trySendQueueFunc, queued: true},
 				{call: trySendQueueFunc, queued: true},
 			},
-			txs: []testTx{
-				{},
-				{},
-			},
 			nonces:       []uint64{0, 1},
 			confirmedIds: []uint{0, 1},
 		},
@@ -92,10 +83,6 @@ func TestQueue_Send(t *testing.T) {
 			calls: []queueCall{
 				{call: trySendQueueFunc, queued: true},
 				{call: trySendQueueFunc, queued: true},
-			},
-			txs: []testTx{
-				{},
-				{},
 			},
 			nonces:       []uint64{0, 1},
 			confirmedIds: []uint{0, 1},
@@ -108,9 +95,6 @@ func TestQueue_Send(t *testing.T) {
 				{call: trySendQueueFunc, queued: false},
 				{call: trySendQueueFunc, queued: false},
 			},
-			txs: []testTx{
-				{},
-			},
 			nonces:       []uint64{0},
 			confirmedIds: []uint{0},
 		},
@@ -122,11 +106,6 @@ func TestQueue_Send(t *testing.T) {
 				{call: trySendQueueFunc, queued: false},
 				{call: sendQueueFunc, queued: true},
 				{call: sendQueueFunc, queued: true},
-			},
-			txs: []testTx{
-				{},
-				{},
-				{},
 			},
 			nonces:       []uint64{0, 1, 2},
 			confirmedIds: []uint{0, 2, 3},
@@ -142,31 +121,8 @@ func TestQueue_Send(t *testing.T) {
 				{call: sendQueueFunc, queued: true},
 				{call: sendQueueFunc, queued: true},
 			},
-			txs: []testTx{
-				{},
-				{},
-				{},
-				{},
-				{},
-			},
 			nonces:       []uint64{0, 1, 2, 3, 4},
 			confirmedIds: []uint{0, 1, 3, 4, 5},
-		},
-		{
-			name: "subsequent txs fail after tx failure",
-			max:  1,
-			calls: []queueCall{
-				{call: sendQueueFunc, queued: true},
-				{call: sendQueueFunc, queued: true, txErr: true},
-				{call: sendQueueFunc, queued: true, txErr: true},
-			},
-			txs: []testTx{
-				{},
-				{sendErr: true},
-				{},
-			},
-			nonces:       []uint64{0, 1},
-			confirmedIds: []uint{0},
 		},
 	}
 	for _, test := range testCases {
@@ -185,7 +141,7 @@ func TestQueue_Send(t *testing.T) {
 			mgr, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, conf)
 			require.NoError(t, err)
 
-			// track the nonces, and return any expected errors from tx sending
+			// Track the nonces and confirmed transaction IDs.
 			var (
 				nonces       []uint64
 				nonceForTxId map[uint]uint64 // maps from txid to nonce
@@ -197,14 +153,6 @@ func TestQueue_Send(t *testing.T) {
 				nonceMu.Lock()
 				nonces = append(nonces, tx.Nonce())
 				nonceMu.Unlock()
-				var testTx *testTx
-				if index < len(test.txs) {
-					testTx = &test.txs[index]
-				}
-				if testTx != nil && testTx.sendErr {
-					return core.ErrNonceTooLow
-				}
-
 				txHash := tx.Hash()
 				nonceMu.Lock()
 				backend.mine(&txHash, tx.GasFeeCap(), nil)
@@ -256,14 +204,118 @@ func TestQueue_Send(t *testing.T) {
 				}
 				msg := fmt.Sprintf("Receipt %d", i)
 				r := <-receiptChs[i]
-				if c.txErr {
-					require.Error(t, r.Err, msg)
-				} else {
-					require.NoError(t, r.Err, msg)
-				}
+				require.NoError(t, r.Err, msg)
 			}
 		})
 	}
+	t.Run("subsequent txs fail after tx failure", func(t *testing.T) {
+		t.Parallel()
+		testQueueSubsequentTxsFailAfterTxFailure(t)
+	})
+}
+
+func testQueueSubsequentTxsFailAfterTxFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		backend := newMockBackendWithNonce(newGasPricer(3))
+		conf := configWithNumConfs(1)
+		conf.SafeAbortNonceTooLowCount = 1
+		conf.Backend = backend
+
+		mgr, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, conf)
+		require.NoError(t, err)
+
+		secondSendStarted := make(chan struct{})
+		failSecondSend := make(chan struct{})
+		var (
+			nonces  []uint64
+			nonceMu sync.Mutex
+		)
+		backend.setTxSender(func(ctx context.Context, tx *types.Transaction) error {
+			nonceMu.Lock()
+			nonces = append(nonces, tx.Nonce())
+			nonceMu.Unlock()
+
+			switch tx.Data()[0] {
+			case 0:
+				txHash := tx.Hash()
+				backend.mine(&txHash, tx.GasFeeCap(), nil)
+				return nil
+			case 1:
+				close(secondSendStarted)
+				<-failSecondSend
+				return core.ErrNonceTooLow
+			case 2:
+				txHash := tx.Hash()
+				backend.mine(&txHash, tx.GasFeeCap(), nil)
+				return nil
+			default:
+				return fmt.Errorf("unexpected tx id %d", tx.Data()[0])
+			}
+		})
+
+		queue := NewQueue[int](t.Context(), mgr, 1)
+		receiptChs := []chan TxReceipt[int]{
+			make(chan TxReceipt[int], 1),
+			make(chan TxReceipt[int], 1),
+			make(chan TxReceipt[int], 1),
+		}
+		candidate := func(id byte) TxCandidate {
+			return TxCandidate{TxData: []byte{id}, To: &common.Address{}}
+		}
+
+		queue.Send(0, candidate(0), receiptChs[0])
+		queue.Send(1, candidate(1), receiptChs[1])
+		<-secondSendStarted
+
+		thirdSendReturned := make(chan struct{})
+		go func() {
+			queue.Send(2, candidate(2), receiptChs[2])
+			close(thirdSendReturned)
+		}()
+		// Hold the nonce failure until the third send is blocked on the queue limit.
+		synctest.Wait()
+
+		close(failSecondSend)
+		<-thirdSendReturned
+		require.Error(t, queue.Wait())
+
+		nonceMu.Lock()
+		sentNonces := slices.Clone(nonces)
+		nonceMu.Unlock()
+		require.Equal(t, []uint64{0, 1}, sentNonces)
+
+		require.NoError(t, (<-receiptChs[0]).Err)
+		require.Error(t, (<-receiptChs[1]).Err)
+		require.Error(t, (<-receiptChs[2]).Err)
+	})
+}
+
+func TestQueue_SendAfterFailure(t *testing.T) {
+	backend := newMockBackendWithNonce(newGasPricer(3))
+	conf := configWithNumConfs(1)
+	conf.SafeAbortNonceTooLowCount = 1
+	conf.Backend = backend
+
+	mgr, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, conf)
+	require.NoError(t, err)
+	backend.setTxSender(func(_ context.Context, tx *types.Transaction) error {
+		if tx.Data()[0] == 0 {
+			return core.ErrNonceTooLow
+		}
+		txHash := tx.Hash()
+		backend.mine(&txHash, tx.GasFeeCap(), nil)
+		return nil
+	})
+
+	queue := NewQueue[int](t.Context(), mgr, 1)
+	receipts := make(chan TxReceipt[int], 1)
+	queue.Send(0, TxCandidate{TxData: []byte{0}, To: &common.Address{}}, receipts)
+	require.Error(t, (<-receipts).Err)
+	require.Error(t, queue.Wait())
+
+	queue.Send(1, TxCandidate{TxData: []byte{1}, To: &common.Address{}}, receipts)
+	require.NoError(t, (<-receipts).Err)
+	require.NoError(t, queue.Wait())
 }
 
 // mockBackendWithConfirmationDelay is a mock backend that delays the confirmation of transactions

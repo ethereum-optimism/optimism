@@ -88,6 +88,32 @@ All op-geth-specific code lives in `op-core/` packages (alongside the pre-existi
   (`OptimismConfig`), byte-identical encodings (`DepositTx`: `0x7E || RLP(struct)`), verified by
   the differential tests.
 
+### Cross-implementation parity
+
+Every OP wire format and hash rule has a second implementation in this repo: `rust/op-alloy`
+defines the OP transaction and receipt types that both op-reth and kona consume, opposite op-geth's
+Go definitions that `op-core/*` mirrors. Both sides serve one chain, so a value one produces and
+the other rejects is a consensus split — and agreeing with op-geth establishes only the Go half.
+
+- **op-geth parity is necessary, never sufficient.** The differential tests pin the Go side to
+  the fork; by construction they cannot see a rule where the fork itself is wrong. Any new or
+  changed encoding, hash or accept-set is checked against `rust/op-alloy` too, and a disagreement
+  is a question of which one is correct — decided from the [specs](https://specs.optimism.io), not
+  from the incumbent. Fixing op-geth (and bumping the pin) is a normal outcome.
+- **Pin the agreed value in both languages.** A shared golden vector — the same literal asserted
+  in the Go and the Rust suite — is what keeps the pair locked together;
+  `TestPostExecTxHashGoldenVector` (`op-core/types/post_exec_tx_test.go`) and
+  `rust/op-alloy/crates/consensus/src/post_exec/tests.rs` pin the post-exec (`0x7D`) tx hash this
+  way. Reference-implementation fixtures are not a substitute: they only cover values that
+  implementation can produce.
+- **The vectors outlive the differential tests.** op-geth differential tests are deleted at the
+  cutover (§ #20266). The cross-implementation vectors are not — after the flip they are the only
+  thing tying the Go types to op-reth and kona.
+
+For batcher-controlled bytes (batches, frames, channels) the second implementation is kona's own
+decoder rather than op-alloy's types, and the rule takes a different shape — accept-sets compared
+over a generated corpus rather than single values; see [derivation.md](derivation.md).
+
 ---
 
 ## 0. Remove ProtocolVersions watching from op-node — **DONE**
@@ -296,11 +322,12 @@ shedding. Instead, partition the `apis.EthClient` accessors by tx class:
   structs.
 - `InfoAndFirstDeposit(...)` — header + the L1-info deposit only, for hot paths (pattern
   prototyped in the closed PR #20532; revive).
-- No `InfoAndPostExecTx` **yet, deliberately**: every known consumer of post-exec data reads it
-  from batch/flashblock bytes (span-batch decode, `op-chain-ops/pkg/sdm`, the flashblock
-  client), not from L2 block bodies — block-fetching code only needs the *exclusion* that
-  `InfoAndUserTxs` provides. Add the accessor when a consumer (e.g. a rebate checker) first
-  needs to read the trailing `0x7D` tx off a block.
+- No `InfoAndPostExecTx` **yet, deliberately**: no known consumer needs an `apis.EthClient`
+  accessor. Span-batch decoding reads post-exec data from batch bytes, while
+  `op-chain-ops/pkg/sdm` fetches raw RPC blocks into its own permissive representation. Other
+  block-fetching code only needs the *exclusion* that `InfoAndUserTxs` provides. Add the
+  accessor when a consumer (e.g. a rebate checker) first needs to read the trailing `0x7D` tx
+  off a block.
 
 `InfoAndTxsBy*` stays as-is for **L1**. Internally `RPCBlock` keeps txs as raw per-tx bytes: the
 transactions-trie root is recomputed directly from those bytes (a typed tx's trie leaf *is* its
@@ -421,6 +448,10 @@ wrapping) — small design task, metric names/labels must be preserved. `rpc.Jso
 `params.InteropCrossL2InboxAddress` (used by `op-core/interop/messages` — switch to
 `op-core/predeploys`) — ride the §2-style call-site swaps (#20263 family). Derive current sites
 by grepping the symbol; listed file snapshots go stale.
+
+**Cutover check:** revisit `op-batcher/batcher.maxFloorDataGas`; check whether the then-current
+upstream `core.FloorDataGas` can replace its local pre- and post-Amsterdam floor calculations while
+preserving the conservative maximum across both rule sets.
 
 ---
 

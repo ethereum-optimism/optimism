@@ -2,7 +2,7 @@
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
-use alloy_eips::BlockId;
+use alloy_consensus::Header;
 use alloy_primitives::{B256, Bytes};
 use alloy_provider::{Provider, RootProvider};
 use alloy_rpc_client::RpcClient;
@@ -15,7 +15,7 @@ use alloy_transport_http::{
 };
 use async_trait::async_trait;
 use http_body_util::Full;
-use kona_derive::{L2ChainProvider, PipelineError, PipelineErrorKind};
+use kona_derive::{L2ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BatchValidationProvider, L2BlockInfo, to_system_config};
 use lru::LruCache;
@@ -34,8 +34,10 @@ pub struct AlloyL2ChainProvider {
     trust_rpc: bool,
     /// The rollup configuration.
     rollup_config: Arc<RollupConfig>,
-    /// The `block_by_number` LRU cache.
-    block_by_number_cache: LruCache<u64, OpBlock>,
+    /// The `block_by_number` LRU cache. Shares its blocks with `block_by_hash_cache`.
+    block_by_number_cache: LruCache<u64, Arc<OpBlock>>,
+    /// The `block_by_hash` LRU cache. Shares its blocks with `block_by_number_cache`.
+    block_by_hash_cache: LruCache<B256, Arc<OpBlock>>,
 }
 
 impl AlloyL2ChainProvider {
@@ -67,7 +69,40 @@ impl AlloyL2ChainProvider {
             trust_rpc,
             rollup_config,
             block_by_number_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
+            block_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
         }
+    }
+
+    /// Fetches the [`OpBlock`] with the given hash, caching the result.
+    async fn block_by_hash(
+        &mut self,
+        hash: B256,
+    ) -> Result<Arc<OpBlock>, AlloyL2ChainProviderError> {
+        if let Some(block) = self.block_by_hash_cache.get(&hash) {
+            return Ok(Arc::clone(block));
+        }
+
+        kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_REQUESTS, "method" => "l2_block_by_hash");
+
+        let block = self
+            .inner
+            .get_block_by_hash(hash)
+            .full()
+            .await
+            .map_err(|e| {
+                kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_ERRORS, "method" => "l2_block_by_hash");
+                AlloyL2ChainProviderError::Transport(e)
+            })?
+            .ok_or(AlloyL2ChainProviderError::BlockHashNotFound(hash))?;
+
+        let block = block.into_consensus().map_transactions(|t| t.inner.inner.into_inner());
+        self.verify_block_hash(&block.header, hash)?;
+
+        let block = Arc::new(block);
+        // Not also cached by number: a block found by hash carries no claim to being the
+        // canonical one at its own height.
+        self.block_by_hash_cache.put(hash, Arc::clone(&block));
+        Ok(block)
     }
 
     /// Returns the chain ID.
@@ -80,81 +115,28 @@ impl AlloyL2ChainProvider {
         self.inner.get_block_number().await
     }
 
-    /// Verifies that a block's hash matches the expected hash when `trust_rpc` is false.
+    /// Verifies that a header hashes to the expected hash when `trust_rpc` is false.
+    ///
+    /// The hash an endpoint reports alongside a block is its own claim, so it is recomputed from
+    /// the header rather than taken at face value: otherwise an endpoint could echo back the hash
+    /// it was asked for while serving different header fields.
     fn verify_block_hash(
         &self,
-        block_hash: B256,
+        header: &Header,
         expected_hash: B256,
     ) -> Result<(), RpcError<TransportErrorKind>> {
         if self.trust_rpc {
             return Ok(());
         }
 
-        if block_hash != expected_hash {
+        let actual_hash = header.hash_slow();
+        if actual_hash != expected_hash {
             return Err(RpcError::local_usage_str(&format!(
-                "Block hash mismatch: expected {expected_hash:?}, got {block_hash:?}"
+                "Block hash mismatch: expected {expected_hash:?}, got {actual_hash:?}"
             )));
         }
 
         Ok(())
-    }
-
-    /// Returns the [`L2BlockInfo`] for the given [`BlockId`]. [None] is returned if the block
-    /// does not exist.
-    pub async fn block_info_by_id(
-        &mut self,
-        id: BlockId,
-    ) -> Result<Option<L2BlockInfo>, RpcError<TransportErrorKind>> {
-        #[cfg(feature = "metrics")]
-        let method_name = match id {
-            BlockId::Number(_) => "l2_block_ref_by_number",
-            BlockId::Hash(_) => "l2_block_ref_by_hash",
-        };
-
-        kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_REQUESTS, "method" => method_name);
-
-        let result = async {
-            let block = match id {
-                BlockId::Number(num) => self.inner.get_block_by_number(num).full().await?,
-                BlockId::Hash(hash) => {
-                    let block = self.inner.get_block_by_hash(hash.block_hash).full().await?;
-
-                    // Verify block hash matches if we fetched by hash
-                    if let Some(ref b) = block {
-                        self.verify_block_hash(b.header.hash, hash.block_hash)?;
-                    }
-
-                    block
-                }
-            };
-
-            match block {
-                Some(block) => {
-                    let consensus_block =
-                        block.into_consensus().map_transactions(|t| t.inner.inner);
-
-                    let l2_block = L2BlockInfo::from_block_and_genesis(
-                        &consensus_block,
-                        &self.rollup_config.genesis,
-                    )
-                    .map_err(|_| {
-                        RpcError::local_usage_str(
-                            "failed to construct L2BlockInfo from block and genesis",
-                        )
-                    })?;
-                    Ok(Some(l2_block))
-                }
-                None => Ok(None),
-            }
-        }
-        .await;
-
-        #[cfg(feature = "metrics")]
-        if result.is_err() {
-            kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_ERRORS, "method" => method_name);
-        }
-
-        result
     }
 
     /// Creates a new [`AlloyL2ChainProvider`] from the provided [`reqwest::Url`].
@@ -187,12 +169,18 @@ pub enum AlloyL2ChainProviderError {
     /// Failed to find a block.
     #[error("Failed to fetch block {0}")]
     BlockNotFound(u64),
+    /// Failed to find a block by hash.
+    #[error("Failed to fetch block {0}")]
+    BlockHashNotFound(B256),
     /// Failed to construct [`L2BlockInfo`] from the block and genesis.
     #[error("Failed to construct L2BlockInfo from block {0} and genesis")]
     L2BlockInfoConstruction(u64),
+    /// Failed to construct [`L2BlockInfo`] from the block with the given hash and genesis.
+    #[error("Failed to construct L2BlockInfo from block {0} and genesis")]
+    L2BlockInfoConstructionByHash(B256),
     /// Failed to convert the block into a [`SystemConfig`].
     #[error("Failed to convert block {0} into SystemConfig")]
-    SystemConfigConversion(u64),
+    SystemConfigConversion(B256),
 }
 
 impl From<AlloyL2ChainProviderError> for PipelineErrorKind {
@@ -204,7 +192,12 @@ impl From<AlloyL2ChainProviderError> for PipelineErrorKind {
             AlloyL2ChainProviderError::BlockNotFound(_) => {
                 Self::Temporary(PipelineError::Provider("Block not found".to_string()))
             }
-            AlloyL2ChainProviderError::L2BlockInfoConstruction(_) => Self::Temporary(
+            // A hash that resolves to nothing was reorged out; retrying will never succeed.
+            AlloyL2ChainProviderError::BlockHashNotFound(hash) => {
+                ResetError::BlockNotFound(hash.into()).reset()
+            }
+            AlloyL2ChainProviderError::L2BlockInfoConstruction(_) |
+            AlloyL2ChainProviderError::L2BlockInfoConstructionByHash(_) => Self::Temporary(
                 PipelineError::Provider("L2 block info construction failed".to_string()),
             ),
             AlloyL2ChainProviderError::SystemConfigConversion(_) => Self::Temporary(
@@ -227,27 +220,35 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
             .map_err(|_| AlloyL2ChainProviderError::L2BlockInfoConstruction(number))
     }
 
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
+    async fn l2_block_info_by_hash(&mut self, hash: B256) -> Result<L2BlockInfo, Self::Error> {
+        let block = self.block_by_hash(hash).await?;
+        L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
+            .map_err(|_| AlloyL2ChainProviderError::L2BlockInfoConstructionByHash(hash))
+    }
+
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         if let Some(block) = self.block_by_number_cache.get(&number) {
-            return Ok(block.clone());
+            return Ok(Arc::clone(block));
         }
 
         kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_REQUESTS, "method" => "l2_block_ref_by_number");
 
-        let block = self
-            .inner
-            .get_block_by_number(number.into())
-            .full()
-            .await
-            .map_err(|e| {
-                kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_ERRORS, "method" => "l2_block_ref_by_number");
-                AlloyL2ChainProviderError::Transport(e)
-            })?
-            .ok_or(AlloyL2ChainProviderError::BlockNotFound(number))?
-            .into_consensus()
-            .map_transactions(|t| t.inner.inner.into_inner());
+        let block = Arc::new(
+            self.inner
+                .get_block_by_number(number.into())
+                .full()
+                .await
+                .map_err(|e| {
+                    kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_ERRORS, "method" => "l2_block_ref_by_number");
+                    AlloyL2ChainProviderError::Transport(e)
+                })?
+                .ok_or(AlloyL2ChainProviderError::BlockNotFound(number))?
+                .into_consensus()
+                .map_transactions(|t| t.inner.inner.into_inner()),
+        );
 
-        self.block_by_number_cache.put(number, block.clone());
+        self.block_by_hash_cache.put(block.header.hash_slow(), Arc::clone(&block));
+        self.block_by_number_cache.put(number, Arc::clone(&block));
         Ok(block)
     }
 }
@@ -256,16 +257,78 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
 impl L2ChainProvider for AlloyL2ChainProvider {
     type Error = AlloyL2ChainProviderError;
 
-    async fn system_config_by_number(
+    async fn system_config_by_l2_hash(
         &mut self,
-        number: u64,
+        hash: B256,
         rollup_config: Arc<RollupConfig>,
     ) -> Result<SystemConfig, <Self as BatchValidationProvider>::Error> {
-        let block = self
-            .block_by_number(number)
-            .await
-            .map_err(|_| AlloyL2ChainProviderError::BlockNotFound(number))?;
+        let block = self.block_by_hash(hash).await?;
         to_system_config(&block, &rollup_config)
-            .map_err(|_| AlloyL2ChainProviderError::SystemConfigConversion(number))
+            .map_err(|_| AlloyL2ChainProviderError::SystemConfigConversion(hash))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_rpc_client::RpcClient;
+    use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
+    use httpmock::prelude::*;
+    use kona_genesis::ChainGenesis;
+
+    /// An endpoint claiming `claimed_hash` for a block whose header hashes to something else.
+    fn mismatched_block(claimed_hash: B256) -> (B256, String) {
+        let header = alloy_consensus::Header::default();
+        let true_hash = header.hash_slow();
+        let mut rpc_header = RpcHeader::new(header);
+        rpc_header.hash = claimed_hash;
+        let block: <Optimism as alloy_provider::Network>::BlockResponse =
+            RpcBlock::new(rpc_header, BlockTransactions::Full(vec![]));
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": serde_json::to_value(block).unwrap(),
+        });
+        (true_hash, body.to_string())
+    }
+
+    #[tokio::test]
+    async fn untrusted_rpc_cannot_echo_the_requested_block_hash() {
+        // The hash an endpoint reports alongside a block is its own claim. Taken at face value, a
+        // faulty or malicious endpoint can echo back whatever hash was asked for while serving
+        // different header fields, and the block is then cached and used under a hash it does not
+        // have.
+        let requested = B256::repeat_byte(0xbb);
+        let (true_hash, response) = mismatched_block(requested);
+        assert_ne!(true_hash, requested, "the header must not actually hash to the request");
+
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByHash");
+            then.status(200).header("content-type", "application/json").body(response);
+        });
+
+        // Genesis is pinned to the header the endpoint really returned, so the lookup would
+        // otherwise succeed and the mismatch would go unnoticed.
+        let config = Arc::new(RollupConfig {
+            genesis: ChainGenesis {
+                l2: alloy_eips::BlockNumHash { hash: true_hash, number: 0 },
+                system_config: Some(SystemConfig::default()),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let mut provider = AlloyL2ChainProvider::new_with_trust(
+            RootProvider::<Optimism>::new(RpcClient::new_http(server.base_url().parse().unwrap())),
+            config.clone(),
+            8,
+            false, // l2.trust-rpc=false
+        );
+
+        let err = provider.system_config_by_l2_hash(requested, config).await.unwrap_err();
+        assert!(
+            matches!(err, AlloyL2ChainProviderError::Transport(_)),
+            "expected the hash mismatch to be rejected, got {err:?}"
+        );
     }
 }

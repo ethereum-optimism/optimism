@@ -15,7 +15,7 @@ mod build;
 pub use build::{BuildTask, BuildTaskError, EngineBuildError};
 
 mod seal;
-pub use seal::{SealTask, SealTaskError};
+pub use seal::{BuildSealCoupling, SealTask, SealTaskError};
 
 mod consolidate;
 pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};

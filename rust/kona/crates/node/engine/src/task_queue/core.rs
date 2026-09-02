@@ -88,7 +88,6 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             config.clone(),
             EngineSyncStateUpdate {
                 unsafe_head: Some(start.un_safe),
-                cross_unsafe_head: Some(start.un_safe),
                 local_safe_head: Some(start.safe),
                 safe_head: Some(start.safe),
                 finalized_head: Some(start.finalized),

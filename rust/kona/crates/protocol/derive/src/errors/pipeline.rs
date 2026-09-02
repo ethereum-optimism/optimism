@@ -265,13 +265,6 @@ pub enum PipelineError {
     /// failures, API errors, and provider-specific issues.
     #[error("Provider error: {0}")]
     Provider(String),
-    /// The pipeline received an unsupported signal type.
-    ///
-    /// This error occurs when a pipeline stage receives a signal that it
-    /// cannot process or that is not supported in the current configuration.
-    /// It indicates a protocol version mismatch or configuration issue.
-    #[error("Unsupported signal")]
-    UnsupportedSignal,
 }
 
 impl PipelineError {
@@ -342,9 +335,6 @@ pub enum ResetError {
     /// A Holocene activation temporary error.
     #[error("Holocene activation reset")]
     HoloceneActivation,
-    /// The next l1 block provided to the managed traversal stage is not the expected one.
-    #[error("Next L1 block hash mismatch: expected {0}, got {1}")]
-    NextL1BlockHashMismatch(B256, B256),
     /// Blobs referenced by an L1 block are permanently unavailable (e.g. missed beacon slot).
     /// The pipeline must reset to move past the offending L1 block.
     #[error("Blobs unavailable: beacon node returned 404 for slot {0}")]

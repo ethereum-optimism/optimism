@@ -304,6 +304,45 @@ func TestZKCreditWithoutRequestIsNotWithdrawable(t *testing.T) {
 	require.Zero(t, metrics.honestWithdrawable[honest].Sign())
 }
 
+func TestZKWithdrawalMatchingRequiresAnObligation(t *testing.T) {
+	recipient := common.Address{0x01}
+	tests := []struct {
+		name          string
+		expected      map[common.Address]*big.Int
+		wantMatching  int
+		wantDivergent int
+	}{
+		{name: "empty slot is ignored", expected: map[common.Address]*big.Int{}},
+		{name: "missing obligated credit is divergent", expected: map[common.Address]*big.Int{recipient: big.NewInt(10)}, wantDivergent: 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
+			monitor := NewWithdrawalMonitor(
+				testlog.Logger(t, log.LvlInfo),
+				clock.NewDeterministicClock(time.Unix(1000, 0)),
+				metrics,
+				nil,
+			)
+			game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+				ExpectedCredits: test.expected,
+				Credits:         map[common.Address]*big.Int{recipient: new(big.Int)},
+				WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+					recipient: {Amount: new(big.Int), Timestamp: new(big.Int)},
+				},
+				BondDistributionMode: faultTypes.NormalDistributionMode,
+				WETHContract:         weth1,
+				WETHDelay:            10 * time.Second,
+				ETHCollateral:        big.NewInt(10),
+			}}
+
+			monitor.CheckWithdrawals([]monTypes.BondedGame{game})
+			require.Equal(t, test.wantMatching, metrics.matching[weth1])
+			require.Equal(t, test.wantDivergent, metrics.divergent[weth1])
+		})
+	}
+}
+
 func TestFaultWithdrawalMaturityRemainsExclusive(t *testing.T) {
 	honest := common.Address{0x01}
 	metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}

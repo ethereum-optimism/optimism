@@ -232,17 +232,6 @@ target "cannon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
 }
 
-target "holocene-deployer" {
-  dockerfile = "./packages/contracts-bedrock/scripts/upgrades/holocene/upgrade.dockerfile"
-  context = "./packages/contracts-bedrock/scripts/upgrades/holocene"
-  args = {
-    REV = "op-contracts/v1.8.0-rc.1"
-  }
-  target="holocene-deployer"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/holocene-deployer:${tag}"]
-}
-
 target "op-deployer" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
@@ -381,57 +370,9 @@ target "op-reth" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-reth:${tag}"]
 }
 
-// op-rbuilder and rollup-boost are vendored Rust workspaces under rust/ with
-// path dependencies on sibling crates (op-reth, op-alloy, op-revm, ...). Their
-// Dockerfiles build from inside the crate dir (the `.` context) and pull the
-// sibling crates in via the `monorepo-rust` named context (the rust/ workspace).
-// See the comments at the top of each Dockerfile for the layout.
-target "op-rbuilder" {
-  dockerfile = "Dockerfile"
-  context = "rust/op-rbuilder"
-  contexts = {
-    monorepo-rust = "rust"
-    # op-reth's chainspec build.rs (pulled in via monorepo-rust) regenerates its
-    # gitignored superchain archive from this submodule; see the Dockerfile COPY.
-    superchain-registry = "superchain-registry"
-  }
-  args = {
-    RBUILDER_BIN = "op-rbuilder"
-    FEATURES = ""
-  }
-  target = "rbuilder-runtime"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-rbuilder:${tag}"]
-}
-
-target "rollup-boost" {
-  dockerfile = "Dockerfile"
-  context = "rust/rollup-boost"
-  contexts = {
-    monorepo-rust = "rust"
-    # op-reth's chainspec build.rs (pulled in via monorepo-rust) regenerates its
-    # gitignored superchain archive from this submodule; see the Dockerfile COPY.
-    superchain-registry = "superchain-registry"
-  }
-  args = {
-    SERVICE_NAME = "rollup-boost"
-    FEATURES = ""
-    RELEASE = "true"
-  }
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/rollup-boost:${tag}"]
-}
-
 target "cannon-builder" {
   dockerfile = "cannon.dockerfile"
   context = "rust/kona/docker/cannon"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon-builder:${tag}"]
-}
-
-target "ci-base-clang" {
-  dockerfile = "Dockerfile"
-  context = "ops/docker/ci-base-clang"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-base-clang:${tag}"]
 }

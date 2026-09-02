@@ -108,22 +108,7 @@ RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \
 Real recursive proof generation, SPN credentials, and production verifier proof-byte validation
 remain network-proving concerns rather than deterministic acceptance-test coverage.
 
-## CI TODOs
-
-TODO(#18326): the monorepo's CircleCI runs the
-workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
-gates over the SP1 host-side crates that are workspace members. The guest program entrypoints and
-`range-vkeys` crate live outside that workspace. The `kona-build-sp1-elfs` rust-e2e job runs
-`just build-elfs-native`, tests and lints all guests, and checks and tests `range-vkeys`; scheduled
-vkey drift coverage is tracked in #21661. The following standalone-kona GitHub workflow behavior
-is not yet reproduced:
-
-- Codecov flag wiring for SP1 coverage.
-- no-std checks for the SP1/zkVM crates. The monorepo `rust-check-no-std` job is
-  package-allowlisted and does not include SP1; add SP1 there if no-std coverage
-  is wanted.
-
-### Guest Precompile Patches
+## Guest Precompile Patches
 
 All four guest programs are isolated in `programs/Cargo.toml`, a nested Cargo workspace with its
 own `Cargo.lock` and `[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
@@ -190,25 +175,27 @@ proposer loses the ability to defend, resolve, and claim those games.
 
 ### Restart behavior
 
-There is no in-flight proof-request recovery (upstream parity): the task map is
-in-memory, and a restart re-detects still-challenged games and re-requests their
-proofs from scratch. A pre-flight check prevents duplicate `prove()` submissions.
-In fast finality mode the per-tick scan likewise re-detects unproven,
-signer-created unchallenged games and re-spawns their proving.
+Proving progress is process-local. Retries with unchanged inputs reuse submitted
+request IDs, completed chunks, and fulfilled aggregation proofs. `Cancelled`,
+`Expired`, `Reverted`, and `Unfulfillable` requests are retryable and may
+purchase replacements. Progress is cleared when a game becomes terminal, is
+evicted, fails a definitive pre-submit check, or is proven successfully.
+
+A restart loses all progress and re-detects games that still need proofs. A
+pre-flight check prevents duplicate `prove()` submissions. Fast finality also
+re-detects unproven, signer-created games after restart.
 
 ### Operator alarms
 
-`kona_sp1_proposer_game_proving_error` and
-`kona_sp1_proposer_proving_timeout_error` are spend alarms in network mode: every
-emergent retry after a post-proving failure (for example fee caps below
-basefee, or a submission that keeps reverting) re-purchases
-the full proof set until the game's deadline expires (the prove deadline for
-defense, the challenge deadline for fast finality). A sustained non-zero rate
-means money burning, not a transient. `kona_sp1_proposer_game_unprovable` counts
-games given up as permanently unprovable (kept in-memory until restart). A
-proving task that never completes holds its capacity slot and its game's dedup
-slot (blocking a later defense of that game): watch
-`kona_sp1_proposer_proving_duration_seconds` and the per-tick task-stats log.
+`kona_sp1_proposer_game_proving_error` counts failed proving tasks. A sustained
+rate needs investigation because identity changes and retryable terminal
+outcomes can purchase replacement proofs.
+`kona_sp1_proposer_proving_timeout_error` means a polling attempt exceeded its
+client-side wait; the submitted request ID remains available to the next retry.
+`kona_sp1_proposer_game_unprovable` counts games given up as permanently
+unprovable. A proving task that never completes holds its capacity slot and its
+game's dedup slot, so watch `kona_sp1_proposer_proving_duration_seconds` and the
+per-tick task-stats log.
 
 ### Environment
 
@@ -219,7 +206,7 @@ Required core configuration:
 | Variable | Purpose |
 |---|---|
 | `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC |
-| `KONA_SP1_PROPOSER_SUPERROOT_RPC` | op-supernode or single-chain op-node RPC serving `superroot_atTimestamp` |
+| `KONA_SP1_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
 | `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | `DisputeGameFactory` address |
 | `KONA_SP1_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
 | `KONA_SP1_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
@@ -254,17 +241,26 @@ SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network
 | `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` | SPN requester private key, or AWS KMS key ARN when KMS is enabled |
 | `KONA_SP1_PROPOSER_NETWORK_RPC_URL` | SPN RPC override; absent or empty uses the SP1 SDK default for the selected network mode |
 | `KONA_SP1_PROPOSER_USE_KMS_REQUESTER` | use AWS KMS for request signing (default `false`) |
-| `KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `reserved`) |
-| `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `reserved`) |
+| `KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `auction`) |
+| `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | overall proof timeout (default `14400`) |
 | `KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` | individual network-call timeout (default `15`) |
-| `KONA_SP1_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `60`) |
+| `KONA_SP1_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `300`) |
 | `KONA_SP1_PROPOSER_RANGE_CYCLE_LIMIT` | range request cycle limit (default `1e12`) |
 | `KONA_SP1_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `1e12`) |
 | `KONA_SP1_PROPOSER_AGG_CYCLE_LIMIT` | aggregation request cycle limit (default `1e12`) |
 | `KONA_SP1_PROPOSER_AGG_GAS_LIMIT` | aggregation request gas limit (default `1e12`) |
-| `KONA_SP1_PROPOSER_MAX_PRICE_PER_PGU` | maximum price per proving gas unit (default `3e8`) |
-| `KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `1`) |
+| `KONA_SP1_PROPOSER_MAX_PRICE_PER_PGU` | maximum price per proving gas unit (default `1e9`, i.e. 1.0 PROVE per billion PGU) |
+| `KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `30`) |
+
+`MAX_PRICE_PER_PGU` is a ceiling, not the price paid: the auction settles at the
+winning bid, which tracks the network's clearing price. A ceiling *below* that
+price leaves a request unbid until its deadline. Expiry makes the request
+retryable, so the next game attempt may submit a new auction.
+`MIN_AUCTION_PERIOD` is a floor every request waits out, so it needs to cover bid
+arrival (3-10s) and no more. It must leave assignment margin under
+`AUCTION_TIMEOUT`; cancellation retries the unfinished request while completed
+chunks remain cached when the proving inputs are unchanged.
 
 Transaction signing requires one of these configurations:
 

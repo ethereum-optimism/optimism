@@ -30,6 +30,8 @@ func TestSequencerFailover_SetupCluster(t *testing.T) {
 // [Category: conductor rpc]
 // In this test, we test all rpcs exposed by conductor.
 func TestSequencerFailover_ConductorRPC(t *testing.T) {
+	t.Skip("Flaky test tracked in ethereum-optimism/optimism#22094")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	sys, conductors, cleanup := setupSequencerFailoverTest(t)

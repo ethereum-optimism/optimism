@@ -54,7 +54,26 @@ The execution client is one of three pieces. Before configuring it, make sure yo
     *   `--rollup.sequencer <uri>` (shown above) is the sequencer endpoint that transactions submitted to this node are forwarded to, since the sequencer is what builds blocks. Aliases: `--rollup.sequencer-http`, `--rollup.sequencer-ws`.
     *   `--rollup.disable-tx-pool-gossip` stops the node from gossiping its transaction pool to peers. Omit it on a personal node; set it on a replica you operate as a provider.
 
-    The rest of the group covers the interop filter, flashblocks, and historical RPC. For the full list with the binary's own descriptions, see the [`op-reth node` flag listing](/node-operators/op-reth/cli/op-reth/node), and [Understanding the op-reth CLI](/node-operators/op-reth/cli/overview) for how the flag groups fit together.
+    The rest of the group covers the interop filter, subblocks, and historical RPC. For the full list with the binary's own descriptions, see the [`op-reth node` flag listing](/node-operators/op-reth/cli/op-reth/node), and [Understanding the op-reth CLI](/node-operators/op-reth/cli/overview) for how the flag groups fit together.
+
+    ### Subblocks
+
+    To serve pre-confirmed state from a chain that streams [Subblocks](/op-stack/features/subblocks), point op-reth at the chain's WebSocket stream:
+
+    ```bash
+    op-reth node \
+      --chain optimism \
+      --rollup.sequencer https://mainnet-sequencer.optimism.io \
+      --flashblocks-url wss://op-mainnet-fb-ws-pub.optimism.io/ws \
+      --http \
+      --ws \
+      --authrpc.port 9551 \
+      --authrpc.jwtsecret /path/to/jwt.hex
+    ```
+
+    The node then answers requests carrying the `pending` block tag from subblock state, executing each subblock's transactions against its own view of the chain. It does not need the stream's `state_root`, which subblocks leave zeroed. The flag keeps its `flashblocks` spelling; `--websocket-url` is an accepted alias.
+
+    `--flashblocks-url` on its own is what an ordinary node wants. Leave `--flashblock-consensus` unset: it drives the chain forward from the stream by submitting completed sequences through `engine_newPayload`, which is a specialized topology, not an addition to a normal node following op-node. Enabling it also turns on local state-root computation for the last subblock in each sequence, which an ordinary node has no use for.
 
     ### Historical proofs
 
@@ -62,7 +81,7 @@ The execution client is one of three pieces. Before configuring it, make sure yo
 
     ### Pruning
 
-    op-reth defaults to an archive node. To reclaim disk, prune the state and receipt segments and keep block bodies. Body pruning (`--minimal` or `--prune.bodies.distance`) is unsupported and advised against. See [Pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
+    op-reth defaults to an archive node. To reclaim disk, prune the state and receipt segments and keep block bodies. Body pruning is unsupported: op-reth rejects `--minimal` at startup, and `--prune.bodies.distance` is advised against. See [Pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
 
     ### Complete reference
 

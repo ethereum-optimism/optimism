@@ -1,0 +1,560 @@
+//! Snapshot test of the complete op-reth CLI surface.
+//!
+//! Renders the full clap command tree (every subcommand, every argument, including hidden ones)
+//! into a deterministic text form and compares it against the checked-in snapshot at
+//! `tests/snapshots/cli.snap`. Any change to the CLI surface — a new upstream reth flag after a
+//! pin bump, a renamed alias, a changed default, or changed parsing behavior — shows up as a diff
+//! in the snapshot and has to be acknowledged by regenerating it:
+//!
+//! ```text
+//! UPDATE_SNAPSHOT=1 cargo nextest run -p reth-optimism-cli --all-features cli_surface_snapshot
+//! ```
+//!
+//! The rendering is hand-rolled (instead of `--help` output or a snapshot crate) so that it is
+//! independent of terminal width and help-text wrapping. Machine-specific content
+//! (platform-derived path prefixes, build metadata embedded in defaults) is normalized to
+//! stable placeholders, see [`normalize_default`]. Only clap's *short* help (`Arg::get_help`) is
+//! rendered, never the long help: long help texts embed environment- and registry-derived
+//! content (most notably `--chain`, whose long help lists every built-in superchain chain and
+//! would churn on registry updates unrelated to the CLI surface).
+//!
+//! The test is gated on the `dev` feature because the `dev`-only `test-vectors` subcommand is
+//! part of the rendered surface. CI runs the workspace test suite with `--all-features`
+//! (the `rust-tests` `CircleCI` job), which enables it.
+#![cfg(feature = "dev")]
+
+use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
+use reth_optimism_node::args::RollupArgs;
+use std::{env, fmt::Write as _, fs, path::Path};
+
+/// Path of the checked-in snapshot file.
+const SNAPSHOT_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/snapshots/cli.snap");
+
+/// The binary name used as the root of every rendered subcommand path.
+///
+/// The real binary installs `op-reth` version metadata before parsing; in tests the clap command
+/// still carries the upstream default name, so the root label is pinned here instead of read
+/// from the command.
+const ROOT_NAME: &str = "op-reth";
+
+/// Long option names whose default values embed build- or machine-specific data
+/// (client version strings, CPU counts). Their defaults are normalized to a placeholder.
+const MACHINE_SPECIFIC_DEFAULTS: &[&str] =
+    &["identity", "builder.extradata", "rpc.max-tracing-requests"];
+
+#[test]
+fn cli_surface_snapshot() {
+    // Same command construction as the binary: denied upstream args (e.g. --minimal) render as
+    // [hidden].
+    let cmd = Cli::<OpChainSpecParser, RollupArgs>::command_with_denied_args_hidden();
+    let rendered = render_snapshot(&cmd);
+
+    let path = Path::new(SNAPSHOT_PATH);
+    if env::var("UPDATE_SNAPSHOT").is_ok_and(|v| v == "1") {
+        fs::write(path, &rendered)
+            .unwrap_or_else(|e| panic!("failed to write snapshot to {}: {e}", path.display()));
+        println!("snapshot updated: {}", path.display());
+        return;
+    }
+
+    let expected = fs::read_to_string(path).unwrap_or_default();
+    if expected == rendered {
+        return;
+    }
+
+    let (line_no, expected_line, actual_line) = first_diff_line(&expected, &rendered);
+
+    // Print the full generated snapshot so it can be recovered from CI logs even when the
+    // checked-in file is badly out of date (e.g. on the very first run after a reth bump).
+    println!("----- BEGIN GENERATED CLI SNAPSHOT ({}) -----", SNAPSHOT_PATH);
+    print!("{rendered}");
+    println!("----- END GENERATED CLI SNAPSHOT -----");
+
+    if let Some(tmpdir) = option_env!("CARGO_TARGET_TMPDIR") {
+        let new_path = Path::new(tmpdir).join("cli.snap.new");
+        if fs::write(&new_path, &rendered).is_ok() {
+            println!("full generated snapshot also written to: {}", new_path.display());
+        }
+    }
+
+    panic!(
+        "op-reth CLI surface changed: snapshot mismatch at line {line_no}.\n\
+         expected: {expected_line}\n\
+         actual:   {actual_line}\n\
+         \n\
+         If this change is intentional, regenerate the snapshot with\n\
+         \n\
+         UPDATE_SNAPSHOT=1 cargo nextest run -p reth-optimism-cli --all-features cli_surface_snapshot\n\
+         \n\
+         or copy the block between the BEGIN/END markers in this test's stdout into\n\
+         rust/op-reth/crates/cli/tests/snapshots/cli.snap."
+    );
+}
+
+/// Renders the complete command tree into the snapshot text.
+fn render_snapshot(cmd: &clap::Command) -> String {
+    let mut out = String::new();
+    out.push_str(
+        "# op-reth CLI surface snapshot.\n\
+         # One block per subcommand path; arguments in clap definition order, hidden ones\n\
+         # included. Platform- and build-specific defaults are normalized to placeholders.\n\
+         # Regenerate with:\n\
+         #   UPDATE_SNAPSHOT=1 cargo nextest run -p reth-optimism-cli --all-features cli_surface_snapshot\n\
+         \n",
+    );
+    render_command(&mut out, ROOT_NAME, cmd);
+    let mut out = out.trim_end().to_string();
+    out.push('\n');
+    out
+}
+
+/// Renders one command block, then recurses into its subcommands.
+fn render_command(out: &mut String, path: &str, cmd: &clap::Command) {
+    writeln!(out, "== {path}").unwrap();
+    render_command_metadata(out, cmd);
+    if let Some(about) = cmd.get_about() {
+        writeln!(out, "about: {}", escape(&about.to_string())).unwrap();
+    }
+    for group in cmd.get_groups() {
+        if let Some(group) = render_arg_group(cmd, group) {
+            writeln!(out, "{group}").unwrap();
+        }
+    }
+    for arg in cmd.get_arguments() {
+        // `help` and `version` are clap built-ins, not part of the surface under our control.
+        if matches!(arg.get_id().as_str(), "help" | "version") {
+            continue;
+        }
+        writeln!(out, "{}", render_arg(cmd, arg)).unwrap();
+    }
+    writeln!(out).unwrap();
+    for sub in cmd.get_subcommands() {
+        if sub.get_name() == "help" {
+            continue;
+        }
+        render_command(out, &format!("{path} {}", sub.get_name()), sub);
+    }
+}
+
+/// Renders aliases, flag forms, visibility, and parser settings for a command.
+fn render_command_metadata(out: &mut String, cmd: &clap::Command) {
+    let mut metadata = String::from("command:");
+
+    let aliases: Vec<&str> = cmd.get_all_aliases().collect();
+    if !aliases.is_empty() {
+        write!(metadata, " [aliases: {}]", aliases.join(", ")).unwrap();
+    }
+    let visible_aliases: Vec<&str> = cmd.get_visible_aliases().collect();
+    if !visible_aliases.is_empty() {
+        write!(metadata, " [visible-aliases: {}]", visible_aliases.join(", ")).unwrap();
+    }
+
+    if let Some(short) = cmd.get_short_flag() {
+        write!(metadata, " [short-flag: -{short}]").unwrap();
+    }
+    let short_aliases: Vec<String> =
+        cmd.get_all_short_flag_aliases().map(|alias| format!("-{alias}")).collect();
+    if !short_aliases.is_empty() {
+        write!(metadata, " [short-flag-aliases: {}]", short_aliases.join(", ")).unwrap();
+    }
+    let visible_short_aliases: Vec<String> =
+        cmd.get_visible_short_flag_aliases().map(|alias| format!("-{alias}")).collect();
+    if !visible_short_aliases.is_empty() {
+        write!(metadata, " [visible-short-flag-aliases: {}]", visible_short_aliases.join(", "))
+            .unwrap();
+    }
+
+    if let Some(long) = cmd.get_long_flag() {
+        write!(metadata, " [long-flag: --{long}]").unwrap();
+    }
+    let long_aliases: Vec<String> =
+        cmd.get_all_long_flag_aliases().map(|alias| format!("--{alias}")).collect();
+    if !long_aliases.is_empty() {
+        write!(metadata, " [long-flag-aliases: {}]", long_aliases.join(", ")).unwrap();
+    }
+    let visible_long_aliases: Vec<String> =
+        cmd.get_visible_long_flag_aliases().map(|alias| format!("--{alias}")).collect();
+    if !visible_long_aliases.is_empty() {
+        write!(metadata, " [visible-long-flag-aliases: {}]", visible_long_aliases.join(", "))
+            .unwrap();
+    }
+
+    let parser_settings = [
+        ("no-binary-name", cmd.is_no_binary_name_set()),
+        ("dont-delimit-trailing-values", cmd.is_dont_delimit_trailing_values_set()),
+        ("arg-required-else-help", cmd.is_arg_required_else_help_set()),
+        ("allow-missing-positional", cmd.is_allow_missing_positional_set()),
+        ("subcommand-required", cmd.is_subcommand_required_set()),
+        ("allow-external-subcommands", cmd.is_allow_external_subcommands_set()),
+        ("args-conflicts-with-subcommands", cmd.is_args_conflicts_with_subcommands_set()),
+        ("args-override-self", cmd.is_args_override_self()),
+        ("subcommand-precedence-over-arg", cmd.is_subcommand_precedence_over_arg_set()),
+        ("subcommand-negates-reqs", cmd.is_subcommand_negates_reqs_set()),
+        ("multicall", cmd.is_multicall_set()),
+    ];
+    for (name, enabled) in parser_settings {
+        if enabled {
+            write!(metadata, " [{name}]").unwrap();
+        }
+    }
+
+    if cmd.is_hide_set() {
+        metadata.push_str(" [hidden]");
+    }
+    if metadata != "command:" {
+        writeln!(out, "{metadata}").unwrap();
+    }
+}
+
+/// Renders a single argument as one line with a fixed field order.
+fn render_arg(cmd: &clap::Command, arg: &clap::Arg) -> String {
+    let mut s = format!("arg: {}", arg_name(arg));
+    let arg_debug = format!("{arg:?}");
+
+    let configured_num_args = arg.get_num_args();
+    let takes_value = configured_num_args.map_or_else(
+        || matches!(arg.get_action(), clap::ArgAction::Set | clap::ArgAction::Append),
+        |range| range.takes_values(),
+    );
+
+    if takes_value {
+        let value_names = match arg.get_value_names() {
+            Some(names) if !names.is_empty() => {
+                names.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(" ")
+            }
+            _ => arg.get_id().as_str().to_uppercase(),
+        };
+        write!(s, " <{value_names}>").unwrap();
+    }
+
+    write!(s, " [action: {:?}]", arg.get_action()).unwrap();
+    if let Some(range) = configured_num_args {
+        write!(s, " [num-args: {range}]").unwrap();
+    } else {
+        write!(s, " [num-args: {}]", usize::from(takes_value)).unwrap();
+    }
+    if let Some(delimiter) = arg.get_value_delimiter() {
+        write!(s, " [value-delimiter: {delimiter:?}]").unwrap();
+    }
+    if let Some(terminator) = arg.get_value_terminator() {
+        write!(s, " [value-terminator: {}]", escape(terminator.as_str())).unwrap();
+    }
+
+    if let Some(aliases) = arg.get_all_aliases() &&
+        !aliases.is_empty()
+    {
+        write!(s, " [aliases: {}]", aliases.join(", ")).unwrap();
+    }
+    if let Some(visible_aliases) = arg.get_visible_aliases() &&
+        !visible_aliases.is_empty()
+    {
+        write!(s, " [visible-aliases: {}]", visible_aliases.join(", ")).unwrap();
+    }
+    let short_aliases = arg.get_all_short_aliases().unwrap_or_default();
+    if !short_aliases.is_empty() {
+        let rendered: Vec<String> = short_aliases.iter().map(|c| format!("-{c}")).collect();
+        write!(s, " [short-aliases: {}]", rendered.join(", ")).unwrap();
+    }
+    let visible_short_aliases = arg.get_visible_short_aliases().unwrap_or_default();
+    if !visible_short_aliases.is_empty() {
+        let rendered: Vec<String> = visible_short_aliases.iter().map(|c| format!("-{c}")).collect();
+        write!(s, " [visible-short-aliases: {}]", rendered.join(", ")).unwrap();
+    }
+
+    if let Some(env_var) = arg.get_env() {
+        write!(s, " [env: {}]", env_var.to_string_lossy()).unwrap();
+    }
+
+    let defaults: Vec<String> = arg
+        .get_default_values()
+        .iter()
+        .map(|v| normalize_default(arg.get_long(), &v.to_string_lossy()))
+        .collect();
+    if !defaults.is_empty() {
+        write!(s, " [default: {}]", defaults.join(", ")).unwrap();
+    }
+    render_debug_field(&mut s, &arg_debug, "default_vals_ifs", "terminator", "default-values-if");
+    render_debug_field(&mut s, &arg_debug, "default_missing_vals", "ext", "default-missing-values");
+
+    if takes_value {
+        let possible: Vec<String> =
+            arg.get_possible_values().iter().map(render_possible_value).collect();
+        if !possible.is_empty() {
+            write!(s, " [possible: {}]", possible.join(", ")).unwrap();
+        }
+    }
+
+    let mut conflicts: Vec<String> =
+        cmd.get_arg_conflicts_with(arg).into_iter().map(arg_name).collect();
+    conflicts.sort_unstable();
+    conflicts.dedup();
+    if !conflicts.is_empty() {
+        write!(s, " [conflicts: {}]", conflicts.join(", ")).unwrap();
+    }
+    // clap does not expose reflection getters for requirement predicates or conditional and
+    // default-missing values. Its Debug implementation does expose their value-only
+    // representations; the focused test below ensures a clap update cannot silently remove or
+    // rename these fields.
+    render_debug_field(&mut s, &arg_debug, "requires", "r_ifs", "requires");
+    render_debug_field(&mut s, &arg_debug, "r_ifs", "r_unless", "requires-if");
+    render_debug_field(&mut s, &arg_debug, "r_unless", "short", "requires-unless");
+
+    if arg.is_required_set() {
+        s.push_str(" [required]");
+    }
+    if arg.is_global_set() {
+        s.push_str(" [global]");
+    }
+    if arg.is_hide_set() {
+        s.push_str(" [hidden]");
+    }
+    if arg.is_require_equals_set() {
+        s.push_str(" [require-equals]");
+    }
+    if arg.is_allow_hyphen_values_set() {
+        s.push_str(" [allow-hyphen-values]");
+    }
+    if arg.is_allow_negative_numbers_set() {
+        s.push_str(" [allow-negative-numbers]");
+    }
+    if arg.is_exclusive_set() {
+        s.push_str(" [exclusive]");
+    }
+    if arg.is_trailing_var_arg_set() {
+        s.push_str(" [trailing-var-arg]");
+    }
+    if arg.is_last_set() {
+        s.push_str(" [last]");
+    }
+    if arg.is_ignore_case_set() {
+        s.push_str(" [ignore-case]");
+    }
+
+    if let Some(help) = arg.get_help() {
+        write!(s, " help: {}", escape(&help.to_string())).unwrap();
+    }
+
+    s
+}
+
+/// Renders a group only when it imposes a parser constraint.
+fn render_arg_group(cmd: &clap::Command, group: &clap::ArgGroup) -> Option<String> {
+    let group_debug = format!("{group:?}");
+    let requires = debug_field(&group_debug, "requires", "conflicts");
+    let conflicts = debug_field(&group_debug, "conflicts", "multiple");
+    let mut group = group.clone();
+    let multiple = group.is_multiple();
+
+    if !group.is_required_set() && multiple && requires.is_none() && conflicts.is_none() {
+        return None;
+    }
+
+    let args = group
+        .get_args()
+        .map(|id| {
+            cmd.get_arguments()
+                .find(|arg| arg.get_id() == id)
+                .map_or_else(|| id.to_string(), arg_name)
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut rendered = format!(
+        "group: {} [args: {args}] [required: {}] [multiple: {multiple}]",
+        group.get_id(),
+        group.is_required_set()
+    );
+    render_debug_field(&mut rendered, &group_debug, "requires", "conflicts", "requires");
+    render_debug_field(&mut rendered, &group_debug, "conflicts", "multiple", "conflicts");
+    Some(rendered)
+}
+
+/// Returns a non-empty field from a clap builder's value-only [`Debug`] representation.
+fn debug_field<'a>(debug: &'a str, field: &str, next_field: &str) -> Option<&'a str> {
+    let start = format!(", {field}: ");
+    let end = format!(", {next_field}:");
+    debug
+        .split_once(&start)
+        .and_then(|(_, rest)| rest.split_once(&end))
+        .map(|(value, _)| value)
+        .filter(|value| !matches!(*value, "[]" | "None"))
+}
+
+/// Appends a non-empty field from a clap builder's value-only [`Debug`] representation.
+fn render_debug_field(out: &mut String, debug: &str, field: &str, next_field: &str, label: &str) {
+    if let Some(value) = debug_field(debug, field, next_field) {
+        write!(out, " [{label}: {value}]").unwrap();
+    }
+}
+
+/// Renders a possible value, including accepted aliases and visibility.
+fn render_possible_value(value: &clap::builder::PossibleValue) -> String {
+    let mut names = value.get_name_and_aliases();
+    let mut rendered = names.next().unwrap_or_default().to_string();
+    let aliases: Vec<&str> = names.collect();
+    if !aliases.is_empty() {
+        write!(rendered, " (aliases: {})", aliases.join(", ")).unwrap();
+    }
+    if value.is_hide_set() {
+        rendered.push_str(" (hidden)");
+    }
+    rendered
+}
+
+/// Returns an argument's operator-facing name.
+fn arg_name(arg: &clap::Arg) -> String {
+    match (arg.get_short(), arg.get_long()) {
+        (Some(short), Some(long)) => format!("-{short}/--{long}"),
+        (None, Some(long)) => format!("--{long}"),
+        (Some(short), None) => format!("-{short}"),
+        (None, None) => format!("[positional: {}]", arg.get_id()),
+    }
+}
+
+#[test]
+fn renders_parser_requirements_and_defaults() {
+    let command = clap::Command::new("test").arg(clap::Arg::new("mode").long("mode")).arg(
+        clap::Arg::new("output")
+            .long("output")
+            .num_args(0..=1)
+            .default_value_if("mode", "json", "output.json")
+            .default_missing_value("stdout")
+            .requires("mode"),
+    );
+
+    let rendered = render_snapshot(&command);
+    assert!(rendered.contains(
+        "arg: --output <OUTPUT> [action: Set] [num-args: 0..=1] \
+         [default-values-if: [(\"mode\", Equals(\"json\"), Some([\"output.json\"]))]] \
+         [default-missing-values: [\"stdout\"]] [requires: [(IsPresent, \"mode\")]]"
+    ));
+}
+
+#[test]
+fn renders_command_and_group_constraints() {
+    let command = clap::Command::new("test")
+        .arg_required_else_help(true)
+        .subcommand_required(true)
+        .arg(clap::Arg::new("write").long("write"))
+        .arg(clap::Arg::new("read").long("read"))
+        .arg(clap::Arg::new("mode").long("mode"))
+        .arg(clap::Arg::new("quiet").long("quiet"))
+        .group(
+            clap::ArgGroup::new("output")
+                .args(["write", "read"])
+                .required(true)
+                .multiple(false)
+                .requires("mode")
+                .conflicts_with("quiet"),
+        );
+
+    let rendered = render_snapshot(&command);
+    assert!(rendered.contains("command: [arg-required-else-help] [subcommand-required]"));
+    assert!(rendered.contains(
+        "group: output [args: --write, --read] [required: true] [multiple: false] \
+         [requires: [\"mode\"]] [conflicts: [\"quiet\"]]"
+    ));
+}
+
+#[test]
+fn renders_alias_and_visibility_metadata() {
+    let command = clap::Command::new("test").subcommand(
+        clap::Command::new("serve")
+            .alias("s")
+            .visible_alias("run")
+            .short_flag('S')
+            .short_flag_alias('x')
+            .visible_short_flag_alias('r')
+            .long_flag("serve-now")
+            .long_flag_alias("start")
+            .visible_long_flag_alias("run-now")
+            .hide(true)
+            .arg(
+                clap::Arg::new("mode")
+                    .long("mode")
+                    .alias("kind")
+                    .visible_alias("type")
+                    .short_alias('k')
+                    .visible_short_alias('t')
+                    .value_parser(clap::builder::PossibleValuesParser::new([
+                        clap::builder::PossibleValue::new("fast").alias("quick"),
+                        clap::builder::PossibleValue::new("internal").hide(true),
+                    ])),
+            ),
+    );
+
+    let rendered = render_snapshot(&command);
+    assert!(rendered.contains(
+        "command: [aliases: s, run] [visible-aliases: run] [short-flag: -S] \
+         [short-flag-aliases: -x, -r] [visible-short-flag-aliases: -r] \
+         [long-flag: --serve-now] [long-flag-aliases: --start, --run-now] \
+         [visible-long-flag-aliases: --run-now] [hidden]"
+    ));
+    assert!(rendered.contains(
+        "arg: --mode <MODE> [action: Set] [num-args: 1] [aliases: kind, type] \
+         [visible-aliases: type] [short-aliases: -k, -t] [visible-short-aliases: -t] \
+         [possible: fast (aliases: quick), internal (hidden)]"
+    ));
+}
+
+/// Replaces machine-specific default values with stable placeholders.
+fn normalize_default(long: Option<&str>, value: &str) -> String {
+    if let Some(long) = long &&
+        MACHINE_SPECIFIC_DEFAULTS.contains(&long)
+    {
+        return "<MACHINE_SPECIFIC>".to_string();
+    }
+    if long == Some("log.file.directory") &&
+        let Some(cache_dir) = dirs_next::cache_dir() &&
+        let Some(normalized) = normalize_platform_path(&cache_dir, value, "<CACHE_DIR>")
+    {
+        return normalized;
+    }
+    value.to_string()
+}
+
+/// Replaces a platform-specific base directory while retaining the meaningful path suffix.
+fn normalize_platform_path(base_dir: &Path, value: &str, placeholder: &str) -> Option<String> {
+    let suffix = Path::new(value).strip_prefix(base_dir).ok()?;
+    let suffix = suffix
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/");
+    if suffix.is_empty() {
+        Some(placeholder.to_string())
+    } else {
+        Some(format!("{placeholder}/{suffix}"))
+    }
+}
+
+#[test]
+fn platform_path_normalization_preserves_suffix() {
+    let base = Path::new("/home/alice/.cache");
+    assert_eq!(
+        normalize_platform_path(base, "/home/alice/.cache/reth/logs", "<CACHE_DIR>"),
+        Some("<CACHE_DIR>/reth/logs".to_string())
+    );
+    assert_eq!(normalize_platform_path(base, "/var/log/reth", "<CACHE_DIR>"), None);
+}
+
+/// Escapes newlines so every rendered element stays on a single line.
+fn escape(s: &str) -> String {
+    s.replace('\n', "\\n")
+}
+
+/// Returns the 1-based line number and contents of the first differing line.
+fn first_diff_line<'a>(expected: &'a str, actual: &'a str) -> (usize, &'a str, &'a str) {
+    let mut left = expected.lines();
+    let mut right = actual.lines();
+    let mut line_no = 0usize;
+    loop {
+        line_no += 1;
+        match (left.next(), right.next()) {
+            (None, None) => return (line_no, "<missing>", "<missing>"),
+            (l, r) if l != r => {
+                return (line_no, l.unwrap_or("<missing>"), r.unwrap_or("<missing>"));
+            }
+            _ => {}
+        }
+    }
+}

@@ -32,7 +32,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  # Tag pushes get a group per tag: a release commonly tags several components on
+  # one commit, and each tag builds a different image, so they must not share a
+  # group -- GitHub keeps only one waiting run per group and evicts the rest.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || (github.ref_type == 'tag' && format('{0}-{1}', github.sha, github.ref_name) || github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -60,7 +63,7 @@ jobs:
 
       - name: Plan melange, apko, and smoke matrices
         id: plan
-        uses: ethereum-optimism/factory/actions/apko-plan@12411827f96e70e564f1b459a1c50bd6e3bd6199
+        uses: ethereum-optimism/factory/actions/apko-plan@103d850873d85202fc2f53473191d691229240d3
         with:
           config: .github/images.apko.json
 
@@ -77,7 +80,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@12411827f96e70e564f1b459a1c50bd6e3bd6199
+    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@103d850873d85202fc2f53473191d691229240d3
     with:
       stack: ${{ matrix.stack }}
       arch: ${{ matrix.arch }}
@@ -110,7 +113,7 @@ jobs:
       attestations: write
       artifact-metadata: write
       actions: read
-    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@12411827f96e70e564f1b459a1c50bd6e3bd6199
+    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@103d850873d85202fc2f53473191d691229240d3
     with:
       service: ${{ matrix.service }}
       needs-melange-apks: ${{ matrix.needs_melange_apks }}
@@ -133,7 +136,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@12411827f96e70e564f1b459a1c50bd6e3bd6199
+    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@103d850873d85202fc2f53473191d691229240d3
     with:
       service: ${{ matrix.service }}
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images

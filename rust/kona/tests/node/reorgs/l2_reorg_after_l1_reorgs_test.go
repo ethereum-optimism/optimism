@@ -36,7 +36,7 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 		testL2ReorgAfterL1Reorg(gt, 3, pre, post)
 	})
 
-	gt.Run("unsafe, local-safe, cross-unsafe, cross-safe reorgs", func(gt *testing.T) {
+	gt.Run("unsafe, local-safe, cross-safe reorgs", func(gt *testing.T) {
 		var localSafeRef, unsafeRef []eth.L2BlockRef
 		pre := func(t devtest.T, sys *node_utils.MinimalWithTestSequencersPreset) {
 			for _, elNode := range sys.L2ELNodes() {

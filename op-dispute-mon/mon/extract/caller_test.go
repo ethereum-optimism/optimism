@@ -55,9 +55,8 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 			game: types.GameMetadata{GameType: uint32(types.SuperCannonKonaGameType), Proxy: fdgAddr},
 		},
 		{
-			name:        "zk production creation remains disabled",
-			game:        types.GameMetadata{GameType: uint32(types.ZKDisputeGameType), Proxy: fdgAddr},
-			expectedErr: fmt.Errorf("unsupported game type: %d", types.ZKDisputeGameType),
+			name: "validZKGameType",
+			game: types.GameMetadata{GameType: uint32(types.ZKDisputeGameType), Proxy: fdgAddr},
 		},
 		{
 			name:        "InvalidGameType",
@@ -93,6 +92,8 @@ func setupMetadataLoaderTest(t *testing.T, gameType uint32) (*batching.MultiCall
 		fdgAbi = snapshots.LoadSuperPermissionedDisputeGameABI()
 	} else if gameType == uint32(types.SuperCannonKonaGameType) {
 		fdgAbi = snapshots.LoadSuperFaultDisputeGameABI()
+	} else if gameType == uint32(types.ZKDisputeGameType) {
+		fdgAbi = snapshots.LoadZKDisputeGameABI()
 	}
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)

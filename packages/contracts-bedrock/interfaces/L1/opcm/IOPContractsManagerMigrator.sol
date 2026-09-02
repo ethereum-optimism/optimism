@@ -52,13 +52,20 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when the ZK_DISPUTE_GAME dev feature is not enabled.
     error OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
 
-    /// @notice Thrown when the supplied chains do not all share the same AnchorStateRegistry, i.e.
-    ///         they are not a single already-interop set.
-    error OPContractsManagerMigrator_NotSharedInteropSet();
+    /// @notice Thrown when a dispute game config has an init bond that its game type does not
+    ///         allow: non-zero for SUPER_PERMISSIONED, which does not use bonds, or zero for any
+    ///         other game type.
+    error OPContractsManagerMigrator_InvalidInitBond();
 
-    /// @notice Thrown when the new respected game type does not resolve to a registered
-    ///         implementation on the shared DisputeGameFactory after the dispute games are swapped.
-    error OPContractsManagerMigrator_RespectedGameTypeNotRegistered();
+    /// @notice Thrown when a permissionless fault game config has a zero absolute prestate.
+    error OPContractsManagerMigrator_InvalidAbsolutePrestate();
+
+    /// @notice Thrown when a dispute game config is for a game type that does not use super roots.
+    error OPContractsManagerMigrator_InvalidGameType();
+
+    /// @notice Thrown when a dispute game config is not enabled. Migration registers every config
+    ///         it is given, so a disabled config would be registered anyway.
+    error OPContractsManagerMigrator_DisputeGameNotEnabled();
 
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
@@ -70,11 +77,6 @@ interface IOPContractsManagerMigrator {
     ///         dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) external;
-
-    /// @notice Re-points the shared dispute games of an already-interop set to a new respected
-    ///         super game.
-    /// @param _input The input parameters for the dispute game re-point.
-    function setInteropDisputeGames(MigrateInput calldata _input) external;
 
     function __constructor__(IOPContractsManagerUtils _utils) external;
 }

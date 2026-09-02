@@ -172,7 +172,7 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 		PrivateKey:        privateKey,
 		L1RPCUrl:          l1RPC,
 		CacheDir:          setupCacheDir,
-		GenesisTimeOffset: 600,
+		GenesisTimeOffset: standard.MinGenesisTimeOffsetSeconds,
 	}))
 
 	prepared, err := pipeline.ReadState(preparedWorkdir)

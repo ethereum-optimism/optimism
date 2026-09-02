@@ -295,15 +295,11 @@ func MigrateInterop(
 		chainSystemConfigs[i] = l2Deployments[l2ChainID].SystemConfigProxy
 	}
 
-	// ABI-encode the cannon prestates as game args (from the first chain config).
+	// ABI-encode the cannon kona prestate as game args (from the first chain config).
 	l2ChainID := l2ChainIDs[0]
-	cannonGameArgs := common.LeftPadBytes(l2Cfgs[l2ChainID].DisputeAbsolutePrestate.Bytes(), 32)
 	cannonKonaGameArgs := common.LeftPadBytes(l2Cfgs[l2ChainID].DisputeKonaAbsolutePrestate.Bytes(), 32)
 
-	const (
-		GameTypeCannon          = uint32(0)
-		GameTypeSuperCannonKona = uint32(9)
-	)
+	const GameTypeSuperCannonKona = uint32(9)
 
 	imi := manage.InteropMigrationInput{
 		Prank: superCfg.ProxyAdminOwner,
@@ -311,12 +307,6 @@ func MigrateInterop(
 		MigrateInputV2: &manage.MigrateInputV2{
 			ChainSystemConfigs: chainSystemConfigs,
 			DisputeGameConfigs: []manage.DisputeGameConfig{
-				{
-					Enabled:  true,
-					InitBond: new(big.Int).Set(defaultInitBond),
-					GameType: GameTypeCannon,
-					GameArgs: cannonGameArgs,
-				},
 				{
 					Enabled:  true,
 					InitBond: new(big.Int).Set(defaultInitBond),

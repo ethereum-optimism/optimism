@@ -27,6 +27,10 @@ type (
 	ParentGameStatusFetcher func(ctx context.Context, index uint64, block rpcblock.Block) (gameTypes.GameStatus, error)
 )
 
+type GamesWaitingForRootSourceMetrics interface {
+	RecordGamesWaitingForRootSource(gameTypeCounts map[string]int)
+}
+
 // CommonEnricher adds data shared by every enriched game variant.
 type CommonEnricher interface {
 	Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.CommonGameData) error
@@ -45,6 +49,7 @@ type ZKEnricher interface {
 type Extractor struct {
 	logger            log.Logger
 	clock             clock.Clock
+	metrics           GamesWaitingForRootSourceMetrics
 	createContract    CreateGameCaller
 	fetchGames        FactoryGameFetcher
 	fetchParentStatus ParentGameStatusFetcher
@@ -60,6 +65,7 @@ type Extractor struct {
 func NewExtractor(
 	logger log.Logger,
 	cl clock.Clock,
+	metrics GamesWaitingForRootSourceMetrics,
 	creator CreateGameCaller,
 	fetchGames FactoryGameFetcher,
 	fetchParentStatus ParentGameStatusFetcher,
@@ -77,6 +83,7 @@ func NewExtractor(
 	return &Extractor{
 		logger:            logger,
 		clock:             cl,
+		metrics:           metrics,
 		createContract:    creator,
 		fetchGames:        fetchGames,
 		fetchParentStatus: fetchParentStatus,
@@ -101,6 +108,8 @@ func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimes
 func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, games []gameTypes.GameMetadata) ([]monTypes.EnrichedGame, int, int) {
 	var ignored atomic.Int32
 	var failed atomic.Int32
+	waitingForRootSource := map[string]int{gameTypes.ZKDisputeGameType.String(): 0}
+	var waitingForRootSourceMu sync.Mutex
 
 	var wg sync.WaitGroup
 	wg.Add(e.maxConcurrency)
@@ -127,6 +136,9 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 					}
 					if errors.Is(err, gameTypes.ErrNotInSync) {
 						e.logger.Debug("Waiting for root source to process past the game L1 head", "game", game.Proxy)
+						waitingForRootSourceMu.Lock()
+						waitingForRootSource[gameTypes.GameType(game.GameType).String()]++
+						waitingForRootSourceMu.Unlock()
 						current, currentIsZK := enrichedGame.(*monTypes.ZKGameData)
 						cached, cachedIsZK := e.latestGameData[game.Proxy].(*monTypes.ZKGameData)
 						if currentIsZK && cachedIsZK {
@@ -161,6 +173,7 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 		updatedGameData[enrichedGame.Common().Proxy] = enrichedGame
 	}
 	e.latestGameData = updatedGameData
+	e.metrics.RecordGamesWaitingForRootSource(waitingForRootSource)
 	return slices.Collect(maps.Values(updatedGameData)), int(ignored.Load()), int(failed.Load())
 }
 

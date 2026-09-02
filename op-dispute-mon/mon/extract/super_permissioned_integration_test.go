@@ -53,6 +53,7 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 	extractor := NewExtractor(
 		logger,
 		clock.NewDeterministicClock(time.Unix(48294294, 58)),
+		new(stubGamesWaitingForRootSourceMetrics),
 		creator.CreateContract,
 		fetchGames,
 		nil,

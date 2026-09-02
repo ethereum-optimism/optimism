@@ -75,7 +75,7 @@ func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, localContractArtifact
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
 	wb.Build()
 
-	t.Require().Len(wb.l2Chains, 1, "expected exactly one L2 chain in flashblocks world")
+	t.Require().Len(wb.l2Chains, 1, "expected exactly one L2 chain in single-chain world")
 	l2ID := wb.l2Chains[0]
 	l1ID := eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID)
 
@@ -139,9 +139,6 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
 	case MixedL2ELOpRethV2:
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
-	case MixedOpRbuilder:
-		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
-		return startBuilderEL(t, l2Net, jwtPath, identity)
 	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth v1
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opts...)
 	default:
@@ -370,7 +367,7 @@ func startL2CLNode(
 			L1RPCKind:        sources.RPCKindDebugGeth,
 			RateLimit:        0,
 			BatchSize:        20,
-			HttpPollInterval: 100,
+			HttpPollInterval: 100 * time.Millisecond,
 			MaxConcurrency:   10,
 			CacheSize:        0,
 		},

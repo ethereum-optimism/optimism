@@ -69,13 +69,20 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the ZK_DISPUTE_GAME dev feature is not enabled.
     error OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
 
-    /// @notice Thrown when the supplied chains do not all share the same AnchorStateRegistry, i.e.
-    ///         they are not a single already-interop set.
-    error OPContractsManagerMigrator_NotSharedInteropSet();
+    /// @notice Thrown when a dispute game config has an init bond that its game type does not
+    ///         allow: non-zero for SUPER_PERMISSIONED, which does not use bonds, or zero for any
+    ///         other game type.
+    error OPContractsManagerMigrator_InvalidInitBond();
 
-    /// @notice Thrown when the new respected game type does not resolve to a registered
-    ///         implementation on the shared DisputeGameFactory after the dispute games are swapped.
-    error OPContractsManagerMigrator_RespectedGameTypeNotRegistered();
+    /// @notice Thrown when a permissionless fault game config has a zero absolute prestate.
+    error OPContractsManagerMigrator_InvalidAbsolutePrestate();
+
+    /// @notice Thrown when a dispute game config is for a game type that does not use super roots.
+    error OPContractsManagerMigrator_InvalidGameType();
+
+    /// @notice Thrown when a dispute game config is not enabled. Migration registers every config
+    ///         it is given, so a disabled config would be registered anyway.
+    error OPContractsManagerMigrator_DisputeGameNotEnabled();
 
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
@@ -131,6 +138,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // zero l2ChainId, that no two chains share the same l2ChainId, and that l2ChainIds are
         // provided in ascending order.
         _validateChainSystemConfigs(_input.chainSystemConfigs);
+
+        // Check that every supplied dispute game config is valid and that the starting respected
+        // game type is one of them.
+        _validateDisputeGameConfigs(_input.disputeGameConfigs, _input.startingRespectedGameType);
 
         // NOTE: Interop doesn't have a real chain ID, and the chain ID provided here is ONLY used
         // as a salt mixer, so we just use the block.timestamp instead. It really doesn't matter
@@ -238,15 +249,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             }
         }
 
-        // Set up the dispute games in the new DisputeGameFactory.
-        // NOTE: Unlike deploy/upgrade, migration does not perform full game config
-        // validation. This is intentional:
-        // 1. Migration is a privileged, one-off admin action by the ProxyAdmin owner
-        // 2. getGameImpl() rejects unrecognized game types
-        // 3. Only super game types are meaningful here — non-super types would have
-        //    l2ChainId=0, causing FaultDisputeGame to revert on chain ID mismatch
-        // 4. All supplied configs are registered regardless of the enabled flag —
-        //    callers must only include configs they want active
+        // Set up the dispute games in the new DisputeGameFactory. Configs are validated by
+        // _validateDisputeGameConfigs above.
         for (uint256 i = 0; i < _input.disputeGameConfigs.length; i++) {
             disputeGameFactory.setImplementation(
                 _input.disputeGameConfigs[i].gameType,
@@ -254,101 +258,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 _makeGameArgs(0, anchorStateRegistry, delayedWETH, _input.disputeGameConfigs[i])
             );
             disputeGameFactory.setInitBond(_input.disputeGameConfigs[i].gameType, _input.disputeGameConfigs[i].initBond);
-        }
-    }
-
-    /// @notice Re-points the shared dispute games of an ALREADY-interop set to a new respected
-    ///         super game, running shared-infra steps exactly once. This is general across super
-    ///         game types: the caller chooses the source game(s) to retire and the target game to
-    ///         enable via `disputeGameConfigs`, and the new respected type via
-    ///         `startingRespectedGameType`. Unlike migrate(), it does NOT deploy new shared infra
-    ///         and does NOT touch per-chain portals: the chains already share an
-    ///         AnchorStateRegistry, DisputeGameFactory and ETHLockbox. It re-initializes the shared
-    ///         AnchorStateRegistry with the new respected game type and anchor root, then sets the
-    ///         dispute game implementations on the shared DisputeGameFactory.
-    /// @dev NOTE: Gated on OPTIMISM_PORTAL_INTEROP. It is additionally gated on the ZK_DISPUTE_GAME
-    ///      dev feature while ZK is the in-development target super game.
-    /// @dev NOTE: In-flight games can keep finalizing since wasRespectedGameTypeWhenCreated remains
-    ///      true for the retired game.
-    /// @dev NOTE: The shared AnchorStateRegistry is re-initialized, which re-seeds the anchor root.
-    ///      The caller MUST supply an honest anchor root in `startingAnchorRoot`; if it differs
-    ///      from the current one, its l2SequenceNumber MUST be strictly greater than the current
-    ///      anchor's or AnchorStateRegistry.initialize reverts (same constraint as migrate()).
-    /// @dev NOTE: Unlike migrate(), this does NOT invalidate already-proven withdrawals: the
-    ///      AnchorStateRegistry retirement timestamp is preserved. Retired games can therefore still
-    ///      advance the anchor unless they are blacklisted separately.
-    /// @param _input The input parameters. `chainSystemConfigs` is the existing interop set;
-    ///        `disputeGameConfigs` enables the target game and disables the retired one;
-    ///        `startingRespectedGameType` is the new (super) respected game type.
-    function setInteropDisputeGames(MigrateInput calldata _input) public {
-        // Check that at least one chain is supplied.
-        if (_input.chainSystemConfigs.length == 0) {
-            revert OPContractsManagerMigrator_NoChains();
-        }
-
-        if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            revert OPContractsManagerMigrator_InteropNotEnabled();
-        }
-        // TODO(#21529): remove this ZK_DISPUTE_GAME gate once the ZK game becomes the default super game post-interop.
-        if (!contractsContainer().isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)) {
-            revert OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
-        }
-
-        // The new respected game type must be a super game type.
-        if (!GameTypes.isSuperGame(_input.startingRespectedGameType)) {
-            revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
-        }
-
-        // All chains must share the same core contracts. Validate the set, then resolve the shared
-        // infra from the first chain as the canonical reference (same convention as migrate()).
-        _validateChainSystemConfigs(_input.chainSystemConfigs);
-        ISystemConfig sysCfg = _input.chainSystemConfigs[0];
-
-        // Resolve the existing shared infra.
-        IAnchorStateRegistry anchorStateRegistry =
-            IOptimismPortal(payable(sysCfg.optimismPortal())).anchorStateRegistry();
-        IDisputeGameFactory disputeGameFactory = anchorStateRegistry.disputeGameFactory();
-        IDelayedWETH delayedWETH = IDelayedWETH(payable(sysCfg.delayedWETH()));
-
-        // Assert every chain is actually part of this interop set: each portal must resolve to the
-        // same shared AnchorStateRegistry. Starts at 0 to mirror _validateChainSystemConfigs
-        for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
-            IOptimismPortal portal = IOptimismPortal(payable(_input.chainSystemConfigs[i].optimismPortal()));
-            if (portal.anchorStateRegistry() != anchorStateRegistry) {
-                revert OPContractsManagerMigrator_NotSharedInteropSet();
-            }
-        }
-
-        IOPContractsManagerContainer.Implementations memory impls = contractsContainer().implementations();
-
-        // Re-initialize the shared AnchorStateRegistry with the new respected game type and anchor
-        // root. _upgrade resets the initialized slot, re-seeding the anchor for the new game.
-        _upgrade(
-            sysCfg.proxyAdmin(),
-            address(anchorStateRegistry),
-            impls.anchorStateRegistryImpl,
-            abi.encodeCall(
-                IAnchorStateRegistry.initialize,
-                (sysCfg, disputeGameFactory, _input.startingAnchorRoot, _input.startingRespectedGameType)
-            )
-        );
-
-        // Swap the dispute games on the shared DisputeGameFactory. An enabled config registers the
-        // new game. A disabled config clears the retired one by setting the implementation to address(0).
-        for (uint256 i = 0; i < _input.disputeGameConfigs.length; i++) {
-            IDisputeGame gameImpl = IDisputeGame(address(0));
-            bytes memory gameArgs = bytes("");
-            if (_input.disputeGameConfigs[i].enabled) {
-                gameImpl = _getGameImpl(_input.disputeGameConfigs[i].gameType);
-                gameArgs = _makeGameArgs(0, anchorStateRegistry, delayedWETH, _input.disputeGameConfigs[i]);
-            }
-            disputeGameFactory.setImplementation(_input.disputeGameConfigs[i].gameType, gameImpl, gameArgs);
-            disputeGameFactory.setInitBond(_input.disputeGameConfigs[i].gameType, _input.disputeGameConfigs[i].initBond);
-        }
-
-        // The new respected game type must resolve to a registered implementation after the swap.
-        if (address(disputeGameFactory.gameImpls(_input.startingRespectedGameType)) == address(0)) {
-            revert OPContractsManagerMigrator_RespectedGameTypeNotRegistered();
         }
     }
 
@@ -384,6 +293,89 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 revert OPContractsManagerMigrator_ChainIdsNotAscending();
             }
             prevL2ChainId = l2ChainId;
+        }
+    }
+
+    /// @notice Validates the dispute game configs supplied to migrate(). Migration is a
+    ///         privileged, one-off admin action, so it does not repeat the structural checks that
+    ///         OPContractsManagerV2 applies on the deploy/upgrade path: it takes a variable-length
+    ///         list of super game types rather than one config per valid game type. It does apply
+    ///         the per-config checks from that path, and rejects configs that migration cannot
+    ///         act on: every config is registered as supplied, so a disabled config or a game type
+    ///         that does not use super roots is a caller mistake rather than a no-op.
+    /// @param _gameConfigs The dispute game configs to validate.
+    /// @param _startingRespectedGameType The game type the AnchorStateRegistry will respect.
+    function _validateDisputeGameConfigs(
+        IOPContractsManagerUtils.DisputeGameConfig[] calldata _gameConfigs,
+        GameType _startingRespectedGameType
+    )
+        internal
+        view
+    {
+        bool startingGameTypeFound;
+        for (uint256 i = 0; i < _gameConfigs.length; i++) {
+            _assertValidDisputeGameConfig(_gameConfigs[i]);
+            if (_gameConfigs[i].gameType.raw() == _startingRespectedGameType.raw()) {
+                startingGameTypeFound = true;
+            }
+        }
+
+        // The respected game type must have an implementation registered by this migration.
+        if (!startingGameTypeFound) {
+            revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
+        }
+    }
+
+    /// @notice Validates a single dispute game config supplied to migrate(). See
+    ///         _validateDisputeGameConfigs for which checks apply and why.
+    /// @param _gameConfig The dispute game config to validate.
+    function _assertValidDisputeGameConfig(IOPContractsManagerUtils.DisputeGameConfig calldata _gameConfig)
+        internal
+        view
+    {
+        uint32 rawGameType = _gameConfig.gameType.raw();
+
+        // Non-super game types would have l2ChainId=0, causing the game to revert on chain ID
+        // mismatch, and legacy fault game types are not validated by this path at all.
+        if (!GameTypes.isSuperGame(_gameConfig.gameType)) {
+            revert OPContractsManagerMigrator_InvalidGameType();
+        }
+
+        // Every supplied config is registered, so a disabled config is a caller mistake.
+        if (!_gameConfig.enabled) {
+            revert OPContractsManagerMigrator_DisputeGameNotEnabled();
+        }
+
+        // SUPER_PERMISSIONED does not use bonds. Every other game type does.
+        if (rawGameType == GameTypes.SUPER_PERMISSIONED.raw()) {
+            if (_gameConfig.initBond != 0) {
+                revert OPContractsManagerMigrator_InvalidInitBond();
+            }
+        } else if (_gameConfig.initBond == 0) {
+            revert OPContractsManagerMigrator_InvalidInitBond();
+        }
+
+        // ZK_DISPUTE_GAME can only be registered when the dev feature is on.
+        if (
+            rawGameType == GameTypes.ZK_DISPUTE_GAME.raw()
+                && !contractsContainer().isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
+        ) {
+            revert OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
+        }
+
+        // A permissionless game is unplayable without an absolute prestate.
+        if (rawGameType == GameTypes.SUPER_CANNON_KONA.raw()) {
+            IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
+                abi.decode(_gameConfig.gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
+            if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
+                revert OPContractsManagerMigrator_InvalidAbsolutePrestate();
+            }
+        } else if (rawGameType == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            IOPContractsManagerUtils.ZKDisputeGameConfig memory zkGameConfig =
+                abi.decode(_gameConfig.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+            if (zkGameConfig.absolutePrestate.raw() == bytes32(0)) {
+                revert OPContractsManagerMigrator_InvalidAbsolutePrestate();
+            }
         }
     }
 

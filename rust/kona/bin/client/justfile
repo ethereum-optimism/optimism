@@ -249,7 +249,7 @@ prepare-witness-data witness_tar witness_tar_url:
 # `kona-YYYY-MM-DD` by the `prepare-witness-data` dependency. When regenerating
 # for a new block, upload a new release (see `generate-witness-tar`) and bump
 # the `witness_tar` / `witness_tar_url` defaults.
-run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id witness_tar='op-sepolia-42427365-witness.tar.zst' witness_tar_url='https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-04-21' verbosity='': (prepare-witness-data witness_tar witness_tar_url)
+run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id witness_tar='op-sepolia-47600000-witness.tar.zst' witness_tar_url='https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2' verbosity='': (prepare-witness-data witness_tar witness_tar_url)
   #!/usr/bin/env bash
 
   HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/debug/kona-host"

@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -116,6 +117,7 @@ var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
 var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value")
 var ErrZKDisputeGameMissingParams = fmt.Errorf("ZK dispute game is missing required params")
+var ErrZKDisputeGameParamOutOfRange = fmt.Errorf("ZK dispute game param is out of range")
 
 func (c *ChainIntent) Check() error {
 	if c.ID == emptyHash {
@@ -179,8 +181,16 @@ func (c *ChainIntent) Check() error {
 			if game.ZKDisputeGame.MaxChallengeDuration == 0 {
 				return fmt.Errorf("%w: MaxChallengeDuration must be > 0, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
+			// Capped at uint32 max so block.timestamp + duration cannot overflow the game's uint64
+			// deadline cast, which would place the deadline in the past.
+			if game.ZKDisputeGame.MaxChallengeDuration > math.MaxUint32 {
+				return fmt.Errorf("%w: MaxChallengeDuration must be <= %d, chainId=%s", ErrZKDisputeGameParamOutOfRange, uint64(math.MaxUint32), c.ID)
+			}
 			if game.ZKDisputeGame.MaxProveDuration == 0 {
 				return fmt.Errorf("%w: MaxProveDuration must be > 0, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+			if game.ZKDisputeGame.MaxProveDuration > math.MaxUint32 {
+				return fmt.Errorf("%w: MaxProveDuration must be <= %d, chainId=%s", ErrZKDisputeGameParamOutOfRange, uint64(math.MaxUint32), c.ID)
 			}
 			if game.ZKDisputeGame.ChallengerBond == nil || game.ZKDisputeGame.ChallengerBond.ToInt().Sign() <= 0 {
 				return fmt.Errorf("%w: ChallengerBond must be set to a positive value, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)

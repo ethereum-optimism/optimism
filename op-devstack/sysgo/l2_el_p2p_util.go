@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -51,24 +50,23 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 		require.True(added, "should have added trusted peer on "+side)
 	}
 	addTrustedPeer(initiator, targetInfo.Enode, "initiator")
-	addTrustedPeer(acceptor, initiatorInfo.Enode, "acceptor")
 
-	// Skip P2P connection verification if SKIP_P2P_CONNECTION_CHECK is set
-	// FIXME(#18570): it seems we have some issues getting op-reth to connect to op-geth. This is a temporary workaround to ensure we can still run the
-	// devstack tests.
-	if os.Getenv("SKIP_P2P_CONNECTION_CHECK") != "" {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	waitCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	err = forPeerList(ctx, initiator, func(peers []peer) bool {
+	err = forPeerList(waitCtx, initiator, func(peers []peer) bool {
 		return slices.ContainsFunc(peers, func(p peer) bool {
 			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
 			return peerID == strings.ToLower(expectedID)
 		})
 	})
 	require.NoError(err, "The peer was not connected")
+
+	// The acceptor's trusted entry is added only once the session is up: reth
+	// dials trusted peers immediately, and two crossed in-flight dials are both
+	// torn down with AlreadyConnected (reth has no simultaneous-connect
+	// tie-break). Against a live session the trusted add only upgrades the
+	// session's peer kind.
+	addTrustedPeer(acceptor, initiatorInfo.Enode, "acceptor")
 }
 
 // forPeerList polls admin_peers on node until cond holds for the returned peer

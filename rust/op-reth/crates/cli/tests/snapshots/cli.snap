@@ -1,0 +1,1304 @@
+# op-reth CLI surface snapshot.
+# One block per subcommand path; arguments in clap definition order, hidden ones
+# included. Platform- and build-specific defaults are normalized to placeholders.
+# Regenerate with:
+#   UPDATE_SNAPSHOT=1 cargo nextest run -p reth-optimism-cli --all-features cli_surface_snapshot
+
+== op-reth
+command: [arg-required-else-help] [subcommand-required]
+about: Reth
+arg: --log.stdout.format <FORMAT> [action: Set] [num-args: 1] [default: terminal] [possible: json, log-fmt, terminal] [global] help: The format to use for logs written to stdout
+arg: --log.stdout.filter <FILTER> [action: Set] [num-args: 1] [default: ] [global] help: The filter to use for logs written to stdout
+arg: --log.file.format <FORMAT> [action: Set] [num-args: 1] [default: terminal] [possible: json, log-fmt, terminal] [global] help: The format to use for logs written to the log file
+arg: --log.file.filter <FILTER> [action: Set] [num-args: 1] [default: debug] [global] help: The filter to use for logs written to the log file
+arg: --log.file.directory <PATH> [action: Set] [num-args: 1] [default: <CACHE_DIR>/reth/logs] [global] help: The path to put log files in
+arg: --log.file.name <NAME> [action: Set] [num-args: 1] [default: reth.log] [global] help: The prefix name of the log files
+arg: --log.file.max-size <SIZE> [action: Set] [num-args: 1] [default: 200] [global] help: The maximum size (in MB) of one log file
+arg: --log.file.max-files <COUNT> [action: Set] [num-args: 1] [global] help: The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+arg: --log.journald [action: SetTrue] [num-args: 0] [default: false] [global] help: Write logs to journald
+arg: --log.journald.filter <FILTER> [action: Set] [num-args: 1] [default: error] [global] help: The filter to use for logs written to journald
+arg: --log.samply [action: SetTrue] [num-args: 0] [default: false] [global] [hidden] help: Emit traces to samply. Only useful when profiling
+arg: --log.samply.filter <FILTER> [action: Set] [num-args: 1] [default: debug] [global] [hidden] help: The filter to use for traces emitted to samply
+arg: --log.tracing-chrome [action: SetTrue] [num-args: 0] [default: false] [global] [hidden] help: Emit traces to a Chrome trace JSON file. Only useful when profiling
+arg: --log.tracing-chrome.file <PATH> [action: Set] [num-args: 1] [default: trace.json] [global] [hidden] help: The path to write Chrome trace JSON to
+arg: --log.tracing-chrome.filter <FILTER> [action: Set] [num-args: 1] [default: debug] [global] [hidden] help: The filter to use for traces emitted to Chrome trace JSON
+arg: --log.tracy [action: SetTrue] [num-args: 0] [default: false] [global] [hidden] help: Emit traces to tracy. Only useful when profiling
+arg: --log.tracy.filter <FILTER> [action: Set] [num-args: 1] [default: debug] [global] [hidden] help: The filter to use for traces emitted to tracy
+arg: --color <COLOR> [action: Set] [num-args: 1] [default: always] [possible: always, auto, never] [global] help: Sets whether or not the formatter emits ANSI terminal escape codes for colors and other text formatting
+arg: -v/--verbosity [action: Count] [num-args: 0] [default: 3] [global] help: Set the minimum log level.
+arg: -q/--quiet [action: SetTrue] [num-args: 0] [aliases: silent] [global] help: Silence all log output
+arg: --tracing-otlp <URL> [action: Set] [num-args: 0..=1] [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT] [default-missing-values: ["http://localhost:4318/v1/traces"]] [global] [require-equals] help: Enable `Opentelemetry` tracing export to an OTLP endpoint
+arg: --logs-otlp <URL> [action: Set] [num-args: 0..=1] [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT] [default-missing-values: ["http://localhost:4318/v1/logs"]] [global] [require-equals] help: Enable `Opentelemetry` logs export to an OTLP endpoint
+arg: --tracing-otlp-protocol <PROTOCOL> [action: Set] [num-args: 1] [env: OTEL_EXPORTER_OTLP_PROTOCOL] [default: http] [possible: http, grpc] [global] help: OTLP transport protocol to use for exporting traces and logs
+arg: --tracing-otlp.filter <FILTER> [action: Set] [num-args: 1] [default: debug] [global] help: Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable
+arg: --logs-otlp.filter <FILTER> [action: Set] [num-args: 1] [default: info] [global] help: Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable
+arg: --tracing-otlp.service-name <NAME> [action: Set] [num-args: 1] [env: OTEL_SERVICE_NAME] [default: reth] [global] [hidden] help: Service name to use for OTLP tracing export
+arg: --tracing-otlp.service-version <VERSION> [action: Set] [num-args: 1] [env: OTEL_SERVICE_VERSION] [global] [hidden] help: Service version to use for OTLP tracing export
+arg: --tracing-otlp.sample-ratio <RATIO> [action: Set] [num-args: 1] [env: OTEL_TRACES_SAMPLER_ARG] [global] help: Trace sampling ratio to control the percentage of traces to export
+
+== op-reth node
+about: Start the node
+group: EraSourceArgs [args: --era.path, --era.url] [required: false] [multiple: false]
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use.
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [default-values-if: [("dev", Equals("true"), Some(["dev"]))]] help: The chain this node is running
+arg: --metrics <PROMETHEUS> [action: Set] [num-args: 1] [aliases: metrics.prometheus] help: Enable Prometheus metrics
+arg: --metrics.prometheus.push.url <PUSH_GATEWAY_URL> [action: Set] [num-args: 1] help: URL for pushing Prometheus metrics to a push gateway
+arg: --metrics.prometheus.push.interval <SECONDS> [action: Set] [num-args: 1] [default: 5] help: Interval in seconds for pushing metrics to push gateway
+arg: --instance <INSTANCE> [action: Set] [num-args: 1] [global] help: Add a new instance of a node
+arg: --with-unused-ports [action: SetTrue] [num-args: 0] [conflicts: --instance] [global] help: Sets all ports to unused, allowing the OS to choose random unused ports when sockets are bound
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Disable the discovery service
+arg: --disable-dns-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable the DNS discovery
+arg: --disable-discv4-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv4 discovery
+arg: --enable-discv5-discovery [action: SetTrue] [num-args: 0] [conflicts: -d/--disable-discovery] [hidden] help: Enable Discv5 discovery
+arg: --disable-discv5-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv5 discovery
+arg: --disable-nat [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Nat discovery
+arg: --discovery.addr <DISCOVERY_ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0] help: The UDP address to use for devp2p peer discovery version 4
+arg: --discovery.port <DISCOVERY_PORT> [action: Set] [num-args: 1] [default: 30303] help: The UDP port to use for devp2p peer discovery version 4
+arg: --discovery.v5.addr <DISCOVERY_V5_ADDR> [action: Set] [num-args: 1] help: The UDP IPv4 address to use for devp2p peer discovery version 5. Overwritten by `RLPx` address, if it's also IPv4
+arg: --discovery.v5.addr.ipv6 <DISCOVERY_V5_ADDR_IPV6> [action: Set] [num-args: 1] help: The UDP IPv6 address to use for devp2p peer discovery version 5. Overwritten by `RLPx` address, if it's also IPv6
+arg: --discovery.v5.port <DISCOVERY_V5_PORT> [action: Set] [num-args: 1] [default: 9200] help: The UDP IPv4 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv4, or `--discovery.v5.addr` is set
+arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 1] [default: 9200] help: The UDP IPv6 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv6, or `--discovery.addr.ipv6` is set
+arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
+arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
+arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
+arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs of trusted peers for P2P connections
+arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
+arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs for P2P discovery bootstrap
+arg: --dns-retries <DNS_RETRIES> [action: Set] [num-args: 1] [default: 0] help: Amount of DNS resolution requests retries to perform when peering
+arg: --peers-file <FILE> [action: Set] [num-args: 1] [conflicts: --no-persist-peers] help: The path to the known peers file. Connected peers are dumped to this file on nodes\nshutdown, and read on startup. Cannot be used with `--no-persist-peers`.
+arg: --identity <IDENTITY> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Custom node identity
+arg: --p2p-secret-key <PATH> [action: Set] [num-args: 1] [conflicts: --p2p-secret-key-hex] help: Secret key to use for this node
+arg: --p2p-secret-key-hex <HEX> [action: Set] [num-args: 1] [conflicts: --p2p-secret-key] help: Hex encoded secret key to use for this node
+arg: --no-persist-peers [action: SetTrue] [num-args: 0] help: Do not persist peers.
+arg: --nat <NAT> [action: Set] [num-args: 1] [default: any] help: NAT resolution method (any|none|upnp|publicip|extip:\<IP\>)
+arg: --addr <ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0] help: Network listening address
+arg: --port <PORT> [action: Set] [num-args: 1] [default: 30303] help: Network listening port
+arg: --max-outbound-peers <MAX_OUTBOUND_PEERS> [action: Set] [num-args: 1] help: Maximum number of outbound peers. default: 100
+arg: --max-inbound-peers <MAX_INBOUND_PEERS> [action: Set] [num-args: 1] help: Maximum number of inbound peers. default: 30
+arg: --max-peers <COUNT> [action: Set] [num-args: 1] [conflicts: --max-inbound-peers, --max-outbound-peers] help: Maximum number of total peers (inbound + outbound)
+arg: --max-tx-reqs <COUNT> [action: Set] [num-args: 1] [default: 130] help: Max concurrent `GetPooledTransactions` requests.
+arg: --max-tx-reqs-peer <COUNT> [action: Set] [num-args: 1] [default: 1] help: Max concurrent `GetPooledTransactions` requests per peer.
+arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] help: Max number of seen transactions to remember per peer.
+arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
+arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
+arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
+arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
+arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
+arg: --tx-ingress-policy <TX_INGRESS_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction ingress policy
+arg: --disable-tx-gossip [action: SetTrue] [num-args: 0] help: Disable transaction pool gossip
+arg: --tx-propagation-mode <PROPAGATION_MODE> [action: Set] [num-args: 1] [default: sqrt] help: Transaction propagation mode (sqrt, all, max:<number>)
+arg: --required-block-hashes <REQUIRED_BLOCK_HASHES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated list of required block hashes or block number=hash pairs. Peers that don't have these blocks will be filtered out. Format: hash or `block_number=hash` (e.g., 23115201=0x1234...)
+arg: --network-id <NETWORK_ID> [action: Set] [num-args: 1] help: Optional network ID to override the chain specification's network ID for P2P connections
+arg: --eth-max-message-size <BYTES> [action: Set] [num-args: 1] help: Maximum allowed ETH message size in bytes. Default is 10 MiB
+arg: --netrestrict <NETRESTRICT> [action: Set] [num-args: 1] help: Restrict network communication to the given IP networks (CIDR masks)
+arg: --enforce-enr-fork-id [action: SetTrue] [num-args: 0] [default: false] help: Enforce EIP-868 ENR fork ID validation for discovered peers
+arg: --http [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Enable the HTTP-RPC server
+arg: --http.addr <HTTP_ADDR> [action: Set] [num-args: 1] [default: 127.0.0.1] help: Http server address to listen on
+arg: --http.port <HTTP_PORT> [action: Set] [num-args: 1] [default: 8545] help: Http server port to listen on
+arg: --http.disable-compression [action: SetTrue] [num-args: 0] [default: false] help: Disable compression for HTTP responses
+arg: --http.api <HTTP_API> [action: Set] [num-args: 1] [possible: admin, debug, eth, net, trace, txpool, web3, rpc, reth, ots, flashbots, miner, mev, testing] help: Rpc Modules to be configured for the HTTP server
+arg: --http.corsdomain <HTTP_CORSDOMAIN> [action: Set] [num-args: 1] help: Http Corsdomain to allow request from
+arg: --ws [action: SetTrue] [num-args: 0] [default: false] help: Enable the WS-RPC server
+arg: --ws.addr <WS_ADDR> [action: Set] [num-args: 1] [default: 127.0.0.1] help: Ws server address to listen on
+arg: --ws.port <WS_PORT> [action: Set] [num-args: 1] [default: 8546] help: Ws server port to listen on
+arg: --ws.origins <ws.origins> [action: Set] [num-args: 1] [aliases: ws.corsdomain] help: Origins from which to accept `WebSocket` requests
+arg: --ws.api <WS_API> [action: Set] [num-args: 1] [possible: admin, debug, eth, net, trace, txpool, web3, rpc, reth, ots, flashbots, miner, mev, testing] help: Rpc Modules to be configured for the WS server
+arg: --ipcdisable [action: SetTrue] [num-args: 0] [default: false] help: Disable the IPC-RPC server
+arg: --ipcpath <IPCPATH> [action: Set] [num-args: 1] [default: /tmp/reth.ipc] help: Filename for IPC socket/pipe within the datadir
+arg: --ipc.permissions <IPC_SOCKET_PERMISSIONS> [action: Set] [num-args: 1] help: Set the permissions for the IPC socket file, in octal format
+arg: --authrpc.addr <AUTH_ADDR> [action: Set] [num-args: 1] [default: 127.0.0.1] help: Auth server address to listen on
+arg: --authrpc.port <AUTH_PORT> [action: Set] [num-args: 1] [default: 8551] help: Auth server port to listen on
+arg: --authrpc.jwtsecret <PATH> [action: Set] [num-args: 1] [global] help: Path to a JWT secret to use for the authenticated engine-API RPC server
+arg: --auth-ipc [action: SetTrue] [num-args: 0] [default: false] help: Enable auth engine API over IPC
+arg: --auth-ipc.path <AUTH_IPC_PATH> [action: Set] [num-args: 1] [default: /tmp/reth_engine_api.ipc] help: Filename for auth IPC socket/pipe within the datadir
+arg: --disable-auth-server [action: SetTrue] [num-args: 0] [aliases: disable-engine-api] [default: false] help: Disable the auth/engine API server
+arg: --rpc.jwtsecret <HEX> [action: Set] [num-args: 1] [global] help: Hex encoded JWT secret to authenticate the regular RPC server(s), see `--http.api` and `--ws.api`
+arg: --rpc.disable-metrics [action: SetTrue] [num-args: 0] [default: false] help: Disable built-in RPC request metrics
+arg: --rpc.max-request-size <RPC_MAX_REQUEST_SIZE> [action: Set] [num-args: 1] [aliases: rpc-max-request-size] [default: 15] help: Set the maximum RPC request payload size for both HTTP and WS in megabytes
+arg: --rpc.max-response-size <RPC_MAX_RESPONSE_SIZE> [action: Set] [num-args: 1] [aliases: rpc-max-response-size, rpc.returndata.limit] [visible-aliases: rpc.returndata.limit] [default: 160] help: Set the maximum RPC response payload size for both HTTP and WS in megabytes
+arg: --rpc.max-subscriptions-per-connection <RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION> [action: Set] [num-args: 1] [aliases: rpc-max-subscriptions-per-connection] [default: 1024] help: Set the maximum concurrent subscriptions per connection
+arg: --rpc.max-connections <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-connections] [default: 500] help: Maximum number of RPC server connections
+arg: --rpc.max-tracing-requests <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-tracing-requests] [default: <MACHINE_SPECIFIC>] help: Maximum number of concurrent tracing requests
+arg: --rpc.max-blocking-io-requests <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-blocking-io-requests] [default: 256] help: Maximum number of concurrent blocking IO requests
+arg: --rpc.max-trace-filter-blocks <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-trace-filter-blocks] [default: 100] help: Maximum number of blocks for `trace_filter` requests
+arg: --rpc.max-blocks-per-filter <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-blocks-per-filter] [default: 100000] help: Maximum number of blocks that could be scanned per filter request. (0 = entire chain)
+arg: --rpc.max-logs-per-response <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-logs-per-response] [default: 20000] help: Maximum number of logs that can be returned in a single response. (0 = no limit)
+arg: --rpc.gascap <GAS_CAP> [action: Set] [num-args: 1] [aliases: rpc-gascap] [default: 50000000] help: Maximum gas limit for `eth_call` and call tracing RPC methods
+arg: --rpc.evm-memory-limit <MEMORY_LIMIT> [action: Set] [num-args: 1] [aliases: rpc-evm-memory-limit] [default: 4294967295] help: Maximum memory the EVM can allocate per RPC request
+arg: --rpc.txfeecap <TX_FEE_CAP> [action: Set] [num-args: 1] [aliases: rpc-txfeecap] [default: 1.0] help: Maximum eth transaction fee (in ether) that can be sent via the RPC APIs (0 = no cap)
+arg: --rpc.max-simulate-blocks <BLOCKS_COUNT> [action: Set] [num-args: 1] [default: 256] help: Maximum number of blocks for `eth_simulateV1` call
+arg: --rpc.compute-state-root-for-eth-simulate [action: SetTrue] [num-args: 0] [env: RETH_RPC_COMPUTE_STATE_ROOT_FOR_ETH_SIMULATE] [default: false] help: Compute state roots for `eth_simulateV1` responses
+arg: --rpc.eth-proof-window <RPC_ETH_PROOF_WINDOW> [action: Set] [num-args: 1] [default: 0] help: The maximum proof window for historical proof generation. This value allows for generating historical proofs up to configured number of blocks from current tip (up to `tip - window`)
+arg: --rpc.proof-permits <COUNT> [action: Set] [num-args: 1] [aliases: rpc-proof-permits] [default: 25] help: Maximum number of concurrent getproof requests
+arg: --rpc.pending-block <KIND> [action: Set] [num-args: 1] [default: full] help: Configures the pending block behavior for RPC responses
+arg: --rpc.forwarder <FORWARDER> [action: Set] [num-args: 1] [aliases: rpc-forwarder] help: Endpoint to forward transactions to
+arg: --builder.disallow <PATH> [action: Set] [num-args: 1] help: Path to file containing disallowed addresses, json-encoded list of strings. Block validation API will reject blocks containing transactions from these addresses
+arg: --rpc-cache.max-blocks <MAX_BLOCKS> [action: Set] [num-args: 1] [default: 5000] help: Max number of blocks in cache
+arg: --rpc-cache.max-receipts <MAX_RECEIPTS> [action: Set] [num-args: 1] [default: 2000] help: Max number receipts in cache
+arg: --rpc-cache.max-headers <MAX_HEADERS> [action: Set] [num-args: 1] [aliases: rpc-cache.max-envs] [default: 1000] help: Max number of headers in cache
+arg: --rpc-cache.max-bals <MAX_BALS> [action: Set] [num-args: 1] [default: 1000] help: Max number of revm block access lists in cache
+arg: --rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS> [action: Set] [num-args: 1] [default: 512] help: Max number of concurrent database requests
+arg: --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES> [action: Set] [num-args: 1] [default: 30000] help: Maximum number of transaction hashes to cache for transaction lookups
+arg: --gpo.blocks <BLOCKS> [action: Set] [num-args: 1] [default: 20] help: Number of recent blocks to check for gas price
+arg: --gpo.ignoreprice <IGNORE_PRICE> [action: Set] [num-args: 1] [default: 0] help: Gas Price below which gpo will ignore transactions
+arg: --gpo.maxprice <MAX_PRICE> [action: Set] [num-args: 1] [default: 500000000000] help: Maximum transaction priority fee(or gasprice before London Fork) to be recommended by gpo
+arg: --gpo.percentile <PERCENTILE> [action: Set] [num-args: 1] [default: 60] help: The percentile of gas prices to use for the estimate
+arg: --gpo.default-suggested-fee <DEFAULT_SUGGESTED_FEE> [action: Set] [num-args: 1] help: The default gas price to use if there are no blocks to use
+arg: --rpc.send-raw-transaction-sync-timeout <SECONDS> [action: Set] [num-args: 1] [default: 30s] help: Timeout for `send_raw_transaction_sync` RPC method
+arg: --testing.skip-invalid-transactions [action: SetTrue] [num-args: 0] [default: true] help: Skip invalid transactions in `testing_buildBlockV1` instead of failing
+arg: --testing.gas-limit <GAS_LIMIT> [action: Set] [num-args: 1] [hidden] help: Override the gas limit used by `testing_buildBlockV1`
+arg: --rpc.force-blob-sidecar-upcasting [action: SetTrue] [num-args: 0] [default: false] help: Force upcasting EIP-4844 blob sidecars to EIP-7594 format when Osaka is active
+arg: --txpool.pending-max-count <PENDING_MAX_COUNT> [action: Set] [num-args: 1] [aliases: txpool.pending_max_count] [default: 10000] help: Max number of transactions in the pending sub-pool
+arg: --txpool.pending-max-size <PENDING_MAX_SIZE> [action: Set] [num-args: 1] [aliases: txpool.pending_max_size] [default: 20] help: Max size of the pending sub-pool in megabytes
+arg: --txpool.basefee-max-count <BASEFEE_MAX_COUNT> [action: Set] [num-args: 1] [aliases: txpool.basefee_max_count] [default: 10000] help: Max number of transactions in the basefee sub-pool
+arg: --txpool.basefee-max-size <BASEFEE_MAX_SIZE> [action: Set] [num-args: 1] [aliases: txpool.basefee_max_size] [default: 20] help: Max size of the basefee sub-pool in megabytes
+arg: --txpool.queued-max-count <QUEUED_MAX_COUNT> [action: Set] [num-args: 1] [aliases: txpool.queued_max_count] [default: 10000] help: Max number of transactions in the queued sub-pool
+arg: --txpool.queued-max-size <QUEUED_MAX_SIZE> [action: Set] [num-args: 1] [aliases: txpool.queued_max_size] [default: 20] help: Max size of the queued sub-pool in megabytes
+arg: --txpool.blobpool-max-count <BLOBPOOL_MAX_COUNT> [action: Set] [num-args: 1] [aliases: txpool.blobpool_max_count] [default: 10000] help: Max number of transactions in the blobpool
+arg: --txpool.blobpool-max-size <BLOBPOOL_MAX_SIZE> [action: Set] [num-args: 1] [aliases: txpool.blobpool_max_size] [default: 20] help: Max size of the blobpool in megabytes
+arg: --txpool.blob-cache-size <BLOB_CACHE_SIZE> [action: Set] [num-args: 1] [aliases: txpool.blob_cache_size] help: Max number of entries for the in memory cache of the blob store
+arg: --txpool.disable-blobs-support [action: SetTrue] [num-args: 0] [aliases: txpool.disable_blobs_support] [default: false] [conflicts: --blobpool.pricebump, --txpool.blob-cache-size, --txpool.blobpool-max-count, --txpool.blobpool-max-size] help: Disable EIP-4844 blob transaction support
+arg: --txpool.max-account-slots <MAX_ACCOUNT_SLOTS> [action: Set] [num-args: 1] [aliases: txpool.max_account_slots] [default: 16] help: Max number of executable transaction slots guaranteed per account
+arg: --txpool.pricebump <PRICE_BUMP> [action: Set] [num-args: 1] [default: 10] help: Price bump (in %) for the transaction pool underpriced check
+arg: --txpool.minimal-protocol-fee <MINIMAL_PROTOCOL_BASEFEE> [action: Set] [num-args: 1] [default: 7] help: Minimum base fee required by the protocol
+arg: --txpool.minimum-priority-fee <MINIMUM_PRIORITY_FEE> [action: Set] [num-args: 1] help: Minimum priority fee required for transaction acceptance into the pool. Transactions with priority fee below this value will be rejected
+arg: --txpool.gas-limit <ENFORCED_GAS_LIMIT> [action: Set] [num-args: 1] [default: 30000000] help: The default enforced gas limit for transactions entering the pool
+arg: --txpool.max-tx-gas <MAX_TX_GAS_LIMIT> [action: Set] [num-args: 1] help: Maximum gas limit for individual transactions. Transactions exceeding this limit will be rejected by the transaction pool
+arg: --blobpool.pricebump <BLOB_TRANSACTION_PRICE_BUMP> [action: Set] [num-args: 1] [default: 100] help: Price bump percentage to replace an already existing blob transaction
+arg: --txpool.max-tx-input-bytes <MAX_TX_INPUT_BYTES> [action: Set] [num-args: 1] [aliases: txpool.max_tx_input_bytes] [default: 131072] help: Max size in bytes of a single transaction allowed to enter the pool
+arg: --txpool.max-cached-entries <MAX_CACHED_ENTRIES> [action: Set] [num-args: 1] [aliases: txpool.max_cached_entries] [default: 100] help: The maximum number of blobs to keep in the in memory blob cache
+arg: --txpool.nolocals [action: SetTrue] [num-args: 0] [default: false] help: Flag to disable local transaction exemptions
+arg: --txpool.locals <LOCALS> [action: Append] [num-args: 1] help: Flag to allow certain addresses as local
+arg: --txpool.no-local-transactions-propagation [action: SetTrue] [num-args: 0] [default: false] help: Flag to toggle local transaction propagation
+arg: --txpool.additional-validation-tasks <ADDITIONAL_VALIDATION_TASKS> [action: Set] [num-args: 1] [aliases: txpool.additional_validation_tasks] [default: 1] help: Number of additional transaction validation tasks to spawn
+arg: --txpool.max-pending-txns <PENDING_TX_LISTENER_BUFFER_SIZE> [action: Set] [num-args: 1] [aliases: txpool.max_pending_txns] [default: 2048] help: Maximum number of pending transactions from the network to buffer
+arg: --txpool.max-new-txns <NEW_TX_LISTENER_BUFFER_SIZE> [action: Set] [num-args: 1] [aliases: txpool.max_new_txns] [default: 1024] help: Maximum number of new transactions to buffer
+arg: --txpool.max-new-pending-txs-notifications <MAX_NEW_PENDING_TXS_NOTIFICATIONS> [action: Set] [num-args: 1] [aliases: txpool.max-new-pending-txs-notifications] [default: 200] help: How many new pending transactions to buffer and send to in progress pending transaction iterators
+arg: --txpool.lifetime <DURATION> [action: Set] [num-args: 1] [default: 10800] help: Maximum amount of time non-executable transaction are queued
+arg: --txpool.transactions-backup <PATH> [action: Set] [num-args: 1] [aliases: txpool.journal] help: Path to store the local transaction backup at, to survive node restarts
+arg: --txpool.disable-transactions-backup [action: SetTrue] [num-args: 0] [aliases: txpool.disable-journal] [default: false] [conflicts: --txpool.transactions-backup] help: Disables transaction backup to disk on node shutdown
+arg: --txpool.max-batch-size <MAX_BATCH_SIZE> [action: Set] [num-args: 1] [default: 1] help: Max batch size for transaction pool insertions
+arg: --builder.extradata <EXTRA_DATA> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Block extra data set by the payload builder
+arg: --builder.gaslimit <GAS_LIMIT> [action: Set] [num-args: 1] [aliases: miner.gaslimit] help: Target gas limit for built blocks
+arg: --builder.interval <DURATION> [action: Set] [num-args: 1] [default: 1] help: The interval at which the job should build a new payload after the last
+arg: --builder.deadline <SECONDS> [action: Set] [num-args: 1] [default: 12] help: The deadline for when the payload builder job should resolve
+arg: --builder.max-tasks <MAX_PAYLOAD_TASKS> [action: Set] [num-args: 1] [default: 3] help: Maximum number of tasks to spawn for building a payload
+arg: --builder.max-blobs <COUNT> [action: Set] [num-args: 1] help: Maximum number of blobs to include per block
+arg: --debug.terminate [action: SetTrue] [num-args: 0] help: Flag indicating whether the node should be terminated after the pipeline sync
+arg: --debug.tip <TIP> [action: Set] [num-args: 1] help: Set the chain tip manually for testing purposes
+arg: --debug.max-block <MAX_BLOCK> [action: Set] [num-args: 1] help: Runs the sync only up to the specified block
+arg: --debug.etherscan <ETHERSCAN_API_URL> [action: Set] [num-args: 0..=1] [conflicts: --debug.rpc-consensus-url, --debug.tip] help: Runs a fake consensus client that advances the chain using recent block hashes on Etherscan. If specified, requires an `ETHERSCAN_API_KEY` environment variable
+arg: --debug.rpc-consensus-url <RPC_URL> [action: Set] [num-args: 1] [aliases: debug.rpc-consensus-ws] [conflicts: --debug.etherscan, --debug.tip] help: Runs a fake consensus client using blocks fetched from an RPC endpoint. Supports both HTTP and `WebSocket` endpoints - `WebSocket` endpoints will use subscriptions, while HTTP endpoints will poll for new blocks
+arg: --debug.skip-fcu <SKIP_FCU> [action: Set] [num-args: 1] help: If provided, the engine will skip `n` consecutive FCUs
+arg: --debug.skip-new-payload <SKIP_NEW_PAYLOAD> [action: Set] [num-args: 1] help: If provided, the engine will skip `n` consecutive new payloads
+arg: --debug.skip-state-root [action: SetTrue] [num-args: 0] [hidden] help: Skip trie state-root computation during engine validation
+arg: --debug.skip-genesis-validation [action: SetTrue] [num-args: 0] help: If set, bypasses genesis hash validation during init. Intended for tools that direct-write the database (e.g. snapshot importers, state-actor) and want reth to trust the DB-resident genesis state instead of recomputing it from the chainspec's alloc. When the bypass fires, a structured `tracing::warn!` is emitted so the divergence stays observable in operator logs
+arg: --debug.reorg-frequency <REORG_FREQUENCY> [action: Set] [num-args: 1] help: If provided, the chain will be reorged at specified frequency
+arg: --debug.reorg-depth <REORG_DEPTH> [action: Set] [num-args: 1] [requires: [(IsPresent, "reorg_frequency")]] help: The reorg depth for chain reorgs
+arg: --debug.engine-api-store <PATH> [action: Set] [num-args: 1] help: The path to store engine API messages at. If specified, all of the intercepted engine API messages will be written to specified location
+arg: --debug.invalid-block-hook <INVALID_BLOCK_HOOK> [action: Set] [num-args: 1] [default: witness] [possible: witness, pre-state, opcode] help: Determines which type of invalid block hook to install
+arg: --debug.healthy-node-rpc-url <URL> [action: Set] [num-args: 1] help: The RPC URL of a healthy node to use for comparing invalid block hook results against.
+arg: --ethstats <ETHSTATS> [action: Set] [num-args: 1] help: The URL of the ethstats server to connect to. Example: `nodename:secret@host:port`
+arg: --debug.startup-sync-state-idle [action: SetTrue] [num-args: 0] help: Set the node to idle state when the backfill is not running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --dev [action: SetTrue] [num-args: 0] [aliases: auto-mine] help: Start the node in dev mode
+arg: --dev.block-max-transactions <BLOCK_MAX_TRANSACTIONS> [action: Set] [num-args: 1] [conflicts: --dev.block-time] help: How many transactions to mine per block
+arg: --dev.block-time <BLOCK_TIME> [action: Set] [num-args: 1] [conflicts: --dev.block-max-transactions] help: Interval between blocks.
+arg: --dev.payload-wait-time <PAYLOAD_WAIT_TIME> [action: Set] [num-args: 1] help: Time to wait after initiating payload building before resolving.
+arg: --dev.mnemonic <MNEMONIC> [action: Set] [num-args: 1] [default: test test test test test test test test test test test junk] [requires: [(IsPresent, "dev")]] help: Derive dev accounts from a fixed mnemonic instead of random ones.
+arg: --full [action: SetTrue] [num-args: 0] [default: false] [conflicts: --minimal] help: Run full node. Only the most recent [`MINIMUM_UNWIND_SAFE_DISTANCE`] block states are stored
+arg: --minimal [action: SetTrue] [num-args: 0] [default: false] [conflicts: --full] [hidden] help: Run minimal storage mode with maximum pruning and smaller static files
+arg: --prune.block-interval <BLOCK_INTERVAL> [action: Set] [num-args: 1] [aliases: block-interval] help: Minimum pruning interval measured in blocks
+arg: --prune.sender-recovery.full [action: SetTrue] [num-args: 0] [aliases: prune.senderrecovery.full] [conflicts: --prune.sender-recovery.before, --prune.sender-recovery.distance] help: Prunes all sender recovery data
+arg: --prune.sender-recovery.distance <BLOCKS> [action: Set] [num-args: 1] [aliases: prune.senderrecovery.distance] [conflicts: --prune.sender-recovery.before, --prune.sender-recovery.full] help: Prune sender recovery data before the `head-N` block number. In other words, keep last N + 1 blocks
+arg: --prune.sender-recovery.before <BLOCK_NUMBER> [action: Set] [num-args: 1] [aliases: prune.senderrecovery.before] [conflicts: --prune.sender-recovery.distance, --prune.sender-recovery.full] help: Prune sender recovery data before the specified block number. The specified block number is not pruned
+arg: --prune.transaction-lookup.full [action: SetTrue] [num-args: 0] [aliases: prune.transactionlookup.full] [conflicts: --prune.transaction-lookup.before, --prune.transaction-lookup.distance] help: Prunes all transaction lookup data
+arg: --prune.transaction-lookup.distance <BLOCKS> [action: Set] [num-args: 1] [aliases: prune.transactionlookup.distance] [conflicts: --prune.transaction-lookup.before, --prune.transaction-lookup.full] help: Prune transaction lookup data before the `head-N` block number. In other words, keep last N + 1 blocks
+arg: --prune.transaction-lookup.before <BLOCK_NUMBER> [action: Set] [num-args: 1] [aliases: prune.transactionlookup.before] [conflicts: --prune.transaction-lookup.distance, --prune.transaction-lookup.full] help: Prune transaction lookup data before the specified block number. The specified block number is not pruned
+arg: --prune.receipts.full [action: SetTrue] [num-args: 0] [conflicts: --prune.receipts.before, --prune.receipts.distance, --prune.receipts.pre-merge] help: Prunes all receipt data
+arg: --prune.receipts.pre-merge [action: SetTrue] [num-args: 0] [conflicts: --prune.receipts.before, --prune.receipts.distance, --prune.receipts.full] help: Prune receipts before the merge block
+arg: --prune.receipts.distance <BLOCKS> [action: Set] [num-args: 1] [conflicts: --prune.receipts.before, --prune.receipts.full, --prune.receipts.pre-merge] help: Prune receipts before the `head-N` block number. In other words, keep last N + 1 blocks
+arg: --prune.receipts.before <BLOCK_NUMBER> [action: Set] [num-args: 1] [conflicts: --prune.receipts.distance, --prune.receipts.full, --prune.receipts.pre-merge] help: Prune receipts before the specified block number. The specified block number is not pruned
+arg: --prune.receiptslogfilter <FILTER_CONFIG> [action: Set] [num-args: 1] [conflicts: --prune.receipts.before, --prune.receipts.distance, --prune.receipts.full, --prune.receipts.pre-merge] help: Configure receipts log filter. Format: <`address`>:<`prune_mode`>... where <`prune_mode`> can be 'full', 'distance:<`blocks`>', or 'before:<`block_number`>'
+arg: --prune.account-history.full [action: SetTrue] [num-args: 0] [aliases: prune.accounthistory.full] [conflicts: --prune.account-history.before, --prune.account-history.distance] help: Prunes all account history
+arg: --prune.account-history.distance <BLOCKS> [action: Set] [num-args: 1] [aliases: prune.accounthistory.distance] [conflicts: --prune.account-history.before, --prune.account-history.full] help: Prune account before the `head-N` block number. In other words, keep last N + 1 blocks
+arg: --prune.account-history.before <BLOCK_NUMBER> [action: Set] [num-args: 1] [aliases: prune.accounthistory.before] [conflicts: --prune.account-history.distance, --prune.account-history.full] help: Prune account history before the specified block number. The specified block number is not pruned
+arg: --prune.storage-history.full [action: SetTrue] [num-args: 0] [aliases: prune.storagehistory.full] [conflicts: --prune.storage-history.before, --prune.storage-history.distance] help: Prunes all storage history data
+arg: --prune.storage-history.distance <BLOCKS> [action: Set] [num-args: 1] [aliases: prune.storagehistory.distance] [conflicts: --prune.storage-history.before, --prune.storage-history.full] help: Prune storage history before the `head-N` block number. In other words, keep last N + 1 blocks
+arg: --prune.storage-history.before <BLOCK_NUMBER> [action: Set] [num-args: 1] [aliases: prune.storagehistory.before] [conflicts: --prune.storage-history.distance, --prune.storage-history.full] help: Prune storage history before the specified block number. The specified block number is not pruned
+arg: --prune.bodies.pre-merge [action: SetTrue] [num-args: 0] [conflicts: --prune.bodies.before, --prune.bodies.distance] help: Prune bodies before the merge block
+arg: --prune.bodies.distance <BLOCKS> [action: Set] [num-args: 1] [conflicts: --prune.bodies.before, --prune.bodies.pre-merge] help: Prune bodies before the `head-N` block number. In other words, keep last N + 1 blocks
+arg: --prune.bodies.before <BLOCK_NUMBER> [action: Set] [num-args: 1] [conflicts: --prune.bodies.distance, --prune.bodies.pre-merge] help: Prune storage history before the specified block number. The specified block number is not pruned
+arg: --prune.minimum-distance <BLOCKS> [action: Set] [num-args: 1] help: Minimum pruning distance from the tip. This controls the safety margin for reorgs and manual unwinds
+arg: --engine.persistence-threshold <PERSISTENCE_THRESHOLD> [action: Set] [num-args: 1] [default: 2] help: Configure persistence threshold for the engine. This determines how many canonical blocks must be in-memory, ahead of the last persisted block, before flushing canonical blocks to disk again
+arg: --engine.persistence-backpressure-threshold <PERSISTENCE_BACKPRESSURE_THRESHOLD> [action: Set] [num-args: 1] help: Configure the maximum canonical-minus-persisted gap before engine API processing stalls
+arg: --engine.memory-block-buffer-target <MEMORY_BLOCK_BUFFER_TARGET> [action: Set] [num-args: 1] [default: 0] help: Configure the target number of blocks to keep in memory
+arg: --engine.invalid-header-cache-hit-eviction-threshold <INVALID_HEADER_HIT_EVICTION_THRESHOLD> [action: Set] [num-args: 1] [default: 128] help: Configure how many cache hits an invalid header can accumulate before it is evicted and reprocessed
+arg: --engine.legacy-state-root [action: SetTrue] [num-args: 0] [default: false] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.state-root-fallback if you want to force synchronous state root computation
+arg: --engine.caching-and-prewarming [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.disable-caching-and-prewarming if you want to disable caching and prewarming
+arg: --engine.disable-state-cache [action: SetTrue] [num-args: 0] [default: false] help: Disable state cache
+arg: --engine.disable-prewarming [action: SetTrue] [num-args: 0] [aliases: engine.disable-caching-and-prewarming] [default: false] help: Disable parallel prewarming
+arg: --engine.parallel-sparse-trie [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore. The parallel sparse trie is always enabled
+arg: --engine.disable-parallel-sparse-trie [action: SetTrue] [num-args: 0] [default: false] [hidden] help: CAUTION: This CLI flag has no effect anymore. The parallel sparse trie is always enabled
+arg: --engine.state-provider-metrics [action: SetTrue] [num-args: 0] [default: false] help: Enable state provider latency metrics. This allows the engine to collect and report stats about how long state provider calls took during execution, but this does introduce slight overhead to state provider calls
+arg: --engine.cross-block-cache-size <CROSS_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] [default: 4096] help: Configure the size of cross-block cache in megabytes
+arg: --engine.state-root-task-compare-updates [action: SetTrue] [num-args: 0] [default: false] help: Enable comparing trie updates from the state root task to the trie updates from the regular state root calculation
+arg: --engine.accept-execution-requests-hash [action: SetTrue] [num-args: 0] [default: false] help: Enables accepting requests hash instead of an array of requests in `engine_newPayloadV4`
+arg: --engine.multiproof-chunk-size <MULTIPROOF_CHUNK_SIZE> [action: Set] [num-args: 1] [default: 5] help: Multiproof task chunk size for proof targets
+arg: --engine.reserved-cpu-cores <RESERVED_CPU_CORES> [action: Set] [num-args: 1] [default: 1] help: Configure the number of reserved CPU cores for non-reth processes
+arg: --engine.precompile-cache [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.disable-precompile-cache if you want to disable precompile cache
+arg: --engine.disable-precompile-cache [action: SetTrue] [num-args: 0] [default: false] help: Disable precompile cache
+arg: --engine.state-root-fallback [action: SetTrue] [num-args: 0] [default: false] help: Enable state root fallback, useful for testing
+arg: --engine.always-process-payload-attributes-on-canonical-head [action: SetTrue] [num-args: 0] [default: false] help: Always process payload attributes and begin a payload build process even if `forkchoiceState.headBlockHash` is already the canonical head or an ancestor. See `TreeConfig::always_process_payload_attributes_on_canonical_head` for more details
+arg: --engine.allow-unwind-canonical-header [action: SetTrue] [num-args: 0] [default: false] help: Allow unwinding canonical header to ancestor during forkchoice updates. See `TreeConfig::unwind_canonical_header` for more details
+arg: --engine.storage-worker-count <STORAGE_WORKER_COUNT> [action: Set] [num-args: 1] help: Configure the number of storage proof workers in the Tokio blocking pool. If not specified, defaults to 2x available parallelism
+arg: --engine.account-worker-count <ACCOUNT_WORKER_COUNT> [action: Set] [num-args: 1] help: Configure the number of account proof workers in the Tokio blocking pool. If not specified, defaults to the same count as storage workers
+arg: --engine.prewarming-threads <PREWARMING_THREADS> [action: Set] [num-args: 1] help: Configure the number of prewarming threads. If not specified, defaults to available parallelism
+arg: --engine.disable-cache-metrics [action: SetTrue] [num-args: 0] [default: false] help: Disable cache metrics recording, which can take up to 50ms with large cached state
+arg: --engine.sparse-trie-max-hot-slots <SPARSE_TRIE_MAX_HOT_SLOTS> [action: Set] [num-args: 1] [aliases: engine.sparse-trie-max-storage-tries] [default: 1500] help: LFU hot-slot capacity: max storage slots retained across sparse trie prune cycles
+arg: --engine.sparse-trie-max-hot-accounts <SPARSE_TRIE_MAX_HOT_ACCOUNTS> [action: Set] [num-args: 1] [default: 1000] help: LFU hot-account capacity: max account addresses retained across sparse trie prune cycles
+arg: --engine.slow-block-threshold <DURATION> [action: Set] [num-args: 1] help: Configure the slow block logging threshold in milliseconds
+arg: --engine.disable-sparse-trie-cache-pruning [action: SetTrue] [num-args: 0] [default: false] help: Fully disable sparse trie cache pruning. When set, the cached sparse trie is preserved without any node pruning or storage trie eviction between blocks. Useful for benchmarking the effects of retaining the full trie cache
+arg: --engine.state-root-task-timeout <STATE_ROOT_TASK_TIMEOUT> [action: Set] [num-args: 1] [default: 4s] help: Configure the timeout for the state root task before spawning a sequential fallback. If the state root task takes longer than this, a sequential computation starts in parallel and whichever finishes first is used
+arg: --engine.share-execution-cache-with-payload-builder [action: SetTrue] [num-args: 0] [default: false] help: Whether to share execution cache with the payload builder
+arg: --engine.share-sparse-trie-with-payload-builder [action: SetTrue] [num-args: 0] [default: false] help: Whether to share the sparse trie with the payload builder
+arg: --engine.suppress-persistence-during-build [action: SetTrue] [num-args: 0] [default: false] help: Suppress persistence while building a payload
+arg: --engine.disable-bal-parallel-execution [action: SetTrue] [num-args: 0] [default: false] help: Disable BAL (Block Access List, EIP-7928) based parallel execution
+arg: --engine.disable-bal-parallel-state-root [action: SetTrue] [num-args: 0] [default: false] help: Disable BAL-driven parallel state root computation. This is only valid together with `--engine.disable-bal-parallel-execution`
+arg: --engine.disable-bal-batch-io [action: SetTrue] [num-args: 0] [default: false] help: Disable BAL (Block Access List) storage prefetch IO during prewarming. When set, BAL storage slots are not read into the execution cache
+arg: --era.enable [action: SetTrue] [num-args: 0] [default: false] help: Enable import from ERA1 files
+arg: --era.path <ERA_PATH> [action: Set] [num-args: 1] help: The path to a directory for import.
+arg: --era.url <ERA_URL> [action: Set] [num-args: 1] help: The URL to a remote host where the ERA1 files are hosted.
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --jit [action: SetTrue] [num-args: 0] [default: false] help: Enable JIT compilation of EVM bytecode
+arg: --jit.hot-threshold <HOT_THRESHOLD> [action: Set] [num-args: 1] [default: 8] help: Number of observed misses before a bytecode is promoted to JIT compilation
+arg: --jit.worker-count <WORKER_COUNT> [action: Set] [num-args: 1] help: Number of JIT compilation worker threads
+arg: --jit.channel-capacity <CHANNEL_CAPACITY> [action: Set] [num-args: 1] [default: 4096] help: Capacity of the lookup-observed event channel. Events are silently dropped when the channel is full
+arg: --jit.max-pending-jobs <MAX_PENDING_JOBS> [action: Set] [num-args: 1] [default: 2048] help: Maximum number of pending JIT compilation jobs
+arg: --jit.max-bytecode-len <MAX_BYTECODE_LEN> [action: Set] [num-args: 1] [default: 0] help: Maximum bytecode length eligible for JIT compilation. Contracts with bytecode larger than this are never promoted to JIT. 0 means no limit
+arg: --jit.code-cache-bytes <CODE_CACHE_BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Maximum total resident compiled code size in bytes. When exceeded, the backend evicts least-recently-used entries. 0 means no limit
+arg: --jit.idle-evict-duration <IDLE_EVICT_DURATION> [action: Set] [num-args: 1] [default: 1h] help: Duration after which a compiled program with no lookup hits is evicted
+arg: --jit.debug [action: SetTrue] [num-args: 0] [default: false] help: Enable compiler debug dumps
+arg: --jit.blocking [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Blocking mode: synchronously JIT-compile every contract on first encounter. Intended for debugging only
+arg: --rollup.sequencer <SEQUENCER> [action: Set] [num-args: 1] [aliases: rollup.sequencer-http, rollup.sequencer-ws] [visible-aliases: rollup.sequencer-http, rollup.sequencer-ws] help: Endpoint for the sequencer mempool (can be both HTTP and WS)
+arg: --rollup.disable-tx-pool-gossip [action: SetTrue] [num-args: 0] help: Disable transaction pool gossip
+arg: --rollup.compute-pending-block [action: SetTrue] [num-args: 0] help: By default the pending block equals the latest block to save resources and not leak txs from the tx-pool, this flag enables computing of the pending block from the tx-pool instead
+arg: --rollup.discovery.v4 [action: SetTrue] [num-args: 0] [default: false] help: enables discovery v4 if provided
+arg: --rollup.enable-tx-conditional [action: SetTrue] [num-args: 0] [default: false] help: Enable transaction conditional support on sequencer
+arg: --rollup.retain-forwarded-txs [action: SetTrue] [num-args: 0] [default: false] help: Retain RPC-submitted transactions in the local pool after forwarding them to the sequencer
+arg: --rollup.operator-sdm-opt-in <OPERATOR_SDM_OPT_IN> [action: Set] [num-args: 1] [env: OP_RETH_OPERATOR_SDM_OPT_IN] [default: false] [possible: true, false] help: Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC (`admin_setOperatorSdmOptIn`) can still toggle it at runtime. Defaults to disabled
+arg: --rollup.interop-http <INTEROP_HTTP_URL> [action: Append] [num-args: 1] help: HTTP endpoint(s) for the interop filter, used to validate the interop messages referenced by incoming transactions. Repeat the flag to configure multiple endpoints; each check is fanned out to all of them and combined by quorum agreement (see `--rollup.interop-min-responses`). When none are set, interop transaction validation is disabled: a node that builds blocks will then include transactions carrying invalid interop messages, producing invalid blocks. It is only safe to leave this unset on nodes that do not build blocks
+arg: --rollup.interop-min-responses <INTEROP_MIN_RESPONSES> [action: Set] [num-args: 1] help: Minimum number of definitive verdicts required to decide an interop check across the configured `--rollup.interop-http` endpoints. A transaction is accepted only when this many endpoints return a definitive verdict and all of them agree it is valid; if they disagree the transaction is rejected
+arg: --rollup.interop-safety-level <INTEROP_SAFETY_LEVEL> [action: Set] [num-args: 1] [default: CrossUnsafe] help: Safety level for interop filter validation
+arg: --rollup.sequencer-headers <SEQUENCER_HEADERS> [action: Append] [num-args: 1] [requires: [(IsPresent, "sequencer")]] help: Optional headers to use when connecting to the sequencer
+arg: --rollup.historicalrpc <HISTORICAL_HTTP_URL> [action: Set] [num-args: 1] [aliases: rollup.historical-rpc] help: RPC endpoint for historical data
+arg: --min-suggested-priority-fee <MIN_SUGGESTED_PRIORITY_FEE> [action: Set] [num-args: 1] [default: 1000000] help: Minimum suggested priority fee (tip) in wei, default `1_000_000`
+arg: --rollup.max-uncompressed-block-size <MAX_UNCOMPRESSED_BLOCK_SIZE> [action: Set] [num-args: 1] help: Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes
+arg: --flashblocks-url <FLASHBLOCKS_URL> [action: Set] [num-args: 1] [aliases: websocket-url, subblocks-url] help: A URL pointing to a secure websocket subscription that streams out flashblocks
+arg: --flashblock-consensus [action: SetTrue] [num-args: 0] [aliases: subblocks-consensus] [default: false] [requires: [(IsPresent, "flashblocks_url")]] help: Enable flashblock consensus client to drive the chain forward
+arg: --proofs-history [action: SetTrue] [num-args: 0] [default-values-if: [("proofs-history.storage-path", IsPresent, Some(["true"]))]] help: If true, initialize external-proofs exex to save and serve trie nodes to provide proofs faster
+arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
+arg: --proofs-history.verification-interval <PROOFS_HISTORY_VERIFICATION_INTERVAL> [action: Set] [num-args: 1] [default: 0] help: Verification interval: perform full block execution every N blocks for data integrity. - 0: Disabled (Default) (always use fast path with pre-computed data from notifications) - 1: Always verify (always execute blocks, slowest) - N: Verify every Nth block (e.g., 100 = every 100 blocks)
+
+== op-reth init
+about: Initialize the database from a genesis file
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+
+== op-reth init-state
+about: Initialize the database from a state dump file
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: [positional: state] <STATE_DUMP_FILE> [action: Set] [num-args: 1] [required] help: JSONL file with state dump.
+arg: --without-evm [action: SetTrue] [num-args: 0] [default: false] help: Specifies whether to initialize the state without relying on EVM historical data
+arg: --header <HEADER_FILE> [action: Set] [num-args: 1] help: Header file containing the header in an RLP encoded format.
+arg: --header-hash <HEADER_HASH> [action: Set] [num-args: 1] help: Hash of the header.
+arg: --without-ovm [action: SetTrue] [num-args: 0] [default: false] help: Specifies whether to initialize the state without relying on OVM or EVM historical data
+
+== op-reth import-op
+about: This syncs RLP encoded OP blocks below Bedrock from a file, without executing
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --chunk-len <CHUNK_LEN> [action: Set] [num-args: 1] help: Chunk byte length to read from file.
+arg: [positional: path] <IMPORT_PATH> [action: Set] [num-args: 1] [required] help: The path to a block file for import.
+
+== op-reth import-receipts-op
+about: This imports RLP encoded receipts from a file
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --chunk-len <CHUNK_LEN> [action: Set] [num-args: 1] help: Chunk byte length to read from file.
+arg: [positional: path] <IMPORT_PATH> [action: Set] [num-args: 1] [required] help: The path to a receipts file for import. File must use `OpGethReceiptFileCodec` (used for\nexporting OP chain segment below Bedrock block via testinprod/op-geth).
+
+== op-reth dump-genesis
+about: Dumps genesis block JSON configuration to stdout
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] help: The chain this node is running
+
+== op-reth db
+command: [arg-required-else-help] [subcommand-required]
+about: Database debugging utilities
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+
+== op-reth db stats
+about: Lists all the tables, their entry count and their size
+arg: --skip-consistency-checks [action: SetTrue] [num-args: 0] [default: false] help: Skip consistency checks for static files
+arg: --detailed-sizes [action: SetTrue] [num-args: 0] [default: false] help: Show only the total size for static files
+arg: --detailed-segments [action: SetTrue] [num-args: 0] [default: false] help: Show detailed information per static file segment
+arg: --checksum [action: SetTrue] [num-args: 0] [default: false] help: Show a checksum of each table in the database
+
+== op-reth db list
+about: Lists the contents of a table
+arg: [positional: table] <TABLE> [action: Set] [num-args: 1] [required] help: The table name
+arg: -s/--skip <SKIP> [action: Set] [num-args: 1] [default: 0] help: Skip first N entries
+arg: -r/--reverse [action: SetTrue] [num-args: 0] [default: false] help: Reverse the order of the entries. If enabled last table entries are read
+arg: -l/--len <LEN> [action: Set] [num-args: 1] [default: 5] help: How many items to take from the walker
+arg: --search <SEARCH> [action: Set] [num-args: 1] help: Search parameter for both keys and values. Prefix it with `0x` to search for binary data, and text otherwise
+arg: --min-row-size <MIN_ROW_SIZE> [action: Set] [num-args: 1] [default: 0] help: Minimum size of row in bytes
+arg: --min-key-size <MIN_KEY_SIZE> [action: Set] [num-args: 1] [default: 0] help: Minimum size of key in bytes
+arg: --min-value-size <MIN_VALUE_SIZE> [action: Set] [num-args: 1] [default: 0] help: Minimum size of value in bytes
+arg: -c/--count [action: SetTrue] [num-args: 0] help: Returns the number of rows found
+arg: -j/--json [action: SetTrue] [num-args: 0] help: Dump as JSON instead of using TUI
+arg: --raw [action: SetTrue] [num-args: 0] help: Output bytes instead of human-readable decoded value
+
+== op-reth db checksum
+command: [arg-required-else-help] [subcommand-required]
+about: Calculates the content checksum of a table or static file segment
+
+== op-reth db checksum mdbx
+about: Calculates the checksum of a database table
+arg: [positional: table] <TABLE> [action: Set] [num-args: 1] [required] help: The table name
+arg: --start-key <START_KEY> [action: Set] [num-args: 1] help: The start of the range to checksum
+arg: --end-key <END_KEY> [action: Set] [num-args: 1] help: The end of the range to checksum
+arg: --limit <LIMIT> [action: Set] [num-args: 1] help: The maximum number of records that are queried and used to compute the checksum
+
+== op-reth db checksum static-file
+about: Calculates the checksum of a static file segment
+arg: [positional: segment] <SEGMENT> [action: Set] [num-args: 1] [possible: headers, transactions, receipts, transaction-senders, account-change-sets, storage-change-sets] [required] help: The static file segment
+arg: --start-block <START_BLOCK> [action: Set] [num-args: 1] help: The block number to start from (inclusive)
+arg: --end-block <END_BLOCK> [action: Set] [num-args: 1] help: The block number to end at (inclusive)
+arg: --limit <LIMIT> [action: Set] [num-args: 1] help: The maximum number of rows to checksum
+
+== op-reth db checksum rocksdb
+about: Calculates the checksum of a RocksDB table
+arg: [positional: table] <TABLE> [action: Set] [num-args: 1] [possible: transaction-hash-numbers, accounts-history, storages-history] [required] help: The RocksDB table
+arg: --limit <LIMIT> [action: Set] [num-args: 1] help: The maximum number of records to checksum
+
+== op-reth db copy
+about: Copies the MDBX database to a new location (bundled mdbx_copy)
+arg: [positional: dest] <DEST> [action: Set] [num-args: 1] [required] help: Destination path for the database copy
+arg: -c/--compact [action: SetTrue] [num-args: 0] help: Compact the database while copying (reclaims free space)
+arg: -d/--force-dynamic-size [action: SetTrue] [num-args: 0] help: Force dynamic size for the destination database
+arg: -p/--throttle-mvcc [action: SetTrue] [num-args: 0] help: Throttle to avoid MVCC pressure on writers
+
+== op-reth db diff
+about: Create a diff between two database tables or two entire databases
+arg: --secondary-datadir <SECONDARY_DATADIR> [action: Set] [num-args: 1] [required] help: The path to the data dir for all reth files and subdirectories.
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --table <TABLE> [action: Set] [num-args: 1] help: The table name to diff. If not specified, all tables are diffed.
+arg: --output <OUTPUT> [action: Set] [num-args: 1] [required] help: The output directory for the diff report.
+
+== op-reth db get
+command: [arg-required-else-help] [subcommand-required]
+about: Gets the content of a table for the given key
+
+== op-reth db get mdbx
+about: Gets the content of a database table for the given key
+arg: [positional: table] <TABLE> [action: Set] [num-args: 1] [required]
+arg: [positional: key] <KEY> [action: Set] [num-args: 1] [required] help: The key to get content for
+arg: [positional: subkey] <SUBKEY> [action: Set] [num-args: 1] help: The subkey to get content for
+arg: [positional: end_key] <END_KEY> [action: Set] [num-args: 1] help: Optional end key for range query (exclusive upper bound)
+arg: [positional: end_subkey] <END_SUBKEY> [action: Set] [num-args: 1] help: Optional end subkey for range query (exclusive upper bound)
+arg: --raw [action: SetTrue] [num-args: 0] help: Output bytes instead of human-readable decoded value
+
+== op-reth db get static-file
+about: Gets the content of a static file segment for the given key
+arg: [positional: segment] <SEGMENT> [action: Set] [num-args: 1] [possible: headers, transactions, receipts, transaction-senders, account-change-sets, storage-change-sets] [required]
+arg: [positional: key] <KEY> [action: Set] [num-args: 1] [required] help: The key to get content for
+arg: [positional: subkey] <SUBKEY> [action: Set] [num-args: 1] help: The subkey to get content for, for example address in changeset
+arg: --raw [action: SetTrue] [num-args: 0] help: Output bytes instead of human-readable decoded value
+
+== op-reth db get rocksdb
+about: Gets the content of a RocksDB table for the given key
+arg: [positional: table] <TABLE> [action: Set] [num-args: 1] [possible: transaction-hash-numbers, accounts-history, storages-history] [required] help: The RocksDB table
+arg: [positional: key] <KEY> [action: Set] [num-args: 1] [required] help: The key to get content for. For history tables, this can be a plain address
+arg: --block <BLOCK> [action: Set] [num-args: 1] help: Target block number for history tables. Seeks to the shard containing this block. Defaults to the latest shard if not specified
+arg: --storage-key <STORAGE_KEY> [action: Set] [num-args: 1] help: Storage key for storages-history table lookups
+arg: --all-shards [action: SetTrue] [num-args: 0] help: List all shards for the given key (history tables only)
+arg: --raw [action: SetTrue] [num-args: 0] help: Output bytes instead of human-readable decoded value
+
+== op-reth db drop
+about: Deletes all database entries
+arg: -f/--force [action: SetTrue] [num-args: 0] help: Bypasses the interactive confirmation and drops the database directly
+
+== op-reth db clear
+command: [arg-required-else-help] [subcommand-required]
+about: Deletes all table entries
+
+== op-reth db clear mdbx
+about: Deletes all database table entries
+arg: [positional: table] <TABLE> [action: Set] [num-args: 1] [required]
+
+== op-reth db clear static-file
+about: Deletes all static file segment entries
+arg: [positional: segment] <SEGMENT> [action: Set] [num-args: 1] [possible: headers, transactions, receipts, transaction-senders, account-change-sets, storage-change-sets] [required]
+
+== op-reth db repair-trie
+about: Verifies trie consistency and outputs any inconsistencies
+arg: --dry-run [action: SetTrue] [num-args: 0] help: Only show inconsistencies without making any repairs
+arg: --metrics <ADDR:PORT> [action: Set] [num-args: 1] help: Enable Prometheus metrics
+
+== op-reth db static-file-header
+command: [arg-required-else-help] [subcommand-required]
+about: Reads and displays the static file segment header
+
+== op-reth db static-file-header block
+about: Query by segment and block number
+arg: [positional: segment] <SEGMENT> [action: Set] [num-args: 1] [possible: headers, transactions, receipts, transaction-senders, account-change-sets, storage-change-sets] [required] help: Static file segment
+arg: [positional: block] <BLOCK> [action: Set] [num-args: 1] [required] help: Block number to query
+
+== op-reth db static-file-header path
+about: Query by path to static file
+arg: [positional: path] <PATH> [action: Set] [num-args: 1] [required] help: Path to the static file
+
+== op-reth db version
+about: Lists current and local database versions
+
+== op-reth db path
+about: Returns the full database path
+
+== op-reth db settings
+command: [arg-required-else-help] [subcommand-required]
+about: Manage storage settings
+
+== op-reth db settings get
+about: Get current storage settings from database
+
+== op-reth db settings set
+command: [arg-required-else-help] [subcommand-required]
+about: Set storage settings in database
+
+== op-reth db settings set v2
+about: Enable or disable v2 storage layout
+arg: [positional: value] <VALUE> [action: Set] [num-args: 1] [possible: true, false] [required]
+
+== op-reth db prune-checkpoints
+command: [arg-required-else-help] [subcommand-required]
+about: View or set prune checkpoints
+
+== op-reth db prune-checkpoints get
+about: Get prune checkpoint(s) from database
+arg: --segment <SEGMENT> [action: Set] [num-args: 1] [possible: sender-recovery, transaction-lookup, receipts, contract-logs, account-history, storage-history, bodies] help: Specific segment to query. If omitted, shows all segments
+
+== op-reth db prune-checkpoints set
+about: Set a prune checkpoint for a segment
+arg: --segment <SEGMENT> [action: Set] [num-args: 1] [possible: sender-recovery, transaction-lookup, receipts, contract-logs, account-history, storage-history, bodies] [required] help: The prune segment to update
+arg: --block-number <BLOCK_NUMBER> [action: Set] [num-args: 1] help: Highest pruned block number
+arg: --tx-number <TX_NUMBER> [action: Set] [num-args: 1] help: Highest pruned transaction number
+arg: --mode <MODE> [action: Set] [num-args: 1] [possible: full, distance, before] [required] help: Prune mode to write: full, distance, or before
+arg: --mode-value <MODE_VALUE> [action: Set] [num-args: 1] [requires-if: [("mode", "distance"), ("mode", "before")]] help: Value for distance or before mode (required unless mode is full)
+
+== op-reth db stage-checkpoints
+command: [arg-required-else-help] [subcommand-required]
+about: `reth db stage-checkpoints` subcommand
+
+== op-reth db stage-checkpoints get
+about: Get stage checkpoint(s) from database
+arg: --stage <STAGE> [action: Set] [num-args: 1] [possible: era, headers, bodies, sender-recovery, execution, prune-sender-recovery, merkle-unwind, account-hashing, storage-hashing, merkle-execute, transaction-lookup, index-storage-history, index-account-history, prune, finish] help: Specific stage to query. If omitted, shows all stages
+
+== op-reth db stage-checkpoints set
+about: Set a stage checkpoint
+arg: --stage <STAGE> [action: Set] [num-args: 1] [possible: era, headers, bodies, sender-recovery, execution, prune-sender-recovery, merkle-unwind, account-hashing, storage-hashing, merkle-execute, transaction-lookup, index-storage-history, index-account-history, prune, finish] [required] help: Stage to update
+arg: --block-number <BLOCK_NUMBER> [action: Set] [num-args: 1] [required] help: Block number to set as stage checkpoint
+arg: --clear-stage-unit [action: SetTrue] [num-args: 0] help: Clear stage-specific unit checkpoint payload
+
+== op-reth db account-storage
+about: Gets storage size information for an account
+arg: [positional: address] <ADDRESS> [action: Set] [num-args: 1] [required] help: The account address to check storage for
+
+== op-reth db state
+about: Gets account state and storage at a specific block
+arg: [positional: address] <ADDRESS> [action: Set] [num-args: 1] [required] help: The account address to get state for
+arg: -b/--block <BLOCK> [action: Set] [num-args: 1] help: Block number to query state at (uses current state if not provided)
+arg: -l/--limit <LIMIT> [action: Set] [num-args: 1] [default: 100] help: Maximum number of storage slots to display
+arg: -f/--format <FORMAT> [action: Set] [num-args: 1] [default: table] [possible: table, json, csv] help: Output format (table, json, csv)
+
+== op-reth db migrate-v2
+about: Migrate storage layout from v1 (MDBX-only) to v2 (static files + RocksDB)
+
+== op-reth stage
+command: [arg-required-else-help] [subcommand-required]
+about: Manipulate individual stages
+
+== op-reth stage run
+about: Run a single stage
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --metrics <SOCKET> [action: Set] [num-args: 1] help: Enable Prometheus metrics
+arg: [positional: stage] <STAGE> [action: Set] [num-args: 1] [possible: headers, bodies, senders, execution, account-hashing, storage-hashing, hashing, merkle, tx-lookup, account-history, storage-history] [required] help: The name of the stage to run
+arg: --from <FROM> [action: Set] [num-args: 1] [required] help: The height to start at
+arg: -t/--to <TO> [action: Set] [num-args: 1] [required] help: The end of the stage
+arg: --batch-size <BATCH_SIZE> [action: Set] [num-args: 1] help: Batch size for stage execution and unwind
+arg: -s/--skip-unwind [action: SetTrue] [num-args: 0] help: Normally, running the stage requires unwinding for stages that already have been run, in order to not rewrite to the same database slots
+arg: -c/--commit [action: SetTrue] [num-args: 0] help: Commits the changes in the database. WARNING: potentially destructive
+arg: --checkpoints [action: SetTrue] [num-args: 0] help: Save stage checkpoints
+arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Disable the discovery service
+arg: --disable-dns-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable the DNS discovery
+arg: --disable-discv4-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv4 discovery
+arg: --enable-discv5-discovery [action: SetTrue] [num-args: 0] [conflicts: -d/--disable-discovery] [hidden] help: Enable Discv5 discovery
+arg: --disable-discv5-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv5 discovery
+arg: --disable-nat [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Nat discovery
+arg: --discovery.addr <DISCOVERY_ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0] help: The UDP address to use for devp2p peer discovery version 4
+arg: --discovery.port <DISCOVERY_PORT> [action: Set] [num-args: 1] [default: 30303] help: The UDP port to use for devp2p peer discovery version 4
+arg: --discovery.v5.addr <DISCOVERY_V5_ADDR> [action: Set] [num-args: 1] help: The UDP IPv4 address to use for devp2p peer discovery version 5. Overwritten by `RLPx` address, if it's also IPv4
+arg: --discovery.v5.addr.ipv6 <DISCOVERY_V5_ADDR_IPV6> [action: Set] [num-args: 1] help: The UDP IPv6 address to use for devp2p peer discovery version 5. Overwritten by `RLPx` address, if it's also IPv6
+arg: --discovery.v5.port <DISCOVERY_V5_PORT> [action: Set] [num-args: 1] [default: 9200] help: The UDP IPv4 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv4, or `--discovery.v5.addr` is set
+arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 1] [default: 9200] help: The UDP IPv6 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv6, or `--discovery.addr.ipv6` is set
+arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
+arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
+arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
+arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs of trusted peers for P2P connections
+arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
+arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs for P2P discovery bootstrap
+arg: --dns-retries <DNS_RETRIES> [action: Set] [num-args: 1] [default: 0] help: Amount of DNS resolution requests retries to perform when peering
+arg: --peers-file <FILE> [action: Set] [num-args: 1] [conflicts: --no-persist-peers] help: The path to the known peers file. Connected peers are dumped to this file on nodes\nshutdown, and read on startup. Cannot be used with `--no-persist-peers`.
+arg: --identity <IDENTITY> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Custom node identity
+arg: --p2p-secret-key <PATH> [action: Set] [num-args: 1] [conflicts: --p2p-secret-key-hex] help: Secret key to use for this node
+arg: --p2p-secret-key-hex <HEX> [action: Set] [num-args: 1] [conflicts: --p2p-secret-key] help: Hex encoded secret key to use for this node
+arg: --no-persist-peers [action: SetTrue] [num-args: 0] help: Do not persist peers.
+arg: --nat <NAT> [action: Set] [num-args: 1] [default: any] help: NAT resolution method (any|none|upnp|publicip|extip:\<IP\>)
+arg: --addr <ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0] help: Network listening address
+arg: --port <PORT> [action: Set] [num-args: 1] [default: 30303] help: Network listening port
+arg: --max-outbound-peers <MAX_OUTBOUND_PEERS> [action: Set] [num-args: 1] help: Maximum number of outbound peers. default: 100
+arg: --max-inbound-peers <MAX_INBOUND_PEERS> [action: Set] [num-args: 1] help: Maximum number of inbound peers. default: 30
+arg: --max-peers <COUNT> [action: Set] [num-args: 1] [conflicts: --max-inbound-peers, --max-outbound-peers] help: Maximum number of total peers (inbound + outbound)
+arg: --max-tx-reqs <COUNT> [action: Set] [num-args: 1] [default: 130] help: Max concurrent `GetPooledTransactions` requests.
+arg: --max-tx-reqs-peer <COUNT> [action: Set] [num-args: 1] [default: 1] help: Max concurrent `GetPooledTransactions` requests per peer.
+arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] help: Max number of seen transactions to remember per peer.
+arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
+arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
+arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
+arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
+arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
+arg: --tx-ingress-policy <TX_INGRESS_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction ingress policy
+arg: --disable-tx-gossip [action: SetTrue] [num-args: 0] help: Disable transaction pool gossip
+arg: --tx-propagation-mode <PROPAGATION_MODE> [action: Set] [num-args: 1] [default: sqrt] help: Transaction propagation mode (sqrt, all, max:<number>)
+arg: --required-block-hashes <REQUIRED_BLOCK_HASHES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated list of required block hashes or block number=hash pairs. Peers that don't have these blocks will be filtered out. Format: hash or `block_number=hash` (e.g., 23115201=0x1234...)
+arg: --network-id <NETWORK_ID> [action: Set] [num-args: 1] help: Optional network ID to override the chain specification's network ID for P2P connections
+arg: --eth-max-message-size <BYTES> [action: Set] [num-args: 1] help: Maximum allowed ETH message size in bytes. Default is 10 MiB
+arg: --netrestrict <NETRESTRICT> [action: Set] [num-args: 1] help: Restrict network communication to the given IP networks (CIDR masks)
+arg: --enforce-enr-fork-id [action: SetTrue] [num-args: 0] [default: false] help: Enforce EIP-868 ENR fork ID validation for discovered peers
+
+== op-reth stage drop
+about: Drop a stage's tables from the database
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: [positional: stage] <STAGE> [action: Set] [num-args: 1] [possible: headers, bodies, senders, execution, account-hashing, storage-hashing, hashing, merkle, tx-lookup, account-history, storage-history] [required]
+
+== op-reth stage dump
+command: [arg-required-else-help] [subcommand-required]
+about: Dumps a stage from a range into a new database
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+
+== op-reth stage dump execution
+about: Execution stage
+arg: --output-datadir <OUTPUT_PATH> [action: Set] [num-args: 1] [required] help: The path to the new datadir folder.
+arg: -f/--from <FROM> [action: Set] [num-args: 1] [required] help: From which block
+arg: -t/--to <TO> [action: Set] [num-args: 1] [required] help: To which block
+arg: -d/--dry-run [action: SetTrue] [num-args: 0] [default: false] help: If passed, it will dry-run a stage execution from the newly created database right after dumping
+
+== op-reth stage dump storage-hashing
+about: `StorageHashing` stage
+arg: --output-datadir <OUTPUT_PATH> [action: Set] [num-args: 1] [required] help: The path to the new datadir folder.
+arg: -f/--from <FROM> [action: Set] [num-args: 1] [required] help: From which block
+arg: -t/--to <TO> [action: Set] [num-args: 1] [required] help: To which block
+arg: -d/--dry-run [action: SetTrue] [num-args: 0] [default: false] help: If passed, it will dry-run a stage execution from the newly created database right after dumping
+
+== op-reth stage dump account-hashing
+about: `AccountHashing` stage
+arg: --output-datadir <OUTPUT_PATH> [action: Set] [num-args: 1] [required] help: The path to the new datadir folder.
+arg: -f/--from <FROM> [action: Set] [num-args: 1] [required] help: From which block
+arg: -t/--to <TO> [action: Set] [num-args: 1] [required] help: To which block
+arg: -d/--dry-run [action: SetTrue] [num-args: 0] [default: false] help: If passed, it will dry-run a stage execution from the newly created database right after dumping
+
+== op-reth stage dump merkle
+about: Merkle stage
+arg: --output-datadir <OUTPUT_PATH> [action: Set] [num-args: 1] [required] help: The path to the new datadir folder.
+arg: -f/--from <FROM> [action: Set] [num-args: 1] [required] help: From which block
+arg: -t/--to <TO> [action: Set] [num-args: 1] [required] help: To which block
+arg: -d/--dry-run [action: SetTrue] [num-args: 0] [default: false] help: If passed, it will dry-run a stage execution from the newly created database right after dumping
+
+== op-reth stage unwind
+command: [arg-required-else-help] [subcommand-required]
+about: Unwinds a certain block range, deleting it from the database
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --offline [action: SetTrue] [num-args: 0] help: If this is enabled, then all stages except headers, bodies, and sender recovery will be unwound
+
+== op-reth stage unwind to-block
+about: Unwinds the database from the latest block, until the given block number or hash has been reached, that block is not included
+arg: [positional: target] <TARGET> [action: Set] [num-args: 1] [required]
+
+== op-reth stage unwind num-blocks
+about: Unwinds the database from the latest block, until the given number of blocks have been reached
+arg: [positional: amount] <AMOUNT> [action: Set] [num-args: 1] [required]
+
+== op-reth p2p
+command: [arg-required-else-help] [subcommand-required]
+about: P2P Debugging utilities
+
+== op-reth p2p header
+about: Download block header
+arg: --retries <RETRIES> [action: Set] [num-args: 1] [default: 5] help: The number of retries per request
+arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Disable the discovery service
+arg: --disable-dns-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable the DNS discovery
+arg: --disable-discv4-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv4 discovery
+arg: --enable-discv5-discovery [action: SetTrue] [num-args: 0] [conflicts: -d/--disable-discovery] [hidden] help: Enable Discv5 discovery
+arg: --disable-discv5-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv5 discovery
+arg: --disable-nat [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Nat discovery
+arg: --discovery.addr <DISCOVERY_ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0] help: The UDP address to use for devp2p peer discovery version 4
+arg: --discovery.port <DISCOVERY_PORT> [action: Set] [num-args: 1] [default: 30303] help: The UDP port to use for devp2p peer discovery version 4
+arg: --discovery.v5.addr <DISCOVERY_V5_ADDR> [action: Set] [num-args: 1] help: The UDP IPv4 address to use for devp2p peer discovery version 5. Overwritten by `RLPx` address, if it's also IPv4
+arg: --discovery.v5.addr.ipv6 <DISCOVERY_V5_ADDR_IPV6> [action: Set] [num-args: 1] help: The UDP IPv6 address to use for devp2p peer discovery version 5. Overwritten by `RLPx` address, if it's also IPv6
+arg: --discovery.v5.port <DISCOVERY_V5_PORT> [action: Set] [num-args: 1] [default: 9200] help: The UDP IPv4 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv4, or `--discovery.v5.addr` is set
+arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 1] [default: 9200] help: The UDP IPv6 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv6, or `--discovery.addr.ipv6` is set
+arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
+arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
+arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
+arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs of trusted peers for P2P connections
+arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
+arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs for P2P discovery bootstrap
+arg: --dns-retries <DNS_RETRIES> [action: Set] [num-args: 1] [default: 0] help: Amount of DNS resolution requests retries to perform when peering
+arg: --peers-file <FILE> [action: Set] [num-args: 1] [conflicts: --no-persist-peers] help: The path to the known peers file. Connected peers are dumped to this file on nodes\nshutdown, and read on startup. Cannot be used with `--no-persist-peers`.
+arg: --identity <IDENTITY> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Custom node identity
+arg: --p2p-secret-key <PATH> [action: Set] [num-args: 1] [conflicts: --p2p-secret-key-hex] help: Secret key to use for this node
+arg: --p2p-secret-key-hex <HEX> [action: Set] [num-args: 1] [conflicts: --p2p-secret-key] help: Hex encoded secret key to use for this node
+arg: --no-persist-peers [action: SetTrue] [num-args: 0] help: Do not persist peers.
+arg: --nat <NAT> [action: Set] [num-args: 1] [default: any] help: NAT resolution method (any|none|upnp|publicip|extip:\<IP\>)
+arg: --addr <ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0] help: Network listening address
+arg: --port <PORT> [action: Set] [num-args: 1] [default: 30303] help: Network listening port
+arg: --max-outbound-peers <MAX_OUTBOUND_PEERS> [action: Set] [num-args: 1] help: Maximum number of outbound peers. default: 100
+arg: --max-inbound-peers <MAX_INBOUND_PEERS> [action: Set] [num-args: 1] help: Maximum number of inbound peers. default: 30
+arg: --max-peers <COUNT> [action: Set] [num-args: 1] [conflicts: --max-inbound-peers, --max-outbound-peers] help: Maximum number of total peers (inbound + outbound)
+arg: --max-tx-reqs <COUNT> [action: Set] [num-args: 1] [default: 130] help: Max concurrent `GetPooledTransactions` requests.
+arg: --max-tx-reqs-peer <COUNT> [action: Set] [num-args: 1] [default: 1] help: Max concurrent `GetPooledTransactions` requests per peer.
+arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] help: Max number of seen transactions to remember per peer.
+arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
+arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
+arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
+arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
+arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
+arg: --tx-ingress-policy <TX_INGRESS_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction ingress policy
+arg: --disable-tx-gossip [action: SetTrue] [num-args: 0] help: Disable transaction pool gossip
+arg: --tx-propagation-mode <PROPAGATION_MODE> [action: Set] [num-args: 1] [default: sqrt] help: Transaction propagation mode (sqrt, all, max:<number>)
+arg: --required-block-hashes <REQUIRED_BLOCK_HASHES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated list of required block hashes or block number=hash pairs. Peers that don't have these blocks will be filtered out. Format: hash or `block_number=hash` (e.g., 23115201=0x1234...)
+arg: --network-id <NETWORK_ID> [action: Set] [num-args: 1] help: Optional network ID to override the chain specification's network ID for P2P connections
+arg: --eth-max-message-size <BYTES> [action: Set] [num-args: 1] help: Maximum allowed ETH message size in bytes. Default is 10 MiB
+arg: --netrestrict <NETRESTRICT> [action: Set] [num-args: 1] help: Restrict network communication to the given IP networks (CIDR masks)
+arg: --enforce-enr-fork-id [action: SetTrue] [num-args: 0] [default: false] help: Enforce EIP-868 ENR fork ID validation for discovered peers
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use.
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] help: The chain this node is running
+arg: [positional: id] <ID> [action: Set] [num-args: 1] [required] help: The header number or hash
+
+== op-reth p2p body
+about: Download block body
+arg: --retries <RETRIES> [action: Set] [num-args: 1] [default: 5] help: The number of retries per request
+arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Disable the discovery service
+arg: --disable-dns-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable the DNS discovery
+arg: --disable-discv4-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv4 discovery
+arg: --enable-discv5-discovery [action: SetTrue] [num-args: 0] [conflicts: -d/--disable-discovery] [hidden] help: Enable Discv5 discovery
+arg: --disable-discv5-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv5 discovery
+arg: --disable-nat [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Nat discovery
+arg: --discovery.addr <DISCOVERY_ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0] help: The UDP address to use for devp2p peer discovery version 4
+arg: --discovery.port <DISCOVERY_PORT> [action: Set] [num-args: 1] [default: 30303] help: The UDP port to use for devp2p peer discovery version 4
+arg: --discovery.v5.addr <DISCOVERY_V5_ADDR> [action: Set] [num-args: 1] help: The UDP IPv4 address to use for devp2p peer discovery version 5. Overwritten by `RLPx` address, if it's also IPv4
+arg: --discovery.v5.addr.ipv6 <DISCOVERY_V5_ADDR_IPV6> [action: Set] [num-args: 1] help: The UDP IPv6 address to use for devp2p peer discovery version 5. Overwritten by `RLPx` address, if it's also IPv6
+arg: --discovery.v5.port <DISCOVERY_V5_PORT> [action: Set] [num-args: 1] [default: 9200] help: The UDP IPv4 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv4, or `--discovery.v5.addr` is set
+arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 1] [default: 9200] help: The UDP IPv6 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv6, or `--discovery.addr.ipv6` is set
+arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
+arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
+arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
+arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs of trusted peers for P2P connections
+arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
+arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs for P2P discovery bootstrap
+arg: --dns-retries <DNS_RETRIES> [action: Set] [num-args: 1] [default: 0] help: Amount of DNS resolution requests retries to perform when peering
+arg: --peers-file <FILE> [action: Set] [num-args: 1] [conflicts: --no-persist-peers] help: The path to the known peers file. Connected peers are dumped to this file on nodes\nshutdown, and read on startup. Cannot be used with `--no-persist-peers`.
+arg: --identity <IDENTITY> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Custom node identity
+arg: --p2p-secret-key <PATH> [action: Set] [num-args: 1] [conflicts: --p2p-secret-key-hex] help: Secret key to use for this node
+arg: --p2p-secret-key-hex <HEX> [action: Set] [num-args: 1] [conflicts: --p2p-secret-key] help: Hex encoded secret key to use for this node
+arg: --no-persist-peers [action: SetTrue] [num-args: 0] help: Do not persist peers.
+arg: --nat <NAT> [action: Set] [num-args: 1] [default: any] help: NAT resolution method (any|none|upnp|publicip|extip:\<IP\>)
+arg: --addr <ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0] help: Network listening address
+arg: --port <PORT> [action: Set] [num-args: 1] [default: 30303] help: Network listening port
+arg: --max-outbound-peers <MAX_OUTBOUND_PEERS> [action: Set] [num-args: 1] help: Maximum number of outbound peers. default: 100
+arg: --max-inbound-peers <MAX_INBOUND_PEERS> [action: Set] [num-args: 1] help: Maximum number of inbound peers. default: 30
+arg: --max-peers <COUNT> [action: Set] [num-args: 1] [conflicts: --max-inbound-peers, --max-outbound-peers] help: Maximum number of total peers (inbound + outbound)
+arg: --max-tx-reqs <COUNT> [action: Set] [num-args: 1] [default: 130] help: Max concurrent `GetPooledTransactions` requests.
+arg: --max-tx-reqs-peer <COUNT> [action: Set] [num-args: 1] [default: 1] help: Max concurrent `GetPooledTransactions` requests per peer.
+arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] help: Max number of seen transactions to remember per peer.
+arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
+arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
+arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
+arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
+arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
+arg: --tx-ingress-policy <TX_INGRESS_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction ingress policy
+arg: --disable-tx-gossip [action: SetTrue] [num-args: 0] help: Disable transaction pool gossip
+arg: --tx-propagation-mode <PROPAGATION_MODE> [action: Set] [num-args: 1] [default: sqrt] help: Transaction propagation mode (sqrt, all, max:<number>)
+arg: --required-block-hashes <REQUIRED_BLOCK_HASHES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated list of required block hashes or block number=hash pairs. Peers that don't have these blocks will be filtered out. Format: hash or `block_number=hash` (e.g., 23115201=0x1234...)
+arg: --network-id <NETWORK_ID> [action: Set] [num-args: 1] help: Optional network ID to override the chain specification's network ID for P2P connections
+arg: --eth-max-message-size <BYTES> [action: Set] [num-args: 1] help: Maximum allowed ETH message size in bytes. Default is 10 MiB
+arg: --netrestrict <NETRESTRICT> [action: Set] [num-args: 1] help: Restrict network communication to the given IP networks (CIDR masks)
+arg: --enforce-enr-fork-id [action: SetTrue] [num-args: 0] [default: false] help: Enforce EIP-868 ENR fork ID validation for discovered peers
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use.
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] help: The chain this node is running
+arg: [positional: id] <ID> [action: Set] [num-args: 1] [required] help: The block number or hash
+
+== op-reth p2p rlpx
+command: [arg-required-else-help] [subcommand-required]
+about: RLPx commands
+
+== op-reth p2p rlpx ping
+about: ping node
+arg: [positional: node] <NODE> [action: Set] [num-args: 1] [required] help: The node to ping
+
+== op-reth p2p bootnode
+about: Bootnode command
+arg: --addr <ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0:30301] help: Listen address for the bootnode (default: "0.0.0.0:30301")
+arg: --p2p-secret-key <PATH> [action: Set] [num-args: 1] help: Secret key to use for the bootnode
+arg: --nat <NAT> [action: Append] [num-args: 1] [default: any] help: NAT resolution method (any|none|upnp|publicip|extip:\<IP\>)
+arg: --v5 [action: SetTrue] [num-args: 0] help: Also run discv5, sharing the discv4 UDP port (`--addr`)
+
+== op-reth p2p enode
+about: Print enode identifier
+arg: [positional: discovery_secret] <DISCOVERY_SECRET> [action: Set] [num-args: 1] [required] help: Path to the secret key file for discovery
+arg: --ip <IP> [action: Set] [num-args: 1] help: Optional IP address to include in the enode URL
+
+== op-reth config
+about: Write config to stdout
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use.
+arg: --default [action: SetTrue] [num-args: 0] [conflicts: --config] help: Show the default config
+
+== op-reth prune
+about: Prune according to the configuration without any limits
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --metrics <PROMETHEUS> [action: Set] [num-args: 1] [aliases: metrics.prometheus] help: Enable Prometheus metrics
+arg: --metrics.prometheus.push.url <PUSH_GATEWAY_URL> [action: Set] [num-args: 1] help: URL for pushing Prometheus metrics to a push gateway
+arg: --metrics.prometheus.push.interval <SECONDS> [action: Set] [num-args: 1] [default: 5] help: Interval in seconds for pushing metrics to push gateway
+
+== op-reth test-vectors
+command: [arg-required-else-help] [subcommand-required]
+about: Generate Test Vectors
+
+== op-reth test-vectors tables
+about: Generates test vectors for specified tables. If no table is specified, generate for all
+arg: [positional: names] <NAMES> [action: Append] [num-args: 1..] help: List of table names. Case-sensitive
+
+== op-reth test-vectors compact
+about: Generates test vectors for `Compact` types with `--write`. Reads and checks generated vectors with `--read`
+group: Compact [args: --write, --read] [required: true] [multiple: false]
+arg: --write [action: SetTrue] [num-args: 0] help: Write test vectors to a file
+arg: --read [action: SetTrue] [num-args: 0] help: Read test vectors from a file
+
+== op-reth re-execute
+about: Re-execute blocks in parallel to verify historical sync correctness
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --from <FROM> [action: Set] [num-args: 1] [default: 1] help: The height to start at
+arg: --to <TO> [action: Set] [num-args: 1] help: The height to end at. Defaults to the latest block
+arg: --num-tasks <NUM_TASKS> [action: Set] [num-args: 1] help: Number of tasks to run in parallel. Defaults to the number of available CPUs
+arg: --blocks-per-chunk <BLOCKS_PER_CHUNK> [action: Set] [num-args: 1] [default: 5000] help: Number of blocks each worker processes before grabbing the next chunk
+arg: --skip-invalid-blocks [action: SetTrue] [num-args: 0] help: Continues with execution when an invalid block is encountered and collects these blocks
+arg: --jit [action: SetTrue] [num-args: 0] [default: false] help: Enable JIT compilation of EVM bytecode
+arg: --jit.hot-threshold <HOT_THRESHOLD> [action: Set] [num-args: 1] [default: 8] help: Number of observed misses before a bytecode is promoted to JIT compilation
+arg: --jit.worker-count <WORKER_COUNT> [action: Set] [num-args: 1] help: Number of JIT compilation worker threads
+arg: --jit.channel-capacity <CHANNEL_CAPACITY> [action: Set] [num-args: 1] [default: 4096] help: Capacity of the lookup-observed event channel. Events are silently dropped when the channel is full
+arg: --jit.max-pending-jobs <MAX_PENDING_JOBS> [action: Set] [num-args: 1] [default: 2048] help: Maximum number of pending JIT compilation jobs
+arg: --jit.max-bytecode-len <MAX_BYTECODE_LEN> [action: Set] [num-args: 1] [default: 0] help: Maximum bytecode length eligible for JIT compilation. Contracts with bytecode larger than this are never promoted to JIT. 0 means no limit
+arg: --jit.code-cache-bytes <CODE_CACHE_BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Maximum total resident compiled code size in bytes. When exceeded, the backend evicts least-recently-used entries. 0 means no limit
+arg: --jit.idle-evict-duration <IDLE_EVICT_DURATION> [action: Set] [num-args: 1] [default: 1h] help: Duration after which a compiled program with no lookup hits is evicted
+arg: --jit.debug [action: SetTrue] [num-args: 0] [default: false] help: Enable compiler debug dumps
+arg: --jit.blocking [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Blocking mode: synchronously JIT-compile every contract on first encounter. Intended for debugging only
+
+== op-reth proofs
+command: [arg-required-else-help] [subcommand-required]
+about: Manage storage of historical proofs in expanded trie db in fault proof window
+
+== op-reth proofs init
+about: Initialize the proofs storage with the current state of the chain
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.skip-backfill [action: SetTrue] [num-args: 0] help: Skip the post-init backward backfill. By default, after the snapshot of the current chain state is captured the proof window is extended back by `--proofs-history.window` blocks using the snapshot-accelerated path. Set this flag to leave the window at `[latest, latest]` and run `op-proofs backfill` later instead. No effect on V1 storage (V1 does not support backfill)
+arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
+arg: --proofs-history.backfill-batch-size <N> [action: Set] [num-args: 1] [default: 25] help: Number of blocks committed per MDBX write transaction (>= 1)
+arg: --proofs-history.use-snapshot <BOOL> [action: Set] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Use the trie-state snapshot to accelerate per-block reads during backfill. If no snapshot exists, one is bootstrapped at the current `earliest` before the backfill loop begins. Requires v2 storage
+
+== op-reth proofs backfill
+about: Backfill proofs history to an older earliest block
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
+arg: --proofs-history.backfill-batch-size <N> [action: Set] [num-args: 1] [default: 25] help: Number of blocks committed per MDBX write transaction (>= 1)
+arg: --proofs-history.use-snapshot <BOOL> [action: Set] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Use the trie-state snapshot to accelerate per-block reads during backfill. If no snapshot exists, one is bootstrapped at the current `earliest` before the backfill loop begins. Requires v2 storage
+
+== op-reth proofs prune
+about: Prune old proof history to reclaim space
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
+arg: --proofs-history.prune-batch-size <PROOFS_HISTORY_PRUNE_BATCH_SIZE> [action: Set] [num-args: 1] [default: 1000] help: The batch size for pruning operations
+
+== op-reth proofs snapshot
+command: [arg-required-else-help] [subcommand-required]
+about: Build or drop the trie-state snapshot
+
+== op-reth proofs snapshot init
+about: Build a snapshot at a target block and mark it Ready
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.snapshot-target-block <TARGET_BLOCK> [action: Set] [num-args: 1] help: Target block for the snapshot anchor. Must fall inside the proofs window `[earliest, latest]`. Defaults to `earliest` — that's the anchor the snapshot-accelerated backfill flow picks up
+
+== op-reth proofs snapshot drop
+about: Drop the snapshot tables and meta row
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+
+== op-reth proofs unwind
+about: Unwind the proofs storage to a specific block
+arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
+arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
+arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
+arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
+arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
+arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
+arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
+arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
+arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
+arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
+arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
+arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
+arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
+arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
+arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
+arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
+arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
+arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --target <TARGET_BLOCK> [action: Set] [num-args: 1] [required] help: The target block number to unwind to

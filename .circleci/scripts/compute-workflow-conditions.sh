@@ -80,26 +80,40 @@ case "${TRIGGER_SOURCE}" in
 
     # 2. Merge queue (pre-merge validation)
     #    Runs when GitHub merge queue picks up the PR.
-    #    Full contract tests, path-gated rust/docs.
+    #    Docs-only changes emit the required gates without running test suites.
+    #    All other changes run full contract tests and path-gated Rust tests.
     # ---------------------------------------------------------
     elif [[ "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
-      run main
-      run release
-      run contracts_feature_tests
-      if is_true rust_changes_detected; then
-        run rust_ci
-        run rust_e2e_ci
-      else
+      if is_true only_docs_changes; then
+        run ci_gate_skip
+        run contracts_feature_tests_short
         run rust_ci_gate_short
         run rust_e2e_gate_skip
-      fi
-      if is_true circleci_changed; then
-        run circleci_schedule_trigger_check
+      else
+        run main
+        run release
+        run contracts_feature_tests
+        if is_true rust_changes_detected; then
+          run rust_ci
+          run rust_e2e_ci
+        else
+          run rust_ci_gate_short
+          run rust_e2e_gate_skip
+        fi
+        if is_true circleci_changed; then
+          run circleci_schedule_trigger_check
+        fi
       fi
 
     # 3. After merge (develop push)
     #    Runs after the merge queue completes and pushes to develop.
     #    Adds expensive post-merge jobs: fault proofs, kontrol, prestate publishing.
+    #
+    #    Nothing here is path-gated. Change detection diffs against
+    #    origin/${BASE_REVISION}, and BASE_REVISION is develop, so on a develop
+    #    push HEAD is the base and the changed-file list is always empty. Every
+    #    is_true check would therefore be false, making the gated branch dead
+    #    code rather than a conditional.
     # ---------------------------------------------------------
     elif [[ "${BRANCH}" == "develop" ]]; then
       run main
@@ -108,14 +122,10 @@ case "${TRIGGER_SOURCE}" in
       run develop_fault_proofs
       run develop_kontrol_tests
       run contracts_feature_tests
-      if is_true rust_changes_detected; then
-        run rust_ci
-        run rust_e2e_ci
-        run kona_publish_prestates
-      else
-        run rust_ci_gate_short
-        run rust_e2e_gate_skip
-      fi
+      run rust_ci
+      run rust_e2e_ci
+      run kona_publish_prestates
+      run circleci_schedule_trigger_check
     fi
     ;;
 

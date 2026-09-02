@@ -136,7 +136,7 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
 		}
 
-		validity, _ := checkSpanBatchPrefix(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
+		validity := checkSpanBatchHolocene(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
 		switch validity {
 		case BatchAccept: // continue
 			spanBatch.LogContext(bs.Log()).Info("Found next valid span batch")
@@ -145,10 +145,10 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			// NotEnoughData to read in next batch until we're through all past batches
 			return nil, NotEnoughData
 		case BatchDrop: // drop, try next
-			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (span batch prefix checks)")
+			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (span batch checks)")
 			bs.FlushChannel()
 			return nil, NotEnoughData
-		case BatchUndecided: // l2 fetcher error, try again
+		case BatchUndecided: // l2 fetcher error; the span was already consumed and is skipped, not retried
 			spanBatch.LogContext(bs.Log()).Warn("Undecided span batch")
 			return nil, NotEnoughData
 		case BatchFuture: // can't happen with Holocene
@@ -157,8 +157,8 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 
 		// If next batch is SpanBatch, convert it to SingularBatches.
 		singularBatches, err := spanBatch.GetSingularBatches(bs.l1Blocks, parent)
-		// Errors can happen here because the span batch prefix checks are not exhaustive (unlike the full span batch
-		// checks) so an error must be handled like an invalid span batch (DROP).
+		// Errors can happen here because the Holocene span batch checks are not exhaustive (unlike
+		// the full span batch checks) so an error must be handled like an invalid span batch (DROP).
 		if err != nil {
 			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (singular batch extraction)", "error", err)
 			bs.FlushChannel()
