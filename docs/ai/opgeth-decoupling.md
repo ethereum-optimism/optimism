@@ -577,12 +577,20 @@ pin, or the latest monorepo pin on op-geth — not both, until §15 lands. Prefe
 accept the older monorepo pin: the geth half is the one carrying security relevance, and the
 monorepo pin catches up in one bump afterwards. Revisit these when §15 lands.
 
-**An accidental edge into `op-core/superchain` caps a consumer's monorepo version.** Any package
-reaching that bundle cannot be built by a downstream module at all (#22678), so a consumer that
-reaches it is stuck on the last release predating the breakage. Removing a needless edge
-therefore raises the ceiling for everything downstream of it — which is why the "reduce who
-reaches the bundle" work in §15's neighbourhood matters to these repos and not only to build
-hygiene. `op-service/oppprof` was one such edge, via `op-service/flags`.
+**An edge into `op-core/superchain` caps a consumer's monorepo version.** Any package reaching
+the bundle cannot be built by a downstream module at all (#22678), so a consumer that reaches it
+is stuck on the last commit predating the breakage. #22700 and #22709 cleared the *accidental*
+reachers — `op-service/{apis,dial,sources,testutils,txintent}`, `op-node/rollup/...` and
+`op-service/oppprof` among them — and what remains is the explicit `bundleAllowed` list in
+`op-core/superchain/deps_test.go`. So a consumer's ceiling is now a checkable question: does its
+import closure land on that list? Reaching `op-deployer`, `op-conductor`, `op-challenger` or
+op-node's non-`rollup` packages still caps it; the op-service plumbing no longer does.
+
+**Downstream repos pin commits, not releases.** Most consume the monorepo as a Go pseudo-version
+(`v1.19.1-0.20260619203846-03794207135b`), so a fix is available to them as soon as it is on
+`develop` — there is no wait for a tag, and pinning a merge commit is the norm for this repo
+rather than a workaround. Worth knowing before planning any downstream unblock around a release
+cadence that does not need to exist.
 
 Compiling every Go module in those repos against upstream go-ethereum with the replace removed
 (2026-08) splits them three ways:
