@@ -113,12 +113,8 @@ contract DeployOPChain is Script {
     {
         (, GameType respectedGameType) = _initialDeployGameSelection(_input.disputeGameType);
 
-        bool enableCannonKona = respectedGameType.raw() == GameTypes.CANNON_KONA.raw();
         bool enableSuperCannonKona = respectedGameType.raw() == GameTypes.SUPER_CANNON_KONA.raw();
-        // A permissionless deploy also registers the permissioned game of its family as the
-        // guardian fallback.
-        bool enablePermissionedCannon =
-            enableCannonKona || respectedGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw();
+        // A permissionless deploy also registers its permissioned guardian fallback.
         bool enableSuperPermissioned =
             enableSuperCannonKona || respectedGameType.raw() == GameTypes.SUPER_PERMISSIONED.raw();
         // Build dispute game configs - OPCMV2 requires all 6 game type configs.
@@ -129,29 +125,11 @@ contract DeployOPChain is Script {
         // Config 0: legacy CANNON slot, disabled after U19 and kept to satisfy OPCMV2's 6-config shape.
         disputeGameConfigs[0] = _createGameConfig(false, 0, GameTypes.CANNON, bytes(""));
 
-        // Config 1: PERMISSIONED_CANNON
-        disputeGameConfigs[1] = _createGameConfig(
-            enablePermissionedCannon,
-            DEFAULT_INIT_BOND,
-            GameTypes.PERMISSIONED_CANNON,
-            abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: enableCannonKona ? _input.cannonAbsolutePrestate : _input.disputeAbsolutePrestate,
-                    proposer: _input.proposer,
-                    challenger: _input.challenger
-                })
-            )
-        );
+        // Config 1: legacy PERMISSIONED_CANNON slot, disabled for new deployments.
+        disputeGameConfigs[1] = _createGameConfig(false, 0, GameTypes.PERMISSIONED_CANNON, bytes(""));
 
-        // Config 2: CANNON_KONA
-        disputeGameConfigs[2] = _createGameConfig(
-            enableCannonKona,
-            DEFAULT_INIT_BOND,
-            GameTypes.CANNON_KONA,
-            abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
-            )
-        );
+        // Config 2: legacy CANNON_KONA slot, disabled for new deployments.
+        disputeGameConfigs[2] = _createGameConfig(false, 0, GameTypes.CANNON_KONA, bytes(""));
 
         // Config 3: SUPER_PERMISSIONED
         disputeGameConfigs[3] = _createGameConfig(
@@ -324,16 +302,6 @@ contract DeployOPChain is Script {
             _i.startingAnchorRoot.l2SequenceNumber < type(uint64).max,
             "DeployOPChainInput: startingAnchorRoot.l2SequenceNumber too large"
         );
-
-        if (_i.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()) {
-            require(_i.cannonAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: cannonAbsolutePrestate not set");
-            // The two prestates commit to different fault-proof programs (op-program vs Kona),
-            // so equal values always indicate a misconfigured producer.
-            require(
-                _i.cannonAbsolutePrestate.raw() != _i.disputeAbsolutePrestate.raw(),
-                "DeployOPChainInput: cannonAbsolutePrestate must differ from disputeAbsolutePrestate"
-            );
-        }
 
         if (permissionless) {
             require(
