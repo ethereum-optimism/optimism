@@ -17,7 +17,7 @@
     "react-dom": "^18.0.0"
   },
   "devDependencies": {
-    "@eth-optimism/actions-sdk": "^0.4.0",
+    "@eth-optimism/actions-sdk": "^0.8.1",
     "@types/node": "^25.9.1",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
@@ -28,7 +28,6 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@reown/appkit",
-      "bigint-buffer",
       "bufferutil",
       "esbuild",
       "sharp",
