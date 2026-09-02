@@ -359,6 +359,9 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     }
 
     function _checkSuperCannonKonaPermissionlessDeployment(DeployOPChain.Output memory doo) internal view {
+        _assertLegacyGamesNotRegistered(doo);
+        _assertGameNotRegistered(doo, GameTypes.ZK_DISPUTE_GAME);
+
         IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(opcmAddr).implementations();
         assertEq(
             doo.disputeGameFactoryProxy.initBonds(GameTypes.SUPER_CANNON_KONA),
@@ -433,22 +436,21 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(doo.disputeGameFactoryProxy.initBonds(permType), 0);
         assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(permType)), address(0));
 
-        // CANNON remains disabled for the default permissioned initial deployment.
-        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "CANNON init bond should be 0");
-        assertEq(
-            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)),
-            address(0),
-            "CANNON impl should be the zero address"
-        );
-
-        _assertGameNotRegistered(doo, GameTypes.CANNON_KONA);
+        _assertLegacyGamesNotRegistered(doo);
         _assertGameNotRegistered(doo, GameTypes.SUPER_CANNON_KONA);
+        _assertGameNotRegistered(doo, GameTypes.ZK_DISPUTE_GAME);
 
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
         assertEq(asr.respectedGameType().raw(), permType.raw(), "ASR respected game type");
         Proposal memory anchor = asr.getStartingAnchorRoot();
         assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.root.raw(), "ASR anchor root");
         assertEq(anchor.l2SequenceNumber, deployOPChainInput.startingAnchorRoot.l2SequenceNumber, "ASR anchor seq");
+    }
+
+    function _assertLegacyGamesNotRegistered(DeployOPChain.Output memory doo) internal view {
+        _assertGameNotRegistered(doo, GameTypes.CANNON);
+        _assertGameNotRegistered(doo, GameTypes.PERMISSIONED_CANNON);
+        _assertGameNotRegistered(doo, GameTypes.CANNON_KONA);
     }
 
     function _assertGameNotRegistered(DeployOPChain.Output memory doo, GameType _gameType) internal view {
@@ -458,6 +460,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             address(0),
             "game impl should be the zero address"
         );
+        assertEq(doo.disputeGameFactoryProxy.gameArgs(_gameType), bytes(""), "game args should be empty");
     }
 }
 
