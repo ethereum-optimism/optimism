@@ -88,9 +88,6 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 	t.Run("live validation gates the next send", func(t *testing.T) {
 		testContinueMultiChainSequentialValidation(t)
 	})
-	t.Run("mixed permissionless families are rejected", func(t *testing.T) {
-		testContinueRejectsMixedPermissionlessFamilies(t)
-	})
 }
 
 func testContinuePermissionless(t *testing.T) {
@@ -454,32 +451,6 @@ func testContinueMultiChainSequentialValidation(t *testing.T) {
 		require.NoError(t, chainErr)
 		require.NotNil(t, completedChain.Continuation)
 	}
-}
-
-func testContinueRejectsMixedPermissionlessFamilies(t *testing.T) {
-	t.Helper()
-	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypeSuperPermissioned,
-		embedded.GameTypeSuperPermissioned,
-	})
-	gameTypes := []embedded.GameType{
-		embedded.GameTypeCannonKona,
-		embedded.GameTypeSuperCannonKona,
-	}
-	for i, gameType := range gameTypes {
-		setPermissionlessContinuationInputs(env.preparedChains[i], uint64(i+1))
-		env.intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
-		env.prepared.PreparedDeployment.Intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
-		recordedGameType := uint32(gameType)
-		env.preparedChains[i].InitialGameType = &recordedGameType
-	}
-	require.NoError(t, env.intent.WriteToFile(filepath.Join(env.workdir, "intent.toml")))
-	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
-	nonceBefore := pendingNonce(t, env)
-
-	err := deployer.Continue(env.ctx, env.config())
-	require.ErrorContains(t, err, "cannot mix CANNON_KONA and SUPER_CANNON_KONA")
-	require.Equal(t, nonceBefore, pendingNonce(t, env))
 }
 
 func setPermissionlessContinuationInputs(chain *state.ChainState, sequenceNumber uint64) {
