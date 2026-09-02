@@ -1,5 +1,8 @@
 //! Transaction types for Optimism.
 
+mod canonical;
+pub use canonical::decode_2718_canonical;
+
 mod deposit;
 pub use deposit::{DepositTransaction, TxDeposit};
 

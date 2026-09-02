@@ -88,7 +88,7 @@ impl OpAttributesWithParent {
 
     /// Returns the number of transactions in the attributes.
     pub fn count_transactions(&self) -> u64 {
-        self.attributes().decoded_transactions().count().try_into().unwrap()
+        self.attributes().transactions.as_ref().map_or(0, |txs| txs.len()).try_into().unwrap()
     }
 }
 
@@ -109,6 +109,25 @@ mod tests {
         assert_eq!(op_attributes_with_parent.parent(), &parent);
         assert_eq!(op_attributes_with_parent.is_last_in_span(), is_last_in_span);
         assert_eq!(op_attributes_with_parent.derived_from(), None);
+    }
+
+    /// Every entry counts, decodable or not.
+    #[test]
+    fn count_transactions_counts_every_entry() {
+        let attributes = OpPayloadAttributes {
+            transactions: Some(vec![vec![OpTxType::Deposit as u8, 0xaa].into(), vec![0xff].into()]),
+            ..OpPayloadAttributes::default()
+        };
+        let with_parent =
+            OpAttributesWithParent::new(attributes, L2BlockInfo::default(), None, true);
+        assert_eq!(with_parent.count_transactions(), 2);
+        let empty = OpAttributesWithParent::new(
+            OpPayloadAttributes::default(),
+            L2BlockInfo::default(),
+            None,
+            true,
+        );
+        assert_eq!(empty.count_transactions(), 0);
     }
 
     /// Regression: `transactions` is `Option<Vec<Bytes>>`; `Option::iter` yields at most one

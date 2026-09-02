@@ -404,7 +404,7 @@ where
         }
 
         if let Err(err) = self.sequences.insert_flashblock(flashblock) {
-            trace!(target: "flashblocks", %err, "Failed to insert flashblock");
+            debug!(target: "flashblocks", %err, "Failed to insert flashblock");
         }
     }
 
