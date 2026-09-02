@@ -40,7 +40,9 @@ type PrivateInteropCLIConfig struct {
 	// ExtraEmitters are additional application emitters replayed onto the projection, as hex.
 	ExtraEmitters []string
 
-	// RollupConfigHash and DepSetHash are the claim's two configuration commitments, as hex.
+	// RollupConfigHash and DepSetHash are the claim's two configuration commitments, as hex. Empty
+	// means derive: keccak256 of the canonical JSON of the projected rollup config, and of the
+	// dependency set the rollup node serves.
 	RollupConfigHash string
 	DepSetHash       string
 
@@ -106,7 +108,7 @@ func (c *PrivateInteropCLIConfig) Check() error {
 		{flags.PrivateInteropRollupConfigHashFlag.Name, c.RollupConfigHash},
 		{flags.PrivateInteropDepSetHashFlag.Name, c.DepSetHash},
 	} {
-		if _, err := parseHash(f.flag, f.value); err != nil {
+		if _, err := parseOptionalHash(f.flag, f.value); err != nil {
 			return err
 		}
 	}
@@ -150,8 +152,8 @@ func (c *PrivateInteropCLIConfig) Resolve() (*PrivateInteropSettings, error) {
 	if err := c.Check(); err != nil {
 		return nil, err
 	}
-	rollupConfigHash, _ := parseHash(flags.PrivateInteropRollupConfigHashFlag.Name, c.RollupConfigHash)
-	depSetHash, _ := parseHash(flags.PrivateInteropDepSetHashFlag.Name, c.DepSetHash)
+	rollupConfigHash, _ := parseOptionalHash(flags.PrivateInteropRollupConfigHashFlag.Name, c.RollupConfigHash)
+	depSetHash, _ := parseOptionalHash(flags.PrivateInteropDepSetHashFlag.Name, c.DepSetHash)
 	emitters, _ := parseEmitters(c.ExtraEmitters)
 	return &PrivateInteropSettings{
 		PrivateChainGenesisPath: c.PrivateChainGenesisPath,
@@ -171,6 +173,16 @@ func (c *PrivateInteropCLIConfig) Resolve() (*PrivateInteropSettings, error) {
 			GasLimitClaim:  c.GasLimitClaim,
 		},
 	}, nil
+}
+
+// parseOptionalHash is parseHash for a commitment the batcher can derive itself: empty is allowed
+// and yields the zero hash, which the service replaces with the derived value. A value that IS
+// given must be a full, non-zero 32-byte hash.
+func parseOptionalHash(flag, value string) (common.Hash, error) {
+	if value == "" {
+		return common.Hash{}, nil
+	}
+	return parseHash(flag, value)
 }
 
 // parseHash accepts only a full 32-byte hex hash, and never the zero hash. A zero rollupConfigHash

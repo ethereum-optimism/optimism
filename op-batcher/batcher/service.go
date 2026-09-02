@@ -1,6 +1,9 @@
 package batcher
 
 import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"encoding/json"
 	"context"
 	"errors"
 	"fmt"
@@ -456,6 +459,35 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		return fmt.Errorf("projecting the private-chain rollup config: %w", err)
 	}
 
+	// The claim's two configuration commitments. Unless pinned by flag they are derived from what
+	// this process already holds: the projected rollup config, and the dependency set the private
+	// rollup node serves. Both are keccak256 of canonical JSON, the convention the devstack uses.
+	rollupConfigHash := settings.RollupConfigHash
+	if rollupConfigHash == (common.Hash{}) {
+		if rollupConfigHash, err = hashCanonicalJSON(publicProjectionRollup); err != nil {
+			return fmt.Errorf("hashing the projected rollup config: %w", err)
+		}
+	}
+	depSetHash := settings.DepSetHash
+	if depSetHash == (common.Hash{}) {
+		// The endpoint provider's rollup client does not expose the dependency set; dial the
+		// private rollup node directly for this one read.
+		rollupRPC, err := dial.DialRPCClientWithTimeout(ctx, bs.Log, cfg.RollupRpc[0])
+		if err != nil {
+			return fmt.Errorf("private interop: dialling the rollup node for the dependency set: %w", err)
+		}
+		depSet, err := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPC)).DependencySet(ctx)
+		rollupRPC.Close()
+		if err != nil {
+			return fmt.Errorf("private interop: reading the dependency set from the rollup node: %w", err)
+		}
+		if depSetHash, err = hashCanonicalJSON(depSet); err != nil {
+			return fmt.Errorf("hashing the dependency set: %w", err)
+		}
+	}
+	bs.Log.Info("private interop claim commitments", "rollup_config_hash", rollupConfigHash, "dep_set_hash", depSetHash,
+		"rollup_config_hash_pinned", settings.RollupConfigHash != (common.Hash{}), "dep_set_hash_pinned", settings.DepSetHash != (common.Hash{}))
+
 	follower, err := NewRPCPublicProjectionFollower(ctx, bs.Log, settings.PublicProjectionRPC, bs.NetworkTimeout)
 	if err != nil {
 		return err
@@ -507,8 +539,8 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		Emitters:          render.NewEmitterSet(settings.ExtraEmitters...),
 		MaxBlocksPerRange: settings.MaxBlocksPerRange,
 		MaxRangeBytes:     settings.MaxRangeBytes,
-		RollupConfigHash:  settings.RollupConfigHash,
-		DepSetHash:        settings.DepSetHash,
+		RollupConfigHash:  rollupConfigHash,
+		DepSetHash:        depSetHash,
 		Receipts:          receipts,
 		Ranges:            ranges,
 		Txs:               txs,
@@ -664,4 +696,13 @@ func (bs *BatcherService) HTTPEndpoint() string {
 		return ""
 	}
 	return "http://" + bs.rpcServer.Endpoint()
+}
+
+// hashCanonicalJSON is the claim-commitment convention: keccak256 of the value's JSON encoding.
+func hashCanonicalJSON(v any) (common.Hash, error) {
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return crypto.Keccak256Hash(encoded), nil
 }
