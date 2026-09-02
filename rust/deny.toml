@@ -125,6 +125,7 @@ allow-git = [
   "https://github.com/paradigmxyz/revm-inspectors",
   "https://github.com/foundry-rs/block-explorers",
   "https://github.com/sigp/discv5",
+  "https://github.com/libp2p/rust-libp2p",
 ]
 unknown-registry = "warn"
 unknown-git = "deny"
