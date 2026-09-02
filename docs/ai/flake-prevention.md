@@ -126,7 +126,7 @@ retryProve(ctx, 30*time.Second)   // now scoped to transient submit/confirm erro
 // BAD — CL/supervisor state reached the target, but the EL label/content is
 // updated through an async forkchoice/reorg path. A synchronous EL read can
 // still observe the previous safe label or old block contents.
-cl.Reached(types.CrossSafe, target, 30)
+cl.Reached(safety.CrossSafe, target, 30)
 safe := el.BlockRefByLabel(eth.Safe)
 require.GreaterOrEqual(t, safe.Number, target)
 
@@ -134,7 +134,7 @@ require.GreaterOrEqual(t, safe.Number, target)
 // reads. If the assertion is about EL labels or block contents, include an
 // EL-side wait before the synchronous assertion.
 dsl.CheckAll(t,
-    cl.ReachedFn(types.CrossSafe, target, 30),
+    cl.ReachedFn(safety.CrossSafe, target, 30),
     el.ReachedFn(eth.Safe, target, 30),
 )
 safe = el.BlockRefByLabel(eth.Safe)
@@ -181,7 +181,7 @@ on it directly.
 // BAD — preset's NewSingleChainMultiNode auto-detects ELSync and applies a 4x
 // budget. WithoutCheck plus a manual 120-attempt loop undoes that fix.
 sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts)
-require.NoError(t, dsl.MatchedFn(sys, types.CrossSafe, 60, 2*time.Second)(ctx))
+require.NoError(t, dsl.MatchedFn(sys, safety.CrossSafe, 60, 2*time.Second)(ctx))
 
 // GOOD — use the auto-budgeted entry point.
 sys := presets.NewSingleChainMultiNode(t, opts)

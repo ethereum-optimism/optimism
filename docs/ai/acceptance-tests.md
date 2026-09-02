@@ -8,7 +8,7 @@ Acceptance tests live in `op-acceptance-tests/tests/` and run full in-process de
 
 ## Running Tests
 
-All `just` targets below automatically build dependencies (contracts, cannon prestates, Rust binaries) before running tests. The builds are incremental — re-running is fast when nothing changed.
+The `just test` target automatically builds dependencies (contracts, cannon prestates, Rust binaries) before running tests. The builds are incremental — re-running is fast when nothing changed.
 
 **Prerequisites:** mise tools must be installed (see [dev-workflow.md](dev-workflow.md#setup)), and a working C toolchain (`clang` or `gcc`) must be available for Rust builds.
 
@@ -20,10 +20,10 @@ Run from `op-acceptance-tests/`:
 
 ```bash
 # Run a single test
-RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just test -run TestMyTest ./op-acceptance-tests/tests/base/
+cd op-acceptance-tests && RUST_JIT_BUILD=1 mise exec -- just test -run TestMyTest ./op-acceptance-tests/tests/base/
 
 # Run a package
-RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just test ./op-acceptance-tests/tests/base/...
+cd op-acceptance-tests && RUST_JIT_BUILD=1 mise exec -- just test ./op-acceptance-tests/tests/base/...
 ```
 
 The `just test` target builds deps, then runs `go test -count=1 -timeout 30m` with your arguments.
@@ -31,20 +31,29 @@ The `just test` target builds deps, then runs `go test -count=1 -timeout 30m` wi
 ### All Tests
 
 ```bash
-RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test
+cd op-acceptance-tests && RUST_JIT_BUILD=1 mise exec -- just acceptance-test
 ```
 
-Runs all test packages with gotestsum, structured logging, and auto-tuned parallelism.
+Runs all test packages with gotestsum, structured logging, and bounded parallelism.
 
-### Gated Subsets
+### Selecting the L2 Clients
 
-Gate files in `op-acceptance-tests/gates/` list package subsets:
+Every run covers the whole `./op-acceptance-tests/tests/...` tree; there is no per-package
+subset target. Which clients the devstack starts is chosen by two environment variables, read
+in `op-devstack/sysgo/mixed_runtime.go`:
+
+- `DEVSTACK_L2CL_KIND` — `op-node` (the default) or `kona-node`
+- `DEVSTACK_L2EL_KIND` — `op-reth` (the default) or `op-geth`
 
 ```bash
-RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test base
+cd op-acceptance-tests && DEVSTACK_L2CL_KIND=kona-node RUST_JIT_BUILD=1 mise exec -- just acceptance-test
 ```
 
-This runs only packages listed in `gates/base.txt`.
+CI runs two variants of the `op-acceptance-tests` job: `memory-all-opn-op-reth-<l1_fork>`
+(op-node + op-reth) and `memory-all-kona-op-reth-<l1_fork>` (kona-node + op-reth).
+
+A test that cannot run under a given client skips itself in code rather than being left out of
+a list — `sysgo.SkipOnKonaNode`, `sysgo.SkipOnOpReth` and `sysgo.SkipOnOpGeth`.
 
 ### Kona Prestate
 
@@ -68,7 +77,7 @@ Only works on **Linux** with the **MIPS cross-compile toolchain** installed. The
 
 ## What `build-deps` Does
 
-The `just build-deps` target (called automatically by `just test` and `just acceptance-test`) runs these steps when not in CI:
+The `just build-deps` target (called automatically by `just test`) runs these steps when not in CI:
 
 1. **mise** — `mise install` (ensures gotestsum, forge, etc. are available)
 2. **Contracts** — `cd packages/contracts-bedrock && just install && just build-no-tests`
@@ -81,15 +90,15 @@ You can also run `just build-deps` directly to pre-build without running tests.
 
 ## Tuning Parallelism (`acceptance-test` only)
 
-When using `just acceptance-test`, the runner auto-detects CPU count and sets:
-- `ACCEPTANCE_TEST_JOBS` — number of packages to test in parallel (default: CPU count)
-- `ACCEPTANCE_TEST_PARALLEL` — `go test -parallel` value per package (default: CPU count / 2)
-- `ACCEPTANCE_TEST_TIMEOUT` — per-package timeout (default: 2h)
+When using `just acceptance-test`, the runner sets:
+- `ACCEPTANCE_TEST_JOBS` — number of packages to test in parallel (default: 12)
+- `ACCEPTANCE_TEST_PARALLEL` — `go test -parallel` value per package (default: 1)
+- `ACCEPTANCE_TEST_TIMEOUT` — per-package timeout (default: 30m)
 
 Override with environment variables:
 
 ```bash
-ACCEPTANCE_TEST_PARALLEL=2 ACCEPTANCE_TEST_TIMEOUT=1h cd op-acceptance-tests && mise exec -- just acceptance-test
+cd op-acceptance-tests && ACCEPTANCE_TEST_PARALLEL=2 ACCEPTANCE_TEST_TIMEOUT=1h mise exec -- just acceptance-test
 ```
 
 ## Log Output (`acceptance-test` only)

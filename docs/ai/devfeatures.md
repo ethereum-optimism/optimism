@@ -30,7 +30,7 @@ The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — exce
 The bitmap has **two operator-facing input surfaces**, both in op-deployer:
 
 1. **CLI flag on `op-deployer bootstrap implementations`**
-   - `--dev-feature-bitmap` (env: `OP_DEPLOYER_DEV_FEATURE_BITMAP`), defined in `op-deployer/pkg/deployer/bootstrap/flags.go`
+   - `--dev-feature-bitmap` (env: `DEPLOYER_DEV_FEATURE_BITMAP`), defined in `op-deployer/pkg/deployer/bootstrap/flags.go`
    - Raw 32-byte hex; default empty
    - Flows into `ImplementationsConfig.DevFeatureBitmap` and on into `DeployImplementationsInput` for L1 implementation deployment.
    - When the ZK bit is enabled, Ethereum mainnet and Sepolia default to Succinct's v6.1.0 PLONK verifier, resolved by `standard.SP1VerifierFor`. `--sp1-verifier-address` (env: `DEPLOYER_SP1_VERIFIER_ADDRESS`) overrides that release input and is required on other L1 networks.
@@ -71,7 +71,7 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 Interop and ZK are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
-- `test/setup/CommonTest.sol`, `test/setup/ForkL1Live.s.sol`, `test/setup/ForkL2Live.s.sol` — branch on individual `Config.devFeature*` returns
+- `test/setup/ForkL1Live.s.sol` — branches on individual `Config.devFeature*` returns
 - `test/L1/OPContractsManagerStandardValidator.t.sol` — `vm.skip()` based on flag state
 
 The env vars and default-on helper exist purely to set up local test fixtures and to skip or branch tests. They never reach a deployed chain. To exercise an opt-in feature in production you must set the bitmap via op-deployer.
@@ -91,11 +91,10 @@ The Foundry test-only assembler in `FeatureFlags.sol` is a separate composition 
 
 ## D. Propagation — where the bitmap travels
 
-From op-deployer the bitmap fans out three ways:
+From op-deployer the bitmap fans out two ways:
 
 1. **Into L2 genesis state** — `scripts/L2Genesis.s.sol` (Foundry script) writes the bitmap into the **`L2DevFeatureFlags` predeploy at `0x42...2D`** via `setDevFeatureBitmap()`. Only `DEPOSITOR_ACCOUNT` can write; effectively write-once at genesis.
 2. **Into L1 implementation deployment** — `scripts/deploy/DeployImplementations.s.sol` consults the bitmap to decide which implementation contracts to deploy / configure.
-3. **Into NUT bundle generation** — `scripts/upgrade/GenerateNUTBundle.s.sol` uses it to decide which predeploy upgrades to include.
 
 It does **not** flow to op-node, op-program, or kona at runtime. They learn about feature activation through other channels (hardfork timestamps in rollup config, primarily).
 

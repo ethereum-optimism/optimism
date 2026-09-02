@@ -3,7 +3,7 @@
 Guidance for writing and editing Dockerfiles in the monorepo.
 
 The overriding rule: **every external network fetch must retry.** The package registries
-and CDNs these builds depend on — `dl-cdn.alpinelinux.org`, `apk.cgr.dev`, the Debian/Ubuntu
+and CDNs these builds depend on — `dl-cdn.alpinelinux.org`, `packages.wolfi.dev`, the Debian/Ubuntu
 mirrors, GitHub releases — intermittently drop connections or return transient server errors.
 Unwrapped, each one is a CI flake.
 
