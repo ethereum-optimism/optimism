@@ -84,45 +84,27 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             "PermissionedDisputeGame maxClockDuration incorrect"
         );
 
-        // for the super DG implementation deployments
-        if (
-            isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                || isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
-            assertNotEq(
-                address(output.superFaultDisputeGameImpl), address(0), "SuperFaultDisputeGame should be deployed"
-            );
-            assertNotEq(
-                address(output.superPermissionedDisputeGameImpl),
-                address(0),
-                "SuperPermissionedDisputeGame should be deployed"
-            );
+        // Validate the super dispute game implementation deployments.
+        assertNotEq(address(output.superFaultDisputeGameImpl), address(0), "SuperFaultDisputeGame should be deployed");
+        assertNotEq(
+            address(output.superPermissionedDisputeGameImpl),
+            address(0),
+            "SuperPermissionedDisputeGame should be deployed"
+        );
 
-            // Validate constructor args for SuperFaultDisputeGame
-            assertEq(
-                output.superFaultDisputeGameImpl.maxGameDepth(), 73, "SuperFaultDisputeGame maxGameDepth incorrect"
-            );
-            assertEq(output.superFaultDisputeGameImpl.splitDepth(), 30, "SuperFaultDisputeGame splitDepth incorrect");
-            assertEq(
-                output.superFaultDisputeGameImpl.clockExtension().raw(),
-                10800,
-                "SuperFaultDisputeGame clockExtension incorrect"
-            );
-            assertEq(
-                output.superFaultDisputeGameImpl.maxClockDuration().raw(),
-                302400,
-                "SuperFaultDisputeGame maxClockDuration incorrect"
-            );
-        } else {
-            assertEq(
-                address(output.superFaultDisputeGameImpl), address(0), "SuperFaultDisputeGame should not be deployed"
-            );
-            assertEq(
-                address(output.superPermissionedDisputeGameImpl),
-                address(0),
-                "SuperPermissionedDisputeGame should not be deployed"
-            );
-        }
+        // Validate constructor args for SuperFaultDisputeGame
+        assertEq(output.superFaultDisputeGameImpl.maxGameDepth(), 73, "SuperFaultDisputeGame maxGameDepth incorrect");
+        assertEq(output.superFaultDisputeGameImpl.splitDepth(), 30, "SuperFaultDisputeGame splitDepth incorrect");
+        assertEq(
+            output.superFaultDisputeGameImpl.clockExtension().raw(),
+            10800,
+            "SuperFaultDisputeGame clockExtension incorrect"
+        );
+        assertEq(
+            output.superFaultDisputeGameImpl.maxClockDuration().raw(),
+            302400,
+            "SuperFaultDisputeGame maxClockDuration incorrect"
+        );
     }
 
     /// @notice Test that the deployImplementations function succeeds when reusing the same valid input.
@@ -291,38 +273,25 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             "PDGv2 maxClockDuration"
         );
 
-        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            || DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        if (superGamesEnabled) {
-            assertNotEq(
-                address(output.superFaultDisputeGameImpl), address(0), "super game should be deployed when enabled"
-            );
-            assertNotEq(
-                address(output.superPermissionedDisputeGameImpl),
-                address(0),
-                "permissioned super game should be deployed when enabled"
-            );
-            // Verify super game constructor parameters match fuzz inputs
-            assertEq(output.superFaultDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "SuperDG maxGameDepth");
-            assertEq(output.superFaultDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "SuperDG splitDepth");
-            assertEq(
-                output.superFaultDisputeGameImpl.clockExtension().raw(),
-                uint64(_faultGameV2ClockExtension),
-                "SuperDG clockExtension"
-            );
-            assertEq(
-                output.superFaultDisputeGameImpl.maxClockDuration().raw(),
-                uint64(_faultGameV2MaxClockDuration),
-                "SuperDG maxClockDuration"
-            );
-        } else {
-            assertEq(address(output.superFaultDisputeGameImpl), address(0), "super game should be null when disabled");
-            assertEq(
-                address(output.superPermissionedDisputeGameImpl),
-                address(0),
-                "super permissioned game should be null when disabled"
-            );
-        }
+        assertNotEq(address(output.superFaultDisputeGameImpl), address(0), "super game should be deployed when enabled");
+        assertNotEq(
+            address(output.superPermissionedDisputeGameImpl),
+            address(0),
+            "permissioned super game should be deployed when enabled"
+        );
+        // Verify super game constructor parameters match fuzz inputs
+        assertEq(output.superFaultDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "SuperDG maxGameDepth");
+        assertEq(output.superFaultDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "SuperDG splitDepth");
+        assertEq(
+            output.superFaultDisputeGameImpl.clockExtension().raw(),
+            uint64(_faultGameV2ClockExtension),
+            "SuperDG clockExtension"
+        );
+        assertEq(
+            output.superFaultDisputeGameImpl.maxClockDuration().raw(),
+            uint64(_faultGameV2MaxClockDuration),
+            "SuperDG maxClockDuration"
+        );
 
         // Address contents assertions
         bytes memory empty;
@@ -342,21 +311,12 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         assertNotEq(address(output.faultDisputeGameImpl).code, empty, "V2 FDG should have code when enabled");
         assertNotEq(address(output.permissionedDisputeGameImpl).code, empty, "V2 PDG should have code when enabled");
-        if (superGamesEnabled) {
-            assertNotEq(address(output.superFaultDisputeGameImpl).code, empty, "Super DG should have code when enabled");
-            assertNotEq(
-                address(output.superPermissionedDisputeGameImpl).code,
-                empty,
-                "Super Permissioned DG should have code when enabled"
-            );
-        } else {
-            assertEq(address(output.superFaultDisputeGameImpl).code, empty, "Super DG should be empty when disabled");
-            assertEq(
-                address(output.superPermissionedDisputeGameImpl).code,
-                empty,
-                "Super Permissioned DG should be empty when disabled"
-            );
-        }
+        assertNotEq(address(output.superFaultDisputeGameImpl).code, empty, "Super DG should have code when enabled");
+        assertNotEq(
+            address(output.superPermissionedDisputeGameImpl).code,
+            empty,
+            "Super Permissioned DG should have code when enabled"
+        );
 
         // Architecture assertions.
         assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "600");

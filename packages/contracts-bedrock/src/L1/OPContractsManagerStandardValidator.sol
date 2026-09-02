@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 3.4.0
-    string public constant version = "3.4.0";
+    /// @custom:semver 3.5.0
+    string public constant version = "3.5.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -907,13 +907,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
 
         // Determine if the chain is in super game mode by checking the ASR's respectedGameType.
-        bool isSuperMode = false;
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            IOptimismPortal2 portal = IOptimismPortal2(payable(_input.sysCfg.optimismPortal()));
-            IAnchorStateRegistry asr = portal.anchorStateRegistry();
-            GameType rgt = asr.respectedGameType();
-            isSuperMode = GameTypes.isSuperGame(rgt);
-        }
+        bool isSuperMode = GameTypes.isSuperGame(
+            IOptimismPortal2(payable(_input.sysCfg.optimismPortal())).anchorStateRegistry().respectedGameType()
+        );
 
         if (isSuperMode) {
             _errors = assertValidSuperRootDisputeGames(_errors, _input.sysCfg);

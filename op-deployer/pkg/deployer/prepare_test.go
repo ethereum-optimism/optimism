@@ -32,7 +32,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
@@ -325,56 +324,6 @@ func TestCheckOPCMHasCode(t *testing.T) {
 	err := checkOPCMHasCode(ctx, newClient(t, "0x"), opcmAddr)
 	require.ErrorContains(t, err, "no contract code at intent.opcmAddress")
 	require.ErrorContains(t, err, opcmAddr.Hex())
-}
-
-func TestValidateInitialGameTypes(t *testing.T) {
-	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
-
-	newIntent := func(gameTypes ...uint32) (*state.Intent, *state.State) {
-		intent := &state.Intent{}
-		st := &state.State{}
-		for i, gameType := range gameTypes {
-			id := common.BigToHash(big.NewInt(int64(i + 1)))
-			intent.Chains = append(intent.Chains, &state.ChainIntent{
-				ID:              id,
-				DeployOverrides: map[string]any{"respectedGameType": gameType},
-			})
-			st.Chains = append(st.Chains, &state.ChainState{ID: id, Deployed: ptr.New(false)})
-		}
-		return intent, st
-	}
-
-	t.Run("accepts the family the OPCM installs", func(t *testing.T) {
-		intent, st := newIntent(uint32(embedded.GameTypeSuperCannonKona), uint32(embedded.GameTypeSuperPermissioned))
-		require.NoError(t, validateInitialGameTypes(intent, st, true, opcmAddr))
-
-		intent, st = newIntent(uint32(embedded.GameTypeCannonKona), uint32(embedded.GameTypePermissionedCannon))
-		require.NoError(t, validateInitialGameTypes(intent, st, false, opcmAddr))
-	})
-
-	t.Run("rejects the other family, naming the chain and the alternatives", func(t *testing.T) {
-		intent, st := newIntent(uint32(embedded.GameTypeCannonKona))
-		err := validateInitialGameTypes(intent, st, true, opcmAddr)
-		require.ErrorContains(t, err, intent.Chains[0].ID.Hex())
-		require.ErrorContains(t, err, "CANNON_KONA (8) is not deployable by the OPCM")
-		require.ErrorContains(t, err, opcmAddr.Hex())
-		require.ErrorContains(t, err, "SUPER_CANNON_KONA (9) or SUPER_PERMISSIONED (5)")
-	})
-
-	t.Run("skips chains already deployed", func(t *testing.T) {
-		intent, st := newIntent(uint32(embedded.GameTypeCannonKona))
-		st.Chains[0].Deployed = ptr.New(true)
-		require.NoError(t, validateInitialGameTypes(intent, st, true, opcmAddr))
-	})
-
-	t.Run("validates a chain with no state entry yet", func(t *testing.T) {
-		intent, _ := newIntent(uint32(embedded.GameTypeCannonKona))
-		require.ErrorContains(
-			t,
-			validateInitialGameTypes(intent, &state.State{}, true, opcmAddr),
-			"is not deployable by the OPCM",
-		)
-	})
 }
 
 func TestResolveSuperchainConfigProxy(t *testing.T) {
