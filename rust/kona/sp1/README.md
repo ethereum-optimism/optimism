@@ -225,10 +225,10 @@ Optional core and operational configuration:
 | `KONA_SP1_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
 | `KONA_SP1_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
 | `KONA_SP1_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
-| `KONA_SP1_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `60`) |
+| `KONA_SP1_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `180`) |
 | `KONA_SP1_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
 | `KONA_SP1_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
-| `KONA_SP1_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `1`, maximum `16`) |
+| `KONA_SP1_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default and maximum `16`) |
 | `KONA_SP1_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
 | `KONA_SP1_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
@@ -243,24 +243,31 @@ SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network
 | `KONA_SP1_PROPOSER_USE_KMS_REQUESTER` | use AWS KMS for request signing (default `false`) |
 | `KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
-| `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | overall proof timeout (default `14400`) |
+| `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | per-proof request deadline and client wait (default `7200`) |
 | `KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` | individual network-call timeout (default `15`) |
 | `KONA_SP1_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `300`) |
 | `KONA_SP1_PROPOSER_RANGE_CYCLE_LIMIT` | range request cycle limit (default `1e12`) |
-| `KONA_SP1_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `1e12`) |
+| `KONA_SP1_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `200000000000`) |
 | `KONA_SP1_PROPOSER_AGG_CYCLE_LIMIT` | aggregation request cycle limit (default `1e12`) |
-| `KONA_SP1_PROPOSER_AGG_GAS_LIMIT` | aggregation request gas limit (default `1e12`) |
-| `KONA_SP1_PROPOSER_MAX_PRICE_PER_PGU` | maximum price per proving gas unit (default `1e9`, i.e. 1.0 PROVE per billion PGU) |
+| `KONA_SP1_PROPOSER_AGG_GAS_LIMIT` | aggregation request gas limit (default `1000000000`) |
+| `KONA_SP1_PROPOSER_MAX_PRICE_PER_PGU` | optional maximum price per proving gas unit; unset, empty, or `0` uses mainnet auction pricing |
 | `KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `30`) |
 
-`MAX_PRICE_PER_PGU` is a ceiling, not the price paid: the auction settles at the
-winning bid, which tracks the network's clearing price. A ceiling *below* that
-price leaves a request unbid until its deadline. Expiry makes the request
-retryable, so the next game attempt may submit a new auction.
+For mainnet auctions, the SP1 SDK derives the request ceiling from the network's
+published price with its 120% buffer and auction-tick rounding. A positive
+`MAX_PRICE_PER_PGU` replaces that dynamic ceiling exactly. It remains a ceiling,
+not the price paid: the auction settles at the winning bid. A ceiling below the
+clearing price leaves a request unbid until its deadline. Expiry makes the
+request retryable, so the next game attempt may submit a new auction.
 `MIN_AUCTION_PERIOD` is a floor every request waits out, so it needs to cover bid
 arrival (3-10s) and no more. It must leave assignment margin under
 `AUCTION_TIMEOUT`; cancellation retries the unfinished request while completed
 chunks remain cached when the proving inputs are unchanged.
+
+A defended span produces up to 16 chunks. Each sufficiently large chunk can
+require a range proof and a consolidation proof, for up to 32 compressed child
+proofs before the final PLONK aggregation proof. `SP1_TIMEOUT_SECONDS` applies
+independently to each proof request, not to the complete defense.
 
 Transaction signing requires one of these configurations:
 
