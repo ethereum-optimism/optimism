@@ -88,10 +88,18 @@ import (
 )
 
 const (
-	// MaxRenderableMessageSize is the protocol ceiling for a private SentMessage payload. It is
-	// mirrored by L2ToL2CrossDomainMessenger on the private half: checking it again here keeps the
-	// rendering safe when reading historical or otherwise malformed private-chain data.
-	MaxRenderableMessageSize = 64 * 1024
+	// MaxRenderableMessageSize bounds a single private SentMessage payload the renderer will replay.
+	//
+	// The private chain runs the STOCK L2ToL2CrossDomainMessenger, which accepts any payload, so
+	// this is not a mirror of a contract-side rule: it has to be at least the largest payload a
+	// private transaction can carry, or a message the private chain accepted would stall the
+	// batcher (a build that halts is a stall, by design). That largest payload is set by the
+	// EIP-7825 per-transaction gas cap of 16,777,216: with EIP-7623 floor pricing, LOG data and
+	// memory expansion, a zero-filled payload tops out near 930 KB and a random one near 420 KB.
+	// One MiB covers both with margin. A range that still cannot fit one L1 transaction (several
+	// maximal messages in one block) is refused by the builder's blob-count check instead, which
+	// is the single remaining stall point and a documented residual risk.
+	MaxRenderableMessageSize = 1024 * 1024
 )
 
 var (

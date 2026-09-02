@@ -233,7 +233,7 @@ func TestBatcherTxBuilderRefusesOversizeExport(t *testing.T) {
 			Message: make([]byte, MaxRenderableMessageSize+1),
 		},
 	})
-	require.ErrorContains(t, err, "exceeding the 65536-byte rendering limit")
+	require.ErrorContains(t, err, "exceeding the 1048576-byte rendering limit")
 	require.Zero(t, b.Nonce(), "a refused action must not consume the deterministic sender nonce")
 }
 
