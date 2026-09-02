@@ -26,7 +26,8 @@ import (
 // ALL-OR-NOTHING: there is no half-configured Private Interop batcher, because every field below is
 // load-bearing for bytes that go on L1.
 type PrivateInteropCLIConfig struct {
-	// PrivateChainGenesisPath is the local private-chain genesis projected by this process.
+	// PrivateChainGenesisPath is the private-chain genesis projected by this process: a local path
+	// or an http(s) URL.
 	PrivateChainGenesisPath string
 	// PublicProjectionRPC is the execution client following the public projection.
 	PublicProjectionRPC string
@@ -52,7 +53,7 @@ type PrivateInteropCLIConfig struct {
 // ReadPrivateInteropCLIConfig parses the flag group.
 func ReadPrivateInteropCLIConfig(ctx *cli.Context) PrivateInteropCLIConfig {
 	return PrivateInteropCLIConfig{
-		PrivateChainGenesisPath: ctx.Path(flags.PrivateInteropGenesisFlag.Name),
+		PrivateChainGenesisPath: ctx.String(flags.PrivateInteropGenesisFlag.Name),
 		PublicProjectionRPC:     ctx.String(flags.PrivateInteropPublicProjectionRPCFlag.Name),
 		MaxBlocksPerRange:       ctx.Uint64(flags.PrivateInteropMaxBlocksPerRangeFlag.Name),
 		MaxRangeBytes:           ctx.Uint64(flags.PrivateInteropMaxRangeBytesFlag.Name),

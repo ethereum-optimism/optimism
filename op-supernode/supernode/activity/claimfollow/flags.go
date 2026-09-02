@@ -1,15 +1,15 @@
 package claimfollow
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"os"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	projectiongenesis "github.com/ethereum-optimism/optimism/op-private-interop/genesis"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 )
@@ -36,10 +36,10 @@ var (
 			"claimed private view at the chain's `claimed` sibling route.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_CHAIN_ID"),
 	}
-	GenesisPathFlag = &cli.PathFlag{
+	GenesisPathFlag = &cli.StringFlag{
 		Name: "private-interop.genesis",
-		Usage: "Path to the private-chain genesis. The supernode derives both the private genesis " +
-			"hash and the public-projection rollup configuration from this local artifact.",
+		Usage: "Path or http(s) URL of the private-chain genesis. The supernode derives both the private " +
+			"genesis hash and the public-projection rollup configuration from this artifact.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_GENESIS"),
 	}
 	ScanStartBlockFlag = &cli.Uint64Flag{
@@ -91,7 +91,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		ChainID:        ctx.Uint64(ChainIDFlag.Name),
 		ChainIDSet:     ctx.IsSet(ChainIDFlag.Name),
-		GenesisPath:    ctx.Path(GenesisPathFlag.Name),
+		GenesisPath:    ctx.String(GenesisPathFlag.Name),
 		ScanStartBlock: ctx.Uint64(ScanStartBlockFlag.Name),
 	}
 }
@@ -127,19 +127,12 @@ func (c CLIConfig) Resolve() (Config, error) {
 	return cfg, nil
 }
 
-// LoadPrivateChainGenesis reads the operator-supplied local genesis artifact. File access is kept
-// outside the pure projection function; callers may load once and project as many times as needed.
+// LoadPrivateChainGenesis reads the operator-supplied genesis artifact, from a local path or an
+// http(s) URL. I/O is kept outside the pure projection function; callers may load once and project
+// as many times as needed.
 func (c CLIConfig) LoadPrivateChainGenesis() (*core.Genesis, error) {
 	if c.GenesisPath == "" {
 		return nil, fmt.Errorf("%s is required", GenesisPathFlag.Name)
 	}
-	data, err := os.ReadFile(c.GenesisPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading %s %q: %w", GenesisPathFlag.Name, c.GenesisPath, err)
-	}
-	var genesis core.Genesis
-	if err := json.Unmarshal(data, &genesis); err != nil {
-		return nil, fmt.Errorf("decoding %s %q: %w", GenesisPathFlag.Name, c.GenesisPath, err)
-	}
-	return &genesis, nil
+	return projectiongenesis.LoadPrivateChainGenesis(context.Background(), c.GenesisPath)
 }

@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -28,7 +27,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -445,9 +443,9 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		return err
 	}
 
-	privateChainGenesis, err := jsonutil.LoadJSON[core.Genesis](settings.PrivateChainGenesisPath)
+	privateChainGenesis, err := projectiongenesis.LoadPrivateChainGenesis(ctx, settings.PrivateChainGenesisPath)
 	if err != nil {
-		return fmt.Errorf("reading the private-chain genesis from %s: %w", settings.PrivateChainGenesisPath, err)
+		return err
 	}
 	publicProjectionGenesis, err := projectiongenesis.ProjectGenesisFrom(privateChainGenesis)
 	if err != nil {

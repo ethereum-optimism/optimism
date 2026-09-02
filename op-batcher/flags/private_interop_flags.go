@@ -27,10 +27,10 @@ const (
 )
 
 var (
-	PrivateInteropGenesisFlag = &cli.PathFlag{
+	PrivateInteropGenesisFlag = &cli.StringFlag{
 		Name: "private-interop.genesis",
-		Usage: "Path to the private-chain genesis. The public-projection genesis and rollup config " +
-			"are derived from this local artifact and the private rollup config loaded from --rollup-rpc.",
+		Usage: "Path or http(s) URL of the private-chain genesis. The public-projection genesis and rollup " +
+			"config are derived from this artifact and the private rollup config loaded from --rollup-rpc.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_GENESIS"),
 	}
 	PrivateInteropPublicProjectionRPCFlag = &cli.StringFlag{
