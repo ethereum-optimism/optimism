@@ -371,13 +371,14 @@ impl RollupConfig {
         self.hardforks
     }
 
-    /// Computes a block number from a timestamp, relative to the L2 genesis time and the block
-    /// time.
+    /// Computes the absolute L2 block number that a timestamp falls in.
     ///
-    /// This function assumes that the timestamp is aligned with the block time, and uses floor
-    /// division in its computation.
+    /// The computation uses floor division. A timestamp between two blocks therefore resolves
+    /// to the earlier block.
     pub const fn block_number_from_timestamp(&self, timestamp: u64) -> u64 {
-        timestamp.saturating_sub(self.genesis.l2_time).saturating_div(self.block_time)
+        self.genesis.l2.number.saturating_add(
+            timestamp.saturating_sub(self.genesis.l2_time).saturating_div(self.block_time),
+        )
     }
 
     /// Checks the scalar value in Ecotone.
@@ -481,7 +482,6 @@ impl OpHardforks for RollupConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "serde")]
     use alloy_eips::BlockNumHash;
     use alloy_primitives::address;
     #[cfg(feature = "serde")]
@@ -1056,6 +1056,28 @@ mod tests {
 
         assert_eq!(cfg.block_number_from_timestamp(20), 5);
         assert_eq!(cfg.block_number_from_timestamp(30), 10);
+    }
+
+    #[test]
+    fn test_compute_block_number_from_time_non_zero_genesis() {
+        // OP Mainnet, whose L2 genesis is the last block of the legacy OVM chain.
+        let cfg = RollupConfig {
+            genesis: ChainGenesis {
+                l2: BlockNumHash { number: 105235063, ..Default::default() },
+                l2_time: 1686068903,
+                ..Default::default()
+            },
+            block_time: 2,
+            ..Default::default()
+        };
+
+        assert_eq!(cfg.block_number_from_timestamp(1686068903), 105235063);
+        assert_eq!(cfg.block_number_from_timestamp(1686068905), 105235064);
+        // 1788303126 falls between two blocks.
+        assert_eq!(cfg.block_number_from_timestamp(1788303126), 156352174);
+        assert_eq!(cfg.block_number_from_timestamp(1788303127), 156352175);
+        // A timestamp before genesis clamps to the genesis block.
+        assert_eq!(cfg.block_number_from_timestamp(0), 105235063);
     }
 
     #[cfg(feature = "rollup_config_override")]
