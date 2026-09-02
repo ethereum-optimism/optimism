@@ -66,13 +66,15 @@ var (
 	PrivateInteropRollupConfigHashFlag = &cli.StringFlag{
 		Name: "private-interop.rollup-config-hash",
 		Usage: "32-byte rollupConfigHash the range claim commits to: which chain the claim speaks " +
-			"for. A configuration value, identical for the chain's life.",
+			"for. Defaults to keccak256 of the projected rollup config's canonical JSON; set it only to pin " +
+			"a different convention.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_ROLLUP_CONFIG_HASH"),
 	}
 	PrivateInteropDepSetHashFlag = &cli.StringFlag{
 		Name: "private-interop.dep-set-hash",
 		Usage: "32-byte depSetHash the range claim commits to: which dependency set the claim " +
-			"speaks for. A configuration value, changing only with the dependency set.",
+			"speaks for. Defaults to keccak256 of the canonical JSON of the dependency set the rollup node " +
+			"serves; set it only to pin a different convention.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_DEP_SET_HASH"),
 	}
 	PrivateInteropGasLimitExportFlag = &cli.Uint64Flag{

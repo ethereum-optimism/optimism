@@ -47,7 +47,7 @@ func TestPrivateInteropConfigCheck(t *testing.T) {
 		{"no public projection rpc", func(c *PrivateInteropCLIConfig) { c.PublicProjectionRPC = "" }, "public-projection-rpc"},
 		{"zero cadence", func(c *PrivateInteropCLIConfig) { c.MaxBlocksPerRange = 0 }, "max-blocks-per-range"},
 		{"zero range bytes", func(c *PrivateInteropCLIConfig) { c.MaxRangeBytes = 0 }, "max-range-bytes"},
-		{"no rollup config hash", func(c *PrivateInteropCLIConfig) { c.RollupConfigHash = "" }, "rollup-config-hash is required"},
+
 		{
 			"zero rollup config hash",
 			func(c *PrivateInteropCLIConfig) {
@@ -88,9 +88,19 @@ func TestPrivateInteropConfigResolve(t *testing.T) {
 	require.Equal(t, uint64(512*1024), s.MaxRangeBytes)
 	// A resolve of an unchecked configuration is refused rather than silently zero-valued.
 	bad := validPrivateInteropCLIConfig()
-	bad.RollupConfigHash = ""
+	bad.RollupConfigHash = "0x1234"
 	_, err = bad.Resolve()
 	require.Error(t, err)
+
+	// Unset commitments resolve to zero, which the service replaces with derived values.
+	derived := validPrivateInteropCLIConfig()
+	derived.RollupConfigHash = ""
+	derived.DepSetHash = ""
+	require.NoError(t, derived.Check())
+	ds, err := derived.Resolve()
+	require.NoError(t, err)
+	require.Equal(t, common.Hash{}, ds.RollupConfigHash)
+	require.Equal(t, common.Hash{}, ds.DepSetHash)
 }
 
 // TestPrivateInteropFlagsParse drives the real CLI: the flag names, the group's registration in
