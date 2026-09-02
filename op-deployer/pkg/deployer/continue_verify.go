@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
@@ -243,15 +242,6 @@ func verifyContinuationDeployment(
 func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 	gameType := v.dci.DisputeGameType
 
-	superRoot, err := opcm.ReadSuperRootEnabled(v.ctx, v.backend, v.dci.Opcm)
-	if err != nil {
-		return continuationGameMode{}, fmt.Errorf("failed to read pinned OPCM dev feature bitmap: %w", err)
-	}
-	// The frozen selector must still match the family the pinned OPCM installs.
-	if err := pipeline.ValidateInitialGameTypeForOPCM(gameType, superRoot, v.dci.Opcm); err != nil {
-		return continuationGameMode{}, err
-	}
-
 	mode := continuationGameMode{
 		respectedGameType: gameType,
 	}
@@ -370,14 +360,14 @@ func (v *continuationVerifier) verifyGameConfiguration(
 	if err != nil {
 		v.addReadError(
 			"respected game type",
-			"prepared selector and pinned OPCM dev feature bitmap",
+			"frozen DeployOPChainInput.DisputeGameType",
 			mode.respectedGameType,
 			err,
 		)
 	} else if respected != mode.respectedGameType {
 		v.addMismatch(
 			"respected game type",
-			"prepared selector and pinned OPCM dev feature bitmap",
+			"frozen DeployOPChainInput.DisputeGameType",
 			mode.respectedGameType,
 			respected,
 		)

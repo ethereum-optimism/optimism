@@ -161,10 +161,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
-        // Standard validator tests use standard game configs incompatible with migration mode.
-        if (Config.devFeatureSuperRootGamesMigration()) {
-            vm.skip(true, "Skipping: standard configs incompatible with SUPER_ROOT_GAMES_MIGRATION");
-        }
         // Standard validator tests do not deploy a ZK dispute game, so they are incompatible
         // with ZK_DISPUTE_GAME mode which expects one to be registered.
         if (Config.devFeatureZkDisputeGame()) {
@@ -174,9 +170,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
         // Load the dgf
         dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-
-        // Load the PermissionedDisputeGame once, we'll need it later.
-        pdgImpl = IPermissionedDisputeGame(artifacts.mustGetAddress("PermissionedDisputeGame"));
 
         // Load the PreimageOracle once, we'll need it later.
         preimageOracle = IPreimageOracle(artifacts.mustGetAddress("PreimageOracle"));
@@ -327,6 +320,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             // Grab the FaultDisputeGame implementation.
             fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
         }
+        pdgImpl = IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
     }
 
     /// @notice Runs the OPContractsManagerStandardValidator.validate function.
@@ -1140,7 +1134,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
 
-        assertEq("PDDG-ANCHORP-10,PDDG-ANCHORP-20", _validate(true));
+        assertEq("PDDG-ANCHORP-10,PDDG-ANCHORP-20,PDDG-ANCHORP-70", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1514,7 +1508,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     ///         FaultDisputeGame (permissionless) CannonKona ASR address is invalid.
     function test_validate_faultDisputeGameInvalidCannonKonaASR_succeeds() public {
         _mockInvalidASR(GameTypes.CANNON_KONA);
-        assertEq("CKDG-ANCHORP-10,CKDG-ANCHORP-20", _validate(true));
+        assertEq("CKDG-ANCHORP-10,CKDG-ANCHORP-20,CKDG-ANCHORP-70", _validate(true));
     }
 
     function _mockInvalidASR(GameType _gameType) internal {
@@ -1747,7 +1741,7 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
 }
 
 /// @title OPContractsManagerStandardValidator_SuperMode_TestInit
-/// @notice Base contract for super mode StandardValidator tests. Requires SUPER_ROOT_GAMES_MIGRATION flag.
+/// @notice Base contract for super mode StandardValidator tests.
 ///         After setUp, the chain has both SUPER_PERMISSIONED and SUPER_CANNON_KONA enabled.
 abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is SuperGameTestInit {
     /// @notice The l2ChainId.
@@ -1764,10 +1758,6 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
 
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
-        // Requires migration flag — inverse of the standard test init skip.
-        if (!Config.devFeatureSuperRootGamesMigration()) {
-            vm.skip(true, "Skipping: requires SUPER_ROOT_GAMES_MIGRATION");
-        }
         super.setUp();
 
         dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
@@ -2232,8 +2222,8 @@ contract OPContractsManagerStandardValidator_ZKDisputeGame_Test is OPContractsMa
 }
 
 /// @title OPContractsManagerStandardValidator_ZKMode_TestInit
-/// @notice Base contract for post-super-root-migration ZK dispute game validator tests.
-///         Requires both ZK_DISPUTE_GAME and SUPER_ROOT_GAMES_MIGRATION.
+/// @notice Base contract for super-root ZK dispute game validator tests.
+///         Requires ZK_DISPUTE_GAME.
 ///         Configures super games plus a ZK dispute game through OPCM.
 abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonTest {
     /// @notice The l2ChainId from the deploy config.
@@ -2254,13 +2244,10 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
     /// @notice The OPContractsManagerStandardValidator instance.
     IOPContractsManagerStandardValidator standardValidator;
 
-    /// @notice Sets up the ZK-mode test suite. Skips unless both required dev features are enabled.
+    /// @notice Sets up the ZK-mode test suite. Skips unless the ZK dev feature is enabled.
     function setUp() public virtual override {
         if (!Config.devFeatureZkDisputeGame()) {
             vm.skip(true, "Skipping: DEV_FEATURE__ZK_DISPUTE_GAME is not enabled");
-        }
-        if (!Config.devFeatureSuperRootGamesMigration()) {
-            vm.skip(true, "Skipping: DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION is not enabled");
         }
         super.setUp();
 
@@ -2415,12 +2402,12 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
 
 /// @title OPContractsManagerStandardValidator_ZKValidation_Test
 /// @notice Tests for the ZK dispute game validation path in the standard validator.
-///         Only runs when ZK_DISPUTE_GAME and SUPER_ROOT_GAMES_MIGRATION are enabled.
+///         Only runs when ZK_DISPUTE_GAME is enabled.
 contract OPContractsManagerStandardValidator_ZKValidation_Test is
     OPContractsManagerStandardValidator_ZKMode_TestInit
 {
     /// @notice Tests that ZK validation succeeds after the super-root migration.
-    function test_validate_zkDisputeGameAfterSuperRootMigration_succeeds() public view {
+    function test_validate_zkDisputeGameWithSuperRoot_succeeds() public view {
         IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
         assertTrue(GameTypes.isSuperGame(portal.anchorStateRegistry().respectedGameType()));
         assertEq("", _validate(false));

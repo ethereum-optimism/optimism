@@ -19,7 +19,6 @@ import { Config } from "scripts/libraries/Config.sol";
 import { GameType, GameTypes, Claim, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
-import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
@@ -275,16 +274,16 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             );
         }
 
-        IDisputeGameFactory disputeGameFactory =
-            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-
-        // Prepare the upgrade input based on whether we're doing a super root migration.
+        // Prepare the super game upgrade input. Scope preparation locals to avoid stack-too-deep
+        // at the delegatecall below.
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs;
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions;
+        {
+            IDisputeGameFactory disputeGameFactory =
+                IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
 
-        bool permitLockboxDeployment = SemverComp.parse(_opcm.version()).major == 9;
+            bool permitLockboxDeployment = SemverComp.parse(_opcm.version()).major == 9;
 
-        if (Config.devFeatureSuperRootGamesMigration()) {
             // Read the current respected game type from the ASR.
             IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
             GameType originalGameType = asr.respectedGameType();
@@ -362,73 +361,14 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 key: "overrides.cfg.startingRespectedGameType",
                 data: abi.encode(targetGameType)
             });
-        } else {
-            address challenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
-            address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
-            // Standard upgrade path: CANNON disabled, remaining legacy types enabled, super types disabled.
-            // Order must match VALID_GAME_TYPES in OPContractsManagerV2._assertValidFullConfig().
-            uint256 cannonKonaInitBond = DisputeGames.permissionlessGameInitBondForUpgrade(
-                disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_PERMISSIONLESS_INIT_BOND
-            );
 
-            disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
-            disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON,
-                gameArgs: bytes("")
-            });
-            disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
-                gameType: GameTypes.PERMISSIONED_CANNON,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
-                        proposer: proposer,
-                        challenger: challenger
-                    })
-                )
-            });
-            disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: cannonKonaInitBond,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.FaultDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
-                    })
-                )
-            });
-            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED,
-                gameArgs: hex""
-            });
-            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_CANNON_KONA,
-                gameArgs: hex""
-            });
-            disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: hex""
-            });
-
-            // The standard upgrade path only needs lockbox deployment permission in v9.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 1 : 0);
-        }
-
-        // Chains without a lockbox need permission to deploy one. Existing lockboxes are reused.
-        if (permitLockboxDeployment) {
-            extraInstructions[extraInstructions.length - 1] = IOPContractsManagerUtils.ExtraInstruction({
-                key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-                data: bytes("ETHLockbox")
-            });
+            // Chains without a lockbox need permission to deploy one. Existing lockboxes are reused.
+            if (permitLockboxDeployment) {
+                extraInstructions[2] = IOPContractsManagerUtils.ExtraInstruction({
+                    key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+                    data: bytes("ETHLockbox")
+                });
+            }
         }
 
         vm.prank(_delegateCaller, true);
@@ -467,18 +407,14 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
 
         console.log("ForkL1Live: Saving newly deployed contracts");
 
-        // A new ASR and new dispute games were deployed, so we need to update them.
-        // With super root migration, standard game types are zeroed; read from SUPER_ variants.
+        // A new ASR and new dispute games were deployed, so read from SUPER_ variants.
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        GameType permGameType =
-            Config.devFeatureSuperRootGamesMigration() ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
-        address permissionedDisputeGame = address(disputeGameFactory.gameImpls(permGameType));
+        address permissionedDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
-        IAnchorStateRegistry newAnchorStateRegistry = Config.devFeatureSuperRootGamesMigration()
-            ? IAnchorStateRegistry(DisputeGames.superPermissionedGameAnchorStateRegistry(disputeGameFactory))
-            : IAnchorStateRegistry(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry);
+        IAnchorStateRegistry newAnchorStateRegistry =
+            IAnchorStateRegistry(DisputeGames.superPermissionedGameAnchorStateRegistry(disputeGameFactory));
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
