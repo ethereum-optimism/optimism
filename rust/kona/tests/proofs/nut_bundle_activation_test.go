@@ -151,17 +151,8 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.Equal(t, bigs.Uint64Strict(actHeader.Number), l2SafeHead.Number,
 		"safe head must be exactly the %s activation block", fork)
 
-	// kona-client cannot prove a Lagoon span in single-chain mode: its pipeline is constructed
-	// without a DependencySet, which StatefulAttributesBuilder requires to decide whether the
-	// activation block carries the multi-chain wrapper deposits. The Lagoon activation transition
-	// is proven by TestInteropFaultProofs_ActivationBoundary in op-acceptance-tests (kona-host
-	// super) instead. The gas-limit assertions below run for every fork regardless.
-	runFPP := fork != forks.Lagoon
-
 	// Prove the activation-block span: kona-client verifies the activation transition itself.
-	if runFPP {
-		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
-	}
+	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 
 	// The NUT-bundle upgrade gas applies only to the activation block. Build one
 	// more block and confirm its gas limit drops back to the pre-activation
@@ -187,9 +178,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	l2SafeHead = env.Sequencer.L2Safe()
 	require.Equal(t, bigs.Uint64Strict(postActivation.Number), l2SafeHead.Number,
 		"safe head must advance to the post-activation block")
-	if runFPP {
-		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
-	}
+	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // TestKarstActivationKeepUpgradeGas covers the keep_karst_upgrade_gas opt-out — the other branch of
