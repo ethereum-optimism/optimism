@@ -144,15 +144,12 @@ func ExpectError(expectedErr error) CheckResult {
 	}
 }
 
+// WithL2Claim overrides the claimed post-state. For the interop program that is the commitment to
+// the claimed PreState (keccak of its encoding), not a bare output root — so a junk value is still
+// a junk claim, but an honest override has to be built the same way WithSuperDefaults builds it.
 func WithL2Claim(claim common.Hash) FixtureInputParam {
 	return func(f *FixtureInputs) {
 		f.L2Claim = claim
-	}
-}
-
-func WithL2BlockNumber(num uint64) FixtureInputParam {
-	return func(f *FixtureInputs) {
-		f.L2BlockNumber = num
 	}
 }
 
@@ -188,21 +185,22 @@ func WithSP1NativeCore() FixtureInputParam {
 	}
 }
 
-// RunFaultProofProgram runs the fault proof program for each state transition from genesis up to the provided l2 block num.
+// RunFaultProofProgramFromGenesis runs the fault proof program for each state transition from
+// genesis up to the provided l2 block num.
+//
+// The first transition proven is the one into genesis+1. The interop program proves the advance
+// between two consecutive super-root timestamps, and there is no super root before the L2 genesis
+// timestamp, so "prove that genesis itself does not move" has no interop equivalent.
 func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, finalL2BlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
-	l2ClaimBlockNum := uint64(0)
-	for l2ClaimBlockNum <= finalL2BlockNum { // l2ClaimBlockNum = 0, finalL2BlockNum = 0 is a valid case
-		defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
-		combinedParams := []FixtureInputParam{defaultParam}
-		combinedParams = append(combinedParams, fixtureInputParams...)
-		RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
-		l2ClaimBlockNum++
+	genesisBlockNum := env.Sd.RollupCfg.Genesis.L2.Number
+	for l2ClaimBlockNum := genesisBlockNum + 1; l2ClaimBlockNum <= finalL2BlockNum; l2ClaimBlockNum++ {
+		env.RunFaultProofProgram(t, l2ClaimBlockNum, checkResult, fixtureInputParams...)
 	}
 }
 
 // RunFaultProofProgram runs the fault proof program for a single state transition, from the provided l2 block num - 1 to the provided l2 block num.
 func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
-	defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
+	defaultParam := WithSuperDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
 	combinedParams := []FixtureInputParam{defaultParam}
 	combinedParams = append(combinedParams, fixtureInputParams...)
 	RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)

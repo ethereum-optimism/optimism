@@ -11,6 +11,69 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// WithSuperDefaults prepares the interop (super-root) inputs for the state transition into
+// l2ClaimBlockNum.
+//
+// kona-host super proves one sub-transition at a time, and the derivation step of a timestamp
+// advances the active chain by exactly one L2 block (see sub_transition's
+// disputed_l2_block_number). So the agreed prestate here is the single-chain super root at the
+// timestamp one second before the claimed block's timestamp — which resolves to block
+// l2ClaimBlockNum-1, because TargetBlockNumber rounds down — and the honest claim is the
+// commitment to the transition state after step 0 appended the claimed block.
+//
+// Only step 0 is proven. Steps 1..StepsPerTimestamp-2 are padding that the client short-circuits,
+// and the consolidation step is covered against a real dependency set by the ConsolidateStep cases
+// in op-acceptance-tests' superfaultproofs suite; re-proving it for every transition here would
+// double the suite's kona-host invocations for a single-chain no-op.
+func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2Verifier, l2Eng *helpers.L2Engine) FixtureInputParam {
+	return func(f *FixtureInputs) {
+		cfg := l2.RollupCfg
+		require.Greater(t, l2ClaimBlockNum, cfg.Genesis.L2.Number,
+			"cannot prove the transition into L2 genesis: there is no super root before the L2 genesis timestamp")
+
+		claimTimestamp := cfg.TimestampForBlock(l2ClaimBlockNum)
+
+		rollupClient := l2.RollupClient()
+		preRoot, err := rollupClient.OutputAtBlock(t.Ctx(), l2ClaimBlockNum-1)
+		require.NoError(t, err)
+		claimRoot, err := rollupClient.OutputAtBlock(t.Ctx(), l2ClaimBlockNum)
+		require.NoError(t, err)
+
+		chainID := eth.ChainIDFromBig(cfg.L2ChainID)
+		agreed := eth.NewSuperV1(claimTimestamp-1, eth.ChainIDAndOutput{
+			ChainID: chainID,
+			Output:  preRoot.OutputRoot,
+		})
+		// With a one-chain dependency set there is no second chain to derive, so the honest
+		// post-state of step 0 is the transition state holding just this chain's optimistic block.
+		claimed := &eth.TransitionState{
+			SuperRoot: agreed.Marshal(),
+			PendingProgress: []eth.OptimisticBlock{{
+				BlockHash:  claimRoot.BlockRef.Hash,
+				OutputRoot: claimRoot.OutputRoot,
+			}},
+			Step: 1,
+		}
+
+		f.L2BlockNumber = l2ClaimBlockNum
+		f.ClaimTimestamp = claimTimestamp
+		f.AgreedPrestate = agreed.Marshal()
+		f.L2Claim = claimed.Hash()
+		f.L2ChainID = chainID
+
+		f.L2Sources = []*FaultProofProgramL2Source{
+			{
+				Node:        l2,
+				Engine:      l2Eng,
+				ChainConfig: l2Eng.L2Chain().Config(),
+			},
+		}
+	}
+}
+
+// WithPreInteropDefaults prepares the single-chain (output-root addressed) inputs for the
+// transition into l2ClaimBlockNum. Only the kona-sp1 range guest still consumes these; the
+// kona-client path is on WithSuperDefaults.
 func WithPreInteropDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2Verifier, l2Eng *helpers.L2Engine) FixtureInputParam {
 	return func(f *FixtureInputs) {
 		// Fetch the pre and post output roots for the fault proof.
@@ -45,9 +108,10 @@ func WithPreInteropDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpe
 // the prepared chain inputs, returning ErrClaimNotValid when the claim is rejected.
 type ProgramRunner func(t helpers.Testing, workDir string, rollupCfgs []*rollup.Config, l1chainConfig *params.ChainConfig, l1Rpc string, l1BeaconRpc string, l2Rpcs []string, fixtureInputs FixtureInputs) error
 
-// RunFaultProofProgram runs the native fault proof program for the transition to the given L2 block number from the preceding one.
+// RunFaultProofProgram runs the native fault proof program (kona-host super, i.e. the interop
+// client program) for the transition to the given L2 block number from the preceding one.
 func RunFaultProofProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
-	runProgram(t, logger, l1, RunKonaNative, false, checkResult, fixtureInputParams...)
+	runProgram(t, logger, l1, RunKonaSuperNative, false, checkResult, fixtureInputParams...)
 }
 
 // RunSP1RangeProgram runs the kona-sp1 range guest in SP1 execute mode for the transition to the

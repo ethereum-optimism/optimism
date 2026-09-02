@@ -20,13 +20,20 @@ type FaultProofProgramL2Source struct {
 }
 
 type FixtureInputs struct {
-	L2BlockNumber  uint64      `toml:"l2-block-number"`
-	L2Claim        common.Hash `toml:"l2-claim"`
-	L2Head         common.Hash `toml:"l2-head"`
-	L2OutputRoot   common.Hash `toml:"l2-output-root"`
-	L2ChainID      eth.ChainID `toml:"l2-chain-id"`
-	L1Head         common.Hash `toml:"l1-head"`
-	AgreedPrestate []byte      `toml:"agreed-prestate"`
+	L2BlockNumber uint64      `toml:"l2-block-number"`
+	L2Claim       common.Hash `toml:"l2-claim"`
+	L2Head        common.Hash `toml:"l2-head"`
+	L2OutputRoot  common.Hash `toml:"l2-output-root"`
+	L2ChainID     eth.ChainID `toml:"l2-chain-id"`
+	L1Head        common.Hash `toml:"l1-head"`
+
+	// AgreedPrestate and ClaimTimestamp address the transition for the interop client program,
+	// which is timestamp- rather than block-addressed: AgreedPrestate is the encoded PreState (a
+	// super root, or a transition state part-way through a timestamp) and ClaimTimestamp is the
+	// super-root timestamp the claim commits to. L2Head/L2OutputRoot/L2BlockNumber address the
+	// same transition for the single-chain programs (now only the kona-sp1 range guest).
+	AgreedPrestate []byte `toml:"agreed-prestate"`
+	ClaimTimestamp uint64 `toml:"claim-timestamp"`
 
 	L2Sources []*FaultProofProgramL2Source
 
