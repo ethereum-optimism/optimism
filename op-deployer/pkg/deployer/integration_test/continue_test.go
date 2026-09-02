@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
@@ -123,18 +122,6 @@ func testContinuePermissionless(t *testing.T) {
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.standardValidator, validatorCode)
 
-	// The game mode read is the first call made against the pinned OPCM, so an unusable
-	// OPCM stops the run before the fork simulation.
-	opcmCode, err := env.l1Client.CodeAt(env.ctx, env.opcm, nil)
-	require.NoError(t, err)
-	setAnvilCode(t, env.l1Client, env.opcm, []byte{byte(vm.PUSH0), byte(vm.PUSH0), byte(vm.REVERT)})
-	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
-	err = deployer.Continue(env.ctx, env.config())
-	require.ErrorContains(t, err, "failed to read the OPCM game mode")
-	require.ErrorContains(t, err, env.opcm.Hex())
-	require.Equal(t, nonceBefore, pendingNonce(t, env))
-	setAnvilCode(t, env.l1Client, env.opcm, opcmCode)
-
 	env.preparedSnapshotChain.SystemConfigProxy = common.Address{0xff}
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	err = deployer.Continue(env.ctx, env.config())
@@ -245,11 +232,7 @@ func testContinuePermissioned(t *testing.T) {
 
 func testContinuePermissionedSuperRoot(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnvForGameTypesAndFeatures(
-		t,
-		[]embedded.GameType{embedded.GameTypeSuperPermissioned},
-		devfeatures.SuperRootGamesMigrationFlag,
-	)
+	env := newContinuationEnv(t, embedded.GameTypeSuperPermissioned)
 	require.Zero(t, env.preparedChain.Prestate)
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	nonceBefore := pendingNonce(t, env)
@@ -512,15 +495,7 @@ func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationE
 }
 
 func newContinuationEnvForGameTypes(t *testing.T, gameTypes []embedded.GameType) *continuationEnv {
-	return newContinuationEnvForGameTypesAndFeatures(t, gameTypes, common.Hash{})
-}
-
-func newContinuationEnvForGameTypesAndFeatures(
-	t *testing.T,
-	gameTypes []embedded.GameType,
-	devFeatureBitmap common.Hash,
-) *continuationEnv {
-	return newContinuationEnvWithIntentMutator(t, gameTypes, devFeatureBitmap, nil)
+	return newContinuationEnvWithIntentMutator(t, gameTypes, common.Hash{}, nil)
 }
 
 func newContinuationEnvWithIntentMutator(

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
@@ -13,9 +12,6 @@ import (
 
 // ImplementationsMethod is the canonical implementations() signature for OPContractsManagerV2.
 var ImplementationsMethod = w3.MustNewFunc("implementations()", `(address superchainConfigImpl,address l1ERC721BridgeImpl,address optimismPortalImpl,address ethLockboxImpl,address systemConfigImpl,address optimismMintableERC20FactoryImpl,address l1CrossDomainMessengerImpl,address l1StandardBridgeImpl,address disputeGameFactoryImpl,address anchorStateRegistryImpl,address delayedWETHImpl,address mipsImpl,address faultDisputeGameImpl,address permissionedDisputeGameImpl,address superFaultDisputeGameImpl,address superPermissionedDisputeGameImpl,address zkDisputeGameImpl,address storageSetterImpl,address sp1PlonkAdapterImpl)`)
-
-// DevFeatureBitmapMethod is the canonical devFeatureBitmap() signature for OPContractsManagerV2.
-var DevFeatureBitmapMethod = w3.MustNewFunc("devFeatureBitmap()", "bytes32")
 
 var (
 	contractsContainerMethod    = w3.MustNewFunc("contractsContainer()", "address")
@@ -68,21 +64,6 @@ func CallGetter[T any](
 		return value, fmt.Errorf("failed to decode %s result from %s: %w", method.Signature, contract, err)
 	}
 	return value, nil
-}
-
-// TODO(#21662): Remove this function once the super root dispute games are fully deployed and the flag is no longer needed.
-// ReadSuperRootEnabled reports whether a deployed OPCM installs super root dispute games.
-// DeployOPChain.s.sol reads the same flag to decide which game family an initial deploy accepts.
-func ReadSuperRootEnabled(
-	ctx context.Context,
-	backend CallContractBackend,
-	opcmAddr common.Address,
-) (bool, error) {
-	bitmap, err := CallGetter[common.Hash](ctx, backend, opcmAddr, DevFeatureBitmapMethod)
-	if err != nil {
-		return false, err
-	}
-	return devfeatures.IsDevFeatureEnabled(bitmap, devfeatures.SuperRootGamesMigrationFlag), nil
 }
 
 // ReadImplementations resolves the full implementation address set from a deployed OPCM.
