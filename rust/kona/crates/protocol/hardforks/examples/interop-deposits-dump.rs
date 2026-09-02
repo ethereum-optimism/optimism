@@ -2,11 +2,11 @@
 //! command for cross-language diffing.
 
 use alloy_primitives::{TxKind, hex};
-use kona_hardforks::{Hardforks, Lagoon};
+use kona_hardforks::{Hardfork, Hardforks, Lagoon};
 
 fn main() {
     for activate in [false, true] {
-        let gas = Hardforks::LAGOON.upgrade_gas_for_activation(activate);
+        let gas = Hardforks::LAGOON.upgrade_gas();
         println!("activate={}", activate);
         println!("gas=0x{:016x}", gas);
         for (i, tx) in Lagoon::deposits(activate).iter().enumerate() {

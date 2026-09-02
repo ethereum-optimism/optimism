@@ -175,25 +175,27 @@ proposer loses the ability to defend, resolve, and claim those games.
 
 ### Restart behavior
 
-There is no in-flight proof-request recovery (upstream parity): the task map is
-in-memory, and a restart re-detects still-challenged games and re-requests their
-proofs from scratch. A pre-flight check prevents duplicate `prove()` submissions.
-In fast finality mode the per-tick scan likewise re-detects unproven,
-signer-created unchallenged games and re-spawns their proving.
+Proving progress is process-local. Retries with unchanged inputs reuse submitted
+request IDs, completed chunks, and fulfilled aggregation proofs. `Cancelled`,
+`Expired`, `Reverted`, and `Unfulfillable` requests are retryable and may
+purchase replacements. Progress is cleared when a game becomes terminal, is
+evicted, fails a definitive pre-submit check, or is proven successfully.
+
+A restart loses all progress and re-detects games that still need proofs. A
+pre-flight check prevents duplicate `prove()` submissions. Fast finality also
+re-detects unproven, signer-created games after restart.
 
 ### Operator alarms
 
-`kona_sp1_proposer_game_proving_error` and
-`kona_sp1_proposer_proving_timeout_error` are spend alarms in network mode: every
-emergent retry after a post-proving failure (for example fee caps below
-basefee, or a submission that keeps reverting) re-purchases
-the full proof set until the game's deadline expires (the prove deadline for
-defense, the challenge deadline for fast finality). A sustained non-zero rate
-means money burning, not a transient. `kona_sp1_proposer_game_unprovable` counts
-games given up as permanently unprovable (kept in-memory until restart). A
-proving task that never completes holds its capacity slot and its game's dedup
-slot (blocking a later defense of that game): watch
-`kona_sp1_proposer_proving_duration_seconds` and the per-tick task-stats log.
+`kona_sp1_proposer_game_proving_error` counts failed proving tasks. A sustained
+rate needs investigation because identity changes and retryable terminal
+outcomes can purchase replacement proofs.
+`kona_sp1_proposer_proving_timeout_error` means a polling attempt exceeded its
+client-side wait; the submitted request ID remains available to the next retry.
+`kona_sp1_proposer_game_unprovable` counts games given up as permanently
+unprovable. A proving task that never completes holds its capacity slot and its
+game's dedup slot, so watch `kona_sp1_proposer_proving_duration_seconds` and the
+per-tick task-stats log.
 
 ### Environment
 
@@ -253,10 +255,12 @@ SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network
 
 `MAX_PRICE_PER_PGU` is a ceiling, not the price paid: the auction settles at the
 winning bid, which tracks the network's clearing price. A ceiling *below* that
-price leaves a request unbid until its deadline, since nothing re-auctions it.
+price leaves a request unbid until its deadline. Expiry makes the request
+retryable, so the next game attempt may submit a new auction.
 `MIN_AUCTION_PERIOD` is a floor every request waits out, so it needs to cover bid
-arrival (3-10s) and no more, and must stay under `AUCTION_TIMEOUT` — which is
-generous because cancelling discards the whole defense task's witness work.
+arrival (3-10s) and no more. It must leave assignment margin under
+`AUCTION_TIMEOUT`; cancellation retries the unfinished request while completed
+chunks remain cached when the proving inputs are unchanged.
 
 Transaction signing requires one of these configurations:
 

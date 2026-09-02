@@ -145,7 +145,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	return nil
 }
 
-func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1EthClient *ethclient.Client, caller *batching.MultiCaller) {
+func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1EthClient l1BlockHashSource, caller *batching.MultiCaller) {
 	defer r.wg.Done()
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
@@ -160,7 +160,7 @@ func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *so
 	}
 }
 
-func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfig RunConfig, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1EthClient *ethclient.Client, caller *batching.MultiCaller) {
+func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfig RunConfig, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1EthClient l1BlockHashSource, caller *batching.MultiCaller) {
 	recordError := func(err error, configName string, m Metricer, log log.Logger) {
 		if errors.Is(err, ErrUnexpectedStatusCode) {
 			log.Error("Incorrect status code", "type", runConfig.Name, "err", err)
