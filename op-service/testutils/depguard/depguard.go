@@ -29,16 +29,18 @@ func RequireNoTransitiveImport(t testing.TB, pattern string, forbidden ...string
 
 // RequireNoTransitiveImportExcept asserts that no package matched by pattern
 // transitively imports any of the forbidden import paths, except the packages
-// named in allowed (by full package path).
+// named in allowed. An allowed entry is either a full package path, or a
+// prefix pattern ending in "/..." which permits that package and everything
+// under it (matching Go's package-pattern semantics).
 //
 // Prefer this over listing the guarded packages when the invariant should hold
 // by default: pass a broad pattern such as "./..." and enumerate only the
 // exceptions, so a newly added package is guarded automatically rather than
 // silently unguarded.
 //
-// The allowlist is checked in both directions. An allowed package that no
-// longer reaches any forbidden import is reported too, so entries cannot
-// outlive the dependency that justified them.
+// The allowlist is checked in both directions. An allowed entry that no
+// longer matches any package reaching a forbidden import is reported too, so
+// entries cannot outlive the dependency that justified them.
 func RequireNoTransitiveImportExcept(t testing.TB, pattern string, allowed []string, forbidden ...string) {
 	t.Helper()
 	offenders, staleAllowed, err := findForbiddenChainsExcept(pattern, allowed, forbidden...)
@@ -57,10 +59,6 @@ func findForbiddenChainsExcept(pattern string, allowed []string, forbidden ...st
 		return nil, nil, err
 	}
 
-	allowedSet := make(map[string]struct{}, len(allowed))
-	for _, a := range allowed {
-		allowedSet[a] = struct{}{}
-	}
 	forbiddenSet := make(map[string]struct{}, len(forbidden))
 	for _, f := range forbidden {
 		forbiddenSet[f] = struct{}{}
@@ -75,12 +73,13 @@ func findForbiddenChainsExcept(pattern string, allowed []string, forbidden ...st
 		seenRoot[root.PkgPath] = struct{}{}
 
 		chain := firstForbiddenChain(root, forbiddenSet)
-		_, isAllowed := allowedSet[root.PkgPath]
-		switch {
-		case chain != "" && !isAllowed:
+		if chain == "" {
+			continue
+		}
+		if entry, ok := matchAllowed(root.PkgPath, allowed); ok {
+			usedAllowed[entry] = struct{}{}
+		} else {
 			offenders = append(offenders, chain)
-		case chain != "" && isAllowed:
-			usedAllowed[root.PkgPath] = struct{}{}
 		}
 	}
 
@@ -92,6 +91,21 @@ func findForbiddenChainsExcept(pattern string, allowed []string, forbidden ...st
 	sort.Strings(offenders)
 	sort.Strings(staleAllowed)
 	return offenders, staleAllowed, nil
+}
+
+// matchAllowed returns the first allowed entry matching pkg: an exact package
+// path, or a "prefix/..." pattern covering prefix itself and everything under it.
+func matchAllowed(pkg string, allowed []string) (string, bool) {
+	for _, entry := range allowed {
+		if base, isPrefix := strings.CutSuffix(entry, "/..."); isPrefix {
+			if pkg == base || strings.HasPrefix(pkg, base+"/") {
+				return entry, true
+			}
+		} else if pkg == entry {
+			return entry, true
+		}
+	}
+	return "", false
 }
 
 // firstForbiddenChain returns an offending import chain rooted at root, or "".

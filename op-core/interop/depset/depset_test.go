@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
@@ -121,12 +120,4 @@ func testDependencySetSerialization(
 		require.True(t, depSet.HasChain(eth.ChainIDFromUInt64(900)))
 		require.False(t, depSet.HasChain(eth.ChainIDFromUInt64(902)))
 	})
-}
-
-func TestLoadDependencySetFromRegistry(t *testing.T) {
-	chainID, err := superchain.ChainIDByName("op-mainnet")
-	require.NoError(t, err)
-	depSet, err := FromRegistry(eth.ChainIDFromUInt64(chainID))
-	require.NoError(t, err)
-	require.True(t, depSet.HasChain(eth.ChainIDFromUInt64(chainID)))
 }

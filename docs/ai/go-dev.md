@@ -17,9 +17,9 @@ just build-go
 ### The `op-core/superchain` bundle
 
 `op-core/superchain` `//go:embed`s `superchain-configs.zip`, which is **gitignored** (only
-its `.sha256` is committed). Any package that transitively imports it — op-node and most
-binaries, plus `packages/contracts-bedrock/scripts/go-ffi`, `op-e2e`, `op-acceptance-tests`,
-op-deployer, and the kona/op-reth Go tests — won't compile until the bundle is built:
+its `.sha256` is committed). Any package that transitively imports it — op-node and several
+binaries, plus `op-e2e`, `op-acceptance-tests`, op-deployer, and the kona/op-reth Go
+tests — won't compile until the bundle is built:
 
 ```
 op-core/superchain/chain.go:NN: pattern superchain-configs.zip: no matching files found
@@ -37,6 +37,12 @@ just sync-superchain        # all superchain bundles (Go + kona/op-reth Rust) �
 
 Because the zip is usually already on disk, a missing-bundle problem is invisible locally
 and only surfaces in CI's clean checkout (see [ci-ops.md](ci-ops.md)).
+
+The set of packages allowed to reach the bundle is pinned by `TestBundleReachability`
+(`op-core/superchain/deps_test.go`): a new transitive edge into `op-core/superchain` from a
+package outside its `bundleAllowed` allowlist fails that test. Each allowlist entry is a
+package downstream Go modules cannot import, so extend the list only for genuine
+registry consumers.
 
 ### Running Tests
 
