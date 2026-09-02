@@ -413,7 +413,7 @@ func TestRenderBlockRefusesBadInput(t *testing.T) {
 		bad.Data = sentMessageData(otherAddr, make([]byte, MaxRenderableMessageSize+1))
 		_, err := RenderBlock(block(10, 1000, []*types.Log{bad}), EmitterSet{})
 		require.ErrorIs(t, err, ErrUnrenderableLog)
-		require.ErrorContains(t, err, "exceeding the 65536-byte rendering limit")
+		require.ErrorContains(t, err, "exceeding the 1048576-byte rendering limit")
 	})
 
 	t.Run("inbox log with the right topic but a malformed payload", func(t *testing.T) {
