@@ -53,13 +53,13 @@ func (s *smokeSkip) Error() string {
 
 // errBridgeOnPrivatePair is the bridge test against a pair.
 //
-// SuperchainETHBridge moves ETH, and on a custom-gas-token chain that path is closed by design. The
-// sanctioned path for a pair is the native mint bridge, which nothing here exercises yet -- and
-// which is the point of saying so out loud: the ETH bridge could just as easily be left to fail,
-// or (worse) to pass by accident on a devstack that has not wired the denial yet, and either would
-// be read as a statement about a bridge nobody uses.
+// The pair runs the STOCK SuperchainETHBridge on both halves. On the custom-gas-token private chain
+// that bridge moves the native asset against an ETHLiquidity the stock genesis funds with
+// uint128-max, so a transfer "works" without conserving anything across the pair. The smoke does
+// not exercise it: a pass would be read as a statement about supply conservation that the design
+// explicitly does not make.
 var errBridgeOnPrivatePair = &smokeSkip{
-	reason: "SuperchainETHBridge is the closed path on a CGT private chain; NativeMintBridge is the sanctioned path, not yet exercised here",
+	reason: "SuperchainETHBridge on a CGT private pair is unbacked stock liquidity; supply conservation is not guaranteed and not exercised here",
 }
 
 // errChainedInvalidOnPrivatePair refuses the transitive-invalidation test against a pair.

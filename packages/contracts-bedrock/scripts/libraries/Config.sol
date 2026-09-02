@@ -342,11 +342,6 @@ library Config {
         return true;
     }
 
-    /// @notice Returns true if the development feature PRIVATE_INTEROP is enabled.
-    function devFeaturePrivateInterop() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__PRIVATE_INTEROP", false);
-    }
-
     /// @notice Returns true if the system feature custom_gas_token is enabled.
     function sysFeatureCustomGasToken() internal view returns (bool) {
         return vm.envOr("SYS_FEATURE__CUSTOM_GAS_TOKEN", false);

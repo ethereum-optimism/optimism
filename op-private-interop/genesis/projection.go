@@ -1,4 +1,8 @@
 // Package genesis defines the deterministic genesis projection for private interop.
+//
+// The source of a projection is a STOCK op-deployer genesis: a custom-gas-token chain with interop
+// active at genesis. No private marker, dev-feature bit, or bespoke predeploy identifies the source;
+// the validator recognises it by the state that shape leaves behind, and rejects everything else.
 package genesis
 
 import (
@@ -16,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	gethparams "github.com/ethereum/go-ethereum/params"
 )
 
@@ -23,13 +28,40 @@ var (
 	errNilGenesis         = errors.New("private-chain genesis is nil")
 	errMissingChainConfig = errors.New("private-chain genesis has no chain config")
 
+	// ErrNotCustomGasToken rejects an ordinary ETH genesis.
+	ErrNotCustomGasToken = errors.New("genesis is not a private chain: custom gas token is disabled")
+	// ErrInteropInactive rejects a genesis whose interop feature set is not active at genesis. The
+	// projection is only defined over a Lagoon-at-genesis source: an activation block on the
+	// projection would run the stock network-upgrade bundle and replace the replay messenger.
+	ErrInteropInactive = errors.New("genesis is not a private chain: interop is not active at genesis")
+	// ErrMessengerNotStock rejects a source whose L2ToL2CrossDomainMessenger implementation is not
+	// the stock one the projection was built against: a genesis from a different contract release,
+	// or a genesis that has already been projected.
+	ErrMessengerNotStock = errors.New("genesis is not a private chain: L2ToL2CrossDomainMessenger implementation is not the stock release")
+	// ErrAlreadyProjected rejects a public projection offered as a source.
+	ErrAlreadyProjected = errors.New("genesis is already a public projection: projection predeploys are active")
+
 	implementationSlot   = common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
 	adminSlot            = common.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103")
 	customGasTokenSlot   = common.HexToHash("0x4ad9936a67aeb1898ef7b848aecdf71a1f8999fbf63ff2f5b5691cb14bedfe4d")
 	devFeatureBitmapSlot = common.HexToHash("0xc8bc8f9195cfb2d040744aac63412d02ffc186ea9bd519039edc4666ee9032bc")
 	proxyAdminWord       = common.BytesToHash(predeploys.ProxyAdminAddr.Bytes())
-	maxUint128           = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
+
+	// l1BlockInteropFeatureSlot is L1Block.isFeatureEnabled[INTEROP]: `isFeatureEnabled` is a
+	// mapping(bytes32 => bool) at storage slot 9 in both L1Block and L1BlockCGT, so the slot is
+	// keccak256(abi.encode(bytes32("INTEROP"), uint256(9))). Swapping the implementation preserves
+	// it: the two contracts share the layout.
+	l1BlockInteropFeatureSlot = l1BlockFeatureSlot("INTEROP")
+	trueWord                  = common.BigToHash(big.NewInt(1))
 )
+
+// StockL2ToL2CrossDomainMessengerCodeHash is the keccak256 of the stock L2ToL2CrossDomainMessenger
+// implementation the projection replaces. It pins the contract release the projection was built
+// against: a source whose messenger differs is from another release (or is already projected), and
+// projecting it would pair a replay messenger with predeploys it was never tested with.
+//
+// The value comes from the stock op-deployer genesis fixture in testdata (see projection_test.go).
+var StockL2ToL2CrossDomainMessengerCodeHash = common.HexToHash("0x6c9a755164bb4bf014b4b99358425e4480f3b022b7586b939a86f135c019acce")
 
 //go:embed bytecode/*.hex
 var bytecodes embed.FS
@@ -38,8 +70,6 @@ var publicProjectionCode = map[common.Address][]byte{
 	codeNamespace(predeploys.L1BlockAddr):                    mustBytecode("L1Block"),
 	codeNamespace(predeploys.L2ToL1MessagePasserAddr):        mustBytecode("L2ToL1MessagePasser"),
 	codeNamespace(predeploys.L2toL2CrossDomainMessengerAddr): mustBytecode("L2ToL2CrossDomainMessengerReplay"),
-	codeNamespace(predeploys.SuperchainETHBridgeAddr):        mustBytecode("SuperchainETHBridge"),
-	codeNamespace(predeploys.ETHLiquidityAddr):               mustBytecode("ETHLiquidity"),
 	codeNamespace(predeploys.ClaimRegistryAddr):              mustBytecode("ClaimRegistry"),
 	codeNamespace(predeploys.EventReplayerAddr):              mustBytecode("EventReplayer"),
 }
@@ -48,6 +78,18 @@ var publicProjectionCode = map[common.Address][]byte{
 //
 // The operation is pure: it does not mutate privateChainGenesis and performs no I/O. The embedded
 // bytecode is part of the projection protocol, just like an execution client's hardfork code.
+//
+// The source already carries the stock interop feature set (CrossL2Inbox, SuperchainETHBridge,
+// ETHLiquidity with its uint128-max liquidity, L1Block.isFeatureEnabled[INTEROP]). The projection
+// keeps all of that and changes exactly what makes the private chain private or custom-gas-token:
+//
+//   - execution semantics: the L1BlockCGT and L2ToL1MessagePasserCGT implementations become the
+//     ETH ones and the custom-gas-token marker is cleared; LiquidityController and
+//     NativeAssetLiquidity are deactivated;
+//   - messaging: the stock L2ToL2CrossDomainMessenger implementation becomes the replay messenger,
+//     and ClaimRegistry and EventReplayer are installed;
+//   - block parameters: the gas limit is the maximum and the base fee is zero, because the batcher
+//     is the projection's only sender and there is no fee market to observe.
 func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error) {
 	if privateChainGenesis == nil {
 		return nil, errNilGenesis
@@ -64,22 +106,13 @@ func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error
 	out.BaseFee = new(big.Int)
 
 	// The public projection executes ordinary ETH semantics, not the private chain's custom gas
-	// token semantics.
+	// token semantics. Every other L1Block storage word, the INTEROP feature bit included, is kept:
+	// L1Block and L1BlockCGT share a storage layout.
 	deleteStorage(out.Alloc, predeploys.L1BlockAddr, customGasTokenSlot)
-	clearStorageFlag(out.Alloc, predeploys.L2DevFeatureFlagsAddr, devFeatureBitmapSlot, devfeatures.PrivateInteropFlag)
-	setImplementation(out.Alloc, predeploys.L1BlockAddr, publicProjectionCode[codeNamespace(predeploys.L1BlockAddr)])
-	setImplementation(out.Alloc, predeploys.L2ToL1MessagePasserAddr, publicProjectionCode[codeNamespace(predeploys.L2ToL1MessagePasserAddr)])
-
-	// The public projection carries the stock interop ETH path. Its liquidity is deliberately the
-	// protocol's uint128 maximum, matching an ordinary non-CGT interop genesis.
-	activateProxy(out.Alloc, predeploys.SuperchainETHBridgeAddr, publicProjectionCode[codeNamespace(predeploys.SuperchainETHBridgeAddr)])
-	activateProxy(out.Alloc, predeploys.ETHLiquidityAddr, publicProjectionCode[codeNamespace(predeploys.ETHLiquidityAddr)])
-	setBalance(out.Alloc, predeploys.ETHLiquidityAddr, maxUint128)
-
-	// The custom-gas-token machinery and application mint bridge belong only to the private chain.
+	activateProxy(out.Alloc, predeploys.L1BlockAddr, publicProjectionCode[codeNamespace(predeploys.L1BlockAddr)])
+	activateProxy(out.Alloc, predeploys.L2ToL1MessagePasserAddr, publicProjectionCode[codeNamespace(predeploys.L2ToL1MessagePasserAddr)])
 	deactivateProxy(out.Alloc, predeploys.NativeAssetLiquidityAddr)
 	deactivateProxy(out.Alloc, predeploys.LiquidityControllerAddr)
-	deactivateProxy(out.Alloc, predeploys.NativeMintBridgeAddr)
 
 	// Public batches replay selected private-chain events and record the claim for every range.
 	activateProxy(out.Alloc, predeploys.L2toL2CrossDomainMessengerAddr, publicProjectionCode[codeNamespace(predeploys.L2toL2CrossDomainMessengerAddr)])
@@ -90,7 +123,9 @@ func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error
 }
 
 // ProjectRollupConfigFrom constructs the public-projection rollup config. The projected genesis
-// supplies the only value that cannot be copied from the private chain: the L2 genesis hash.
+// supplies the only value that cannot be copied from the private chain: the L2 genesis hash. The
+// genesis system config follows the projected block parameters. Everything else, the Lagoon
+// activation time included, is the private chain's: both views activate interop at genesis.
 func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, publicProjectionGenesis *core.Genesis) (*rollup.Config, error) {
 	if privateChainConfig == nil {
 		return nil, errors.New("private-chain rollup config is nil")
@@ -107,28 +142,46 @@ func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, publicProjection
 	out.Genesis.SystemConfig.Scalar = eth.EncodeScalar(eth.EcotoneScalars{})
 	out.Genesis.SystemConfig.OperatorFeeParams = eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{})
 	out.Genesis.SystemConfig.MinBaseFee = 0
-	if privateChainConfig.PrivateInterop != nil {
-		meta := *privateChainConfig.PrivateInterop
-		meta.ExtraEmitters = append([]common.Address(nil), privateChainConfig.PrivateInterop.ExtraEmitters...)
-		out.PrivateInterop = &meta
-	}
 	return &out, nil
 }
 
+// validatePrivateChainGenesis accepts exactly the stock op-deployer shape the projection is
+// defined over, and names the first thing that is wrong otherwise.
 func validatePrivateChainGenesis(g *core.Genesis) error {
-	bridge, ok := g.Alloc[predeploys.NativeMintBridgeAddr]
-	if !ok || bridge.Storage[implementationSlot] == (common.Hash{}) {
-		return errors.New("genesis is not a private chain: NativeMintBridge is inactive")
-	}
 	l1Block, ok := g.Alloc[predeploys.L1BlockAddr]
 	if !ok || l1Block.Storage[customGasTokenSlot] == (common.Hash{}) {
-		return errors.New("genesis is not a private chain: custom gas token is disabled")
+		return ErrNotCustomGasToken
+	}
+	if l1Block.Storage[l1BlockInteropFeatureSlot] != trueWord {
+		return ErrInteropInactive
 	}
 	featureFlags, ok := g.Alloc[predeploys.L2DevFeatureFlagsAddr]
-	if !ok || !devfeatures.IsDevFeatureEnabled(featureFlags.Storage[devFeatureBitmapSlot], devfeatures.PrivateInteropFlag) {
-		return errors.New("genesis is not a private chain: private interop feature is disabled")
+	if !ok || !devfeatures.IsDevFeatureEnabled(featureFlags.Storage[devFeatureBitmapSlot], devfeatures.OptimismPortalInteropFlag) {
+		return ErrInteropInactive
+	}
+	if implementationCodeHash(g.Alloc, predeploys.L2toL2CrossDomainMessengerAddr) != StockL2ToL2CrossDomainMessengerCodeHash {
+		return ErrMessengerNotStock
+	}
+	for _, proxy := range []common.Address{predeploys.ClaimRegistryAddr, predeploys.EventReplayerAddr} {
+		if g.Alloc[proxy].Storage[implementationSlot] != (common.Hash{}) {
+			return ErrAlreadyProjected
+		}
 	}
 	return nil
+}
+
+// implementationCodeHash follows a predeploy proxy's EIP-1967 implementation slot and hashes the
+// code found there. An inactive proxy (no implementation) hashes to the empty-code hash, which no
+// release matches.
+func implementationCodeHash(alloc types.GenesisAlloc, proxy common.Address) common.Hash {
+	impl := common.BytesToAddress(alloc[proxy].Storage[implementationSlot].Bytes())
+	return crypto.Keccak256Hash(alloc[impl].Code)
+}
+
+func l1BlockFeatureSlot(feature string) common.Hash {
+	var key [32]byte
+	copy(key[:], feature)
+	return crypto.Keccak256Hash(key[:], common.BigToHash(big.NewInt(9)).Bytes())
 }
 
 func cloneGenesis(in *core.Genesis) *core.Genesis {
@@ -164,6 +217,10 @@ func cloneAccount(in types.Account) types.Account {
 	return out
 }
 
+// activateProxy points a predeploy proxy at its code-namespace implementation and installs code
+// there. A proxy whose implementation lived elsewhere (an L2ContractsManager deployment, say) is
+// re-pointed; the old implementation account is left as it was, which is dead code and nothing
+// else.
 func activateProxy(alloc types.GenesisAlloc, proxy common.Address, code []byte) {
 	proxyAccount := accountAt(alloc, proxy)
 	proxyAccount.Storage[implementationSlot] = common.BytesToHash(codeNamespace(proxy).Bytes())
@@ -190,22 +247,6 @@ func deactivateProxy(alloc types.GenesisAlloc, proxy common.Address) {
 func deleteStorage(alloc types.GenesisAlloc, addr common.Address, slot common.Hash) {
 	account := accountAt(alloc, addr)
 	delete(account.Storage, slot)
-	alloc[addr] = account
-}
-
-func clearStorageFlag(alloc types.GenesisAlloc, addr common.Address, slot common.Hash, flag common.Hash) {
-	account := accountAt(alloc, addr)
-	value := account.Storage[slot]
-	for i := range value {
-		value[i] &^= flag[i]
-	}
-	account.Storage[slot] = value
-	alloc[addr] = account
-}
-
-func setBalance(alloc types.GenesisAlloc, addr common.Address, balance *big.Int) {
-	account := accountAt(alloc, addr)
-	account.Balance = new(big.Int).Set(balance)
 	alloc[addr] = account
 }
 

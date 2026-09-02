@@ -76,18 +76,6 @@ type AltDAConfig struct {
 	DAResolveWindow uint64 `json:"da_resolve_window"`
 }
 
-// PrivateInteropConfig marks a private-interoperable chain. Consumers use this marker to derive
-// and operate its public projection. Its emitter set is consensus-relevant application
-// configuration: the projection builder and every interop filter must select and renumber exactly
-// the same logs.
-//
-// The two standard interop predeploy emitters are implicit. ExtraEmitters contains only additional
-// application emitters selected at genesis. A nil PrivateInteropConfig means this is an ordinary
-// rollup config.
-type PrivateInteropConfig struct {
-	ExtraEmitters []common.Address `json:"extra_emitters,omitempty"`
-}
-
 // MaxInputSizeOrDefault returns the configured maximum input size or the protocol default.
 func (c *AltDAConfig) MaxInputSizeOrDefault() uint64 {
 	if c == nil || c.MaxInputSize == nil {
@@ -196,10 +184,6 @@ type Config struct {
 
 	// AltDAConfig. We are in the process of migrating to the AltDAConfig from these legacy top level values
 	AltDAConfig *AltDAConfig `json:"alt_da,omitempty"`
-
-	// PrivateInterop is present only on a private-interop rendering. It is generated from the
-	// deployment intent and is the sole source of truth for the rendering emitter set.
-	PrivateInterop *PrivateInteropConfig `json:"private_interop,omitempty"`
 
 	// PectraBlobScheduleTime sets the time until which (but not including) the blob base fee
 	// calculations for the L1 Block Info use the pre-Prague=Cancun blob parameters.
@@ -375,18 +359,6 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.Genesis.SystemConfig.GasLimit == 0 {
 		return ErrMissingGasLimit
-	}
-	if cfg.PrivateInterop != nil {
-		seen := make(map[common.Address]struct{}, len(cfg.PrivateInterop.ExtraEmitters))
-		for _, emitter := range cfg.PrivateInterop.ExtraEmitters {
-			if emitter == (common.Address{}) {
-				return errors.New("private interop extra emitter cannot be the zero address")
-			}
-			if _, ok := seen[emitter]; ok {
-				return fmt.Errorf("duplicate private interop extra emitter %s", emitter)
-			}
-			seen[emitter] = struct{}{}
-		}
 	}
 	if cfg.BatchInboxAddress == (common.Address{}) {
 		return ErrMissingBatchInboxAddress

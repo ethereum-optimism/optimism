@@ -1,21 +1,24 @@
 //! Deterministic private-chain genesis to public-projection genesis transformation.
+//!
+//! The source is a STOCK op-deployer genesis: a custom-gas-token chain with interop active at
+//! genesis. No private marker, dev-feature bit, or bespoke predeploy identifies the source; the
+//! validator recognises it by the state that shape leaves behind, and rejects everything else. This
+//! is the Rust mirror of `op-private-interop/genesis/projection.go`; the two must project the
+//! shared fixture to the same block hash (see the tests).
 
 use alloc::collections::BTreeMap;
 use alloy_genesis::{Genesis, GenesisAccount};
-use alloy_primitives::{Address, B256, Bytes, U256, address, b256};
+use alloy_primitives::{Address, B256, Bytes, U256, address, b256, keccak256};
 use core::{fmt, str::FromStr};
 
 const L1_BLOCK: Address = address!("4200000000000000000000000000000000000015");
 const L2_TO_L1_MESSAGE_PASSER: Address = address!("4200000000000000000000000000000000000016");
 const L2_TO_L2_MESSENGER: Address = address!("4200000000000000000000000000000000000023");
-const SUPERCHAIN_ETH_BRIDGE: Address = address!("4200000000000000000000000000000000000024");
-const ETH_LIQUIDITY: Address = address!("4200000000000000000000000000000000000025");
 const NATIVE_ASSET_LIQUIDITY: Address = address!("4200000000000000000000000000000000000029");
 const LIQUIDITY_CONTROLLER: Address = address!("420000000000000000000000000000000000002a");
 const PROXY_ADMIN: Address = address!("4200000000000000000000000000000000000018");
 const CLAIM_REGISTRY: Address = address!("420000000000000000000000000000000000002e");
 const EVENT_REPLAYER: Address = address!("420000000000000000000000000000000000002f");
-const NATIVE_MINT_BRIDGE: Address = address!("4200000000000000000000000000000000000030");
 const L2_DEV_FEATURE_FLAGS: Address = address!("420000000000000000000000000000000000002d");
 
 const IMPLEMENTATION_SLOT: B256 =
@@ -25,11 +28,19 @@ const CUSTOM_GAS_TOKEN_SLOT: B256 =
     b256!("4ad9936a67aeb1898ef7b848aecdf71a1f8999fbf63ff2f5b5691cb14bedfe4d");
 const DEV_FEATURE_BITMAP_SLOT: B256 =
     b256!("c8bc8f9195cfb2d040744aac63412d02ffc186ea9bd519039edc4666ee9032bc");
-const PRIVATE_INTEROP_FLAG: B256 =
-    b256!("0000000000000000000000000000000000000000000000000000001000000000");
-#[cfg(test)]
 const OPTIMISM_PORTAL_INTEROP_FLAG: B256 =
     b256!("0000000000000000000000000000000000000000000000000000000000000001");
+/// `L1Block.isFeatureEnabled[bytes32("INTEROP")]`: the mapping lives at storage slot 9 in both
+/// `L1Block` and `L1BlockCGT`, so the slot is `keccak256(bytes32("INTEROP") ‖ uint256(9))`.
+const L1_BLOCK_INTEROP_FEATURE_SLOT: B256 =
+    b256!("3ebfd37456942048b852c384870d4ad41f6bbbdac131fb70bae79436d8f87a60");
+const TRUE_WORD: B256 = b256!("0000000000000000000000000000000000000000000000000000000000000001");
+
+/// keccak256 of the stock `L2ToL2CrossDomainMessenger` implementation the projection replaces.
+/// Pins the contract release the projection was built against; must equal
+/// `StockL2ToL2CrossDomainMessengerCodeHash` in the Go implementation.
+pub(crate) const STOCK_L2_TO_L2_MESSENGER_CODE_HASH: B256 =
+    b256!("6c9a755164bb4bf014b4b99358425e4480f3b022b7586b939a86f135c019acce");
 
 const L1_BLOCK_CODE: &str =
     include_str!("../../../../../op-private-interop/genesis/bytecode/L1Block.hex");
@@ -38,10 +49,6 @@ const L2_TO_L1_MESSAGE_PASSER_CODE: &str =
 const L2_TO_L2_MESSENGER_CODE: &str = include_str!(
     "../../../../../op-private-interop/genesis/bytecode/L2ToL2CrossDomainMessengerReplay.hex"
 );
-const SUPERCHAIN_ETH_BRIDGE_CODE: &str =
-    include_str!("../../../../../op-private-interop/genesis/bytecode/SuperchainETHBridge.hex");
-const ETH_LIQUIDITY_CODE: &str =
-    include_str!("../../../../../op-private-interop/genesis/bytecode/ETHLiquidity.hex");
 const CLAIM_REGISTRY_CODE: &str =
     include_str!("../../../../../op-private-interop/genesis/bytecode/ClaimRegistry.hex");
 const EVENT_REPLAYER_CODE: &str =
@@ -50,26 +57,33 @@ const EVENT_REPLAYER_CODE: &str =
 /// A private-chain genesis cannot be projected safely.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GenesisProjectionError {
-    /// The native mint bridge does not identify an active private-chain genesis.
-    NativeMintBridgeInactive,
-    /// The custom-gas-token marker does not identify a private-chain genesis.
-    CustomGasTokenDisabled,
-    /// The development feature bitmap does not identify a private-chain genesis.
-    PrivateInteropDisabled,
+    /// The genesis is an ordinary ETH chain, not a custom-gas-token chain.
+    NotCustomGasToken,
+    /// Interop is not active at genesis: an activation block on the projection would run the
+    /// stock network-upgrade bundle and replace the replay messenger.
+    InteropInactive,
+    /// The `L2ToL2CrossDomainMessenger` implementation is not the pinned stock release: another
+    /// contract release, or a genesis that has already been projected.
+    MessengerNotStock,
+    /// The projection predeploys are already active: this is a public projection, not a source.
+    AlreadyProjected,
 }
 
 impl fmt::Display for GenesisProjectionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NativeMintBridgeInactive => {
-                f.write_str("genesis is not a private chain: NativeMintBridge is inactive")
-            }
-            Self::CustomGasTokenDisabled => {
+            Self::NotCustomGasToken => {
                 f.write_str("genesis is not a private chain: custom gas token is disabled")
             }
-            Self::PrivateInteropDisabled => {
-                f.write_str("genesis is not a private chain: private interop feature is disabled")
+            Self::InteropInactive => {
+                f.write_str("genesis is not a private chain: interop is not active at genesis")
             }
+            Self::MessengerNotStock => f.write_str(
+                "genesis is not a private chain: L2ToL2CrossDomainMessenger implementation is not the stock release",
+            ),
+            Self::AlreadyProjected => f.write_str(
+                "genesis is already a public projection: projection predeploys are active",
+            ),
         }
     }
 }
@@ -81,6 +95,13 @@ impl std::error::Error for GenesisProjectionError {}
 ///
 /// This is a pure function. The source is cloned, the embedded bytecode is fixed protocol data,
 /// and the transformation performs no I/O or environment-dependent work.
+///
+/// The source already carries the stock interop feature set. The projection keeps it and changes
+/// exactly what makes the private chain private or custom-gas-token: the CGT implementations of
+/// `L1Block` and `L2ToL1MessagePasser` become the ETH ones and the CGT marker is cleared;
+/// `LiquidityController` and `NativeAssetLiquidity` are deactivated; the stock messenger becomes
+/// the replay messenger; `ClaimRegistry` and `EventReplayer` are installed; the gas limit is the
+/// maximum and the base fee is zero.
 pub fn project_genesis_from(
     private_chain_genesis: &Genesis,
 ) -> Result<Genesis, GenesisProjectionError> {
@@ -91,26 +112,10 @@ pub fn project_genesis_from(
     projected.base_fee_per_gas = Some(0);
 
     delete_storage(&mut projected, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT);
-    clear_storage_flag(
-        &mut projected,
-        L2_DEV_FEATURE_FLAGS,
-        DEV_FEATURE_BITMAP_SLOT,
-        PRIVATE_INTEROP_FLAG,
-    );
-    set_implementation(&mut projected, L1_BLOCK, bytecode(L1_BLOCK_CODE));
-    set_implementation(
-        &mut projected,
-        L2_TO_L1_MESSAGE_PASSER,
-        bytecode(L2_TO_L1_MESSAGE_PASSER_CODE),
-    );
-
-    activate_proxy(&mut projected, SUPERCHAIN_ETH_BRIDGE, bytecode(SUPERCHAIN_ETH_BRIDGE_CODE));
-    activate_proxy(&mut projected, ETH_LIQUIDITY, bytecode(ETH_LIQUIDITY_CODE));
-    account_at(&mut projected, ETH_LIQUIDITY).balance = U256::from(u128::MAX);
-
+    activate_proxy(&mut projected, L1_BLOCK, bytecode(L1_BLOCK_CODE));
+    activate_proxy(&mut projected, L2_TO_L1_MESSAGE_PASSER, bytecode(L2_TO_L1_MESSAGE_PASSER_CODE));
     deactivate_proxy(&mut projected, NATIVE_ASSET_LIQUIDITY);
     deactivate_proxy(&mut projected, LIQUIDITY_CONTROLLER);
-    deactivate_proxy(&mut projected, NATIVE_MINT_BRIDGE);
 
     activate_proxy(&mut projected, L2_TO_L2_MESSENGER, bytecode(L2_TO_L2_MESSENGER_CODE));
     activate_proxy(&mut projected, CLAIM_REGISTRY, bytecode(CLAIM_REGISTRY_CODE));
@@ -120,19 +125,44 @@ pub fn project_genesis_from(
 }
 
 fn validate_private_chain_genesis(genesis: &Genesis) -> Result<(), GenesisProjectionError> {
-    if storage_at(genesis, NATIVE_MINT_BRIDGE, IMPLEMENTATION_SLOT) == B256::ZERO {
-        return Err(GenesisProjectionError::NativeMintBridgeInactive);
-    }
     if storage_at(genesis, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT) == B256::ZERO {
-        return Err(GenesisProjectionError::CustomGasTokenDisabled);
+        return Err(GenesisProjectionError::NotCustomGasToken);
+    }
+    if storage_at(genesis, L1_BLOCK, L1_BLOCK_INTEROP_FEATURE_SLOT) != TRUE_WORD {
+        return Err(GenesisProjectionError::InteropInactive);
     }
     let bitmap = storage_at(genesis, L2_DEV_FEATURE_FLAGS, DEV_FEATURE_BITMAP_SLOT);
-    if !contains_flag(bitmap, PRIVATE_INTEROP_FLAG) {
-        return Err(GenesisProjectionError::PrivateInteropDisabled);
+    if !contains_flag(bitmap, OPTIMISM_PORTAL_INTEROP_FLAG) {
+        return Err(GenesisProjectionError::InteropInactive);
+    }
+    if implementation_code_hash(genesis, L2_TO_L2_MESSENGER) != STOCK_L2_TO_L2_MESSENGER_CODE_HASH {
+        return Err(GenesisProjectionError::MessengerNotStock);
+    }
+    for proxy in [CLAIM_REGISTRY, EVENT_REPLAYER] {
+        if storage_at(genesis, proxy, IMPLEMENTATION_SLOT) != B256::ZERO {
+            return Err(GenesisProjectionError::AlreadyProjected);
+        }
     }
     Ok(())
 }
 
+/// Follows a proxy's EIP-1967 implementation slot and hashes the code found there. An inactive
+/// proxy hashes to the empty-code hash, which no release matches.
+fn implementation_code_hash(genesis: &Genesis, proxy: Address) -> B256 {
+    let implementation =
+        Address::from_slice(&storage_at(genesis, proxy, IMPLEMENTATION_SLOT)[12..]);
+    let code = genesis
+        .alloc
+        .get(&implementation)
+        .and_then(|account| account.code.as_ref())
+        .map(|code| code.as_ref())
+        .unwrap_or(&[]);
+    keccak256(code)
+}
+
+/// Points a proxy at its code-namespace implementation and installs code there. A proxy whose
+/// implementation lived elsewhere is re-pointed; the old implementation account is left as dead
+/// code, matching the Go implementation.
 fn activate_proxy(genesis: &mut Genesis, proxy: Address, code: Bytes) {
     account_at(genesis, proxy)
         .storage
@@ -163,18 +193,6 @@ fn delete_storage(genesis: &mut Genesis, address: Address, slot: B256) {
     if let Some(storage) = account_at(genesis, address).storage.as_mut() {
         storage.remove(&slot);
     }
-}
-
-fn clear_storage_flag(genesis: &mut Genesis, address: Address, slot: B256, flag: B256) {
-    let mut value = [0_u8; 32];
-    value.copy_from_slice(storage_at(genesis, address, slot).as_slice());
-    for (byte, flag_byte) in value.iter_mut().zip(flag.as_slice()) {
-        *byte &= !flag_byte;
-    }
-    account_at(genesis, address)
-        .storage
-        .get_or_insert_with(BTreeMap::new)
-        .insert(slot, B256::from(value));
 }
 
 fn contains_flag(value: B256, flag: B256) -> bool {
@@ -222,13 +240,24 @@ mod tests {
     use crate::OpChainSpec;
     use reth_chainspec::EthChainSpec;
 
+    /// The cross-language golden vector: a stock op-deployer genesis of a custom-gas-token chain
+    /// with interop at genesis, reduced to the predeploys and one funded account. The Go tests pin
+    /// the same two hashes (`op-private-interop/genesis/projection_test.go`).
     const PRIVATE_CHAIN_GENESIS_FIXTURE: &str = include_str!(
         "../../../../../op-private-interop/genesis/testdata/private-chain-genesis.json"
     );
     const PUBLIC_PROJECTION_STATE_ROOT: B256 =
-        b256!("b4a3530d2e27fd008c94ba70c47760c3109a032d3c646872591ca622b4a59cae");
+        b256!("0bcc2c671be43df86d2bdfc0e2ef4a8402924e2bdfaf5e8e432eb5841282c81f");
     const PUBLIC_PROJECTION_BLOCK_HASH: B256 =
-        b256!("aaca1c33c16e560b035482ad57fd6f38436d9c5cf45faf57e3f3cb3512335347");
+        b256!("b16205791987c1d52be25be000d27661f42aeccf033183f3a1ea396ce23539be");
+
+    const SUPERCHAIN_ETH_BRIDGE: Address = address!("4200000000000000000000000000000000000024");
+    const ETH_LIQUIDITY: Address = address!("4200000000000000000000000000000000000025");
+    const CROSS_L2_INBOX: Address = address!("4200000000000000000000000000000000000022");
+
+    fn private_chain_genesis() -> Genesis {
+        serde_json::from_str(PRIVATE_CHAIN_GENESIS_FIXTURE).unwrap()
+    }
 
     #[test]
     fn projection_is_pure_and_deterministic() {
@@ -245,8 +274,7 @@ mod tests {
 
     #[test]
     fn projection_matches_the_cross_language_golden_vector() {
-        let private: Genesis = serde_json::from_str(PRIVATE_CHAIN_GENESIS_FIXTURE).unwrap();
-        let projected = project_genesis_from(&private).unwrap();
+        let projected = project_genesis_from(&private_chain_genesis()).unwrap();
         let spec = OpChainSpec::from_genesis(projected);
 
         assert_eq!(spec.genesis_header().state_root, PUBLIC_PROJECTION_STATE_ROOT);
@@ -254,15 +282,25 @@ mod tests {
     }
 
     #[test]
-    fn projection_activates_public_and_removes_private_predeploys() {
-        let projected = project_genesis_from(&private_chain_genesis()).unwrap();
-        for proxy in [
-            SUPERCHAIN_ETH_BRIDGE,
-            ETH_LIQUIDITY,
-            L2_TO_L2_MESSENGER,
-            CLAIM_REGISTRY,
-            EVENT_REPLAYER,
-        ] {
+    fn fixture_is_the_stock_shape() {
+        let private = private_chain_genesis();
+        assert_eq!(
+            implementation_code_hash(&private, L2_TO_L2_MESSENGER),
+            STOCK_L2_TO_L2_MESSENGER_CODE_HASH
+        );
+        assert_eq!(storage_at(&private, L1_BLOCK, L1_BLOCK_INTEROP_FEATURE_SLOT), TRUE_WORD);
+        assert_ne!(storage_at(&private, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT), B256::ZERO);
+        assert_eq!(private.alloc[&ETH_LIQUIDITY].balance, U256::from(u128::MAX));
+    }
+
+    #[test]
+    fn projection_rewrites_only_the_public_projection_state() {
+        let private = private_chain_genesis();
+        let projected = project_genesis_from(&private).unwrap();
+
+        for proxy in
+            [L1_BLOCK, L2_TO_L1_MESSAGE_PASSER, L2_TO_L2_MESSENGER, CLAIM_REGISTRY, EVENT_REPLAYER]
+        {
             assert_eq!(
                 storage_at(&projected, proxy, IMPLEMENTATION_SLOT),
                 address_word(code_namespace(proxy))
@@ -274,98 +312,65 @@ mod tests {
                     .is_some_and(|c| !c.is_empty())
             );
         }
-        for proxy in [NATIVE_ASSET_LIQUIDITY, LIQUIDITY_CONTROLLER, NATIVE_MINT_BRIDGE] {
+        assert_ne!(
+            private.alloc[&code_namespace(L1_BLOCK)].code,
+            projected.alloc[&code_namespace(L1_BLOCK)].code,
+            "L1BlockCGT replaced"
+        );
+        for proxy in [NATIVE_ASSET_LIQUIDITY, LIQUIDITY_CONTROLLER] {
             assert_eq!(storage_at(&projected, proxy, IMPLEMENTATION_SLOT), B256::ZERO);
             assert!(!projected.alloc.contains_key(&code_namespace(proxy)));
+            assert_eq!(projected.alloc[&proxy].balance, U256::ZERO);
         }
         assert_eq!(storage_at(&projected, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT), B256::ZERO);
-        assert!(!contains_flag(
-            storage_at(&projected, L2_DEV_FEATURE_FLAGS, DEV_FEATURE_BITMAP_SLOT),
-            PRIVATE_INTEROP_FLAG
-        ));
+        assert_eq!(storage_at(&projected, L1_BLOCK, L1_BLOCK_INTEROP_FEATURE_SLOT), TRUE_WORD);
         assert!(contains_flag(
             storage_at(&projected, L2_DEV_FEATURE_FLAGS, DEV_FEATURE_BITMAP_SLOT),
             OPTIMISM_PORTAL_INTEROP_FLAG
         ));
+        for proxy in [CROSS_L2_INBOX, SUPERCHAIN_ETH_BRIDGE, ETH_LIQUIDITY] {
+            assert_eq!(private.alloc[&proxy], projected.alloc[&proxy]);
+            assert_eq!(
+                private.alloc[&code_namespace(proxy)],
+                projected.alloc[&code_namespace(proxy)]
+            );
+        }
         assert_eq!(projected.alloc[&ETH_LIQUIDITY].balance, U256::from(u128::MAX));
     }
 
     #[test]
-    fn ordinary_genesis_is_rejected() {
-        let mut private = private_chain_genesis();
-        private
-            .alloc
-            .get_mut(&NATIVE_MINT_BRIDGE)
-            .unwrap()
-            .storage
-            .as_mut()
-            .unwrap()
-            .remove(&IMPLEMENTATION_SLOT);
-        assert_eq!(
-            project_genesis_from(&private),
-            Err(GenesisProjectionError::NativeMintBridgeInactive)
-        );
-    }
+    fn non_sources_are_rejected() {
+        let mut ordinary = private_chain_genesis();
+        delete_storage(&mut ordinary, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT);
+        assert_eq!(project_genesis_from(&ordinary), Err(GenesisProjectionError::NotCustomGasToken));
 
-    fn private_chain_genesis() -> Genesis {
-        let mut genesis = Genesis {
-            gas_limit: 30_000_000,
-            base_fee_per_gas: Some(1_000_000_000),
-            ..Default::default()
-        };
-        for proxy in [
-            L1_BLOCK,
-            L2_TO_L1_MESSAGE_PASSER,
-            L2_TO_L2_MESSENGER,
-            SUPERCHAIN_ETH_BRIDGE,
-            ETH_LIQUIDITY,
-            NATIVE_ASSET_LIQUIDITY,
-            LIQUIDITY_CONTROLLER,
-            CLAIM_REGISTRY,
-            EVENT_REPLAYER,
-            NATIVE_MINT_BRIDGE,
-        ] {
-            genesis.alloc.insert(
-                proxy,
-                GenesisAccount {
-                    code: Some(Bytes::from_static(&[0x60, 0x00])),
-                    storage: Some(BTreeMap::from([(ADMIN_SLOT, address_word(PROXY_ADMIN))])),
-                    ..Default::default()
-                },
-            );
-        }
-        for proxy in [NATIVE_ASSET_LIQUIDITY, LIQUIDITY_CONTROLLER, NATIVE_MINT_BRIDGE] {
-            genesis
-                .alloc
-                .get_mut(&proxy)
-                .unwrap()
-                .storage
-                .as_mut()
-                .unwrap()
-                .insert(IMPLEMENTATION_SLOT, address_word(code_namespace(proxy)));
-            genesis.alloc.insert(
-                code_namespace(proxy),
-                GenesisAccount { code: Some(Bytes::from_static(&[0xfe])), ..Default::default() },
-            );
-        }
-        genesis
-            .alloc
-            .get_mut(&L1_BLOCK)
-            .unwrap()
-            .storage
-            .as_mut()
-            .unwrap()
-            .insert(CUSTOM_GAS_TOKEN_SLOT, B256::with_last_byte(1));
-        genesis.alloc.insert(
-            L2_DEV_FEATURE_FLAGS,
-            GenesisAccount {
-                storage: Some(BTreeMap::from([(
-                    DEV_FEATURE_BITMAP_SLOT,
-                    B256::from(U256::from(0x10_0000_0001_u64)),
-                )])),
-                ..Default::default()
-            },
+        let mut inactive = private_chain_genesis();
+        delete_storage(&mut inactive, L1_BLOCK, L1_BLOCK_INTEROP_FEATURE_SLOT);
+        assert_eq!(project_genesis_from(&inactive), Err(GenesisProjectionError::InteropInactive));
+
+        let mut no_flag = private_chain_genesis();
+        delete_storage(&mut no_flag, L2_DEV_FEATURE_FLAGS, DEV_FEATURE_BITMAP_SLOT);
+        assert_eq!(project_genesis_from(&no_flag), Err(GenesisProjectionError::InteropInactive));
+
+        let mut other_release = private_chain_genesis();
+        let implementation =
+            other_release.alloc.get_mut(&code_namespace(L2_TO_L2_MESSENGER)).unwrap();
+        let mut code = alloc::vec![0x00_u8];
+        code.extend_from_slice(implementation.code.as_ref().unwrap());
+        implementation.code = Some(Bytes::from(code));
+        assert_eq!(
+            project_genesis_from(&other_release),
+            Err(GenesisProjectionError::MessengerNotStock)
         );
-        genesis
+
+        let projected = project_genesis_from(&private_chain_genesis()).unwrap();
+        assert!(project_genesis_from(&projected).is_err());
+
+        let mut half_projected = private_chain_genesis();
+        activate_proxy(&mut half_projected, CLAIM_REGISTRY, Bytes::from_static(&[0xfe]));
+        assert_eq!(
+            project_genesis_from(&half_projected),
+            Err(GenesisProjectionError::AlreadyProjected)
+        );
     }
 }

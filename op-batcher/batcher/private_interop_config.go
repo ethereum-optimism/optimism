@@ -36,6 +36,9 @@ type PrivateInteropCLIConfig struct {
 	// MaxRangeBytes is the uncompressed producer-side byte budget.
 	MaxRangeBytes uint64
 
+	// ExtraEmitters are additional application emitters replayed onto the projection, as hex.
+	ExtraEmitters []string
+
 	// RollupConfigHash and DepSetHash are the claim's two configuration commitments, as hex.
 	RollupConfigHash string
 	DepSetHash       string
@@ -53,6 +56,7 @@ func ReadPrivateInteropCLIConfig(ctx *cli.Context) PrivateInteropCLIConfig {
 		PublicProjectionRPC:     ctx.String(flags.PrivateInteropPublicProjectionRPCFlag.Name),
 		MaxBlocksPerRange:       ctx.Uint64(flags.PrivateInteropMaxBlocksPerRangeFlag.Name),
 		MaxRangeBytes:           ctx.Uint64(flags.PrivateInteropMaxRangeBytesFlag.Name),
+		ExtraEmitters:           ctx.StringSlice(flags.PrivateInteropExtraEmittersFlag.Name),
 		RollupConfigHash:        ctx.String(flags.PrivateInteropRollupConfigHashFlag.Name),
 		DepSetHash:              ctx.String(flags.PrivateInteropDepSetHashFlag.Name),
 		GasLimitExport:          ctx.Uint64(flags.PrivateInteropGasLimitExportFlag.Name),
@@ -60,6 +64,13 @@ func ReadPrivateInteropCLIConfig(ctx *cli.Context) PrivateInteropCLIConfig {
 		GasLimitEvent:           ctx.Uint64(flags.PrivateInteropGasLimitEventFlag.Name),
 		GasLimitClaim:           ctx.Uint64(flags.PrivateInteropGasLimitClaimFlag.Name),
 	}
+}
+
+// Enabled reports whether the group is in use. The genesis path is the switch: there is no marker
+// in the rollup config, so a batcher is a private-interop batcher exactly when it is given the
+// private-chain genesis to project.
+func (c *PrivateInteropCLIConfig) Enabled() bool {
+	return c.PrivateChainGenesisPath != ""
 }
 
 // minProjectionTxGas is the intrinsic gas of a transaction with calldata. A gas limit under it
@@ -84,6 +95,9 @@ func (c *PrivateInteropCLIConfig) Check() error {
 	}
 	if c.MaxRangeBytes == 0 {
 		return errors.New("private interop: --private-interop.max-range-bytes must be greater than zero")
+	}
+	if _, err := parseEmitters(c.ExtraEmitters); err != nil {
+		return err
 	}
 	for _, f := range []struct {
 		flag, value string
@@ -118,6 +132,7 @@ type PrivateInteropSettings struct {
 	PublicProjectionRPC     string
 	MaxBlocksPerRange       uint64
 	MaxRangeBytes           uint64
+	ExtraEmitters           []common.Address
 
 	ClaimRegistry    common.Address
 	EventReplayer    common.Address
@@ -136,11 +151,13 @@ func (c *PrivateInteropCLIConfig) Resolve() (*PrivateInteropSettings, error) {
 	}
 	rollupConfigHash, _ := parseHash(flags.PrivateInteropRollupConfigHashFlag.Name, c.RollupConfigHash)
 	depSetHash, _ := parseHash(flags.PrivateInteropDepSetHashFlag.Name, c.DepSetHash)
+	emitters, _ := parseEmitters(c.ExtraEmitters)
 	return &PrivateInteropSettings{
 		PrivateChainGenesisPath: c.PrivateChainGenesisPath,
 		PublicProjectionRPC:     c.PublicProjectionRPC,
 		MaxBlocksPerRange:       c.MaxBlocksPerRange,
 		MaxRangeBytes:           c.MaxRangeBytes,
+		ExtraEmitters:           emitters,
 		ClaimRegistry:           predeploys.ClaimRegistryAddr,
 		EventReplayer:           predeploys.EventReplayerAddr,
 		ReplayMessenger:         predeploys.L2toL2CrossDomainMessengerAddr,
@@ -170,6 +187,30 @@ func parseHash(flag, value string) (common.Hash, error) {
 		return common.Hash{}, fmt.Errorf("private interop: --%s is the zero hash", flag)
 	}
 	return h, nil
+}
+
+// parseEmitters accepts full 20-byte hex addresses, none zero and none repeated: an emitter set is
+// consensus-relevant, and a typo that silently dropped or doubled an emitter would renumber every
+// replayed log.
+func parseEmitters(values []string) ([]common.Address, error) {
+	out := make([]common.Address, 0, len(values))
+	seen := make(map[common.Address]struct{}, len(values))
+	for _, value := range values {
+		b, err := hexToFixed(value, common.AddressLength)
+		if err != nil {
+			return nil, fmt.Errorf("private interop: --%s value %q: %w", flags.PrivateInteropExtraEmittersFlag.Name, value, err)
+		}
+		addr := common.BytesToAddress(b)
+		if addr == (common.Address{}) {
+			return nil, fmt.Errorf("private interop: --%s cannot contain the zero address", flags.PrivateInteropExtraEmittersFlag.Name)
+		}
+		if _, ok := seen[addr]; ok {
+			return nil, fmt.Errorf("private interop: --%s repeats %s", flags.PrivateInteropExtraEmittersFlag.Name, addr)
+		}
+		seen[addr] = struct{}{}
+		out = append(out, addr)
+	}
+	return out, nil
 }
 
 func hexToFixed(value string, n int) ([]byte, error) {

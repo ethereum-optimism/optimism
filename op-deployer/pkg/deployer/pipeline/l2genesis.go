@@ -91,13 +91,11 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 
 	cgt := buildCGTConfig(thisIntent)
 
-	devFeatureBitmap, err := buildDevFeatureBitmap(intent, thisIntent)
+	devFeatureBitmap, err := buildDevFeatureBitmap(intent)
 
 	if err != nil {
 		return err
 	}
-
-	pi := buildPrivateInteropConfig(thisIntent)
 
 	if err := script.Run(opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
@@ -130,9 +128,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		LiquidityControllerOwner:   cgt.LiquidityControllerOwner,
 		DevFeatureBitmap:           devFeatureBitmap,
 		UseInterop:                 intent.UseInterop,
-		// Private interop configuration from intent
-		PrivateInteropCounterpartyChainID: pi.CounterpartyChainID,
-		PrivateInteropLockVault:           pi.LockVault,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -144,12 +139,11 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		return fmt.Errorf("failed to dump state: %w", err)
 	}
 
-	// Tagged L2Genesis artifacts predating the #21339 prank nonce reset leave the proxy admin
-	// owner with a bumped nonce, so allow it as a plain EOA.
-	allowedEOAs := []common.Address{thisIntent.Roles.L2ProxyAdminOwner}
 	if err := genesis.CheckL2GenesisAllocs(dump, genesis.CheckL2AllocsOpts{
 		FundDevAccounts: overrides.FundDevAccounts,
-		AllowedEOAs:     allowedEOAs,
+		// Tagged L2Genesis artifacts predating the #21339 prank nonce reset leave the
+		// proxy admin owner with a bumped nonce, so allow it as a plain EOA.
+		AllowedEOAs: []common.Address{thisIntent.Roles.L2ProxyAdminOwner},
 	}); err != nil {
 		return fmt.Errorf("L2 genesis allocs failed validation: %w", err)
 	}
@@ -223,17 +217,15 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 	return big.NewInt(int64(n))
 }
 
-// buildDevFeatureBitmap reads the devFeatureBitmap from the global overrides, then from this
-// chain's own overrides so a bitmap can differ per chain, and returns an error if the interop
-// feature bit does not match the UseInterop intent flag. This ensures that interop feature is
-// explicitly enabled by both the intent and the boolean flag.
-//
-// The private interop bit is derived from the chain's privateInterop stanza, so the intent stays
-// the single source of truth and the bitmap cannot disagree with it.
-func buildDevFeatureBitmap(intent *state.Intent, thisIntent *state.ChainIntent) (common.Hash, error) {
-	devFeatureBitmap := readDevFeatureBitmap(intent.GlobalDeployOverrides)
-	if chainBitmap, ok := lookupDevFeatureBitmap(thisIntent.DeployOverrides); ok {
-		devFeatureBitmap = chainBitmap
+// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and returns an error if the interop feature
+// bit does not match the UseInterop intent flag. This ensures that interop feature is explicitly enabled by both the intent and the boolean flag.
+func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
+	var devFeatureBitmap common.Hash
+	switch v := intent.GlobalDeployOverrides["devFeatureBitmap"].(type) {
+	case common.Hash:
+		devFeatureBitmap = v
+	case string:
+		devFeatureBitmap = common.HexToHash(v)
 	}
 
 	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
@@ -242,47 +234,7 @@ func buildDevFeatureBitmap(intent *state.Intent, thisIntent *state.ChainIntent) 
 		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")
 	}
 
-	if thisIntent.PrivateInterop != nil {
-		devFeatureBitmap = devfeatures.EnableDevFeature(devFeatureBitmap, devfeatures.PrivateInteropFlag)
-	}
-
 	return devFeatureBitmap, nil
-}
-
-func readDevFeatureBitmap(overrides map[string]any) common.Hash {
-	bitmap, _ := lookupDevFeatureBitmap(overrides)
-	return bitmap
-}
-
-func lookupDevFeatureBitmap(overrides map[string]any) (common.Hash, bool) {
-	switch v := overrides["devFeatureBitmap"].(type) {
-	case common.Hash:
-		return v, true
-	case string:
-		return common.HexToHash(v), true
-	default:
-		return common.Hash{}, false
-	}
-}
-
-// privateInteropConfig is the flattened form of the chain's privateInterop stanza that the
-// L2Genesis script takes. Zero-valued when the chain is not part of a private interop pair.
-type privateInteropConfig struct {
-	CounterpartyChainID *big.Int
-	LockVault           common.Address
-}
-
-func buildPrivateInteropConfig(intent *state.ChainIntent) privateInteropConfig {
-	pi := intent.PrivateInterop
-	if pi == nil {
-		return privateInteropConfig{
-			CounterpartyChainID: big.NewInt(0),
-		}
-	}
-	return privateInteropConfig{
-		CounterpartyChainID: new(big.Int).SetUint64(pi.CounterpartyChainID),
-		LockVault:           pi.LockVault,
-	}
 }
 
 func defaultOverrides() l2GenesisOverrides {

@@ -18,8 +18,9 @@ import (
 //
 // The ratified topology (op-private-interop/docs/DESIGN.md, "The supernode follow module") has no
 // follower binary: the public supernode serves the private chain's follow endpoint from public
-// data. The rollup config's private_interop marker is the only activation signal. These flags
-// provide the local genesis artifact and operational scan settings.
+// data. There is no marker in any rollup config: --private-interop.chain-id names the chain and
+// --private-interop.genesis supplies the private-chain genesis the supernode projects, and setting
+// them is the only activation signal.
 
 // DefaultRoute is the sub-route the module is served at, under the chain's own route:
 // `<base>/<chainID>/claimed`. A DISTINCT route rather than a flip of the existing one, so that a
@@ -28,6 +29,13 @@ import (
 const DefaultRoute = "claimed"
 
 var (
+	ChainIDFlag = &cli.Uint64Flag{
+		Name: "private-interop.chain-id",
+		Usage: "Chain ID of the private interop chain. The supernode replaces that chain's rollup " +
+			"config with the public projection derived from --private-interop.genesis, and serves the " +
+			"claimed private view at the chain's `claimed` sibling route.",
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_CHAIN_ID"),
+	}
 	GenesisPathFlag = &cli.PathFlag{
 		Name: "private-interop.genesis",
 		Usage: "Path to the private-chain genesis. The supernode derives both the private genesis " +
@@ -45,6 +53,7 @@ var (
 
 // Flags is the whole group, registered with the supernode's activity flag set.
 var Flags = []cli.Flag{
+	ChainIDFlag,
 	GenesisPathFlag,
 	ScanStartBlockFlag,
 }
@@ -59,10 +68,18 @@ func prefixEnvVars(name string) []string {
 
 // CLIConfig is the --private-interop.* group as read from the CLI.
 //
-// The local genesis is loaded only after the rollup marker activates this module.
+// The group is all-or-nothing: Enabled reports whether either activating flag is set, and Check
+// then demands both.
 type CLIConfig struct {
+	ChainID        uint64
+	ChainIDSet     bool
 	GenesisPath    string
 	ScanStartBlock uint64
+}
+
+// Enabled reports whether the operator asked for the module at all.
+func (c CLIConfig) Enabled() bool {
+	return c.ChainIDSet || c.GenesisPath != ""
 }
 
 // ReadCLIConfig parses the flag group. A nil context returns the zero-value configuration, which is
@@ -72,13 +89,19 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		return CLIConfig{}
 	}
 	return CLIConfig{
+		ChainID:        ctx.Uint64(ChainIDFlag.Name),
+		ChainIDSet:     ctx.IsSet(ChainIDFlag.Name),
 		GenesisPath:    ctx.Path(GenesisPathFlag.Name),
 		ScanStartBlock: ctx.Uint64(ScanStartBlockFlag.Name),
 	}
 }
 
-// Check validates the group after the rollup marker activates it.
+// Check validates the group once Enabled.
 func (c CLIConfig) Check() error {
+	if !c.ChainIDSet {
+		return fmt.Errorf("%s is required: it names the chain whose rollup config the supernode "+
+			"replaces with the public projection", ChainIDFlag.Name)
+	}
 	if c.GenesisPath == "" {
 		return fmt.Errorf("%s is required: the module serves the private chain's "+
 			"genesis ref until the first claim lands, and a module that serves nothing deadlocks the "+

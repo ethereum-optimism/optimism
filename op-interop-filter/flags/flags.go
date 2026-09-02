@@ -139,6 +139,25 @@ var (
 	}
 )
 
+var (
+	// Private interop's flag group. There is no marker in a rollup config: the chain whose logs are
+	// stored at their rendered positions, and the emitter set that rendering selects, are explicit
+	// runtime configuration and must match the private batcher's.
+	PrivateInteropChainIDFlag = &cli.Uint64Flag{
+		Name: "private-interop.chain-id",
+		Usage: "Chain ID of the private interop chain this filter ingests. That chain's logs are stored " +
+			"at their rendered public-projection positions, not their raw ones. Unset on an ordinary filter.",
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_CHAIN_ID"),
+	}
+	PrivateInteropExtraEmittersFlag = &cli.StringSliceFlag{
+		Name: "private-interop.extra-emitters",
+		Usage: "Additional application log emitters the private chain's rendering replays, as hex " +
+			"addresses. The two standard interop predeploys are implicit. Must equal the private " +
+			"batcher's --private-interop.extra-emitters.",
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_EXTRA_EMITTERS"),
+	}
+)
+
 var requiredFlags = []cli.Flag{
 	L2RPCsFlag,
 }
@@ -162,6 +181,8 @@ var optionalFlags = []cli.Flag{
 	FetchConcurrencyFlag,
 	SupportLegacyCheckAccessListFormatFlag,
 	DangerouslyEnablePassthroughFlag,
+	PrivateInteropChainIDFlag,
+	PrivateInteropExtraEmittersFlag,
 }
 
 func init() {

@@ -118,7 +118,7 @@ func main() {
 // the projection itself remains a pure function and performs no network or filesystem I/O.
 func applyPrivateInteropProjection(cliCtx *cli.Context, vnCfgs map[eth.ChainID]*opnodecfg.Config) error {
 	privateInterop := claimfollow.ReadCLIConfig(cliCtx)
-	chainID, enabled, err := supernode.FindPrivateInteropChain(vnCfgs)
+	chainID, enabled, err := supernode.FindPrivateInteropChain(privateInterop, vnCfgs)
 	if err != nil {
 		return err
 	}

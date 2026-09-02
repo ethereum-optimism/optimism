@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -376,15 +375,21 @@ func TestRenderTransform_ExtraEmitterIsCarried(t *testing.T) {
 		"a different emitter set is a different numbering: the same import is now at index 3")
 }
 
-func TestRenderingEmitterSetComesFromRollupConfig(t *testing.T) {
+func TestRenderingEmitterSetComesFromFilterConfig(t *testing.T) {
 	t.Parallel()
 
-	ordinary := testRollupConfig(renderChainID, renderBlockNum, renderBlockTime)
-	require.Nil(t, renderingEmitterSet(ordinary))
+	privateID := eth.ChainIDFromUInt64(renderChainID)
+	otherID := eth.ChainIDFromUInt64(renderChainID + 1)
 
-	rendering := testRollupConfig(renderChainID, renderBlockNum, renderBlockTime)
-	rendering.PrivateInterop = &rollup.PrivateInteropConfig{ExtraEmitters: []common.Address{renderPrivateAddr}}
-	set := renderingEmitterSet(rendering)
+	ordinary := &Config{}
+	require.Nil(t, renderingEmitterSet(ordinary, privateID))
+
+	rendering := &Config{
+		PrivateInteropChainID:       &privateID,
+		PrivateInteropExtraEmitters: []common.Address{renderPrivateAddr},
+	}
+	require.Nil(t, renderingEmitterSet(rendering, otherID), "only the named chain is transformed")
+	set := renderingEmitterSet(rendering, privateID)
 	require.NotNil(t, set)
 	require.True(t, set.Renders(&gethTypes.Log{Address: renderPrivateAddr}))
 	require.False(t, set.Renders(&gethTypes.Log{Address: common.HexToAddress("0x00000000000000000000000000000000000abcde")}))
