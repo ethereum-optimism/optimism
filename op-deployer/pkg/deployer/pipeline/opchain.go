@@ -295,32 +295,12 @@ func DeploymentUsesSuperRoots(intent *state.Intent, st *state.State) (bool, erro
 	return false, nil
 }
 
-// ValidateInitialGameTypeSet rejects a mix of CANNON_KONA and
-// SUPER_CANNON_KONA initial games.
-func ValidateInitialGameTypeSet(gameTypes []uint32) error {
-	hasCannonKona := false
-	hasSuperCannonKona := false
-	for _, gameType := range gameTypes {
-		switch embedded.GameType(gameType) {
-		case embedded.GameTypeCannonKona:
-			hasCannonKona = true
-		case embedded.GameTypeSuperCannonKona:
-			hasSuperCannonKona = true
-		}
-	}
-
-	if hasCannonKona && hasSuperCannonKona {
-		return fmt.Errorf("an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games")
-	}
-	return nil
-}
-
 // ResolveInitialDeployRequirements returns requirements for a supported initial game type.
 func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirements, error) {
 	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon, embedded.GameTypeSuperPermissioned:
+	case embedded.GameTypeSuperPermissioned:
 		return InitialDeployRequirements{}, nil
-	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
+	case embedded.GameTypeSuperCannonKona:
 		return InitialDeployRequirements{
 			Permissionless:   true,
 			RequiresPrestate: true,

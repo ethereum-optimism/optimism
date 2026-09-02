@@ -264,21 +264,6 @@ func prepareChains(
 		return err
 	}
 
-	initialGameTypes := make([]uint32, 0, len(intent.Chains))
-	for _, chain := range intent.Chains {
-		if st.IsChainDeployed(chain.ID) {
-			continue
-		}
-		proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
-		if err != nil {
-			return fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
-		}
-		initialGameTypes = append(initialGameTypes, proofParams.DisputeGameType)
-	}
-	if err := pipeline.ValidateInitialGameTypeSet(initialGameTypes); err != nil {
-		return err
-	}
-
 	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	if err != nil {
 		return fmt.Errorf("failed to create interop dependency set: %w", err)

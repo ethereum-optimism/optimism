@@ -108,7 +108,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	}
 
 	assignments := make([]prestateAssignment, 0, len(intent.Chains))
-	initialGameTypes := make([]uint32, 0, len(intent.Chains))
 	hasActiveSelectedConsumer := false
 	for _, chain := range intent.Chains {
 		if st.IsChainDeployed(chain.ID) {
@@ -132,7 +131,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
 		}
 		gameType := embedded.GameType(preparedGameType)
-		initialGameTypes = append(initialGameTypes, preparedGameType)
 
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
 		var validateCandidate func(resolvedPrestate) error
@@ -157,9 +155,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		assignments = append(assignments, assignment)
 	}
 
-	if err := pipeline.ValidateInitialGameTypeSet(initialGameTypes); err != nil {
-		return err
-	}
 	// Reject prestate flags that would otherwise be silently ignored.
 	if selectedCommand.set && !hasActiveSelectedConsumer {
 		return fmt.Errorf("--%s was supplied but no undeployed chain resolves to a game type that uses the %s; check respectedGameType in the intent", selectedPrestateRole.flagName, selectedPrestateRole.name)
@@ -178,7 +173,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	}
 	for _, assignment := range assignments {
 		switch assignment.GameType {
-		case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
+		case embedded.GameTypeSuperCannonKona:
 			cfg.Logger.Info("committed deployment prestate", "chainID", assignment.ChainID.Hex(), "selected", assignment.Selected.Hex())
 		}
 	}

@@ -335,29 +335,6 @@ func TestContinuationExpectedStateUsesPreparedContracts(t *testing.T) {
 	require.Equal(t, recorded, chainState.OpChainContracts)
 }
 
-func TestValidateContinuationGameTypes(t *testing.T) {
-	chain := func(gameType embedded.GameType) continuationChain {
-		var dci opcm.DeployOPChainInput
-		dci.DisputeGameType = uint32(gameType)
-		return continuationChain{dci: dci}
-	}
-
-	require.NoError(t, validateContinuationGameTypes(nil))
-	require.NoError(t, validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypePermissionedCannon),
-		chain(embedded.GameTypeCannonKona),
-	}))
-	require.NoError(t, validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypeSuperPermissioned),
-		chain(embedded.GameTypeSuperCannonKona),
-	}))
-
-	require.ErrorContains(t, validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypeCannonKona),
-		chain(embedded.GameTypeSuperCannonKona),
-	}), "cannot mix CANNON_KONA and SUPER_CANNON_KONA")
-}
-
 func TestClassifyContinuationAddresses(t *testing.T) {
 	contracts := continuationVerificationAddresses(embedded.GameTypeCannonKona)
 	backend := newContinuationVerificationBackend()

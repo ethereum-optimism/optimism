@@ -170,7 +170,6 @@ func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
 		name     string
 		gameType embedded.GameType
 	}{
-		{name: "CANNON_KONA", gameType: embedded.GameTypeCannonKona},
 		{name: "SUPER_CANNON_KONA", gameType: embedded.GameTypeSuperCannonKona},
 	}
 
@@ -247,6 +246,16 @@ func Test_makeDCI_RejectsInvalidInitialGameTypeBeforePermissionlessHandling(t *t
 			name:     "CANNON",
 			gameType: uint32(embedded.GameTypeCannon),
 			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "PERMISSIONED_CANNON",
+			gameType: uint32(embedded.GameTypePermissionedCannon),
+			wantErr:  "unsupported initial dispute game type 1",
+		},
+		{
+			name:     "CANNON_KONA",
+			gameType: uint32(embedded.GameTypeCannonKona),
+			wantErr:  "unsupported initial dispute game type 8",
 		},
 		{
 			name:     "ZK_DISPUTE_GAME",
@@ -388,11 +397,6 @@ func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
 		expectedFallback common.Hash
 	}{
 		{
-			name:             "CANNON_KONA",
-			gameType:         embedded.GameTypeCannonKona,
-			expectedFallback: opcm.PermissionedCannonFallbackPrestatePlaceholder,
-		},
-		{
 			name:             "SUPER_CANNON_KONA",
 			gameType:         embedded.GameTypeSuperCannonKona,
 			expectedFallback: common.Hash{},
@@ -425,7 +429,7 @@ func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
 
 func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
-	intent, chain, st := continuationDCITestInputs(chainID, embedded.GameTypePermissionedCannon)
+	intent, chain, st := continuationDCITestInputs(chainID, embedded.GameTypeSuperPermissioned)
 	proofPrestate := common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = proofPrestate
 
@@ -436,9 +440,9 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	require.NoError(t, err)
 	second, err := BuildContinuationDCI(chainID, st)
 	require.NoError(t, err)
-	require.Equal(t, uint32(embedded.GameTypePermissionedCannon), got.DisputeGameType)
+	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), got.DisputeGameType)
 	require.Equal(t, proofPrestate, got.DisputeAbsolutePrestate)
-	require.Equal(t, proofPrestate, got.CannonAbsolutePrestate)
+	require.Zero(t, got.CannonAbsolutePrestate)
 	require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 	require.Zero(t, got.StartingAnchorRoot.L2SequenceNumber.Sign())
 	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
@@ -527,9 +531,25 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 		{
 			name: "gate 7 rejects game type drift",
 			mutate: func(_ *state.Intent, chain *state.ChainIntent, _ *state.State) {
-				chain.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
+				chain.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperPermissioned
 			},
 			wantErrors: []string{"initial game type changed after prepare", "op-deployer prepare"},
+		},
+		{
+			name: "gate 7 rejects prepared PERMISSIONED_CANNON",
+			mutate: func(_ *state.Intent, chain *state.ChainIntent, st *state.State) {
+				chain.DeployOverrides["respectedGameType"] = embedded.GameTypePermissionedCannon
+				st.Chains[0].InitialGameType = ptr.New(uint32(embedded.GameTypePermissionedCannon))
+			},
+			wantErrors: []string{"invalid prepared game type", "unsupported initial dispute game type 1", "op-deployer prepare"},
+		},
+		{
+			name: "gate 7 rejects prepared CANNON_KONA",
+			mutate: func(_ *state.Intent, chain *state.ChainIntent, st *state.State) {
+				chain.DeployOverrides["respectedGameType"] = embedded.GameTypeCannonKona
+				st.Chains[0].InitialGameType = ptr.New(uint32(embedded.GameTypeCannonKona))
+			},
+			wantErrors: []string{"invalid prepared game type", "unsupported initial dispute game type 8", "op-deployer prepare"},
 		},
 		{
 			name: "gate 7 rejects unsupported prepared game type",
@@ -586,7 +606,7 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			intent, chain, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
+			intent, chain, st := continuationDCITestInputs(chainID, embedded.GameTypeSuperCannonKona)
 			tt.mutate(intent, chain, st)
 
 			_, err := BuildContinuationDCI(chainID, st)
@@ -643,7 +663,7 @@ func TestBuildContinuationDCI_UsesLateBoundPrestate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			intent, chain, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
+			intent, chain, st := continuationDCITestInputs(chainID, embedded.GameTypeSuperCannonKona)
 			prestate := st.Chains[0].Prestate
 			require.NotEqual(t, standard.DisputeAbsolutePrestate, prestate)
 			if tt.configure != nil {
@@ -661,7 +681,7 @@ func TestBuildContinuationDCI_LosslessAnchorSequenceTransport(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 
 	t.Run("uint64 max minus one is transported exactly", func(t *testing.T) {
-		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
+		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeSuperCannonKona)
 		st.Chains[0].StartingAnchorRoot.L2SequenceNumber = math.MaxUint64 - 1
 
 		got, err := BuildContinuationDCI(chainID, st)
@@ -674,7 +694,7 @@ func TestBuildContinuationDCI_LosslessAnchorSequenceTransport(t *testing.T) {
 	})
 
 	t.Run("uint64 max is rejected by the generic transport bound", func(t *testing.T) {
-		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
+		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeSuperCannonKona)
 		st.Chains[0].StartingAnchorRoot.L2SequenceNumber = math.MaxUint64
 
 		_, err := BuildContinuationDCI(chainID, st)
@@ -838,7 +858,7 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 		{
 			name:     "PERMISSIONED_CANNON",
 			gameType: uint32(embedded.GameTypePermissionedCannon),
-			want:     InitialDeployRequirements{},
+			wantErr:  "unsupported initial dispute game type 1",
 		},
 		{
 			name:     "SUPER_PERMISSIONED",
@@ -848,10 +868,7 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 		{
 			name:     "CANNON_KONA",
 			gameType: uint32(embedded.GameTypeCannonKona),
-			want: InitialDeployRequirements{
-				Permissionless:   true,
-				RequiresPrestate: true,
-			},
+			wantErr:  "unsupported initial dispute game type 8",
 		},
 		{
 			name:     "SUPER_CANNON_KONA",
@@ -886,56 +903,6 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 			if got.Permissionless {
 				require.True(t, got.RequiresPrestate)
 			}
-		})
-	}
-}
-
-func TestValidateInitialGameTypeSet(t *testing.T) {
-	tests := []struct {
-		name      string
-		gameTypes []uint32
-		wantErr   string
-	}{
-		{name: "empty"},
-		{
-			name:      "all CANNON_KONA",
-			gameTypes: []uint32{uint32(embedded.GameTypeCannonKona), uint32(embedded.GameTypeCannonKona)},
-		},
-		{
-			name:      "all SUPER_CANNON_KONA",
-			gameTypes: []uint32{uint32(embedded.GameTypeSuperCannonKona), uint32(embedded.GameTypeSuperCannonKona)},
-		},
-		{
-			name:      "all PERMISSIONED_CANNON",
-			gameTypes: []uint32{uint32(embedded.GameTypePermissionedCannon), uint32(embedded.GameTypePermissionedCannon)},
-		},
-		{
-			// Legacy and super permissionless games cannot be mixed in one initial set.
-			name: "mixed",
-			gameTypes: []uint32{
-				uint32(embedded.GameTypeCannonKona),
-				uint32(embedded.GameTypeSuperCannonKona),
-			},
-			wantErr: "an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games",
-		},
-		{
-			// Permissioned selectors do not affect the permissionless-family consistency check.
-			name: "PERMISSIONED_CANNON alongside SUPER_CANNON_KONA",
-			gameTypes: []uint32{
-				uint32(embedded.GameTypePermissionedCannon),
-				uint32(embedded.GameTypeSuperCannonKona),
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateInitialGameTypeSet(tt.gameTypes)
-			if tt.wantErr != "" {
-				require.EqualError(t, err, tt.wantErr)
-				return
-			}
-			require.NoError(t, err)
 		})
 	}
 }
