@@ -23,7 +23,6 @@ import (
 	w3eth "github.com/lmittmann/w3/module/eth"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -53,34 +52,6 @@ type MigrateInputV2 struct {
 	DisputeGameConfigs        []DisputeGameConfigV2
 	StartingAnchorRoot        Proposal
 	StartingRespectedGameType uint32
-}
-
-type zkDisputeGameConfig struct {
-	AbsolutePrestate     common.Hash
-	MaxChallengeDuration uint64
-	MaxProveDuration     uint64
-	ChallengerBond       *big.Int
-}
-
-var zkGameArgsEncoder = w3.MustNewFunc(
-	"dummy((bytes32 absolutePrestate,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))",
-	"",
-)
-
-var setInteropDisputeGamesFn = w3.MustNewFunc(
-	"setInteropDisputeGames((address[] chainSystemConfigs,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(bytes32 root,uint256 l2SequenceNumber) startingAnchorRoot,uint32 startingRespectedGameType))",
-	"",
-)
-
-func encodeZKDisputeGameArgs(cfg zkDisputeGameConfig) ([]byte, error) {
-	data, err := zkGameArgsEncoder.EncodeArgs(&cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode ZK game arguments: %w", err)
-	}
-	if len(data) < 4 {
-		return nil, fmt.Errorf("failed to encode ZK game arguments: data too short")
-	}
-	return data[4:], nil
 }
 
 func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts, client *ethclient.Client, owner common.Address) (common.Address, *delegatecallproxy.Delegatecallproxy) {
@@ -301,54 +272,6 @@ func sortedChainSystemConfigs(migration *interopMigrationState) []common.Address
 		chainSystemConfigs = append(chainSystemConfigs, migration.l2Deployments[chainID].SystemConfigProxyAddr())
 	}
 	return chainSystemConfigs
-}
-
-func setInteropZKDisputeGameForRuntime(
-	t devtest.T,
-	keys devkeys.Keys,
-	migration *interopMigrationState,
-	l1ChainID eth.ChainID,
-	l1EL L1ELNode,
-	startingAnchorRoot Proposal,
-	sharedDGF common.Address,
-	programVKey common.Hash,
-	cfg ZKDisputeGameConfig,
-) {
-	require := t.Require()
-	require.NoError(cfg.validate())
-
-	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
-	require.NoError(err)
-	defer rpcClient.Close()
-	client := ethclient.NewClient(rpcClient)
-	w3Client := w3.NewClient(rpcClient)
-
-	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
-	gameArgs, err := encodeZKDisputeGameArgs(zkDisputeGameConfig{
-		AbsolutePrestate:     programVKey,
-		MaxChallengeDuration: uint64(cfg.MaxChallengeDuration / time.Second),
-		MaxProveDuration:     uint64(cfg.MaxProveDuration / time.Second),
-		ChallengerBond:       new(big.Int).Set(defaultInitBond),
-	})
-	require.NoError(err)
-
-	input := MigrateInputV2{
-		ChainSystemConfigs: sortedChainSystemConfigs(migration),
-		DisputeGameConfigs: []DisputeGameConfigV2{
-			{Enabled: false, InitBond: new(big.Int), GameType: superCannonKonaGameType},
-			{Enabled: true, InitBond: new(big.Int).Set(defaultInitBond), GameType: uint32(gameTypes.ZKDisputeGameType), GameArgs: gameArgs},
-		},
-		StartingAnchorRoot:        startingAnchorRoot,
-		StartingRespectedGameType: uint32(gameTypes.ZKDisputeGameType),
-	}
-	callData, err := setInteropDisputeGamesFn.EncodeArgs(&input)
-	require.NoError(err, "failed to encode ZK dispute game swap")
-
-	t.Log("Installing shared ZK dispute game via SetCode delegatecall")
-	delegateCallWithSetCode(t, l1PAOKey, client, migration.opcmImpl, callData)
-
-	require.Equal(common.Address{}, getGameImpl(t, w3Client, sharedDGF, superCannonKonaGameType), "retired super game must be disabled")
-	require.NotEqual(common.Address{}, getGameImpl(t, w3Client, sharedDGF, uint32(gameTypes.ZKDisputeGameType)), "ZK dispute game must be installed")
 }
 
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {

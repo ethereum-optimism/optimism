@@ -315,6 +315,38 @@ func ValidateInitialGameTypeSet(gameTypes []uint32) error {
 	return nil
 }
 
+func ValidateInitialGameTypeForOPCM(gameType uint32, requireSuperGame bool, opcmAddr common.Address) error {
+	var isSuperGame bool
+	switch embedded.GameType(gameType) {
+	case embedded.GameTypePermissionedCannon, embedded.GameTypeCannonKona:
+	case embedded.GameTypeSuperPermissioned, embedded.GameTypeSuperCannonKona:
+		isSuperGame = true
+	default:
+		return fmt.Errorf("unsupported initial dispute game type %d", gameType)
+	}
+	if isSuperGame == requireSuperGame {
+		return nil
+	}
+
+	permissionless, permissioned := embedded.GameTypeCannonKona, embedded.GameTypePermissionedCannon
+	enabled := "disabled"
+	if requireSuperGame {
+		permissionless, permissioned = embedded.GameTypeSuperCannonKona, embedded.GameTypeSuperPermissioned
+		enabled = "enabled"
+	}
+	return fmt.Errorf(
+		"initial dispute game type %s (%d) is not deployable by the OPCM at %s: it has SUPER_ROOT_GAMES_MIGRATION %s, which accepts only %s (%d) or %s (%d)",
+		initialGameTypeName(gameType),
+		gameType,
+		opcmAddr,
+		enabled,
+		initialGameTypeName(uint32(permissionless)),
+		permissionless,
+		initialGameTypeName(uint32(permissioned)),
+		permissioned,
+	)
+}
+
 // ResolveInitialDeployRequirements returns requirements for a supported initial game type.
 func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirements, error) {
 	switch embedded.GameType(gameType) {

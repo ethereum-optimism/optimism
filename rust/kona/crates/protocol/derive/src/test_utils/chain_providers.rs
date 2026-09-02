@@ -1,7 +1,7 @@
 //! Test Utilities for chain provider traits
 
 use crate::{
-    errors::{PipelineError, PipelineErrorKind},
+    errors::{PipelineError, PipelineErrorKind, ResetError},
     traits::{ChainProvider, L2ChainProvider},
 };
 use alloc::{boxed::Box, string::ToString, sync::Arc, vec::Vec};
@@ -91,14 +91,22 @@ pub enum TestProviderError {
     /// The L2 block was not found.
     #[error("L2 Block not found")]
     L2BlockNotFound,
+    /// The L2 block was not found by hash.
+    #[error("L2 block {0} not found by hash")]
+    L2BlockHashNotFound(B256),
     /// The system config was not found.
     #[error("System config not found")]
-    SystemConfigNotFound(u64),
+    SystemConfigNotFound(B256),
 }
 
 impl From<TestProviderError> for PipelineErrorKind {
     fn from(val: TestProviderError) -> Self {
-        PipelineError::Provider(val.to_string()).temp()
+        match val {
+            TestProviderError::L2BlockHashNotFound(hash) => {
+                ResetError::BlockNotFound(hash.into()).reset()
+            }
+            other => PipelineError::Provider(other.to_string()).temp(),
+        }
     }
 }
 
@@ -159,8 +167,8 @@ pub struct TestL2ChainProvider {
     pub short_circuit: bool,
     /// Blocks
     pub op_blocks: Vec<OpBlock>,
-    /// System configs
-    pub system_configs: HashMap<u64, SystemConfig>,
+    /// System configs, keyed by L2 block hash
+    pub system_configs: HashMap<B256, SystemConfig>,
 }
 
 impl TestL2ChainProvider {
@@ -168,7 +176,7 @@ impl TestL2ChainProvider {
     pub const fn new(
         blocks: Vec<L2BlockInfo>,
         op_blocks: Vec<OpBlock>,
-        system_configs: HashMap<u64, SystemConfig>,
+        system_configs: HashMap<B256, SystemConfig>,
     ) -> Self {
         Self { blocks, short_circuit: false, op_blocks, system_configs }
     }
@@ -189,12 +197,28 @@ impl BatchValidationProvider for TestL2ChainProvider {
             .ok_or_else(|| TestProviderError::BlockNotFound)
     }
 
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
+    async fn l2_block_info_by_hash(&mut self, hash: B256) -> Result<L2BlockInfo, Self::Error> {
+        if self.short_circuit {
+            return self
+                .blocks
+                .first()
+                .copied()
+                .ok_or(TestProviderError::L2BlockHashNotFound(hash));
+        }
+        self.blocks
+            .iter()
+            .find(|b| b.block_info.hash == hash)
+            .copied()
+            .ok_or(TestProviderError::L2BlockHashNotFound(hash))
+    }
+
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         self.op_blocks
             .iter()
             .find(|p| p.header.number == number)
             .cloned()
-            .ok_or_else(|| TestProviderError::L2BlockNotFound)
+            .map(Arc::new)
+            .ok_or(TestProviderError::L2BlockNotFound)
     }
 }
 
@@ -202,14 +226,11 @@ impl BatchValidationProvider for TestL2ChainProvider {
 impl L2ChainProvider for TestL2ChainProvider {
     type Error = TestProviderError;
 
-    async fn system_config_by_number(
+    async fn system_config_by_l2_hash(
         &mut self,
-        number: u64,
+        hash: B256,
         _: Arc<RollupConfig>,
     ) -> Result<SystemConfig, <Self as L2ChainProvider>::Error> {
-        self.system_configs
-            .get(&number)
-            .ok_or_else(|| TestProviderError::SystemConfigNotFound(number))
-            .cloned()
+        self.system_configs.get(&hash).ok_or(TestProviderError::SystemConfigNotFound(hash)).cloned()
     }
 }

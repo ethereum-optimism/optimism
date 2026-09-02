@@ -4,7 +4,9 @@ pragma solidity 0.8.15;
 // Libraries
 import { Clone } from "@solady/utils/Clone.sol";
 import { Claim, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
-import { AlreadyInitialized, BadAuth, BadExtraData, UnknownChainId } from "src/dispute/lib/Errors.sol";
+import {
+    AlreadyInitialized, BadAuth, BadExtraData, IncorrectBondAmount, UnknownChainId
+} from "src/dispute/lib/Errors.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -22,8 +24,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         invalidated through the AnchorStateRegistry blacklist before finalization.
 contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice The timestamp at which the game was created.
     Timestamp public createdAt;
@@ -45,6 +47,8 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice Initializes the contract.
     function initialize() external payable {
         if (initialized) revert AlreadyInitialized();
+        // The game has no bond accounting, so any value sent would be trapped in the clone.
+        if (msg.value != 0) revert IncorrectBondAmount();
         if (!_verifyInitCallDataLength()) revert BadExtraData();
         if (Hashing.hashSuperRootProof(Encoding.decodeSuperRootProof(extraData())) != rootClaim().raw()) {
             revert BadExtraData();

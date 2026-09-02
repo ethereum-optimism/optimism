@@ -73,10 +73,12 @@ func TestWithLocalContractSourcesAt(t *testing.T) {
 
 func TestParseL1Fork(t *testing.T) {
 	tests := map[string]forks.Fork{
-		"pectra": forks.Prague,
-		"prague": forks.Prague,
-		"fusaka": forks.Osaka,
-		"osaka":  forks.Osaka,
+		"pectra":      forks.Prague,
+		"prague":      forks.Prague,
+		"fusaka":      forks.Osaka,
+		"osaka":       forks.Osaka,
+		"glamsterdam": forks.Amsterdam,
+		"amsterdam":   forks.Amsterdam,
 	}
 	for input, expected := range tests {
 		t.Run(input, func(t *testing.T) {
@@ -86,7 +88,7 @@ func TestParseL1Fork(t *testing.T) {
 		})
 	}
 
-	for _, input := range []string{"", "dencun", "cancun", "frontier", "Fusaka", " osaka ", "bpo-1"} {
+	for _, input := range []string{"", "dencun", "cancun", "frontier", "CANCUN", "Fusaka", "Osaka", " osaka ", "bpo1", "bpo2", "bpo3", "bpo4", "bpo5", "bpo-1", "BPO_5", " amsterdam "} {
 		t.Run("reject "+input, func(t *testing.T) {
 			_, err := parseL1Fork(input)
 			require.EqualError(t, err, `unsupported L1 fork "`+input+`"`)
@@ -147,6 +149,31 @@ func TestDeployerOptionsOverrideDevstackL1Fork(t *testing.T) {
 	require.NotNil(t, intent.L1DevGenesisParams.PragueTimeOffset)
 	require.Zero(t, *intent.L1DevGenesisParams.PragueTimeOffset)
 	require.Nil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
+	require.Nil(t, intent.L1DevGenesisParams.BPO1TimeOffset)
+}
+
+func TestDevstackFutureL1ForkAddsBlobSchedule(t *testing.T) {
+	t.Setenv(DevstackL1ForkEnvVar, "glamsterdam")
+	builder := newValidIntentBuilder()
+	builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
+	builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+
+	applyConfigCommons(devtest.SerialT(t), keys, DefaultL1ID, builder)
+
+	intent, err := builder.Build()
+	require.NoError(t, err)
+	require.NotNil(t, intent.L1DevGenesisParams.AmsterdamTimeOffset)
+	require.Zero(t, *intent.L1DevGenesisParams.AmsterdamTimeOffset)
+	schedule := intent.L1DevGenesisParams.BlobSchedule
+	require.NotNil(t, schedule)
+	require.NotNil(t, schedule.BPO1)
+	require.NotNil(t, schedule.BPO2)
+	require.NotNil(t, schedule.BPO3)
+	require.NotNil(t, schedule.BPO4)
+	require.NotNil(t, schedule.BPO5)
+	require.NotNil(t, schedule.Amsterdam)
 }
 
 func newValidIntentBuilder() intentbuilder.Builder {

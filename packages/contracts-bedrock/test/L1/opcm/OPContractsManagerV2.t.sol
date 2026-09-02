@@ -1099,6 +1099,28 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Tests that enabling the ZK dispute game with a zero absolute prestate reverts. The
+    ///         prestate is the verification key, so an empty one makes the game unplayable.
+    function test_upgrade_enableZKGameZeroPrestate_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
+        v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
+        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
+            IOPContractsManagerUtils.ZKDisputeGameConfig({
+                absolutePrestate: Claim.wrap(bytes32(0)),
+                maxChallengeDuration: Duration.wrap(uint64(7 days)),
+                maxProveDuration: Duration.wrap(uint64(3 days)),
+                challengerBond: 1 ether
+            })
+        );
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
     /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
     function test_upgrade_enableZKGameWithoutDevFeature_reverts() public {
         // Mock the container to report ZK_DISPUTE_GAME dev feature as disabled, regardless of
@@ -2518,6 +2540,76 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         });
     }
 
+    /// @notice Helper function to append a dispute game config to a migrate input.
+    /// @param _input The migrate input to append to.
+    /// @param _gameConfig The dispute game config to append.
+    function _appendDisputeGameConfig(
+        IOPContractsManagerMigrator.MigrateInput memory _input,
+        IOPContractsManagerUtils.DisputeGameConfig memory _gameConfig
+    )
+        internal
+        pure
+    {
+        IOPContractsManagerUtils.DisputeGameConfig[] memory existing = _input.disputeGameConfigs;
+        IOPContractsManagerUtils.DisputeGameConfig[] memory updated =
+            new IOPContractsManagerUtils.DisputeGameConfig[](existing.length + 1);
+        for (uint256 i = 0; i < existing.length; i++) {
+            updated[i] = existing[i];
+        }
+        updated[existing.length] = _gameConfig;
+        _input.disputeGameConfigs = updated;
+    }
+
+    /// @notice Helper function to build a SUPER_CANNON_KONA dispute game config. SUPER_CANNON_KONA
+    ///         is a permissionless super-root FDG, so its game args are the single absolute
+    ///         prestate.
+    /// @param _initBond The init bond for the game.
+    /// @param _absolutePrestate The absolute prestate for the game.
+    /// @return config_ The dispute game config.
+    function _superCannonKonaConfig(
+        uint256 _initBond,
+        Claim _absolutePrestate
+    )
+        internal
+        pure
+        returns (IOPContractsManagerUtils.DisputeGameConfig memory config_)
+    {
+        config_ = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: _initBond,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _absolutePrestate }))
+        });
+    }
+
+    /// @notice Helper function to build a ZK_DISPUTE_GAME dispute game config. ZK_DISPUTE_GAME is
+    ///         a permissionless super-root game, so its absolute prestate is the verification key.
+    /// @param _initBond The init bond for the game.
+    /// @param _absolutePrestate The absolute prestate for the game.
+    /// @return config_ The dispute game config.
+    function _zkDisputeGameConfig(
+        uint256 _initBond,
+        Claim _absolutePrestate
+    )
+        internal
+        pure
+        returns (IOPContractsManagerUtils.DisputeGameConfig memory config_)
+    {
+        config_ = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: _initBond,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
+                    absolutePrestate: _absolutePrestate,
+                    maxChallengeDuration: Duration.wrap(uint64(7 days)),
+                    maxProveDuration: Duration.wrap(uint64(3 days)),
+                    challengerBond: 1 ether
+                })
+            )
+        });
+    }
+
     /// @notice Helper function to execute a migration.
     /// @param _input The input to the migration function.
     function _doMigration(IOPContractsManagerMigrator.MigrateInput memory _input) internal {
@@ -2597,34 +2689,61 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         opcmV2.migrate(input);
     }
 
-    /// @notice Tests that setInteropDisputeGames swaps the shared dispute games of an
-    ///         already-interop set from super fault proofs to the ZK dispute game.
-    function test_setInteropDisputeGames_succeeds() public {
+    /// @notice Tests that upgrade re-points the shared dispute games of a migrated interop set.
+    ///         The shared contracts are reachable from every chain in the set, so upgrading a
+    ///         single chain applies the new dispute game config to the whole set.
+    function test_upgrade_migratedSetSwapsSharedDisputeGames_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
-        // First migrate the two chains into an interop set with super-permissioned fault proofs.
         _enableEthLockboxes();
         _doMigration(_getDefaultMigrateInput());
 
-        // Resolve the shared infra established by the migration.
         IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
         IAnchorStateRegistry sharedAsr = portal1.anchorStateRegistry();
         IDisputeGameFactory sharedDgf = sharedAsr.disputeGameFactory();
+        (Hash anchorBefore,) = sharedAsr.getAnchorRoot();
 
-        // Sanity: the source super game is registered, ZK is not yet.
         assertTrue(address(sharedDgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0), "source not registered");
         assertEq(address(sharedDgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)), address(0), "ZK already registered");
 
-        // Build the swap: enable ZK, disable (clear) the source super game, respected => ZK.
+        // Enable ZK and make it the respected game type. SUPER_PERMISSIONED stays enabled with a
+        // new proposer, the production shape where a permissioned game is kept as a liveness
+        // backup, so the upgrade must rebuild its args against the shared registry.
+        address newProposer = makeAddr("swapProposer");
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](2);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED,
+            gameType: GameTypes.CANNON,
             gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: bytes("")
+        });
+        dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED,
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: newProposer }))
+        });
+        dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 1 ether,
             gameType: GameTypes.ZK_DISPUTE_GAME,
@@ -2638,195 +2757,39 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             )
         });
 
-        ISystemConfig[] memory chains = new ISystemConfig[](2);
-        chains[0] = chainContracts1.systemConfig;
-        chains[1] = chainContracts2.systemConfig;
-
-        IOPContractsManagerMigrator.MigrateInput memory input = IOPContractsManagerMigrator.MigrateInput({
-            chainSystemConfigs: chains,
-            disputeGameConfigs: dgConfigs,
-            startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"CAFE")), l2SequenceNumber: 4567 }),
-            startingRespectedGameType: GameTypes.ZK_DISPUTE_GAME
+        IOPContractsManagerUtils.ExtraInstruction[] memory instructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](1);
+        instructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.startingRespectedGameType",
+            data: abi.encode(GameTypes.ZK_DISPUTE_GAME)
         });
 
-        // Execute the swap as a delegatecall from the shared ProxyAdmin owner.
+        IOPContractsManagerV2.UpgradeInput memory upgradeInput = IOPContractsManagerV2.UpgradeInput({
+            systemConfig: chainContracts1.systemConfig,
+            disputeGameConfigs: dgConfigs,
+            extraInstructions: instructions
+        });
+
         prankDelegateCall(chainContracts1.proxyAdmin.owner());
-        (bool success,) =
-            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
-        assertTrue(success, "setInteropDisputeGames failed");
+        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (upgradeInput)));
+        assertTrue(success, "upgrade failed");
 
-        // ZK is now registered on the shared DGF, with the 140-byte CWIA layout and the init bond.
         assertTrue(address(sharedDgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0), "ZK not registered");
-        assertEq(sharedDgf.gameArgs(GameTypes.ZK_DISPUTE_GAME).length, 140, "ZK args not 140 bytes");
-        assertEq(
-            LibGameArgs.decodeZK(sharedDgf.gameArgs(GameTypes.ZK_DISPUTE_GAME)).verifier,
-            opcmV2.implementations().sp1PlonkAdapterImpl,
-            "ZK verifier must be the release adapter"
-        );
         assertEq(sharedDgf.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
-
-        // The source super game is cleared, and the shared ASR's respected type is now ZK.
-        assertEq(address(sharedDgf.gameImpls(GameTypes.SUPER_PERMISSIONED)), address(0), "source not cleared");
+        // The co-enabled permissioned game survives with args rebuilt against the shared registry.
+        assertTrue(address(sharedDgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0), "source game not retained");
+        LibGameArgs.SuperPermissionedGameArgs memory sourceArgs =
+            LibGameArgs.decodeSuperPermissioned(sharedDgf.gameArgs(GameTypes.SUPER_PERMISSIONED));
+        assertEq(sourceArgs.proposer, newProposer, "source proposer not updated");
+        assertEq(sourceArgs.anchorStateRegistry, address(sharedAsr), "source game args lost the shared registry");
         assertEq(sharedAsr.respectedGameType().raw(), GameTypes.ZK_DISPUTE_GAME.raw(), "respected not ZK");
 
-        // The anchor root was re-seeded from the swap input.
-        (Hash root,) = sharedAsr.getAnchorRoot();
-        assertEq(root.raw(), bytes32(hex"CAFE"), "anchor root not re-seeded");
-    }
+        // The anchor root is preserved because the upgrade reads it back from the shared registry.
+        (Hash anchorAfter,) = sharedAsr.getAnchorRoot();
+        assertEq(anchorAfter.raw(), anchorBefore.raw(), "anchor root changed");
 
-    /// @notice Tests that setInteropDisputeGames reverts when not delegatecalled.
-    function test_setInteropDisputeGames_notDelegateCalled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_OnlyDelegateCall.selector);
-        opcmV2.setInteropDisputeGames(input);
-    }
-
-    /// @notice Tests that setInteropDisputeGames reverts when the supplied chains are not a single
-    ///         already-interop set (they do not share an AnchorStateRegistry).
-    function test_setInteropDisputeGames_notSharedInteropSet_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
-        // Note: NO migration is performed, so chainContracts1 and chainContracts2 still have their
-        // own separate AnchorStateRegistries — they are not an interop set.
-        IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](1);
-        dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 1 ether,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.ZKDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                    maxChallengeDuration: Duration.wrap(uint64(7 days)),
-                    maxProveDuration: Duration.wrap(uint64(3 days)),
-                    challengerBond: 1 ether
-                })
-            )
-        });
-
-        ISystemConfig[] memory chains = new ISystemConfig[](2);
-        chains[0] = chainContracts1.systemConfig;
-        chains[1] = chainContracts2.systemConfig;
-
-        IOPContractsManagerMigrator.MigrateInput memory input = IOPContractsManagerMigrator.MigrateInput({
-            chainSystemConfigs: chains,
-            disputeGameConfigs: dgConfigs,
-            startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"CAFE")), l2SequenceNumber: 4567 }),
-            startingRespectedGameType: GameTypes.ZK_DISPUTE_GAME
-        });
-
-        prankDelegateCall(chainContracts1.proxyAdmin.owner());
-        (bool success, bytes memory ret) =
-            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
-        assertFalse(success, "expected revert for non-interop set");
-        assertEq(
-            bytes4(ret),
-            IOPContractsManagerMigrator.OPContractsManagerMigrator_NotSharedInteropSet.selector,
-            "wrong revert reason"
-        );
-    }
-
-    /// @notice Tests that setInteropDisputeGames reverts when no chains are supplied.
-    function test_setInteropDisputeGames_noChains_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // The NoChains check runs first, ahead of every dev-feature gate, so an empty chain set
-        // reverts regardless of which features are enabled.
-        input.chainSystemConfigs = new ISystemConfig[](0);
-
-        prankDelegateCall(chainContracts1.proxyAdmin.owner());
-        (bool success, bytes memory ret) =
-            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
-        assertFalse(success, "expected revert for empty chain set");
-        assertEq(
-            bytes4(ret), IOPContractsManagerMigrator.OPContractsManagerMigrator_NoChains.selector, "wrong revert reason"
-        );
-    }
-
-    /// @notice Tests that setInteropDisputeGames reverts when the OPTIMISM_PORTAL_INTEROP dev
-    ///         feature is not enabled.
-    function test_setInteropDisputeGames_interopNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // Chains are non-empty so the NoChains check passes. Force the interop dev feature off so
-        // the InteropNotEnabled gate is the one that fires.
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
-            abi.encode(false)
-        );
-
-        prankDelegateCall(chainContracts1.proxyAdmin.owner());
-        (bool success, bytes memory ret) =
-            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
-        assertFalse(success, "expected revert when interop disabled");
-        assertEq(
-            bytes4(ret),
-            IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector,
-            "wrong revert reason"
-        );
-    }
-
-    /// @notice Tests that setInteropDisputeGames reverts when the ZK_DISPUTE_GAME dev feature is
-    ///         not enabled, even though the interop dev feature is.
-    function test_setInteropDisputeGames_zkDisputeGameNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // Chains are non-empty (NoChains passes). Interop enabled so the InteropNotEnabled gate
-        // passes, but ZK disabled so the ZKDisputeGameNotEnabled gate fires next.
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
-            abi.encode(true)
-        );
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
-            abi.encode(false)
-        );
-
-        prankDelegateCall(chainContracts1.proxyAdmin.owner());
-        (bool success, bytes memory ret) =
-            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
-        assertFalse(success, "expected revert when ZK dispute game disabled");
-        assertEq(
-            bytes4(ret),
-            IOPContractsManagerMigrator.OPContractsManagerMigrator_ZKDisputeGameNotEnabled.selector,
-            "wrong revert reason"
-        );
-    }
-
-    /// @notice Tests that setInteropDisputeGames reverts when the starting respected game type is
-    ///         not a super game type.
-    function test_setInteropDisputeGames_invalidStartingRespectedGameType_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // A non-super respected game type. CANNON is not a super game type, so isSuperGame() fails.
-        input.startingRespectedGameType = GameTypes.CANNON;
-
-        // Chains are non-empty and both dev features are enabled, so the NoChains,
-        // InteropNotEnabled, and ZKDisputeGameNotEnabled gates all pass. The isSuperGame check
-        // (which runs before chain validation) is then the one that fires.
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
-            abi.encode(true)
-        );
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
-            abi.encode(true)
-        );
-
-        prankDelegateCall(chainContracts1.proxyAdmin.owner());
-        (bool success, bytes memory ret) =
-            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
-        assertFalse(success, "expected revert for non-super respected game type");
-        assertEq(
-            bytes4(ret),
-            IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector,
-            "wrong revert reason"
-        );
+        // The chain that was not upgraded still points at the same shared contracts.
+        assertEq(address(portal2.anchorStateRegistry()), address(sharedAsr), "chain 2 lost the shared registry");
     }
 
     /// @notice Tests that the migration function succeeds and liquidity is migrated.
@@ -3155,27 +3118,147 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Tests that the migration function reverts when the SUPER_PERMISSIONED game config
+    ///         has a non-zero init bond. SUPER_PERMISSIONED does not use bonds.
+    /// @param _initBond The non-zero init bond to test.
+    function testFuzz_migrate_superPermissionedNonZeroInitBond_reverts(uint256 _initBond) public {
+        vm.assume(_initBond != 0);
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.disputeGameConfigs[0].initBond = _initBond;
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidInitBond.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a game type that uses bonds is given
+    ///         a zero init bond.
+    function test_migrate_bondedGameZeroInitBond_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _appendDisputeGameConfig(input, _superCannonKonaConfig(0, superPrestate));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidInitBond.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a permissionless fault game config
+    ///         has a zero absolute prestate.
+    function test_migrate_zeroAbsolutePrestate_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _appendDisputeGameConfig(input, _superCannonKonaConfig(0.08 ether, Claim.wrap(bytes32(0))));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidAbsolutePrestate.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config is supplied
+    ///         while the ZK_DISPUTE_GAME dev feature is disabled.
+    function test_migrate_zkDisputeGameNotEnabled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Game args are irrelevant: validation rejects the config before they are decoded.
+        _appendDisputeGameConfig(
+            input,
+            IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: 0.08 ether,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
+                gameArgs: hex""
+            })
+        );
+
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
+            abi.encode(false)
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ZKDisputeGameNotEnabled.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a supplied game config is for a game
+    ///         type that does not use super roots.
+    function test_migrate_nonSuperGameType_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _appendDisputeGameConfig(
+            input,
+            IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: 0.08 ether,
+                gameType: GameTypes.CANNON_KONA,
+                gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: superPrestate }))
+            })
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidGameType.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a supplied game config is disabled.
+    function test_migrate_disabledGameConfig_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.disputeGameConfigs[0].enabled = false;
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_DisputeGameNotEnabled.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when the starting respected game type is
+    ///         not one of the supplied game configs.
+    function test_migrate_startingRespectedGameTypeNotConfigured_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
+
+        _doMigration(
+            input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector
+        );
+    }
+
+    /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
+    ///         absolute prestate.
+    function test_migrate_zkZeroAbsolutePrestate_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, Claim.wrap(bytes32(0))));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidAbsolutePrestate.selector);
+    }
+
+    /// @notice Tests that the migration function registers a ZK_DISPUTE_GAME config when the dev
+    ///         feature is enabled.
+    function test_migrate_zkDisputeGame_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        Claim zkPrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, zkPrestate));
+
+        _doMigration(input);
+
+        IOptimismPortal2 portal = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IDisputeGameFactory sharedDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
+
+        assertEq(
+            address(sharedDGF.gameImpls(GameTypes.ZK_DISPUTE_GAME)),
+            opcmV2.implementations().zkDisputeGameImpl,
+            "ZK game impl not registered in shared DGF"
+        );
+        assertEq(sharedDGF.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
+
+        LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(sharedDGF.gameArgs(GameTypes.ZK_DISPUTE_GAME));
+        assertEq(args.absolutePrestate, zkPrestate.raw(), "ZK absolute prestate mismatch");
+        assertEq(args.verifier, opcmV2.implementations().sp1PlonkAdapterImpl, "ZK verifier must be the release adapter");
+        assertEq(args.maxChallengeDuration, uint64(7 days), "ZK max challenge duration mismatch");
+        assertEq(args.maxProveDuration, uint64(3 days), "ZK max prove duration mismatch");
+        assertEq(args.challengerBond, 1 ether, "ZK challenger bond mismatch");
+        assertEq(args.anchorStateRegistry, address(portal.anchorStateRegistry()), "ZK anchor state registry mismatch");
+        assertEq(args.weth, chainContracts1.systemConfig.delayedWETH(), "ZK delayed WETH mismatch");
+    }
+
     /// @notice Tests that the migration function succeeds with SUPER_CANNON_KONA as the starting
     ///         respected game type. The default input registers SUPER_PERMISSIONED;
     ///         this test appends a SUPER_CANNON_KONA config so the respected type has a matching impl.
     function test_migrate_superCannonKonaStartingRespectedGameType_succeeds() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
 
-        // SUPER_CANNON_KONA is a permissionless super-root FDG, so its game args are the
-        // single absolute prestate. `superPrestate` is already a Claim; do not wrap it again.
-        IOPContractsManagerUtils.DisputeGameConfig[] memory existing = input.disputeGameConfigs;
-        IOPContractsManagerUtils.DisputeGameConfig[] memory updated =
-            new IOPContractsManagerUtils.DisputeGameConfig[](existing.length + 1);
-        for (uint256 i = 0; i < existing.length; i++) {
-            updated[i] = existing[i];
-        }
-        updated[existing.length] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: superPrestate }))
-        });
-        input.disputeGameConfigs = updated;
+        // `superPrestate` is already a Claim; do not wrap it again.
+        _appendDisputeGameConfig(input, _superCannonKonaConfig(0.08 ether, superPrestate));
         input.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
 
         _doMigration(input);

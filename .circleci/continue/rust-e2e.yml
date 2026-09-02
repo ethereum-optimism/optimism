@@ -5,7 +5,7 @@ version: 2.1
 # It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.30
+  utils: ethereum-optimism/circleci-utils@1.0.31
 
 parameters:
   c-default_docker_image:
@@ -13,7 +13,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
   c-go-cache-version:
     type: string
     default: "v0.1"
@@ -219,11 +219,49 @@ jobs:
               (cd rust/kona/sp1 && just install-sp1-toolchain)
             }
 
-            mise_sp1_version="$(yq -r '.tools."github:succinctlabs/sp1".version' mise.toml)"
-            guest_sp1_version="$(yq -r '.workspace.dependencies."sp1-zkvm".version' rust/kona/sp1/programs/Cargo.toml)"
-            sp1_tag="$(cd rust/kona/sp1 && just --evaluate SP1_TAG)"
-            if [ "$mise_sp1_version" != "$guest_sp1_version" ] || [ "$sp1_tag" != "v${mise_sp1_version}" ]; then
-              echo "ERROR: SP1 versions in mise.toml, programs/Cargo.toml, and the justfile are out of sync" >&2
+            mise_sp1_version="$(yq -r '.tools."github:succinctlabs/sp1".version // "<missing>"' mise.toml)"
+            root_manifest_sp1_sdk="$(yq -r '.workspace.dependencies."sp1-sdk".version // "<missing>"' rust/Cargo.toml)"
+            guest_manifest_sp1_lib="$(yq -r '.workspace.dependencies."sp1-lib".version // "<missing>"' rust/kona/sp1/programs/Cargo.toml)"
+            guest_manifest_sp1_zkvm="$(yq -r '.workspace.dependencies."sp1-zkvm".version // "<missing>"' rust/kona/sp1/programs/Cargo.toml)"
+            sp1_tag="$(cd rust/kona/sp1 && just --evaluate SP1_TAG 2>/dev/null || printf '<missing>')"
+
+            lock_data_dir="$(mktemp -d)"
+            trap 'rm -rf "$lock_data_dir"' EXIT
+            root_lock_sp1_sdk="<lockfile parse failed>"
+            if yq -p=toml -o=json '.package // []' rust/Cargo.lock > "$lock_data_dir/root.json"; then
+              if ! root_lock_sp1_sdk="$(jq -er '[.[] | select(.name == "sp1-sdk") | .version] | unique | if length == 1 then .[0] else error("expected exactly one resolved sp1-sdk version") end' "$lock_data_dir/root.json")"; then
+                root_lock_sp1_sdk="<missing or multiple versions>"
+              fi
+            fi
+
+            guest_lock_sp1_lib="<lockfile parse failed>"
+            guest_lock_sp1_zkvm="<lockfile parse failed>"
+            if yq -p=toml -o=json '.package // []' rust/kona/sp1/programs/Cargo.lock > "$lock_data_dir/guest.json"; then
+              if ! guest_lock_sp1_lib="$(jq -er '[.[] | select(.name == "sp1-lib") | .version] | unique | if length == 1 then .[0] else error("expected exactly one resolved sp1-lib version") end' "$lock_data_dir/guest.json")"; then
+                guest_lock_sp1_lib="<missing or multiple versions>"
+              fi
+              if ! guest_lock_sp1_zkvm="$(jq -er '[.[] | select(.name == "sp1-zkvm") | .version] | unique | if length == 1 then .[0] else error("expected exactly one resolved sp1-zkvm version") end' "$lock_data_dir/guest.json")"; then
+                guest_lock_sp1_zkvm="<missing or multiple versions>"
+              fi
+            fi
+
+            if [ "$root_manifest_sp1_sdk" != "$mise_sp1_version" ] || \
+              [ "$guest_manifest_sp1_lib" != "$mise_sp1_version" ] || \
+              [ "$guest_manifest_sp1_zkvm" != "$mise_sp1_version" ] || \
+              [ "$root_lock_sp1_sdk" != "$mise_sp1_version" ] || \
+              [ "$guest_lock_sp1_lib" != "$mise_sp1_version" ] || \
+              [ "$guest_lock_sp1_zkvm" != "$mise_sp1_version" ] || \
+              [ "$sp1_tag" != "v${mise_sp1_version}" ]; then
+              printf '%s\n' \
+                "ERROR: SP1 version drift; mise.toml cargo-prove is canonical." \
+                "  mise.toml cargo-prove: ${mise_sp1_version}" \
+                "  rust/Cargo.toml sp1-sdk: ${root_manifest_sp1_sdk}" \
+                "  rust/Cargo.lock resolved sp1-sdk: ${root_lock_sp1_sdk}" \
+                "  rust/kona/sp1/programs/Cargo.toml sp1-lib: ${guest_manifest_sp1_lib}" \
+                "  rust/kona/sp1/programs/Cargo.toml sp1-zkvm: ${guest_manifest_sp1_zkvm}" \
+                "  rust/kona/sp1/programs/Cargo.lock resolved sp1-lib: ${guest_lock_sp1_lib}" \
+                "  rust/kona/sp1/programs/Cargo.lock resolved sp1-zkvm: ${guest_lock_sp1_zkvm}" \
+                "  rust/kona/sp1/justfile SP1_TAG: ${sp1_tag} (expected v${mise_sp1_version})" >&2
               exit 1
             fi
 
@@ -313,7 +351,7 @@ jobs:
               cargo nextest run --package kona-sp1-proposer \
               real_elf_agg_vkey_matches_vkeys_toml_prestate
       - run:
-          name: Run SP1 super-range ELF smoke
+          name: Run SP1 super-root ELF acceptance
           no_output_timeout: 30m
           command: |
             ROOT_DIR="$(pwd)"
@@ -325,15 +363,19 @@ jobs:
             export DEVSTACK_L2EL_KIND=op-reth
             export RUST_BINARY_PATH_OP_RETH="$ROOT_DIR/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_HOST="$ROOT_DIR/rust/target/release/kona-host"
-            export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/.circleci-cache/rust-binaries/kona-sp1-super-range-executor"
+            export RUST_BINARY_PATH_KONA_SP1_PROPOSER="$ROOT_DIR/rust/target/release/kona-sp1-proposer"
+            export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/rust/target/release/kona-sp1-super-range-executor"
             export KONA_SP1_ELF_DIR="$ROOT_DIR/rust/kona/sp1/elf"
 
             test -x "$RUST_BINARY_PATH_OP_RETH"
             test -x "$RUST_BINARY_PATH_KONA_HOST"
+            test -x "$RUST_BINARY_PATH_KONA_SP1_PROPOSER"
             test -x "$KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
             test -x "$ROOT_DIR/cannon/bin/cannon"
             test -s "$ROOT_DIR/rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz"
             test -s "$KONA_SP1_ELF_DIR/super-range-elf"
+            test -s "$KONA_SP1_ELF_DIR/super-aggregation-elf"
+            test -s "$KONA_SP1_ELF_DIR/vkeys.toml"
 
             gotestsum \
               --format=testname \
@@ -341,9 +383,19 @@ jobs:
               --jsonfile="$LOG_DIR/go-test.json" \
               -- \
               -count=1 \
-              -timeout=30m \
-              -run '^TestSP1SuperRangeELFExecutionValidCrossChainMessageSmoke$' \
+              -parallel=1 \
+              -timeout=60m \
               ./op-acceptance-tests/tests/interop/proofs/sp1
+
+            # List to a file first: grep -q closing the pipe early would SIGPIPE go test under pipefail.
+            go test -list '^TestDeploymentUsesSuperAggregationVKey$' \
+              ./op-acceptance-tests/tests/proofs/zk > "$LOG_DIR/vkey-test-list.txt"
+            grep -Fxq TestDeploymentUsesSuperAggregationVKey "$LOG_DIR/vkey-test-list.txt"
+            go test \
+              -count=1 \
+              -timeout=30m \
+              -run '^TestDeploymentUsesSuperAggregationVKey$' \
+              ./op-acceptance-tests/tests/proofs/zk
       - go-save-cache:
           namespace: sp1-super-range-elf-smoke
       - store_test_results:
@@ -467,17 +519,12 @@ workflows:
           requires:
             - prep-go-modules
       - rust-build-binary:
-          # The default Rust workspace members include both op-reth and kona-host,
-          # which the shared proofs preset starts or configures.
+          # The workspace release build includes op-reth, kona-host, the SP1
+          # proposer, and the super-range executor used by this job.
           name: sp1-elf-smoke-rust-binaries
           directory: rust
           profile: release
           persist_to_workspace: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - sccache-gcs-optimism
-      - rust-build-sp1-super-range-executor:
-          name: sp1-elf-smoke-executor
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -503,7 +550,6 @@ workflows:
             - prep-superchain
             - contracts-bedrock-build
             - sp1-elf-smoke-rust-binaries
-            - sp1-elf-smoke-executor
             - kona-build-sp1-elfs
             - cannon-prestate
             - go-binaries-for-sysgo

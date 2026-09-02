@@ -64,8 +64,16 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	if !zkEnabled && hasSP1VerifierOverride {
 		return fmt.Errorf("sp1Verifier must not be specified when ZK dispute games are disabled")
 	}
+	selectedSP1Verifier := requestedSP1Verifier
 	if intent.OPCMAddress == nil && zkEnabled && !hasSP1VerifierOverride && !env.DeployMockSP1Verifier {
-		return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled")
+		// A generated genesis contains no release-approved verifier, so it must be selected explicitly.
+		if env.IsGenesis {
+			return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled")
+		}
+		selectedSP1Verifier, err = standard.SP1VerifierFor(intent.L1ChainID)
+		if err != nil {
+			return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled on L1 chain ID %d: %w", intent.L1ChainID, err)
+		}
 	}
 
 	if !shouldDeployImplementations(intent, st) {
@@ -110,13 +118,16 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
 		L1ProxyAdminOwner:               st.SuperchainRoles.SuperchainProxyAdminOwner,
 		Challenger:                      st.SuperchainRoles.Challenger,
-		SP1Verifier:                     proofParams.SP1Verifier,
+		SP1Verifier:                     selectedSP1Verifier,
 	}
 	if zkEnabled && input.SP1Verifier == (common.Address{}) {
 		input.SP1Verifier, err = deployGenesisMockSP1Verifier(env)
 		if err != nil {
 			return err
 		}
+	}
+	if zkEnabled {
+		lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
 	}
 
 	if env.UseForge {

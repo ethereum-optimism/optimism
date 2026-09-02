@@ -133,7 +133,7 @@ pub enum ProposerGauge {
     )]
     GamesDefenseSpawned,
     /// Total number of fast finality proving tasks spawned (games proven
-    /// while still unchallenged; see `FAST_FINALITY_MODE`).
+    /// while still unchallenged; see `KONA_SP1_PROPOSER_FAST_FINALITY_MODE`).
     #[strum(
         serialize = "kona_sp1_proposer_games_fast_finality_spawned",
         message = "Total number of fast finality proving tasks spawned"
@@ -153,21 +153,19 @@ pub enum ProposerGauge {
         message = "Total number of approaching-deadline observations"
     )]
     DeadlineApproaching,
-    // Proving error metrics (defense and fast finality). In network mode a
-    // persistently failing game re-purchases its full proof set on every
-    // retry until its deadline expires: a sustained non-zero rate on these
-    // gauges is a spend alarm, not a transient.
+    // Unchanged-input retries reuse submitted requests and fulfilled work.
+    // Retryable terminal outcomes may purchase replacement proofs.
     /// Total number of game proving task failures.
     #[strum(
         serialize = "kona_sp1_proposer_game_proving_error",
         message = "Total number of game proving task failures"
     )]
     GameProvingError,
-    /// Total number of proof requests abandoned after exceeding the overall
-    /// proving timeout.
+    /// Total number of proof polling attempts stopped after exceeding the
+    /// overall proving timeout.
     #[strum(
         serialize = "kona_sp1_proposer_proving_timeout_error",
-        message = "Total number of proof requests that exceeded the proving timeout"
+        message = "Total number of proof polling attempts that exceeded the proving timeout"
     )]
     ProvingTimeoutError,
     /// Total number of proof requests cancelled because no prover picked

@@ -6,7 +6,7 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 
 // Libraries
 import { GameStatus, GameTypes, Claim } from "src/dispute/lib/Types.sol";
-import { BadAuth, BadExtraData, UnknownChainId } from "src/dispute/lib/Errors.sol";
+import { BadAuth, BadExtraData, IncorrectBondAmount, UnknownChainId } from "src/dispute/lib/Errors.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
@@ -101,6 +101,22 @@ contract SuperPermissionedDisputeGame_Initialize_Test is SuperPermissionedDisput
 
         vm.expectRevert(BadExtraData.selector);
         _createGame(PROPOSER, Claim.wrap(Hashing.hashSuperRootProof(oldProof)), oldExtraData);
+    }
+
+    function test_createGame_nonZeroBond_reverts() public {
+        vm.prank(disputeGameFactory.owner());
+        disputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED, 1 ether);
+
+        Types.SuperRootProof memory bondProof = superRootProof;
+        bondProof.timestamp = uint64(validL2SequenceNumber + 1);
+        bytes memory bondExtraData = Encoding.encodeSuperRootProof(bondProof);
+
+        vm.deal(PROPOSER, 1 ether);
+        vm.expectRevert(IncorrectBondAmount.selector);
+        vm.prank(PROPOSER, PROPOSER);
+        disputeGameFactory.create{ value: 1 ether }(
+            GameTypes.SUPER_PERMISSIONED, Claim.wrap(Hashing.hashSuperRootProof(bondProof)), bondExtraData
+        );
     }
 }
 

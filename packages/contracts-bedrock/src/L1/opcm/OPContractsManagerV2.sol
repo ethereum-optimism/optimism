@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.1
+    /// @custom:semver 8.0.3
     function version() public pure returns (string memory) {
-        return "8.0.1";
+        return "8.0.3";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -289,24 +289,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Delegatecall to the migrator contract.
         (bool success, bytes memory result) =
             address(opcmMigrator).delegatecall(abi.encodeCall(IOPContractsManagerMigrator.migrate, (_input)));
-        if (!success) {
-            assembly {
-                revert(add(result, 0x20), mload(result))
-            }
-        }
-    }
-
-    /// @notice Re-points the shared dispute games of an already-interop set to a new respected super
-    ///         game (current use: transition to a shared super ZKDisputeGame). Delegates to the
-    ///         migrator. Transitional, like migrate().
-    /// @param _input The input parameters for the dispute game re-point.
-    function setInteropDisputeGames(IOPContractsManagerMigrator.MigrateInput calldata _input) public {
-        _onlyDelegateCall();
-
-        // Delegatecall to the migrator contract.
-        (bool success, bytes memory result) = address(opcmMigrator).delegatecall(
-            abi.encodeCall(IOPContractsManagerMigrator.setInteropDisputeGames, (_input))
-        );
         if (!success) {
             assembly {
                 revert(add(result, 0x20), mload(result))
@@ -794,6 +776,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
                     abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
                 if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
+                    revert OPContractsManagerV2_InvalidGameConfigs();
+                }
+            }
+
+            // The ZK game is permissionless too, and its absolute prestate is the verification key
+            // the proof is checked against, so an empty prestate makes the game unplayable.
+            if (_cfg.disputeGameConfigs[i].enabled && isZkDisputeGame) {
+                IOPContractsManagerUtils.ZKDisputeGameConfig memory zkGameConfig =
+                    abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+                if (zkGameConfig.absolutePrestate.raw() == bytes32(0)) {
                     revert OPContractsManagerV2_InvalidGameConfigs();
                 }
             }

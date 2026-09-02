@@ -890,6 +890,45 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 	}
 }
 
+func TestValidateInitialGameTypeForOPCM(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+
+	// Mirrors DeployOPChain.s.sol: GameTypes.isSuperGame(gameType) == isSuperRoot.
+	tests := []struct {
+		gameType embedded.GameType
+		superOK  bool
+	}{
+		{embedded.GameTypePermissionedCannon, false},
+		{embedded.GameTypeCannonKona, false},
+		{embedded.GameTypeSuperPermissioned, true},
+		{embedded.GameTypeSuperCannonKona, true},
+	}
+	for _, tt := range tests {
+		t.Run(initialGameTypeName(uint32(tt.gameType)), func(t *testing.T) {
+			require.NoError(t, ValidateInitialGameTypeForOPCM(uint32(tt.gameType), tt.superOK, opcmAddr))
+
+			err := ValidateInitialGameTypeForOPCM(uint32(tt.gameType), !tt.superOK, opcmAddr)
+			require.ErrorContains(t, err, initialGameTypeName(uint32(tt.gameType)))
+			require.ErrorContains(t, err, "is not deployable by the OPCM")
+			require.ErrorContains(t, err, opcmAddr.Hex())
+			if tt.superOK {
+				require.ErrorContains(t, err, "SUPER_ROOT_GAMES_MIGRATION disabled")
+				require.ErrorContains(t, err, "CANNON_KONA (8) or PERMISSIONED_CANNON (1)")
+			} else {
+				require.ErrorContains(t, err, "SUPER_ROOT_GAMES_MIGRATION enabled")
+				require.ErrorContains(t, err, "SUPER_CANNON_KONA (9) or SUPER_PERMISSIONED (5)")
+			}
+		})
+	}
+
+	t.Run("unsupported selector", func(t *testing.T) {
+		for _, superRoot := range []bool{false, true} {
+			err := ValidateInitialGameTypeForOPCM(uint32(embedded.GameTypeCannon), superRoot, opcmAddr)
+			require.ErrorContains(t, err, "unsupported initial dispute game type 0")
+		}
+	})
+}
+
 func TestValidateInitialGameTypeSet(t *testing.T) {
 	tests := []struct {
 		name      string

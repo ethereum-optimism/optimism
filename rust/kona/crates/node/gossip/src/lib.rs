@@ -36,7 +36,7 @@ pub use rpc::{
 };
 
 mod behaviour;
-pub use behaviour::{Behaviour, BehaviourError};
+pub use behaviour::{Behaviour, BehaviourError, Gossipsub};
 
 mod config;
 pub use config::{
@@ -64,6 +64,8 @@ pub use error::{DialError, GossipDriverBuilderError, HandlerEncodeError, Publish
 
 mod event;
 pub use event::Event;
+
+mod payload;
 
 mod handler;
 pub use handler::{BlockHandler, Handler};

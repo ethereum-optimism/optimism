@@ -15,7 +15,28 @@ diataxis: reference
 
 **op-reth** is the OP Stack execution layer (EL) built on [Reth](https://reth.rs), a modular, high-performance Rust Ethereum node. It is the recommended execution client for OP Stack chains, replacing op-geth.
 
-<Update label="July 31, 2026" description="v2.4.1" tags={["Latest", "Stable"]}>
+<Update label="August 13, 2026" description="v2.4.2" tags={["Latest", "Stable"]}>
+
+> [!IMPORTANT]
+> **Upgrade strongly recommended:** this release contains various bug fixes. Upgrading is strongly recommended for both chain operators and validators.
+
+> [!IMPORTANT]
+> **op-rbuilder:** if you run op-rbuilder, an upgrade to [v0.4.13](https://github.com/flashbots/op-rbuilder/releases/tag/op-rbuilder%2Fv0.4.13) is also strongly recommended as it received some of the same fixes via its last maintenance upgrade contained in this version.
+
+> [!NOTE]
+> **Proofs ExEx** received several stability and correctness improvements (#22146, #22177, #22256).
+
+> [!WARNING]
+> **Deprecation:** The historical proofs v1 database format will be deprecated by Aug 31st. Start migrating all your proof nodes to the new v2 format (it is also much more efficient) by regenerating the proofs db at v2 for the required block range.
+
+> [!WARNING]
+> **Deprecation:** The `import-op` + `import-receipts-op` commands will be deprecated by Aug 31st. If you need continued support for these, please reach out to us.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.4.2)
+
+</Update>
+
+<Update label="July 31, 2026" description="v2.4.1" tags={["Stable"]}>
 
 > [!CAUTION]
 > **Breaking change — forwarded txpool admission is now opt-in** ([#22053](https://github.com/ethereum-optimism/optimism/pull/22053)).

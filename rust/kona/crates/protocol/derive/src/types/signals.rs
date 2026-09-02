@@ -7,7 +7,7 @@
 //! [`DerivationPipeline`]: crate::DerivationPipeline
 //! [`Stage`]: crate::Stage
 
-use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_protocol::L2BlockInfo;
 
 /// A signal to send to the pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,8 +19,6 @@ pub enum Signal {
     Activation(ActivationSignal),
     /// Flush the currently active channel.
     FlushChannel,
-    /// Provide a new L1 block to the L1 traversal stage.
-    ProvideBlock(BlockInfo),
 }
 
 impl core::fmt::Display for Signal {
@@ -29,7 +27,6 @@ impl core::fmt::Display for Signal {
             Self::Reset(_) => write!(f, "reset"),
             Self::Activation(_) => write!(f, "activation"),
             Self::FlushChannel => write!(f, "flush_channel"),
-            Self::ProvideBlock(_) => write!(f, "provide_block"),
         }
     }
 }

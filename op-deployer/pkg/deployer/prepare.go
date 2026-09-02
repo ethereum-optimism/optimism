@@ -64,6 +64,10 @@ func (c *PrepareConfig) Check() error {
 		return fmt.Errorf("l1 RPC URL must be specified")
 	}
 
+	if c.GenesisTimeOffset < standard.MinGenesisTimeOffsetSeconds {
+		return fmt.Errorf("genesis time offset must be at least %d seconds", standard.MinGenesisTimeOffsetSeconds)
+	}
+
 	return nil
 }
 
@@ -168,6 +172,27 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err := resolveSuperchainConfigProxy(ctx, l1RPC, intent, opcmAddr); err != nil {
 		return err
 	}
+
+	l1Client := ethclient.NewClient(l1RPC)
+	if err := checkOPCMHasCode(ctx, l1Client, opcmAddr); err != nil {
+		return err
+	}
+
+	// Reject early a game type the pinned OPCM cannot deploy.
+	superRoot, err := opcm.ReadSuperRootEnabled(ctx, l1Client, opcmAddr)
+	if err != nil {
+		return fmt.Errorf("failed to read the OPCM game mode at %s: %w", opcmAddr, err)
+	}
+	if err := validateInitialGameTypes(intent, st, superRoot, opcmAddr); err != nil {
+		return err
+	}
+
+	// Record the implementations the pinned OPCM installs.
+	impls, err := opcm.ReadImplementations(ctx, l1Client, opcmAddr)
+	if err != nil {
+		return fmt.Errorf("failed to read implementations from OPCM at %s: %w", opcmAddr, err)
+	}
+	st.ImplementationsDeployment = impls
 
 	l1Host, err := env.DefaultForkedScriptHost(
 		ctx,
@@ -285,6 +310,36 @@ func validateL1ChainID(ctx context.Context, l1RPC *rpc.Client, intent *state.Int
 	return nil
 }
 
+// checkOPCMHasCode rejects an unusable OPCM address.
+func checkOPCMHasCode(ctx context.Context, l1Client *ethclient.Client, opcmAddr common.Address) error {
+	code, err := l1Client.CodeAt(ctx, opcmAddr, nil)
+	if err != nil {
+		return fmt.Errorf("failed to read code at OPCM address %s: %w", opcmAddr, err)
+	}
+	if len(code) == 0 {
+		return fmt.Errorf("no contract code at intent.opcmAddress %s", opcmAddr)
+	}
+	return nil
+}
+
+// validateInitialGameTypes rejects any chain whose resolved game type belongs to the family the
+// pinned OPCM does not install. Deployed chains are skipped, their games being fixed on L1.
+func validateInitialGameTypes(intent *state.Intent, st *state.State, superRoot bool, opcmAddr common.Address) error {
+	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+		proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
+		if err != nil {
+			return fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
+		}
+		if err := pipeline.ValidateInitialGameTypeForOPCM(proofParams.DisputeGameType, superRoot, opcmAddr); err != nil {
+			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
+		}
+	}
+	return nil
+}
+
 // resolveSuperchainConfigProxy fills the intent's superchainConfigProxy from the pinned
 // OPCM when it is unset.
 func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent *state.Intent, opcmAddr common.Address) error {
@@ -342,7 +397,6 @@ func predictChains(
 				return fmt.Errorf("failed to select anchor block for chain %s: %w", chain.ID.Hex(), err)
 			}
 
-			// TODO(#20916): A reasonable minimum will be enforced in the future, once the L2 deployment is benchmarked.
 			// Commit the anchor and the genesis time.
 			genesisTime = hexutil.Uint64(uint64(anchorBlock.Time) + genesisTimeOffset)
 			st.PinChainAnchor(chain.ID, anchorBlock, genesisTime)

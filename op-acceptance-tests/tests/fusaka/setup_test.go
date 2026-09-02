@@ -16,7 +16,7 @@ func newMinimalFusaka(t devtest.T) *presets.Minimal {
 			sysgo.WithDefaultBPOBlobSchedule,
 			// Make the BPO fork happen after Osaka so we can easily use geth's eip4844.CalcBlobFee
 			// to calculate the blob base fee using the Osaka parameters.
-			sysgo.WithForkAtL1Offset(forks.Osaka, 0),
+			sysgo.WithForkAtL1Genesis(forks.Osaka),
 			sysgo.WithForkAtL1Offset(forks.BPO1, 1),
 		),
 		presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {

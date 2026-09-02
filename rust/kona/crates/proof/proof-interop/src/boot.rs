@@ -254,8 +254,8 @@ where
 /// registry-embedded `DEPENDENCY_SETS` map. The build pipeline guarantees that every
 /// chain id in any embedded cluster is keyed under that cluster's [`DependencySet`], so
 /// a single lookup suffices — if the first chain id is in any embedded cluster, this
-/// returns it. If no embedded entry exists, falls back to the preimage oracle, which
-/// keeps host-synthesized depsets working for dev/test flows.
+/// returns it. Every superchain-registry chain has an entry, so the preimage-oracle
+/// fallback is reachable only for chains outside the registry.
 ///
 /// Cross-cluster and partial-coverage proofs (chain ids spanning multiple embedded
 /// clusters or mixing embedded/non-embedded chains) are not detected here. They fail

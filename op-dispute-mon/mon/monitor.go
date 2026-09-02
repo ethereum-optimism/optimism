@@ -18,6 +18,7 @@ type AnchorStateCheck func(ctx context.Context, blockHash common.Hash, games []*
 type CommonMonitor func(games []*types.CommonGameData)
 type FaultMonitor func(games []*types.FaultGameData)
 type BondMonitor func(games []types.BondedGame)
+type ZKMonitor func(games []*types.ZKGameData)
 type HeadBlockFetcher func(ctx context.Context) (eth.L1BlockRef, error)
 type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]types.EnrichedGame, int, int, error)
 
@@ -45,6 +46,7 @@ type gameMonitor struct {
 	commonMonitors   []CommonMonitor
 	faultMonitors    []FaultMonitor
 	bondMonitors     []BondMonitor
+	zkMonitors       []ZKMonitor
 	extract          Extract
 	fetchHeadBlock   HeadBlockFetcher
 }
@@ -63,6 +65,7 @@ func newGameMonitor(
 	commonMonitors []CommonMonitor,
 	faultMonitors []FaultMonitor,
 	bondMonitors []BondMonitor,
+	zkMonitors []ZKMonitor,
 ) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
@@ -78,6 +81,7 @@ func newGameMonitor(
 		commonMonitors:   commonMonitors,
 		faultMonitors:    faultMonitors,
 		bondMonitors:     bondMonitors,
+		zkMonitors:       zkMonitors,
 		extract:          extract,
 		fetchHeadBlock:   fetchHeadBlock,
 	}
@@ -95,7 +99,7 @@ func (m *gameMonitor) monitorGames() error {
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	commonGames, faultGames, bondedGames := partitionGames(enrichedGames)
+	commonGames, faultGames, bondedGames, zkGames := partitionGames(enrichedGames)
 	m.forecast(enrichedGames, ignored, failed)
 	m.checkAnchorState(m.ctx, headBlock.Hash, commonGames)
 	for _, monitor := range m.bondMonitors {
@@ -106,6 +110,9 @@ func (m *gameMonitor) monitorGames() error {
 	}
 	for _, monitor := range m.commonMonitors {
 		monitor(commonGames)
+	}
+	for _, monitor := range m.zkMonitors {
+		monitor(zkGames)
 	}
 	timeTaken := m.clock.Since(start)
 	m.metrics.RecordMonitorDuration(timeTaken)
@@ -119,10 +126,11 @@ func (m *gameMonitor) monitorGames() error {
 	return nil
 }
 
-func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*types.FaultGameData, []types.BondedGame) {
+func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*types.FaultGameData, []types.BondedGame, []*types.ZKGameData) {
 	commonGames := make([]*types.CommonGameData, 0, len(games))
 	faultGames := make([]*types.FaultGameData, 0, len(games))
 	bondedGames := make([]types.BondedGame, 0, len(games))
+	zkGames := make([]*types.ZKGameData, 0, len(games))
 	for _, game := range games {
 		switch game := game.(type) {
 		case *types.FaultGameData:
@@ -130,14 +138,19 @@ func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*typ
 			faultGames = append(faultGames, game)
 		case *types.SuperPermissionedGameData:
 			commonGames = append(commonGames, game.Common())
+		case *types.ZKGameData:
+			commonGames = append(commonGames, game.Common())
 		default:
 			panic(fmt.Sprintf("unsupported enriched game type %T", game))
 		}
 		if bondedGame, ok := game.(types.BondedGame); ok {
 			bondedGames = append(bondedGames, bondedGame)
 		}
+		if zkGame, ok := game.(*types.ZKGameData); ok {
+			zkGames = append(zkGames, zkGame)
+		}
 	}
-	return commonGames, faultGames, bondedGames
+	return commonGames, faultGames, bondedGames, zkGames
 }
 
 func (m *gameMonitor) loop() {

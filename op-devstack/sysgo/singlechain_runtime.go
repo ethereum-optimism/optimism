@@ -39,9 +39,8 @@ type singleChainRuntimeWorld struct {
 }
 
 type singleChainPrimaryRuntime struct {
-	EL          L2ELNode
-	CL          L2CLNode
-	Flashblocks *FlashblocksRuntimeSupport
+	EL L2ELNode
+	CL L2CLNode
 }
 
 type singleChainRuntimeSpec struct {
@@ -153,37 +152,38 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	}
 
 	var l2Challenger *L2Challenger
+	var zkChallengerSuperRootRPCProxy *StallableProxy
 	if spec.StartChallenger {
-		l2Challenger = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, cfg.AddedGameTypes)
+		l2Challenger, zkChallengerSuperRootRPCProxy = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, cfg.AddedGameTypes)
 	}
 
 	testSequencer := startTestSequencerForRPCs(t, keys, "test-sequencer", jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, world.L2Network.ChainID(), primary.EL.UserRPC(), primary.CL.UserRPC())
 	testSequencerRuntime := newTestSequencerRuntime(testSequencer, spec.TestSequencer)
 
 	return &SingleChainRuntime{
-		Keys:          keys,
-		L1Network:     world.L1Network,
-		L2Network:     world.L2Network,
-		L1EL:          l1EL,
-		L1CL:          l1CL,
-		L2EL:          primary.EL,
-		L2CL:          primary.CL,
-		L2Batcher:     l2Batcher,
-		L2Proposer:    l2Proposer,
-		L2Challenger:  l2Challenger,
-		TimeTravel:    timeTravelClock,
-		TestSequencer: testSequencerRuntime,
+		Keys:                          keys,
+		L1Network:                     world.L1Network,
+		L2Network:                     world.L2Network,
+		L1EL:                          l1EL,
+		L1CL:                          l1CL,
+		L2EL:                          primary.EL,
+		L2CL:                          primary.CL,
+		L2Batcher:                     l2Batcher,
+		L2Proposer:                    l2Proposer,
+		L2Challenger:                  l2Challenger,
+		ZKChallengerSuperRootRPCProxy: zkChallengerSuperRootRPCProxy,
+		TimeTravel:                    timeTravelClock,
+		TestSequencer:                 testSequencerRuntime,
 		Nodes: map[string]*SingleChainNodeRuntime{
 			primaryNode.Name: primaryNode,
 		},
-		Flashblocks: primary.Flashblocks,
-		Interop:     world.Interop,
+		Interop: world.Interop,
 	}
 }
 
 // SingleChainRuntime is the shared DAG runtime for single-chain preset topologies.
-// It is the root for minimal, flashblocks, follower-node, sync-tester, conductor,
-// and no-supernode interop variants.
+// It is the root for minimal, follower-node, sync-tester, conductor, and no-supernode interop
+// variants.
 func NewMinimalRuntime(t devtest.T) *SingleChainRuntime {
 	return NewMinimalRuntimeWithConfig(t, PresetConfig{})
 }
@@ -381,7 +381,7 @@ func startMinimalChallenger(
 	l2EL L2ELNode,
 	l2CL L2CLNode,
 	addedGameTypes []gameTypes.GameType,
-) *L2Challenger {
+) (*L2Challenger, *StallableProxy) {
 	require := t.Require()
 	challengerSecret, err := keys.Secret(devkeys.ChallengerRole.Key(l2Net.ChainID().ToBig()))
 	require.NoError(err)
@@ -411,13 +411,15 @@ func startMinimalChallenger(
 	}
 	require.False(cannonKonaEnabled && superCannonKonaEnabled, "minimal challenger cannot use legacy and interop Cannon Kona prestates simultaneously")
 	require.False(zkEnabled && (cannonKonaEnabled || superCannonKonaEnabled), "minimal challenger cannot use the ZK game alongside cannon-kona game types")
+	var zkChallengerSuperRootRPCProxy *StallableProxy
 	switch {
 	case zkEnabled:
 		// The ZK game validates super roots from the op-node's superroot_atTimestamp endpoint;
 		// it needs no VM config or dependency set.
+		zkChallengerSuperRootRPCProxy = StartStallableProxy(t, "zk-challenger-super-root", l2CL.UserRPC())
 		options = append(options,
 			sharedchallenger.WithZKDisputeGameType(),
-			sharedchallenger.WithSuperRootRPC(l2CL.UserRPC()),
+			sharedchallenger.WithSuperRootRPC(zkChallengerSuperRootRPCProxy.URL()),
 		)
 	case superCannonKonaEnabled:
 		options = append(options,
@@ -468,7 +470,7 @@ func startMinimalChallenger(
 		chainIDs: []eth.ChainID{l2Net.ChainID()},
 		service:  svc,
 		config:   cfg,
-	}
+	}, zkChallengerSuperRootRPCProxy
 }
 
 func applyMinimalGameTypeOptions(

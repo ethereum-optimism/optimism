@@ -161,11 +161,6 @@ impl<F: ChainProvider + Send> Stage for PollingTraversal<F> {
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         Ok(())
     }
-
-    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
-        warn!(target: "traversal", "provide_block not supported in PollingTraversal stage.");
-        Err(PipelineError::UnsupportedSignal.temp())
-    }
 }
 
 #[cfg(test)]

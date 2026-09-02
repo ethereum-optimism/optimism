@@ -63,6 +63,18 @@ func WithChainID(id uint64) AnvilOption {
 	}
 }
 
+func WithTimestamp(timestamp uint64) AnvilOption {
+	return func(a *Anvil) {
+		a.args["--timestamp"] = strconv.FormatUint(timestamp, 10)
+	}
+}
+
+func WithHardfork(hardfork string) AnvilOption {
+	return func(a *Anvil) {
+		a.args["--hardfork"] = hardfork
+	}
+}
+
 func WithForkBlockNumber(block uint64) AnvilOption {
 	return func(a *Anvil) {
 		a.args["--fork-block-number"] = strconv.FormatUint(block, 10)
@@ -203,8 +215,10 @@ func (r *Anvil) RPCUrl() string {
 	return fmt.Sprintf("http://localhost:%d", port)
 }
 
-func DefaultAnvilRPC(t *testing.T, lgr log.Logger) (string, *ethclient.Client) {
-	anvil, err := NewAnvil(lgr, WithChainID(DefaultChainID))
+// DefaultAnvilRPC starts Anvil with DefaultChainID. Later options can override this default.
+func DefaultAnvilRPC(t *testing.T, lgr log.Logger, opts ...AnvilOption) (string, *ethclient.Client) {
+	anvilOpts := append([]AnvilOption{WithChainID(DefaultChainID)}, opts...)
+	anvil, err := NewAnvil(lgr, anvilOpts...)
 	require.NoError(t, err)
 	require.NoError(t, anvil.Start())
 	t.Cleanup(func() {

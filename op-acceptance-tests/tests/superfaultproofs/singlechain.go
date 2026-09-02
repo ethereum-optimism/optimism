@@ -2,7 +2,6 @@ package superfaultproofs
 
 import (
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -13,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // singleChain bundles the DSL handles for the single L2 chain in a SingleChainInterop system.
@@ -31,21 +29,26 @@ func singleChainFrom(sys *presets.SingleChainInterop) *chain {
 // RunSingleChainSuperFaultProofSmokeTest is a minimal smoke test for single-chain super fault proofs.
 // It verifies that the super-root transition works correctly when the dependency set has only one chain.
 // The test stops the batcher, waits for the safe head to stall, then resumes batching and verifies
-// a basic set of valid/invalid transitions through both the FPP and challenger trace provider.
-func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChainInterop) {
-	runSingleChainSuperFaultProofSmokeTest(t, sys, prepareDefaultSingleChainTarget)
+// a basic set of valid/invalid transitions through the selected proof runners.
+func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChainInterop, runners ...ProofRunner) {
+	runSingleChainSuperFaultProofSmokeTest(t, sys, prepareDefaultSingleChainTarget, runners...)
 }
 
 // RunSingleChainSuperFaultProofSDMSmokeTest verifies the same single-chain super-root transition
 // while the disputed block contains an SDM PostExec tx. This proves kona-host super --native can
 // derive interop batches whose L2 payload includes SDM's synthetic post-exec transaction.
-func RunSingleChainSuperFaultProofSDMSmokeTest(t devtest.T, sys *presets.SingleChainInterop) {
-	runSingleChainSuperFaultProofSmokeTest(t, sys, prepareSDMSingleChainTarget)
+func RunSingleChainSuperFaultProofSDMSmokeTest(t devtest.T, sys *presets.SingleChainInterop, runners ...ProofRunner) {
+	runSingleChainSuperFaultProofSmokeTest(t, sys, prepareSDMSingleChainTarget, runners...)
 }
 
 type singleChainTargetFn func(t devtest.T, sys *presets.SingleChainInterop, c *chain, chains []*chain) (startTimestamp uint64, endTimestamp uint64, targetBlock uint64)
 
-func runSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChainInterop, prepareTarget singleChainTargetFn) {
+func runSingleChainSuperFaultProofSmokeTest(
+	t devtest.T,
+	sys *presets.SingleChainInterop,
+	prepareTarget singleChainTargetFn,
+	runners ...ProofRunner,
+) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 
 	c := singleChainFrom(sys)
@@ -154,19 +157,11 @@ func runSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 		},
 	}
 
-	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
-	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
-
-	for _, test := range tests {
-		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
-				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
-				test.ClaimTimestamp, test.ExpectValid)
-		})
-		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
-		})
-	}
+	runScenarioProofs(t, sys, chains, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, false, runners),
+	}, runners...)
 }
 
 func prepareDefaultSingleChainTarget(t devtest.T, _ *presets.SingleChainInterop, c *chain, chains []*chain) (uint64, uint64, uint64) {

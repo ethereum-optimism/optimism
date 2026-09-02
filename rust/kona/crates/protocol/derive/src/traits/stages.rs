@@ -37,9 +37,6 @@ pub trait Stage {
 
     /// Flush the currently active channel.
     async fn flush_channel(&mut self) -> PipelineResult<()>;
-
-    /// Provide a new L1 block to the traversal stage.
-    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()>;
 }
 
 /// Provides a method for accessing the pipeline's current L1 origin.

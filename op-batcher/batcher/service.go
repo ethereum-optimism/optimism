@@ -288,8 +288,9 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		return fmt.Errorf("cannot use data availability type blobs or auto with Alt-DA")
 	}
 
-	if bs.UseAltDA && !bs.GenericDA && cc.MaxFrameSize > altda.MaxInputSize {
-		return fmt.Errorf("max frame size %d exceeds altDA max input size %d", cc.MaxFrameSize, altda.MaxInputSize)
+	maxInputSize := bs.RollupConfig.AltDAConfig.MaxInputSizeOrDefault()
+	if bs.UseAltDA && !bs.GenericDA && cc.MaxFrameSize > maxInputSize {
+		return fmt.Errorf("max frame size %d exceeds altDA max input size %d", cc.MaxFrameSize, maxInputSize)
 	}
 
 	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor, cfg.CompressionAlgo)

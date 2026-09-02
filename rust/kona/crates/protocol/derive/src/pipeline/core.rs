@@ -7,6 +7,7 @@ use crate::{
 };
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
 use alloy_eips::BlockNumHash;
+use alloy_primitives::B256;
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::{RollupConfig, SystemConfig};
@@ -68,16 +69,14 @@ where
 
             current = self
                 .l2_chain_provider
-                .l2_block_info_by_number(current.block_info.number - 1)
+                .l2_block_info_by_hash(current.block_info.parent_hash)
                 .await
-                .map_err(|e| {
-                    PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp()
-                })?;
+                .map_err(Into::<PipelineErrorKind>::into)?;
         }
 
         let system_config = self
             .l2_chain_provider
-            .system_config_by_number(current.block_info.number, Arc::clone(&self.rollup_config))
+            .system_config_by_l2_hash(current.block_info.hash, Arc::clone(&self.rollup_config))
             .await
             .map_err(|e| PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp())?;
 
@@ -152,9 +151,6 @@ where
             Signal::FlushChannel => {
                 self.attributes.flush_channel().await?;
             }
-            Signal::ProvideBlock(block) => {
-                self.attributes.provide_block(block).await?;
-            }
         }
         kona_macros::inc!(
             gauge,
@@ -181,13 +177,13 @@ where
         &self.rollup_config
     }
 
-    /// Returns the [`SystemConfig`] by L2 number.
-    async fn system_config_by_number(
+    /// Returns the [`SystemConfig`] for the L2 block with the given hash.
+    async fn system_config_by_l2_hash(
         &mut self,
-        number: u64,
+        hash: B256,
     ) -> Result<SystemConfig, PipelineErrorKind> {
         self.l2_chain_provider
-            .system_config_by_number(number, self.rollup_config.clone())
+            .system_config_by_l2_hash(hash, self.rollup_config.clone())
             .await
             .map_err(Into::into)
     }
@@ -260,12 +256,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DerivationPipeline, test_utils::*};
+    use crate::{DerivationPipeline, ResetError, test_utils::*};
     use alloc::{string::ToString, sync::Arc};
     use alloy_rpc_types_engine::PayloadAttributes;
     use kona_genesis::{RollupConfig, SystemConfig};
     use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
+
+    /// A distinct hash per block number, so hash-keyed lookups address one specific block.
+    fn test_block_hash(number: u64) -> B256 {
+        B256::from(alloy_primitives::U256::from(number))
+    }
 
     fn default_test_payload_attributes() -> OpAttributesWithParent {
         OpAttributesWithParent {
@@ -355,7 +356,7 @@ mod tests {
     async fn test_derivation_pipeline_signal_activation() {
         let rollup_config = Arc::new(RollupConfig::default());
         let mut l2_chain_provider = TestL2ChainProvider::default();
-        l2_chain_provider.system_configs.insert(0, SystemConfig::default());
+        l2_chain_provider.system_configs.insert(B256::ZERO, SystemConfig::default());
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
@@ -389,7 +390,7 @@ mod tests {
     async fn test_derivation_pipeline_signal_reset_ok() {
         let rollup_config = Arc::new(RollupConfig::default());
         let mut l2_chain_provider = TestL2ChainProvider::default();
-        l2_chain_provider.system_configs.insert(0, SystemConfig::default());
+        l2_chain_provider.system_configs.insert(B256::ZERO, SystemConfig::default());
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
@@ -409,7 +410,12 @@ mod tests {
         // Walkback: block 90 has L1 origin 40. 40 + 10 = 50, NOT > 50, so walkback stops.
         for n in 89u64..=100 {
             l2_chain_provider.blocks.push(L2BlockInfo {
-                block_info: BlockInfo { number: n, ..Default::default() },
+                block_info: BlockInfo {
+                    hash: test_block_hash(n),
+                    number: n,
+                    parent_hash: test_block_hash(n - 1),
+                    ..Default::default()
+                },
                 l1_origin: BlockNumHash { number: n - 50, ..Default::default() },
                 seq_num: 0,
             });
@@ -417,7 +423,7 @@ mod tests {
 
         // Old batcher at walked-back block 90.
         l2_chain_provider.system_configs.insert(
-            90,
+            test_block_hash(90),
             SystemConfig {
                 batcher_address: address!("000000000000000000000000000000000000aaaa"),
                 ..Default::default()
@@ -425,7 +431,7 @@ mod tests {
         );
         // New batcher at safe head block 100.
         l2_chain_provider.system_configs.insert(
-            100,
+            test_block_hash(100),
             SystemConfig {
                 batcher_address: address!("000000000000000000000000000000000000bbbb"),
                 ..Default::default()
@@ -437,7 +443,12 @@ mod tests {
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
         let l2_safe_head = L2BlockInfo {
-            block_info: BlockInfo { number: 100, ..Default::default() },
+            block_info: BlockInfo {
+                hash: test_block_hash(100),
+                number: 100,
+                parent_hash: test_block_hash(99),
+                ..Default::default()
+            },
             l1_origin: BlockNumHash { number: 50, ..Default::default() },
             seq_num: 0,
         };
@@ -449,6 +460,29 @@ mod tests {
             address!("000000000000000000000000000000000000aaaa"),
             "Expected old batcher from walked-back block 90"
         );
+    }
+
+    #[tokio::test]
+    async fn test_initial_reset_preserves_parent_lookup_error_kind() {
+        let rollup_config = Arc::new(RollupConfig { channel_timeout: 1, ..Default::default() });
+        let l2_chain_provider = TestL2ChainProvider::default();
+        let attributes = TestNextAttributes::default();
+        let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
+
+        let parent_hash = test_block_hash(1);
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: test_block_hash(2),
+                number: 2,
+                parent_hash,
+                ..Default::default()
+            },
+            l1_origin: BlockNumHash { number: 2, ..Default::default() },
+            seq_num: 0,
+        };
+
+        let err = pipeline.initial_reset(l2_safe_head).await.unwrap_err();
+        assert_eq!(err, ResetError::BlockNotFound(parent_hash.into()).reset());
     }
 
     #[tokio::test]
@@ -465,23 +499,38 @@ mod tests {
 
         let mut l2_chain_provider = TestL2ChainProvider::default();
         l2_chain_provider.blocks.push(L2BlockInfo {
-            block_info: BlockInfo { number: 5, ..Default::default() },
+            block_info: BlockInfo {
+                hash: test_block_hash(5),
+                number: 5,
+                parent_hash: test_block_hash(4),
+                ..Default::default()
+            },
             l1_origin: BlockNumHash { number: 3, ..Default::default() },
             seq_num: 0,
         });
         l2_chain_provider.blocks.push(L2BlockInfo {
-            block_info: BlockInfo { number: 6, ..Default::default() },
+            block_info: BlockInfo {
+                hash: test_block_hash(6),
+                number: 6,
+                parent_hash: test_block_hash(5),
+                ..Default::default()
+            },
             l1_origin: BlockNumHash { number: 4, ..Default::default() },
             seq_num: 0,
         });
-        l2_chain_provider.system_configs.insert(5, SystemConfig::default());
+        l2_chain_provider.system_configs.insert(test_block_hash(5), SystemConfig::default());
 
         let rollup_config = Arc::new(rollup_config);
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
         let l2_safe_head = L2BlockInfo {
-            block_info: BlockInfo { number: 6, ..Default::default() },
+            block_info: BlockInfo {
+                hash: test_block_hash(6),
+                number: 6,
+                parent_hash: test_block_hash(5),
+                ..Default::default()
+            },
             l1_origin: BlockNumHash { number: 4, ..Default::default() },
             seq_num: 0,
         };
@@ -494,7 +543,7 @@ mod tests {
     async fn test_initial_reset_no_walkback_zero_timeout() {
         let rollup_config = Arc::new(RollupConfig::default());
         let mut l2_chain_provider = TestL2ChainProvider::default();
-        l2_chain_provider.system_configs.insert(0, SystemConfig::default());
+        l2_chain_provider.system_configs.insert(B256::ZERO, SystemConfig::default());
 
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);

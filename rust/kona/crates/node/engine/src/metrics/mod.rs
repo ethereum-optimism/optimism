@@ -35,8 +35,6 @@ impl Metrics {
     pub const BLOCK_LABELS: &str = "kona_node_block_labels";
     /// Unsafe block label.
     pub const UNSAFE_BLOCK_LABEL: &str = "unsafe";
-    /// Cross-unsafe block label.
-    pub const CROSS_UNSAFE_BLOCK_LABEL: &str = "cross-unsafe";
     /// Local-safe block label.
     pub const LOCAL_SAFE_BLOCK_LABEL: &str = "local-safe";
     /// Safe block label.

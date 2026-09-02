@@ -33,12 +33,13 @@ pub enum PublishError {
 /// occurring when converting OP Stack data structures to network format.
 #[derive(Debug, Error)]
 pub enum HandlerEncodeError {
-    /// Failed to encode the OP Stack payload envelope.
-    ///
-    /// This error indicates issues with serializing the OP Stack network payload
-    /// structure, which contains the consensus data being gossiped.
-    #[error("Failed to encode payload: {0}")]
-    PayloadEncodeError(#[from] op_alloy_rpc_types_engine::PayloadEnvelopeEncodeError),
+    /// The execution payload version does not match the gossip topic.
+    #[error("Payload version does not match gossip topic")]
+    WrongPayloadVersion,
+
+    /// Failed to Snappy-compress the signed payload.
+    #[error("Failed to compress payload: {0}")]
+    SnapEncoding(#[from] snap::Error),
 
     /// Attempted to publish to an unknown or unsubscribed topic.
     ///

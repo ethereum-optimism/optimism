@@ -21,6 +21,9 @@ workspace = true
 revm.workspace = true
 auto_impl.workspace = true
 
+# alloy
+alloy-eips.workspace = true
+
 # op-alloy
 op-alloy-consensus = { workspace = true }
 
@@ -40,13 +43,14 @@ default = ["std", "c-kzg", "secp256k1", "portable", "blst"]
 std = [
 	"serde?/std",
 	"revm/std",
+	"alloy-eips/std",
 	"op-alloy-consensus/std",
 	"alloy-sol-types/std",
 	"sha2/std",
 	"serde_json/std",
 	"alloy-primitives/std",
 ]
-serde = ["dep:serde", "revm/serde", "alloy-primitives/serde", "op-alloy-consensus/serde"]
+serde = ["dep:serde", "revm/serde", "alloy-eips/serde", "alloy-primitives/serde", "op-alloy-consensus/serde"]
 portable = ["revm/portable"]
 
 dev = [

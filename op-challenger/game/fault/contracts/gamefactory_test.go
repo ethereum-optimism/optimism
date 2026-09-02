@@ -136,23 +136,55 @@ func TestLoadGame(t *testing.T) {
 
 func TestGetGameStatus(t *testing.T) {
 	for _, version := range factoryVersions {
-		t.Run(version.String(), func(t *testing.T) {
-			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			game0 := gameTypes.GameMetadata{
-				Index:     0,
-				GameType:  0,
-				Timestamp: 1234,
-				Proxy:     common.Address{0xaa},
-			}
-			expectGetGame(stubRpc, 0, rpcblock.Latest, game0)
-			stubRpc.AddContract(game0.Proxy, snapshots.LoadFaultDisputeGameABI())
-			expectedStatus := gameTypes.GameStatusChallengerWon
-			stubRpc.SetResponse(game0.Proxy, methodVersion, rpcblock.Latest, nil, []interface{}{versLatest})
-			stubRpc.SetResponse(game0.Proxy, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
-			actual, err := factory.GetGameStatus(context.Background(), 0)
-			require.NoError(t, err)
-			require.Equal(t, expectedStatus, actual)
-		})
+		for _, test := range []struct {
+			name        string
+			block       rpcblock.Block
+			usesBinding bool
+			call        func(*DisputeGameFactoryContract) (gameTypes.GameStatus, error)
+		}{
+			{
+				name:        "latest wrapper",
+				block:       rpcblock.Latest,
+				usesBinding: true,
+				call: func(factory *DisputeGameFactoryContract) (gameTypes.GameStatus, error) {
+					return factory.GetGameStatus(context.Background(), 0)
+				},
+			},
+			{
+				name:  "pinned number",
+				block: rpcblock.ByNumber(123),
+				call: func(factory *DisputeGameFactoryContract) (gameTypes.GameStatus, error) {
+					return factory.GetGameStatusAtBlock(context.Background(), 0, rpcblock.ByNumber(123))
+				},
+			},
+			{
+				name:  "pinned hash",
+				block: rpcblock.ByHash(common.Hash{0x12, 0x34}),
+				call: func(factory *DisputeGameFactoryContract) (gameTypes.GameStatus, error) {
+					return factory.GetGameStatusAtBlock(context.Background(), 0, rpcblock.ByHash(common.Hash{0x12, 0x34}))
+				},
+			},
+		} {
+			t.Run(version.String()+"/"+test.name, func(t *testing.T) {
+				stubRpc, factory := setupDisputeGameFactoryTest(t, version)
+				game0 := gameTypes.GameMetadata{
+					Index:     0,
+					GameType:  0,
+					Timestamp: 1234,
+					Proxy:     common.Address{0xaa},
+				}
+				expectGetGame(stubRpc, 0, test.block, game0)
+				stubRpc.AddContract(game0.Proxy, snapshots.LoadFaultDisputeGameABI())
+				expectedStatus := gameTypes.GameStatusChallengerWon
+				if test.usesBinding {
+					stubRpc.SetResponse(game0.Proxy, methodVersion, rpcblock.Latest, nil, []interface{}{versLatest})
+				}
+				stubRpc.SetResponse(game0.Proxy, methodStatus, test.block, nil, []interface{}{expectedStatus})
+				actual, err := test.call(factory)
+				require.NoError(t, err)
+				require.Equal(t, expectedStatus, actual)
+			})
+		}
 	}
 }
 

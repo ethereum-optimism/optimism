@@ -138,14 +138,12 @@ type presetL2Network struct {
 
 	l1 *presetL1Network
 
-	l2Batchers       []*l2BatcherFrontend
-	l2Proposers      []*l2ProposerFrontend
-	l2Challengers    []*l2ChallengerFrontend
-	l2CLNodes        []*l2CLFrontend
-	l2ELNodes        []*l2ELFrontend
-	conductors       []*conductorFrontend
-	rollupBoostNodes []*rollupBoostFrontend
-	oprBuilderNodes  []*oprBuilderFrontend
+	l2Batchers    []*l2BatcherFrontend
+	l2Proposers   []*l2ProposerFrontend
+	l2Challengers []*l2ChallengerFrontend
+	l2CLNodes     []*l2CLFrontend
+	l2ELNodes     []*l2ELFrontend
+	conductors    []*conductorFrontend
 }
 
 var _ stack.L2Network = (*presetL2Network)(nil)
@@ -239,20 +237,6 @@ func (n *presetL2Network) AddConductor(v *conductorFrontend) {
 	n.conductors = append(n.conductors, v)
 }
 
-func (n *presetL2Network) AddRollupBoostNode(v *rollupBoostFrontend) {
-	n.require().Equal(n.chainID, v.ChainID(), "rollup boost node %s must be on chain %s", v.Name(), n.chainID)
-	_, exists := componentByName(n.rollupBoostNodes, v.Name())
-	n.require().False(exists, "rollup boost node %s must not already exist", v.Name())
-	n.rollupBoostNodes = append(n.rollupBoostNodes, v)
-}
-
-func (n *presetL2Network) AddOPRBuilderNode(v *oprBuilderFrontend) {
-	n.require().Equal(n.chainID, v.ChainID(), "OPR builder node %s must be on chain %s", v.Name(), n.chainID)
-	_, exists := componentByName(n.oprBuilderNodes, v.Name())
-	n.require().False(exists, "OPR builder node %s must not already exist", v.Name())
-	n.oprBuilderNodes = append(n.oprBuilderNodes, v)
-}
-
 func (n *presetL2Network) L2Batchers() []stack.L2Batcher {
 	return mapSlice(sortByNameFunc(n.l2Batchers), func(v *l2BatcherFrontend) stack.L2Batcher { return v })
 }
@@ -275,14 +259,6 @@ func (n *presetL2Network) L2ELNodes() []stack.L2ELNode {
 
 func (n *presetL2Network) Conductors() []stack.Conductor {
 	return mapSlice(sortByNameFunc(n.conductors), func(v *conductorFrontend) stack.Conductor { return v })
-}
-
-func (n *presetL2Network) RollupBoostNodes() []stack.RollupBoostNode {
-	return mapSlice(sortByNameFunc(n.rollupBoostNodes), func(v *rollupBoostFrontend) stack.RollupBoostNode { return v })
-}
-
-func (n *presetL2Network) OPRBuilderNodes() []stack.OPRBuilderNode {
-	return mapSlice(sortByNameFunc(n.oprBuilderNodes), func(v *oprBuilderFrontend) stack.OPRBuilderNode { return v })
 }
 
 type named interface {

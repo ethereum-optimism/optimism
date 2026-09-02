@@ -1,20 +1,15 @@
 //! A task to insert an unsafe payload into the execution engine.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, InsertTaskError, SynchronizeTask,
+    EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError, SynchronizeTask,
     state::EngineSyncStateUpdate,
 };
-use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
-use alloy_rpc_types_engine::{
-    CancunPayloadFields, ExecutionPayloadInputV2, PayloadStatusEnum, PraguePayloadFields,
-};
+use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_consensus::OpBlock;
-use op_alloy_rpc_types_engine::{
-    OpExecutionPayload, OpExecutionPayloadEnvelope, OpExecutionPayloadSidecar,
-};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Instant};
 
 /// The task to insert a payload into the execution engine.
@@ -24,11 +19,13 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     client: Arc<EngineClient_>,
     /// The rollup config.
     rollup_config: Arc<RollupConfig>,
-    /// The network payload envelope.
-    envelope: OpExecutionPayloadEnvelope,
+    /// The complete execution payload envelope.
+    payload: OpExecutionPayloadEnvelope,
     /// If the payload is safe this is true.
     /// A payload is safe if it is derived from a safe block.
     is_payload_safe: bool,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
@@ -36,10 +33,11 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
     pub const fn new(
         client: Arc<EngineClient_>,
         rollup_config: Arc<RollupConfig>,
-        envelope: OpExecutionPayloadEnvelope,
+        payload: OpExecutionPayloadEnvelope,
         is_attributes_derived: bool,
+        block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, rollup_config, envelope, is_payload_safe: is_attributes_derived }
+        Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived, block_sink }
     }
 
     /// Checks the response of the `engine_newPayload` call.
@@ -50,61 +48,32 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
 
 #[async_trait]
 impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
-    type Output = ();
+    type Output = L2BlockInfo;
 
     type Error = InsertTaskError;
 
-    async fn execute(&self, state: &mut EngineState) -> Result<(), InsertTaskError> {
+    async fn execute(&self, state: &mut EngineState) -> Result<L2BlockInfo, InsertTaskError> {
         let time_start = Instant::now();
 
         // Insert the new payload.
         // Form the new unsafe block ref from the execution payload.
-        let parent_beacon_block_root = self.envelope.parent_beacon_block_root.unwrap_or_default();
+        let payload = self.payload.clone();
         let insert_time_start = Instant::now();
-        let (response, block): (_, OpBlock) = match self.envelope.execution_payload.clone() {
-            OpExecutionPayload::V1(payload) => (
-                self.client.new_payload_v1(payload).await,
-                self.envelope
-                    .execution_payload
-                    .clone()
-                    .try_into_block()
-                    .map_err(InsertTaskError::FromBlockError)?,
-            ),
-            OpExecutionPayload::V2(payload) => {
+        let response = match payload.clone() {
+            OpExecutionPayloadEnvelope::V1(payload) => self.client.new_payload_v1(payload).await,
+            OpExecutionPayloadEnvelope::V2(payload) => {
                 let payload_input = ExecutionPayloadInputV2 {
                     execution_payload: payload.payload_inner,
                     withdrawals: Some(payload.withdrawals),
                 };
-                (
-                    self.client.new_payload_v2(payload_input).await,
-                    self.envelope
-                        .execution_payload
-                        .clone()
-                        .try_into_block()
-                        .map_err(InsertTaskError::FromBlockError)?,
-                )
+                self.client.new_payload_v2(payload_input).await
             }
-            OpExecutionPayload::V3(payload) => (
-                self.client.new_payload_v3(payload, parent_beacon_block_root).await,
-                self.envelope
-                    .execution_payload
-                    .clone()
-                    .try_into_block_with_sidecar(&OpExecutionPayloadSidecar::v3(
-                        CancunPayloadFields::new(parent_beacon_block_root, vec![]),
-                    ))
-                    .map_err(InsertTaskError::FromBlockError)?,
-            ),
-            OpExecutionPayload::V4(payload) => (
-                self.client.new_payload_v4(payload, parent_beacon_block_root).await,
-                self.envelope
-                    .execution_payload
-                    .clone()
-                    .try_into_block_with_sidecar(&OpExecutionPayloadSidecar::v4(
-                        CancunPayloadFields::new(parent_beacon_block_root, vec![]),
-                        PraguePayloadFields::new(EMPTY_REQUESTS_HASH),
-                    ))
-                    .map_err(InsertTaskError::FromBlockError)?,
-            ),
+            OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
+                self.client.new_payload_v3(payload, parent_beacon_block_root).await
+            }
+            OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
+                self.client.new_payload_v4(payload, parent_beacon_block_root).await
+            }
         };
 
         // Check the `engine_newPayload` response.
@@ -120,6 +89,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         }
         let insert_duration = insert_time_start.elapsed();
 
+        let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
         let new_unsafe_ref =
             L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
                 .map_err(InsertTaskError::L2BlockInfoConstruction)?;
@@ -129,7 +99,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
             Arc::clone(&self.client),
             self.rollup_config.clone(),
             EngineSyncStateUpdate {
-                cross_unsafe_head: Some(new_unsafe_ref),
                 unsafe_head: Some(new_unsafe_ref),
                 local_safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
                 safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
@@ -138,6 +107,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         )
         .execute(state)
         .await?;
+
+        // The block is now canonical, so anything reading the L2 chain locally can rely on it.
+        self.block_sink.block_imported(block, new_unsafe_ref);
 
         let total_duration = time_start.elapsed();
 
@@ -150,6 +122,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
             "Inserted new unsafe block"
         );
 
-        Ok(())
+        Ok(new_unsafe_ref)
     }
 }

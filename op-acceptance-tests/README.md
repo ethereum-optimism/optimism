@@ -50,6 +50,25 @@ The `just` wrapper computes defaults from available CPUs:
 
 Override them with `ACCEPTANCE_TEST_JOBS`, `ACCEPTANCE_TEST_PARALLEL`, and `ACCEPTANCE_TEST_TIMEOUT`.
 
+### Kona-SP1 super-root coverage
+
+The canonical coverage tiers and proof-boundary definitions live in the
+[`rust/kona/sp1` README](../rust/kona/sp1/README.md#acceptance-coverage). The acceptance packages
+are:
+
+```bash
+# Required native-core coverage.
+RUST_JIT_BUILD=1 go test -count=1 -timeout=60m \
+  ./tests/interop/proofs/serial \
+  ./tests/interop/proofs-singlechain
+
+# Scheduled full-ELF coverage, after building the ELFs and executor.
+KONA_SP1_ELF_DIR="$PWD/../rust/kona/sp1/elf" \
+KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$PWD/../rust/target/release/kona-sp1-super-range-executor" \
+RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \
+  ./tests/interop/proofs/sp1
+```
+
 ## Logging
 
 When invoked with `go test`, devstack acceptance tests support configuring logging via CLI flags and environment variables:
@@ -62,7 +81,7 @@ When invoked with `go test`, devstack acceptance tests support configuring loggi
 Example:
 
 ```bash
-LOG_LEVEL=info go test -v ./op-acceptance-tests/tests/interop/message/... -run TestInteropHappyTx
+LOG_LEVEL=info go test -v ./tests/interop/message/... -run TestInteropHappyTx
 ```
 
 ## Adding Tests

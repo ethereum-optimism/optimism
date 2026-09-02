@@ -43,7 +43,6 @@ type PresetConfig struct {
 	DeployerOptions            []DeployerOption
 	BatcherOptions             []BatcherOption
 	ProposerOptions            []ProposerOption
-	OPRBuilderOptions          []OPRBuilderNodeOption
 	OpRethOptions              []OpRethOption
 	GlobalL2CLOptions          []L2CLOption
 	GlobalSyncTesterELOptions  []SyncTesterELOption

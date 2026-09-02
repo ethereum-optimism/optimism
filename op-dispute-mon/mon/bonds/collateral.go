@@ -45,8 +45,22 @@ func requiredCollateralForGame(game monTypes.BondedGame) *big.Int {
 		}
 	}
 
-	for _, unclaimedCredit := range data.Credits {
-		required = new(big.Int).Add(required, unclaimedCredit)
+	if _, ok := game.(*monTypes.ZKGameData); !ok {
+		for _, unclaimedCredit := range data.Credits {
+			required = new(big.Int).Add(required, unclaimedCredit)
+		}
+		return required
+	}
+	for _, recipient := range data.RecipientAddresses() {
+		credit := data.Credits[recipient]
+		if credit == nil {
+			credit = new(big.Int)
+		}
+		obligation := credit
+		if request := data.WithdrawalRequests[recipient]; request != nil && request.Amount != nil && request.Amount.Cmp(obligation) > 0 {
+			obligation = request.Amount
+		}
+		required = new(big.Int).Add(required, obligation)
 	}
 	return required
 }

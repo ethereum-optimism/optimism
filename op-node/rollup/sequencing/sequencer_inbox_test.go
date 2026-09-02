@@ -205,7 +205,7 @@ func TestSequencerWake_StartStop(t *testing.T) {
 
 	head := eth.L2BlockRef{Hash: common.Hash{0xaa}}
 	deliver(seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
-	seq.latestSealed = head
+	seq.lastSealed = head
 	// consume the ingest wake, to isolate the lifecycle wakes below
 	select {
 	case <-seq.wakeCh:
@@ -229,8 +229,8 @@ func TestSequencerInbox_OnEventNonBlocking(t *testing.T) {
 	seq, _ := createSequencer(logger)
 
 	// Simulate the sequencer goroutine holding the action lock mid-action.
-	seq.l.Lock()
-	defer seq.l.Unlock()
+	seq.mu.Lock()
+	defer seq.mu.Unlock()
 
 	done := make(chan struct{})
 	go func() {
@@ -379,7 +379,7 @@ func TestSequencerRunLoop_StartWakesStopDisarms(t *testing.T) {
 
 	require.NoError(t, f.seq.Init(context.Background(), false))
 	deliver(f.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: f.head})
-	f.seq.latestSealed = f.head
+	f.seq.lastSealed = f.head
 
 	stop := f.startLoop(t)
 	defer stop()
@@ -438,9 +438,9 @@ func TestSequencerRunLoop_NoLostWake(t *testing.T) {
 	// coalesce to the latest, but the final head must eventually be applied.
 	deadline := time.Now().Add(30 * time.Second)
 	for {
-		f.seq.l.Lock()
-		got := f.seq.latestHead.Number
-		f.seq.l.Unlock()
+		f.seq.mu.Lock()
+		got := f.seq.unsafeHead.Number
+		f.seq.mu.Unlock()
 		if got == numHeads {
 			break
 		}
@@ -465,11 +465,11 @@ func TestSequencerRunLoop_DeadlineMovedByDrain(t *testing.T) {
 		return nil, errors.New("must not be called")
 	}
 
-	f.seq.l.Lock()
+	f.seq.mu.Lock()
 	f.seq.active.Store(true)
-	f.seq.nextActionOK = true
+	f.seq.nextActionArmed = true
 	f.seq.nextAction = time.Now().Add(500 * time.Millisecond)
-	f.seq.l.Unlock()
+	f.seq.mu.Unlock()
 
 	stop := f.startLoop(t)
 	defer stop()
@@ -492,7 +492,7 @@ func TestSequencerRunLoop_DeadlineMovedByDrain(t *testing.T) {
 
 // TestSequencerRunLoop_NoSpinOnUnchangedSchedule pins the rule that the loop
 // never re-arms a deadline it already fired. An action that returns without
-// changing the schedule or clearing nextActionOK would otherwise re-arm the
+// changing the schedule or clearing nextActionArmed would otherwise re-arm the
 // same past deadline and spin at full CPU, holding the sequencer lock and
 // starving Start/Stop. No such action exists today; this guards future ones,
 // so the no-op action is constructed directly.
@@ -507,10 +507,10 @@ func TestSequencerRunLoop_NoSpinOnUnchangedSchedule(t *testing.T) {
 
 	// Inactive with an armed, already-due schedule: RunAction returns at the
 	// inactive check without touching the schedule.
-	f.seq.l.Lock()
-	f.seq.nextActionOK = true
+	f.seq.mu.Lock()
+	f.seq.nextActionArmed = true
 	f.seq.nextAction = time.Now().Add(-time.Second)
-	f.seq.l.Unlock()
+	f.seq.mu.Unlock()
 
 	stop := f.startLoop(t)
 	defer stop()
@@ -518,4 +518,53 @@ func TestSequencerRunLoop_NoSpinOnUnchangedSchedule(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	require.Less(t, clockReads.Load(), int64(10),
 		"loop re-fired the same deadline instead of parking")
+}
+
+// TestSequencerRunLoop_EarlyTimerFireKeepsDeadline covers a backward wall-clock
+// step (VM time sync, NTP) landing between arming the timer and its fire.
+// Sequencing deadlines are wall-clock values while the timer sleeps monotonic
+// time, so the step delivers the fire before the deadline is due. The loop must
+// re-plan on the remaining wait and still act: dropping the deadline here froze
+// block production permanently, with no log, metric or error (#22357).
+func TestSequencerRunLoop_EarlyTimerFireKeepsDeadline(t *testing.T) {
+	f := newRunLoopFixture(t)
+	deliver(f.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: f.head})
+
+	const step = 500 * time.Millisecond
+	start := time.Now()
+	deadline := start.Add(150 * time.Millisecond)
+	// The step lands after the loop has armed its timer, so the fire is early.
+	stepAt := start.Add(50 * time.Millisecond)
+	f.seq.timeNow = func() time.Time {
+		now := time.Now()
+		if now.Before(stepAt) {
+			return now
+		}
+		return now.Add(-step)
+	}
+
+	var actions atomic.Int64
+	f.deps.eng.startBuildFn = func(context.Context, *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		actions.Add(1)
+		return nil, context.Canceled // the outcome is irrelevant; only that we ran
+	}
+
+	f.seq.mu.Lock()
+	f.seq.active.Store(true)
+	f.seq.nextActionArmed = true
+	f.seq.nextAction = deadline
+	f.seq.mu.Unlock()
+
+	stop := f.startLoop(t)
+	defer stop()
+	f.seq.wake() // re-plan onto the deadline set above
+
+	// The timer fires at +150ms, but the stepped clock still reads before the
+	// deadline, so the action is not due yet.
+	time.Sleep(300 * time.Millisecond)
+	require.Zero(t, actions.Load(), "must not act before the deadline is due")
+
+	// Once the stepped clock reaches the deadline, the action must still run.
+	require.Eventually(t, func() bool { return actions.Load() > 0 }, 3*time.Second, 20*time.Millisecond,
+		"early timer fire dropped the deadline: the sequencer never acted again")
 }

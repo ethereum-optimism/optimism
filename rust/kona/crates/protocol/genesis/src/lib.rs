@@ -62,7 +62,7 @@ pub use chain::{
 pub mod interop;
 pub use interop::{
     ChainDependency, ClusterError, DependencySet, InteropConfig, MESSAGE_EXPIRY_WINDOW,
-    aggregate_clusters,
+    aggregate_clusters, with_single_chain_defaults,
 };
 
 mod genesis;

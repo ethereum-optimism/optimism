@@ -40,11 +40,11 @@ const (
 	Eip1559Denominator       uint64 = 50
 	Eip1559Elasticity        uint64 = 6
 
-	// TODO(#20916): This value should be replaced with a benchmark based on the time it takes to perform a full
-	// L2 genesis deployment.
 	// DefaultGenesisTimeOffsetSeconds is the default offset added to the L1 anchor block's
 	// timestamp to produce the committed L2 genesis timestamp.
-	DefaultGenesisTimeOffsetSeconds uint64 = 21600 // 6 hours
+	DefaultGenesisTimeOffsetSeconds uint64 = 10800 // 3 hours
+	// MinGenesisTimeOffsetSeconds is the smallest offset prepare accepts.
+	MinGenesisTimeOffsetSeconds uint64 = 3600 // 1 hour
 
 	ContractsV160Tag        = "op-contracts/v1.6.0"
 	ContractsV180Tag        = "op-contracts/v1.8.0-rc.4"
@@ -97,6 +97,31 @@ func ChallengerAddressFor(chainID uint64) (common.Address, error) {
 		return common.Address(validation.StandardConfigRolesMainnet.Challenger), nil
 	case 11155111:
 		return common.Address(validation.StandardConfigRolesSepolia.Challenger), nil
+	default:
+		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
+	}
+}
+
+const (
+	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+	// contracts/deployments/1.json, V6_1_0_SP1_VERIFIER_PLONK.
+	mainnetSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+	// Succinct deploys the same verifier bytecode and address deterministically on both networks.
+	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+	// contracts/deployments/11155111.json, V6_1_0_SP1_VERIFIER_PLONK.
+	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+)
+
+// SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
+// chain ID. Both `bootstrap implementations` and `apply` default to it when ZK dispute games are
+// enabled and the operator did not pin a verifier explicitly.
+// DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
+func SP1VerifierFor(chainID uint64) (common.Address, error) {
+	switch chainID {
+	case 1:
+		return common.HexToAddress(mainnetSP1VerifierV610), nil
+	case 11155111:
+		return common.HexToAddress(sepoliaSP1VerifierV610), nil
 	default:
 		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
