@@ -1635,6 +1635,55 @@ func TestInterop_ProgressAndRecord_StaleFrontierL1Waits(t *testing.T) {
 }
 
 // =============================================================================
+// TestInterop_ProgressAndRecord_SlowL1CheckFailsRoundAndLoopRecovers
+// =============================================================================
+
+// TestInterop_ProgressAndRecord_SlowL1CheckFailsRoundAndLoopRecovers swaps in an
+// L1 checker that blocks until its context is done. Without a per-round deadline
+// the activity context never expires and this round parks forever, so an
+// unbounded check hangs this test rather than failing it.
+func TestInterop_ProgressAndRecord_SlowL1CheckFailsRoundAndLoopRecovers(t *testing.T) {
+	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+					WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+			m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+		}).
+		Build()
+
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")}, L2Heads: blocks}, nil
+	}
+	h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{}, nil
+	}
+
+	made, err := h.interop.progressAndRecord()
+	require.NoError(t, err)
+	require.True(t, made)
+	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), lastTS)
+
+	h.interop.l1Checker = blockingL1Checker{}
+	h.interop.l1CheckTimeout = 50 * time.Millisecond
+
+	_, err = h.interop.progressAndRecord()
+	require.ErrorContains(t, err, "L1 consistency check")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.NoError(t, h.interop.ctx.Err(), "activity context survives a failed round")
+
+	// The loop is still live: the next round runs and advances.
+	h.interop.l1Checker = noopL1Checker{}
+	made, err = h.interop.progressAndRecord()
+	require.NoError(t, err)
+	require.True(t, made)
+	lastTS, ok = h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(102), lastTS)
+}
+
+// =============================================================================
 // TestResult_IsEmpty
 // =============================================================================
 

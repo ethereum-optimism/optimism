@@ -36,6 +36,12 @@ var (
 // executing message.
 const DefaultLogBackfillDepth = time.Duration(depset.MessageExpiryTimeSecondsInterop) * time.Second
 
+// defaultL1CheckTimeout bounds one round's L1 consistency check. The activity
+// context has no deadline and LimitRPC acquires the shared L1 client's
+// semaphore with the caller's context, so an unbounded call can park the
+// verification loop for the life of the process.
+const defaultL1CheckTimeout = 10 * time.Second
+
 // Interop activity state values exposed via supernode_interop_activity_state gauge.
 const (
 	InteropStateNotStarted       = 0
@@ -214,6 +220,9 @@ type Interop struct {
 	// via New; tests inject noopL1Checker.
 	l1Checker l1ConsistencyChecker
 
+	// l1CheckTimeout overrides defaultL1CheckTimeout; tests shorten it.
+	l1CheckTimeout time.Duration
+
 	logBackfillDepth time.Duration
 	metrics          *resources.SupernodeMetrics
 
@@ -306,6 +315,7 @@ func New(
 		logBackfillDepth:    logBackfillDepth,
 		metrics:             metrics,
 		clock:               clock.SystemClock,
+		l1CheckTimeout:      defaultL1CheckTimeout,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -630,7 +640,7 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 	obs.L1Heads = ready.l1Heads
 
 	if obs.LastVerified != nil {
-		same, err := i.l1Checker.SameL1Chain(i.ctx, []eth.BlockID{obs.LastVerified.L1Inclusion})
+		same, err := i.sameL1Chain([]eth.BlockID{obs.LastVerified.L1Inclusion})
 		if err != nil {
 			return obs, fmt.Errorf("L1 consistency check: %w", err)
 		}
@@ -648,13 +658,23 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 	for _, l1 := range obs.L1Heads {
 		heads = append(heads, l1)
 	}
-	same, err := i.l1Checker.SameL1Chain(i.ctx, heads)
+	same, err := i.sameL1Chain(heads)
 	if err != nil {
 		return obs, fmt.Errorf("L1 consistency check: %w", err)
 	}
 	obs.L1Consistent = same
 
 	return obs, nil
+}
+
+func (i *Interop) sameL1Chain(heads []eth.BlockID) (bool, error) {
+	timeout := i.l1CheckTimeout
+	if timeout <= 0 {
+		timeout = defaultL1CheckTimeout
+	}
+	ctx, cancel := context.WithTimeout(i.ctx, timeout)
+	defer cancel()
+	return i.l1Checker.SameL1Chain(ctx, heads)
 }
 
 // verify runs the heavy I/O: log loading, message verification, and cycle detection.

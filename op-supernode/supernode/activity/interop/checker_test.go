@@ -38,6 +38,15 @@ func (inconsistentL1Checker) SameL1Chain(context.Context, []eth.BlockID) (bool, 
 	return false, nil
 }
 
+// blockingL1Checker blocks until its context is done, standing in for a
+// saturated L1 client whose LimitRPC semaphore never frees a slot.
+type blockingL1Checker struct{}
+
+func (blockingL1Checker) SameL1Chain(ctx context.Context, _ []eth.BlockID) (bool, error) {
+	<-ctx.Done()
+	return false, ctx.Err()
+}
+
 // staleFrontierL1Checker treats the accepted L1 head as canonical on the first
 // check, then reports the frontier L1 heads as stale on the second check.
 type staleFrontierL1Checker struct {
