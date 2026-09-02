@@ -107,7 +107,22 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 		require.NoError(t, expected.UnmarshalBinary(rawExpected))
 		totalUpgradeGas += expected.Gas()
 	}
-	require.Equal(t, expectedGas, totalUpgradeGas, "total NUT gas must equal bundle total")
+	// The reservation covers wrapper deposits that only a multi-chain activation emits, which this
+	// single-chain devnet does not execute. Sum the multi-chain deposit set — the one that actually
+	// adds up to the reservation — rather than trusting the getter that reported it.
+	reservedTxs := expectedTxs
+	if fork == forks.Lagoon {
+		reservedTxs, _, err = derive.LagoonActivationUpgradeTransactions(true)
+		require.NoError(t, err)
+	}
+	var reservedGas uint64
+	for _, raw := range reservedTxs {
+		var tx types.Transaction
+		require.NoError(t, tx.UnmarshalBinary(raw))
+		reservedGas += tx.Gas()
+	}
+	require.Equal(t, expectedGas, reservedGas, "reserved gas must equal its activation deposits' total")
+	require.LessOrEqual(t, totalUpgradeGas, reservedGas, "executed deposits must fit within the reservation")
 
 	// Every tx in the activation block — the L1 info deposit and all NUT upgrade
 	// deposits — must execute successfully. A reverted upgrade tx would leave the
@@ -136,29 +151,32 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.Equal(t, bigs.Uint64Strict(actHeader.Number), l2SafeHead.Number,
 		"safe head must be exactly the %s activation block", fork)
 
-	// Skip the post-activation checks below for Lagoon/Interop:
-	//   - the fault proof needs dependency-set wiring in op-program / kona-host single; the Lagoon
-	//     activation transition is exercised by TestInteropFaultProofs_ActivationBoundary in
-	//     op-acceptance-tests (kona-host super) instead;
-	//   - the gas-limit revert isn't asserted here because Lagoon's activation block can also carry
-	//     multi-chain wrapper gas (setFeature + ETHLiquidity funding) that the reconstruction path
-	//     can't strip without the dependency set (see this PR's Scope/caveats).
-	// Worth revisiting now that single-chain Lagoon's NUT-bundle gas is stripped (follow-up issue).
-	if fork == forks.Lagoon {
-		return
-	}
+	// kona-client cannot prove a Lagoon span in single-chain mode: its pipeline is constructed
+	// without a DependencySet, which StatefulAttributesBuilder requires to decide whether the
+	// activation block carries the multi-chain wrapper deposits. The Lagoon activation transition
+	// is proven by TestInteropFaultProofs_ActivationBoundary in op-acceptance-tests (kona-host
+	// super) instead. The gas-limit assertions below run for every fork regardless.
+	runFPP := fork != forks.Lagoon
 
 	// Prove the activation-block span: kona-client verifies the activation transition itself.
-	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+	if runFPP {
+		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+	}
 
 	// The NUT-bundle upgrade gas applies only to the activation block. Build one
 	// more block and confirm its gas limit drops back to the pre-activation
 	// value — a regression would leak the upgrade gas onto every block after the
 	// activation block.
+	//
+	// The bump is UpgradeGas(fork), not the bundle's own total: Lagoon additionally reserves gas
+	// for the wrapper deposits that only a multi-chain activation emits, so this single-chain
+	// activation block carries that reservation as unused headroom.
+	upgradeGas, err := derive.UpgradeGas(fork)
+	require.NoError(t, err, "read upgrade gas for %s", fork)
 	env.Sequencer.ActL2EmptyBlock(t)
 	postActivation := engine.L2Chain().CurrentHeader()
 	preActivation := engine.L2Chain().GetHeaderByNumber(bigs.Uint64Strict(actHeader.Number) - 1)
-	require.Equal(t, preActivation.GasLimit+expectedGas, actHeader.GasLimit,
+	require.Equal(t, preActivation.GasLimit+upgradeGas, actHeader.GasLimit,
 		"activation block gas limit must be the pre-activation limit plus the one-time upgrade gas")
 	require.Equal(t, preActivation.GasLimit, postActivation.GasLimit,
 		"upgrade gas must not persist past the %s activation block", fork)
@@ -169,7 +187,9 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	l2SafeHead = env.Sequencer.L2Safe()
 	require.Equal(t, bigs.Uint64Strict(postActivation.Number), l2SafeHead.Number,
 		"safe head must advance to the post-activation block")
-	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+	if runFPP {
+		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+	}
 }
 
 // TestKarstActivationKeepUpgradeGas covers the keep_karst_upgrade_gas opt-out — the other branch of
