@@ -1297,6 +1297,10 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 		Time:   hexutil.Uint64(uint64(genesisTime) - 100),
 	}, genesisTime)
 
+	depSet, err := pipeline.BuildInteropDepSet(intent.Chains)
+	require.NoError(t, err)
+	st.InteropDepSet = depSet
+
 	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
@@ -1323,14 +1327,19 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 	require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
 	require.NotNil(t, chainState.GenesisBlockHash)
 	require.NotNil(t, chainState.StartingAnchorRoot)
-	require.Zero(t, uint64(chainState.StartingAnchorRoot.L2SequenceNumber))
+	require.Equal(t, uint64(genesisTime), uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
+		"a super-root anchor is sequenced by the pinned genesis time")
 
 	l2GenesisBlock := l2Genesis.ToBlock()
 	require.Equal(t, l2GenesisBlock.Hash(), *chainState.GenesisBlockHash)
 	require.NotNil(t, l2GenesisBlock.Header().WithdrawalsHash)
 	wantOutputRoot, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(l2GenesisBlock.Header()), *l2GenesisBlock.Header().WithdrawalsHash)
 	require.NoError(t, err)
-	require.Equal(t, common.Hash(wantOutputRoot), chainState.StartingAnchorRoot.Root)
+	wantAnchor := eth.SuperRoot(eth.NewSuperV1(uint64(genesisTime), eth.ChainIDAndOutput{
+		ChainID: eth.ChainIDFromBytes32(chain.ID),
+		Output:  wantOutputRoot,
+	}))
+	require.Equal(t, common.Hash(wantAnchor), chainState.StartingAnchorRoot.Root)
 
 	// Re-running the output-root computation is deterministic. The anchor is recomputed.
 	anchorBefore := *chainState.StartingAnchorRoot
@@ -1390,7 +1399,7 @@ func TestPrepare_RepredictionRebuildsL2Genesis(t *testing.T) {
 	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	prepareOnce := func() *state.ChainState {
-		require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
+		require.NoError(t, prepareChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
 		require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
 		require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
 		chainState, err := st.Chain(chain.ID)

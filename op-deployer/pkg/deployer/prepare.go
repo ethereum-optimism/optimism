@@ -511,9 +511,9 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		Challenger:        standard.PlaceholderAddress,
 	}
 
-	// Permissioned deploys use the placeholder anchor broadcast by apply. Permissionless
-	// deploys use a sentinel because their real anchor depends on the addresses predicted
-	// here, and the placeholder is rejected for them.
+	// The dry run only needs an anchor that OPCM accepts. The real SuperV1 anchor depends on the
+	// addresses predicted here, so prepare computes it after prediction. OPCM rejects the
+	// placeholder for permissionless game types, so those use a sentinel.
 	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
 
 	if requirements.Permissionless {

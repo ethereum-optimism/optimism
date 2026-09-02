@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -75,17 +74,6 @@ func setupClusterWithGenesis(t *testing.T, n int) (*Env, *state.Intent, *state.S
 	return pEnv, intent, st, ids
 }
 
-// useSuperGames points every chain in the intent at SUPER_CANNON_KONA.
-func useSuperGames(t *testing.T, intent *state.Intent) {
-	t.Helper()
-	for _, chain := range intent.Chains {
-		if chain.DeployOverrides == nil {
-			chain.DeployOverrides = map[string]any{}
-		}
-		chain.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
-	}
-}
-
 // v0RootOf independently recomputes a chain's plain V0 genesis output root and genesis timestamp.
 func v0RootOf(t *testing.T, intent *state.Intent, st *state.State, chainID common.Hash) (common.Hash, uint64) {
 	t.Helper()
@@ -138,12 +126,9 @@ func TestComputeGenesisOutputRoot_ComputesAndPersists(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, chainState.GenesisBlockHash)
 	require.NotNil(t, chainState.StartingAnchorRoot)
-	require.Zero(t, uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
-		"the genesis anchor must always be sequence number 0 for a non super root game")
 	require.NotEqual(t, common.Hash{}, chainState.StartingAnchorRoot.Root)
 	require.NotEqual(t, opcm.DefaultStartingAnchorRoot.Root, chainState.StartingAnchorRoot.Root)
 
-	// Cross-check: independently rebuild the same L2 genesis block and recompute the output root.
 	chainIntent, err := intent.Chain(chainID)
 	require.NoError(t, err)
 	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
@@ -152,11 +137,6 @@ func TestComputeGenesisOutputRoot_ComputesAndPersists(t *testing.T) {
 	require.NoError(t, err)
 	block := l2Genesis.ToBlock()
 	require.Equal(t, block.Hash(), *chainState.GenesisBlockHash)
-
-	require.NotNil(t, block.Header().WithdrawalsHash, "genesis block must be Isthmus-active to carry a withdrawals root")
-	wantOutputRoot, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(block.Header()), *block.Header().WithdrawalsHash)
-	require.NoError(t, err)
-	require.Equal(t, common.Hash(wantOutputRoot), chainState.StartingAnchorRoot.Root)
 
 	// Re-running must be deterministic.
 	blockHashBefore := *chainState.GenesisBlockHash
@@ -168,10 +148,11 @@ func TestComputeGenesisOutputRoot_ComputesAndPersists(t *testing.T) {
 	require.Equal(t, anchorBefore, *chainStateAfter.StartingAnchorRoot)
 }
 
-// TestComputeGenesisOutputRoot_SkipsAlreadyDeployedChain verifies that a chain deployed via the
+// TestComputeGenesisOutputRoot_RejectsAlreadyDeployedChain verifies that a chain deployed via the
 // plain apply pipeline, which populates Allocs/StartBlock/GenesisTime but never calls
-// ComputeGenesisOutputRoot, since it uses the placeholder anchor.
-func TestComputeGenesisOutputRoot_SkipsAlreadyDeployedChain(t *testing.T) {
+// ComputeGenesisOutputRoots, is not re-anchored. Its on-chain anchor is immutable, so
+// ComputeGenesisOutputRoots fails instead of fabricating one.
+func TestComputeGenesisOutputRoot_RejectsAlreadyDeployedChain(t *testing.T) {
 	pEnv, intent, st, chainID := setupChainWithGenesis(t)
 
 	chainState, err := st.Chain(chainID)
@@ -182,7 +163,8 @@ func TestComputeGenesisOutputRoot_SkipsAlreadyDeployedChain(t *testing.T) {
 	st.SetChainContracts(chainID, chainState.OpChainContracts, true)
 	require.True(t, st.IsChainDeployed(chainID))
 
-	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
+	err = ComputeGenesisOutputRoots(pEnv, intent, st)
+	require.ErrorContains(t, err, "already deployed")
 
 	chainStateAfter, err := st.Chain(chainID)
 	require.NoError(t, err)
@@ -190,18 +172,13 @@ func TestComputeGenesisOutputRoot_SkipsAlreadyDeployedChain(t *testing.T) {
 	require.Nil(t, chainStateAfter.GenesisBlockHash, "must not fabricate a genesis block hash for an already-deployed chain")
 }
 
-// TestComputeGenesisOutputRoot_SuperGameTypeWrapsSuperV1Root verifies that a chain configured
-// for SUPER_CANNON_KONA gets a genesis anchor encoded as a SuperV1 root over just its own
-// output, not the bare V0 root.
-func TestComputeGenesisOutputRoot_SuperGameTypeWrapsSuperV1Root(t *testing.T) {
+// TestComputeGenesisOutputRoot_WrapsSuperV1Root verifies that a single chain gets a SuperV1 root
+// over its own output as the genesis anchor, not the bare V0 root.
+func TestComputeGenesisOutputRoot_WrapsSuperV1Root(t *testing.T) {
 	pEnv, intent, st, chainID := setupChainWithGenesis(t)
 
 	chainIntent, err := intent.Chain(chainID)
 	require.NoError(t, err)
-	if chainIntent.DeployOverrides == nil {
-		chainIntent.DeployOverrides = map[string]any{}
-	}
-	chainIntent.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
 
 	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 
@@ -245,10 +222,6 @@ func TestComputeGenesisOutputRoot_SuperAnchorRoundTrips(t *testing.T) {
 
 	chainIntent, err := intent.Chain(chainID)
 	require.NoError(t, err)
-	if chainIntent.DeployOverrides == nil {
-		chainIntent.DeployOverrides = map[string]any{}
-	}
-	chainIntent.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
 
 	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 
@@ -293,7 +266,6 @@ func TestComputeGenesisOutputRoot_SuperAnchorRoundTrips(t *testing.T) {
 // still gets its own AnchorStateRegistry, what they share is the root they are anchored to.
 func TestComputeGenesisOutputRoots_SuperAnchorSpansTheDependencySet(t *testing.T) {
 	pEnv, intent, st, ids := setupClusterWithGenesis(t, 3)
-	useSuperGames(t, intent)
 
 	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 
@@ -333,34 +305,10 @@ func TestComputeGenesisOutputRoots_SuperAnchorSpansTheDependencySet(t *testing.T
 	}
 }
 
-// TestComputeGenesisOutputRoots_OutputRootAnchorsStayPerChain is the regression guard for the
-// non super path: a multi-chain output root deployment must still give every chain its own plain
-// V0 root at sequence number 0.
-func TestComputeGenesisOutputRoots_OutputRootAnchorsStayPerChain(t *testing.T) {
-	pEnv, intent, st, ids := setupClusterWithGenesis(t, 3)
-
-	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
-
-	seen := make(map[common.Hash]struct{}, len(ids))
-	for _, id := range ids {
-		wantRoot, _ := v0RootOf(t, intent, st, id)
-		chainState, err := st.Chain(id)
-		require.NoError(t, err)
-		require.NotNil(t, chainState.StartingAnchorRoot)
-		require.Equal(t, wantRoot, chainState.StartingAnchorRoot.Root,
-			"chain %s must be anchored to its own V0 root", id.Hex())
-		require.Zero(t, uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
-			"an output-root anchor is sequenced by block number, and genesis is block 0")
-		seen[chainState.StartingAnchorRoot.Root] = struct{}{}
-	}
-	require.Len(t, seen, len(ids), "each chain must get a distinct anchor, not a shared one")
-}
-
 // TestComputeGenesisOutputRoots_SuperAnchorFollowsTheDependencySet verifies the chain list comes
 // from the recorded dependency set rather than from the intent.
 func TestComputeGenesisOutputRoots_SuperAnchorFollowsTheDependencySet(t *testing.T) {
 	pEnv, intent, st, ids := setupClusterWithGenesis(t, 2)
-	useSuperGames(t, intent)
 
 	// Record a dependency set naming a chain the intent does not describe.
 	strayDepSet, err := BuildInteropDepSet([]*state.ChainIntent{
@@ -378,7 +326,6 @@ func TestComputeGenesisOutputRoots_SuperAnchorFollowsTheDependencySet(t *testing
 // every set member share the same genesis time.
 func TestComputeGenesisOutputRoots_SuperAnchorRejectsDivergentGenesisTimes(t *testing.T) {
 	pEnv, intent, st, ids := setupClusterWithGenesis(t, 2)
-	useSuperGames(t, intent)
 
 	// Re-pin the second chain 60s later, as a per-chain l1StartBlockHash override would.
 	second, err := st.Chain(ids[1])
@@ -396,7 +343,6 @@ func TestComputeGenesisOutputRoots_SuperAnchorRejectsDivergentGenesisTimes(t *te
 // a new super root.
 func TestComputeGenesisOutputRoots_SuperAnchorRejectsDeployedMember(t *testing.T) {
 	pEnv, intent, st, ids := setupClusterWithGenesis(t, 2)
-	useSuperGames(t, intent)
 
 	first, err := st.Chain(ids[0])
 	require.NoError(t, err)
@@ -408,46 +354,10 @@ func TestComputeGenesisOutputRoots_SuperAnchorRejectsDeployedMember(t *testing.T
 	require.ErrorContains(t, err, "already deployed")
 }
 
-// TestComputeGenesisOutputRoots_PermissionedMemberJoinsSuperCluster covers a permissioned chain
-// alongside a SUPER_CANNON_KONA one.
-func TestComputeGenesisOutputRoots_PermissionedMemberJoinsSuperCluster(t *testing.T) {
-	pEnv, intent, st, ids := setupClusterWithGenesis(t, 2)
-
-	// Chain 0 keeps the default PERMISSIONED_CANNON; only chain 1 asks for a super game.
-	if intent.Chains[1].DeployOverrides == nil {
-		intent.Chains[1].DeployOverrides = map[string]any{}
-	}
-	intent.Chains[1].DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
-
-	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
-
-	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(ids))
-	var sharedTimestamp uint64
-	for _, id := range ids {
-		v0Root, timestamp := v0RootOf(t, intent, st, id)
-		sharedTimestamp = timestamp
-		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{
-			ChainID: eth.ChainIDFromBytes32(id),
-			Output:  eth.Bytes32(v0Root),
-		})
-	}
-	wantAnchor := common.Hash(eth.SuperRoot(eth.NewSuperV1(sharedTimestamp, chainOutputs...)))
-
-	for _, id := range ids {
-		chainState, err := st.Chain(id)
-		require.NoError(t, err)
-		require.NotNil(t, chainState.StartingAnchorRoot)
-		require.Equal(t, wantAnchor, chainState.StartingAnchorRoot.Root,
-			"chain %s must be anchored to the cluster-wide super root", id.Hex())
-		require.Equal(t, sharedTimestamp, uint64(chainState.StartingAnchorRoot.L2SequenceNumber))
-	}
-}
-
 // TestComputeGenesisOutputRoots_SuperAnchorRequiresDependencySet guards the case where a prepared
 // state predates the dependency set being recorded.
 func TestComputeGenesisOutputRoots_SuperAnchorRequiresDependencySet(t *testing.T) {
 	pEnv, intent, st, _ := setupClusterWithGenesis(t, 2)
-	useSuperGames(t, intent)
 	st.InteropDepSet = nil
 
 	err := ComputeGenesisOutputRoots(pEnv, intent, st)

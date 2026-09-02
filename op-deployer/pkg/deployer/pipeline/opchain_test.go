@@ -434,7 +434,6 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = proofPrestate
 
 	st.Chains[0].Prestate = common.Hash{}
-	st.Chains[0].StartingAnchorRoot = nil
 
 	got, err := BuildContinuationDCI(chainID, st)
 	require.NoError(t, err)
@@ -443,12 +442,11 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), got.DisputeGameType)
 	require.Equal(t, proofPrestate, got.DisputeAbsolutePrestate)
 	require.Zero(t, got.CannonAbsolutePrestate)
-	require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
-	require.Zero(t, got.StartingAnchorRoot.L2SequenceNumber.Sign())
-	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.Equal(t, st.Chains[0].StartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
+	require.Equal(t, big.NewInt(42), got.StartingAnchorRoot.L2SequenceNumber)
 	require.NotSame(t, got.StartingAnchorRoot.L2SequenceNumber, second.StartingAnchorRoot.L2SequenceNumber)
 	got.StartingAnchorRoot.L2SequenceNumber.SetUint64(1)
-	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.Equal(t, big.NewInt(42), second.StartingAnchorRoot.L2SequenceNumber)
 	require.Equal(t, st.PreparedDeployment.OPCM, got.Opcm)
 	require.NotEqual(t, *intent.OPCMAddress, got.Opcm)
 	require.Equal(t, *intent.SuperchainConfigProxy, got.SuperchainConfig)
@@ -594,6 +592,13 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 				st.Chains[0].StartingAnchorRoot.Root = opcm.DefaultStartingAnchorRoot.Root
 			},
 			wantErrors: []string{"permissioned starting anchor placeholder", "proposal-producing stage"},
+		},
+		{
+			name: "gate 12 rejects zero anchor sequence",
+			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
+				st.Chains[0].StartingAnchorRoot.L2SequenceNumber = 0
+			},
+			wantErrors: []string{"sequenced at 0", "op-deployer prepare"},
 		},
 		{
 			name: "gate 12 rejects maximum anchor sequence",
@@ -903,25 +908,6 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 			if got.Permissionless {
 				require.True(t, got.RequiresPrestate)
 			}
-		})
-	}
-}
-
-func TestIsSuperGameType(t *testing.T) {
-	tests := []struct {
-		name     string
-		gameType embedded.GameType
-		expected bool
-	}{
-		{name: "SUPER_CANNON_KONA", gameType: embedded.GameTypeSuperCannonKona, expected: true},
-		{name: "CANNON_KONA", gameType: embedded.GameTypeCannonKona, expected: false},
-		{name: "PERMISSIONED_CANNON", gameType: embedded.GameTypePermissionedCannon, expected: false},
-		{name: "SUPER_PERMISSIONED", gameType: embedded.GameTypeSuperPermissioned, expected: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expected, IsSuperGameType(uint32(tt.gameType)))
 		})
 	}
 }
