@@ -359,6 +359,11 @@ target "op-reth" {
   # Dockerfile can COPY the subset it needs.
   contexts = {
     superchain-registry = "superchain-registry"
+    # The chainspec crate embeds the private-interop projection bytecode from
+    # op-private-interop/genesis/bytecode (repo root, outside "rust") via
+    # include_str!; expose it as a named context the Dockerfile copies to the
+    # path those relative includes resolve to inside the image.
+    op-private-interop = "op-private-interop"
   }
   args = {
     BUILD_PROFILE = "maxperf"
