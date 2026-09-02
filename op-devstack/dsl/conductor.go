@@ -371,16 +371,8 @@ func (c *Conductor) TransferLeadership(cluster ConductorSet) *Conductor {
 // and for that cluster-wide invariant to move to target before returning.
 func (s ConductorSet) TransferLeadershipTo(source, target *Conductor) {
 	c := s.common()
-	contains := func(want *Conductor) bool {
-		for _, conductor := range s {
-			if conductor == want {
-				return true
-			}
-		}
-		return false
-	}
-	c.require.Truef(contains(source), "leadership transfer source %s is not in the conductor set", source)
-	c.require.Truef(contains(target), "leadership transfer target %s is not in the conductor set", target)
+	c.require.Contains(s, source, "leadership transfer source must be in the conductor set")
+	c.require.Contains(s, target, "leadership transfer target must be in the conductor set")
 	c.require.NotSame(source, target, "leadership transfer source and target must differ")
 
 	source.log.Info("Transferring leadership", "from", source, "to", target)
