@@ -188,9 +188,6 @@ func (r *continuationRunner) run() error {
 	if err != nil {
 		return err
 	}
-	if err := validateContinuationGameTypes(pending); err != nil {
-		return err
-	}
 	for i := range pending {
 		if err := r.preflight(&pending[i]); err != nil {
 			return err
@@ -204,17 +201,6 @@ func (r *continuationRunner) run() error {
 
 	if err := pipeline.WriteState(r.cfg.Workdir, st); err != nil {
 		return fmt.Errorf("failed to write completed continuation state: %w", err)
-	}
-	return nil
-}
-
-func validateContinuationGameTypes(pending []continuationChain) error {
-	gameTypes := make([]uint32, 0, len(pending))
-	for _, chain := range pending {
-		gameTypes = append(gameTypes, chain.dci.DisputeGameType)
-	}
-	if err := pipeline.ValidateInitialGameTypeSet(gameTypes); err != nil {
-		return fmt.Errorf("invalid pending continuation game types: %w", err)
 	}
 	return nil
 }
