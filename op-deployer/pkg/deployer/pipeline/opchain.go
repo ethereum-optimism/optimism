@@ -269,31 +269,6 @@ type InitialDeployRequirements struct {
 	RequiresPrestate bool
 }
 
-// IsSuperGameType reports whether the initial game uses a super root.
-func IsSuperGameType(gameType uint32) bool {
-	return embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona ||
-		embedded.GameType(gameType) == embedded.GameTypeSuperPermissioned
-}
-
-// DeploymentUsesSuperRoots reports whether the starting anchors are SuperV1 roots over the
-// dependency set rather than per-chain output roots. Deployed chains are ignored, their
-// games being fixed on L1.
-func DeploymentUsesSuperRoots(intent *state.Intent, st *state.State) (bool, error) {
-	for _, chain := range intent.Chains {
-		if st.IsChainDeployed(chain.ID) {
-			continue
-		}
-		proofParams, err := ResolveChainProofParams(intent, chain)
-		if err != nil {
-			return false, fmt.Errorf("failed to resolve proof params for chain %s: %w", chain.ID.Hex(), err)
-		}
-		if IsSuperGameType(proofParams.DisputeGameType) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 // ResolveInitialDeployRequirements returns requirements for a supported initial game type.
 func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirements, error) {
 	switch embedded.GameType(gameType) {
@@ -377,35 +352,43 @@ func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPCh
 		}
 	}
 
-	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
-	if requirements.Permissionless || chainState.StartingAnchorRoot != nil {
-		if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
-			return opcm.DeployOPChainInput{}, fmt.Errorf(
-				"chain %s has no valid starting anchor proposal committed. Rerun the proposal-producing stage",
-				chainID.Hex(),
-			)
-		}
-		if chainState.StartingAnchorRoot.Root == opcm.DefaultStartingAnchorRoot.Root {
-			return opcm.DeployOPChainInput{}, fmt.Errorf(
-				"chain %s has the permissioned starting anchor placeholder committed. Rerun the proposal-producing stage",
-				chainID.Hex(),
-			)
-		}
-		// The initial anchor must leave room for a strictly greater uint64 game sequence.
-		// The field is uint64-bounded, so equality is the only invalid value representable here.
-		if chainState.StartingAnchorRoot.L2SequenceNumber == math.MaxUint64 {
-			return opcm.DeployOPChainInput{}, fmt.Errorf(
-				"chain %s has a starting anchor sequence number that is too large. Rerun the proposal-producing stage",
-				chainID.Hex(),
-			)
-		}
+	// Both supported initial game types are super-root games, so the committed anchor is
+	// broadcast for every prepared chain.
+	if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf(
+			"chain %s has no valid starting anchor proposal committed. Rerun the proposal-producing stage",
+			chainID.Hex(),
+		)
+	}
+	if chainState.StartingAnchorRoot.Root == opcm.DefaultStartingAnchorRoot.Root {
+		return opcm.DeployOPChainInput{}, fmt.Errorf(
+			"chain %s has the permissioned starting anchor placeholder committed. Rerun the proposal-producing stage",
+			chainID.Hex(),
+		)
+	}
+	// A super-root anchor is sequenced by the L2 genesis timestamp, so 0 is never valid. Older
+	// workdirs anchored SUPER_PERMISSIONED chains to a plain V0 output root at sequence 0. That
+	// anchor must not be broadcast as a super root.
+	if chainState.StartingAnchorRoot.L2SequenceNumber == 0 {
+		return opcm.DeployOPChainInput{}, fmt.Errorf(
+			"chain %s has a starting anchor sequenced at 0, which is not a super-root genesis anchor. Rerun op-deployer prepare",
+			chainID.Hex(),
+		)
+	}
+	// The initial anchor must leave room for a strictly greater uint64 game sequence.
+	// The field is uint64-bounded, so equality is the only invalid value representable here.
+	if chainState.StartingAnchorRoot.L2SequenceNumber == math.MaxUint64 {
+		return opcm.DeployOPChainInput{}, fmt.Errorf(
+			"chain %s has a starting anchor sequence number that is too large. Rerun the proposal-producing stage",
+			chainID.Hex(),
+		)
+	}
 
-		startingAnchorRoot = opcm.Proposal{
-			Root: chainState.StartingAnchorRoot.Root,
-			L2SequenceNumber: new(big.Int).SetUint64(
-				uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
-			),
-		}
+	startingAnchorRoot := opcm.Proposal{
+		Root: chainState.StartingAnchorRoot.Root,
+		L2SequenceNumber: new(big.Int).SetUint64(
+			uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
+		),
 	}
 
 	if requirements.RequiresPrestate {
