@@ -44,15 +44,16 @@ func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2
 			ChainID: chainID,
 			Output:  preRoot.OutputRoot,
 		})
+		optimistic := eth.OptimisticBlock{
+			BlockHash:  claimRoot.BlockRef.Hash,
+			OutputRoot: claimRoot.OutputRoot,
+		}
 		// With a one-chain dependency set there is no second chain to derive, so the honest
 		// post-state of step 0 is the transition state holding just this chain's optimistic block.
 		claimed := &eth.TransitionState{
-			SuperRoot: agreed.Marshal(),
-			PendingProgress: []eth.OptimisticBlock{{
-				BlockHash:  claimRoot.BlockRef.Hash,
-				OutputRoot: claimRoot.OutputRoot,
-			}},
-			Step: 1,
+			SuperRoot:       agreed.Marshal(),
+			PendingProgress: []eth.OptimisticBlock{optimistic},
+			Step:            1,
 		}
 
 		f.L2BlockNumber = l2ClaimBlockNum

@@ -97,11 +97,12 @@ func RunKonaSuperNative(
 		DepsetConfigPath:  depsetPath,
 		Server:            konaHostPath,
 	}
+	// The interop program is timestamp-addressed, so L2SequenceNumber carries the claimed
+	// timestamp (it becomes --claimed-l2-timestamp) rather than a block number.
 	inputs := utils.LocalGameInputs{
-		L1Head:         fixtureInputs.L1Head,
-		AgreedPreState: fixtureInputs.AgreedPrestate,
-		L2Claim:        fixtureInputs.L2Claim,
-		// The interop program is timestamp-addressed: this becomes --claimed-l2-timestamp.
+		L1Head:           fixtureInputs.L1Head,
+		AgreedPreState:   fixtureInputs.AgreedPrestate,
+		L2Claim:          fixtureInputs.L2Claim,
 		L2SequenceNumber: new(big.Int).SetUint64(fixtureInputs.ClaimTimestamp),
 	}
 
