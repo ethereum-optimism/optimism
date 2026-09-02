@@ -2,7 +2,7 @@
 
 use crate::{
     errors::PipelineError,
-    stages::NextBatchProvider,
+    stages::{NextBatchProvider, StagedBatch},
     traits::{OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
 };
@@ -48,8 +48,12 @@ impl NextBatchProvider for TestNextBatchProvider {
         self.batches.len()
     }
 
-    async fn next_batch(&mut self, _: L2BlockInfo, _: &[BlockInfo]) -> PipelineResult<Batch> {
-        self.batches.pop().ok_or(PipelineError::Eof.temp())?
+    async fn next_batch(
+        &mut self,
+        _: L2BlockInfo,
+        _: &[BlockInfo],
+    ) -> PipelineResult<StagedBatch<Batch>> {
+        self.batches.pop().ok_or(PipelineError::Eof.temp())?.map(StagedBatch::new)
     }
 }
 

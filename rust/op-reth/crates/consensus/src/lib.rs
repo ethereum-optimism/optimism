@@ -21,8 +21,7 @@ use reth_chainspec::EthChainSpec;
 use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator, ReceiptRootBloom};
 use reth_consensus_common::validation::{
     validate_against_parent_eip1559_base_fee, validate_against_parent_hash_number,
-    validate_against_parent_timestamp, validate_cancun_gas, validate_header_base_fee,
-    validate_header_extra_data, validate_header_gas,
+    validate_cancun_gas, validate_header_base_fee, validate_header_extra_data, validate_header_gas,
 };
 use reth_execution_types::BlockExecutionResult;
 use reth_optimism_forks::OpHardforks;
@@ -40,6 +39,29 @@ pub use validation::{canyon, isthmus, validate_block_post_execution};
 
 pub mod error;
 pub use error::OpConsensusError;
+
+/// Validates a block's timestamp against its parent's.
+///
+/// A block's timestamp never goes backwards. It equals its parent's only where the chain allows
+/// siblings — consecutive blocks sharing a timestamp, see
+/// [`OpHardforks::siblings_allowed_at_timestamp`] — and is otherwise strictly greater. How far it
+/// may advance is a consensus-layer rule (a multiple of the rollup's block time) that the
+/// execution layer cannot check: it has no block time.
+pub fn validate_timestamp_against_parent<ChainSpec: OpHardforks>(
+    chain_spec: &ChainSpec,
+    timestamp: u64,
+    parent_timestamp: u64,
+) -> Result<(), ConsensusError> {
+    if timestamp < parent_timestamp {
+        return Err(ConsensusError::TimestampIsInPast { parent_timestamp, timestamp });
+    }
+    if timestamp == parent_timestamp && !chain_spec.siblings_allowed_at_timestamp(timestamp) {
+        return Err(ConsensusError::msg(format!(
+            "block timestamp {timestamp} equals its parent's, but siblings are not allowed at it"
+        )));
+    }
+    Ok(())
+}
 
 /// Optimism consensus implementation.
 ///
@@ -177,8 +199,8 @@ where
         // are only allowed to be in the future (compared to the system's clock) by a certain
         // threshold.
         //
-        // Block validation with respect to the parent should ensure that the block timestamp
-        // is greater than its parent timestamp.
+        // How the timestamp relates to the parent's is checked in
+        // `validate_header_against_parent`, which has the parent at hand.
 
         // validate header extra data for all networks post merge
         validate_header_extra_data(header, self.max_extra_data_size)?;
@@ -194,7 +216,11 @@ where
         validate_against_parent_hash_number(header.header(), parent)?;
 
         if self.chain_spec.is_bedrock_active_at_block(header.number()) {
-            validate_against_parent_timestamp(header.header(), parent.header())?;
+            validate_timestamp_against_parent(
+                &self.chain_spec,
+                header.timestamp(),
+                parent.timestamp(),
+            )?;
         }
 
         validate_against_parent_eip1559_base_fee(
@@ -245,14 +271,92 @@ mod tests {
     use op_alloy_consensus::{
         OpTypedTransaction, encode_holocene_extra_data, encode_jovian_extra_data,
     };
-    use reth_chainspec::BaseFeeParams;
+    use reth_chainspec::{BaseFeeParams, ForkCondition};
     use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator};
     use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec, OpChainSpecBuilder};
+    use reth_optimism_forks::OpHardfork;
     use reth_optimism_primitives::{OpPrimitives, OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{RecoveredBlock, SealedBlock, SealedHeader, proofs};
     use reth_provider::BlockExecutionResult;
 
-    use crate::OpBeaconConsensus;
+    use crate::{OpBeaconConsensus, validate_timestamp_against_parent};
+
+    /// Multi-block activation used by the timestamp tests.
+    const MULTI_BLOCK_TIME: u64 = 1_800_000_000;
+    /// A fork scheduled after the multi-block activation.
+    const LAGOON_TIME: u64 = MULTI_BLOCK_TIME + 100;
+
+    fn multi_block_chain_spec(with_multi_block: bool) -> OpChainSpec {
+        let mut builder = OpChainSpecBuilder::default()
+            .karst_activated()
+            .with_fork(OpHardfork::Lagoon, ForkCondition::Timestamp(LAGOON_TIME))
+            .genesis(OP_MAINNET.genesis.clone())
+            .chain(OP_MAINNET.chain);
+        if with_multi_block {
+            builder = builder.multi_block_at(MULTI_BLOCK_TIME);
+        }
+        builder.build()
+    }
+
+    #[test]
+    fn timestamp_never_goes_backwards() {
+        for with_multi_block in [false, true] {
+            let chain_spec = multi_block_chain_spec(with_multi_block);
+            assert!(matches!(
+                validate_timestamp_against_parent(
+                    &chain_spec,
+                    MULTI_BLOCK_TIME + 1,
+                    MULTI_BLOCK_TIME + 2
+                ),
+                Err(ConsensusError::TimestampIsInPast { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn equal_timestamps_are_valid_exactly_where_siblings_are_allowed() {
+        let chain_spec = multi_block_chain_spec(true);
+
+        // A strictly increasing timestamp is always valid; the stride is a CL rule.
+        assert!(
+            validate_timestamp_against_parent(&chain_spec, MULTI_BLOCK_TIME, MULTI_BLOCK_TIME - 2)
+                .is_ok()
+        );
+
+        // Up to and including the activation timestamp, every block has its own timestamp.
+        assert!(
+            validate_timestamp_against_parent(
+                &chain_spec,
+                MULTI_BLOCK_TIME - 2,
+                MULTI_BLOCK_TIME - 2
+            )
+            .is_err()
+        );
+        assert!(
+            validate_timestamp_against_parent(&chain_spec, MULTI_BLOCK_TIME, MULTI_BLOCK_TIME)
+                .is_err()
+        );
+
+        // Past it, siblings are valid.
+        assert!(
+            validate_timestamp_against_parent(
+                &chain_spec,
+                MULTI_BLOCK_TIME + 2,
+                MULTI_BLOCK_TIME + 2
+            )
+            .is_ok()
+        );
+
+        // Except on a later fork's activation timestamp, whose block must stay unique.
+        assert!(validate_timestamp_against_parent(&chain_spec, LAGOON_TIME, LAGOON_TIME).is_err());
+
+        // A chain without the feature rejects siblings everywhere.
+        let without = multi_block_chain_spec(false);
+        assert!(
+            validate_timestamp_against_parent(&without, MULTI_BLOCK_TIME + 2, MULTI_BLOCK_TIME + 2)
+                .is_err()
+        );
+    }
 
     fn mock_tx(nonce: u64) -> OpTransactionSigned {
         let tx = TxEip7702 {

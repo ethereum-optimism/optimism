@@ -22,6 +22,7 @@ const (
 
 	// Optional Forks - not part of mainline
 	PectraBlobSchedule Name = "pectrablobschedule"
+	MultiBlock         Name = "multiblock"
 
 	None Name = ""
 )
@@ -46,6 +47,7 @@ var All = []Name{
 // AllOpt lists all optional forks in chronological order.
 var AllOpt = []Name{
 	PectraBlobSchedule,
+	MultiBlock,
 	// ADD NEW OPTIONAL FORKS HERE!
 }
 

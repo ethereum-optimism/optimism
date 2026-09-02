@@ -42,7 +42,7 @@ pub struct BlockHandler {
     /// The libp2p topic for V4 blocks.
     pub blocks_v4_topic: IdentTopic,
     /// A map of seen block height to block hash set.
-    /// This map is pruned when it contains more than [`Self::SEEN_HASH_CACHE_SIZE`] entries.
+    /// This map is pruned when it contains more than [`Self::seen_hash_cache_size`] entries.
     pub seen_hashes: BTreeMap<u64, HashSet<B256>>,
 }
 

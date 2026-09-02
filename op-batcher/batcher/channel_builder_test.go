@@ -36,7 +36,7 @@ var defaultTestRollupConfig = &rollup.Config{
 // channel out could not be created.
 // it acts as a factory for either a span or singular channel out
 func newChannelBuilder(log log.Logger, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*ChannelBuilder, error) {
-	co, err := NewChannelOut(cfg, rollupCfg)
+	co, err := NewChannelOut(cfg, rollupCfg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating channel out: %w", err)
 	}
@@ -973,7 +973,7 @@ func ChannelBuilder_InputBytes(t *testing.T, batchType uint) {
 	var spanBatch *derive.SpanBatch
 	if batchType == derive.SpanBatchType {
 		chainId := big.NewInt(1234)
-		spanBatch = derive.NewSpanBatch(uint64(0), chainId)
+		spanBatch = derive.NewSpanBatch(derive.SpanBatchType, uint64(0), chainId, 0)
 	}
 	cb, err := newChannelBuilder(log, cfg, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(err)

@@ -97,15 +97,38 @@ use reth_node_api::{
 };
 use reth_node_builder::rpc::{EngineApiBuilder, PayloadValidatorBuilder};
 use reth_node_core::version::{CLIENT_CODE, version_metadata};
-use reth_optimism_payload_builder::OpExecData;
+use reth_optimism_payload_builder::{OpExecData, config::MultiBlockPolicy};
 use reth_optimism_rpc::engine::OP_ENGINE_CAPABILITIES;
 use reth_payload_builder::PayloadStore;
 use reth_rpc_engine_api::{EngineApi, EngineCapabilities};
 
 /// Builder for basic [`OpEngineApi`] implementation.
+///
+/// A default-constructed builder holds a policy of its own, which no payload builder ever writes
+/// to, so `engine_awaitPayloadReadyV1` reports every payload as pending. Use
+/// [`OpNode::engine_api_builder`](crate::OpNode::engine_api_builder) — or
+/// [`with_multi_block_policy`](Self::with_multi_block_policy) — to share the node's policy.
 #[derive(Debug, Default, Clone)]
 pub struct OpEngineApiBuilder<EV> {
     engine_validator_builder: EV,
+    multi_block_policy: MultiBlockPolicy,
+}
+
+impl<EV> OpEngineApiBuilder<EV> {
+    /// Serve the payload readiness recorded by the given policy from
+    /// `engine_awaitPayloadReadyV1`.
+    ///
+    /// Must be the same policy the payload builder was configured with, otherwise no payload is
+    /// ever reported ready.
+    pub fn with_multi_block_policy(mut self, multi_block_policy: MultiBlockPolicy) -> Self {
+        self.multi_block_policy = multi_block_policy;
+        self
+    }
+
+    /// The policy whose readiness this engine API will serve.
+    pub const fn multi_block_policy(&self) -> &MultiBlockPolicy {
+        &self.multi_block_policy
+    }
 }
 
 impl<N, EV> EngineApiBuilder<N> for OpEngineApiBuilder<EV>
@@ -128,7 +151,7 @@ where
     >;
 
     async fn build_engine_api(self, ctx: &AddOnsContext<'_, N>) -> eyre::Result<Self::EngineApi> {
-        let Self { engine_validator_builder } = self;
+        let Self { engine_validator_builder, multi_block_policy } = self;
 
         let engine_validator = engine_validator_builder.build(ctx).await?;
         let client = ClientVersionV1 {
@@ -151,6 +174,6 @@ where
             ctx.node.network().clone(),
         );
 
-        Ok(OpEngineApi::new(inner))
+        Ok(OpEngineApi::new(inner, ctx.node.payload_builder_handle().clone(), multi_block_policy))
     }
 }

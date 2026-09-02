@@ -104,6 +104,11 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		bq.nextSpan = singularBatches
 		// span-batches are non-empty, so the below pop is safe.
 		nextBatch = bq.popNextBatch(parent)
+	case SpanBatchV2Type:
+		// Unreachable: the ChannelInReader already discards any channel carrying a v2 span. Kept as
+		// a drop, like the other stages, so a decoder change can never turn it into a stall.
+		bq.log.Warn("Dropping span batch v2: op-node does not derive multi-blocks")
+		return nil, false, NotEnoughData
 	default:
 		return nil, false, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", typ))
 	}

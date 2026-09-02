@@ -1,6 +1,6 @@
 //! Mock implementations for testing engine client functionality.
 
-use crate::{EngineClient, HyperAuthClient};
+use crate::{EngineClient, HyperAuthClient, PayloadReadiness};
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_network::{Ethereum, Network};
 use alloy_primitives::{Address, B256, BlockHash, StorageKey};
@@ -22,7 +22,7 @@ use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
 use crate::EngineClientError;
@@ -76,6 +76,12 @@ pub struct MockEngineStorage {
     pub client_versions: Option<Vec<ClientVersionV1>>,
     /// Storage for capabilities responses.
     pub capabilities: Option<Vec<String>>,
+    /// Storage for the `engine_awaitPayloadReadyV1` verdict. Unset behaves like an execution
+    /// layer that cannot answer, which the real client reports as
+    /// [`PayloadReadiness::Pending`].
+    pub payload_readiness: Option<PayloadReadiness>,
+    /// Every `(payload_id, max_wait)` the client was asked to await, in call order.
+    pub await_payload_ready_calls: Vec<(PayloadId, Duration)>,
 
     // Storage for get_l1_block, get_l2_block, and get_proof
     /// Storage for L1 blocks by stringified `BlockId`.
@@ -217,6 +223,12 @@ impl MockEngineClientBuilder {
     /// Sets the capabilities response.
     pub fn with_capabilities(mut self, capabilities: Vec<String>) -> Self {
         self.storage.capabilities = Some(capabilities);
+        self
+    }
+
+    /// Sets the [`PayloadReadiness`] every `await_payload_ready` call reports.
+    pub const fn with_payload_readiness(mut self, readiness: PayloadReadiness) -> Self {
+        self.storage.payload_readiness = Some(readiness);
         self
     }
 
@@ -363,6 +375,16 @@ impl MockEngineClient {
         self.storage.write().await.capabilities = Some(capabilities);
     }
 
+    /// Sets the [`PayloadReadiness`] every `await_payload_ready` call reports.
+    pub async fn set_payload_readiness(&self, readiness: PayloadReadiness) {
+        self.storage.write().await.payload_readiness = Some(readiness);
+    }
+
+    /// Returns every `(payload_id, max_wait)` the client was asked to await, in call order.
+    pub async fn await_payload_ready_calls(&self) -> Vec<(PayloadId, Duration)> {
+        self.storage.read().await.await_payload_ready_calls.clone()
+    }
+
     /// Sets an L1 block response for a specific `BlockId`.
     pub async fn set_l1_block(&self, block_id: BlockId, block: Block<EthTransaction>) {
         let key = block_id_to_key(&block_id);
@@ -471,6 +493,16 @@ impl EngineClient for MockEngineClient {
     ) -> Result<Option<Block<OpTransaction>>, EngineClientError> {
         let storage = self.storage.read().await;
         Ok(storage.l2_blocks_by_label.get(&numtag).cloned())
+    }
+
+    async fn await_payload_ready(
+        &self,
+        payload_id: PayloadId,
+        max_wait: Duration,
+    ) -> PayloadReadiness {
+        let mut storage = self.storage.write().await;
+        storage.await_payload_ready_calls.push((payload_id, max_wait));
+        storage.payload_readiness.unwrap_or(PayloadReadiness::Pending)
     }
 }
 

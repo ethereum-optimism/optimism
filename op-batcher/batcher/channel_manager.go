@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -17,7 +18,7 @@ import (
 
 var ErrReorg = errors.New("block does not extend existing chain")
 
-type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error)
+type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config, parentTimestamp *uint64) (derive.ChannelOut, error)
 
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
@@ -47,6 +48,9 @@ type channelManager struct {
 	defaultCfg ChannelConfig
 	// last block hash - for reorg detection
 	tip common.Hash
+	// safeHeadTimestamp is the L2 timestamp of the safe head the block queue continues from, i.e.
+	// of the parent of blocks[0]. Nil until the first sync tick sets it.
+	safeHeadTimestamp *uint64
 
 	// channel to write new block data to
 	currentChannel *channel
@@ -79,6 +83,7 @@ func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
 	s.blocks.Clear()
 	s.blockCursor = 0
 	s.l1OriginLastSubmittedChannel = l1OriginLastSubmittedChannel
+	s.safeHeadTimestamp = nil
 	s.tip = common.Hash{}
 	s.currentChannel = nil
 	s.channelQueue = nil
@@ -91,6 +96,27 @@ func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
 
 func (s *channelManager) pendingBlocks() int {
 	return s.blocks.Len() - s.blockCursor
+}
+
+// SetSafeHeadTimestamp records the L2 timestamp of the safe head the block queue continues from.
+// The sync tick calls it after clearing or pruning, when blocks[0] is by construction the block
+// right after the safe head.
+func (s *channelManager) SetSafeHeadTimestamp(timestamp uint64) {
+	s.safeHeadTimestamp = &timestamp
+}
+
+// parentTimestamp returns the L2 timestamp of the parent of the next block to be added to a
+// channel. A span batch opened on that block needs it to tell whether the block is a sibling of
+// its parent. Nil before the first sync tick, when the safe head is not known yet.
+func (s *channelManager) parentTimestamp() *uint64 {
+	if s.blockCursor > 0 {
+		block, ok := s.blocks.PeekN(s.blockCursor - 1)
+		if !ok {
+			return nil
+		}
+		return ptr.New(uint64(block.Timestamp))
+	}
+	return s.safeHeadTimestamp
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
@@ -365,7 +391,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	// but this is our best guess at the appropriate values for now.
 	cfg := s.defaultCfg
 
-	channelOut, err := s.outFactory(cfg, s.rollupCfg)
+	channelOut, err := s.outFactory(cfg, s.rollupCfg, s.parentTimestamp())
 	if err != nil {
 		return fmt.Errorf("creating channel out: %w", err)
 	}

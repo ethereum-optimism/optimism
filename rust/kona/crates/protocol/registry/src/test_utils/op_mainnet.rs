@@ -73,4 +73,6 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
     superchain_config_address: Some(address!("95703e0982140D16f8ebA6d158FccEde42f04a4C")),
     da_challenge_address: None,
     blobs_enabled_l1_timestamp: None,
+    multi_block_time: None,
+    max_multi_blocks: None,
 };

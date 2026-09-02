@@ -45,6 +45,16 @@ type SpanChannelOut struct {
 	// to seal full span batches (that have reached the max block count) in the rlp slices.
 	sealedRLPBytes int
 
+	// parentTimestamp is the timestamp of the L2 block preceding the first block of this channel,
+	// or nil if it was not supplied.
+	parentTimestamp *uint64
+
+	// lastBlockTimestamp is the timestamp of the last block added to the channel, across span
+	// batch boundaries. It is the parent timestamp a newly opened span batch needs to tell whether
+	// its first block is a sibling. Until the first block is added it is the channel's parent
+	// timestamp, which may be nil.
+	lastBlockTimestamp *uint64
+
 	chainSpec *rollup.ChainSpec
 
 	// for testing purposes, this can be overridden to modify the raw span batch
@@ -69,6 +79,16 @@ func WithMaxBlocksPerSpanBatch(maxBlock int) SpanChannelOutOption {
 	}
 }
 
+// WithParentTimestamp tells the channel out the timestamp of the L2 block preceding the first
+// block it will be given, so that a span batch v2 opened on that block can record whether the
+// block is a sibling of its parent.
+func WithParentTimestamp(timestamp uint64) SpanChannelOutOption {
+	return func(co *SpanChannelOut) {
+		co.parentTimestamp = &timestamp
+		co.lastBlockTimestamp = &timestamp
+	}
+}
+
 func withRawSpanBatchMod(mod func(*RawSpanBatch) *RawSpanBatch) SpanChannelOutOption {
 	return func(co *SpanChannelOut) {
 		co.rawSpanBatchRLPEncoder = func(rsb *RawSpanBatch) rlp.Encoder {
@@ -89,7 +109,7 @@ func NewSpanChannelOut(targetOutputSize uint64, compressionAlgo CompressionAlgo,
 	c := &SpanChannelOut{
 		id:        ChannelID{},
 		frame:     0,
-		spanBatch: NewSpanBatch(chainSpec.L2GenesisTime(), chainSpec.L2ChainID()),
+		spanBatch: NewSpanBatch(SpanBatchType, chainSpec.L2GenesisTime(), chainSpec.L2ChainID(), 0),
 		rlp:       [2]*bytes.Buffer{{}, {}},
 		target:    targetOutputSize,
 		chainSpec: chainSpec,
@@ -127,14 +147,20 @@ func (co *SpanChannelOut) Reset() error {
 	co.rlp[0].Reset()
 	co.rlp[1].Reset()
 	co.lastCompressedRLPSize = 0
+	co.lastBlockTimestamp = co.parentTimestamp
 	co.compressor.Reset()
-	co.resetSpanBatch()
+	co.resetSpanBatch(SpanBatchType)
 	// setting the new randomID is the only part of the reset that can fail
 	return co.setRandomID()
 }
 
-func (co *SpanChannelOut) resetSpanBatch() {
-	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
+func (co *SpanChannelOut) resetSpanBatch(version int) {
+	// only a v2 span reads the parent timestamp, and it is never opened while this is nil
+	var parentTimestamp uint64
+	if co.lastBlockTimestamp != nil {
+		parentTimestamp = *co.lastBlockTimestamp
+	}
+	co.spanBatch = NewSpanBatch(version, co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID, parentTimestamp)
 }
 
 // activeRLP returns the active RLP buffer using the current rlpIndex
@@ -181,11 +207,15 @@ func (co *SpanChannelOut) addSingularBatch(batch *SingularBatch, seqNum uint64) 
 		return err
 	}
 
-	co.ensureOpenSpanBatch()
+	if err := co.ensureOpenSpanBatch(batch); err != nil {
+		return err
+	}
 	// update the SpanBatch with the SingularBatch
 	if err := co.spanBatch.AppendSingularBatch(batch, seqNum); err != nil {
 		return fmt.Errorf("failed to append SingularBatch to SpanBatch: %w", err)
 	}
+	lastBlockTimestamp := batch.Timestamp
+	co.lastBlockTimestamp = &lastBlockTimestamp
 	// convert Span batch to RawSpanBatch
 	rawSpanBatch, err := co.spanBatch.ToRawSpanBatch()
 	if err != nil {
@@ -256,9 +286,26 @@ func (co *SpanChannelOut) addSingularBatch(batch *SingularBatch, seqNum uint64) 
 	return nil
 }
 
-func (co *SpanChannelOut) ensureOpenSpanBatch() {
-	if co.maxBlocksPerSpanBatch == 0 || co.spanBatch.GetBlockCount() < co.maxBlocksPerSpanBatch {
-		return
+// ensureOpenSpanBatch makes sure the open span batch can take the given batch, sealing the current
+// one first if it is at its block limit or encodes a different wire version than the batch needs.
+func (co *SpanChannelOut) ensureOpenSpanBatch(batch *SingularBatch) error {
+	version := SpanBatchType
+	if co.chainSpec.IsMultiBlock(batch.Timestamp) {
+		version = SpanBatchV2Type
+		// A v2 span's first same-timestamp bit is an assertion about the block the span builds on.
+		// Guessing it would produce a batch that derives to a different chain, so refuse instead.
+		if co.lastBlockTimestamp == nil {
+			return ErrUnknownParentTimestamp
+		}
+	}
+	if co.spanBatch.GetBlockCount() == 0 {
+		// nothing is written yet, so the empty span batch can simply adopt the needed version
+		co.resetSpanBatch(version)
+		return nil
+	}
+	atBlockLimit := co.maxBlocksPerSpanBatch != 0 && co.spanBatch.GetBlockCount() >= co.maxBlocksPerSpanBatch
+	if !atBlockLimit && co.spanBatch.Version == version {
+		return nil
 	}
 	// we assume that the full span batch has been written to the last active rlp buffer
 	active, inactive := co.activeRLP(), co.inactiveRLP()
@@ -271,7 +318,8 @@ func (co *SpanChannelOut) ensureOpenSpanBatch() {
 	inactive.Reset()
 	// err is guaranteed to always be nil
 	_, _ = inactive.Write(active.Bytes())
-	co.resetSpanBatch()
+	co.resetSpanBatch(version)
+	return nil
 }
 
 // compress compresses the active RLP buffer and checks if the compressed data is over the target size.

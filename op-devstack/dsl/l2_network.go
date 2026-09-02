@@ -59,8 +59,12 @@ func (n *L2Network) ChainID() eth.ChainID {
 }
 
 // TimestampForBlockNum returns the timestamp for the given L2 block number.
+// Not available on a multi-block chain, where several blocks may share a timestamp.
 func (n *L2Network) TimestampForBlockNum(blockNum uint64) uint64 {
-	return n.inner.RollupConfig().TimestampForBlock(blockNum)
+	cfg := n.inner.RollupConfig()
+	n.require.Nil(cfg.MultiBlockTime,
+		"l2 network %s schedules multi-blocks, so a block number does not determine a timestamp; read the block instead", n.String())
+	return cfg.TimestampForBlock(blockNum)
 }
 
 // Escape returns the underlying stack.L2Network
@@ -215,10 +219,11 @@ func (n *L2Network) unsafeHeadRef() eth.L2BlockRef {
 	return unsafeHeadRef
 }
 
-// IsActivated checks if a given fork has been activated
+// IsActivated checks if a given fork has been activated.
+// Not available on a multi-block chain, where a timestamp does not determine a block number.
 func (n *L2Network) IsActivated(timestamp uint64) bool {
 	blockNum, err := n.Escape().RollupConfig().TargetBlockNumber(timestamp)
-	n.require.NoError(err)
+	n.require.NoError(err, "cannot check activation of timestamp %d on l2 network %s", timestamp, n.String())
 
 	head, err := n.PrimaryEL().EthClient().BlockRefByLabel(n.ctx, eth.Unsafe)
 	n.require.NoError(err)
@@ -235,14 +240,15 @@ func (n *L2Network) IsForkActiveAt(forkName forks.Name, timestamp uint64) bool {
 	return n.Escape().RollupConfig().IsForkActive(forkName, timestamp)
 }
 
-// LatestBlockBeforeTimestamp finds the latest block before fork activation
+// LatestBlockBeforeTimestamp finds the latest block before fork activation.
+// Not available on a multi-block chain, where a timestamp does not determine a block number.
 func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) eth.BlockRef {
 	require := t.Require()
 
 	t.Gate().Greater(timestamp, uint64(0), "Must not start fork at genesis")
 
 	blockNum, err := n.Escape().RollupConfig().TargetBlockNumber(timestamp)
-	require.NoError(err)
+	require.NoError(err, "cannot find the block before timestamp %d on l2 network %s", timestamp, n.String())
 
 	head, err := n.PrimaryEL().EthClient().BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(err)
@@ -262,7 +268,9 @@ func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) et
 	}
 }
 
-// AwaitActivation awaits the fork activation time, and returns the activation block
+// AwaitActivation awaits the fork activation time, and returns the activation block.
+// It maps the activation timestamp to a block number, so it is not available on a multi-block
+// chain; use AwaitMultiBlockActivation there.
 func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.BlockID {
 	require := t.Require()
 
@@ -276,11 +284,45 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 		return block.ID()
 	}
 	blockNum, err := rollupCfg.TargetBlockNumber(activationTime)
-	require.NoError(err)
+	require.NoError(err, "cannot await activation of %s on l2 network %s; a multi-block chain needs AwaitMultiBlockActivation", forkName, n.String())
 	activationBlock := eth.ToBlockID(n.PrimaryEL().WaitForBlockNumber(blockNum))
 	t.Logger().Info("Activation block", "block", activationBlock)
 	return activationBlock
 
+}
+
+// AwaitMultiBlockActivation waits for the first L2 block at or after the multi-blocks activation
+// timestamp and returns it. Unlike AwaitActivation it never maps a timestamp to a block number:
+// past the activation the chain may hold several blocks per block time, so that mapping no longer
+// holds.
+func (n *L2Network) AwaitMultiBlockActivation(t devtest.T) eth.BlockRef {
+	require := t.Require()
+	activationTime := n.Escape().RollupConfig().MultiBlockTime
+	require.NotNil(activationTime, "multi-blocks is not scheduled for activation")
+
+	el := n.PrimaryEL()
+	var head eth.BlockRef
+	require.NoError(wait.For(t.Ctx(), 100*time.Millisecond, func() (bool, error) {
+		var err error
+		head, err = el.EthClient().BlockRefByLabel(t.Ctx(), eth.Unsafe)
+		if err != nil {
+			return false, nil
+		}
+		return head.Time >= *activationTime, nil
+	}), "expected the chain to reach the multi-blocks activation timestamp %d", *activationTime)
+
+	// walk back to the first block at or after the activation timestamp
+	activationBlock := head
+	for activationBlock.Number > 0 {
+		parent, err := el.EthClient().BlockRefByHash(t.Ctx(), activationBlock.ParentHash)
+		require.NoError(err)
+		if parent.Time < *activationTime {
+			break
+		}
+		activationBlock = parent
+	}
+	t.Logger().Info("Multi-blocks activation block", "block", activationBlock, "time", activationBlock.Time)
+	return activationBlock
 }
 
 func (n *L2Network) DisputeGameFactoryProxyAddr() common.Address {
@@ -510,7 +552,7 @@ func (n *L2Network) deriveData(blocks int) (channels []derive.ChannelID, channel
 					l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
 				}
 
-			} else if batchType == derive.SpanBatchType {
+			} else if batchType == derive.SpanBatchType || batchType == derive.SpanBatchV2Type {
 				spanBatch, err := derive.DeriveSpanBatch(batchData, rollupCfg)
 				if err != nil {
 					l.Warn("Failed to decode span batch",

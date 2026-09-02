@@ -167,6 +167,11 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 		bs.nextSpan = singularBatches
 		// span-batches are non-empty, so the below pop is safe.
 		return bs.popNextBatch(parent), nil
+	case SpanBatchV2Type:
+		// Unreachable: the ChannelInReader already discards any channel carrying a v2 span.
+		bs.Log().Warn("Dropping span batch v2, flushing channel: op-node does not derive multi-blocks")
+		bs.FlushChannel()
+		return nil, NotEnoughData
 	default:
 		return nil, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", typ))
 	}

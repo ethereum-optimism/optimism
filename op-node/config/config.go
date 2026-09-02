@@ -111,6 +111,11 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 
 var ErrMissingPectraBlobSchedule = errors.New("probably missing Pectra blob schedule")
 
+// ErrMultiBlockUnsupported is returned when the rollup config schedules multi-blocks. op-node's
+// derivation pipeline and sequencer both assume one L2 block per block time, so it can neither
+// follow nor produce such a chain.
+var ErrMultiBlockUnsupported = errors.New("rollup config sets multi_block_time but op-node does not support multi-blocks; use kona-node")
+
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
 	if err := cfg.L1.Check(); err != nil {
@@ -132,6 +137,11 @@ func (cfg *Config) Check() error {
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)
+	}
+	// Checked here rather than in rollup.Config.Check, which op-deployer runs while generating
+	// configs for chains this node will never run.
+	if cfg.Rollup.MultiBlockTime != nil {
+		return fmt.Errorf("%w (multi_block_time = %d)", ErrMultiBlockUnsupported, *cfg.Rollup.MultiBlockTime)
 	}
 	if !cfg.IgnoreMissingPectraBlobSchedule && cfg.Rollup.ProbablyMissingPectraBlobSchedule() {
 		log.Error("Your rollup config seems to be missing the Pectra blob schedule fix. " +

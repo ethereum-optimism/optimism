@@ -391,7 +391,7 @@ func BenchmarkGetRawSpanBatch(b *testing.B) {
 			for bn := 0; bn < b.N; bn++ {
 				// don't measure the setup time
 				b.StopTimer()
-				spanBatch := derive.NewSpanBatch(uint64(0), chainID)
+				spanBatch := derive.NewSpanBatch(derive.SpanBatchType, uint64(0), chainID, 0)
 				for i := 0; i < tc.BatchCount; i++ {
 					err := spanBatch.AppendSingularBatch(batches[i], 0)
 					require.NoError(b, err)

@@ -256,11 +256,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DerivationPipeline, ResetError, test_utils::*};
-    use alloc::{string::ToString, sync::Arc};
+    use crate::{DerivationPipeline, PipelineBuilder, ResetError, test_utils::*};
+    use alloc::{string::ToString, sync::Arc, vec, vec::Vec};
     use alloy_rpc_types_engine::PayloadAttributes;
     use kona_genesis::{RollupConfig, SystemConfig};
-    use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+    use kona_protocol::{Batch, L2BlockInfo, OpAttributesWithParent, SingleBatch, SpanBatch};
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
     /// A distinct hash per block number, so hash-keyed lookups address one specific block.
@@ -290,6 +290,192 @@ mod tests {
             derived_from: Default::default(),
             is_last_in_span: false,
         }
+    }
+
+    /// The L2 chain the multi-block pipeline test derives: one block at 1002, a group of three
+    /// at 1004 and a group of two at 1006, all on L1 origin 99.
+    const MULTI_BLOCK_TIMESTAMPS: [u64; 7] = [1000, 1002, 1004, 1004, 1004, 1006, 1006];
+
+    /// The L1 block the multi-block chain is sequenced against.
+    const MULTI_BLOCK_ORIGIN: u64 = 99;
+
+    /// The L1 block the batcher includes the channel in, two blocks after the origin so that
+    /// derivation has moved past that origin by the time it reads the batches.
+    const MULTI_BLOCK_INCLUSION: u64 = 101;
+
+    fn multi_block_rollup_config() -> Arc<RollupConfig> {
+        Arc::new(RollupConfig {
+            block_time: 2,
+            seq_window_size: 100,
+            max_sequencer_drift: 1000,
+            genesis: kona_genesis::ChainGenesis {
+                l1: BlockNumHash { number: 98, hash: test_block_hash(98) },
+                l2: BlockNumHash { number: 0, hash: test_block_hash(1000) },
+                l2_time: 1000,
+                ..Default::default()
+            },
+            hardforks: kona_genesis::HardForkConfig {
+                delta_time: Some(0),
+                holocene_time: Some(0),
+                karst_time: Some(0),
+                ..Default::default()
+            },
+            multi_block_time: Some(1000),
+            max_multi_blocks: Some(3),
+            ..Default::default()
+        })
+    }
+
+    fn multi_block_l1_block(number: u64) -> BlockInfo {
+        BlockInfo {
+            number,
+            timestamp: 800 + number * 2,
+            hash: test_block_hash(number),
+            parent_hash: test_block_hash(number - 1),
+        }
+    }
+
+    fn multi_block_l2_block(number: u64) -> L2BlockInfo {
+        L2BlockInfo {
+            block_info: BlockInfo {
+                number,
+                timestamp: MULTI_BLOCK_TIMESTAMPS[number as usize],
+                hash: test_block_hash(1000 + number),
+                parent_hash: test_block_hash(1000 + number.saturating_sub(1)),
+            },
+            l1_origin: BlockNumHash {
+                number: MULTI_BLOCK_ORIGIN,
+                hash: test_block_hash(MULTI_BLOCK_ORIGIN),
+            },
+            seq_num: number,
+        }
+    }
+
+    /// Builds a span batch v2 over the L2 blocks `numbers`, taking each element's sibling flag
+    /// from the chain the test derives.
+    fn multi_block_span(numbers: &[u64]) -> SpanBatch {
+        let mut span = SpanBatch {
+            version: kona_protocol::BatchType::SpanV2,
+            genesis_timestamp: 1000,
+            ..Default::default()
+        };
+        for number in numbers {
+            let parent = multi_block_l2_block(number - 1);
+            span.append_singular_batch(
+                SingleBatch {
+                    parent_hash: parent.block_info.hash,
+                    epoch_num: MULTI_BLOCK_ORIGIN,
+                    epoch_hash: test_block_hash(MULTI_BLOCK_ORIGIN),
+                    timestamp: MULTI_BLOCK_TIMESTAMPS[*number as usize],
+                    transactions: vec![],
+                },
+                *number,
+                parent.block_info.timestamp,
+            )
+            .unwrap();
+        }
+        span
+    }
+
+    /// Encodes the spans into a single channel, framed as one batcher transaction payload.
+    fn multi_block_channel(spans: [SpanBatch; 2]) -> alloy_primitives::Bytes {
+        let mut channel = Vec::new();
+        for span in spans {
+            let mut encoded = Vec::new();
+            Batch::Span(span).encode(&mut encoded).unwrap();
+            alloy_rlp::Encodable::encode(&alloy_primitives::Bytes::from(encoded), &mut channel);
+        }
+        let compressed = miniz_oxide::deflate::compress_to_vec_zlib(
+            &channel,
+            miniz_oxide::deflate::CompressionLevel::BestSpeed as u8,
+        );
+        let frame =
+            kona_protocol::Frame { id: [0xAB; 16], number: 0, data: compressed, is_last: true };
+        let mut payload = vec![kona_protocol::DERIVATION_VERSION_0];
+        payload.extend_from_slice(&frame.encode());
+        payload.into()
+    }
+
+    /// A data source holding one batcher payload, served at a single L1 block.
+    #[derive(Debug, Clone)]
+    struct TestBlockDAP {
+        number: u64,
+        payload: Option<alloy_primitives::Bytes>,
+    }
+
+    #[async_trait]
+    impl crate::DataAvailabilityProvider for TestBlockDAP {
+        type Item = alloy_primitives::Bytes;
+
+        async fn next(
+            &mut self,
+            block: &BlockInfo,
+            _: alloy_primitives::Address,
+        ) -> PipelineResult<Self::Item> {
+            if block.number != self.number {
+                return Err(PipelineError::Eof.temp());
+            }
+            self.payload.take().ok_or(PipelineError::Eof.temp())
+        }
+
+        fn clear(&mut self) {}
+    }
+
+    /// Six blocks in three groups, cut into two spans in the middle of the group of three, derive
+    /// to six sets of attributes with the group's timestamps.
+    #[tokio::test]
+    async fn test_derivation_pipeline_multi_block_groups() {
+        let mut chain_provider = TestChainProvider::default();
+        for number in 98..=120 {
+            let block = multi_block_l1_block(number);
+            chain_provider.insert_block(number, block);
+            chain_provider.insert_receipts(block.hash, Vec::new());
+        }
+
+        let mut l2_chain_provider = TestL2ChainProvider::default();
+        for number in 0..=6 {
+            l2_chain_provider.blocks.push(multi_block_l2_block(number));
+        }
+
+        // The group of three at timestamp 1004 straddles the two spans.
+        let dap = TestBlockDAP {
+            number: MULTI_BLOCK_INCLUSION,
+            payload: Some(multi_block_channel([
+                multi_block_span(&[1, 2, 3]),
+                multi_block_span(&[4, 5, 6]),
+            ])),
+        };
+
+        let mut pipeline = PipelineBuilder::new()
+            .rollup_config(multi_block_rollup_config())
+            .origin(multi_block_l1_block(MULTI_BLOCK_ORIGIN))
+            .dap_source(dap)
+            .builder(TestAttributesBuilder {
+                attributes: (0..6).map(|_| Ok(Default::default())).collect(),
+                ..Default::default()
+            })
+            .chain_provider(chain_provider)
+            .l2_chain_provider(l2_chain_provider)
+            .build_polled();
+
+        let mut cursor = multi_block_l2_block(0);
+        let mut derived = Vec::new();
+        for _ in 0..64 {
+            if pipeline.step(cursor).await == StepResult::PreparedAttributes {
+                pipeline.next().expect("prepared attributes are queued");
+                derived.push(cursor.block_info.number + 1);
+                cursor = multi_block_l2_block(cursor.block_info.number + 1);
+            }
+            if derived.len() == 6 {
+                break;
+            }
+        }
+
+        assert_eq!(derived, vec![1, 2, 3, 4, 5, 6]);
+        assert_eq!(
+            pipeline.attributes.builder.timestamps,
+            vec![1002, 1004, 1004, 1004, 1006, 1006]
+        );
     }
 
     #[test]

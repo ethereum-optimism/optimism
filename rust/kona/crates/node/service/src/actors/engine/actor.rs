@@ -1,7 +1,8 @@
 use crate::{
-    BuildRequest, EngineClientError, EngineDerivationClient, EngineError, NodeActor, ResetRequest,
-    SealRequest,
+    BuildRequest, EngineClientError, EngineDerivationClient, EngineError, L2BlockInfoRequest,
+    NodeActor, ResetRequest, SealRequest,
 };
+use alloy_eips::BlockId;
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
@@ -10,7 +11,7 @@ use kona_engine::{
     ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
-use kona_protocol::L2BlockInfo;
+use kona_protocol::{BlockInfo, L2BlockInfo};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
@@ -30,6 +31,8 @@ pub enum EngineActorRequest {
     Reset(Box<ResetRequest>),
     /// Request to seal a block.
     Seal(Box<SealRequest>),
+    /// Request the [`BlockInfo`] of an L2 block, by hash.
+    L2BlockInfoByHash(Box<L2BlockInfoRequest>),
 }
 
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
@@ -293,12 +296,14 @@ where
                 }
             }
             EngineActorRequest::Seal(seal_request) => {
-                let SealRequest { payload_id, attributes, result_tx } = *seal_request;
+                let SealRequest { payload_id, attributes, ready_deadline, result_tx } =
+                    *seal_request;
                 let task = EngineTask::Seal(Box::new(SealTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
                     payload_id,
                     attributes,
+                    ready_deadline,
                     // The payload is not derived in this case.
                     false,
                     BuildSealCoupling::Detached,
@@ -306,6 +311,18 @@ where
                     Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
+            }
+            EngineActorRequest::L2BlockInfoByHash(request) => {
+                let L2BlockInfoRequest { hash, result_tx } = *request;
+                let info = self
+                    .client
+                    .get_l2_block(BlockId::hash(hash))
+                    .await
+                    .map(|block| block.map(BlockInfo::from))
+                    .map_err(|err| EngineClientError::ResponseError(err.to_string()));
+                if result_tx.send(info).await.is_err() {
+                    warn!(target: "engine", %hash, "Sending L2 block info response failed");
+                }
             }
         }
 

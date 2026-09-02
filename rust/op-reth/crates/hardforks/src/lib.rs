@@ -23,6 +23,23 @@ use alloy_primitives::U256;
 use once_cell::sync::Lazy as LazyLock;
 use reth_ethereum_forks::{ChainHardforks, EthereumHardfork, ForkCondition, Hardfork};
 
+/// Activation of the multi-block feature, which lets consecutive blocks share a timestamp.
+///
+/// Not an [`OpHardfork`]: it is a per-chain configuration toggle read from the genesis config's
+/// `multiBlockTime`. It is carried in [`ChainHardforks`] so every `OpChainSpec` construction
+/// path preserves it, which also makes it part of the chain's [`ForkId`] — enabling it is an
+/// execution-layer consensus change, so peers must agree on it.
+///
+/// [`ForkId`]: reth_ethereum_forks::ForkId
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MultiBlock;
+
+impl Hardfork for MultiBlock {
+    fn name(&self) -> &'static str {
+        "MultiBlock"
+    }
+}
+
 /// Dev hardforks
 pub static DEV_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
     ChainHardforks::new(vec![

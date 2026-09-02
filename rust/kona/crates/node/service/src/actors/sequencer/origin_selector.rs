@@ -20,6 +20,7 @@ pub trait OriginSelector: Debug + Send + Sync {
     ///
     /// # Arguments
     /// * `unsafe_head` - The current unsafe head of the L2 chain
+    /// * `next_timestamp` - The timestamp of the block(s) to be built on top of the unsafe head
     /// * `is_recovery_mode` - Whether the sequencer is in recovery mode
     ///
     /// # Returns
@@ -27,6 +28,7 @@ pub trait OriginSelector: Debug + Send + Sync {
     async fn next_l1_origin(
         &mut self,
         unsafe_head: L2BlockInfo,
+        next_timestamp: u64,
         is_recovery_mode: bool,
     ) -> Result<BlockInfo, L1OriginSelectorError>;
 }
@@ -48,7 +50,7 @@ pub struct L1OriginSelector<P: L1OriginSelectorProvider> {
 #[async_trait]
 impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelector<P> {
     /// Determines what the next L1 origin block should be, based off of the [`L2BlockInfo`] unsafe
-    /// head.
+    /// head and the timestamp of the block(s) to be built on top of it.
     ///
     /// The L1 origin is selected based off of the sequencing epoch, determined by the next L2
     /// block's timestamp in relation to the current L1 origin's timestamp. If the next L2
@@ -57,6 +59,7 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
     async fn next_l1_origin(
         &mut self,
         unsafe_head: L2BlockInfo,
+        next_timestamp: u64,
         is_recovery_mode: bool,
     ) -> Result<BlockInfo, L1OriginSelectorError> {
         self.select_origins(&unsafe_head, is_recovery_mode).await?;
@@ -64,7 +67,7 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
         // Start building on the next L1 origin block if the next L2 block's timestamp is
         // greater than or equal to the next L1 origin's timestamp.
         if let Some(next) = self.next &&
-            unsafe_head.block_info.timestamp + self.cfg.block_time >= next.timestamp
+            next_timestamp >= next.timestamp
         {
             return Ok(next);
         }
@@ -74,9 +77,7 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
         };
 
         let max_seq_drift = self.cfg.max_sequencer_drift(current.timestamp);
-        let past_seq_drift = unsafe_head.block_info.timestamp + self.cfg.block_time -
-            current.timestamp >
-            max_seq_drift;
+        let past_seq_drift = next_timestamp - current.timestamp > max_seq_drift;
 
         // If the sequencer drift has not been exceeded, return the current L1 origin.
         if !past_seq_drift {
@@ -87,15 +88,12 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
             target: "l1_origin_selector",
             current_origin_time = current.timestamp,
             unsafe_head_time = unsafe_head.block_info.timestamp,
+            next_timestamp,
             max_seq_drift,
             "Next L2 block time is past the sequencer drift"
         );
 
-        if self
-            .next
-            .map(|n| unsafe_head.block_info.timestamp + self.cfg.block_time < n.timestamp)
-            .unwrap_or(false)
-        {
+        if self.next.map(|n| next_timestamp < n.timestamp).unwrap_or(false) {
             // If the next L1 origin is ahead of the next L2 block's timestamp, return the current
             // origin.
             return Ok(current);
@@ -276,6 +274,12 @@ mod test {
     use rstest::rstest;
     use std::collections::HashSet;
 
+    /// The timestamp of the next L2 block for the one-block-per-block-time chains these tests
+    /// describe.
+    fn next_timestamp(cfg: &RollupConfig, unsafe_head: &L2BlockInfo) -> u64 {
+        unsafe_head.block_info.timestamp + cfg.block_time
+    }
+
     /// A mock [`OriginSelectorProvider`] with a local set of [`BlockInfo`]s available.
     #[derive(Default, Debug, Clone)]
     struct MockOriginSelectorProvider {
@@ -355,7 +359,10 @@ mod test {
                 },
                 seq_num: 0,
             };
-            let next = selector.next_l1_origin(unsafe_head, false).await.unwrap();
+            let next = selector
+                .next_l1_origin(unsafe_head, next_timestamp(&cfg, &unsafe_head), false)
+                .await
+                .unwrap();
 
             // The expected L1 origin block is the one corresponding to the epoch of the current L2
             // block.
@@ -416,7 +423,10 @@ mod test {
             },
             seq_num: 0,
         };
-        let next = selector.next_l1_origin(unsafe_head, false).await.unwrap();
+        let next = selector
+            .next_l1_origin(unsafe_head, next_timestamp(&cfg, &unsafe_head), false)
+            .await
+            .unwrap();
 
         // The expected L1 origin block is the one corresponding to the epoch of the current L2
         // block. Assuming the next L1 origin block is not available from the eyes of the
@@ -483,8 +493,9 @@ mod test {
             seq_num: 0,
         };
 
+        let next_ts = next_timestamp(&cfg, &unsafe_head);
         if next_available {
-            let next = selector.next_l1_origin(unsafe_head, false).await.unwrap();
+            let next = selector.next_l1_origin(unsafe_head, next_ts, false).await.unwrap();
             if next_ahead_of_unsafe {
                 // If the next L1 origin is available and ahead of the unsafe head, the L1 origin
                 // should not change.
@@ -500,7 +511,7 @@ mod test {
             // If we're past the sequencer drift, and the next L1 block is not available, a
             // `NotEnoughData` error should be returned signifying that we cannot
             // proceed with the next L1 origin until the block is present.
-            let next_err = selector.next_l1_origin(unsafe_head, false).await.unwrap_err();
+            let next_err = selector.next_l1_origin(unsafe_head, next_ts, false).await.unwrap_err();
             assert!(matches!(next_err, L1OriginSelectorError::NotEnoughData(_)));
         }
     }
@@ -529,7 +540,7 @@ mod test {
             timestamp: 24,
         });
 
-        let mut selector = L1OriginSelector::new(cfg, provider);
+        let mut selector = L1OriginSelector::new(cfg.clone(), provider);
 
         let unsafe_head = L2BlockInfo {
             block_info: BlockInfo {
@@ -542,7 +553,10 @@ mod test {
             seq_num: 0,
         };
 
-        let origin = selector.next_l1_origin(unsafe_head, true).await.unwrap();
+        let origin = selector
+            .next_l1_origin(unsafe_head, next_timestamp(&cfg, &unsafe_head), true)
+            .await
+            .unwrap();
         assert_eq!(origin.number, 1);
         assert_eq!(origin.hash, B256::with_last_byte(1));
     }
@@ -558,7 +572,7 @@ mod test {
         });
 
         let provider = MockOriginSelectorProvider::default();
-        let mut selector = L1OriginSelector::new(cfg, provider);
+        let mut selector = L1OriginSelector::new(cfg.clone(), provider);
 
         let unsafe_head = L2BlockInfo {
             block_info: BlockInfo {
@@ -571,7 +585,8 @@ mod test {
             seq_num: 0,
         };
 
-        let result = selector.next_l1_origin(unsafe_head, true).await;
+        let result =
+            selector.next_l1_origin(unsafe_head, next_timestamp(&cfg, &unsafe_head), true).await;
         assert!(matches!(
             result,
             Err(L1OriginSelectorError::OriginNotFound(hash)) if hash == B256::with_last_byte(1)
@@ -596,7 +611,7 @@ mod test {
             timestamp: 0,
         });
 
-        let mut selector = L1OriginSelector::new(cfg, provider);
+        let mut selector = L1OriginSelector::new(cfg.clone(), provider);
 
         // First call: set current to block 0.
         let unsafe_head_epoch0 = L2BlockInfo {
@@ -609,7 +624,10 @@ mod test {
             l1_origin: NumHash { number: 0, hash: B256::ZERO },
             seq_num: 0,
         };
-        let _ = selector.next_l1_origin(unsafe_head_epoch0, false).await.unwrap();
+        let _ = selector
+            .next_l1_origin(unsafe_head_epoch0, next_timestamp(&cfg, &unsafe_head_epoch0), false)
+            .await
+            .unwrap();
 
         // Second call: reference a non-existent L1 origin hash, triggering the else branch.
         let unsafe_head_missing = L2BlockInfo {
@@ -623,7 +641,9 @@ mod test {
             seq_num: 0,
         };
 
-        let result = selector.next_l1_origin(unsafe_head_missing, false).await;
+        let result = selector
+            .next_l1_origin(unsafe_head_missing, next_timestamp(&cfg, &unsafe_head_missing), false)
+            .await;
         assert!(matches!(
             result,
             Err(L1OriginSelectorError::OriginNotFound(hash)) if hash == B256::with_last_byte(0xFF)

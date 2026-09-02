@@ -140,7 +140,7 @@ func ProcessFrames(cfg Config, rollupCfg *rollup.Config, id derive.ChannelID, fr
 						}
 						// singularBatch will be nil when errored
 						batches = append(batches, singularBatch)
-					case derive.SpanBatchType:
+					case derive.SpanBatchType, derive.SpanBatchV2Type:
 						spanBatch, err := derive.DeriveSpanBatch(batchData, rollupCfg)
 						if err != nil {
 							invalidBatches = true

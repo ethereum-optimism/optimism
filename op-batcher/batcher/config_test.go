@@ -92,6 +92,7 @@ func TestBatcherConfig(t *testing.T) {
 			errString: "MaxL1TxSize must be greater than 1",
 		},
 		{
+			// wire type 2 is span batch v2, which comes from the rollup config, not this flag
 			name:      "invalid batch type close",
 			override:  func(c *batcher.CLIConfig) { c.BatchType = 2 },
 			errString: "unknown batch type: 2",

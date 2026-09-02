@@ -430,6 +430,13 @@ type UpgradeScheduleDeployConfig struct {
 	// Set it to 0 to activate at genesis. Nil to disable the PectraBlobSchedule fix.
 	L2GenesisPectraBlobScheduleTimeOffset *hexutil.Uint64 `json:"l2GenesisPectraBlobScheduleTimeOffset,omitempty"`
 
+	// L2GenesisMultiBlockTimeOffset is the number of seconds after genesis block that the
+	// multi-blocks feature activates. Nil disables it.
+	L2GenesisMultiBlockTimeOffset *hexutil.Uint64 `json:"l2GenesisMultiBlockTimeOffset,omitempty"`
+	// MaxMultiBlocks is the maximum number of consecutive L2 blocks that may share a timestamp.
+	// Nil means 1, i.e. no siblings.
+	MaxMultiBlocks *hexutil.Uint64 `json:"maxMultiBlocks,omitempty"`
+
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 	// When Prague activates. Relative to L1 genesis.
@@ -578,6 +585,10 @@ func (d *UpgradeScheduleDeployConfig) HoloceneTime(genesisTime uint64) *uint64 {
 
 func (d *UpgradeScheduleDeployConfig) PectraBlobScheduleTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisPectraBlobScheduleTimeOffset, genesisTime)
+}
+
+func (d *UpgradeScheduleDeployConfig) MultiBlockTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisMultiBlockTimeOffset, genesisTime)
 }
 
 func (d *UpgradeScheduleDeployConfig) IsthmusTime(genesisTime uint64) *uint64 {
@@ -1170,6 +1181,8 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		GraniteTime:            d.GraniteTime(l2GenesisTime),
 		HoloceneTime:           d.HoloceneTime(l2GenesisTime),
 		PectraBlobScheduleTime: d.PectraBlobScheduleTime(l2GenesisTime),
+		MultiBlockTime:         d.MultiBlockTime(l2GenesisTime),
+		MaxMultiBlocks:         (*uint64)(d.MaxMultiBlocks),
 		IsthmusTime:            d.IsthmusTime(l2GenesisTime),
 		JovianTime:             d.JovianTime(l2GenesisTime),
 		KarstTime:              d.KarstTime(l2GenesisTime),

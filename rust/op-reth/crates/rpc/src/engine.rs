@@ -12,11 +12,13 @@ use jsonrpsee_core::{RpcResult, server::RpcModule};
 use op_alloy_rpc_types_engine::OpExecutionPayloadV4;
 use reth_chainspec::EthereumHardforks;
 use reth_node_api::{EngineApiValidator, EngineTypes};
-use reth_optimism_payload_builder::OpExecData;
+use reth_optimism_payload_builder::{OpExecData, config::MultiBlockPolicy};
+use reth_payload_builder::PayloadBuilderHandle;
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
 use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFactory};
 use reth_transaction_pool::TransactionPool;
+use std::{future::Future, time::Duration};
 use tracing::{debug, trace};
 
 /// The list of all supported Engine capabilities available over the engine endpoint.
@@ -36,7 +38,22 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
     "engine_newPayloadV4",
     "engine_getPayloadBodiesByHashV1",
     "engine_getPayloadBodiesByRangeV1",
+    "engine_awaitPayloadReadyV1",
 ];
+
+/// Whether a payload build job has produced a payload its builder considers worth sealing.
+///
+/// Returned by `engine_awaitPayloadReadyV1`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PayloadReadiness {
+    /// The payload satisfies the builder's sealing policy and can be fetched now.
+    Ready,
+    /// The job is still building; the consensus layer may wait or seal at its own deadline.
+    Pending,
+    /// The payload id is not (or no longer) known to the payload builder.
+    Unknown,
+}
 
 /// Extension trait that gives access to Optimism engine API RPC methods.
 ///
@@ -241,6 +258,47 @@ pub trait OpEngineApi<Engine: EngineTypes> {
     /// See also <https://github.com/ethereum/execution-apis/blob/6452a6b194d7db269bf1dbd087a267251d3cc7f8/src/engine/common.md#capabilities>
     #[method(name = "exchangeCapabilities")]
     async fn exchange_capabilities(&self, capabilities: Vec<String>) -> RpcResult<Vec<String>>;
+
+    /// Waits, for at most `max_wait_ms`, until the given payload build job has produced a
+    /// payload worth sealing, and reports the outcome.
+    ///
+    /// OP extension. It lets a sequencer seal as soon as the block is worth sealing instead of
+    /// always waiting out its slot, which is what makes several blocks per block time possible.
+    /// The build job is neither resolved nor stopped: the consensus layer still fetches the
+    /// payload with the versioned `engine_getPayload*`. Whether a payload is worth sealing is
+    /// the builder's policy (`--rollup.multi-block.*`); with none configured this always
+    /// reports [`PayloadReadiness::Pending`]. The wait is capped at
+    /// [`MultiBlockPolicy::MAX_WAIT`] however long the caller asks for.
+    #[method(name = "awaitPayloadReadyV1")]
+    async fn await_payload_ready_v1(
+        &self,
+        payload_id: PayloadId,
+        max_wait_ms: U64,
+    ) -> RpcResult<PayloadReadiness>;
+}
+
+/// Waits for the payload build job to become ready and classifies the outcome.
+///
+/// `job_known` reports whether the payload builder still owns the job. It is resolved before the
+/// wait so that a payload id the builder has forgotten is answered at once: such a caller wants
+/// to start a new job, not to wait out its slot.
+async fn resolve_payload_readiness(
+    policy: &MultiBlockPolicy,
+    payload_id: PayloadId,
+    max_wait: Duration,
+    job_known: impl Future<Output = bool>,
+) -> PayloadReadiness {
+    if !job_known.await {
+        // Nothing will ever resolve this job, so its build state would otherwise linger until it
+        // expires by age — and be inherited by a job reusing the id.
+        policy.forget(payload_id);
+        return PayloadReadiness::Unknown;
+    }
+    if policy.wait_ready(payload_id, max_wait).await {
+        PayloadReadiness::Ready
+    } else {
+        PayloadReadiness::Pending
+    }
 }
 
 /// The Engine API implementation that grants the Consensus layer access to data and
@@ -248,6 +306,10 @@ pub trait OpEngineApi<Engine: EngineTypes> {
 #[derive(Debug, Constructor)]
 pub struct OpEngineApi<Provider, EngineT: EngineTypes, Pool, Validator, ChainSpec> {
     inner: EngineApi<Provider, EngineT, Pool, Validator, ChainSpec>,
+    /// Answers whether a payload id is still known to the payload builder, without resolving it.
+    payload_builder: PayloadBuilderHandle<EngineT>,
+    /// The sealing policy the payload builder records readiness in.
+    multi_block_policy: MultiBlockPolicy,
 }
 
 impl<Provider, PayloadT, Pool, Validator, ChainSpec> Clone
@@ -256,7 +318,11 @@ where
     PayloadT: EngineTypes,
 {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self {
+            inner: self.inner.clone(),
+            payload_builder: self.payload_builder.clone(),
+            multi_block_policy: self.multi_block_policy.clone(),
+        }
     }
 }
 
@@ -341,6 +407,7 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV2> {
         debug!(target: "rpc::engine", id = %payload_id, "Serving engine_getPayloadV2");
+        self.multi_block_policy.forget(payload_id);
         Ok(self.inner.get_payload_v2_metered(payload_id).await?)
     }
 
@@ -349,6 +416,7 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV3> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV3");
+        self.multi_block_policy.forget(payload_id);
         Ok(self.inner.get_payload_v3_metered(payload_id).await?)
     }
 
@@ -357,6 +425,7 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV4> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV4");
+        self.multi_block_policy.forget(payload_id);
         Ok(self.inner.get_payload_v4_metered(payload_id).await?)
     }
 
@@ -365,6 +434,7 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV5> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV5");
+        self.multi_block_policy.forget(payload_id);
         Ok(self.inner.get_payload_v5_metered(payload_id).await?)
     }
 
@@ -396,6 +466,21 @@ where
     async fn exchange_capabilities(&self, _capabilities: Vec<String>) -> RpcResult<Vec<String>> {
         Ok(self.inner.capabilities().list())
     }
+
+    async fn await_payload_ready_v1(
+        &self,
+        payload_id: PayloadId,
+        max_wait_ms: U64,
+    ) -> RpcResult<PayloadReadiness> {
+        trace!(target: "rpc::engine", "Serving engine_awaitPayloadReadyV1");
+        Ok(resolve_payload_readiness(
+            &self.multi_block_policy,
+            payload_id,
+            Duration::from_millis(max_wait_ms.to()),
+            async { self.payload_builder.payload_timestamp(payload_id).await.is_some() },
+        )
+        .await)
+    }
 }
 
 impl<Provider, EngineT, Pool, Validator, ChainSpec> IntoEngineApiRpcModule
@@ -411,7 +496,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::OP_ENGINE_CAPABILITIES;
+    use super::*;
 
     /// Osaka `engine_getPayloadV5` must be advertised: once Osaka/Karst is active the CL fetches
     /// payloads via V5, and an unadvertised method is rejected with -38005 "Unsupported fork".
@@ -420,5 +505,50 @@ mod tests {
     fn advertises_get_payload_v5() {
         assert!(OP_ENGINE_CAPABILITIES.contains(&"engine_getPayloadV5"));
         assert!(OP_ENGINE_CAPABILITIES.contains(&"engine_getPayloadV4"));
+    }
+
+    /// The consensus layer only asks for readiness if the engine advertises it; without this it
+    /// would seal every block at its slot deadline.
+    #[test]
+    fn advertises_await_payload_ready() {
+        assert!(OP_ENGINE_CAPABILITIES.contains(&"engine_awaitPayloadReadyV1"));
+    }
+
+    #[tokio::test]
+    async fn readiness_is_ready_pending_or_unknown() {
+        let policy = MultiBlockPolicy::new(Some(1), None);
+        let id = PayloadId::new([7; 8]);
+        let max_wait = Duration::from_millis(10);
+
+        // Building, not ready yet.
+        policy.begin_build(id, true);
+        assert_eq!(
+            resolve_payload_readiness(&policy, id, max_wait, async { true }).await,
+            PayloadReadiness::Pending
+        );
+
+        // The payload builder forgot the job (it resolved, or was never started).
+        assert_eq!(
+            resolve_payload_readiness(&policy, id, max_wait, async { false }).await,
+            PayloadReadiness::Unknown
+        );
+
+        // The policy is satisfied.
+        assert!(policy.record_built_payload(id, 1));
+        assert_eq!(
+            resolve_payload_readiness(&policy, id, max_wait, async { true }).await,
+            PayloadReadiness::Ready
+        );
+    }
+
+    /// The three verdicts are a cross-client wire contract: a consensus layer decodes them as
+    /// strings, so renaming a variant or adding one without the serde attribute would break it.
+    #[test]
+    fn readiness_verdicts_are_lowercase_strings() {
+        let encoded = |readiness| serde_json::to_string(&readiness).unwrap();
+
+        assert_eq!(encoded(PayloadReadiness::Ready), "\"ready\"");
+        assert_eq!(encoded(PayloadReadiness::Pending), "\"pending\"");
+        assert_eq!(encoded(PayloadReadiness::Unknown), "\"unknown\"");
     }
 }

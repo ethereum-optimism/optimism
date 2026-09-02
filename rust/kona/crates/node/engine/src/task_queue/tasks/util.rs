@@ -58,6 +58,8 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
         cfg,
         payload_id,
         attributes,
+        // The caller has already decided this block is due; there is nothing to wait for.
+        None,
         is_attributes_derived,
         BuildSealCoupling::Atomic,
         None,

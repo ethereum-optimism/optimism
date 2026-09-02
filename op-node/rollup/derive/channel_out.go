@@ -21,6 +21,10 @@ var (
 	ErrTooManyRLPBytes         = errors.New("batch would cause RLP bytes to go over limit")
 	ErrChannelOutAlreadyClosed = errors.New("channel-out already closed")
 	ErrCompressorFull          = errors.New("compressor is full")
+	// ErrUnknownParentTimestamp is returned when a span batch v2 would have to be opened without
+	// knowing the timestamp of the block the span builds on. That timestamp decides the span's
+	// first same-timestamp bit, so it cannot be guessed.
+	ErrUnknownParentTimestamp = errors.New("cannot open a span batch v2 without a known parent block timestamp")
 )
 
 // FrameV0OverHeadSize is the absolute minimum size of a frame.

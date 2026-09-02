@@ -18,6 +18,13 @@ pub const FJORD_MAX_SEQUENCER_DRIFT: u64 = 1800;
 /// The channel timeout once the Granite hardfork is active.
 pub const GRANITE_CHANNEL_TIMEOUT: u64 = 50;
 
+/// The largest group size a chain may configure as `max_multi_blocks`.
+///
+/// Group size bounds work that is linear in it — the derivation walk-back over a block's siblings
+/// and the gossip cache that must span an entire group — so it is capped well below what the
+/// `u64` field could express.
+pub const MAX_MULTI_BLOCKS_LIMIT: u64 = 128;
+
 #[cfg(feature = "serde")]
 const fn default_granite_channel_timeout() -> u64 {
     GRANITE_CHANNEL_TIMEOUT
@@ -29,6 +36,23 @@ const fn default_granite_channel_timeout() -> u64 {
 #[cfg(all(feature = "serde", feature = "rollup_config_override"))]
 const fn default_fjord_max_sequencer_drift() -> u64 {
     FJORD_MAX_SEQUENCER_DRIFT
+}
+
+/// An invalid multi-block configuration in a [`RollupConfig`].
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
+pub enum MultiBlockConfigError {
+    /// `max_multi_blocks` is explicitly set to zero.
+    #[error("max_multi_blocks must be at least 1")]
+    ZeroMaxMultiBlocks,
+    /// `max_multi_blocks` exceeds [`MAX_MULTI_BLOCKS_LIMIT`].
+    #[error("max_multi_blocks must be at most {MAX_MULTI_BLOCKS_LIMIT}")]
+    MaxMultiBlocksTooLarge,
+    /// `multi_block_time` is before the Karst activation.
+    #[error("multi_block_time must not precede the Karst activation")]
+    ActivationBeforeKarst,
+    /// `multi_block_time` is not on the chain's block-time grid.
+    #[error("multi_block_time must be an L2 block timestamp")]
+    MisalignedActivation,
 }
 
 /// The Rollup configuration.
@@ -91,6 +115,15 @@ pub struct RollupConfig {
     /// `chain_op_config` is the chain-specific EIP1559 config for the rollup.
     #[cfg_attr(feature = "serde", serde(default = "BaseFeeConfig::optimism"))]
     pub chain_op_config: BaseFeeConfig,
+    /// `multi_block_time` is the L2 timestamp from which the chain may produce more than one
+    /// block per [`Self::block_time`]. Optional: when unset the chain produces exactly one L2
+    /// block per block time. This is a feature toggle, not a hardfork.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub multi_block_time: Option<u64>,
+    /// The maximum number of consecutive L2 blocks that may share a timestamp. Absent means one,
+    /// i.e. no siblings.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub max_multi_blocks: Option<u64>,
 }
 
 #[cfg(feature = "arbitrary")]
@@ -125,6 +158,8 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             da_challenge_address: Option::<Address>::arbitrary(u)?,
             chain_op_config,
             alt_da_config: Option::<AltDAConfig>::arbitrary(u)?,
+            multi_block_time: Option::<u64>::arbitrary(u)?,
+            max_multi_blocks: Option::<u64>::arbitrary(u)?,
         })
     }
 }
@@ -152,6 +187,8 @@ impl Default for RollupConfig {
             da_challenge_address: None,
             alt_da_config: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
+            multi_block_time: None,
+            max_multi_blocks: None,
         }
     }
 }
@@ -330,6 +367,57 @@ impl RollupConfig {
             !self.is_interop_active(timestamp.saturating_sub(self.block_time))
     }
 
+    /// Returns true if the multi-block span batch format is active at `timestamp`.
+    ///
+    /// Like the Delta span batch gate, this is evaluated on the **L1 inclusion block**
+    /// timestamp of a batch, not on an L2 block timestamp.
+    pub fn is_multi_block_active(&self, timestamp: u64) -> bool {
+        self.is_multi_block_active_at_timestamp(timestamp)
+    }
+
+    /// Returns true if an L2 block at `timestamp` may share its timestamp with its parent.
+    ///
+    /// The rule itself is [`OpHardforks::siblings_allowed_at_timestamp`], shared with op-reth.
+    pub fn siblings_allowed(&self, timestamp: u64) -> bool {
+        self.siblings_allowed_at_timestamp(timestamp)
+    }
+
+    /// Returns the maximum number of consecutive L2 blocks that may share a timestamp.
+    pub fn max_multi_blocks(&self) -> u64 {
+        self.max_multi_blocks.unwrap_or(1)
+    }
+
+    /// Checks that the multi-block fields describe a chain that can actually be built: a group
+    /// size between one and [`MAX_MULTI_BLOCKS_LIMIT`], and an activation that is a Karst-or-later
+    /// L2 block timestamp, or `0` to allow groups from genesis onwards.
+    pub fn check_multi_block_config(&self) -> Result<(), MultiBlockConfigError> {
+        if self.max_multi_blocks == Some(0) {
+            return Err(MultiBlockConfigError::ZeroMaxMultiBlocks);
+        }
+        if self.max_multi_blocks.is_some_and(|max| max > MAX_MULTI_BLOCKS_LIMIT) {
+            return Err(MultiBlockConfigError::MaxMultiBlocksTooLarge);
+        }
+        let Some(multi_block_time) = self.multi_block_time else {
+            return Ok(());
+        };
+        // Deliberately the literal `karst_time`, not `is_karst_active`, which reports Karst as
+        // active whenever a later fork is: op-node's `checkMultiBlock` requires the key itself.
+        if self.hardforks.karst_time.is_none_or(|karst| multi_block_time < karst) {
+            return Err(MultiBlockConfigError::ActivationBeforeKarst);
+        }
+        // `0` is the "active from genesis" activation every fork timestamp uses, whatever the
+        // chain's genesis timestamp is, so it is not held to the block-time grid.
+        if multi_block_time != 0 {
+            let offset = multi_block_time
+                .checked_sub(self.genesis.l2_time)
+                .ok_or(MultiBlockConfigError::MisalignedActivation)?;
+            if offset.checked_rem(self.block_time).is_none_or(|rem| rem != 0) {
+                return Err(MultiBlockConfigError::MisalignedActivation);
+            }
+        }
+        Ok(())
+    }
+
     /// Returns true if a DA Challenge proxy Address is provided in the rollup config and the
     /// address is not zero.
     pub fn is_alt_da_enabled(&self) -> bool {
@@ -376,8 +464,14 @@ impl RollupConfig {
     ///
     /// This function assumes that the timestamp is aligned with the block time, and uses floor
     /// division in its computation.
-    pub const fn block_number_from_timestamp(&self, timestamp: u64) -> u64 {
-        timestamp.saturating_sub(self.genesis.l2_time).saturating_div(self.block_time)
+    ///
+    /// Returns [`None`] if `multi_block_time` is set: the chain may then contain several blocks
+    /// per timestamp, so timestamps no longer map to a single block number.
+    pub const fn block_number_from_timestamp(&self, timestamp: u64) -> Option<u64> {
+        if self.multi_block_time.is_some() {
+            return None;
+        }
+        Some(timestamp.saturating_sub(self.genesis.l2_time).saturating_div(self.block_time))
     }
 
     /// Checks the scalar value in Ecotone.
@@ -475,6 +569,10 @@ impl OpHardforks for RollupConfig {
                 .unwrap_or(ForkCondition::Never),
             _ => ForkCondition::Never,
         }
+    }
+
+    fn multi_block_activation(&self) -> ForkCondition {
+        self.multi_block_time.map_or(ForkCondition::Never, ForkCondition::Timestamp)
     }
 }
 
@@ -928,6 +1026,8 @@ mod tests {
             da_challenge_address: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
             alt_da_config: None,
+            multi_block_time: None,
+            max_multi_blocks: None,
         }
     }
 
@@ -1046,6 +1146,219 @@ mod tests {
         assert_eq!(deserialized, expected);
     }
 
+    /// The `rollup.json` op-deployer writes for a multi-block chain, byte-identical to
+    /// `op-chain-ops/genesis/testdata/rollup-multiblock.json`, which `TestMultiBlockRollupConfig`
+    /// regenerates. Pins the JSON names of the two keys across the clients.
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_deserialize_multi_block_rollup_config() {
+        let raw = include_str!("./testdata/rollup-multiblock.json");
+        let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
+        assert_eq!(deserialized.multi_block_time, Some(5020));
+        assert_eq!(deserialized.max_multi_blocks, Some(16));
+        assert_eq!(deserialized.max_multi_blocks(), 16);
+        assert_eq!(deserialized.check_multi_block_config(), Ok(()));
+        assert!(deserialized.siblings_allowed(5022));
+        assert!(!deserialized.siblings_allowed(5020));
+        assert_eq!(deserialized.hardforks.lagoon_time, Some(5040));
+
+        // Every fork scheduled after the activation keeps its activation block unique, so the
+        // sibling exclusion set is exactly those timestamps. The same assertion is made in Go.
+        let activation = deserialized.multi_block_time.unwrap();
+        let block_time = deserialized.block_time;
+        let mut excluded = 0;
+        for (name, time) in deserialized.hardforks.iter() {
+            // Reschedules the L1 blob fee schedule rather than activating a fork, so it does not
+            // constrain block timestamps.
+            if name == "Pectra Blob Schedule" {
+                continue;
+            }
+            let Some(time) = time.filter(|time| *time > activation) else { continue };
+            assert!(!deserialized.siblings_allowed(time), "{name} activates at {time}");
+            assert!(deserialized.siblings_allowed(time - block_time), "{name} at {time}");
+            assert!(deserialized.siblings_allowed(time + block_time), "{name} at {time}");
+            excluded += 1;
+        }
+        assert_eq!(excluded, 1, "the fixture schedules exactly one fork after the activation");
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_multi_block_config_round_trip() {
+        let config = RollupConfig {
+            multi_block_time: Some(40),
+            max_multi_blocks: Some(8),
+            ..Default::default()
+        };
+        let serialized = serde_json::to_string(&config).unwrap();
+        assert!(serialized.contains("\"multi_block_time\":40"));
+        assert!(serialized.contains("\"max_multi_blocks\":8"));
+        assert_eq!(serde_json::from_str::<RollupConfig>(&serialized).unwrap(), config);
+    }
+
+    /// Absent keys must not be serialized, so a chain without multi-blocks keeps its current
+    /// `rollup.json` shape.
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_multi_block_config_omitted_when_unset() {
+        let serialized = serde_json::to_string(&RollupConfig::default()).unwrap();
+        assert!(!serialized.contains("multi_block_time"));
+        assert!(!serialized.contains("max_multi_blocks"));
+        let deserialized: RollupConfig = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.multi_block_time, None);
+        assert_eq!(deserialized.max_multi_blocks, None);
+        assert_eq!(deserialized.max_multi_blocks(), 1);
+    }
+
+    fn multi_block_config() -> RollupConfig {
+        RollupConfig {
+            genesis: ChainGenesis { l2_time: 100, ..Default::default() },
+            block_time: 2,
+            hardforks: HardForkConfig { karst_time: Some(100), ..Default::default() },
+            multi_block_time: Some(200),
+            max_multi_blocks: Some(4),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_is_multi_block_active() {
+        let config = multi_block_config();
+        assert!(!config.is_multi_block_active(199));
+        assert!(config.is_multi_block_active(200));
+        assert!(config.is_multi_block_active(201));
+        assert!(!RollupConfig::default().is_multi_block_active(u64::MAX));
+    }
+
+    #[test]
+    fn test_siblings_allowed() {
+        let config = multi_block_config();
+        // Strictly after the activation timestamp.
+        assert!(!config.siblings_allowed(199));
+        assert!(!config.siblings_allowed(200));
+        assert!(config.siblings_allowed(202));
+        assert!(!RollupConfig::default().siblings_allowed(u64::MAX));
+    }
+
+    #[test]
+    fn test_siblings_disallowed_at_later_fork_activation() {
+        let mut config = multi_block_config();
+        config.hardforks.lagoon_time = Some(300);
+        assert!(config.siblings_allowed(298));
+        assert!(!config.siblings_allowed(300));
+        assert!(config.siblings_allowed(302));
+    }
+
+    /// The rule itself lives in [`OpHardforks`], shared with op-reth; a [`RollupConfig`] only
+    /// supplies the activation. Pins that supplying it is enough.
+    #[test]
+    fn test_multi_block_hardforks_trait() {
+        let mut config = multi_block_config();
+        config.hardforks.lagoon_time = Some(300);
+        assert_eq!(config.multi_block_activation(), ForkCondition::Timestamp(200));
+        assert!(!config.is_multi_block_active_at_timestamp(199));
+        assert!(config.is_multi_block_active_at_timestamp(200));
+        assert!(!config.siblings_allowed_at_timestamp(200));
+        assert!(config.siblings_allowed_at_timestamp(202));
+        assert!(!config.siblings_allowed_at_timestamp(300));
+
+        let unset = RollupConfig::default();
+        assert_eq!(unset.multi_block_activation(), ForkCondition::Never);
+        assert!(!unset.is_multi_block_active_at_timestamp(u64::MAX));
+        assert!(!unset.siblings_allowed_at_timestamp(u64::MAX));
+    }
+
+    #[test]
+    fn test_check_multi_block_config() {
+        assert_eq!(multi_block_config().check_multi_block_config(), Ok(()));
+        // No multi-block config at all is valid.
+        assert_eq!(RollupConfig::default().check_multi_block_config(), Ok(()));
+
+        let config = RollupConfig { max_multi_blocks: Some(0), ..multi_block_config() };
+        assert_eq!(
+            config.check_multi_block_config(),
+            Err(MultiBlockConfigError::ZeroMaxMultiBlocks)
+        );
+
+        let config = RollupConfig { multi_block_time: Some(98), ..multi_block_config() };
+        assert_eq!(
+            config.check_multi_block_config(),
+            Err(MultiBlockConfigError::ActivationBeforeKarst)
+        );
+
+        // A chain that never schedules Karst explicitly cannot enable multi-blocks, even though
+        // a later fork implies Karst is active.
+        let config = RollupConfig {
+            hardforks: HardForkConfig {
+                karst_time: None,
+                lagoon_time: Some(100),
+                ..Default::default()
+            },
+            ..multi_block_config()
+        };
+        assert_eq!(
+            config.check_multi_block_config(),
+            Err(MultiBlockConfigError::ActivationBeforeKarst)
+        );
+
+        // Before genesis: no L2 block can carry the activation timestamp.
+        let config = RollupConfig {
+            hardforks: HardForkConfig { karst_time: Some(0), ..Default::default() },
+            multi_block_time: Some(50),
+            ..multi_block_config()
+        };
+        assert_eq!(
+            config.check_multi_block_config(),
+            Err(MultiBlockConfigError::MisalignedActivation)
+        );
+
+        let config = RollupConfig { multi_block_time: Some(201), ..multi_block_config() };
+        assert_eq!(
+            config.check_multi_block_config(),
+            Err(MultiBlockConfigError::MisalignedActivation)
+        );
+
+        let config =
+            RollupConfig { max_multi_blocks: Some(MAX_MULTI_BLOCKS_LIMIT), ..multi_block_config() };
+        assert_eq!(config.check_multi_block_config(), Ok(()));
+
+        let config = RollupConfig {
+            max_multi_blocks: Some(MAX_MULTI_BLOCKS_LIMIT + 1),
+            ..multi_block_config()
+        };
+        assert_eq!(
+            config.check_multi_block_config(),
+            Err(MultiBlockConfigError::MaxMultiBlocksTooLarge)
+        );
+    }
+
+    /// `0` means "from genesis" for every fork timestamp op-deployer writes, so it must not be
+    /// held to the block-time grid the chain's own genesis timestamp defines.
+    #[test]
+    fn test_check_multi_block_config_activated_at_genesis() {
+        let genesis_config = RollupConfig {
+            hardforks: HardForkConfig { karst_time: Some(0), ..Default::default() },
+            multi_block_time: Some(0),
+            ..multi_block_config()
+        };
+        assert_eq!(genesis_config.check_multi_block_config(), Ok(()));
+        assert!(genesis_config.is_multi_block_active(0));
+        assert!(genesis_config.is_multi_block_active(u64::MAX));
+        // Siblings still start strictly after the activation timestamp.
+        assert!(!genesis_config.siblings_allowed(0));
+        assert!(genesis_config.siblings_allowed(102));
+
+        // Karst scheduled later still rules out an activation at genesis.
+        let config = RollupConfig {
+            hardforks: HardForkConfig { karst_time: Some(200), ..Default::default() },
+            ..genesis_config
+        };
+        assert_eq!(
+            config.check_multi_block_config(),
+            Err(MultiBlockConfigError::ActivationBeforeKarst)
+        );
+    }
+
     #[test]
     fn test_compute_block_number_from_time() {
         let cfg = RollupConfig {
@@ -1054,8 +1367,21 @@ mod tests {
             ..Default::default()
         };
 
-        assert_eq!(cfg.block_number_from_timestamp(20), 5);
-        assert_eq!(cfg.block_number_from_timestamp(30), 10);
+        assert_eq!(cfg.block_number_from_timestamp(20), Some(5));
+        assert_eq!(cfg.block_number_from_timestamp(30), Some(10));
+    }
+
+    #[test]
+    fn test_block_number_from_timestamp_multi_block() {
+        let cfg = RollupConfig {
+            genesis: ChainGenesis { l2_time: 10, ..Default::default() },
+            block_time: 2,
+            multi_block_time: Some(100),
+            ..Default::default()
+        };
+
+        assert_eq!(cfg.block_number_from_timestamp(20), None);
+        assert_eq!(cfg.block_number_from_timestamp(200), None);
     }
 
     #[cfg(feature = "rollup_config_override")]

@@ -25,7 +25,7 @@ func zeroFrameTxID(fn uint16) txID {
 }
 
 func newChannelWithChannelOut(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*channel, error) {
-	channelOut, err := NewChannelOut(cfg, rollupCfg)
+	channelOut, err := NewChannelOut(cfg, rollupCfg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating channel out: %w", err)
 	}

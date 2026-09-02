@@ -1,9 +1,9 @@
+use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{BuildTaskError, EngineQueries, SealTaskError};
-use kona_protocol::OpAttributesWithParent;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use kona_engine::{BuildTaskError, EngineQueries, SealTaskError, SealedPayload};
+use kona_protocol::{BlockInfo, OpAttributesWithParent};
 use thiserror::Error;
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, time::Instant};
 
 /// The result of an Engine client call.
 pub type EngineClientResult<T> = Result<T, EngineClientError>;
@@ -64,6 +64,19 @@ pub struct SealRequest {
     pub payload_id: PayloadId,
     /// The attributes necessary for the seal operation.
     pub attributes: OpAttributesWithParent,
+    /// When set, the payload is fetched as soon as the execution layer reports it worth sealing,
+    /// and at this instant at the latest.
+    pub ready_deadline: Option<Instant>,
     /// The channel on which the result, successful or not, will be sent.
-    pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+    pub result_tx: mpsc::Sender<Result<SealedPayload, SealTaskError>>,
+}
+
+/// A request for the [`BlockInfo`] of an L2 block, by hash.
+#[derive(Debug)]
+pub struct L2BlockInfoRequest {
+    /// The hash of the L2 block to look up.
+    pub hash: B256,
+    /// The channel on which the result, successful or not, will be sent. `Ok(None)` means the
+    /// execution layer does not have the block.
+    pub result_tx: mpsc::Sender<EngineClientResult<Option<BlockInfo>>>,
 }

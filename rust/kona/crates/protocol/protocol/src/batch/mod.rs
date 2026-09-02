@@ -60,7 +60,7 @@ mod bits;
 pub use bits::SpanBatchBits;
 
 mod span;
-pub use span::SpanBatch;
+pub use span::{SpanBatch, SpanBatchOutcome, SpanSingleBatch};
 
 mod transactions;
 pub use transactions::SpanBatchTransactions;

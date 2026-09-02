@@ -283,6 +283,8 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		GraniteTime:            deployConf.GraniteTime(l2GenesisTime),
 		HoloceneTime:           deployConf.HoloceneTime(l2GenesisTime),
 		PectraBlobScheduleTime: deployConf.PectraBlobScheduleTime(l2GenesisTime),
+		MultiBlockTime:         deployConf.MultiBlockTime(l2GenesisTime),
+		MaxMultiBlocks:         (*uint64)(deployConf.MaxMultiBlocks),
 		IsthmusTime:            deployConf.IsthmusTime(l2GenesisTime),
 		JovianTime:             deployConf.JovianTime(l2GenesisTime),
 		KarstTime:              deployConf.KarstTime(l2GenesisTime),

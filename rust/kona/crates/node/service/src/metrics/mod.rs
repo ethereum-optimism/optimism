@@ -29,6 +29,11 @@ impl Metrics {
     pub const SEQUENCER_BLOCK_BUILDING_SEAL_TASK_DURATION: &str =
         "kona_node_sequencer_block_building_seal_task_duration";
 
+    /// Gauge for the part of the seal task the sequencer spent waiting for the execution layer to
+    /// consider the payload worth sealing.
+    pub const SEQUENCER_BLOCK_BUILDING_AWAIT_READY_DURATION: &str =
+        "kona_node_sequencer_block_building_await_ready_duration";
+
     /// Gauge for the sequencer's conductor commitment duration.
     pub const SEQUENCER_CONDUCTOR_COMMITMENT_DURATION: &str =
         "kona_node_sequencer_conductor_commitment_duration";
@@ -82,6 +87,12 @@ impl Metrics {
         metrics::describe_gauge!(
             Self::SEQUENCER_BLOCK_BUILDING_SEAL_TASK_DURATION,
             "Duration of the sequencer block building seal task"
+        );
+
+        // Sequencer await-ready wait inside the seal task
+        metrics::describe_gauge!(
+            Self::SEQUENCER_BLOCK_BUILDING_AWAIT_READY_DURATION,
+            "Duration the sequencer waited for the execution layer to consider the payload worth sealing"
         );
 
         // Sequencer conductor commitment duration

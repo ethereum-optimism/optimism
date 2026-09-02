@@ -6882,6 +6882,7 @@ dependencies = [
  "kona-protocol",
  "kona-registry",
  "metrics",
+ "miniz_oxide 0.9.1",
  "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "proptest",
@@ -7292,6 +7293,7 @@ dependencies = [
  "libp2p",
  "libp2p-stream",
  "metrics",
+ "metrics-util",
  "mockall",
  "op-alloy-consensus",
  "op-alloy-network",
@@ -13521,6 +13523,7 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
 ]
 
@@ -13621,6 +13624,7 @@ dependencies = [
  "reth-optimism-primitives",
  "reth-optimism-trie",
  "reth-optimism-txpool",
+ "reth-payload-builder",
  "reth-payload-util",
  "reth-primitives-traits",
  "reth-provider",

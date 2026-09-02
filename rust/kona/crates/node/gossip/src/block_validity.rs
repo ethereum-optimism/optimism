@@ -83,15 +83,29 @@ impl From<BlockInvalidError> for MessageAcceptance {
 }
 
 impl BlockHandler {
-    /// The maximum number of blocks to keep in the seen hashes map.
-    ///
-    /// Note: this value must be high enough to ensure we prevent replay attacks.
-    /// Ie, the entries pruned must be old enough blocks to be considered invalid
-    /// if new blocks for that height are received.
-    ///
-    /// This value is chosen to match `op-node` validator's lru cache size.
+    /// The width of the window in which a gossiped block's timestamp is accepted: at most 5
+    /// seconds ahead of, and 60 seconds behind, the wall clock.
+    const ACCEPTANCE_WINDOW_SECS: u64 = 65;
+
+    /// The floor for [`Self::seen_hash_cache_size`], matching `op-node` validator's LRU cache
+    /// size.
     /// See: <https://github.com/ethereum-optimism/optimism/blob/836d50be5d5f4ae14ffb2ea6106720a2b080cdae/op-node/p2p/gossip.go#L266>
-    pub const SEEN_HASH_CACHE_SIZE: usize = 1_000;
+    const MIN_SEEN_HASH_CACHE_SIZE: usize = 1_000;
+
+    /// The maximum number of block heights to keep in the seen hashes map.
+    ///
+    /// The entries pruned must be old enough that a new block for that height would be rejected
+    /// anyway, or the cache stops preventing replays. A block is only accepted inside
+    /// the acceptance window (`ACCEPTANCE_WINDOW_SECS`), which spans one height per block time — or
+    /// `max_multi_blocks` heights, on a chain where blocks may share a timestamp.
+    pub fn seen_hash_cache_size(&self) -> usize {
+        let heights_per_timestamp = self.rollup_config.max_multi_blocks();
+        let timestamps =
+            Self::ACCEPTANCE_WINDOW_SECS.div_ceil(self.rollup_config.block_time.max(1));
+        usize::try_from(timestamps.saturating_mul(heights_per_timestamp))
+            .unwrap_or(usize::MAX)
+            .max(Self::MIN_SEEN_HASH_CACHE_SIZE)
+    }
 
     /// The maximum number of blocks to keep per height.
     /// This value is chosen according to the optimism specs:
@@ -246,7 +260,7 @@ impl BlockHandler {
         self.seen_hashes.entry(envelope.block_number()).or_default().insert(envelope.block_hash());
 
         // Mark the block as seen.
-        if self.seen_hashes.len() >= Self::SEEN_HASH_CACHE_SIZE {
+        if self.seen_hashes.len() >= self.seen_hash_cache_size() {
             self.seen_hashes.pop_first();
         }
 
@@ -466,6 +480,27 @@ pub(crate) mod tests {
             OpExecutionPayloadEnvelope::V4 { .. } => GossipPayloadVersion::V4,
         };
         SignedGossipPayload::from_envelope(envelope, signature, version).unwrap()
+    }
+
+    fn handler_for(config: RollupConfig) -> BlockHandler {
+        let (_, unsafe_signer) = tokio::sync::watch::channel(Address::ZERO);
+        BlockHandler::new(config, unsafe_signer)
+    }
+
+    #[test]
+    fn test_seen_hash_cache_covers_the_acceptance_window() {
+        // One block per second still fits inside the op-node-sized floor.
+        assert_eq!(
+            handler_for(RollupConfig { block_time: 1, ..Default::default() })
+                .seen_hash_cache_size(),
+            1_000
+        );
+
+        // A chain that may put 16 blocks on every one-second timestamp needs room for all of the
+        // heights the acceptance window can hold.
+        let multi_block =
+            RollupConfig { block_time: 1, max_multi_blocks: Some(16), ..Default::default() };
+        assert_eq!(handler_for(multi_block).seen_hash_cache_size(), 65 * 16);
     }
 
     /// Generates a random valid block and ensures it is V1 compatible.

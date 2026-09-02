@@ -26,6 +26,15 @@ import (
 // prefix := rel_timestamp ++ l1_origin_num ++ parent_check ++ l1_origin_check
 // payload := block_count ++ origin_bits ++ block_tx_counts ++ txs
 // txs := contract_creation_bits ++ y_parity_bits ++ tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases ++ protected_bits
+//
+// SpanBatchV2Type := 2
+// spanBatchV2 := SpanBatchV2Type ++ prefix ++ payloadV2
+// payloadV2 := block_count ++ origin_bits ++ same_ts_bits ++ block_tx_counts ++ txs
+//
+// same_ts_bits is a standard span-batch bitlist of block_count bits. Bit i set means element i has
+// element i-1's timestamp; bit 0 set means the first element shares the timestamp of the block the
+// span builds on. Timestamps are therefore a running sum:
+// ts_0 = genesis + rel_timestamp, ts_i = ts_{i-1} + (bit_i ? 0 : block_time).
 
 var ErrTooBigSpanBatchSize = errors.New("span batch size limit reached")
 
@@ -41,19 +50,23 @@ type spanBatchPrefix struct {
 type spanBatchPayload struct {
 	blockCount    uint64        // Number of L2 block in the span
 	originBits    *big.Int      // Standard span-batch bitlist of blockCount bits. Each bit indicates if the L1 origin is changed at the L2 block.
+	sameTsBits    *big.Int      // Standard span-batch bitlist of blockCount bits, SpanBatchV2Type only. Each bit indicates if the L2 block shares its predecessor's timestamp.
 	blockTxCounts []uint64      // List of transaction counts for each L2 block
 	txs           *spanBatchTxs // Transactions encoded in SpanBatch specs
 }
 
 // RawSpanBatch is another representation of SpanBatch, that encodes data according to SpanBatch specs.
 type RawSpanBatch struct {
+	// version is the wire batch type, either SpanBatchType or SpanBatchV2Type. It decides whether
+	// the payload carries same_ts_bits.
+	version int
 	spanBatchPrefix
 	spanBatchPayload
 }
 
 // GetBatchType returns its batch type (batch_version)
 func (b *RawSpanBatch) GetBatchType() int {
-	return SpanBatchType
+	return b.version
 }
 
 // decodeOriginBits parses data into bp.originBits
@@ -66,6 +79,19 @@ func (bp *spanBatchPayload) decodeOriginBits(r *bytes.Reader) error {
 		return fmt.Errorf("failed to decode origin bits: %w", err)
 	}
 	bp.originBits = bits
+	return nil
+}
+
+// decodeSameTsBits parses data into bp.sameTsBits
+func (bp *spanBatchPayload) decodeSameTsBits(r *bytes.Reader) error {
+	if bp.blockCount > MaxSpanBatchElementCount {
+		return ErrTooBigSpanBatchSize
+	}
+	bits, err := decodeSpanBatchBits(r, bp.blockCount)
+	if err != nil {
+		return fmt.Errorf("failed to decode same timestamp bits: %w", err)
+	}
+	bp.sameTsBits = bits
 	return nil
 }
 
@@ -188,13 +214,19 @@ func (bp *spanBatchPayload) decodeTxs(r *bytes.Reader) error {
 	return nil
 }
 
-// decodePayload parses data into bp.spanBatchPayload
-func (bp *spanBatchPayload) decodePayload(r *bytes.Reader) error {
+// decodePayload parses data into bp.spanBatchPayload. sameTs selects the SpanBatchV2Type payload,
+// which carries an extra same_ts_bits bitlist.
+func (bp *spanBatchPayload) decodePayload(r *bytes.Reader, sameTs bool) error {
 	if err := bp.decodeBlockCount(r); err != nil {
 		return err
 	}
 	if err := bp.decodeOriginBits(r); err != nil {
 		return err
+	}
+	if sameTs {
+		if err := bp.decodeSameTsBits(r); err != nil {
+			return err
+		}
 	}
 	if err := bp.decodeBlockTxCounts(r); err != nil {
 		return err
@@ -210,7 +242,7 @@ func (b *RawSpanBatch) decode(r *bytes.Reader) error {
 	if err := b.decodePrefix(r); err != nil {
 		return fmt.Errorf("failed to decode span batch prefix: %w", err)
 	}
-	if err := b.decodePayload(r); err != nil {
+	if err := b.decodePayload(r, b.version == SpanBatchV2Type); err != nil {
 		return fmt.Errorf("failed to decode span batch payload: %w", err)
 	}
 	return nil
@@ -277,6 +309,17 @@ func (bp *spanBatchPayload) encodeOriginBits(w io.Writer) error {
 	return nil
 }
 
+// encodeSameTsBits encodes bp.sameTsBits
+func (bp *spanBatchPayload) encodeSameTsBits(w io.Writer) error {
+	if bp.sameTsBits == nil {
+		return errors.New("span batch v2 without same timestamp bits")
+	}
+	if err := encodeSpanBatchBits(w, bp.blockCount, bp.sameTsBits); err != nil {
+		return fmt.Errorf("failed to encode same timestamp bits: %w", err)
+	}
+	return nil
+}
+
 // encodeBlockCount encodes bp.blockCount
 func (bp *spanBatchPayload) encodeBlockCount(w io.Writer) error {
 	var buf [binary.MaxVarintLen64]byte
@@ -310,13 +353,19 @@ func (bp *spanBatchPayload) encodeTxs(w io.Writer) error {
 	return nil
 }
 
-// encodePayload encodes spanBatchPayload
-func (bp *spanBatchPayload) encodePayload(w io.Writer) error {
+// encodePayload encodes spanBatchPayload. sameTs selects the SpanBatchV2Type payload, which
+// carries an extra same_ts_bits bitlist.
+func (bp *spanBatchPayload) encodePayload(w io.Writer, sameTs bool) error {
 	if err := bp.encodeBlockCount(w); err != nil {
 		return err
 	}
 	if err := bp.encodeOriginBits(w); err != nil {
 		return err
+	}
+	if sameTs {
+		if err := bp.encodeSameTsBits(w); err != nil {
+			return err
+		}
 	}
 	if err := bp.encodeBlockTxCounts(w); err != nil {
 		return err
@@ -329,10 +378,13 @@ func (bp *spanBatchPayload) encodePayload(w io.Writer) error {
 
 // encode writes the byte encoding of SpanBatch to Writer stream
 func (b *RawSpanBatch) encode(w io.Writer) error {
+	if b.version != SpanBatchType && b.version != SpanBatchV2Type {
+		return fmt.Errorf("invalid span batch version: %d", b.version)
+	}
 	if err := b.encodePrefix(w); err != nil {
 		return err
 	}
-	if err := b.encodePayload(w); err != nil {
+	if err := b.encodePayload(w, b.version == SpanBatchV2Type); err != nil {
 		return err
 	}
 	return nil
@@ -362,13 +414,19 @@ func (b *RawSpanBatch) derive(blockTime, genesisTimestamp uint64, chainID *big.I
 	}
 
 	spanBatch := SpanBatch{
+		Version:       b.version,
 		ParentCheck:   b.parentCheck,
 		L1OriginCheck: b.l1OriginCheck,
+		sameTsBits:    b.sameTsBits,
 	}
 	txIdx := 0
+	timestamp := genesisTimestamp + b.relTimestamp
 	for i := 0; i < int(b.blockCount); i++ {
 		batch := SpanBatchElement{}
-		batch.Timestamp = genesisTimestamp + b.relTimestamp + blockTime*uint64(i)
+		if i > 0 && !b.isSameTs(i) {
+			timestamp += blockTime
+		}
+		batch.Timestamp = timestamp
 		batch.EpochNum = rollup.Epoch(blockOriginNums[i])
 		for j := 0; j < int(b.blockTxCounts[i]); j++ {
 			batch.Transactions = append(batch.Transactions, fullTxs[txIdx])
@@ -377,6 +435,11 @@ func (b *RawSpanBatch) derive(blockTime, genesisTimestamp uint64, chainID *big.I
 		spanBatch.Batches = append(spanBatch.Batches, &batch)
 	}
 	return &spanBatch, nil
+}
+
+// isSameTs reports whether element i shares the timestamp of its predecessor.
+func (b *RawSpanBatch) isSameTs(i int) bool {
+	return b.sameTsBits != nil && b.sameTsBits.Bit(i) == 1
 }
 
 // ToSpanBatch converts RawSpanBatch to SpanBatch,
@@ -410,14 +473,23 @@ func singularBatchToElement(singularBatch *SingularBatch) *SpanBatchElement {
 // SpanBatch is an implementation of Batch interface,
 // containing the input to build a span of L2 blocks in derived form (SpanBatchElement)
 type SpanBatch struct {
+	// Version is the wire batch type this span encodes to, either SpanBatchType or
+	// SpanBatchV2Type. Only SpanBatchV2Type can express blocks sharing a timestamp.
+	Version          int
 	ParentCheck      [20]byte // First 20 bytes of the first block's parent hash
 	L1OriginCheck    [20]byte // First 20 bytes of the last block's L1 origin hash
 	GenesisTimestamp uint64
 	ChainID          *big.Int
 	Batches          []*SpanBatchElement // List of block input in derived form
 
+	// parentTimestamp is the timestamp of the L2 block this span builds on. It decides whether the
+	// first appended element is a sibling of that parent, so a SpanBatchV2Type span needs the real
+	// value; SpanBatchType ignores it.
+	parentTimestamp uint64
+
 	// caching
 	originBits    *big.Int
+	sameTsBits    *big.Int
 	blockTxCounts []uint64
 	sbtxs         *spanBatchTxs
 }
@@ -427,23 +499,33 @@ func (b *SpanBatch) AsSpanBatch() (*SpanBatch, bool)         { return b, true }
 
 // spanBatchMarshaling is a helper type used for JSON marshaling.
 type spanBatchMarshaling struct {
+	Version       int                 `json:"version"`
 	ParentCheck   []hexutil.Bytes     `json:"parent_check"`
 	L1OriginCheck []hexutil.Bytes     `json:"l1_origin_check"`
+	SameTsBits    []bool              `json:"same_ts_bits,omitempty"`
 	Batches       []*SpanBatchElement `json:"span_batch_elements"`
 }
 
 func (b *SpanBatch) MarshalJSON() ([]byte, error) {
 	spanBatch := spanBatchMarshaling{
+		Version:       b.Version,
 		ParentCheck:   []hexutil.Bytes{b.ParentCheck[:]},
 		L1OriginCheck: []hexutil.Bytes{b.L1OriginCheck[:]},
 		Batches:       b.Batches,
+	}
+	// the bits are what distinguishes a v2 span from a v1 one, so decoded output has to show them
+	if b.sameTsBits != nil {
+		spanBatch.SameTsBits = make([]bool, len(b.Batches))
+		for i := range b.Batches {
+			spanBatch.SameTsBits[i] = b.sameTsBits.Bit(i) == 1
+		}
 	}
 	return json.Marshal(spanBatch)
 }
 
 // GetBatchType returns its batch type (batch_version)
 func (b *SpanBatch) GetBatchType() int {
-	return SpanBatchType
+	return b.Version
 }
 
 // GetTimestamp returns the timestamp of the first block in the span
@@ -534,6 +616,20 @@ func (b *SpanBatch) AppendSingularBatch(singularBatch *SingularBatch, seqNum uin
 	// always append the new batch and set the L1 origin check
 	b.Batches = append(b.Batches, singularBatchToElement(singularBatch))
 
+	// a span batch v2 records, per element, whether it shares its predecessor's timestamp. For the
+	// first element the predecessor is the block the span builds on.
+	if b.sameTsBits != nil {
+		prevTimestamp := b.parentTimestamp
+		if len(b.Batches) > 1 {
+			prevTimestamp = b.peek(1).Timestamp
+		}
+		sameTsBit := uint(0)
+		if prevTimestamp == singularBatch.Timestamp {
+			sameTsBit = 1
+		}
+		b.sameTsBits.SetBit(b.sameTsBits, len(b.Batches)-1, sameTsBit)
+	}
+
 	// always update the L1 origin check
 	copy(b.L1OriginCheck[:], singularBatch.EpochHash.Bytes()[:20])
 	// if there is only one batch, initialize the ParentCheck
@@ -575,6 +671,7 @@ func (b *SpanBatch) ToRawSpanBatch() (*RawSpanBatch, error) {
 	span_end := b.Batches[len(b.Batches)-1]
 
 	return &RawSpanBatch{
+		version: b.Version,
 		spanBatchPrefix: spanBatchPrefix{
 			relTimestamp:  span_start.Timestamp - b.GenesisTimestamp,
 			l1OriginNum:   uint64(span_end.EpochNum),
@@ -584,6 +681,7 @@ func (b *SpanBatch) ToRawSpanBatch() (*RawSpanBatch, error) {
 		spanBatchPayload: spanBatchPayload{
 			blockCount:    uint64(len(b.Batches)),
 			originBits:    b.originBits,
+			sameTsBits:    b.sameTsBits,
 			blockTxCounts: b.blockTxCounts,
 			txs:           b.sbtxs,
 		},
@@ -630,16 +728,25 @@ func (b *SpanBatch) GetSingularBatches(l1Origins []eth.L1BlockRef, l2SafeHead et
 	return singularBatches, nil
 }
 
-// NewSpanBatch converts given singularBatches into SpanBatchElements, and creates a new SpanBatch.
-func NewSpanBatch(genesisTimestamp uint64, chainID *big.Int) *SpanBatch {
+// NewSpanBatch creates an empty SpanBatch of the given wire version.
+// parentTimestamp is the timestamp of the L2 block the span builds on; it decides whether the
+// first appended batch is recorded as a sibling of that parent, and is only consulted for
+// SpanBatchV2Type. A SpanBatchType span ignores it, so 0 is fine there.
+func NewSpanBatch(version int, genesisTimestamp uint64, chainID *big.Int, parentTimestamp uint64) *SpanBatch {
 	// newSpanBatchTxs can't fail with empty txs
 	sbtxs, _ := newSpanBatchTxs([][]byte{}, chainID)
-	return &SpanBatch{
+	b := &SpanBatch{
+		Version:          version,
 		GenesisTimestamp: genesisTimestamp,
 		ChainID:          chainID,
+		parentTimestamp:  parentTimestamp,
 		originBits:       big.NewInt(0),
 		sbtxs:            sbtxs,
 	}
+	if version == SpanBatchV2Type {
+		b.sameTsBits = big.NewInt(0)
+	}
+	return b
 }
 
 // DeriveSpanBatch derives SpanBatch from BatchData.

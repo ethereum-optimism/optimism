@@ -479,6 +479,9 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 		l.channelMgr.PruneSafeBlocks(syncActions.blocksToPrune)
 		l.channelMgr.PruneChannels(syncActions.channelsToPrune)
 	}
+	// Every branch above leaves the oldest block in state at safe+1, and blocksToLoad starts there
+	// too, so the safe head is the parent of the next block a channel will take.
+	l.channelMgr.SetSafeHeadTimestamp(syncStatus.LocalSafeL2.Time)
 	return syncActions.blocksToLoad
 }
 
@@ -882,6 +885,8 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	return nil
 }
 
+// safeL1Origin returns the L1 origin of the local-safe L2 head, along with that head's L2
+// timestamp.
 func (l *BatchSubmitter) safeL1Origin(ctx context.Context) (eth.BlockID, error) {
 	c, err := l.EndpointProvider.RollupClient(ctx)
 	if err != nil {

@@ -26,6 +26,11 @@ import (
 // any block below its earliest available history height.
 const historyPrunedErrCode = 4444
 
+// MaxMultiBlocksLimit is the largest value MaxMultiBlocks may take. Determining a block's position
+// in its group means walking back over the group, and gossip validation caches seen block hashes in
+// proportion to the group size, so both scale with this bound.
+const MaxMultiBlocksLimit = 128
+
 var (
 	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
 	ErrMissingChannelTimeout         = errors.New("channel timeout must be set, this should cover at least a L1 block time")
@@ -45,6 +50,14 @@ var (
 	ErrChainIDsSame                  = errors.New("L1 and L2 chain IDs must be different")
 	ErrL1ChainIDNotPositive          = errors.New("L1 chain ID must be non-zero and positive")
 	ErrL2ChainIDNotPositive          = errors.New("L2 chain ID must be non-zero and positive")
+	ErrInvalidMaxMultiBlocks         = errors.New("max multi blocks must not be zero")
+	ErrMaxMultiBlocksTooLarge        = fmt.Errorf("max multi blocks must not exceed %d", MaxMultiBlocksLimit)
+	ErrMultiBlockBeforeKarst         = errors.New("multi block time must not be before Karst")
+	ErrMultiBlockMisaligned          = errors.New("multi block time must be a whole number of block times after L2 genesis")
+	// ErrMultiBlockNoBlockNumberForTimestamp is returned when a timestamp cannot be mapped to a
+	// single L2 block number because the chain schedules multi-blocks, past which several blocks
+	// may share a timestamp. Callers have to look the block up on the chain instead.
+	ErrMultiBlockNoBlockNumberForTimestamp = errors.New("cannot derive an L2 block number from a timestamp on a multi-block chain")
 )
 
 type Genesis struct {
@@ -192,6 +205,17 @@ type Config struct {
 	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
+
+	// MultiBlockTime enables up to MaxMultiBlocks L2 blocks per block time, by letting a block
+	// share its parent's timestamp ("siblings").
+	// It gates the span batch v2 wire format, evaluated on the L1 inclusion block timestamp of a
+	// batch, and — one block time later, see SiblingsAllowed — sibling blocks themselves,
+	// evaluated on the L2 block timestamp.
+	MultiBlockTime *uint64 `json:"multi_block_time,omitempty"`
+
+	// MaxMultiBlocks is the maximum number of consecutive L2 blocks that may share a timestamp.
+	// Unset means 1, i.e. no siblings.
+	MaxMultiBlocks *uint64 `json:"max_multi_blocks,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -227,14 +251,25 @@ func (cfg *Config) ValidateL2Config(ctx context.Context, logger log.Logger, clie
 	return nil
 }
 
+// TimestampForBlock returns the timestamp of the L2 block with the given number.
+//
+// It is only valid while MultiBlockTime is nil. Past the multi-blocks activation several blocks may
+// share a timestamp, so the block number no longer determines it; callers on such a chain have to
+// read the block itself.
 func (cfg *Config) TimestampForBlock(blockNumber uint64) uint64 {
 	return cfg.Genesis.L2Time + ((blockNumber - cfg.Genesis.L2.Number) * cfg.BlockTime)
 }
 
 // TargetBlockNumber returns the L2 block number for the given timestamp.
-// If the timestamp is before the genesis time, it returns an error.
-// All other cases should return a valid block number.
+// It returns an error if the timestamp is before the genesis time, or if the chain schedules
+// multi-blocks, where a timestamp may cover several blocks.
+// All other cases return a valid block number.
 func (cfg *Config) TargetBlockNumber(timestamp uint64) (num uint64, err error) {
+	if cfg.MultiBlockTime != nil {
+		// The mapping is not a bijection on a multi-block chain, not even below the activation:
+		// a caller that wants a specific block has to find it on the chain.
+		return 0, ErrMultiBlockNoBlockNumberForTimestamp
+	}
 	// subtract genesis time from timestamp to get the time elapsed since genesis, and then divide that
 	// difference by the block time to get the expected L2 block number at the current time. If the
 	// unsafe head does not have this block number, then there is a gap in the queue.
@@ -406,7 +441,37 @@ func (cfg *Config) Check() error {
 	if err := checkFork(cfg.HoloceneTime, cfg.IsthmusTime, forks.Holocene, forks.Isthmus); err != nil {
 		return err
 	}
+	if err := cfg.checkMultiBlock(); err != nil {
+		return err
+	}
 
+	return nil
+}
+
+func (cfg *Config) checkMultiBlock() error {
+	if cfg.MaxMultiBlocks != nil {
+		if *cfg.MaxMultiBlocks == 0 {
+			return ErrInvalidMaxMultiBlocks
+		}
+		if *cfg.MaxMultiBlocks > MaxMultiBlocksLimit {
+			return ErrMaxMultiBlocksTooLarge
+		}
+	}
+	if cfg.MultiBlockTime == nil {
+		return nil
+	}
+	// Siblings rely on Karst-era block building, and on every fork predicate being expressible in
+	// terms of a single timestamp.
+	if cfg.KarstTime == nil || *cfg.MultiBlockTime < *cfg.KarstTime {
+		return ErrMultiBlockBeforeKarst
+	}
+	if *cfg.MultiBlockTime == 0 {
+		// active at genesis, like every other fork scheduled at 0
+		return nil
+	}
+	if *cfg.MultiBlockTime < cfg.Genesis.L2Time || (*cfg.MultiBlockTime-cfg.Genesis.L2Time)%cfg.BlockTime != 0 {
+		return ErrMultiBlockMisaligned
+	}
 	return nil
 }
 
@@ -543,6 +608,41 @@ func (c *Config) IsLagoon(timestamp uint64) bool {
 	return c.IsForkActive(forks.Lagoon, timestamp)
 }
 
+// IsMultiBlock returns true if the multi-blocks feature is active at or past the given timestamp.
+// It gates the span batch v2 wire format, so it is evaluated on the L1 inclusion block timestamp of
+// a batch, the same basis Delta uses to gate span batches.
+func (c *Config) IsMultiBlock(timestamp uint64) bool {
+	return c.IsForkActive(forks.MultiBlock, timestamp)
+}
+
+// SiblingsAllowed returns whether an L2 block with the given timestamp may share that timestamp
+// with its parent. Siblings only start after MultiBlockTime, and never fall on a fork activation
+// timestamp, so that predicates which recognize an activation block from its timestamp alone stay
+// correct.
+func (c *Config) SiblingsAllowed(l2BlockTime uint64) bool {
+	if c.MultiBlockTime == nil || l2BlockTime <= *c.MultiBlockTime {
+		return false
+	}
+	// The excluded set has to match kona's, which iterates its own fork enum. Only forks
+	// scheduleable after MultiBlockTime can ever match, so the two lists agree today; a fork added
+	// to one enum and not the other would silently diverge.
+	for _, fork := range scheduleableForks {
+		if t := c.ActivationTime(fork); t != nil && *t == l2BlockTime {
+			return false
+		}
+	}
+	return true
+}
+
+// MaxMultiBlocksOrDefault returns the maximum number of consecutive L2 blocks that may share a
+// timestamp, defaulting to 1 (no siblings) when unset.
+func (c *Config) MaxMultiBlocksOrDefault() uint64 {
+	if c.MaxMultiBlocks == nil {
+		return 1
+	}
+	return *c.MaxMultiBlocks
+}
+
 func (c *Config) IsRegolithActivationBlock(l2BlockTime uint64) bool {
 	return c.IsRegolith(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
@@ -654,6 +754,8 @@ func (c *Config) ActivationTime(fork ForkName) *uint64 {
 	// Optional forks
 	case forks.PectraBlobSchedule:
 		return c.PectraBlobScheduleTime
+	case forks.MultiBlock:
+		return c.MultiBlockTime
 
 	default:
 		panic(fmt.Sprintf("unknown fork: %v", fork))
@@ -689,6 +791,8 @@ func (c *Config) SetActivationTime(fork ForkName, timestamp *uint64) {
 	// Optional forks
 	case forks.PectraBlobSchedule:
 		c.PectraBlobScheduleTime = timestamp
+	case forks.MultiBlock:
+		c.MultiBlockTime = timestamp
 
 	default:
 		panic(fmt.Sprintf("unknown fork: %v", fork))
@@ -921,6 +1025,10 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 	callback("Jovian", "jovian_time", c.JovianTime)
 	callback("Karst", "karst_time", c.KarstTime)
 	callback("Lagoon", "lagoon_time", c.LagoonTime)
+	if c.MultiBlockTime != nil {
+		// only report if config is set
+		callback("Multi Block", "multi_block_time", c.MultiBlockTime)
+	}
 }
 
 func (c *Config) ParseRollupConfig(in io.Reader) error {

@@ -336,6 +336,18 @@ func WithUniformL2BlockTimes(seconds uint64) Option {
 	return WithDeployerOptions(sysgo.WithUniformL2BlockTimes(seconds))
 }
 
+// WithMultiBlockAtOffset activates the multi-blocks feature the given number of seconds after L2
+// genesis, on every configured L2 chain via the deployer.
+func WithMultiBlockAtOffset(offset uint64) Option {
+	return WithDeployerOptions(sysgo.WithMultiBlockAtOffset(offset))
+}
+
+// WithMaxMultiBlocks configures the maximum number of consecutive L2 blocks that may share a
+// timestamp, on every configured L2 chain via the deployer.
+func WithMaxMultiBlocks(n uint64) Option {
+	return WithDeployerOptions(sysgo.WithMaxMultiBlocks(n))
+}
+
 // WithInteropLogBackfillDepth configures the supernode to pre-ingest
 // initiating-message logs backward from the tip by the given duration at
 // startup. Zero disables backfill (the default).

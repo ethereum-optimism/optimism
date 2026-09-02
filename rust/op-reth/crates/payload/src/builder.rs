@@ -465,6 +465,13 @@ impl<Txs> OpBuilder<'_, Txs> {
         let Self { best } = self;
         debug!(target: "payload_builder", id=%ctx.payload_id(), parent_header = ?ctx.parent().hash(), parent_number = ctx.parent().number(), "building new payload");
 
+        // Start the multi-block policy's clock before any work, so its build-time threshold
+        // measures the payload and not just this attempt. A job holding no payload yet is a job
+        // that has just started, whatever an earlier job under the same id left behind.
+        ctx.builder_config
+            .multi_block_policy
+            .begin_build(ctx.payload_id(), ctx.best_payload.is_none());
+
         let mut db = State::builder().with_database(db).with_bundle_update().build();
 
         // Load the L1 block contract into the database cache. If the L1 block contract is not
@@ -554,15 +561,12 @@ impl<Txs> OpBuilder<'_, Txs> {
             changed_paths: None,
         };
 
-        let no_tx_pool = ctx.attributes().no_tx_pool();
+        let is_final = ctx.record_built_payload(info.user_txs);
 
         let payload =
             OpBuiltPayload::new(ctx.payload_id(), sealed_block, info.total_fees, Some(executed));
 
-        if no_tx_pool {
-            // if `no_tx_pool` is set only transactions from the payload attributes will be included
-            // in the payload. In other words, the payload is deterministic and we can
-            // freeze it once we've successfully built it.
+        if is_final {
             Ok(BuildOutcomeKind::Freeze(payload))
         } else {
             Ok(BuildOutcomeKind::Better { payload })
@@ -731,6 +735,11 @@ pub struct ExecutionInfo {
     pub cumulative_uncompressed_bytes: u64,
     /// Tracks fees from executed mempool transactions
     pub total_fees: U256,
+    /// Number of user (mempool) transactions included so far.
+    ///
+    /// Unlike [`Self::total_fees`], this grows with every included transaction, which is what
+    /// the multi-block sealing policy is expressed in.
+    pub user_txs: u64,
 }
 
 impl ExecutionInfo {
@@ -742,6 +751,7 @@ impl ExecutionInfo {
             cumulative_da_bytes_used: 0,
             cumulative_uncompressed_bytes: 0,
             total_fees: U256::ZERO,
+            user_txs: 0,
         }
     }
 
@@ -929,6 +939,23 @@ where
     /// Returns true if the fees are higher than the previous payload.
     pub fn is_better_payload(&self, total_fees: U256) -> bool {
         is_better_payload(self.best_payload.as_ref(), total_fees)
+    }
+
+    /// Reports a freshly built payload holding `user_txs` user transactions to the multi-block
+    /// sealing policy and returns whether the payload is final, i.e. further building could only
+    /// delay a payload the consensus layer can already seal.
+    ///
+    /// A `no_tx_pool` payload holds only the attributes' transactions, so it is deterministic and
+    /// complete as soon as it is built; any other payload is final once it satisfies the policy.
+    /// Either way the policy records the verdict, which is what `engine_awaitPayloadReadyV1`
+    /// serves to the consensus layer.
+    pub fn record_built_payload(&self, user_txs: u64) -> bool {
+        let policy = &self.builder_config.multi_block_policy;
+        if self.attributes().no_tx_pool() {
+            policy.mark_ready(self.payload_id());
+            return true;
+        }
+        policy.record_built_payload(self.payload_id(), user_txs)
     }
 
     /// Prepares a [`BlockBuilder`] for the next block, resolving the post-exec mode from this
@@ -1193,6 +1220,7 @@ where
 
             // update and add to total fees
             info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);
+            info.user_txs += 1;
 
             // Report the gas used by each committed transaction so a custom
             // `best_txs` can update its own per-inclusion state. `RethPayloadTransactions`

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -27,6 +28,10 @@ type OpRethConfig struct {
 	// runtime otherwise enables proofs-history on every op-reth node; some CLI-superset binaries
 	// reject --proofs-history in the mode under test.
 	DisableProofsHistory bool
+	// BuilderInterval is how often a payload job rebuilds its payload. Zero keeps the runtime's
+	// default. It cannot be an ExtraArgs entry: the runtime always passes --builder.interval, and
+	// op-reth rejects the flag twice.
+	BuilderInterval time.Duration
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -86,6 +91,21 @@ func OpRethWithBinary(binary string) OpRethOption {
 func OpRethWithoutProofsHistory() OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.DisableProofsHistory = true
+	})
+}
+
+// OpRethWithBuilderInterval sets how often the node's payload builder rebuilds the payload it is
+// working on. Shorter intervals let a payload that is not yet worth sealing pick up transactions
+// that arrived after it was last built, which is what a sequencer fitting several blocks into one
+// block time needs.
+func OpRethWithBuilderInterval(interval time.Duration) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		p.Require().Positive(interval, "builder interval must be positive")
+		// op-reth parses the flag as whole seconds or whole milliseconds; anything finer cannot be
+		// spelled on the command line, so reject it here rather than at the node's startup.
+		p.Require().Zero(interval%time.Millisecond,
+			"builder interval must be a whole number of milliseconds, got %s", interval)
+		cfg.BuilderInterval = interval
 	})
 }
 

@@ -4,6 +4,7 @@ use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
     InsertTask,
     InsertTaskError::{self},
+    PayloadReadiness,
     task_queue::build_and_seal,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
@@ -12,8 +13,20 @@ use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{sync::Arc, time::Instant};
-use tokio::sync::mpsc;
+use std::{sync::Arc, time::Duration};
+use tokio::{sync::mpsc, time::Instant};
+
+/// A block a [`SealTask`] sealed and canonicalized.
+#[derive(Clone, Debug)]
+pub struct SealedPayload {
+    /// The execution payload the execution layer built.
+    pub payload: OpExecutionPayloadEnvelope,
+    /// The sealed block, as the engine decoded it while importing the payload.
+    pub block: L2BlockInfo,
+    /// How long sealing took: fetching the payload and importing it, excluding any wait for the
+    /// execution layer to consider the payload worth sealing.
+    pub seal_duration: Duration,
+}
 
 /// How a [`SealTask`] is coupled to the build that produced its payload.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -51,6 +64,9 @@ pub struct SealTask<EngineClient_: EngineClient> {
     pub payload_id: PayloadId,
     /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
+    /// When set, the payload is only fetched once the execution layer reports it worth sealing
+    /// or this instant passes, whichever comes first.
+    pub ready_deadline: Option<Instant>,
     /// Whether or not the payload was derived, or created by the sequencer.
     pub is_attributes_derived: bool,
     /// How this seal is coupled to the build that produced `payload_id`.
@@ -58,7 +74,7 @@ pub struct SealTask<EngineClient_: EngineClient> {
     /// An optional sender to convey success/failure result of the built
     /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
     /// or the [`SealTaskError`] that occurred during processing.
-    pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
+    pub result_tx: Option<mpsc::Sender<Result<SealedPayload, SealTaskError>>>,
     /// Where to hand the decoded block once the engine has canonicalized it.
     pub block_sink: Arc<dyn ImportedBlockSink>,
 }
@@ -142,6 +158,33 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
         Ok(payload_envelope)
     }
 
+    /// Waits for the execution layer to consider the payload worth sealing, up to
+    /// [`Self::ready_deadline`].
+    ///
+    /// Without a deadline, or with one that has already passed, the payload is fetched at once:
+    /// the caller has already decided the block is due. An execution layer that cannot answer
+    /// reports the job as pending, which costs the full wait and then seals, exactly as a
+    /// sequencer without the extension would.
+    async fn await_payload_ready(
+        &self,
+        engine: &EngineClient_,
+        payload_id: PayloadId,
+    ) -> Result<(), SealTaskError> {
+        let Some(deadline) = self.ready_deadline else {
+            return Ok(());
+        };
+
+        let max_wait = deadline.saturating_duration_since(Instant::now());
+        if max_wait.is_zero() {
+            return Ok(());
+        }
+
+        match engine.await_payload_ready(payload_id, max_wait).await {
+            PayloadReadiness::Ready | PayloadReadiness::Pending => Ok(()),
+            PayloadReadiness::Unknown => Err(SealTaskError::PayloadJobUnknown(payload_id)),
+        }
+    }
+
     /// Inserts a payload into the engine with Holocene fallback support.
     ///
     /// This function handles:
@@ -216,14 +259,18 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
     /// Seals and canonicalizes the block by fetching the payload and importing it.
     ///
     /// This function handles:
-    /// 1. Fetching the execution payload from the EL
-    /// 2. Importing the payload into the engine with Holocene fallback support
-    /// 3. Sending the payload to the optional channel
+    /// 1. Waiting for the execution layer to consider the payload worth sealing
+    /// 2. Fetching the execution payload from the EL
+    /// 3. Importing the payload into the engine with Holocene fallback support
+    /// 4. Sending the payload to the optional channel
     async fn seal_and_canonicalize_block(
         &self,
         state: &mut EngineState,
-    ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
-        // Fetch the payload just inserted from the EL and import it into the engine.
+    ) -> Result<SealedPayload, SealTaskError> {
+        self.await_payload_ready(&self.engine, self.payload_id).await?;
+
+        // Timed from here, so that the duration the caller paces itself by is the seal alone and
+        // not the wait above, which lasts as long as the caller allowed.
         let block_import_start_time = Instant::now();
         let new_payload = self
             .seal_payload(&self.cfg, &self.engine, self.payload_id, self.attributes.clone())
@@ -243,7 +290,11 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
             if self.is_attributes_derived { "safe" } else { "unsafe" },
         );
 
-        Ok(new_payload)
+        Ok(SealedPayload {
+            payload: new_payload,
+            block: new_block_ref,
+            seal_duration: block_import_duration,
+        })
     }
 
     /// Sends the provided result via the `result_tx` sender if one exists, returning the
@@ -255,7 +306,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
     /// the task queue logic.
     async fn send_channel_result_or_get_error(
         &self,
-        res: Result<OpExecutionPayloadEnvelope, SealTaskError>,
+        res: Result<SealedPayload, SealTaskError>,
     ) -> Result<(), SealTaskError> {
         // NB: If a response channel was provided, that channel will receive success/failure info,
         // and this task will always succeed. If not, task failure will be relayed to the caller.

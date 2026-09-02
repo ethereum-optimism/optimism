@@ -198,6 +198,15 @@ impl OpChainSpecBuilder {
         self.karst_activated().op_fork_activated(OpHardfork::Lagoon)
     }
 
+    /// Activate the multi-block feature at the given timestamp.
+    ///
+    /// Mirrors a genesis config carrying `multiBlockTime`; the feature is not an
+    /// [`OpHardfork`], so it has no `*_activated` counterpart.
+    pub fn multi_block_at(mut self, timestamp: u64) -> Self {
+        self.inner = self.inner.with_fork(MultiBlock, ForkCondition::Timestamp(timestamp));
+        self
+    }
+
     /// Build the resulting [`OpChainSpec`].
     ///
     /// # Panics
@@ -334,6 +343,10 @@ impl OpHardforks for OpChainSpec {
     fn op_fork_activation(&self, fork: OpHardfork) -> ForkCondition {
         self.fork(fork)
     }
+
+    fn multi_block_activation(&self) -> ForkCondition {
+        self.fork(MultiBlock)
+    }
 }
 
 /// OP Mainnet's genesis is the Bedrock transition block (105235063), whose state was imported
@@ -427,7 +440,14 @@ impl From<Genesis> for OpChainSpec {
         // append the remaining unknown hardforks to ensure we don't filter any out
         ordered_hardforks.append(&mut block_hardforks);
 
-        let hardforks = ChainHardforks::new(ordered_hardforks);
+        let mut hardforks = ChainHardforks::new(ordered_hardforks);
+
+        // Not part of `OP_HARDFORK_ORDER`: `insert` places it by activation timestamp, which is
+        // what the fork id and fork filter iterate.
+        if let Some(multi_block_time) = genesis_info.multi_block_time {
+            hardforks.insert(MultiBlock, ForkCondition::Timestamp(multi_block_time));
+        }
+
         let genesis_header = make_op_sealed_genesis_header(&genesis, &hardforks);
 
         Self {
@@ -1290,6 +1310,91 @@ mod tests {
 
         assert!(chainspec.is_prague_active_at_timestamp(1742633200));
         assert!(chainspec.is_isthmus_active_at_timestamp(1742633200));
+    }
+
+    /// A minimal OP genesis with every hardfork active from genesis; `extra_config` injects
+    /// further `config` keys (leading comma included by the caller).
+    fn multi_block_genesis(extra_config: &str) -> Genesis {
+        let json = format!(
+            r#"{{
+    "config": {{
+        "chainId": 1301,
+        "bedrockBlock": 0,
+        "regolithTime": 0,
+        "canyonTime": 0,
+        "ecotoneTime": 0,
+        "fjordTime": 0,
+        "graniteTime": 0,
+        "holoceneTime": 0,
+        "isthmusTime": 0,
+        "jovianTime": 0,
+        "karstTime": 0,
+        "terminalTotalDifficulty": 0{extra_config}
+    }},
+    "nonce": "0x0",
+    "timestamp": "0x0",
+    "extraData": "0x424544524f434b",
+    "gasLimit": "0x1c9c380",
+    "difficulty": "0x0",
+    "alloc": {{}},
+    "number": "0x0",
+    "gasUsed": "0x0",
+    "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+}}"#
+        );
+        serde_json::from_str(&json).unwrap()
+    }
+
+    /// Multi-block activation timestamp used by the tests below.
+    const MULTI_BLOCK_TIME: u64 = 1_800_000_000;
+
+    fn multi_block_chain_spec() -> OpChainSpec {
+        OpChainSpec::from_genesis(multi_block_genesis(&format!(
+            r#","multiBlockTime": {MULTI_BLOCK_TIME}"#
+        )))
+    }
+
+    #[test]
+    fn genesis_multi_block_time_gates_siblings() {
+        let spec = multi_block_chain_spec();
+        assert_eq!(spec.multi_block_activation(), ForkCondition::Timestamp(MULTI_BLOCK_TIME));
+        assert!(!spec.is_multi_block_active_at_timestamp(MULTI_BLOCK_TIME - 1));
+        assert!(spec.is_multi_block_active_at_timestamp(MULTI_BLOCK_TIME));
+        assert!(!spec.siblings_allowed_at_timestamp(MULTI_BLOCK_TIME));
+        assert!(spec.siblings_allowed_at_timestamp(MULTI_BLOCK_TIME + 1));
+
+        // Every other `OpChainSpec` constructor goes through `ChainSpec`, which carries the
+        // activation in its hardforks.
+        let round_tripped = OpChainSpec::from(spec.inner);
+        assert_eq!(
+            round_tripped.multi_block_activation(),
+            ForkCondition::Timestamp(MULTI_BLOCK_TIME)
+        );
+
+        let without = OpChainSpec::from_genesis(multi_block_genesis(""));
+        assert_eq!(without.multi_block_activation(), ForkCondition::Never);
+        assert!(!without.is_multi_block_active_at_timestamp(u64::MAX));
+        assert!(!without.siblings_allowed_at_timestamp(u64::MAX));
+    }
+
+    /// Enabling multi-block is an execution-layer consensus change, so it must move the fork id:
+    /// peers that don't configure it have to fall out of the fork filter rather than sync a chain
+    /// they would reject.
+    #[test]
+    fn multi_block_activation_moves_the_fork_id() {
+        let with = multi_block_chain_spec();
+        let without = OpChainSpec::from_genesis(multi_block_genesis(""));
+
+        let before = Head { number: 1, timestamp: MULTI_BLOCK_TIME - 1, ..Default::default() };
+        let after = Head { number: 2, timestamp: MULTI_BLOCK_TIME, ..Default::default() };
+
+        // Ahead of the activation only the announced `next` differs.
+        assert_eq!(with.fork_id(&before).hash, without.fork_id(&before).hash);
+        assert_eq!(with.fork_id(&before).next, MULTI_BLOCK_TIME);
+        assert_eq!(without.fork_id(&before).next, 0);
+
+        assert_ne!(with.fork_id(&after).hash, without.fork_id(&after).hash);
+        assert!(with.fork_filter(after).validate(without.fork_id(&after)).is_err());
     }
 
     #[test]

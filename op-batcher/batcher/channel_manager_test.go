@@ -728,8 +728,8 @@ func TestChannelManager_ChannelOutFactory(t *testing.T) {
 	l := testlog.Logger(t, log.LevelCrit)
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
 	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
-	m.SetChannelOutFactory(func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
-		co, err := NewChannelOut(cfg, rollupCfg)
+	m.SetChannelOutFactory(func(cfg ChannelConfig, rollupCfg *rollup.Config, parentTimestamp *uint64) (derive.ChannelOut, error) {
+		co, err := NewChannelOut(cfg, rollupCfg, parentTimestamp)
 		if err != nil {
 			return nil, err
 		}

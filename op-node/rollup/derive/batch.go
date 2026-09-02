@@ -28,6 +28,9 @@ const (
 	SingularBatchType = 0
 	// SpanBatchType is the Batch version used after Delta hard fork, representing a span of L2 blocks.
 	SpanBatchType = 1
+	// SpanBatchV2Type is the span batch version that can express L2 blocks sharing a timestamp.
+	// It adds a same_ts_bits bitlist to the SpanBatchType payload.
+	SpanBatchV2Type = 2
 )
 
 // Batch contains information to build one or multiple L2 blocks.
@@ -130,8 +133,8 @@ func (b *BatchData) decodeTyped(data []byte) error {
 	switch data[0] {
 	case SingularBatchType:
 		inner = new(SingularBatch)
-	case SpanBatchType:
-		inner = new(RawSpanBatch)
+	case SpanBatchType, SpanBatchV2Type:
+		inner = &RawSpanBatch{version: int(data[0])}
 	default:
 		return fmt.Errorf("unrecognized batch type: %d", data[0])
 	}

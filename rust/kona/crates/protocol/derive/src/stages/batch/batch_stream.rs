@@ -2,7 +2,7 @@
 
 use crate::{
     L2ChainProvider, NextBatchProvider, OriginAdvancer, OriginProvider, PipelineError,
-    PipelineResult, Stage,
+    PipelineResult, Stage, StagedBatch,
 };
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
 use alloy_eips::BlockNumHash;
@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{
-    Batch, BatchValidity, BatchWithInclusionBlock, BlockInfo, L2BlockInfo, SingleBatch, SpanBatch,
-    SpanBatchError,
+    Batch, BatchValidity, BatchWithInclusionBlock, BlockInfo, L2BlockInfo, SpanBatch,
+    SpanBatchError, SpanBatchOutcome, SpanSingleBatch,
 };
 
 /// Provides [`Batch`]es for the [`BatchStream`] stage.
@@ -22,6 +22,18 @@ pub trait BatchStreamProvider {
 
     /// Drains the recent `Channel` if an invalid span batch is found post-holocene.
     fn flush(&mut self);
+}
+
+/// A [`SpanBatch`] the prefix checks accepted, with the block its first element builds on.
+///
+/// The parent is what turns element indices into block numbers, which is the only way to tell a
+/// sibling apart from the block it shares a timestamp with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedSpan {
+    /// The staged span batch.
+    pub batch: SpanBatch,
+    /// The block the span's first element builds on.
+    pub parent: L2BlockInfo,
 }
 
 /// [`BatchStream`] stage in the derivation pipeline.
@@ -42,9 +54,9 @@ where
     /// The previous stage in the derivation pipeline.
     pub prev: P,
     /// There can only be a single staged span batch.
-    pub span: Option<SpanBatch>,
+    pub span: Option<StagedSpan>,
     /// A buffer of single batches derived from the [`SpanBatch`].
-    pub buffer: VecDeque<SingleBatch>,
+    pub buffer: VecDeque<SpanSingleBatch>,
     /// A reference to the rollup config, used to check
     /// if the [`BatchStream`] stage should be activated.
     pub config: Arc<RollupConfig>,
@@ -69,12 +81,12 @@ where
         Ok(self.config.is_holocene_active(origin.timestamp))
     }
 
-    /// Gets a [`SingleBatch`] from the in-memory buffer.
+    /// Gets a [`SpanSingleBatch`] from the in-memory buffer.
     pub fn get_single_batch(
         &mut self,
         parent: L2BlockInfo,
         l1_origins: &[BlockInfo],
-    ) -> Result<Option<SingleBatch>, SpanBatchError> {
+    ) -> Result<Option<SpanSingleBatch>, SpanBatchError> {
         trace!(target: "batch_span", "Attempting to get a SingleBatch from buffer len: {}", self.buffer.len());
 
         self.try_hydrate_buffer(parent, l1_origins)?;
@@ -88,8 +100,12 @@ where
         parent: L2BlockInfo,
         l1_origins: &[BlockInfo],
     ) -> Result<(), SpanBatchError> {
-        if let Some(span) = self.span.take() {
-            self.buffer.extend(span.get_singular_batches(l1_origins, parent)?);
+        if let Some(StagedSpan { batch, parent: span_parent }) = self.span.take() {
+            self.buffer.extend(batch.get_singular_batches(
+                l1_origins,
+                parent,
+                span_parent.block_info.number,
+            )?);
         }
         #[cfg(feature = "metrics")]
         {
@@ -124,12 +140,12 @@ where
         &mut self,
         parent: L2BlockInfo,
         l1_origins: &[BlockInfo],
-    ) -> PipelineResult<Batch> {
+    ) -> PipelineResult<StagedBatch<Batch>> {
         // If the stage is not active, "pass" the next batch
         // through this stage to the BatchQueue stage.
         if !self.is_active()? {
             trace!(target: "batch_span", "BatchStream stage is inactive, pass-through.");
-            return self.prev.next_batch().await;
+            return self.prev.next_batch().await.map(StagedBatch::new);
         }
 
         // If the buffer is empty, attempt to pull a batch from the previous stage.
@@ -144,11 +160,11 @@ where
             // forwarded to the `BatchQueue` stage. Otherwise, we buffer
             // the span batch in this stage if it passes the validity checks.
             match batch_with_inclusion.batch {
-                Batch::Single(b) => return Ok(Batch::Single(b)),
+                Batch::Single(b) => return Ok(StagedBatch::new(Batch::Single(b))),
                 Batch::Span(b) => {
                     #[cfg(feature = "metrics")]
                     let start = std::time::Instant::now();
-                    let validity = b
+                    let outcome = b
                         .check_batch_holocene(
                             self.config.as_ref(),
                             l1_origins,
@@ -166,18 +182,20 @@ where
                     kona_macros::inc!(
                         gauge,
                         crate::metrics::Metrics::PIPELINE_BATCH_VALIDITY,
-                        "validity" => validity.to_string(),
+                        "validity" => outcome.validity().to_string(),
                     );
 
-                    match validity {
-                        BatchValidity::Accept => self.span = Some(b),
-                        BatchValidity::Drop(_) => {
+                    match outcome {
+                        SpanBatchOutcome::Accepted(span_parent) => {
+                            self.span = Some(StagedSpan { batch: b, parent: span_parent });
+                        }
+                        SpanBatchOutcome::Rejected(BatchValidity::Drop(_)) => {
                             // Flush the stage.
                             self.flush();
 
                             return Err(PipelineError::NotEnoughData.temp());
                         }
-                        BatchValidity::Past => {
+                        SpanBatchOutcome::Rejected(BatchValidity::Past) => {
                             if !self.is_active()? {
                                 error!(target: "batch_stream", "BatchValidity::Past is not allowed pre-holocene");
                                 return Err(PipelineError::InvalidBatchValidity.crit());
@@ -185,7 +203,7 @@ where
 
                             return Err(PipelineError::NotEnoughData.temp());
                         }
-                        BatchValidity::Undecided | BatchValidity::Future => {
+                        SpanBatchOutcome::Rejected(_) => {
                             // Undecided: the span was already consumed and is skipped, not
                             // retried.
                             return Err(PipelineError::NotEnoughData.temp());
@@ -197,7 +215,9 @@ where
 
         // Attempt to pull a SingleBatch out of the SpanBatch.
         match self.get_single_batch(parent, l1_origins) {
-            Ok(Some(single_batch)) => Ok(Batch::Single(single_batch)),
+            Ok(Some(SpanSingleBatch { batch, is_sibling })) => {
+                Ok(StagedBatch { batch: Batch::Single(batch), is_sibling })
+            }
             Ok(None) => Err(PipelineError::NotEnoughData.temp()),
             Err(e) => {
                 warn!(target: "batch_span", "Extracting singular batches from span batch failed: {}", e);
@@ -286,8 +306,11 @@ mod test {
         });
         let prev = TestBatchStreamProvider::new(vec![]);
         let mut stream = BatchStream::new(prev, config, TestL2ChainProvider::default());
-        stream.buffer.push_back(SingleBatch::default());
-        stream.span = Some(SpanBatch::default());
+        stream
+            .buffer
+            .push_back(SpanSingleBatch { batch: SingleBatch::default(), is_sibling: false });
+        stream.span =
+            Some(StagedSpan { batch: SpanBatch::default(), parent: L2BlockInfo::default() });
         assert!(!stream.buffer.is_empty());
         assert!(stream.span.is_some());
         stream.flush();
@@ -303,8 +326,11 @@ mod test {
         });
         let prev = TestBatchStreamProvider::new(vec![]);
         let mut stream = BatchStream::new(prev, config.clone(), TestL2ChainProvider::default());
-        stream.buffer.push_back(SingleBatch::default());
-        stream.span = Some(SpanBatch::default());
+        stream
+            .buffer
+            .push_back(SpanSingleBatch { batch: SingleBatch::default(), is_sibling: false });
+        stream.span =
+            Some(StagedSpan { batch: SpanBatch::default(), parent: L2BlockInfo::default() });
         assert!(!stream.prev.reset);
         stream.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(stream.prev.reset);
@@ -320,8 +346,11 @@ mod test {
         });
         let prev = TestBatchStreamProvider::new(vec![]);
         let mut stream = BatchStream::new(prev, config.clone(), TestL2ChainProvider::default());
-        stream.buffer.push_back(SingleBatch::default());
-        stream.span = Some(SpanBatch::default());
+        stream
+            .buffer
+            .push_back(SpanSingleBatch { batch: SingleBatch::default(), is_sibling: false });
+        stream.span =
+            Some(StagedSpan { batch: SpanBatch::default(), parent: L2BlockInfo::default() });
         assert!(!stream.prev.flushed);
         stream.flush_channel().await.unwrap();
         assert!(stream.prev.flushed);
@@ -349,11 +378,95 @@ mod test {
 
         // The next batch should be passed through to the [BatchQueue] stage.
         let batch = stream.next_batch(Default::default(), &[]).await.unwrap();
-        assert_eq!(batch, Batch::Single(SingleBatch::default()));
+        assert_eq!(batch, StagedBatch::new(Batch::Single(SingleBatch::default())));
 
         let logs = trace_store.get_by_level(tracing::Level::TRACE);
         assert_eq!(logs.len(), 1);
         assert!(logs[0].contains("BatchStream stage is inactive, pass-through."));
+    }
+
+    /// A chain with `block_time` 2 that allows up to three blocks per timestamp from 1000 on.
+    fn multi_block_config() -> Arc<RollupConfig> {
+        Arc::new(RollupConfig {
+            block_time: 2,
+            seq_window_size: 100,
+            max_sequencer_drift: 1000,
+            hardforks: HardForkConfig {
+                delta_time: Some(0),
+                holocene_time: Some(0),
+                karst_time: Some(0),
+                ..Default::default()
+            },
+            multi_block_time: Some(1000),
+            max_multi_blocks: Some(3),
+            ..Default::default()
+        })
+    }
+
+    fn multi_block_l2_block(number: u64, timestamp: u64) -> L2BlockInfo {
+        L2BlockInfo {
+            block_info: BlockInfo {
+                number,
+                timestamp,
+                hash: FixedBytes::<32>::repeat_byte(number as u8),
+                ..Default::default()
+            },
+            l1_origin: NumHash { number: 100, hash: FixedBytes::<32>::repeat_byte(100) },
+            seq_num: 0,
+        }
+    }
+
+    /// A span batch continuing the group the safe head is in.
+    fn multi_block_span(parent: L2BlockInfo) -> SpanBatch {
+        let mut same_ts_bits = kona_protocol::SpanBatchBits::default();
+        same_ts_bits.set_bit(0, true);
+        same_ts_bits.set_bit(1, false);
+        SpanBatch {
+            version: kona_protocol::BatchType::SpanV2,
+            parent_check: FixedBytes::<20>::from_slice(&parent.block_info.hash[..20]),
+            l1_origin_check: FixedBytes::<20>::from_slice(
+                &FixedBytes::<32>::repeat_byte(100)[..20],
+            ),
+            same_ts_bits: Some(same_ts_bits),
+            batches: vec![
+                SpanBatchElement { epoch_num: 100, timestamp: 1010, ..Default::default() },
+                SpanBatchElement { epoch_num: 100, timestamp: 1012, ..Default::default() },
+            ],
+            ..Default::default()
+        }
+    }
+
+    /// Nothing about a group is carried across a flush: the accounting is redone from the safe
+    /// chain, so the same span is accepted again exactly as before.
+    #[tokio::test]
+    async fn test_span_batch_v2_group_accounting_recomputed_after_flush() {
+        let safe_head = multi_block_l2_block(11, 1010);
+        let span = multi_block_span(safe_head);
+        let l1_origins = [BlockInfo {
+            number: 100,
+            timestamp: 900,
+            hash: FixedBytes::<32>::repeat_byte(100),
+            ..Default::default()
+        }];
+
+        let mut prev = TestBatchStreamProvider::new(vec![Ok(Batch::Span(span.clone()))]);
+        prev.origin = Some(BlockInfo { number: 110, timestamp: 1100, ..Default::default() });
+        let provider = TestL2ChainProvider {
+            blocks: vec![multi_block_l2_block(9, 1008), multi_block_l2_block(10, 1010), safe_head],
+            ..Default::default()
+        };
+        let mut stream = BatchStream::new(prev, multi_block_config(), provider);
+
+        let first = stream.next_batch(safe_head, &l1_origins).await.unwrap();
+        assert!(first.is_sibling);
+        assert_eq!(stream.span_buffer_size(), 1);
+
+        stream.flush();
+        assert_eq!(stream.span_buffer_size(), 0);
+
+        stream.prev.batches.push(Ok(Batch::Span(span)));
+        let again = stream.next_batch(safe_head, &l1_origins).await.unwrap();
+        assert_eq!(again, first);
     }
 
     #[tokio::test]
@@ -386,7 +499,7 @@ mod test {
 
         // The next batches should be single batches derived from the span batch.
         let batch = stream.next_batch(Default::default(), &mock_origins).await.unwrap();
-        if let Batch::Single(single) = batch {
+        if let Batch::Single(single) = batch.batch {
             assert_eq!(single.epoch_num, 1);
             assert_eq!(single.timestamp, 2);
         } else {
@@ -394,7 +507,7 @@ mod test {
         }
 
         let batch = stream.next_batch(Default::default(), &mock_origins).await.unwrap();
-        if let Batch::Single(single) = batch {
+        if let Batch::Single(single) = batch.batch {
             assert_eq!(single.epoch_num, 1);
             assert_eq!(single.timestamp, 4);
         } else {
@@ -411,7 +524,7 @@ mod test {
 
         // The next batches should be single batches derived from the span batch.
         let batch = stream.next_batch(Default::default(), &mock_origins).await.unwrap();
-        if let Batch::Single(single) = batch {
+        if let Batch::Single(single) = batch.batch {
             assert_eq!(single.epoch_num, 1);
             assert_eq!(single.timestamp, 2);
         } else {
@@ -419,7 +532,7 @@ mod test {
         }
 
         let batch = stream.next_batch(Default::default(), &mock_origins).await.unwrap();
-        if let Batch::Single(single) = batch {
+        if let Batch::Single(single) = batch.batch {
             assert_eq!(single.epoch_num, 1);
             assert_eq!(single.timestamp, 4);
         } else {
@@ -662,7 +775,7 @@ mod test {
 
         // The next batch should be passed through to the [BatchQueue] stage.
         let batch = stream.next_batch(Default::default(), &[]).await.unwrap();
-        assert!(matches!(batch, Batch::Single(_)));
+        assert!(matches!(batch.batch, Batch::Single(_)));
         assert_eq!(stream.span_buffer_size(), 0);
         assert!(stream.span.is_none());
     }

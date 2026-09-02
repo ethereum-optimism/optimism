@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -41,6 +43,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/noopsigner"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
+
+// defaultOpRethBuilderInterval is how often an op-reth payload job rebuilds its payload unless a
+// node asks for something else via OpRethWithBuilderInterval.
+const defaultOpRethBuilderInterval = 100 * time.Millisecond
+
+// opRethDurationArg renders d in the only two shapes op-reth's duration flags parse: a whole number
+// of seconds, or a whole number of milliseconds suffixed with "ms". Go's own Duration.String would
+// produce "1.5s" or "2m0s", which op-reth rejects at startup.
+func opRethDurationArg(d time.Duration) string {
+	if d%time.Second == 0 {
+		return strconv.FormatInt(int64(d/time.Second), 10)
+	}
+	return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
+}
 
 type MixedL2ELKind string
 
@@ -256,6 +272,8 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		var el L2ELNode
 		switch spec.ELKind {
 		case MixedL2ELOpGeth:
+			require.Nil(l2Net.RollupConfig().MultiBlockTime,
+				"op-geth cannot build or validate multi-blocks, use an op-reth EL")
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
 			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", nodeOpRethOpts...)
@@ -367,6 +385,41 @@ func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
 	return out
 }
 
+// withMultiBlockGenesisConfig adds the multi-blocks activation to the genesis `config` object.
+// op-reth reads it from there, but it has no representation in go-ethereum's ChainConfig, so it
+// has to be spliced into the encoded genesis.
+func withMultiBlockGenesisConfig(t devtest.T, genesis []byte, multiBlockTime *uint64) []byte {
+	if multiBlockTime == nil {
+		return genesis
+	}
+	var doc map[string]json.RawMessage
+	t.Require().NoError(json.Unmarshal(genesis, &doc), "must decode genesis")
+	var chainConfig map[string]any
+	t.Require().NoError(json.Unmarshal(doc["config"], &chainConfig), "must decode genesis chain config")
+	chainConfig["multiBlockTime"] = *multiBlockTime
+	encoded, err := json.Marshal(chainConfig)
+	t.Require().NoError(err, "must encode genesis chain config")
+	doc["config"] = encoded
+	out, err := json.Marshal(doc)
+	t.Require().NoError(err, "must encode genesis")
+	return out
+}
+
+// requireGenesisMultiBlockTime asserts that the genesis file op-reth is about to read carries the
+// multi-blocks activation, which is the only way op-reth learns about it.
+func requireGenesisMultiBlockTime(t devtest.T, path string, want uint64) {
+	data, err := os.ReadFile(path)
+	t.Require().NoError(err, "must read back genesis file")
+	var doc struct {
+		Config struct {
+			MultiBlockTime *uint64 `json:"multiBlockTime"`
+		} `json:"config"`
+	}
+	t.Require().NoError(json.Unmarshal(data, &doc), "must decode genesis file")
+	t.Require().NotNil(doc.Config.MultiBlockTime, "genesis file must carry multiBlockTime")
+	t.Require().Equal(want, *doc.Config.MultiBlockTime)
+}
+
 // buildMixedOpRethNode constructs an OpReth node without starting it.
 func buildMixedOpRethNode(
 	t devtest.T,
@@ -382,8 +435,12 @@ func buildMixedOpRethNode(
 
 	data, err := json.Marshal(l2Net.genesis)
 	t.Require().NoError(err, "must json-encode genesis")
+	data = withMultiBlockGenesisConfig(t, data, l2Net.RollupConfig().MultiBlockTime)
 	chainConfigPath := filepath.Join(tempDir, "genesis.json")
 	t.Require().NoError(os.WriteFile(chainConfigPath, data, 0o640), "must write genesis file")
+	if multiBlockTime := l2Net.RollupConfig().MultiBlockTime; multiBlockTime != nil {
+		requireGenesisMultiBlockTime(t, chainConfigPath, *multiBlockTime)
+	}
 
 	dataDirPath := filepath.Join(tempDir, "data")
 	t.Require().NoError(os.MkdirAll(dataDirPath, 0o755), "must create datadir")
@@ -409,6 +466,11 @@ func buildMixedOpRethNode(
 	}.EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or set RUST_BINARY_PATH_<NAME> for a binary built from another repo)", elBinary)
 
+	builderInterval := defaultOpRethBuilderInterval
+	if opRethCfg.BuilderInterval > 0 {
+		builderInterval = opRethCfg.BuilderInterval
+	}
+
 	args := []string{
 		"node",
 		"--addr=127.0.0.1",
@@ -416,7 +478,7 @@ func buildMixedOpRethNode(
 		"--authrpc.jwtsecret=" + jwtPath,
 		"--authrpc.port=0",
 		"--builder.deadline=2",
-		"--builder.interval=100ms",
+		"--builder.interval=" + opRethDurationArg(builderInterval),
 		"--chain=" + chainConfigPath,
 		"--color=never",
 		"--datadir=" + dataDirPath,
@@ -482,6 +544,19 @@ func buildMixedOpRethNode(
 		)
 	}
 
+	// op-reth rejects a flag passed twice, and a node that dies on a clap error only surfaces
+	// minutes later as an RPC timeout. Name the offending flag here instead.
+	generated := make(map[string]struct{}, len(args))
+	for _, arg := range args {
+		name, _, _ := strings.Cut(arg, "=")
+		generated[name] = struct{}{}
+	}
+	for _, arg := range opRethCfg.ExtraArgs {
+		name, _, _ := strings.Cut(arg, "=")
+		_, dup := generated[name]
+		t.Require().Falsef(dup,
+			"op-reth extra arg %s repeats a flag the runtime already sets; use the dedicated OpReth option", name)
+	}
 	args = append(args, opRethCfg.ExtraArgs...)
 
 	return &OpReth{

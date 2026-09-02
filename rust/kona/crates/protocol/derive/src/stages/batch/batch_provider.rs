@@ -1,6 +1,6 @@
 //! This module contains the [`BatchProvider`] stage.
 
-use super::NextBatchProvider;
+use super::{NextBatchProvider, StagedBatch};
 use crate::{
     AttributesProvider, BatchQueue, BatchValidator, L2ChainProvider, OriginAdvancer,
     OriginProvider, PipelineError, PipelineResult, Stage,
@@ -178,7 +178,10 @@ where
         )
     }
 
-    async fn next_batch(&mut self, parent: L2BlockInfo) -> PipelineResult<SingleBatch> {
+    async fn next_batch(
+        &mut self,
+        parent: L2BlockInfo,
+    ) -> PipelineResult<StagedBatch<SingleBatch>> {
         self.attempt_update()?;
 
         if let Some(batch_validator) = self.batch_validator.as_mut() {

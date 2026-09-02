@@ -9,7 +9,7 @@ mod engine;
 pub use engine::{
     BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
     EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor, EngineRpcRequest,
-    QueuedEngineDerivationClient, ResetRequest, SealRequest,
+    L2BlockInfoRequest, QueuedEngineDerivationClient, ResetRequest, SealRequest,
 };
 
 pub(crate) mod rpc;

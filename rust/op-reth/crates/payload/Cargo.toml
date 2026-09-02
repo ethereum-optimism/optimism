@@ -48,6 +48,7 @@ alloy-evm.workspace = true
 
 # misc
 derive_more.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
 tracing.workspace = true
 thiserror.workspace = true
 sha2.workspace = true
@@ -55,5 +56,6 @@ serde.workspace = true
 
 [dev-dependencies]
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true

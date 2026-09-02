@@ -187,6 +187,10 @@ impl ChainConfig {
             fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             chain_op_config: self.base_fee_config(),
             alt_da_config: self.alt_da.clone(),
+
+            // Multi-blocks are not part of the superchain registry.
+            multi_block_time: None,
+            max_multi_blocks: None,
         }
     }
 }

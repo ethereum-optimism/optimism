@@ -1,7 +1,7 @@
 //! Raw Span Batch Payload
 
 use super::{MAX_SPAN_BATCH_ELEMENTS, varint::read_uvarint};
-use crate::{SpanBatchBits, SpanBatchError, SpanBatchTransactions, SpanDecodingError};
+use crate::{BatchType, SpanBatchBits, SpanBatchError, SpanBatchTransactions, SpanDecodingError};
 use alloc::vec::Vec;
 use alloy_primitives::bytes;
 
@@ -13,6 +13,10 @@ pub struct SpanBatchPayload {
     /// Standard span-batch bitlist of blockCount bits. Each bit indicates if the L1 origin is
     /// changed at the L2 block.
     pub origin_bits: SpanBatchBits,
+    /// Standard span-batch bitlist of blockCount bits, present from span batch v2 onwards. Bit
+    /// `i` is set if element `i` shares the timestamp of its predecessor — element `i - 1`, or
+    /// the span's parent block for bit 0.
+    pub same_ts_bits: Option<SpanBatchBits>,
     /// List of transaction counts for each L2 block
     pub block_tx_counts: Vec<u64>,
     /// Transactions encoded in `SpanBatch` specs
@@ -20,20 +24,31 @@ pub struct SpanBatchPayload {
 }
 
 impl SpanBatchPayload {
-    /// Decodes a [`SpanBatchPayload`] from a reader.
-    pub fn decode_payload(r: &mut &[u8]) -> Result<Self, SpanBatchError> {
+    /// Decodes a [`SpanBatchPayload`] of the given span batch `version` from a reader.
+    pub fn decode_payload(r: &mut &[u8], version: BatchType) -> Result<Self, SpanBatchError> {
         let mut payload = Self::default();
         payload.decode_block_count(r)?;
         payload.decode_origin_bits(r)?;
+        if version.has_same_ts_bits() {
+            payload.decode_same_ts_bits(r)?;
+        }
         payload.decode_block_tx_counts(r)?;
         payload.decode_txs(r)?;
         Ok(payload)
     }
 
-    /// Encodes a [`SpanBatchPayload`] into a writer.
-    pub fn encode_payload(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
+    /// Encodes a [`SpanBatchPayload`] of the given span batch `version` into a writer.
+    pub fn encode_payload(
+        &self,
+        w: &mut dyn bytes::BufMut,
+        version: BatchType,
+    ) -> Result<(), SpanBatchError> {
+        if version.has_same_ts_bits() != self.same_ts_bits.is_some() {
+            return Err(SpanBatchError::SameTimestampBitsMismatch);
+        }
         self.encode_block_count(w);
         self.encode_origin_bits(w)?;
+        self.encode_same_ts_bits(w)?;
         self.encode_block_tx_counts(w);
         self.encode_txs(w)
     }
@@ -45,6 +60,16 @@ impl SpanBatchPayload {
         }
 
         self.origin_bits = SpanBatchBits::decode(r, self.block_count as usize)?;
+        Ok(())
+    }
+
+    /// Decodes the same-timestamp bits from a reader.
+    pub fn decode_same_ts_bits(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
+        if self.block_count > MAX_SPAN_BATCH_ELEMENTS {
+            return Err(SpanBatchError::TooBigSpanBatchSize);
+        }
+
+        self.same_ts_bits = Some(SpanBatchBits::decode(r, self.block_count as usize)?);
         Ok(())
     }
 
@@ -111,6 +136,14 @@ impl SpanBatchPayload {
     /// Encode the origin bits into a writer.
     pub fn encode_origin_bits(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         SpanBatchBits::encode(w, self.block_count as usize, &self.origin_bits)
+    }
+
+    /// Encode the same-timestamp bits into a writer. A no-op when the payload carries none.
+    pub fn encode_same_ts_bits(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
+        let Some(same_ts_bits) = self.same_ts_bits.as_ref() else {
+            return Ok(());
+        };
+        SpanBatchBits::encode(w, self.block_count as usize, same_ts_bits)
     }
 
     /// Encode the block count into a writer.

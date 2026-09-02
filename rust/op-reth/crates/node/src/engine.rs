@@ -7,8 +7,8 @@ use op_alloy_rpc_types_engine::{
 };
 use reth_consensus::ConsensusError;
 use reth_node_api::{
-    BuiltPayload, EngineApiValidator, EngineTypes, InsertBlockErrorKind, NodePrimitives,
-    PayloadValidator,
+    BuiltPayload, EngineApiValidator, EngineTypes, InsertBlockErrorKind,
+    InvalidPayloadAttributesError, NodePrimitives, PayloadAttributes, PayloadValidator,
     payload::{
         EngineApiMessageVersion, EngineObjectValidationError, MessageValidationKind,
         NewPayloadError, PayloadOrAttributes, PayloadTypes, VersionSpecificValidationError,
@@ -16,7 +16,7 @@ use reth_node_api::{
     },
     validate_version_specific_fields,
 };
-use reth_optimism_consensus::isthmus;
+use reth_optimism_consensus::{isthmus, validate_timestamp_against_parent};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpExecData, OpExecutionPayloadValidator, OpPayloadAttrs, OpPayloadTypes,
@@ -163,6 +163,18 @@ where
         payload: OpExecData,
     ) -> Result<SealedBlock<Self::Block>, NewPayloadError> {
         self.inner.ensure_well_formed_payload(payload.0).map_err(NewPayloadError::other)
+    }
+
+    /// Applies the OP timestamp rule instead of the engine-API default (`attr.timestamp >
+    /// header.timestamp`): a sequencer builds sibling blocks by asking for the head's own
+    /// timestamp again.
+    fn validate_payload_attributes_against_header(
+        &self,
+        attr: &<Types as PayloadTypes>::PayloadAttributes,
+        header: &<Self::Block as Block>::Header,
+    ) -> Result<(), InvalidPayloadAttributesError> {
+        validate_timestamp_against_parent(self.chain_spec(), attr.timestamp(), header.timestamp())
+            .map_err(|err| InvalidPayloadAttributesError::InvalidParams(Box::new(err)))
     }
 }
 
@@ -315,7 +327,7 @@ mod test {
     use alloy_rpc_types_engine::PayloadAttributes;
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
     use reth_db_common::init::init_genesis;
-    use reth_optimism_chainspec::OP_SEPOLIA;
+    use reth_optimism_chainspec::{OP_SEPOLIA, OpChainSpecBuilder};
     use reth_optimism_primitives::OpTransactionSigned;
     use reth_provider::{
         noop::NoopProvider, providers::BlockchainProvider,
@@ -501,6 +513,53 @@ mod test {
             &validator, EngineApiMessageVersion::V3, &attributes,
         );
         assert_invalid_params_error!(result, "MissingMinBaseFeeInPayloadAttributes");
+    }
+
+    /// Multi-block activation used by the sibling-attributes test.
+    const MULTI_BLOCK_TIME: u64 = OP_SEPOLIA_JOVIAN_TIMESTAMP;
+
+    fn validate_attributes_against_head(
+        multi_block: bool,
+        head_timestamp: u64,
+        attributes_timestamp: u64,
+    ) -> Result<(), InvalidPayloadAttributesError> {
+        let mut builder = OpChainSpecBuilder::optimism_sepolia().karst_activated();
+        if multi_block {
+            builder = builder.multi_block_at(MULTI_BLOCK_TIME);
+        }
+        let validator = OpEngineValidator::new::<KeccakKeyHasher>(
+            Arc::new(builder.build()),
+            NoopProvider::default(),
+        );
+        let attributes =
+            get_attributes(Some(b64!("0000000800000008")), Some(1), attributes_timestamp);
+        let header = Header { timestamp: head_timestamp, ..Default::default() };
+
+        <OpEngineValidator<_, OpTransactionSigned, _> as PayloadValidator<
+            OpPayloadTypes,
+        >>::validate_payload_attributes_against_header(
+            &validator, &attributes, &header
+        )
+    }
+
+    /// The engine-API default requires `attributes.timestamp > head.timestamp`. A sequencer
+    /// building a sibling asks for the head's own timestamp again, so the OP validator accepts
+    /// it exactly where the chain allows siblings — mirroring the consensus rule applied to the
+    /// resulting block.
+    #[test]
+    fn payload_attributes_may_repeat_the_head_timestamp_where_siblings_are_allowed() {
+        let head = MULTI_BLOCK_TIME + 2;
+
+        assert!(validate_attributes_against_head(true, head, head).is_ok());
+        assert!(validate_attributes_against_head(true, head, head + 2).is_ok());
+        assert!(validate_attributes_against_head(true, head, head - 1).is_err());
+
+        // At the activation timestamp itself, and on a chain without the feature, the block
+        // after the head must have a later timestamp.
+        assert!(
+            validate_attributes_against_head(true, MULTI_BLOCK_TIME, MULTI_BLOCK_TIME).is_err()
+        );
+        assert!(validate_attributes_against_head(false, head, head).is_err());
     }
 
     fn isthmus_block(

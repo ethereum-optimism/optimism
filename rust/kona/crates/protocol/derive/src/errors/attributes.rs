@@ -26,6 +26,10 @@ pub enum BuilderError {
         "Time invariant broken. L1 origin: {0:?} | Next L2 time: {1} | L1 block: {2:?} | L1 timestamp {3:?}"
     )]
     BrokenTimeInvariant(BlockNumHash, u64, BlockNumHash, u64),
+    /// The requested block timestamp is not one the parent admits: it is neither one block time
+    /// after the parent, nor the parent's own timestamp on a chain that allows siblings.
+    #[error("Invalid next L2 timestamp {0} for parent at timestamp {1}")]
+    InvalidNextTimestamp(u64, u64),
     /// Attributes unavailable.
     #[error("Attributes unavailable")]
     AttributesUnavailable,

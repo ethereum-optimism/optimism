@@ -13,8 +13,8 @@ use op_alloy_consensus::OpTxType;
 use tracing::{info, warn};
 
 use crate::{
-    BatchDropReason, BatchValidationProvider, BatchValidity, BlockInfo, L2BlockInfo, RawSpanBatch,
-    SingleBatch, SpanBatchBits, SpanBatchElement, SpanBatchError, SpanBatchPayload,
+    BatchDropReason, BatchType, BatchValidationProvider, BatchValidity, BlockInfo, L2BlockInfo,
+    RawSpanBatch, SingleBatch, SpanBatchBits, SpanBatchElement, SpanBatchError, SpanBatchPayload,
     SpanBatchPrefix, SpanBatchTransactions,
 };
 
@@ -63,8 +63,13 @@ use crate::{
 /// - **L1 origin check**: Ensures proper L1 origin binding
 /// - **Transaction count validation**: Verifies transaction distribution
 /// - **Bit field consistency**: Ensures origin bits match block count
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpanBatch {
+    /// The wire version this span was decoded from, and the one it re-encodes to.
+    ///
+    /// Only [`BatchType::SpanV2`] can express sibling blocks; [`BatchType::Span`] is the Delta
+    /// format, where every element is one block time after its predecessor.
+    pub version: BatchType,
     /// First 20 bytes of the parent hash of the first block in the span.
     ///
     /// This field provides a collision-resistant check to ensure the span batch
@@ -101,6 +106,12 @@ pub struct SpanBatch {
     /// in the span advance to a new L1 origin. Bit `i` is set if block `i+1`
     /// has a different L1 origin than block `i`.
     pub origin_bits: SpanBatchBits,
+    /// Cached bit array marking the elements that share their predecessor's timestamp.
+    ///
+    /// Present exactly for [`BatchType::SpanV2`] spans. Bit `i` is set if element `i` has the
+    /// timestamp of element `i - 1`; bit 0 is set if the first element is a sibling of the
+    /// span's parent block.
+    pub same_ts_bits: Option<SpanBatchBits>,
     /// Cached transaction count for each block in the span.
     ///
     /// Pre-computed transaction counts enable efficient random access to
@@ -113,6 +124,67 @@ pub struct SpanBatch {
     /// enables efficient encoding and decoding. Transactions are grouped and
     /// compressed using span-specific techniques.
     pub txs: SpanBatchTransactions,
+}
+
+/// A [`SingleBatch`] extracted from a [`SpanBatch`], together with the span's claim about how it
+/// relates to the block it builds on.
+///
+/// The claim cannot ride on the [`SingleBatch`] itself, whose RLP encoding is the `0x00` wire
+/// format, which has no way to express a sibling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpanSingleBatch {
+    /// The extracted batch.
+    pub batch: SingleBatch,
+    /// Whether the span marked this element as sharing the timestamp of the block it builds on.
+    pub is_sibling: bool,
+}
+
+/// The verdict for a span batch that adds no block the safe chain does not already hold.
+fn no_new_blocks_validity(cfg: &RollupConfig, inclusion_block: &BlockInfo) -> BatchValidity {
+    if cfg.is_holocene_active(inclusion_block.timestamp) {
+        BatchValidity::Past
+    } else {
+        BatchValidity::Drop(BatchDropReason::SpanBatchNoNewBlocksPreHolocene)
+    }
+}
+
+/// The outcome of the [`SpanBatch`] prefix and Holocene checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpanBatchOutcome {
+    /// The checks passed. Carries the L2 block the span's first element builds on, which is what
+    /// turns element indices into block numbers.
+    Accepted(L2BlockInfo),
+    /// The checks did not pass, with the verdict to report.
+    Rejected(BatchValidity),
+}
+
+impl SpanBatchOutcome {
+    /// The verdict this outcome reports.
+    pub const fn validity(&self) -> BatchValidity {
+        match self {
+            Self::Accepted(_) => BatchValidity::Accept,
+            Self::Rejected(validity) => *validity,
+        }
+    }
+}
+
+// Manually implemented because [`BatchType`] has no meaningful `Default`: a span defaults to the
+// Delta format, not to the first batch type.
+impl Default for SpanBatch {
+    fn default() -> Self {
+        Self {
+            version: BatchType::Span,
+            parent_check: FixedBytes::default(),
+            l1_origin_check: FixedBytes::default(),
+            genesis_timestamp: 0,
+            chain_id: 0,
+            batches: Vec::new(),
+            origin_bits: SpanBatchBits::default(),
+            same_ts_bits: None,
+            block_tx_counts: Vec::new(),
+            txs: SpanBatchTransactions::default(),
+        }
+    }
 }
 
 impl SpanBatch {
@@ -270,6 +342,9 @@ impl SpanBatch {
     ///
     /// This enables efficient timestamp encoding in the serialized format.
     pub fn to_raw_span_batch(&self) -> Result<RawSpanBatch, SpanBatchError> {
+        if !self.version.is_span() {
+            return Err(SpanBatchError::NotASpanVersion);
+        }
         if self.batches.is_empty() {
             return Err(SpanBatchError::EmptySpanBatch);
         }
@@ -279,6 +354,7 @@ impl SpanBatch {
         let span_end = self.batches.last().ok_or(SpanBatchError::EmptySpanBatch)?;
 
         Ok(RawSpanBatch {
+            version: self.version,
             prefix: SpanBatchPrefix {
                 rel_timestamp: span_start.timestamp - self.genesis_timestamp,
                 l1_origin_num: span_end.epoch_num,
@@ -288,24 +364,56 @@ impl SpanBatch {
             payload: SpanBatchPayload {
                 block_count: self.batches.len() as u64,
                 origin_bits: self.origin_bits.clone(),
+                same_ts_bits: self.same_ts_bits.clone(),
                 block_tx_counts: self.block_tx_counts.clone(),
                 txs: self.txs.clone(),
             },
         })
     }
 
+    /// Returns true if element `index` shares the timestamp of the block it builds on: element
+    /// `index - 1`, or the span's parent block for element 0.
+    ///
+    /// The wire version is the authority on whether a span can express siblings at all, so a
+    /// bitlist carried by a Delta span is ignored rather than honoured.
+    pub fn is_sibling(&self, index: usize) -> bool {
+        self.version.has_same_ts_bits() &&
+            self.same_ts_bits.as_ref().and_then(|bits| bits.get_bit(index)) == Some(1)
+    }
+
+    /// The block number of the span's parent, derived from the elements the safe chain already
+    /// holds.
+    ///
+    /// Only correct where every element is exactly one block time after its predecessor, which
+    /// makes an element's timestamp decide whether the safe chain holds it: siblings share a
+    /// timestamp, so counting them this way would place the parent too high.
+    pub fn parent_number_from_timestamps(&self, l2_safe_head: L2BlockInfo) -> u64 {
+        let applied = self
+            .batches
+            .iter()
+            .filter(|b| b.timestamp <= l2_safe_head.block_info.timestamp)
+            .count() as u64;
+        l2_safe_head.block_info.number.saturating_sub(applied)
+    }
+
     /// Converts all [`SpanBatchElement`]s after the L2 safe head to [`SingleBatch`]es. The
     /// resulting [`SingleBatch`]es do not contain a parent hash, as it is populated by the
     /// Batch Queue stage.
+    ///
+    /// `span_parent_number` is the block number of the span's parent, i.e. the block its first
+    /// element builds on. The elements are the consecutive blocks after it, so their numbers —
+    /// not their timestamps, which siblings share — decide which ones the safe chain already
+    /// holds.
     pub fn get_singular_batches(
         &self,
         l1_origins: &[BlockInfo],
         l2_safe_head: L2BlockInfo,
-    ) -> Result<Vec<SingleBatch>, SpanBatchError> {
+        span_parent_number: u64,
+    ) -> Result<Vec<SpanSingleBatch>, SpanBatchError> {
         let mut single_batches = Vec::with_capacity(self.batches.len());
         let mut origin_index = 0;
-        for batch in &self.batches {
-            if batch.timestamp <= l2_safe_head.block_info.timestamp {
+        for (index, batch) in self.batches.iter().enumerate() {
+            if span_parent_number + 1 + index as u64 <= l2_safe_head.block_info.number {
                 continue;
             }
             // Overlapping span batches can pass the prefix checks but then the
@@ -329,22 +437,37 @@ impl SpanBatch {
                 transactions: batch.transactions.clone(),
                 ..Default::default()
             };
-            single_batches.push(single_batch);
+            single_batches
+                .push(SpanSingleBatch { batch: single_batch, is_sibling: self.is_sibling(index) });
         }
         Ok(single_batches)
     }
 
     /// Append a [`SingleBatch`] to the [`SpanBatch`]. Updates the L1 origin check if need be.
+    ///
+    /// `parent_timestamp` is the timestamp of the span's parent block, i.e. the block the first
+    /// element builds on. It is the only way to tell whether that first element is a sibling of
+    /// the parent, which a span cannot observe from its own elements.
     pub fn append_singular_batch(
         &mut self,
         singular_batch: SingleBatch,
         seq_num: u64,
+        parent_timestamp: u64,
     ) -> Result<(), SpanBatchError> {
         // If the new element is not ordered with respect to the last element, panic.
         assert!(
             self.batches.is_empty() || self.peek(0).timestamp <= singular_batch.timestamp,
             "Batch is not ordered"
         );
+
+        // Decided before any mutation: a v1 span cannot express a sibling, so the rejected append
+        // must leave the span untouched rather than half-written.
+        let predecessor_timestamp =
+            self.batches.last().map_or(parent_timestamp, |batch| batch.timestamp);
+        let same_ts_bit = predecessor_timestamp == singular_batch.timestamp;
+        if same_ts_bit && !self.version.has_same_ts_bits() {
+            return Err(SpanBatchError::SameTimestampBitsMismatch);
+        }
 
         let SingleBatch { epoch_hash, parent_hash, .. } = singular_batch;
 
@@ -366,6 +489,12 @@ impl SpanBatch {
         // Set the respective bit in the origin bits.
         self.origin_bits.set_bit(self.batches.len() - 1, epoch_bit);
 
+        if self.version.has_same_ts_bits() {
+            self.same_ts_bits
+                .get_or_insert_with(SpanBatchBits::default)
+                .set_bit(self.batches.len() - 1, same_ts_bit);
+        }
+
         let new_txs = self.peek(0).transactions.clone();
 
         // Update the block tx counts cache with the latest batch's transaction count.
@@ -384,14 +513,22 @@ impl SpanBatch {
         inclusion_block: &BlockInfo,
         fetcher: &mut BV,
     ) -> BatchValidity {
-        let (prefix_validity, parent_block) =
-            self.check_batch_prefix(cfg, l1_blocks, l2_safe_head, inclusion_block, fetcher).await;
-        if !prefix_validity.is_accept() {
-            return prefix_validity;
+        // The pre-Holocene queue validates a span as a whole and applies it without streaming its
+        // elements, so it cannot tell siblings apart from the blocks they share a timestamp with.
+        if self.version.has_same_ts_bits() {
+            warn!(target: "batch_span", "received a span batch v2 before Holocene");
+            return BatchValidity::Drop(BatchDropReason::SpanBatchV2PreHolocene);
         }
 
+        let parent_block = match self
+            .check_batch_prefix(cfg, l1_blocks, l2_safe_head, inclusion_block, fetcher)
+            .await
+        {
+            SpanBatchOutcome::Accepted(parent_block) => parent_block,
+            SpanBatchOutcome::Rejected(validity) => return validity,
+        };
+
         let starting_epoch_num = self.starting_epoch_num();
-        let parent_block = parent_block.expect("parent_block must be Some");
 
         let mut origin_index = 0;
         let mut origin_advanced = starting_epoch_num == parent_block.l1_origin.number + 1;
@@ -547,10 +684,22 @@ impl SpanBatch {
         fetcher: &mut BV,
     ) -> BatchValidity {
         let parent_num = parent_block.block_info.number;
+        let overlap = l2_safe_head.block_info.number.saturating_sub(parent_num);
+        if overlap > self.batches.len() as u64 {
+            // The prefix rules reject a span whose last element is at or below the safe head, so
+            // this cannot happen after they accepted it. Reported rather than indexed past the
+            // end, because a panic here would take the node and the fault proof program down.
+            warn!(
+                target: "batch_span",
+                "span batch overlaps {overlap} safe blocks but only has {} elements",
+                self.batches.len()
+            );
+            return BatchValidity::Drop(BatchDropReason::SpanBatchNotOverlappedExactly);
+        }
         // Reused encoding buffer for the per-transaction comparison below, hoisted out of the
         // loops to avoid one allocation per compared transaction.
         let mut buf = Vec::new();
-        for i in 0..(l2_safe_head.block_info.number - parent_num) {
+        for i in 0..overlap {
             let safe_block_num = parent_num + i + 1;
             let safe_block_payload = match fetcher.block_by_number(safe_block_num).await {
                 Ok(p) => p,
@@ -610,7 +759,7 @@ impl SpanBatch {
     }
 
     /// Checks the span batch prefix rules shared by the legacy full checks and the Holocene
-    /// checks. It also returns the parent L2 block determined during validation.
+    /// checks.
     pub async fn check_batch_prefix<BF: BatchValidationProvider>(
         &self,
         cfg: &RollupConfig,
@@ -618,7 +767,7 @@ impl SpanBatch {
         l2_safe_head: L2BlockInfo,
         inclusion_block: &BlockInfo,
         fetcher: &mut BF,
-    ) -> (BatchValidity, Option<L2BlockInfo>) {
+    ) -> SpanBatchOutcome {
         if l1_origins.is_empty() {
             warn!(
                 target: "batch_span",
@@ -633,15 +782,15 @@ impl SpanBatch {
                 holocene_active = cfg.is_holocene_active(inclusion_block.timestamp),
                 "missing L1 block input, cannot proceed with batch checking"
             );
-            return (BatchValidity::Undecided, None);
+            return SpanBatchOutcome::Rejected(BatchValidity::Undecided);
         }
         if self.batches.is_empty() {
             warn!(target: "batch_span", "empty span batch, cannot proceed with batch checking");
-            return (BatchValidity::Undecided, None);
+            return SpanBatchOutcome::Rejected(BatchValidity::Undecided);
         }
 
         let epoch = l1_origins[0];
-        let next_timestamp = l2_safe_head.block_info.timestamp + cfg.block_time;
+        let safe_head_timestamp = l2_safe_head.block_info.timestamp;
 
         let starting_epoch_num = self.starting_epoch_num();
         let mut batch_origin = epoch;
@@ -652,7 +801,7 @@ impl SpanBatch {
                     "eager batch wants to advance current epoch {:?}, but could not without more L1 blocks",
                     epoch.id()
                 );
-                return (BatchValidity::Undecided, None);
+                return SpanBatchOutcome::Rejected(BatchValidity::Undecided);
             }
             batch_origin = l1_origins[1];
         }
@@ -663,29 +812,62 @@ impl SpanBatch {
                 batch_origin.id(),
                 batch_origin.timestamp
             );
-            return (BatchValidity::Drop(BatchDropReason::SpanBatchPreDelta), None);
+            return SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                BatchDropReason::SpanBatchPreDelta,
+            ));
         }
 
-        if self.starting_timestamp() > next_timestamp {
+        // The span batch v2 format is gated on the L1 inclusion block, exactly like the Delta
+        // gate above.
+        if self.version.has_same_ts_bits() && !cfg.is_multi_block_active(inclusion_block.timestamp)
+        {
+            warn!(
+                target: "batch_span",
+                "received a span batch v2 included at L1 timestamp {}, before multi-blocks activate",
+                inclusion_block.timestamp
+            );
+            return SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                BatchDropReason::SpanBatchV2PreActivation,
+            ));
+        }
+
+        // A span that starts with a sibling continues the safe head's own timestamp; every other
+        // span starts one block time after the block it builds on.
+        let first_is_sibling = self.is_sibling(0);
+        let max_starting_timestamp = if first_is_sibling {
+            safe_head_timestamp
+        } else {
+            safe_head_timestamp + cfg.block_time
+        };
+        if self.starting_timestamp() > max_starting_timestamp {
             warn!(
                 target: "batch_span",
                 "received out-of-order batch for future processing after next batch ({} > {})",
                 self.starting_timestamp(),
-                next_timestamp
+                max_starting_timestamp
             );
 
             // After holocene is activated, gaps are disallowed.
             if cfg.is_holocene_active(inclusion_block.timestamp) {
-                return (BatchValidity::Drop(BatchDropReason::FutureTimestampHolocene), None);
+                return SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                    BatchDropReason::FutureTimestampHolocene,
+                ));
             }
-            return (BatchValidity::Future, None);
+            return SpanBatchOutcome::Rejected(BatchValidity::Future);
         }
 
-        // Drop the batch if it has no new blocks after the safe head.
-        if self.final_timestamp() < next_timestamp {
+        // Drop the batch if it has no new blocks after the safe head. This decides only the
+        // clear-cut case, where even the span's last element predates the safe head; the
+        // authoritative rule is the one by block number below, which needs the span's parent.
+        let last_element_is_old = if self.version.has_same_ts_bits() {
+            self.final_timestamp() < safe_head_timestamp
+        } else {
+            self.final_timestamp() < safe_head_timestamp + cfg.block_time
+        };
+        if last_element_is_old {
             let span_start_timestamp = self.starting_timestamp();
             let span_final_timestamp = self.final_timestamp();
-            let span_lag_seconds = next_timestamp.saturating_sub(span_final_timestamp);
+            let span_lag_seconds = max_starting_timestamp.saturating_sub(span_final_timestamp);
             let holocene_active = cfg.is_holocene_active(inclusion_block.timestamp);
             let batch_validity = if holocene_active { "past" } else { "drop" };
             warn!(
@@ -693,8 +875,8 @@ impl SpanBatch {
                 chain_id = cfg.l2_chain_id.id(),
                 span_start_timestamp,
                 span_final_timestamp,
-                safe_head_timestamp = l2_safe_head.block_info.timestamp,
-                next_expected_timestamp = next_timestamp,
+                safe_head_timestamp,
+                next_expected_timestamp = max_starting_timestamp,
                 span_lag_seconds,
                 inclusion_l1_block_number = inclusion_block.number,
                 inclusion_l1_block_timestamp = inclusion_block.timestamp,
@@ -702,58 +884,38 @@ impl SpanBatch {
                 batch_validity,
                 "span batch has no new blocks after safe head"
             );
-            return if holocene_active {
-                (BatchValidity::Past, None)
-            } else {
-                (BatchValidity::Drop(BatchDropReason::SpanBatchNoNewBlocksPreHolocene), None)
-            };
+            return SpanBatchOutcome::Rejected(no_new_blocks_validity(cfg, inclusion_block));
         }
 
-        // Find the parent block of the span batch.
-        // If the span batch does not overlap the current safe chain, parent block should be the L2
-        // safe head.
-        let mut parent_num = l2_safe_head.block_info.number;
-        #[allow(clippy::useless_let_if_seq)]
-        let mut parent_block = l2_safe_head;
-        if self.starting_timestamp() < next_timestamp {
-            if self.starting_timestamp() > l2_safe_head.block_info.timestamp {
-                // Batch timestamp cannot be between safe head and next timestamp.
-                warn!(target: "batch_span", "batch has misaligned timestamp, block time is too short");
-                return (BatchValidity::Drop(BatchDropReason::SpanBatchMisalignedTimestamp), None);
-            }
-            if !(l2_safe_head.block_info.timestamp - self.starting_timestamp())
-                .is_multiple_of(cfg.block_time)
-            {
-                warn!(target: "batch_span", "batch has misaligned timestamp, not overlapped exactly");
-                return (BatchValidity::Drop(BatchDropReason::SpanBatchNotOverlappedExactly), None);
-            }
-            parent_num = l2_safe_head.block_info.number -
-                (l2_safe_head.block_info.timestamp - self.starting_timestamp()) / cfg.block_time -
-                1;
-            parent_block = match fetcher.l2_block_info_by_number(parent_num).await {
+        let parent_block =
+            match self.locate_parent(cfg, l2_safe_head, first_is_sibling, fetcher).await {
                 Ok(block) => block,
-                Err(e) => {
-                    warn!(target: "batch_span", "failed to fetch L2 block number {parent_num}: {e}");
-                    // Unable to validate the batch right now. Only the pre-Holocene
-                    // BatchQueue retains the batch for a retry; the Holocene BatchStream has
-                    // already consumed it and skips it.
-                    return (BatchValidity::Undecided, None);
-                }
+                Err(validity) => return SpanBatchOutcome::Rejected(validity),
             };
-        }
-        if !self.check_parent_hash(parent_block.block_info.hash) {
+
+        // Element `i` is block `parent.number + i + 1`, so a span whose last element the safe
+        // chain already holds has nothing left to apply. This is what bounds the overlap against
+        // the element count, and it is the only form of the rule that survives siblings, whose
+        // shared timestamps break the timestamp-to-block-number bijection.
+        if parent_block.block_info.number + self.batches.len() as u64 <=
+            l2_safe_head.block_info.number
+        {
             warn!(
                 target: "batch_span",
-                "parent block mismatch, expected: {parent_num}, received: {}. parent hash: {}, parent hash check: {}",
-                parent_block.block_info.number, parent_block.block_info.hash, self.parent_check,
+                "span batch's last element is at or below the safe head, safe_head_number: {}, span_parent_number: {}, span_block_count: {}",
+                l2_safe_head.block_info.number,
+                parent_block.block_info.number,
+                self.batches.len()
             );
-            return (BatchValidity::Drop(BatchDropReason::ParentHashMismatch), None);
+            return SpanBatchOutcome::Rejected(no_new_blocks_validity(cfg, inclusion_block));
         }
 
         // Filter out batches that were included too late.
         if starting_epoch_num + cfg.seq_window_size < inclusion_block.number {
             warn!(target: "batch_span", "batch was included too late, sequence window expired");
-            return (BatchValidity::Drop(BatchDropReason::IncludedTooLate), None);
+            return SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                BatchDropReason::IncludedTooLate,
+            ));
         }
 
         // Check the L1 origin of the batch
@@ -764,7 +926,9 @@ impl SpanBatch {
                 starting_epoch_num,
                 parent_block.l1_origin.number + 1
             );
-            return (BatchValidity::Drop(BatchDropReason::EpochTooFarInFuture), None);
+            return SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                BatchDropReason::EpochTooFarInFuture,
+            ));
         }
 
         // Verify the l1 origin hash for each l1 block.
@@ -783,7 +947,9 @@ impl SpanBatch {
                         l1_check_hash = ?self.l1_origin_check,
                         "batch is for different L1 chain, epoch hash does not match",
                     );
-                    return (BatchValidity::Drop(BatchDropReason::EpochHashMismatch), None);
+                    return SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                        BatchDropReason::EpochHashMismatch,
+                    ));
                 }
                 origin_checked = true;
                 break;
@@ -791,15 +957,204 @@ impl SpanBatch {
         }
         if !origin_checked {
             info!(target: "batch_span", "need more l1 blocks to check entire origins of span batch");
-            return (BatchValidity::Undecided, None);
+            return SpanBatchOutcome::Rejected(BatchValidity::Undecided);
         }
 
         if starting_epoch_num < parent_block.l1_origin.number {
             warn!(target: "batch_span", "dropped batch, epoch is too old, minimum: {:?}", parent_block.block_info.id());
-            return (BatchValidity::Drop(BatchDropReason::EpochTooOld), None);
+            return SpanBatchOutcome::Rejected(BatchValidity::Drop(BatchDropReason::EpochTooOld));
         }
 
-        (BatchValidity::Accept, Some(parent_block))
+        let sibling_validity = self.check_sibling_rules(cfg, parent_block, fetcher).await;
+        if !sibling_validity.is_accept() {
+            return SpanBatchOutcome::Rejected(sibling_validity);
+        }
+
+        SpanBatchOutcome::Accepted(parent_block)
+    }
+
+    /// Locates the L2 block the span's first element builds on: the block at `parent_timestamp`
+    /// whose hash the span's `parent_check` names.
+    ///
+    /// The walk starts from the safe head. Each timestamp between the parent and the safe head
+    /// carries at least one block, which bounds how far below the safe head the parent can be;
+    /// the run of blocks sharing `parent_timestamp` is then at most `max_multi_blocks` long.
+    /// Returns the validity to report when no such block exists.
+    async fn locate_parent<BF: BatchValidationProvider>(
+        &self,
+        cfg: &RollupConfig,
+        l2_safe_head: L2BlockInfo,
+        first_is_sibling: bool,
+        fetcher: &mut BF,
+    ) -> Result<L2BlockInfo, BatchValidity> {
+        async fn fetch<BF: BatchValidationProvider>(
+            fetcher: &mut BF,
+            number: u64,
+        ) -> Result<L2BlockInfo, BatchValidity> {
+            fetcher.l2_block_info_by_number(number).await.map_err(|e| {
+                warn!(target: "batch_span", "failed to fetch L2 block number {number}: {e}");
+                // Only the pre-Holocene BatchQueue retains an undecided batch for a retry; the
+                // Holocene BatchStream has already consumed it and skips it.
+                BatchValidity::Undecided
+            })
+        }
+
+        let safe_head_timestamp = l2_safe_head.block_info.timestamp;
+        let starting_timestamp = self.starting_timestamp();
+        // How far the first element's timestamp is above the one it builds on.
+        let step = if first_is_sibling { 0 } else { cfg.block_time };
+
+        let mut block = l2_safe_head;
+        let parent_timestamp = if starting_timestamp > safe_head_timestamp {
+            // The span starts past the safe head, which the future check above bounds to one
+            // block time, so it can only build on the safe head itself.
+            if starting_timestamp != safe_head_timestamp + step {
+                warn!(target: "batch_span", "batch has misaligned timestamp, block time is too short");
+                return Err(BatchValidity::Drop(BatchDropReason::SpanBatchMisalignedTimestamp));
+            }
+            safe_head_timestamp
+        } else {
+            let lag = safe_head_timestamp - starting_timestamp + step;
+            if lag != 0 && !lag.is_multiple_of(cfg.block_time) {
+                warn!(target: "batch_span", "batch has misaligned timestamp, not overlapped exactly");
+                return Err(BatchValidity::Drop(BatchDropReason::SpanBatchNotOverlappedExactly));
+            }
+            let timestamps = if lag == 0 { 0 } else { lag / cfg.block_time };
+            // An upper bound on the parent's block number: every timestamp between it and the
+            // safe head carries at least one block.
+            let Some(mut number) = l2_safe_head.block_info.number.checked_sub(timestamps) else {
+                warn!(target: "batch_span", "batch's parent would be below the L2 genesis block");
+                return Err(BatchValidity::Drop(BatchDropReason::SpanBatchParentBelowGenesis));
+            };
+            let parent_timestamp = safe_head_timestamp - lag;
+            if timestamps > 0 {
+                block = fetch(fetcher, number).await?;
+                // Each of those timestamps carries at most `max_multi_blocks` blocks, so that is
+                // how far below the estimate the parent can be. Without siblings it is exact.
+                let mut remaining =
+                    timestamps.saturating_mul(cfg.max_multi_blocks().saturating_sub(1));
+                while block.block_info.timestamp > parent_timestamp &&
+                    remaining > 0 &&
+                    number > cfg.genesis.l2.number
+                {
+                    remaining -= 1;
+                    number -= 1;
+                    block = fetch(fetcher, number).await?;
+                }
+            }
+            parent_timestamp
+        };
+
+        // `block` is the last block at `parent_timestamp`, the only possible parent of an element
+        // at a later timestamp. A sibling may instead build on any earlier member of that group.
+        let group_members = if first_is_sibling { cfg.max_multi_blocks() } else { 1 };
+        let mut number = block.block_info.number;
+        for member in 0..group_members {
+            if member > 0 {
+                if number <= cfg.genesis.l2.number {
+                    break;
+                }
+                number -= 1;
+                block = fetch(fetcher, number).await?;
+                if block.block_info.timestamp != parent_timestamp {
+                    break;
+                }
+            }
+            if self.check_parent_hash(block.block_info.hash) {
+                // The parent is named by its timestamp as much as by its hash, so a 20-byte
+                // prefix match on a block elsewhere on the chain does not make it the parent.
+                if block.block_info.timestamp != parent_timestamp {
+                    warn!(
+                        target: "batch_span",
+                        "parent hash check matches block {} at timestamp {}, not {parent_timestamp}",
+                        block.block_info.number,
+                        block.block_info.timestamp,
+                    );
+                    return Err(BatchValidity::Drop(
+                        BatchDropReason::SpanBatchNotOverlappedExactly,
+                    ));
+                }
+                return Ok(block);
+            }
+        }
+        warn!(
+            target: "batch_span",
+            "parent block mismatch, no block at timestamp {parent_timestamp} matches parent hash check {}",
+            self.parent_check,
+        );
+        Err(BatchValidity::Drop(BatchDropReason::ParentHashMismatch))
+    }
+
+    /// Checks the rules that govern blocks sharing a timestamp.
+    ///
+    /// A group is a run of consecutive blocks with the same timestamp. Its length is a property
+    /// of the chain, so the run the parent belongs to is recomputed here rather than carried over
+    /// from the span that sequenced it.
+    async fn check_sibling_rules<BF: BatchValidationProvider>(
+        &self,
+        cfg: &RollupConfig,
+        parent_block: L2BlockInfo,
+        fetcher: &mut BF,
+    ) -> BatchValidity {
+        let max_multi_blocks = cfg.max_multi_blocks();
+        let mut group_length = if self.is_sibling(0) {
+            let mut length = 1;
+            let mut number = parent_block.block_info.number;
+            while length < max_multi_blocks && number > cfg.genesis.l2.number {
+                number -= 1;
+                let block = match fetcher.l2_block_info_by_number(number).await {
+                    Ok(block) => block,
+                    Err(e) => {
+                        warn!(target: "batch_span", "failed to fetch L2 block number {number}: {e}");
+                        return BatchValidity::Undecided;
+                    }
+                };
+                if block.block_info.timestamp != parent_block.block_info.timestamp {
+                    break;
+                }
+                length += 1;
+            }
+            length
+        } else {
+            0
+        };
+
+        for (index, element) in self.batches.iter().enumerate() {
+            if !self.is_sibling(index) {
+                group_length = 1;
+                continue;
+            }
+            if !cfg.siblings_allowed(element.timestamp) {
+                warn!(
+                    target: "batch_span",
+                    "span element {index} shares its parent's timestamp {} where siblings are not allowed",
+                    element.timestamp
+                );
+                return BatchValidity::Drop(BatchDropReason::SiblingsNotAllowed);
+            }
+            let predecessor_epoch = index
+                .checked_sub(1)
+                .map_or(parent_block.l1_origin.number, |i| self.batches[i].epoch_num);
+            if element.epoch_num != predecessor_epoch {
+                warn!(
+                    target: "batch_span",
+                    "span element {index} is a sibling but adopts L1 origin {} instead of {predecessor_epoch}",
+                    element.epoch_num
+                );
+                return BatchValidity::Drop(BatchDropReason::SiblingOriginMismatch);
+            }
+            group_length += 1;
+            if group_length > max_multi_blocks {
+                warn!(
+                    target: "batch_span",
+                    "{group_length} blocks share timestamp {}, more than max_multi_blocks {max_multi_blocks}",
+                    element.timestamp
+                );
+                return BatchValidity::Drop(BatchDropReason::MultiBlockGroupTooLarge);
+            }
+        }
+
+        BatchValidity::Accept
     }
 
     /// Checks the Holocene span batch rules: prefix validity followed by overlap validity.
@@ -810,19 +1165,20 @@ impl SpanBatch {
         l2_safe_head: L2BlockInfo,
         inclusion_block: &BlockInfo,
         fetcher: &mut BV,
-    ) -> BatchValidity {
-        let (prefix_validity, parent_block) =
-            self.check_batch_prefix(cfg, l1_origins, l2_safe_head, inclusion_block, fetcher).await;
-        if !prefix_validity.is_accept() {
-            return prefix_validity;
+    ) -> SpanBatchOutcome {
+        let parent_block = match self
+            .check_batch_prefix(cfg, l1_origins, l2_safe_head, inclusion_block, fetcher)
+            .await
+        {
+            SpanBatchOutcome::Accepted(parent_block) => parent_block,
+            rejected => return rejected,
+        };
+        let overlap_validity =
+            self.check_batch_overlap(cfg, parent_block, l2_safe_head, fetcher).await;
+        if !overlap_validity.is_accept() {
+            return SpanBatchOutcome::Rejected(overlap_validity);
         }
-        self.check_batch_overlap(
-            cfg,
-            parent_block.expect("accepted prefix checks return a parent block"),
-            l2_safe_head,
-            fetcher,
-        )
-        .await
+        SpanBatchOutcome::Accepted(parent_block)
     }
 }
 
@@ -911,7 +1267,7 @@ mod tests {
             timestamp: 10,
             transactions: vec![],
         };
-        assert!(batch.append_singular_batch(singular_batch, 0).is_ok());
+        assert!(batch.append_singular_batch(singular_batch, 0, 8).is_ok());
         assert_eq!(batch.batches.len(), 1);
         assert_eq!(batch.origin_bits.get_bit(0), Some(1));
         assert_eq!(batch.block_tx_counts, vec![0]);
@@ -925,7 +1281,602 @@ mod tests {
             timestamp: 20,
             transactions: vec![],
         };
-        assert!(batch.append_singular_batch(singular_batch, 1).is_ok());
+        assert!(batch.append_singular_batch(singular_batch, 1, 8).is_ok());
+    }
+
+    fn sibling_singular_batch(epoch_num: u64, timestamp: u64) -> SingleBatch {
+        SingleBatch {
+            epoch_num,
+            epoch_hash: FixedBytes::from([17u8; 32]),
+            parent_hash: FixedBytes::from([19u8; 32]),
+            timestamp,
+            transactions: vec![],
+        }
+    }
+
+    /// Bit 0 is the only bit a span cannot derive from its own elements: it relates the first
+    /// element to the block the span builds on.
+    #[test]
+    fn test_append_singular_batch_sets_same_ts_bit_zero() {
+        let mut batch = SpanBatch { version: BatchType::SpanV2, ..Default::default() };
+        batch.append_singular_batch(sibling_singular_batch(10, 100), 1, 100).unwrap();
+        let same_ts_bits = batch.same_ts_bits.as_ref().unwrap();
+        assert_eq!(same_ts_bits.get_bit(0), Some(1));
+
+        let mut batch = SpanBatch { version: BatchType::SpanV2, ..Default::default() };
+        batch.append_singular_batch(sibling_singular_batch(10, 100), 1, 98).unwrap();
+        assert_eq!(batch.same_ts_bits.as_ref().unwrap().get_bit(0), Some(0));
+    }
+
+    /// A v1 span has no way to encode a sibling, so appending one is an encoder error rather than
+    /// a silently dropped bit — and it must leave the span exactly as it was.
+    #[test]
+    fn test_append_sibling_to_v1_span_errors() {
+        let mut batch = SpanBatch::default();
+        let err = batch.append_singular_batch(sibling_singular_batch(10, 100), 1, 100).unwrap_err();
+        assert_eq!(err, SpanBatchError::SameTimestampBitsMismatch);
+        assert_eq!(batch, SpanBatch::default());
+    }
+
+    /// A span batch can only be encoded as one of the span wire versions, so the type byte
+    /// [`crate::Batch::encode`] writes can never mislabel the payload that follows it.
+    #[test]
+    fn test_to_raw_span_batch_rejects_non_span_version() {
+        let batch = SpanBatch {
+            version: BatchType::Single,
+            batches: vec![SpanBatchElement { epoch_num: 1, timestamp: 100, transactions: vec![] }],
+            ..Default::default()
+        };
+        assert_eq!(batch.to_raw_span_batch().unwrap_err(), SpanBatchError::NotASpanVersion);
+    }
+
+    /// A group of two siblings followed by a second group of two, appended and then re-derived
+    /// through the wire format.
+    #[test]
+    fn test_span_batch_v2_round_trip() {
+        let block_time = 2;
+        let genesis_timestamp = 1000;
+        let mut batch =
+            SpanBatch { version: BatchType::SpanV2, genesis_timestamp, ..Default::default() };
+        for (seq_num, timestamp) in [1020, 1020, 1022, 1022].into_iter().enumerate() {
+            batch
+                .append_singular_batch(sibling_singular_batch(100, timestamp), seq_num as u64, 1018)
+                .unwrap();
+        }
+        assert_eq!(batch.same_ts_bits, Some(SpanBatchBits::new(vec![0b1010])));
+
+        let mut encoded = Vec::new();
+        let raw = batch.to_raw_span_batch().unwrap();
+        raw.encode(&mut encoded).unwrap();
+
+        let mut decoded = RawSpanBatch::decode(&mut encoded.as_slice(), BatchType::SpanV2).unwrap();
+        let derived = decoded.derive(block_time, genesis_timestamp, 10).unwrap();
+        assert_eq!(derived.version, BatchType::SpanV2);
+        assert_eq!(
+            derived.batches.iter().map(|b| b.timestamp).collect::<Vec<_>>(),
+            vec![1020, 1020, 1022, 1022]
+        );
+        // The bits reach validity checking through the derived span, not just the raw one.
+        assert_eq!(derived.same_ts_bits, batch.same_ts_bits);
+    }
+
+    /// The same elements without siblings, as a v1 span: the derived span carries no bitlist at
+    /// all, so nothing downstream can mistake it for a span that could hold siblings.
+    #[test]
+    fn test_span_batch_v1_carries_no_same_ts_bits() {
+        let block_time = 2;
+        let genesis_timestamp = 1000;
+        let mut batch = SpanBatch { genesis_timestamp, ..Default::default() };
+        for (seq_num, timestamp) in [1020, 1022].into_iter().enumerate() {
+            batch
+                .append_singular_batch(sibling_singular_batch(100, timestamp), seq_num as u64, 1018)
+                .unwrap();
+        }
+        assert_eq!(batch.same_ts_bits, None);
+
+        let mut encoded = Vec::new();
+        batch.to_raw_span_batch().unwrap().encode(&mut encoded).unwrap();
+
+        let mut decoded = RawSpanBatch::decode(&mut encoded.as_slice(), BatchType::Span).unwrap();
+        let derived = decoded.derive(block_time, genesis_timestamp, 10).unwrap();
+        assert_eq!(derived.version, BatchType::Span);
+        assert_eq!(derived.same_ts_bits, None);
+        assert_eq!(
+            derived.batches.iter().map(|b| b.timestamp).collect::<Vec<_>>(),
+            vec![1020, 1022]
+        );
+    }
+
+    /// A chain with `block_time` 2 whose blocks may have siblings from timestamp 1000 on, at most
+    /// `max_multi_blocks` of them.
+    fn multi_block_cfg(max_multi_blocks: u64) -> RollupConfig {
+        RollupConfig {
+            block_time: 2,
+            seq_window_size: 100,
+            max_sequencer_drift: 1000,
+            genesis: ChainGenesis {
+                l2: BlockNumHash { number: 0, hash: B256::ZERO },
+                l1: BlockNumHash { number: 0, hash: B256::ZERO },
+                ..Default::default()
+            },
+            hardforks: HardForkConfig {
+                delta_time: Some(0),
+                holocene_time: Some(0),
+                karst_time: Some(0),
+                ..Default::default()
+            },
+            multi_block_time: Some(1000),
+            max_multi_blocks: Some(max_multi_blocks),
+            ..Default::default()
+        }
+    }
+
+    fn l2_block(number: u64, timestamp: u64, origin: u64) -> L2BlockInfo {
+        L2BlockInfo {
+            block_info: BlockInfo {
+                number,
+                timestamp,
+                hash: B256::repeat_byte(number as u8),
+                ..Default::default()
+            },
+            l1_origin: BlockNumHash { number: origin, hash: B256::repeat_byte(origin as u8) },
+            seq_num: 0,
+        }
+    }
+
+    /// The safe chain the multi-block span tests build on: a group of two blocks at timestamp
+    /// 1010 followed by one at 1012, all on L1 origin 100.
+    fn multi_block_chain() -> Vec<L2BlockInfo> {
+        vec![
+            l2_block(9, 1008, 100),
+            l2_block(10, 1010, 100),
+            l2_block(11, 1010, 100),
+            l2_block(12, 1012, 100),
+        ]
+    }
+
+    fn multi_block_l1_origins() -> Vec<BlockInfo> {
+        vec![
+            BlockInfo {
+                number: 100,
+                timestamp: 900,
+                hash: B256::repeat_byte(100),
+                ..Default::default()
+            },
+            BlockInfo {
+                number: 101,
+                timestamp: 902,
+                hash: B256::repeat_byte(101),
+                ..Default::default()
+            },
+        ]
+    }
+
+    /// Builds a span batch of `(timestamp, epoch_num, is_sibling)` elements, naming `parent` as
+    /// the block its first element builds on.
+    fn multi_block_span(parent: L2BlockInfo, elements: &[(u64, u64, bool)]) -> SpanBatch {
+        let mut same_ts_bits = SpanBatchBits::default();
+        for (index, (_, _, is_sibling)) in elements.iter().enumerate() {
+            same_ts_bits.set_bit(index, *is_sibling);
+        }
+        let last_epoch = elements.last().unwrap().1;
+        SpanBatch {
+            version: BatchType::SpanV2,
+            parent_check: FixedBytes::<20>::from_slice(&parent.block_info.hash[..20]),
+            l1_origin_check: FixedBytes::<20>::from_slice(
+                &B256::repeat_byte(last_epoch as u8)[..20],
+            ),
+            same_ts_bits: Some(same_ts_bits),
+            batches: elements
+                .iter()
+                .map(|(timestamp, epoch_num, _)| SpanBatchElement {
+                    epoch_num: *epoch_num,
+                    timestamp: *timestamp,
+                    transactions: vec![],
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    /// Builds a Delta span batch over `timestamps`, all on L1 origin 100, naming `parent` as the
+    /// block its first element builds on.
+    fn delta_span(parent: L2BlockInfo, timestamps: &[u64]) -> SpanBatch {
+        SpanBatch {
+            version: BatchType::Span,
+            parent_check: FixedBytes::<20>::from_slice(&parent.block_info.hash[..20]),
+            l1_origin_check: FixedBytes::<20>::from_slice(&B256::repeat_byte(100)[..20]),
+            batches: timestamps
+                .iter()
+                .map(|timestamp| SpanBatchElement {
+                    epoch_num: 100,
+                    timestamp: *timestamp,
+                    transactions: vec![],
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    /// The span continues the group the safe head is in, so bit 0 is set and the group's third
+    /// block is still within `max_multi_blocks`.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_continues_group_at_safe_head() {
+        let cfg = multi_block_cfg(3);
+        let chain = multi_block_chain();
+        let safe_head = chain[2];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(safe_head, &[(1010, 100, true), (1012, 100, false)]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Accepted(safe_head)
+        );
+    }
+
+    /// The same span against a chain that allows only two blocks per timestamp: the group the
+    /// parent is already in is what makes the element the third one, so the walk back over the
+    /// safe chain is what catches it.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_group_too_large_across_spans() {
+        let cfg = multi_block_cfg(2);
+        let chain = multi_block_chain();
+        let safe_head = chain[2];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(safe_head, &[(1010, 100, true), (1012, 100, false)]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                BatchDropReason::MultiBlockGroupTooLarge
+            ))
+        );
+    }
+
+    /// A group entirely inside one span cannot exceed the maximum either.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_group_too_large_within_span() {
+        let cfg = multi_block_cfg(2);
+        let chain = multi_block_chain();
+        let safe_head = chain[3];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(
+            safe_head,
+            &[(1014, 100, false), (1014, 100, true), (1014, 100, true)],
+        );
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                BatchDropReason::MultiBlockGroupTooLarge
+            ))
+        );
+    }
+
+    /// Only the first block of a timestamp may adopt a new L1 origin.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_sibling_changes_origin() {
+        let cfg = multi_block_cfg(3);
+        let chain = multi_block_chain();
+        let safe_head = chain[3];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(safe_head, &[(1014, 100, false), (1014, 101, true)]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Drop(BatchDropReason::SiblingOriginMismatch))
+        );
+    }
+
+    /// A span whose first element is a sibling inherits the parent's L1 origin, not the one the
+    /// span would like to move to.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_first_sibling_changes_origin() {
+        let cfg = multi_block_cfg(3);
+        let chain = multi_block_chain();
+        let safe_head = chain[3];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(safe_head, &[(1012, 101, true)]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Drop(BatchDropReason::SiblingOriginMismatch))
+        );
+    }
+
+    /// A fork activation block is identified by its timestamp alone, so it must not have
+    /// siblings.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_sibling_at_fork_activation() {
+        let mut cfg = multi_block_cfg(3);
+        cfg.hardforks.lagoon_time = Some(1014);
+        let chain = multi_block_chain();
+        let safe_head = chain[3];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(safe_head, &[(1014, 100, false), (1014, 100, true)]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Drop(BatchDropReason::SiblingsNotAllowed))
+        );
+    }
+
+    /// The v2 format is gated on the L1 inclusion block, like the Delta span batch format.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_before_activation() {
+        let cfg = multi_block_cfg(3);
+        let chain = multi_block_chain();
+        let safe_head = chain[3];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(safe_head, &[(1014, 100, false)]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 999, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                BatchDropReason::SpanBatchV2PreActivation
+            ))
+        );
+    }
+
+    /// A span that re-includes blocks the safe chain already holds: with bit 0 clear its parent
+    /// is the last block below its first element's timestamp.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_overlapping_bit_zero_clear() {
+        let cfg = multi_block_cfg(3);
+        let chain = multi_block_chain();
+        let safe_head = chain[3];
+        let parent = chain[0];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(
+            parent,
+            &[(1010, 100, false), (1010, 100, true), (1012, 100, false), (1014, 100, false)],
+        );
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Accepted(parent)
+        );
+    }
+
+    /// The same overlap starting one block later: bit 0 is set, so the parent is the member of
+    /// the group at that timestamp whose hash the span names, not the last one.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_overlapping_bit_zero_set() {
+        let cfg = multi_block_cfg(3);
+        let chain = multi_block_chain();
+        let safe_head = chain[3];
+        let parent = chain[1];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch =
+            multi_block_span(parent, &[(1010, 100, true), (1012, 100, false), (1014, 100, false)]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Accepted(parent)
+        );
+    }
+
+    /// A span whose elements all sit at or below the safe head is old, even though its last
+    /// element carries the safe head's own timestamp.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v2_fully_overlapping_is_past() {
+        let cfg = multi_block_cfg(3);
+        let chain = multi_block_chain();
+        let safe_head = chain[2];
+        let parent = chain[0];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(parent, &[(1010, 100, false), (1010, 100, true)]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Past)
+        );
+    }
+
+    /// A Delta span, which cannot express siblings, still has to be placed by block number on a
+    /// chain that has them: its elements are consecutive blocks after its parent, and counting
+    /// timestamps would put its last element past a safe head that already holds it.
+    #[tokio::test]
+    async fn test_check_batch_prefix_v1_span_over_sibling_group_is_past() {
+        let cfg = multi_block_cfg(3);
+        let chain = vec![
+            l2_block(9, 1008, 100),
+            l2_block(10, 1010, 100),
+            l2_block(11, 1010, 100),
+            l2_block(12, 1010, 100),
+            l2_block(13, 1012, 100),
+        ];
+        let safe_head = chain[4];
+        let parent = chain[0];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = delta_span(parent, &[1010, 1012, 1014]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Past)
+        );
+    }
+
+    /// The walk back towards the parent stops at the L2 genesis block, and a parent hash that
+    /// matches a block at some other timestamp does not name that block as the parent.
+    #[tokio::test]
+    async fn test_check_batch_prefix_parent_timestamp_below_genesis_block() {
+        let cfg = multi_block_cfg(3);
+        let chain = vec![l2_block(0, 1000, 100), l2_block(1, 1000, 100), l2_block(2, 1002, 100)];
+        let safe_head = chain[2];
+        let genesis_block = chain[0];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = delta_span(genesis_block, &[1000, 1002, 1004]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                BatchDropReason::SpanBatchNotOverlappedExactly
+            ))
+        );
+    }
+
+    /// A span reaching so far back that its parent would sit below the L2 genesis block.
+    #[tokio::test]
+    async fn test_check_batch_prefix_parent_below_genesis() {
+        let cfg = multi_block_cfg(3);
+        let chain = vec![l2_block(0, 1000, 100), l2_block(1, 1002, 100)];
+        let safe_head = chain[1];
+        let parent = chain[0];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = delta_span(parent, &[996, 998, 1000, 1002, 1004]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch_prefix(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            SpanBatchOutcome::Rejected(BatchValidity::Drop(
+                BatchDropReason::SpanBatchParentBelowGenesis
+            ))
+        );
+    }
+
+    /// The pre-Holocene batch queue applies a span as a whole and cannot stream its elements, so
+    /// it has no way to validate siblings.
+    #[tokio::test]
+    async fn test_check_batch_v2_pre_holocene() {
+        let mut cfg = multi_block_cfg(3);
+        cfg.hardforks.holocene_time = None;
+        let chain = multi_block_chain();
+        let safe_head = chain[3];
+        let mut fetcher = TestBatchValidator { blocks: chain, ..Default::default() };
+        let batch = multi_block_span(safe_head, &[(1014, 100, false)]);
+        let inclusion_block = BlockInfo { number: 110, timestamp: 1100, ..Default::default() };
+        assert_eq!(
+            batch
+                .check_batch(
+                    &cfg,
+                    &multi_block_l1_origins(),
+                    safe_head,
+                    &inclusion_block,
+                    &mut fetcher
+                )
+                .await,
+            BatchValidity::Drop(BatchDropReason::SpanBatchV2PreHolocene)
+        );
+    }
+
+    /// Elements are skipped by block number, so a group that straddles the safe head keeps the
+    /// siblings that are not on the chain yet — and each one carries its own sibling flag.
+    #[test]
+    fn test_get_singular_batches_skips_by_number() {
+        let batch = multi_block_span(
+            l2_block(9, 1008, 100),
+            &[(1010, 100, false), (1010, 100, true), (1010, 100, true), (1012, 100, false)],
+        );
+        let safe_head = l2_block(11, 1010, 100);
+        let singles = batch.get_singular_batches(&multi_block_l1_origins(), safe_head, 9).unwrap();
+        assert_eq!(
+            singles.iter().map(|s| (s.batch.timestamp, s.is_sibling)).collect::<Vec<_>>(),
+            vec![(1010, true), (1012, false)]
+        );
     }
 
     #[test]
@@ -1024,7 +1975,7 @@ mod tests {
         let second = SpanBatchElement { epoch_num: 10, timestamp: 30, ..Default::default() };
         let batch = SpanBatch { batches: vec![first, second], ..Default::default() };
         assert_eq!(
-            batch.get_singular_batches(&l1_blocks, l2_safe_head),
+            batch.get_singular_batches(&l1_blocks, l2_safe_head, 0),
             Err(SpanBatchError::L1OriginBeforeSafeHead),
         );
     }
@@ -1042,7 +1993,7 @@ mod tests {
         let second = SpanBatchElement { epoch_num: 11, timestamp: 30, ..Default::default() };
         let batch = SpanBatch { batches: vec![first, second], ..Default::default() };
         assert_eq!(
-            batch.get_singular_batches(&l1_blocks, l2_safe_head),
+            batch.get_singular_batches(&l1_blocks, l2_safe_head, 0),
             Err(SpanBatchError::MissingL1Origin),
         );
     }
@@ -1251,8 +2202,9 @@ mod tests {
             timestamp: 10,
             transactions: vec![Bytes(vec![EIP1559_TX_TYPE_ID].into())],
         };
-        let second = SpanBatchElement { epoch_num: 11, timestamp: 60, ..Default::default() };
-        let batch = SpanBatch { batches: vec![first, second], ..Default::default() };
+        let second = SpanBatchElement { epoch_num: 11, timestamp: 20, ..Default::default() };
+        let third = SpanBatchElement { epoch_num: 11, timestamp: 30, ..Default::default() };
+        let batch = SpanBatch { batches: vec![first, second, third], ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
             BatchValidity::Drop(BatchDropReason::OverlappedTxCountMismatch)
@@ -1332,8 +2284,9 @@ mod tests {
             timestamp: 10,
             transactions: vec![Bytes(vec![EIP1559_TX_TYPE_ID].into())],
         };
-        let second = SpanBatchElement { epoch_num: 11, timestamp: 60, ..Default::default() };
-        let batch = SpanBatch { batches: vec![first, second], ..Default::default() };
+        let second = SpanBatchElement { epoch_num: 11, timestamp: 20, ..Default::default() };
+        let third = SpanBatchElement { epoch_num: 11, timestamp: 30, ..Default::default() };
+        let batch = SpanBatch { batches: vec![first, second, third], ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
             BatchValidity::Drop(BatchDropReason::OverlappedTxMismatch)
@@ -1514,14 +2467,14 @@ mod tests {
             ),
             ..Default::default()
         };
-        // parent number = 41 - (10 - 10) / 10 - 1 = 40
+        // parent number = 41 - (10 - 10 + 10) / 10 = 40
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
             BatchValidity::Drop(BatchDropReason::ParentHashMismatch)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
-        assert!(logs[0].contains("parent block mismatch, expected: 40, received: 41"));
+        assert!(logs[0].contains("no block at timestamp 0 matches parent hash check"));
     }
 
     #[tokio::test]
@@ -1548,7 +2501,7 @@ mod tests {
             block_info: BlockInfo {
                 number: 40,
                 hash: parent_hash,
-                timestamp: 10,
+                timestamp: 0,
                 ..Default::default()
             },
             ..Default::default()
@@ -1598,7 +2551,7 @@ mod tests {
             block_info: BlockInfo {
                 number: 40,
                 hash: parent_hash,
-                timestamp: 10,
+                timestamp: 0,
                 ..Default::default()
             },
             l1_origin: BlockNumHash { number: 8, ..Default::default() },
@@ -1658,7 +2611,7 @@ mod tests {
         let l2_block = L2BlockInfo {
             block_info: BlockInfo {
                 number: 40,
-                timestamp: 10,
+                timestamp: 0,
                 hash: parent_hash,
                 ..Default::default()
             },
@@ -1712,7 +2665,7 @@ mod tests {
         let l2_block = L2BlockInfo {
             block_info: BlockInfo {
                 number: 40,
-                timestamp: 10,
+                timestamp: 0,
                 hash: parent_hash,
                 ..Default::default()
             },
@@ -1766,7 +2719,7 @@ mod tests {
         let l2_block = L2BlockInfo {
             block_info: BlockInfo {
                 number: 40,
-                timestamp: 10,
+                timestamp: 0,
                 hash: parent_hash,
                 ..Default::default()
             },
@@ -2259,7 +3212,7 @@ mod tests {
         let l2_block = L2BlockInfo {
             block_info: BlockInfo {
                 number: 40,
-                timestamp: 10,
+                timestamp: 0,
                 hash: parent_hash,
                 ..Default::default()
             },
@@ -2313,7 +3266,7 @@ mod tests {
         let l2_block = L2BlockInfo {
             block_info: BlockInfo {
                 number: 40,
-                timestamp: 10,
+                timestamp: 0,
                 hash: parent_hash,
                 ..Default::default()
             },
@@ -2389,7 +3342,7 @@ mod tests {
             block_info: BlockInfo {
                 number: 40,
                 hash: parent_hash,
-                timestamp: 10,
+                timestamp: 0,
                 ..Default::default()
             },
             l1_origin: BlockNumHash { number: 9, ..Default::default() },
@@ -2554,7 +3507,7 @@ mod tests {
             block_info: BlockInfo {
                 number: 40,
                 hash: parent_hash,
-                timestamp: 10,
+                timestamp: 0,
                 ..Default::default()
             },
             l1_origin: BlockNumHash { number: 9, ..Default::default() },
