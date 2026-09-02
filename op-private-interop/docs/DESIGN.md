@@ -58,23 +58,42 @@ private derivation data, and an empty proof slot that a real ZK proof fills late
 that batch, as the leading L2 transaction of the range's first block. The batch transaction's own
 signature is the v1 attestation, checked by the stock inbox filter.
 
-## Genesis and rollup projection
+## Genesis and rollup projection (REVISED 2026-09-01: stock source, interop at genesis)
 
-The private-chain genesis is the only deployment artifact. It contains the custom gas token path,
-`NativeMintBridge`, the counterparty vault binding, and the `PRIVATE_INTEROP` development-feature
-bit. The public projection clones that genesis and deterministically:
+The private-chain genesis is the only deployment artifact, and it is a STOCK op-deployer genesis:
+a custom-gas-token chain with interop active at genesis (`useInterop=true`, the
+OPTIMISM_PORTAL_INTEROP dev-feature bit, Lagoon at offset zero). No private marker, dev-feature bit
+or bespoke predeploy identifies it. The public projection clones that genesis and deterministically:
 
-- restores ordinary ETH semantics and the stock interop ETH path;
-- removes the private liquidity controller, native-asset liquidity and mint bridge;
-- installs the replay messenger, ClaimRegistry and EventReplayer implementations;
-- clears only the `PRIVATE_INTEROP` bit while retaining unrelated development features; and
+- restores ordinary ETH semantics: the ETH implementations of L1Block and L2ToL1MessagePasser
+  replace the CGT ones, the custom-gas-token marker is cleared, and LiquidityController and
+  NativeAssetLiquidity are deactivated. The stock interop ETH path (CrossL2Inbox,
+  SuperchainETHBridge, ETHLiquidity with its uint128-max liquidity, and L1Block's INTEROP feature
+  bit) is already in the source and is kept as is;
+- replaces the stock L2ToL2CrossDomainMessenger implementation with the replay messenger and
+  installs the ClaimRegistry and EventReplayer implementations; and
 - sets the zero-fee, maximum-gas execution parameters used by synthesized public blocks.
 
+The validator accepts exactly that shape and nothing else: the CGT marker must be set (rejects an
+ordinary ETH genesis); L1Block's INTEROP feature and the dev-feature bit must be set (rejects a
+delayed-activation genesis); the messenger implementation's code hash must equal the pinned stock
+release (rejects another contract release, and a genesis that has already been projected); and the
+ClaimRegistry and EventReplayer slots must be empty (rejects a projection offered as a source).
+
+**Interop is at genesis on every view, and this is a constraint, not a preference.** The Lagoon
+network-upgrade bundle re-points every predeploy proxy, so an activation block on the projection
+would replace the replay messenger with the stock one. With `lagoon_time` at genesis no activation
+block ever exists; the projection carries the private chain's activation time unchanged.
+
 The projected rollup config copies the private config, substitutes the projected L2 genesis hash,
-and applies the matching gas and fee parameters. Its `private_interop` metadata remains available
-to the batcher and supernode as the relationship and emitter policy; it is not an on-chain claim
-that the projected state is private. Go and Rust share a JSON golden input, expected state root and
-expected block hash, while keeping independent transform implementations.
+and applies the matching gas and fee parameters. Nothing else differs, and there is no
+`private_interop` field: private behaviour is explicit runtime configuration on each component
+(`--rollup.private` on the projection's op-reth; `--private-interop.genesis` plus the chain ID on
+the supernode; the `--private-interop.*` group on the batcher; `--private-interop.chain-id` and
+`--private-interop.extra-emitters` on the interop filter). The emitter set is therefore a value the
+batcher and every filter are given identically, not one read off a config. Go and Rust share a
+JSON golden input (a reduced stock genesis), expected state root and expected block hash, while
+keeping independent transform implementations.
 
 ## L1 layout (AMENDED, Karl 2026-08-30: the claim is an L2 transaction, not a blob)
 

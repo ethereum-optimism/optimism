@@ -124,7 +124,7 @@ func TestPrivatePairDispositions(t *testing.T) {
 	t.Run("the ETH bridge is skipped with its reason", func(t *testing.T) {
 		var skip *smokeSkip
 		require.ErrorAs(t, smokeBridge(&smokeEnv{privatePairB: true}), &skip)
-		require.Contains(t, skip.reason, "NativeMintBridge")
+		require.Contains(t, skip.reason, "unbacked")
 	})
 
 	t.Run("the cascade test is refused", func(t *testing.T) {

@@ -46,21 +46,6 @@ library DevFeatures {
     bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =
         bytes32(0x0000000000000000000000000000000000000000000000000000000010000000);
 
-    /// @notice The feature that renders a private interop chain genesis: the `NativeMintBridge`
-    ///         predeploy exists and is authorized as a
-    ///         `LiquidityController` minter. Requires the CUSTOM_GAS_TOKEN system feature; the two
-    ///         public projection is derived from the resulting genesis. Never set on an ordinary chain.
-    ///
-    /// @dev NOTE on step 5 of the checklist above, deliberately not done for the private interop
-    ///      bit: it does not get a `&features_matrix` row. The matrix reruns the contract test suite
-    ///      with a bit set, and this bit has no contract-test surface -- it gates genesis
-    ///      GENERATION, in scripts/L2Genesis.s.sol, which the suite reaches through a fixed input
-    ///      that never sets it. A row would rerun thousands of unrelated tests to exercise
-    ///      nothing. The coverage lives where the feature does, in op-deployer's genesis allocs
-    ///      tests, which run the real apply pipeline.
-    bytes32 public constant PRIVATE_INTEROP =
-        bytes32(0x0000000000000000000000000000000000000000000000000000001000000000);
-
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation
     ///         allows for multiple features to be enabled at once. Users should generally check

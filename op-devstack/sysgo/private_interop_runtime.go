@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-interop-filter/filter"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -124,12 +125,13 @@ type privateInteropRuntime struct {
 // and everything downstream of that -- ReadCLIConfig, the all-or-nothing Check, Resolve -- is the
 // code an operator's flags go through. Inventing a second door would leave the operator's path
 // untested and test one nothing runs.
-func privateInteropFollowFlags(t devtest.T, privateGenesisPath string) *cli.Context {
+func privateInteropFollowFlags(t devtest.T, privateChainID eth.ChainID, privateGenesisPath string) *cli.Context {
 	set := flag.NewFlagSet("private-interop-follow", flag.ContinueOnError)
 	for _, f := range claimfollow.Flags {
 		t.Require().NoError(f.Apply(set), "registering %s", f.Names()[0])
 	}
 	for _, kv := range [][2]string{
+		{claimfollow.ChainIDFlag.Name, privateChainID.String()},
 		{claimfollow.GenesisPathFlag.Name, privateGenesisPath},
 		// Scanning from genesis is right here and wrong in production, where an operator enabling
 		// the module against a long-lived rendering sets it to the block the first claim landed in
@@ -292,7 +294,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	privateID, counterpartyID := privateInteropChainIDs()
+	privateID, _ := privateInteropChainIDs()
 	batcherKey, err := keys.Secret(devkeys.BatcherRole.Key(privateID.ToBig()))
 	require.NoError(err, "deriving the standard batcher key")
 	batcherAddr := crypto.PubkeyToAddress(batcherKey.PublicKey)
@@ -300,10 +302,14 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	// The pair's intent stanza goes FIRST, so a test's own deployer options can still override any
 	// of it -- the same precedence buildTwoL2RuntimeWorld already gives the interop dev feature.
 	deployerOpts := append(
-		privateInteropDeployerOptions(privateID, counterpartyID, batcherAddr),
+		privateInteropDeployerOptions(privateID, batcherAddr),
 		cfg.DeployerOptions...,
 	)
-	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, true, delaySeconds, cfg.LocalContractArtifactsPath, deployerOpts...)
+	// Interop at genesis, always: the projection is only defined over a Lagoon-at-genesis source,
+	// because an activation block on the rendering would run the stock network-upgrade bundle and
+	// replace the replay messenger. The supernode's activation override below follows suit.
+	require.Zero(delaySeconds, "a private interop pair activates interop at genesis; a delayed activation has no projection")
+	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, true, 0, cfg.LocalContractArtifactsPath, deployerOpts...)
 
 	// The second half. Nothing about the world changes; the rendering is rendered from it.
 	renderingGenesis, renderingRollup := projectPrivateInteropGenesis(t, wb, privateID)
@@ -343,14 +349,16 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	var interopFilter *InteropFilter
 	if cfg.UseInteropFilter {
 		// The filter reads PRIVATE blocks for chain B, but its chain-B rollup config is the public
-		// rendering config. That generated config carries private_interop and the emitter set, so
-		// ingestion automatically transforms the private logs to their canonical rendered positions.
+		// rendering config, and --private-interop.chain-id names chain B so that ingestion transforms
+		// the private logs to their canonical rendered positions. No extra emitters: the emitter set
+		// is the two standard interop predeploys, the same set the batcher renders with.
 		rollupConfigs := map[eth.ChainID]*rollup.Config{
 			eth.ChainIDFromBig(l2ANet.RollupConfig().L2ChainID):       l2ANet.RollupConfig(),
 			eth.ChainIDFromBig(renderingNet.RollupConfig().L2ChainID): renderingNet.RollupConfig(),
 		}
 		interopFilter = startInteropFilter(t, "interop-filter",
-			[]string{seqAEL.UserRPC(), privateEL.UserRPC()}, rollupConfigs)
+			[]string{seqAEL.UserRPC(), privateEL.UserRPC()}, rollupConfigs,
+			func(c *filter.Config) { c.PrivateInteropChainID = &privateID })
 		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
 	}
 
@@ -379,7 +387,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 		false, // verifier routes only; chain A is sequenced by its light CL
 		// The follow module, enabled HERE rather than after the fact: the module has to exist before
 		// anything points a LightCL at its route, because a disabled module's route is not a 404.
-		privateInteropFollowFlags(t, privateGenesisPath),
+		privateInteropFollowFlags(t, privateID, privateGenesisPath),
 	)
 
 	// Construct-last edge 1, and the sharp edge: the supernode above was built WITH the follow module

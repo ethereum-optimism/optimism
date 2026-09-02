@@ -34,7 +34,6 @@ import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
-import { INativeMintBridge } from "interfaces/private-interop/INativeMintBridge.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 
@@ -76,8 +75,6 @@ contract L2Genesis is Script {
         uint256 nativeAssetLiquidityAmount;
         address liquidityControllerOwner;
         bytes32 devFeatureBitmap;
-        uint256 privateInteropCounterpartyChainID;
-        address privateInteropLockVault;
     }
 
     using ForkUtils for Fork;
@@ -135,7 +132,6 @@ contract L2Genesis is Script {
                 == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
             "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
         );
-        _checkPrivateInteropInput(_input);
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
         vm.chainId(_input.l2ChainID);
@@ -302,29 +298,6 @@ contract L2Genesis is Script {
         setL2DevFeatureFlags(_input); // 2D
         // deploy() upgrades ConditionalDeployer and L2DevFeatureFlags, so it must run after both are set.
         _deployPredeploysViaL2CM(_input);
-        // Private interop runs last, after a complete stock genesis exists, because it authorizes a
-        // minter on the LiquidityController that L2CM has just initialized.
-        if (_isPrivateInterop(_input)) {
-            setPrivateInterop(_input);
-        }
-    }
-
-    /// @notice Validates private interop before any state is written.
-    function _checkPrivateInteropInput(Input memory _input) internal pure {
-        if (_isPrivateInterop(_input)) {
-            require(_isGenesisInteropEnabled(_input), "L2Genesis: private interop requires interop at genesis");
-            require(_input.useCustomGasToken, "L2Genesis: private interop requires a custom gas token");
-            require(
-                _input.privateInteropCounterpartyChainID != 0,
-                "L2Genesis: private interop counterparty chain ID must be set"
-            );
-            require(_input.privateInteropLockVault != address(0), "L2Genesis: private interop lock vault must be set");
-        }
-    }
-
-    /// @notice Returns true when this genesis is a private interop chain.
-    function _isPrivateInterop(Input memory _input) internal pure returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.PRIVATE_INTEROP);
     }
 
     /// @notice Builds the implementation records for the temporary L2ContractsManager.
@@ -699,79 +672,6 @@ contract L2Genesis is Script {
         _setImplementationCode(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).setDevFeatureBitmap(_input.devFeatureBitmap);
-    }
-
-    /// @notice Specializes a private interop chain.
-    /// @dev The private chain is a stock custom gas token chain plus one contract: the
-    ///      NativeMintBridge, authorized as a LiquidityController minter so that ETH locked on the
-    ///      counterparty can be minted here as native asset. The protocol ETH path stays closed --
-    ///      `SuperchainETHBridge` would burn the custom unit while asking a counterparty to mint
-    ///      real ETH -- so this bridge is the only way ETH-denominated value crosses the boundary.
-    function setPrivateInterop(Input memory _input) internal {
-        removePrivateInteropProtocolETHPath();
-        setNativeMintBridge(_input);
-
-        // Authorizing the minter is an owner-only call on the LiquidityController proxy, which
-        // L2CM initialized with this owner a moment ago.
-        vm.prank(_input.liquidityControllerOwner);
-        ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).authorizeMinter(Predeploys.NATIVE_MINT_BRIDGE);
-    }
-
-    /// @notice Removes the stock ETH bridge and its unbounded native-liquidity pool from the
-    ///         private custom-gas-token half. L2ContractsManager installs both for every ordinary
-    ///         interop chain before this private-half specialization runs; leaving them installed
-    ///         would create a second, unbacked path around NativeMintBridge and ETHLockVault.
-    function removePrivateInteropProtocolETHPath() internal {
-        address bridgeImpl = Predeploys.predeployToCodeNamespace(Predeploys.SUPERCHAIN_ETH_BRIDGE);
-        address liquidityImpl = Predeploys.predeployToCodeNamespace(Predeploys.ETH_LIQUIDITY);
-
-        EIP1967Helper.setImplementation(Predeploys.SUPERCHAIN_ETH_BRIDGE, address(0));
-        vm.etch(bridgeImpl, "");
-        EIP1967Helper.setImplementation(Predeploys.ETH_LIQUIDITY, address(0));
-        vm.etch(liquidityImpl, "");
-        vm.deal(Predeploys.ETH_LIQUIDITY, 0);
-        vm.deal(liquidityImpl, 0);
-    }
-
-    /// @notice This predeploy is following the safety invariant #2: the counterparty chain ID and
-    ///         the counterparty's lock vault address are immutables.
-    function setNativeMintBridge(Input memory _input) internal {
-        INativeMintBridge bridge = INativeMintBridge(
-            DeployUtils.create1({
-                _name: "NativeMintBridge",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        INativeMintBridge.__constructor__,
-                        (_input.privateInteropCounterpartyChainID, _input.privateInteropLockVault)
-                    )
-                )
-            })
-        );
-        _setPrivateInteropImplementation(Predeploys.NATIVE_MINT_BRIDGE, address(bridge).code);
-
-        /// Reset so its not included in the state dump
-        vm.etch(address(bridge), "");
-        vm.resetNonce(address(bridge));
-    }
-
-    /// @notice Sets a private interop predeploy's implementation code and points its proxy at it.
-    /// @dev The three private interop addresses sit outside the predeploy registry (Predeploys.sol
-    ///      explains why), so the registry-driven `setPredeployProxies` etches their Proxy but
-    ///      leaves the implementation slot empty, and `_setImplementationCode` cannot look their
-    ///      names up. This does both halves explicitly, matching what the registry path produces
-    ///      for every other proxied predeploy: implementation code at the code-namespace
-    ///      counterpart, admin slot set on both, implementation slot set on the proxy.
-    function _setPrivateInteropImplementation(
-        address _proxy,
-        bytes memory _deployedCode
-    )
-        internal
-        returns (address impl_)
-    {
-        impl_ = Predeploys.predeployToCodeNamespace(_proxy);
-        vm.etch(impl_, _deployedCode);
-        EIP1967Helper.setAdmin(impl_, Predeploys.PROXY_ADMIN);
-        EIP1967Helper.setImplementation(_proxy, impl_);
     }
 
     /// @notice Sets all the preinstalls.

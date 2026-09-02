@@ -19,13 +19,11 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 	interopBit := devfeatures.OptimismPortalInteropFlag
 
 	tests := []struct {
-		name           string
-		useInterop     bool
-		bitmap         any
-		chainBitmap    any
-		privateInterop *state.PrivateInterop
-		wantError      bool
-		wantBitmap     common.Hash
+		name       string
+		useInterop bool
+		bitmap     any
+		wantError  bool
+		wantBitmap common.Hash
 	}{
 		{
 			name:       "UseInterop=true, interop bit set: interop enabled",
@@ -67,23 +65,6 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 			wantError:  false,
 			wantBitmap: common.Hash{},
 		},
-		{
-			name:        "a chain-level bitmap override wins over the global one",
-			useInterop:  true,
-			bitmap:      common.Hash{},
-			chainBitmap: interopBit,
-			wantError:   false,
-			wantBitmap:  interopBit,
-		},
-		{
-			name:           "a private chain sets its own bit, derived from the intent",
-			useInterop:     true,
-			bitmap:         interopBit,
-			privateInterop: &state.PrivateInterop{},
-			wantError:      false,
-			wantBitmap: devfeatures.EnableDevFeature(
-				interopBit, devfeatures.PrivateInteropFlag),
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,11 +73,7 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 				UseInterop:            tt.useInterop,
 				GlobalDeployOverrides: map[string]any{"devFeatureBitmap": tt.bitmap},
 			}
-			chainIntent := &state.ChainIntent{PrivateInterop: tt.privateInterop}
-			if tt.chainBitmap != nil {
-				chainIntent.DeployOverrides = map[string]any{"devFeatureBitmap": tt.chainBitmap}
-			}
-			result, err := buildDevFeatureBitmap(intent, chainIntent)
+			result, err := buildDevFeatureBitmap(intent)
 			if tt.wantError {
 				require.Error(t, err)
 			} else {

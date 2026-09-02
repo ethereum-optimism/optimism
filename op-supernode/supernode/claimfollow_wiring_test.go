@@ -29,11 +29,8 @@ func wiringSupernode(t *testing.T) *Supernode {
 	}
 }
 
-func wiringVNCfgs(private bool) map[eth.ChainID]*opnodecfg.Config {
+func wiringVNCfgs() map[eth.ChainID]*opnodecfg.Config {
 	cfg := &opnodecfg.Config{Rollup: rollup.Config{L2ChainID: big.NewInt(wiringChainID), BlockTime: 2}}
-	if private {
-		cfg.Rollup.PrivateInterop = &rollup.PrivateInteropConfig{}
-	}
 	return map[eth.ChainID]*opnodecfg.Config{eth.ChainIDFromUInt64(wiringChainID): cfg}
 }
 
@@ -58,19 +55,20 @@ func wiringGenesisPath(t *testing.T) string {
 	return path
 }
 
-func TestClaimFollowIsDormantWithoutRollupMarker(t *testing.T) {
+func TestClaimFollowIsDormantWithoutFlags(t *testing.T) {
 	s := wiringSupernode(t)
-	act, routes, err := s.initClaimFollow(wiringCfg(t), wiringVNCfgs(false))
+	act, routes, err := s.initClaimFollow(wiringCfg(t), wiringVNCfgs())
 	require.NoError(t, err)
 	require.Nil(t, act)
 	require.Empty(t, routes)
 }
 
-func TestClaimFollowAutoDetectsMarkedChain(t *testing.T) {
+func TestClaimFollowEnabledByFlags(t *testing.T) {
 	s := wiringSupernode(t)
 	act, routes, err := s.initClaimFollow(wiringCfg(t,
+		"--private-interop.chain-id=424243",
 		"--private-interop.genesis="+wiringGenesisPath(t),
-	), wiringVNCfgs(true))
+	), wiringVNCfgs())
 	require.NoError(t, err)
 	require.NotNil(t, act)
 	require.Equal(t, eth.ChainIDFromUInt64(wiringChainID), act.ChainID())
@@ -81,22 +79,25 @@ func TestClaimFollowAutoDetectsMarkedChain(t *testing.T) {
 	require.Equal(t, "optimism", got[0].API.Namespace)
 }
 
-func TestClaimFollowRequiresGenesisForMarkedChain(t *testing.T) {
+func TestClaimFollowRequiresGenesisWithChainID(t *testing.T) {
 	s := wiringSupernode(t)
-	_, _, err := s.initClaimFollow(wiringCfg(t), wiringVNCfgs(true))
+	_, _, err := s.initClaimFollow(wiringCfg(t, "--private-interop.chain-id=424243"), wiringVNCfgs())
 	require.ErrorContains(t, err, "private-interop.genesis")
 }
 
-func TestClaimFollowRejectsMultipleMarkedChains(t *testing.T) {
-	cfgs := wiringVNCfgs(true)
-	second := eth.ChainIDFromUInt64(424244)
-	cfgs[second] = &opnodecfg.Config{Rollup: rollup.Config{
-		L2ChainID:      big.NewInt(424244),
-		PrivateInterop: &rollup.PrivateInteropConfig{},
-	}}
+func TestClaimFollowRequiresChainIDWithGenesis(t *testing.T) {
 	s := wiringSupernode(t)
 	_, _, err := s.initClaimFollow(wiringCfg(t,
 		"--private-interop.genesis="+wiringGenesisPath(t),
-	), cfgs)
-	require.ErrorContains(t, err, "multiple rollup configs")
+	), wiringVNCfgs())
+	require.ErrorContains(t, err, "private-interop.chain-id")
+}
+
+func TestClaimFollowRejectsUnknownChain(t *testing.T) {
+	s := wiringSupernode(t)
+	_, _, err := s.initClaimFollow(wiringCfg(t,
+		"--private-interop.chain-id=424244",
+		"--private-interop.genesis="+wiringGenesisPath(t),
+	), wiringVNCfgs())
+	require.ErrorContains(t, err, "does not run")
 }

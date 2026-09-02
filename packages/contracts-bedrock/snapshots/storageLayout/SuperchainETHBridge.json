@@ -1,9 +1,1 @@
-[
-  {
-    "bytes": "32",
-    "label": "bannedSources",
-    "offset": 0,
-    "slot": "0",
-    "type": "mapping(uint256 => bool)"
-  }
-]
+[]

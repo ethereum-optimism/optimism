@@ -1,9 +1,0 @@
-[
-  {
-    "bytes": "32",
-    "label": "totalLocked",
-    "offset": 0,
-    "slot": "0",
-    "type": "uint256"
-  }
-]

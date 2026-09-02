@@ -36,9 +36,13 @@ func TestFlagsParseAndResolve(t *testing.T) {
 	path := privateGenesisPath(t)
 	cfg := run(t,
 		"--chains=424243", "--l1=http://l1:8545",
+		"--private-interop.chain-id=424243",
 		"--private-interop.genesis="+path,
 		"--private-interop.claim-scan-start-block=100",
 	)
+	require.True(t, cfg.Enabled())
+	require.True(t, cfg.ChainIDSet)
+	require.Equal(t, uint64(424243), cfg.ChainID)
 	require.Equal(t, path, cfg.GenesisPath)
 	require.Equal(t, uint64(100), cfg.ScanStartBlock)
 	require.NoError(t, cfg.Check())
@@ -52,10 +56,14 @@ func TestFlagsParseAndResolve(t *testing.T) {
 	require.Equal(t, uint64(100), modCfg.StartBlock)
 }
 
-func TestCheckRequiresGenesis(t *testing.T) {
-	require.ErrorContains(t, (CLIConfig{}).Check(), GenesisPathFlag.Name)
+func TestCheckRequiresBothActivatingFlags(t *testing.T) {
+	require.ErrorContains(t, (CLIConfig{}).Check(), ChainIDFlag.Name)
+	require.ErrorContains(t, (CLIConfig{GenesisPath: "genesis.json"}).Check(), ChainIDFlag.Name)
+	require.ErrorContains(t, (CLIConfig{ChainIDSet: true, ChainID: 1}).Check(), GenesisPathFlag.Name)
 }
 
-func TestNilContextHasNoGenesis(t *testing.T) {
-	require.Empty(t, ReadCLIConfig(nil).GenesisPath)
+func TestNilContextIsDisabled(t *testing.T) {
+	cfg := ReadCLIConfig(nil)
+	require.Empty(t, cfg.GenesisPath)
+	require.False(t, cfg.Enabled())
 }

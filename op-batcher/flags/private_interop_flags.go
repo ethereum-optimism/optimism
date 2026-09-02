@@ -13,8 +13,9 @@ import (
 // the terminal seam needs is a flag on the stock service, and the service refuses to start rather
 // than accept a value it cannot act on — see PrivateInteropCLIConfig.Check.
 //
-// The group is used only when the rollup config declares private interop. Nothing here changes a
-// stock batcher's behaviour by itself.
+// The group is enabled by --private-interop.genesis: a batcher given a private-chain genesis is a
+// private-interop batcher, and one without the flag is a stock batcher. There is no marker in the
+// rollup config; private behaviour is explicit runtime configuration.
 
 const (
 	// DefaultPrivateInteropMaxBlocksPerRange is the ratified cadence: ~300 blocks at 2 s is one span
@@ -54,6 +55,13 @@ var (
 			"more than one six-blob L1 transaction.",
 		Value:   DefaultPrivateInteropMaxRangeBytes,
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_MAX_RANGE_BYTES"),
+	}
+	PrivateInteropExtraEmittersFlag = &cli.StringSliceFlag{
+		Name: "private-interop.extra-emitters",
+		Usage: "Additional application log emitters whose private-chain logs are replayed onto the " +
+			"public projection, as hex addresses. The two standard interop predeploys are implicit. " +
+			"Consensus-relevant: every interop filter for the chain must be given the same set.",
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_EXTRA_EMITTERS"),
 	}
 	PrivateInteropRollupConfigHashFlag = &cli.StringFlag{
 		Name: "private-interop.rollup-config-hash",
@@ -100,6 +108,7 @@ var PrivateInteropFlags = []cli.Flag{
 	PrivateInteropPublicProjectionRPCFlag,
 	PrivateInteropMaxBlocksPerRangeFlag,
 	PrivateInteropMaxRangeBytesFlag,
+	PrivateInteropExtraEmittersFlag,
 	PrivateInteropRollupConfigHashFlag,
 	PrivateInteropDepSetHashFlag,
 	PrivateInteropGasLimitExportFlag,

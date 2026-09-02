@@ -104,8 +104,8 @@
     "sourceCodeHash": "0xec1736e67134e22ad9ceb0b8b6c116fd169637aa6729c05d9f0f4b02547aaac0"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
-    "initCodeHash": "0x83eb60339a471f065b927ba5160b5c0bb387b42e267abbc415ecd960178150b0",
-    "sourceCodeHash": "0x4d4c1b36d699af170b1d83a26a35c727748dfbbca4ab2628a2a91b50541d7739"
+    "initCodeHash": "0x3a12a46c0dac554ed7ecb74d8e56d4b903afd19d5fba7ba9253374bf0d7858c4",
+    "sourceCodeHash": "0x03eed029da48a3893d49d6c049141cceffc7f73f1aa37cf9a067fc9dac9c9c78"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
     "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",
@@ -132,8 +132,8 @@
     "sourceCodeHash": "0x5e91f103e14750fdc05bbd3c6d121547a76dfed86b94431e1cee6fe229bdbfdd"
   },
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
-    "initCodeHash": "0xf8e1974f78773563f6123b543e8760be3696c9a6331cb192cc31edf3a22ef690",
-    "sourceCodeHash": "0x9698ba3ce24ae74109ebb4086241cd790b571fce9f4e6fb3ff85cc3c220157cc"
+    "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
+    "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",
@@ -203,10 +203,6 @@
     "initCodeHash": "0xc51f062db2deb98cb18d8cbbe1068a100dba41f51bb7d9dd62119b4355788211",
     "sourceCodeHash": "0x4a507dfab300c5607a1506f5db5eac41904cb8010bfbd2298bdda8e52e5fc42d"
   },
-  "src/private-interop/ETHLockVault.sol:ETHLockVault": {
-    "initCodeHash": "0xfcd2138d04010f36e9c93970f038038047d96026cf36cdc348b52ef10b6c9c22",
-    "sourceCodeHash": "0x3d23f4d0ca1f628a42163bfca841d8e5b6c92705c26809e46d57a29d79c39ad3"
-  },
   "src/private-interop/EventReplayer.sol:EventReplayer": {
     "initCodeHash": "0xa08f2db694bab338b051353dac7d2c1a113bea024000de22519fb4880272652d",
     "sourceCodeHash": "0xc6adaf0b280614a5b74dce346f2812841de7ee6c5776d9d34d1058490c1cedef"
@@ -214,10 +210,6 @@
   "src/private-interop/L2ToL2CrossDomainMessengerReplay.sol:L2ToL2CrossDomainMessengerReplay": {
     "initCodeHash": "0x1e6d48e0f0a619078f1656fade5e8f678f084b72b36b211cff303bdf7cb487da",
     "sourceCodeHash": "0xa05dff7862b0e55b804e604bf0e866be65ac89efbd69155000e1ec835ab262b1"
-  },
-  "src/private-interop/NativeMintBridge.sol:NativeMintBridge": {
-    "initCodeHash": "0x285c47338be6e85fe7a23e53fb48dfc6e6d0ca51c23c140d75963dea3de1ca82",
-    "sourceCodeHash": "0xc198956c35173df3e9f76930e38bf2aa38a0a44589254384ee865874a8724702"
   },
   "src/safe/DeputyPauseModule.sol:DeputyPauseModule": {
     "initCodeHash": "0x18422b48c4901ed6fd9338d76d3c5aecfff9a7add34b05c6e21c23d0011ed6bf",

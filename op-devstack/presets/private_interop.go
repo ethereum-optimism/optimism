@@ -56,11 +56,10 @@ func twoL2PrivateInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntim
 		RenderingRollupConfig: runtime.PrivateInterop.Rendering.RollupConfig(),
 		runtime:               runtime,
 	}
-	t.Require().NotNil(pi.RenderingRollupConfig.PrivateInterop,
-		"the rendering rollup config must carry its emitter policy")
-	extraEmitters := pi.RenderingRollupConfig.PrivateInterop.ExtraEmitters
+	// The emitter set is runtime configuration shared by the batcher and the filter, not a field
+	// of any rollup config. The devstack pair renders with the two standard interop predeploys only.
 	if !runtime.PrivateInterop.Config.SkipRenderingInvariant {
-		emitters := render.NewEmitterSet(extraEmitters...)
+		emitters := render.NewEmitterSet()
 		pi.Invariant = poller.StartRenderingInvariant(
 			preset.L2ELB, preset.L2BSupernodeEL,
 			preset.L2BCL, preset.L2BSupernodeCL,
@@ -77,7 +76,7 @@ func twoL2PrivateInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntim
 		privateEL:   preset.L2ELB,
 		renderingEL: preset.L2BSupernodeEL,
 		renderingCL: preset.L2BSupernodeCL,
-		emitters:    render.NewEmitterSet(extraEmitters...),
+		emitters:    render.NewEmitterSet(),
 		timeout:     privateInteropPositionTimeout,
 	}
 	t.Cleanup(txintent.RegisterPositionResolver(preset.L2ELB.ChainID(), resolver))

@@ -30,10 +30,6 @@ var (
 
 	// SuperRootGamesMigrationFlag enables the super root games migration path in OPCM upgrade.
 	SuperRootGamesMigrationFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000010000000")
-
-	// PrivateInteropFlag renders a private chain genesis. Its public projection is derived from the
-	// resulting genesis by consumers and is not an op-deployer role.
-	PrivateInteropFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000001000000000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.

@@ -432,10 +432,12 @@ func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
 
 // initPrivateInterop builds the terminal seam from the --private-interop.* group.
 //
-// The rollup marker activates this path. The batcher's own rollup config is the private chain's;
-// its public-projection config is derived locally from that config and the private genesis.
+// The group's genesis flag activates this path; there is no marker in the rollup config. The
+// batcher's own rollup config is the private chain's; its public-projection config is derived
+// locally from that config and the private genesis, and the projection's validator refuses any
+// genesis that is not a stock interop-at-genesis custom-gas-token chain.
 func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig) error {
-	if bs.RollupConfig.PrivateInterop == nil {
+	if !cfg.PrivateInterop.Enabled() {
 		return nil
 	}
 	settings, err := cfg.PrivateInterop.Resolve()
@@ -504,7 +506,7 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	enc, err := NewPrivateInteropEncoder(PrivateInteropConfig{
 		Rollup:            publicProjectionRollup,
 		PrivateRollup:     bs.RollupConfig,
-		Emitters:          render.NewEmitterSet(publicProjectionRollup.PrivateInterop.ExtraEmitters...),
+		Emitters:          render.NewEmitterSet(settings.ExtraEmitters...),
 		MaxBlocksPerRange: settings.MaxBlocksPerRange,
 		MaxRangeBytes:     settings.MaxRangeBytes,
 		RollupConfigHash:  settings.RollupConfigHash,

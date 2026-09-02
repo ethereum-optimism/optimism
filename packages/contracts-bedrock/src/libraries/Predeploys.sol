@@ -116,8 +116,8 @@ library Predeploys {
 
     // ── Private interop predeploys ──────────────────────────────────────────────────────────
     //
-    // These three exist ONLY on the two halves of a private interop pair -- a private chain and
-    // the public rendering that is its identity in the dependency set -- and never on a Superchain
+    // These two exist ONLY on the public projection of a private interop chain -- the rendering
+    // that is the private chain's identity in the dependency set -- and never on a Superchain
     // chain. They are deliberately NOT entries in `getAllRecords()` below, which is the one place
     // this file departs from its own checklist, so the reason is worth stating.
     //
@@ -132,18 +132,15 @@ library Predeploys {
     // `isSupportedPredeploy` and `assertGates` do not know these addresses, so
     // `setPredeployProxies` etches a bare Proxy at each (as it already does for every unclaimed
     // slot, which is why an ordinary chain's genesis is byte-identical either way) and leaves the
-    // implementation slot empty. `scripts/L2Genesis.s.sol` fills that slot itself, under the
-    // PRIVATE_INTEROP_* dev features, and owns the gate checks the registry would otherwise have
-    // owned. Nothing else in the tree may assume these are registry members.
+    // implementation slot empty. The genesis projection (op-private-interop/genesis, mirrored in
+    // op-reth) fills that slot when it derives the public projection from a stock private-chain
+    // genesis. Nothing else in the tree may assume these are registry members.
 
-    /// @notice Address of the ClaimRegistry predeploy. Public rendering half only.
+    /// @notice Address of the ClaimRegistry predeploy. Public projection only.
     address internal constant CLAIM_REGISTRY = 0x420000000000000000000000000000000000002E;
 
-    /// @notice Address of the EventReplayer predeploy. Public rendering half only.
+    /// @notice Address of the EventReplayer predeploy. Public projection only.
     address internal constant EVENT_REPLAYER = 0x420000000000000000000000000000000000002F;
-
-    /// @notice Address of the NativeMintBridge predeploy. Private half only.
-    address internal constant NATIVE_MINT_BRIDGE = 0x4200000000000000000000000000000000000030;
 
     /// @notice Implementation variant selector.
     /// @dev Values are array indexes into `PredeployRecord.variants`.

@@ -489,14 +489,6 @@ func WithCustomGasTokenOn(
 	}
 }
 
-// WithPrivateInterop marks ONE chain in the intent as a half of a private interop pair, so its
-// genesis renders that half. Ordinary chains in the same intent are untouched.
-func WithPrivateInterop(chainID eth.ChainID, cfg *state.PrivateInterop) DeployerOption {
-	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
-		findL2(p, builder, chainID).WithPrivateInterop(cfg)
-	}
-}
-
 // findL2 returns the configurator for one chain, failing loudly rather than silently doing nothing
 // when the intent has no such chain -- a per-chain option that matches nothing is the failure mode
 // worth catching.

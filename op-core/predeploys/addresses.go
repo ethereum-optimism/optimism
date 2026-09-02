@@ -36,7 +36,6 @@ const (
 	L2DevFeatureFlags             = "0x420000000000000000000000000000000000002d"
 	ClaimRegistry                 = "0x420000000000000000000000000000000000002E"
 	EventReplayer                 = "0x420000000000000000000000000000000000002F"
-	NativeMintBridge              = "0x4200000000000000000000000000000000000030"
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
 	MultiCall3                    = "0xcA11bde05977b3631167028862bE2a173976CA11"
 	Safe_v130                     = "0x69f4D1788e39c87893C980c06EdF4b7f686e2938"
@@ -83,7 +82,6 @@ var (
 	L2DevFeatureFlagsAddr             = common.HexToAddress(L2DevFeatureFlags)
 	ClaimRegistryAddr                 = common.HexToAddress(ClaimRegistry)
 	EventReplayerAddr                 = common.HexToAddress(EventReplayer)
-	NativeMintBridgeAddr              = common.HexToAddress(NativeMintBridge)
 	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
 	MultiCall3Addr                    = common.HexToAddress(MultiCall3)
 	Safe_v130Addr                     = common.HexToAddress(Safe_v130)
@@ -122,7 +120,6 @@ func init() {
 	// Private interop: activated as appropriate on the private chain or its public projection.
 	Predeploys["ClaimRegistry"] = &Predeploy{Address: ClaimRegistryAddr}
 	Predeploys["EventReplayer"] = &Predeploy{Address: EventReplayerAddr}
-	Predeploys["NativeMintBridge"] = &Predeploy{Address: NativeMintBridgeAddr}
 	Predeploys["GovernanceToken"] = &Predeploy{
 		Address:       GovernanceTokenAddr,
 		ProxyDisabled: true,

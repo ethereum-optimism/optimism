@@ -24,12 +24,6 @@ interface IL2ToL2CrossDomainMessenger {
     /// @notice Thrown when attempting to relay a message whose target is L2ToL2CrossDomainMessenger.
     error MessageTargetL2ToL2CrossDomainMessenger();
 
-    /// @notice Thrown when a private interop message targets the unsupported SuperchainETHBridge path.
-    error MessageTargetSuperchainETHBridge();
-
-    /// @notice Thrown when a private interop message is too large to render safely.
-    error MessageTooLarge();
-
     /// @notice Thrown when attempting to relay a message that has already been relayed.
     error MessageAlreadyRelayed();
 
@@ -145,8 +139,6 @@ interface IL2ToL2CrossDomainMessenger {
         returns (bytes memory returnData_);
 
     function messageVersion() external view returns (uint16);
-
-    function MAX_PRIVATE_INTEROP_MESSAGE_SIZE() external view returns (uint256);
 
     function __constructor__() external;
 }

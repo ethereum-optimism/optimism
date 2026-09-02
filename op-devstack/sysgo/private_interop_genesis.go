@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	projectiongenesis "github.com/ethereum-optimism/optimism/op-private-interop/genesis"
@@ -31,32 +30,13 @@ import (
 // wrong. The ETH lock-mint round trip (testing plan section 5.2) deploys the vault on chain A and
 // replaces this; until it does, any test that calls the mint bridge will fail against an address
 // with no code, which is the correct outcome for a bridge whose far side does not exist.
-var devstackLockVaultPlaceholder = common.HexToAddress("0x00000000000000000000000000000000104c6f636b") // "…Lock"
-
-// privateInteropDeployerOptions is the intent configuration for a private chain and its public
-// projection, plus the custom gas token that makes it a private chain in the first place.
-//
-// The counterparty is left alone. Before WithCustomGasTokenOn existed the only door to the intent's
-// per-chain CustomGasToken fanned out over every L2, so a preset could ask for "all chains CGT" or
-// "no chains CGT" and nothing else; a pair needs precisely the in-between, since the private chain
-// is CGT and its counterparty is not.
-func privateInteropDeployerOptions(
-	privateChainID, counterpartyChainID eth.ChainID,
-	batcher common.Address,
-) []DeployerOption {
-	counterparty, ok := counterpartyChainID.Uint64()
-	if !ok {
-		panic("private interop: the counterparty's chain ID does not fit in a uint64")
-	}
-	// Application-level bridge liquidity remains in NativeAssetLiquidity until ETH is actually
-	// locked on the counterparty; no account receives an unrelated genesis premine.
+// privateInteropDeployerOptions makes chain B a STOCK custom-gas-token chain. Nothing else marks it:
+// interop is active at genesis for the whole world (buildTwoL2RuntimeWorld with a zero delay), and
+// the projection recognises the private chain by that stock shape alone.
+func privateInteropDeployerOptions(privateChainID eth.ChainID, batcher common.Address) []DeployerOption {
 	liquidity := new(big.Int).Mul(big.NewInt(10_000_000), big.NewInt(1e18))
 	return []DeployerOption{
 		WithCustomGasTokenOn(privateChainID, "Private Interop Token", "PIT", liquidity, batcher),
-		WithPrivateInterop(privateChainID, &state.PrivateInterop{
-			CounterpartyChainID: counterparty,
-			LockVault:           devstackLockVaultPlaceholder,
-		}),
 	}
 }
 

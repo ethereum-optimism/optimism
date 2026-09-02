@@ -183,42 +183,41 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 	return s, nil
 }
 
-// FindPrivateInteropChain returns the single chain whose rollup config declares private interop.
-// The current deployment shape accepts one local genesis artifact, so multiple marked chains are
-// rejected instead of guessing which artifact belongs to which chain.
-func FindPrivateInteropChain(vnCfgs map[eth.ChainID]*opnodecfg.Config) (eth.ChainID, bool, error) {
-	var found eth.ChainID
-	haveFound := false
-	for chainID, cfg := range vnCfgs {
-		if cfg == nil || cfg.Rollup.PrivateInterop == nil {
-			continue
-		}
-		if haveFound {
-			return eth.ChainID{}, false, fmt.Errorf("multiple rollup configs declare private_interop: %s and %s", found, chainID)
-		}
-		found = chainID
-		haveFound = true
+// FindPrivateInteropChain returns the private interop chain named by the --private-interop.* flag
+// group, and whether the group is enabled at all. The chain must be one the supernode runs: a
+// chain ID that names nothing would leave the module serving a route no chain owns.
+func FindPrivateInteropChain(cliCfg claimfollow.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (eth.ChainID, bool, error) {
+	if !cliCfg.Enabled() {
+		return eth.ChainID{}, false, nil
 	}
-	return found, haveFound, nil
+	if err := cliCfg.Check(); err != nil {
+		return eth.ChainID{}, false, err
+	}
+	chainID := eth.ChainIDFromUInt64(cliCfg.ChainID)
+	if cfg, ok := vnCfgs[chainID]; !ok || cfg == nil {
+		return eth.ChainID{}, false, fmt.Errorf("%s names chain %s, which this supernode does not run", claimfollow.ChainIDFlag.Name, chainID)
+	}
+	return chainID, true, nil
 }
 
-// initClaimFollow builds the Private Interop follow module when a rollup config declares it.
+// initClaimFollow builds the Private Interop follow module when the --private-interop.* group asks
+// for it.
 //
-// It returns (nil, an empty route map, nil) when no rollup config is marked, which is the dormant
+// It returns (nil, an empty route map, nil) when the group is unset, which is the dormant
 // path: no state, no goroutine, no route, and chain containers built with zero options. The
 // returned map is keyed by chain ID and is indexed unconditionally by the chain loop — a lookup
 // that misses yields a nil slice, and cc.WithExtraRPCRoutes of nothing registers nothing.
 //
 func (s *Supernode) initClaimFollow(cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*claimfollow.Activity, map[eth.ChainID][]cc.ExtraRPCRoute, error) {
 	routes := map[eth.ChainID][]cc.ExtraRPCRoute{}
-	chainID, enabled, err := FindPrivateInteropChain(vnCfgs)
+	cliCfg := claimfollow.ReadCLIConfig(cfg.RawCtx)
+	chainID, enabled, err := FindPrivateInteropChain(cliCfg, vnCfgs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("private interop follow module: %w", err)
 	}
 	if !enabled {
 		return nil, routes, nil
 	}
-	cliCfg := claimfollow.ReadCLIConfig(cfg.RawCtx)
 	modCfg, err := cliCfg.Resolve()
 	if err != nil {
 		return nil, nil, fmt.Errorf("private interop follow module: %w", err)

@@ -8,6 +8,8 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-interop-filter/flags"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -42,6 +44,12 @@ type Config struct {
 	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
 	FetchConcurrency            int           // Number of blocks to fetch concurrently (default: 64)
 
+	// PrivateInteropChainID, when set, names the private interop chain whose logs are stored at
+	// their rendered public-projection positions. PrivateInteropExtraEmitters is that rendering's
+	// additional emitter set, which must equal the private batcher's.
+	PrivateInteropChainID       *eth.ChainID
+	PrivateInteropExtraEmitters []common.Address
+
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
@@ -54,6 +62,23 @@ func (c *Config) Check() error {
 	}
 	if len(c.RollupConfigs) == 0 {
 		result = errors.Join(result, errors.New("at least one rollup config is required (use --networks or --rollup-configs)"))
+	}
+	if c.PrivateInteropChainID != nil {
+		if _, ok := c.RollupConfigs[*c.PrivateInteropChainID]; !ok {
+			result = errors.Join(result, fmt.Errorf("private-interop.chain-id %s has no rollup config", c.PrivateInteropChainID))
+		}
+	} else if len(c.PrivateInteropExtraEmitters) > 0 {
+		result = errors.Join(result, errors.New("private-interop.extra-emitters requires private-interop.chain-id"))
+	}
+	seenEmitters := make(map[common.Address]struct{}, len(c.PrivateInteropExtraEmitters))
+	for _, emitter := range c.PrivateInteropExtraEmitters {
+		if emitter == (common.Address{}) {
+			result = errors.Join(result, errors.New("private-interop.extra-emitters cannot contain the zero address"))
+		}
+		if _, ok := seenEmitters[emitter]; ok {
+			result = errors.Join(result, fmt.Errorf("private-interop.extra-emitters repeats %s", emitter))
+		}
+		seenEmitters[emitter] = struct{}{}
 	}
 	// Admin RPC requires JWT secret for authentication.
 	if c.AdminRPCAddr != "" && c.JWTSecretPath == "" {
@@ -138,9 +163,24 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		return nil, fmt.Errorf("failed to load rollup configs: %w", err)
 	}
 
+	var privateChainID *eth.ChainID
+	if ctx.IsSet(flags.PrivateInteropChainIDFlag.Name) {
+		id := eth.ChainIDFromUInt64(ctx.Uint64(flags.PrivateInteropChainIDFlag.Name))
+		privateChainID = &id
+	}
+	var extraEmitters []common.Address
+	for _, value := range ctx.StringSlice(flags.PrivateInteropExtraEmittersFlag.Name) {
+		if !common.IsHexAddress(value) {
+			return nil, fmt.Errorf("private-interop.extra-emitters value %q is not a hex address", value)
+		}
+		extraEmitters = append(extraEmitters, common.HexToAddress(value))
+	}
+
 	return &Config{
 		L2RPCs:                      ctx.StringSlice(flags.L2RPCsFlag.Name),
 		RollupConfigs:               rollupConfigs,
+		PrivateInteropChainID:       privateChainID,
+		PrivateInteropExtraEmitters: extraEmitters,
 		DataDir:                     ctx.String(flags.DataDirFlag.Name),
 		BackfillDuration:            backfillDuration,
 		MessageExpiryWindow:         uint64(messageExpiryWindow.Seconds()),
