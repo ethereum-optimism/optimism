@@ -74,12 +74,12 @@ op-core/superchain/chain.go:NN: pattern superchain-configs.zip: no matching file
 means the job builds Go that transitively links `op-core/superchain` without the bundle
 it `//go:embed`s. The zip is **gitignored** and built only by the `prep-superchain` job
 (or `just build-superchain-go` locally), so **every** job that compiles an
-`op-core/superchain` linker must provision it. The linker set is large and grows silently
-— op-node and the other binaries, but also `packages/contracts-bedrock/scripts/go-ffi`,
-`op-e2e`, `op-acceptance-tests`, `op-deployer`, and the `kona`/`op-reth` Go tests — so a
-**Go-only** change can red-wash unrelated-looking jobs (contracts-bedrock, fuzz-golang,
-rust-e2e) all at compile time. It passes locally and in review because the developer
-already has the zip on disk (see [go-dev.md](go-dev.md)).
+`op-core/superchain` linker must provision it. The linker set is large — op-node and
+several other binaries, but also `op-e2e`, `op-acceptance-tests`, `op-deployer`, and the
+`kona`/`op-reth` Go tests (`TestBundleReachability` in `op-core/superchain/deps_test.go`
+pins the full set) — so a **Go-only** change can red-wash unrelated-looking jobs
+(fuzz-golang, rust-e2e) all at compile time. It passes locally and in review because the
+developer already has the zip on disk (see [go-dev.md](go-dev.md)).
 
 Provision the bundle in the failing job:
 
@@ -89,8 +89,8 @@ Provision the bundle in the failing job:
 - **Other workflows** (`rust-ci.yml`, `rust-e2e.yml` — no `prep-superchain` job there):
   add an in-job `just build-superchain-go` step (verify mode: regenerates from the
   superchain-registry submodule and asserts the committed `.sha256`).
-- **`just` recipes** that compile such Go (e.g. the contracts `build-go-ffi`): have the
-  recipe run `just build-superchain-go` first.
+- **`just` recipes** that compile such Go: have the recipe run
+  `just build-superchain-go` first.
 
 When adding a new `op-core/superchain` consumer, audit every CI job that compiles it.
 
