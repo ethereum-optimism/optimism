@@ -176,7 +176,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     // Witness collection above ran on the honest claim, so the witness stays valid; tampering only
     // the replayed inputs leaves the guest re-deriving the real root and disagreeing with the
-    // claim. This mirrors the single-chain range executor's --corrupt-claimed-root.
+    // claim.
     let replay_range_inputs = if config.corrupt_claimed_root {
         corrupt_range_claim(&synthesized.range_inputs)?
     } else {

@@ -369,9 +369,6 @@ guest instead runs the tampered claim to completion and agrees with the honest o
 executor exits `2` rather than reporting the claim valid. Do **not** write an SP1 negative test
 by passing a junk `WithL2Claim(...)`.
 
-The single-chain `range-executor` no longer has an action test: it is output-root addressed and
-is being retired along with the rest of the pre-interop programs.
-
 ## Dependencies
 
 This integration depends on:

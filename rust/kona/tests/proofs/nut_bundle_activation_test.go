@@ -152,8 +152,6 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 		"safe head must be exactly the %s activation block", fork)
 
 	// Prove the activation-block span: kona-client verifies the activation transition itself.
-	// Lagoon included — the interop program is handed the same one-chain dependency set the
-	// sequencer used, so it agrees the activation block carries no multi-chain wrapper deposits.
 	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 
 	// The NUT-bundle upgrade gas applies only to the activation block. Build one

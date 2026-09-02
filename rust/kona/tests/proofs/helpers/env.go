@@ -187,10 +187,6 @@ func WithSP1NativeCore() FixtureInputParam {
 
 // RunFaultProofProgramFromGenesis runs the fault proof program for each state transition from
 // genesis up to the provided l2 block num.
-//
-// The first transition proven is the one into genesis+1. The interop program proves the advance
-// between two consecutive super-root timestamps, and there is no super root before the L2 genesis
-// timestamp, so "prove that genesis itself does not move" has no interop equivalent.
 func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, finalL2BlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	genesisBlockNum := env.Sd.RollupCfg.Genesis.L2.Number
 	for l2ClaimBlockNum := genesisBlockNum + 1; l2ClaimBlockNum <= finalL2BlockNum; l2ClaimBlockNum++ {
