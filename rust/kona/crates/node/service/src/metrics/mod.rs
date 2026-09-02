@@ -14,6 +14,21 @@ impl Metrics {
     /// Identifier for the counter of critical derivation errors (strictly for alerting.)
     pub const DERIVATION_CRITICAL_ERROR: &str = "kona_node_derivation_critical_errors";
 
+    /// Identifier for the counter of block signing failures, labelled by `kind`.
+    ///
+    /// Signing failures are non-fatal, so this counter is the only signal that one happened.
+    pub const BLOCK_SIGNING_ERRORS: &str = "kona_node_block_signing_errors";
+
+    /// `kind` label on [`Self::BLOCK_SIGNING_ERRORS`]: the signing deadline elapsed.
+    pub const SIGNING_ERROR_TIMEOUT: &str = "timeout";
+
+    /// `kind` label on [`Self::BLOCK_SIGNING_ERRORS`]: the signer refused or failed the request.
+    pub const SIGNING_ERROR_SIGNER: &str = "signer_error";
+
+    /// `kind` label on [`Self::BLOCK_SIGNING_ERRORS`]: this node is not the chain's unsafe block
+    /// signer. Unlike the other kinds this is fatal, so the series moves at most once per process.
+    pub const SIGNING_ERROR_MISMATCH: &str = "signer_mismatch";
+
     /// Identifier for the counter that tracks sequencer state flags.
     pub const SEQUENCER_STATE: &str = "kona_node_sequencer_state";
 
@@ -63,6 +78,13 @@ impl Metrics {
             "Critical errors in the derivation pipeline"
         );
 
+        // Block signing errors
+        metrics::describe_counter!(
+            Self::BLOCK_SIGNING_ERRORS,
+            metrics::Unit::Count,
+            "Failures to sign an unsafe payload, by kind"
+        );
+
         // Sequencer state
         metrics::describe_counter!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
 
@@ -107,6 +129,22 @@ impl Metrics {
 
         // Derivation critical error
         kona_macros::set!(counter, Self::DERIVATION_CRITICAL_ERROR, 0);
+
+        // Block signing errors, one series per kind
+        kona_macros::set!(
+            counter,
+            Self::BLOCK_SIGNING_ERRORS,
+            "kind",
+            Self::SIGNING_ERROR_TIMEOUT,
+            0
+        );
+        kona_macros::set!(
+            counter,
+            Self::BLOCK_SIGNING_ERRORS,
+            "kind",
+            Self::SIGNING_ERROR_SIGNER,
+            0
+        );
 
         // Sequencer: reset total transactions sequenced
         kona_macros::set!(counter, Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED, 0);
