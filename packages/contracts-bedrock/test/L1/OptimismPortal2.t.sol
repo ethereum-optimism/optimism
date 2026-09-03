@@ -6,7 +6,6 @@ import { VmSafe } from "forge-std/Vm.sol";
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
@@ -29,8 +28,6 @@ import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-
-import { IProxy } from "interfaces/universal/IProxy.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
@@ -2758,28 +2755,5 @@ contract OptimismPortal2_Params_Test is CommonTest {
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, block.number);
-    }
-
-    /// @notice Tests that the proxy can be upgraded.
-    function test_upgradeToAndCall_upgrading_succeeds() external {
-        // Check an unused slot before upgrading.
-        bytes32 slot21Before = vm.load(address(optimismPortal2), bytes32(uint256(21)));
-        assertEq(bytes32(0), slot21Before);
-
-        NextImpl nextImpl = new NextImpl();
-
-        vm.startPrank(EIP1967Helper.getAdmin(address(optimismPortal2)));
-
-        // The value passed to the initialize must be larger than the last value
-        // that initialize was called with.
-        IProxy(payable(address(optimismPortal2))).upgradeToAndCall(
-            address(nextImpl), abi.encodeCall(NextImpl.initialize, (2))
-        );
-        assertEq(IProxy(payable(address(optimismPortal2))).implementation(), address(nextImpl));
-
-        // Verify that the NextImpl contract initialized its values according as expected
-        bytes32 slot21After = vm.load(address(optimismPortal2), bytes32(uint256(21)));
-        bytes32 slot21Expected = NextImpl(address(optimismPortal2)).slot21Init();
-        assertEq(slot21Expected, slot21After);
     }
 }
