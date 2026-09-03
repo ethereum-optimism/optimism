@@ -305,7 +305,6 @@ kona-safedb = { path = "kona/crates/node/safedb", version = "0.1.0", default-fea
 
 # Providers
 kona-providers-alloy = { path = "kona/crates/providers/providers-alloy", version = "0.3.3", default-features = false }
-kona-providers-local = { path = "kona/crates/providers/providers-local", version = "0.1.0", default-features = false }
 
 # Proof
 kona-driver = { path = "kona/crates/proof/driver", version = "0.4.0", default-features = false }

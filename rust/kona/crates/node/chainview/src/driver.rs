@@ -19,7 +19,7 @@ use std::{
 };
 
 use alloy_eips::BlockNumHash;
-use alloy_primitives::Address;
+use alloy_primitives::{Address, B256};
 use dbsp::{DBData, IndexedZSetReader, circuit::CircuitConfig};
 use kona_protocol::BlockInfo;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -27,9 +27,9 @@ use tokio::sync::{mpsc, oneshot, watch};
 use crate::{
     client::{ChainViewClient, ChainViewQuery, Msg},
     facts::{
-        Fact, FactError, L1StatusKind, L2Heads, L2SafeFact, L2StatusKind, address_from_bytes,
-        hash_from_bytes, l1_block_row, l1_status_row, l2_safe_row, l2_status_row,
-        unsafe_block_signer_row,
+        Fact, FactError, ImportedL2Block, L1StatusKind, L2Heads, L2SafeFact, L2StatusKind,
+        address_from_bytes, hash_from_bytes, l1_block_row, l1_status_row, l2_safe_row,
+        l2_status_row, unsafe_block_signer_row,
     },
     handles::{CurrentSignerRow, ErrorRow, FinalizedL2Row, Handles, SafeHeadUpdateRow, ViewOutput},
     snapshot::{ChainViewSnapshot, FinalizedL2, L1Statuses, SafeHeadEntry},
@@ -41,11 +41,14 @@ pub struct ChainViewConfig {
     /// Safe-head history entries kept for `safeHeadAtL1Block`, one per derived-from L1 block;
     /// the oldest are dropped beyond this. The default covers about a day of L1 blocks.
     pub history_limit: usize,
+    /// Engine-imported L2 blocks held for derivation's lookups: the newest this many, and none
+    /// below the engine's finalized head. Anything not held is fetched from the L2 RPC.
+    pub imported_limit: usize,
 }
 
 impl Default for ChainViewConfig {
     fn default() -> Self {
-        Self { history_limit: 8192 }
+        Self { history_limit: 8192, imported_limit: 256 }
     }
 }
 
@@ -69,6 +72,9 @@ pub enum ChainViewError {
     /// The circuit thread is gone.
     #[error("chain view is closed")]
     Closed,
+    /// The fact channel is full; only `try_push` reports this.
+    #[error("chain view is busy: fact channel full")]
+    Full,
     /// The circuit thread panicked.
     #[error("chain view thread panicked: {0}")]
     Panicked(String),
@@ -105,12 +111,13 @@ pub fn spawn(config: ChainViewConfig) -> Result<ChainViewHandle, ChainViewError>
     let (exit_tx, exit_rx) = oneshot::channel();
     let (ready_tx, ready_rx) = std_mpsc::channel::<Result<(), ChainViewError>>();
     let history_limit = config.history_limit.max(1);
+    let imported_limit = config.imported_limit;
 
     let thread = thread::Builder::new()
         .name("kona-chainview".to_string())
         .spawn(move || {
             let outcome = catch_unwind(AssertUnwindSafe(|| {
-                let driver = match Driver::build(history_limit) {
+                let driver = match Driver::build(history_limit, imported_limit) {
                     Ok(driver) => {
                         let _ = ready_tx.send(Ok(()));
                         driver
@@ -212,13 +219,16 @@ pub(crate) struct Driver {
     /// entries, the oldest dropped first.
     history: BTreeMap<u64, SafeHeadEntry>,
     history_limit: usize,
+    /// Engine-imported blocks by hash, for derivation's lookups; see `prune_imported`.
+    imported: HashMap<B256, ImportedL2Block>,
+    imported_limit: usize,
     finalized: Integrated<FinalizedL2Row>,
     signer: Integrated<CurrentSignerRow>,
     snapshot: ChainViewSnapshot,
 }
 
 impl Driver {
-    fn build(history_limit: usize) -> Result<Self, ChainViewError> {
+    fn build(history_limit: usize, imported_limit: usize) -> Result<Self, ChainViewError> {
         let (dbsp, handles) = crate::handles::build(CircuitConfig::with_workers(WORKERS))?;
         Ok(Self {
             dbsp,
@@ -230,6 +240,8 @@ impl Driver {
             asserted: BTreeMap::new(),
             history: BTreeMap::new(),
             history_limit,
+            imported: HashMap::new(),
+            imported_limit,
             finalized: Integrated::default(),
             signer: Integrated::default(),
             snapshot: ChainViewSnapshot::default(),
@@ -299,11 +311,32 @@ impl Driver {
                 let entry = self.history.range(..=number).next_back().map(|(_, e)| *e);
                 let _ = reply.send(entry);
             }
+            ChainViewQuery::ImportedL2Block { hash, reply } => {
+                let _ = reply.send(self.imported.get(&hash).cloned());
+            }
+        }
+    }
+
+    /// Drops held blocks below the engine's finalized head, then the lowest-numbered ones
+    /// until at most `imported_limit` remain.
+    fn prune_imported(&mut self) {
+        let finalized = self.l2_heads.map_or(0, |heads| heads.finalized_head.block_info.number);
+        self.imported.retain(|_, held| held.info.block_info.number >= finalized);
+        while self.imported.len() > self.imported_limit {
+            let Some(lowest) = self.imported.values().map(|held| held.info.block_info.number).min()
+            else {
+                break;
+            };
+            self.imported.retain(|_, held| held.info.block_info.number != lowest);
         }
     }
 
     fn apply_fact(&mut self, fact: Fact) -> Result<(), ChainViewError> {
         match fact {
+            Fact::L2Imported(held) => {
+                self.imported.insert(held.info.block_info.hash, held);
+                self.prune_imported();
+            }
             Fact::L1Origin(block) => {
                 if self.l1_window.get(&block.number) == Some(&block) {
                     return Ok(());
@@ -347,6 +380,7 @@ impl Driver {
                     return Ok(());
                 }
                 let prev = self.l2_heads.replace(heads);
+                self.prune_imported();
                 for kind in L2StatusKind::ALL {
                     let next = heads.get(kind);
                     if let Some(prev) = prev {

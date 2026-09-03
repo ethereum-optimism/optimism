@@ -3,13 +3,16 @@
 //! Every test drives a real circuit on its own thread. `client.sync()` is the barrier that
 //! guarantees the snapshot read afterwards reflects the facts pushed before it.
 
+use std::sync::Arc;
+
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{Address, B256};
 use kona_chainview::{
-    ChainViewClient, ChainViewConfig, ChainViewHandle, Fact, L1StatusKind, L2Heads, L2SafeFact,
-    spawn,
+    ChainViewClient, ChainViewConfig, ChainViewHandle, Fact, ImportedL2Block, L1StatusKind,
+    L2Heads, L2SafeFact, spawn,
 };
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use op_alloy_consensus::OpBlock;
 
 fn l1_hash(number: u64, fork: u8) -> B256 {
     let mut bytes = [0u8; 32];
@@ -62,7 +65,11 @@ struct Harness {
 
 impl Harness {
     fn start() -> Self {
-        let handle = spawn(ChainViewConfig::default()).expect("spawn circuit");
+        Self::start_with(ChainViewConfig::default())
+    }
+
+    fn start_with(config: ChainViewConfig) -> Self {
+        let handle = spawn(config).expect("spawn circuit");
         Self { handle: Some(handle), seq: 0 }
     }
 
@@ -108,6 +115,11 @@ impl Harness {
     async fn finalized_l2(&self) -> Option<u64> {
         self.sync().await;
         self.client().snapshot().finalized_l2.map(|f| f.id.number)
+    }
+
+    /// The held imported block whose summary is `l2(number)`.
+    async fn imported(&self, number: u64) -> Option<ImportedL2Block> {
+        self.client().imported_l2_block(l2(number).block_info.hash).await.expect("query")
     }
 
     async fn safe_head_at(&self, l1_number: u64) -> Option<(u64, u64)> {
@@ -286,4 +298,31 @@ async fn late_rows_are_rejected_and_counted() {
     h.sync().await;
     assert_eq!(h.safe_head_at(4_000).await, None, "retracted inside the window");
     assert_eq!(h.safe_head_at(5_000).await, Some((5_000, 1)));
+}
+
+/// An imported block whose summary is `l2(number)`.
+fn imported(number: u64) -> ImportedL2Block {
+    let mut block = OpBlock::default();
+    block.header.number = number;
+    ImportedL2Block { info: l2(number), block: Arc::new(block) }
+}
+
+#[tokio::test]
+async fn imported_blocks_are_held_until_finalized_or_pushed_out_by_newer_ones() {
+    let h = Harness::start_with(ChainViewConfig { imported_limit: 3, ..Default::default() });
+    for number in 1..=3 {
+        h.push(Fact::L2Imported(imported(number))).await;
+    }
+    assert_eq!(h.imported(1).await, Some(imported(1)), "held with its block");
+
+    // A fourth block is one more than the limit: the lowest goes.
+    h.push(Fact::L2Imported(imported(4))).await;
+    assert_eq!(h.imported(1).await, None);
+    assert!(h.imported(2).await.is_some() && h.imported(4).await.is_some());
+
+    // Finalizing block 3 drops everything below it; 3 itself stays.
+    h.push(Fact::L2Status(Box::new(heads(4, 3)))).await;
+    assert_eq!(h.imported(2).await, None);
+    assert_eq!(h.imported(3).await.map(|b| b.info.block_info.number), Some(3));
+    assert!(h.imported(5).await.is_none(), "never imported");
 }

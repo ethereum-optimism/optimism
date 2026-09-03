@@ -20,7 +20,6 @@ use url::Url;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_providers_alloy::OnlineBeaconClient;
-use kona_providers_local::BufferedL2Provider;
 use kona_rpc::RpcBuilder;
 
 /// Configuration for Derivation Delegate mode.
@@ -169,14 +168,6 @@ impl RollupNodeBuilder {
         let l2_provider = RootProvider::<Optimism>::new(rpc_client);
 
         let rollup_config = Arc::new(self.config);
-        // The buffer's reorg depth governs its handling of chain events, which nothing feeds it:
-        // lookups are keyed by hash, so a reorged-out block is never returned regardless.
-        let l2_block_buffer = BufferedL2Provider::new(
-            rollup_config.clone(),
-            super::node::IMPORTED_BLOCK_BUFFER_SIZE,
-            0,
-        );
-
         let p2p_config = self.p2p_config;
         let sequencer_config = self.sequencer_config.unwrap_or_default();
 
@@ -190,7 +181,6 @@ impl RollupNodeBuilder {
             config: rollup_config,
             l1_config,
             l2_provider,
-            l2_block_buffer,
             l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,

@@ -1,10 +1,14 @@
 //! The tokio-side handle to the circuit thread.
 
-use tokio::sync::{mpsc, oneshot, watch};
+use alloy_primitives::B256;
+use tokio::sync::{
+    mpsc::{self, error::TrySendError},
+    oneshot, watch,
+};
 
 use crate::{
     driver::ChainViewError,
-    facts::Fact,
+    facts::{Fact, ImportedL2Block},
     snapshot::{ChainViewSnapshot, SafeHeadEntry},
 };
 
@@ -34,6 +38,13 @@ pub enum ChainViewQuery {
         /// Where to send the answer.
         reply: oneshot::Sender<Option<SafeHeadEntry>>,
     },
+    /// The engine-imported L2 block with this hash, if the driver still holds it.
+    ImportedL2Block {
+        /// The block hash.
+        hash: B256,
+        /// Where to send the answer.
+        reply: oneshot::Sender<Option<ImportedL2Block>>,
+    },
 }
 
 /// Pushes facts into the chain view and reads its snapshot.
@@ -54,6 +65,27 @@ impl ChainViewClient {
     /// Queues a fact; waits for channel capacity.
     pub async fn push(&self, fact: Fact) -> Result<(), ChainViewError> {
         self.tx.send(Msg::Fact(Box::new(fact))).await.map_err(|_| ChainViewError::Closed)
+    }
+
+    /// Queues a fact without waiting; [`ChainViewError::Full`] when there is no capacity.
+    pub fn try_push(&self, fact: Fact) -> Result<(), ChainViewError> {
+        self.tx.try_send(Msg::Fact(Box::new(fact))).map_err(|err| match err {
+            TrySendError::Full(_) => ChainViewError::Full,
+            TrySendError::Closed(_) => ChainViewError::Closed,
+        })
+    }
+
+    /// The engine-imported L2 block with `hash`, if the view still holds it.
+    pub async fn imported_l2_block(
+        &self,
+        hash: B256,
+    ) -> Result<Option<ImportedL2Block>, ChainViewError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(Msg::Query(ChainViewQuery::ImportedL2Block { hash, reply }))
+            .await
+            .map_err(|_| ChainViewError::Closed)?;
+        rx.await.map_err(|_| ChainViewError::Closed)
     }
 
     /// The latest published snapshot.

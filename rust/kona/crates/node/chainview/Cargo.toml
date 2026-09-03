@@ -23,6 +23,9 @@ kona-protocol = { workspace = true, features = ["std"] }
 alloy-primitives = { workspace = true, features = ["std"] }
 alloy-eips = { workspace = true, features = ["std"] }
 
+# Op Alloy
+op-alloy-consensus.workspace = true
+
 # Feldera runtime. Exact pins: the sql-to-dbsp JAR pinned in build.rs emits
 # code for exactly this crate version. Bump all of them together.
 dbsp.workspace = true

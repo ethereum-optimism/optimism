@@ -1,32 +1,42 @@
-//! An [`L2ChainProvider`] that prefers locally held blocks over JSON-RPC.
+//! An [`L2ChainProvider`] that prefers blocks the node has already imported over JSON-RPC.
 
 use crate::{AlloyL2ChainProvider, AlloyL2ChainProviderError};
 use alloy_primitives::B256;
 use async_trait::async_trait;
+use core::fmt::Debug;
 use kona_derive::L2ChainProvider;
 use kona_genesis::{RollupConfig, SystemConfig};
-use kona_protocol::{BatchValidationProvider, L2BlockInfo};
-use kona_providers_local::BufferedL2Provider;
+use kona_protocol::{BatchValidationProvider, L2BlockInfo, to_system_config};
 use op_alloy_consensus::OpBlock;
 use std::sync::Arc;
 
-/// Answers derivation's L2 lookups from blocks the node has already imported, falling back to
-/// JSON-RPC for anything the local buffer does not hold.
+/// Blocks the node has imported, looked up by hash.
 ///
-/// Only the hash-keyed lookup is served locally. A height does not identify a block across a
+/// A source may drop any block at any time; derivation only loses a fetch.
+#[async_trait]
+pub trait ImportedL2Blocks: Debug + Send + Sync {
+    /// The imported block with `hash` and its derivation summary, if the source still holds it.
+    async fn imported_l2_block(&self, hash: B256) -> Option<(L2BlockInfo, Arc<OpBlock>)>;
+}
+
+/// Answers derivation's L2 lookups from blocks the node has already imported, falling back to
+/// JSON-RPC for anything the source does not hold.
+///
+/// Only the hash-keyed lookups are served locally. A height does not identify a block across a
 /// reorg, so the by-number lookups stay on the authoritative RPC.
 #[derive(Debug, Clone)]
 pub struct BufferedAlloyL2ChainProvider {
     /// Blocks the node has imported.
-    buffered: BufferedL2Provider,
+    imported: Arc<dyn ImportedL2Blocks>,
     /// The authoritative fallback.
     rpc: AlloyL2ChainProvider,
 }
 
 impl BufferedAlloyL2ChainProvider {
-    /// Creates a new [`BufferedAlloyL2ChainProvider`] over the given local buffer and RPC provider.
-    pub const fn new(buffered: BufferedL2Provider, rpc: AlloyL2ChainProvider) -> Self {
-        Self { buffered, rpc }
+    /// Creates a new [`BufferedAlloyL2ChainProvider`] over the given block source and RPC
+    /// provider.
+    pub fn new(imported: Arc<dyn ImportedL2Blocks>, rpc: AlloyL2ChainProvider) -> Self {
+        Self { imported, rpc }
     }
 }
 
@@ -39,9 +49,9 @@ impl BatchValidationProvider for BufferedAlloyL2ChainProvider {
     }
 
     async fn l2_block_info_by_hash(&mut self, hash: B256) -> Result<L2BlockInfo, Self::Error> {
-        match self.buffered.l2_block_info_by_hash(hash).await {
-            Ok(block_info) => Ok(block_info),
-            Err(_) => self.rpc.l2_block_info_by_hash(hash).await,
+        match self.imported.imported_l2_block(hash).await {
+            Some((info, _)) => Ok(info),
+            None => self.rpc.l2_block_info_by_hash(hash).await,
         }
     }
 
@@ -59,11 +69,18 @@ impl L2ChainProvider for BufferedAlloyL2ChainProvider {
         hash: B256,
         rollup_config: Arc<RollupConfig>,
     ) -> Result<SystemConfig, <Self as L2ChainProvider>::Error> {
-        // The buffer is only ever a cache, so any failure defers to the authoritative source.
-        match self.buffered.system_config_by_l2_hash(hash, rollup_config.clone()).await {
-            Ok(system_config) => Ok(system_config),
-            Err(_) => self.rpc.system_config_by_l2_hash(hash, rollup_config).await,
+        if hash == rollup_config.genesis.l2.hash &&
+            let Some(system_config) = rollup_config.genesis.system_config
+        {
+            return Ok(system_config);
         }
+        // The source is only ever a cache, so any failure defers to the authoritative RPC.
+        if let Some((_, block)) = self.imported.imported_l2_block(hash).await &&
+            let Ok(system_config) = to_system_config(&block, &rollup_config)
+        {
+            return Ok(system_config);
+        }
+        self.rpc.system_config_by_l2_hash(hash, rollup_config).await
     }
 }
 
@@ -75,8 +92,20 @@ mod tests {
     use httpmock::prelude::*;
     use kona_genesis::ChainGenesis;
     use op_alloy_network::Optimism;
+    use std::collections::HashMap;
 
     const GENESIS_HASH: B256 = B256::repeat_byte(0xaa);
+
+    /// A source holding exactly the blocks it was built with.
+    #[derive(Debug, Default)]
+    struct Held(HashMap<B256, (L2BlockInfo, Arc<OpBlock>)>);
+
+    #[async_trait]
+    impl ImportedL2Blocks for Held {
+        async fn imported_l2_block(&self, hash: B256) -> Option<(L2BlockInfo, Arc<OpBlock>)> {
+            self.0.get(&hash).cloned()
+        }
+    }
 
     /// A config whose genesis block is `GENESIS_HASH`.
     fn rollup_config() -> Arc<RollupConfig> {
@@ -98,12 +127,9 @@ mod tests {
         )
     }
 
-    /// A provider over an empty buffer, so every lookup falls through to `server`.
+    /// A provider over an empty source, so every lookup falls through to `server`.
     fn provider(server: &MockServer, config: Arc<RollupConfig>) -> BufferedAlloyL2ChainProvider {
-        BufferedAlloyL2ChainProvider::new(
-            BufferedL2Provider::new(config.clone(), 8, 8),
-            rpc(server, config),
-        )
+        BufferedAlloyL2ChainProvider::new(Arc::new(Held::default()), rpc(server, config))
     }
 
     /// Answers the RPC block lookup with `null`, i.e. "no such block".
@@ -132,8 +158,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn buffered_blocks_are_converted_without_touching_the_rpc() {
-        // The point of the buffer: a block the node imported is turned into a SystemConfig
+    async fn imported_blocks_are_converted_without_touching_the_rpc() {
+        // The point of the source: a block the node imported is turned into a SystemConfig
         // locally. Genesis sits at an unrelated hash so nothing short-circuits, and the block
         // carries a real L1-info deposit so the conversion has to actually decode it.
         let header =
@@ -167,14 +193,12 @@ mod tests {
 
         let server = MockServer::start();
         let rpc_lookup = mount_block_lookup(&server);
-        let buffered = BufferedL2Provider::new(config.clone(), 8, 8);
-        buffered.add_block(block, l2_block_info).expect("buffering an imported block");
+        let held = Held(HashMap::from([(block_hash, (l2_block_info, Arc::new(block)))]));
+        let mut provider =
+            BufferedAlloyL2ChainProvider::new(Arc::new(held), rpc(&server, config.clone()));
 
-        let system_config =
-            BufferedAlloyL2ChainProvider::new(buffered, rpc(&server, config.clone()))
-                .system_config_by_l2_hash(block_hash, config)
-                .await
-                .unwrap();
+        let system_config = provider.system_config_by_l2_hash(block_hash, config).await.unwrap();
+        assert_eq!(provider.l2_block_info_by_hash(block_hash).await.unwrap(), l2_block_info);
 
         rpc_lookup.assert_calls(0);
         // Decoded from the deposit's calldata, not echoed from genesis.
@@ -182,7 +206,7 @@ mod tests {
             system_config.batcher_address,
             alloy_primitives::address!("6887246668a3b87f54deb3b94ba47a6f63f32985")
         );
-        assert_eq!(system_config.gas_limit, 30_000_000, "read from the buffered block's header");
+        assert_eq!(system_config.gas_limit, 30_000_000, "read from the imported block's header");
     }
 
     #[tokio::test]

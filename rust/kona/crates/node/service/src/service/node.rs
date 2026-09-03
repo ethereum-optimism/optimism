@@ -9,7 +9,7 @@ use crate::{
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
     RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
-    service::BufferImportedBlocks,
+    service::ChainViewL2Blocks,
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
@@ -25,7 +25,6 @@ use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
     OnlineBlobProvider, OnlinePipeline,
 };
-use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
     L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
@@ -41,12 +40,6 @@ use crate::{ChainViewActor, L1Watches, ProviderL1Fetcher};
 use kona_chainview::ChainViewClient;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
-/// How many recently imported blocks to keep for the local L2 lookups.
-///
-/// Every lookup served from here is for the block being built on top of, which the engine recorded
-/// one step earlier. The size absorbs what lands in between — gossiped unsafe blocks keep
-/// arriving, and on a sequencer the two builders ask about different heads.
-pub(super) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
@@ -85,9 +78,6 @@ pub struct RollupNode {
     pub(crate) sequencer_config: SequencerConfig,
     /// Optional derivation delegate provider.
     pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
-    /// Blocks the engine has imported, shared with the derivation providers so they can be read
-    /// locally instead of fetched back from the execution layer.
-    pub(crate) l2_block_buffer: BufferedL2Provider,
     /// The interop dependency set for this chain.
     /// Mirrors op-node's `--interop.dependency-set`.
     /// [`StatefulAttributesBuilder`] constructor panics otherwise.
@@ -174,6 +164,7 @@ impl RollupNode {
     /// Returns the sequencer builder for the node.
     fn create_attributes_builder(
         &self,
+        chainview: ChainViewClient,
     ) -> StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider> {
         let l1_derivation_provider = AlloyChainProvider::new_with_trust(
             self.l1_config.engine_provider.clone(),
@@ -181,7 +172,7 @@ impl RollupNode {
             self.l1_config.trust_rpc,
         );
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
+            Arc::new(ChainViewL2Blocks::new(chainview)),
             AlloyL2ChainProvider::new_with_trust(
                 self.l2_provider.clone(),
                 self.config.clone(),
@@ -199,7 +190,7 @@ impl RollupNode {
         )
     }
 
-    async fn create_pipeline(&self) -> OnlinePipeline {
+    async fn create_pipeline(&self, chainview: ChainViewClient) -> OnlinePipeline {
         // Create the caching L1/L2 EL providers for derivation.
         let l1_derivation_provider = AlloyChainProvider::new_with_trust(
             self.l1_config.engine_provider.clone(),
@@ -207,7 +198,7 @@ impl RollupNode {
             self.l1_config.trust_rpc,
         );
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
+            Arc::new(ChainViewL2Blocks::new(chainview)),
             AlloyL2ChainProvider::new_with_trust(
                 self.l2_provider.clone(),
                 self.config.clone(),
@@ -237,6 +228,7 @@ impl RollupNode {
         engine_rpc_request_rx: mpsc::Receiver<EngineRpcRequest>,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
+        chainview: ChainViewClient,
     ) -> (ConfiguredEngineActor, ConfiguredEngineRpcActor, watch::Receiver<EngineState>) {
         // Engine-internal watches; the state receiver is also handed to the chain view.
         let engine_state = EngineState::default();
@@ -257,7 +249,7 @@ impl RollupNode {
             engine,
             unsafe_head_tx_opt,
             engine_request_rx,
-            Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
+            Arc::new(ChainViewL2Blocks::new(chainview)),
         );
 
         let rpc_actor = EngineRpcActor::new(
@@ -295,7 +287,7 @@ impl RollupNode {
             ConfiguredDerivationActor::Normal(Box::new(DerivationActor::<_, OnlinePipeline>::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
-                self.create_pipeline().await,
+                self.create_pipeline(chainview.clone()).await,
                 chainview,
             )))
         }
@@ -349,6 +341,7 @@ impl RollupNode {
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
         sequencer_admin_api_rx: mpsc::Receiver<crate::SequencerAdminQuery>,
+        chainview: ChainViewClient,
     ) -> Option<ConfiguredSequencerActor> {
         if !self.mode().is_sequencer() {
             return None;
@@ -372,7 +365,7 @@ impl RollupNode {
 
         Some(SequencerActor::new(
             sequencer_admin_api_rx,
-            self.create_attributes_builder(),
+            self.create_attributes_builder(chainview),
             conductor,
             sequencer_engine_client,
             self.sequencer_config.sequencer_stopped.not(),
@@ -513,6 +506,7 @@ impl RollupNode {
             engine_rpc_request_rx,
             derivation_actor_request_tx.clone(),
             unsafe_head_tx,
+            chainview_client.clone(),
         );
 
         let derivation = self
@@ -561,6 +555,7 @@ impl RollupNode {
             unsafe_head_rx,
             l1_watches.head,
             sequencer_admin_api_rx,
+            chainview_client.clone(),
         );
         let sequencer_admin_client = sequencer_actor
             .is_some()

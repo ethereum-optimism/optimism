@@ -26,7 +26,7 @@ mod l2_chain_provider;
 pub use l2_chain_provider::{AlloyL2ChainProvider, AlloyL2ChainProviderError};
 
 mod buffered_l2_chain_provider;
-pub use buffered_l2_chain_provider::BufferedAlloyL2ChainProvider;
+pub use buffered_l2_chain_provider::{BufferedAlloyL2ChainProvider, ImportedL2Blocks};
 
 mod pipeline;
 pub use pipeline::OnlinePipeline;

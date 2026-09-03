@@ -7678,6 +7678,7 @@ dependencies = [
  "feldera-sqllib",
  "feldera-types",
  "kona-protocol",
+ "op-alloy-consensus",
  "paste",
  "rkyv 0.7.46",
  "seq-macro",
@@ -8110,7 +8111,6 @@ dependencies = [
  "kona-peers",
  "kona-protocol",
  "kona-providers-alloy",
- "kona-providers-local",
  "kona-registry",
  "kona-rpc",
  "kona-sources",
@@ -8172,7 +8172,6 @@ dependencies = [
  "kona-peers",
  "kona-protocol",
  "kona-providers-alloy",
- "kona-providers-local",
  "kona-rpc",
  "kona-sources",
  "libp2p",
@@ -8378,7 +8377,6 @@ dependencies = [
  "kona-interop",
  "kona-macros",
  "kona-protocol",
- "kona-providers-local",
  "lru 0.18.2",
  "metrics 0.24.6",
  "op-alloy-consensus",
@@ -8391,26 +8389,6 @@ dependencies = [
  "tokio-tungstenite",
  "tower 0.5.3",
  "tracing",
-]
-
-[[package]]
-name = "kona-providers-local"
-version = "0.1.0"
-dependencies = [
- "alloy-consensus 2.1.1",
- "alloy-eips 2.1.1",
- "alloy-primitives",
- "async-trait",
- "kona-derive",
- "kona-genesis",
- "kona-macros",
- "kona-protocol",
- "lru 0.18.2",
- "metrics 0.24.6",
- "op-alloy-consensus",
- "rstest",
- "thiserror 2.0.18",
- "tokio",
 ]
 
 [[package]]

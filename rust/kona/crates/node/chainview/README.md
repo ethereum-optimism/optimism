@@ -24,7 +24,7 @@ deltas into a snapshot and a safe-head history. A reorg is a retraction, not a r
 
 | Table | Pushed by | Notes |
 |---|---|---|
-| `l1_blocks` | derivation actor | every L1 origin its pipeline advances through, one block per height; a re-walked height with another hash (a reorg) replaces the old block and its update rows; rows below finalized L1 are dropped |
+| `l1_blocks` | derivation actor | every L1 origin its pipeline advances through, one block per height; a re-walked height with another hash (a reorg) replaces the old block; rows below finalized L1 are dropped |
 | `l1_status` | `ChainViewActor` (`head`, `safe`, `finalized` from the watcher's tags), derivation actor (`current`, the pipeline origin) | one row per kind |
 | `l2_status` | `ChainViewActor` from `EngineState` | one row per engine label |
 | `l2_safe_blocks` | derivation actor | one row per engine-confirmed derived block, with `derived_from`; `LATENESS 4096` on `derived_from_number` (`kona_chainview::LATENESS`; the node refuses to start the chain view for a chain whose `seq_window_size + channel_timeout` reaches it) |
@@ -47,19 +47,22 @@ pushed so callers only send new values.
 
 - `spawn(ChainViewConfig)` builds the circuit on a `kona-chainview` thread and returns a
   `ChainViewHandle`: a cloneable `ChainViewClient` (push facts, read the snapshot, query
-  `safe_head_at_l1`) and the thread's exit signal.
-- `ChainViewActor` (in `kona-node-service`) feeds engine heads, forwards the signer to the
-  network actor, and turns the thread's exit into an actor error.
-- The L1 watcher's `ChainViewL1Sync` walks every L1 block between polls, detects reorgs by
-  parent hash, walks back to the common ancestor, re-anchors when a reorg reaches below the
-  window, and fails closed on a reorg at or below finalized L1.
-- The derivation actor pairs each confirmed safe head with the pending attributes'
-  derived-from block, retracts derived blocks above the safe head on `Signal::Reset`, and
-  sends `FinalizeBlockId::ByHash` when `finalized_l2` names a new block at or below the
-  confirmed safe head.
+  `safe_head_at_l1` and `imported_l2_block`) and the thread's exit signal.
+- The derivation actor pushes every L1 origin its pipeline advances through, pairs each
+  confirmed safe head with the pending attributes' derived-from block, retracts derived
+  blocks above the safe head on `Signal::Reset`, and sends `FinalizeBlockId::ByHash` when
+  `finalized_l2` names a new block at or below the confirmed safe head.
+- `ChainViewActor` (in `kona-node-service`) mirrors the L1 tags the watcher publishes and
+  the engine's heads, reads the signer at every new L1 head, forwards it to the network
+  actor, and turns the thread's exit into an actor error.
+- The engine's imported L2 blocks are pushed as `Fact::L2Imported` (through `try_push`, so
+  import never waits) and held by the driver outside the circuit, the newest
+  `imported_limit` of them at or above the engine's finalized head, for derivation's
+  hash-keyed block and `SystemConfig` lookups; anything not held comes from the L2 RPC.
 
-Nothing is persisted: on restart the window is backfilled from L1 and the history starts
-empty, matching kona's principle that local state is recoverable.
+Nothing is persisted: on restart the pipeline re-pushes the L1 blocks it walks from its
+reset origin, and the history and the held blocks start empty, matching kona's principle
+that local state is recoverable.
 
 ## Building
 
@@ -87,5 +90,5 @@ a relation fails to compile there.
 
 The chain view is part of every kona-node: finality, `optimism_syncStatus` and
 `optimism_safeHeadAtL1Block` have no other implementation, and it has no flags. Its L1
-blocks are the derivation pipeline's own traversal, so it costs one `eth_getLogs` per L1
-block the pipeline advances through and one storage read per new L1 head.
+blocks are the derivation pipeline's own traversal, so its only extra L1 traffic is one
+storage read per new L1 head.

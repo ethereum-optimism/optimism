@@ -5,10 +5,13 @@
 //! them through a [`ChainViewClient`](crate::ChainViewClient). Every conversion is total
 //! except `u64 -> BIGINT`, which fails above `i64::MAX`.
 
+use std::sync::Arc;
+
 use alloy_primitives::{Address, B256};
 use dbsp::utils::{Tup3, Tup4, Tup5, Tup8, Tup10};
 use feldera_sqllib::{ByteArray, SqlString};
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use op_alloy_consensus::OpBlock;
 
 use crate::handles::{L1BlockRow, L1StatusRow, L2SafeRow, L2StatusRow, UnsafeBlockSignerRow};
 
@@ -143,6 +146,15 @@ pub struct L2SafeFact {
     pub derived_from: BlockInfo,
 }
 
+/// An L2 block the engine imported, with its derivation summary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedL2Block {
+    /// The block's number, hash, L1 origin and sequence number.
+    pub info: L2BlockInfo,
+    /// The full block.
+    pub block: Arc<OpBlock>,
+}
+
 /// A fact pushed into the circuit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Fact {
@@ -178,6 +190,10 @@ pub enum Fact {
         /// Its hash.
         l2_hash: B256,
     },
+    /// The engine imported an L2 block. No table holds it: the driver keeps the block for
+    /// derivation's hash-keyed lookups, dropping it once it is below the engine's finalized
+    /// head or the newest `imported_limit` blocks no longer include it.
+    L2Imported(ImportedL2Block),
 }
 
 /// The `l1_blocks` row for a canonical block.

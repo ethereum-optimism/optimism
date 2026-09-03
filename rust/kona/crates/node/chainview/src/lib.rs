@@ -12,7 +12,9 @@ pub mod snapshot;
 
 pub use client::{ChainViewClient, ChainViewQuery};
 pub use driver::{ChainViewConfig, ChainViewError, ChainViewHandle, spawn};
-pub use facts::{Fact, FactError, L1StatusKind, L2Heads, L2SafeFact, L2StatusKind};
+pub use facts::{
+    Fact, FactError, ImportedL2Block, L1StatusKind, L2Heads, L2SafeFact, L2StatusKind,
+};
 pub use generated::PROGRAM_SCHEMA_JSON;
 pub use handles::{Handles, build};
 pub use snapshot::{ChainViewSnapshot, FinalizedL2, L1Statuses, SafeHeadEntry};

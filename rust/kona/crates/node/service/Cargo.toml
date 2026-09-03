@@ -16,7 +16,6 @@ workspace = true
 kona-gossip.workspace = true
 kona-disc.workspace = true
 kona-engine.workspace = true
-kona-providers-local.workspace = true
 op-alloy-consensus.workspace = true
 kona-sources.workspace = true
 kona-genesis.workspace = true
@@ -90,7 +89,6 @@ metrics = [
 	"kona-derive/metrics",
 	"kona-disc/metrics",
 	"kona-engine/metrics",
-	"kona-providers-local/metrics",
 	"kona-gossip/metrics",
 	"kona-providers-alloy/metrics",
 	"kona-rpc/metrics",

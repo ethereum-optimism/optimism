@@ -590,7 +590,7 @@ release TARGET VERSION MODE="dry" *ARGS="":
     # When adding a new crate under rust/kona/, append it to whichever batch
     # leaves both <= 30 (preserving topo order: deps before dependents).
     KONA_BATCH_1="kona-genesis kona-macros kona-mpt kona-preimage kona-serde kona-sources kona-registry kona-std-fpvm kona-cli kona-peers kona-protocol kona-std-fpvm-proc kona-disc kona-engine kona-executor kona-hardforks"
-    KONA_BATCH_2="kona-interop example-discovery kona-gossip execution-fixture kona-derive kona-rpc kona-driver kona-providers-alloy kona-providers-local kona-proof kona-node-service kona-proof-interop example-gossip kona-node kona-client kona-host"
+    KONA_BATCH_2="kona-interop example-discovery kona-gossip execution-fixture kona-derive kona-rpc kona-driver kona-providers-alloy kona-proof kona-node-service kona-proof-interop example-gossip kona-node kona-client kona-host"
 
     ACTUAL_KONA=$(echo "$METADATA" | jq -r '.packages[] | select((.manifest_path | contains("/rust/kona/")) and (.manifest_path | contains("/rust/kona/sp1/") | not)) | .name' | sort -u)
     EXPECTED_KONA=$(echo "$KONA_BATCH_1 $KONA_BATCH_2" | tr ' ' '\n' | sort -u)
