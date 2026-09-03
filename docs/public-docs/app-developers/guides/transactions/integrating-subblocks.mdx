@@ -79,7 +79,7 @@ The difference is using the "pending" tag in some of them to explicitly query th
     </Expandable>
 
     Other methods, like `eth_getTransactionReceipt`, `eth_getTransactionByHash` or `eth_simulateV1`, return data from pre-confirmed transactions without requiring the `pending` tag.
-    Consult the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html#flashblock-json-rpc-apis) for more details on each of these methods.
+    Consult the [Subblocks specification](https://specs.optimism.io/protocol/subblocks.html#json-rpc) for the supported methods and pending-state behavior.
 
 ## Libraries
 
@@ -149,5 +149,5 @@ console.log('Transaction receipt:', receipt);
 
 *   Understand how subblocks affect [gas usage and large transactions](/app-developers/guides/transactions/subblocks-and-gas-usage).
 *   Learn how subblocks work in the [Subblocks explainer](/op-stack/features/subblocks).
-*   Review the [technical specs](https://specs.optimism.io/protocol/flashblocks.html) for architecture details.
+*   Review the [Subblocks specification](https://specs.optimism.io/protocol/subblocks.html) for wire-format and JSON-RPC details.
 *   Join our [community](https://discord.gg/jPQhHTdemH) to share best practices and get support!
