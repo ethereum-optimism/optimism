@@ -413,7 +413,11 @@ impl ScenarioWorld {
         let registry = deterministic_address(0x70, 1);
         let weth = deterministic_address(0x60, 1);
         let initial = L1State {
-            block: L1BlockRef { number: INITIAL_BLOCK, timestamp: INITIAL_L1_TIME },
+            block: L1BlockRef {
+                hash: B256::left_padding_from(&INITIAL_BLOCK.to_be_bytes()),
+                number: INITIAL_BLOCK,
+                timestamp: INITIAL_L1_TIME,
+            },
             registered_args: ZKGameArgs {
                 absolute_prestate: prestate,
                 verifier: deterministic_address(0x71, 1),
@@ -709,17 +713,31 @@ impl WorldData {
     }
 
     fn state_at(&self, block: BlockId) -> Result<Arc<L1State>> {
-        let number = if block.is_latest() {
-            self.latest_block
-        } else {
-            block.as_u64().context("scenario only supports latest or numbered L1 reads")?
-        };
-        self.states.get(&number).cloned().with_context(|| format!("L1 block {number} unavailable"))
+        if block.is_latest() {
+            return Ok(self.latest_state());
+        }
+        if let Some(number) = block.as_u64() {
+            return self
+                .states
+                .get(&number)
+                .cloned()
+                .with_context(|| format!("L1 block {number} unavailable"));
+        }
+        if let BlockId::Hash(hash) = block {
+            return self
+                .states
+                .values()
+                .find(|state| state.block.hash == hash.block_hash)
+                .cloned()
+                .with_context(|| format!("L1 block {} unavailable", hash.block_hash));
+        }
+        bail!("scenario only supports latest, numbered, or hashed L1 reads")
     }
 
     fn append_block(&mut self, update: impl FnOnce(&mut L1State)) -> L1BlockRef {
         let mut next = self.latest_state().as_ref().clone();
         next.block.number += 1;
+        next.block.hash = B256::left_padding_from(&next.block.number.to_be_bytes());
         update(&mut next);
         self.latest_block = next.block.number;
         let block = next.block;
@@ -1211,6 +1229,7 @@ struct FakeProofEngine(ScenarioWorld);
 impl ProofEngine for FakeProofEngine {
     async fn prove(
         &self,
+        _game_address: Address,
         _keys: Option<Arc<ProofKeys>>,
         game: GameProofInputs,
         _responses: Vec<SuperRootAtTimestampResponse>,
@@ -1256,6 +1275,8 @@ impl ProofEngine for FakeProofEngine {
             ProofOutcome::Panic => panic!("scripted proof panic for {target:?} attempt {attempt}"),
         }
     }
+
+    fn clear(&self, _game_address: Address) {}
 }
 
 #[derive(Clone)]
@@ -1647,7 +1668,7 @@ pub(super) fn scenario_config() -> ProposerConfig {
             range_gas_limit: 1,
             agg_cycle_limit: 1,
             agg_gas_limit: 1,
-            max_price_per_pgu: 1,
+            max_price_per_pgu: Some(NonZeroU64::MIN),
             min_auction_period: 1,
         },
     }
