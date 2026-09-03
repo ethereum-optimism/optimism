@@ -58,4 +58,5 @@ sha2 = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+anyhow = { workspace = true, features = ["std"] }
 

@@ -260,6 +260,24 @@ async fn signer_follows_the_read_at_each_head() {
     assert_eq!(h.client().snapshot().signer, Some(s0));
 }
 
+/// The signer is read from the contract's storage at each polled head, so a rotation in a
+/// block the poller never returned is in force at the next head it does return. (The baseline
+/// scans the logs of the polled block only; see the `develop` characterization test
+/// `a_rotation_in_a_skipped_block_is_never_seen`.)
+#[tokio::test]
+async fn a_rotation_in_a_skipped_block_is_not_lost() {
+    let h = Harness::start();
+    let (before, after) = (Address::repeat_byte(0x01), Address::repeat_byte(0x02));
+    h.signer_at(l1(100), before).await;
+    h.sync().await;
+    assert_eq!(h.client().snapshot().signer, Some(before));
+
+    // Block 101 rotated the signer and was never polled; the read at 102 returns the fold.
+    h.signer_at(l1(102), after).await;
+    h.sync().await;
+    assert_eq!(h.client().snapshot().signer, Some(after));
+}
+
 #[tokio::test]
 async fn finalized_l1_prunes_blocks_below_it() {
     let h = Harness::start();
