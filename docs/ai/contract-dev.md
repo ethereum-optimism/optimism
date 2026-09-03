@@ -143,8 +143,9 @@ Every new implementation contract must follow this pattern:
 1. Extend OpenZeppelin's `Initializable`.
 2. Include `initialize()` with the `initializer` modifier.
 3. In the constructor: call `_disableInitializers()` and set immutables only.
-4. Extend `ReinitializableBase(N)` with the current init version.
-5. Never use `reinitializer(uint64 version)` — this codebase does not use it.
+4. Never use `reinitializer(uint64 version)` — this codebase does not use it. Upgrades
+   re-initialize by zeroing the initialized slot first (see below), so plain
+   `initializer` is sufficient.
 
 ### Upgrade Process (Atomic 3-Step)
 
@@ -207,7 +208,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @custom:proxied true
 /// @title ContractName
 /// @notice Description
-contract ContractName is Initializable, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
+contract ContractName is Initializable, ProxyAdminOwnedBase, ISemver {
     // Constants and immutables
     // Custom errors
     // Events

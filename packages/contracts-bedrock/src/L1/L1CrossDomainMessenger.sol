@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 
 // Libraries
@@ -20,7 +19,7 @@ import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPort
 /// @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
-contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
+contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, ISemver {
     /// @custom:legacy
     /// @custom:spacer superchainConfig
     /// @notice Spacer taking up the legacy `superchainConfig` slot.
@@ -36,21 +35,21 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.11.1
-    string public constant version = "2.11.1";
+    /// @custom:semver 2.12.0
+    string public constant version = "2.12.0";
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    constructor() ReinitializableBase(3) {
+    constructor() {
         _disableInitializers();
     }
 
     /// @notice Initializes the contract.
     /// @param _systemConfig Contract of the SystemConfig contract on this network.
     /// @param _portal Contract of the OptimismPortal contract on this network.
-    function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external reinitializer(initVersion()) {
+    function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external initializer {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 

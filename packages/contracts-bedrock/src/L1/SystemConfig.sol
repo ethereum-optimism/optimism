@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Libraries
@@ -21,7 +20,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derivation of
 ///         the L2 chain.
-contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, ReinitializableBase, ISemver {
+contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value FEE_SCALARS          Represents an update to l1 data fee scalars.
@@ -175,15 +174,15 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 4.0.0
+    /// @custom:semver 4.1.0
     function version() public pure virtual returns (string memory) {
-        return "4.0.0";
+        return "4.1.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
     /// @dev    START_BLOCK_SLOT is set to type(uint256).max here so that it will be a dead value
     ///         in the singleton.
-    constructor() ReinitializableBase(3) {
+    constructor() {
         Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
         _disableInitializers();
     }
@@ -213,7 +212,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         ISuperchainConfig _superchainConfig
     )
         public
-        reinitializer(initVersion())
+        initializer
     {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();

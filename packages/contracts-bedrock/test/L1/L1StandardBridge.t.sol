@@ -214,7 +214,7 @@ contract L1StandardBridge_Initialize_Test is CommonTest {
         uint8 val = uint8(uint256(slotVal) & 0xFF);
 
         // Assert that the initializer value matches the expected value.
-        assertEq(val, l1StandardBridge.initVersion());
+        assertEq(val, 1);
     }
 }
 

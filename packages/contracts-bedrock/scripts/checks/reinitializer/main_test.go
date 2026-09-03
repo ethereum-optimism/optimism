@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
@@ -157,23 +156,7 @@ func TestGetReinitializerValue(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Valid reinitializer with initVersion call",
-			node: &solc.AstNode{
-				Modifiers: []solc.AstNode{
-					{
-						ModifierName: &solc.Expression{Name: "reinitializer"},
-						Arguments: []solc.Expression{{
-							Kind:       "functionCall",
-							Expression: &solc.Expression{Name: "initVersion"},
-						}},
-					},
-				},
-			},
-			want:    math.MaxUint64,
-			wantErr: false,
-		},
-		{
-			name: "Invalid function call - not initVersion",
+			name: "Invalid function call argument",
 			node: &solc.AstNode{
 				Modifiers: []solc.AstNode{
 					{
@@ -518,7 +501,7 @@ func TestCheckArtifact(t *testing.T) {
 			wantErr: false, // Should return nil without error
 		},
 		{
-			name: "Matching reinitializer values with initVersion",
+			name: "Invalid reinitializer value - function call argument",
 			artifact: &solc.ForgeArtifact{
 				Ast: solc.Ast{
 					Nodes: []solc.AstNode{
@@ -533,48 +516,7 @@ func TestCheckArtifact(t *testing.T) {
 											ModifierName: &solc.Expression{Name: "reinitializer"},
 											Arguments: []solc.Expression{{
 												Kind:       "functionCall",
-												Expression: &solc.Expression{Name: "initVersion"},
-											}},
-										},
-									},
-								},
-								{
-									NodeType: "FunctionDefinition",
-									Name:     "upgrade",
-									Modifiers: []solc.AstNode{
-										{
-											ModifierName: &solc.Expression{Name: "reinitializer"},
-											Arguments: []solc.Expression{{
-												Kind:       "functionCall",
-												Expression: &solc.Expression{Name: "initVersion"},
-											}},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "Mismatched reinitializer values - one with initVersion, one with constant",
-			artifact: &solc.ForgeArtifact{
-				Ast: solc.Ast{
-					Nodes: []solc.AstNode{
-						{
-							NodeType: "ContractDefinition",
-							Nodes: []solc.AstNode{
-								{
-									NodeType: "FunctionDefinition",
-									Name:     "initialize",
-									Modifiers: []solc.AstNode{
-										{
-											ModifierName: &solc.Expression{Name: "reinitializer"},
-											Arguments: []solc.Expression{{
-												Kind:       "functionCall",
-												Expression: &solc.Expression{Name: "initVersion"},
+												Expression: &solc.Expression{Name: "someFunction"},
 											}},
 										},
 									},

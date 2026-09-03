@@ -70,7 +70,7 @@ contract ETHLockbox_Initialize_Test is ETHLockbox_TestInit {
         uint8 val = uint8(uint256(slotVal) & 0xFF);
 
         // Assert that the initializer value matches the expected value.
-        assertEq(val, ethLockbox.initVersion());
+        assertEq(val, 1);
     }
 
     /// @notice Tests that the `initialize` function reverts if called by a non-proxy admin or

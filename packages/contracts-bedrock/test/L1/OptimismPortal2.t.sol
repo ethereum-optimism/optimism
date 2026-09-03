@@ -286,7 +286,7 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
         uint8 val = uint8(uint256(slotVal) & 0xFF);
 
         // Assert that the initializer value matches the expected value.
-        assertEq(val, optimismPortal2.initVersion());
+        assertEq(val, 1);
     }
     /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
     /// @param _sender The address of the sender to test.
@@ -2773,7 +2773,7 @@ contract OptimismPortal2_Params_Test is CommonTest {
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
         IProxy(payable(address(optimismPortal2))).upgradeToAndCall(
-            address(nextImpl), abi.encodeCall(NextImpl.initialize, (optimismPortal2.initVersion() + 1))
+            address(nextImpl), abi.encodeCall(NextImpl.initialize, (2))
         );
         assertEq(IProxy(payable(address(optimismPortal2))).implementation(), address(nextImpl));
 

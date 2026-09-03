@@ -220,7 +220,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         uint8 val = uint8(uint256(slotVal) & 0xFF);
 
         // Assert that the initializer value matches the expected value.
-        assertEq(val, systemConfig.initVersion());
+        assertEq(val, 1);
     }
 
     /// @notice Tests that `initialize` reverts if called by a non-proxy admin or owner.

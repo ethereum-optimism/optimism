@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -12,7 +11,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @custom:proxied true
 /// @title SuperchainConfig
 /// @notice The SuperchainConfig contract is used to manage configuration of global superchain values.
-contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
+contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @notice Thrown when a caller is not the guardian but tries to call a guardian-only function
     error SuperchainConfig_OnlyGuardian();
 
@@ -52,17 +51,17 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.3
-    string public constant version = "2.4.3";
+    /// @custom:semver 2.5.0
+    string public constant version = "2.5.0";
 
     /// @notice Constructs the SuperchainConfig contract.
-    constructor() ReinitializableBase(2) {
+    constructor() {
         _disableInitializers();
     }
 
     /// @notice Initializer.
     /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
-    function initialize(address _guardian) external reinitializer(initVersion()) {
+    function initialize(address _guardian) external initializer {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 

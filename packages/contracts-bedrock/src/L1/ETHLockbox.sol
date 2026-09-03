@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -20,7 +19,7 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 /// @title ETHLockbox
 /// @notice Manages ETH liquidity locking and unlocking for authorized OptimismPortals, enabling unified ETH liquidity
 ///         management across chains in the superchain cluster.
-contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
+contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @notice Thrown when the lockbox is paused.
     error ETHLockbox_Paused();
 
@@ -73,13 +72,13 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     mapping(IETHLockbox => bool) public authorizedLockboxes;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1
+    /// @custom:semver 1.4.0
     function version() public view virtual returns (string memory) {
-        return "1.3.1";
+        return "1.4.0";
     }
 
     /// @notice Constructs the ETHLockbox contract.
-    constructor() ReinitializableBase(1) {
+    constructor() {
         _disableInitializers();
     }
 
@@ -90,13 +89,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     ///      contracts will point to the same pause identifier (the lockbox itself). Therefore, it
     ///      doesn't matter which SystemConfig is used here as long as it belongs to one of the
     ///      chains that share the lockbox.
-    function initialize(
-        ISystemConfig _systemConfig,
-        IOptimismPortal[] calldata _portals
-    )
-        external
-        reinitializer(initVersion())
-    {
+    function initialize(ISystemConfig _systemConfig, IOptimismPortal[] calldata _portals) external initializer {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 

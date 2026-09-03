@@ -423,7 +423,7 @@ contract DisputeGameFactory_Initialize_Test is DisputeGameFactory_TestInit {
         uint8 val = uint8(uint256(slotVal) & 0xFF);
 
         // Assert that the initializer value matches the expected value.
-        assertEq(val, disputeGameFactory.initVersion());
+        assertEq(val, 1);
     }
 }
 

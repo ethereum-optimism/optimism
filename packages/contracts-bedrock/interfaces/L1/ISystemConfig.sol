@@ -27,7 +27,6 @@ interface ISystemConfig is IProxyAdminOwnedBase {
         address opcm;
     }
 
-    error ReinitializableBase_ZeroInitVersion();
     error SystemConfig_InvalidFeatureState();
 
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
@@ -66,7 +65,6 @@ interface ISystemConfig is IProxyAdminOwnedBase {
         ISuperchainConfig _superchainConfig
     )
         external;
-    function initVersion() external view returns (uint8);
     function l1CrossDomainMessenger() external view returns (address addr_);
     function l1ERC721Bridge() external view returns (address addr_);
     function l1StandardBridge() external view returns (address addr_);

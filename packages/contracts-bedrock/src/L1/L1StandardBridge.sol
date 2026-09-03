@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 
 // Libraries
@@ -25,7 +24,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         NOTE: this contract is not intended to support all variations of ERC20 tokens. Examples
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
-contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
+contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, ISemver {
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.
@@ -77,8 +76,8 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.8.2
-    string public constant version = "2.8.2";
+    /// @custom:semver 2.9.0
+    string public constant version = "2.9.0";
 
     /// @custom:legacy
     /// @custom:spacer superchainConfig
@@ -94,20 +93,14 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
-    constructor() StandardBridge() ReinitializableBase(3) {
+    constructor() StandardBridge() {
         _disableInitializers();
     }
 
     /// @notice Initializer.
     /// @param _messenger        Contract for the CrossDomainMessenger on this network.
     /// @param _systemConfig Contract for the SystemConfig on this network.
-    function initialize(
-        ICrossDomainMessenger _messenger,
-        ISystemConfig _systemConfig
-    )
-        external
-        reinitializer(initVersion())
-    {
+    function initialize(ICrossDomainMessenger _messenger, ISystemConfig _systemConfig) external initializer {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
