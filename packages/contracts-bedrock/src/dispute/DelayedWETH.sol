@@ -54,7 +54,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     }
 
     /// @notice Initializes the contract.
-    /// @param _ethLockbox The ETHLockbox used as the pause identifier.
+    /// @param _ethLockbox The address of the ETHLockbox contract.
     function initialize(IETHLockbox _ethLockbox) external reinitializer(initVersion()) {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();

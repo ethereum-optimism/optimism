@@ -87,7 +87,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     }
 
     /// @notice Initializes the contract.
-    /// @param _ethLockbox The ETHLockbox used as the pause identifier.
+    /// @param _ethLockbox The address of the ETHLockbox contract.
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
     /// @param _startingRespectedGameType The starting respected game type.

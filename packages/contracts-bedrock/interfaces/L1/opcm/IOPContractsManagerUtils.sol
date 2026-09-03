@@ -7,8 +7,6 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
 
 interface IOPContractsManagerUtils {
@@ -165,14 +163,6 @@ interface IOPContractsManagerUtils {
         view
         returns (bytes memory);
 
-    function superchainConfigFor(
-        ISuperchainConfig _default,
-        address _target
-    )
-        external
-        view
-        returns (ISuperchainConfig);
-    function ethLockboxFor(IETHLockbox _default, address _target) external view returns (IETHLockbox);
 
     function __constructor__(IOPContractsManagerContainer _contractsContainer) external;
 }

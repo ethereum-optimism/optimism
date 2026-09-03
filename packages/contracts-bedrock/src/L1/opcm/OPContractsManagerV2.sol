@@ -860,17 +860,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // NOTE: Same general pattern, we call _upgrade for each contract rather than
         // iterating over some sort of array because it's easier to implement and understand.
 
-        // Preserve the SuperchainConfig of an existing ETHLockbox.
+        // Update the ETHLockbox.
         IOptimismPortal[] memory portals = new IOptimismPortal[](1);
         portals[0] = _cts.optimismPortal;
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.ethLockbox),
             impls.ethLockboxImpl,
-            abi.encodeCall(
-                IETHLockbox.initialize,
-                (_superchainConfigFor(_cts.systemConfig.superchainConfig(), address(_cts.ethLockbox)), portals)
-            )
+            abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig.superchainConfig(), portals))
         );
 
         // CGT chains use ETHLockbox only as a pause source.
@@ -921,15 +918,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
         );
 
-        // Preserve the pause source of existing shared contracts.
-        IETHLockbox ethLockbox = _ethLockboxFor(_cts.ethLockbox, address(_cts.anchorStateRegistry));
-
         // Update the DelayedWETH.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (ethLockbox))
+            abi.encodeCall(IDelayedWETH.initialize, (_cts.ethLockbox))
         );
 
         // Update the AnchorStateRegistry.
@@ -939,7 +933,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (ethLockbox, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
+                (_cts.ethLockbox, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
             )
         );
 

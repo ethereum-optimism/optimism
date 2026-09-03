@@ -19,8 +19,6 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
@@ -399,39 +397,6 @@ contract OPContractsManagerUtils {
             return address(admin_) == address(0) ? _defaultAdmin : admin_;
         } catch {
             return _defaultAdmin;
-        }
-    }
-
-    /// @notice Returns the target's SuperchainConfig or `_default` if unavailable.
-    /// @param _default The fallback SuperchainConfig.
-    /// @param _target The ETHLockbox proxy.
-    /// @return The resolved SuperchainConfig.
-    function superchainConfigFor(
-        ISuperchainConfig _default,
-        address _target
-    )
-        external
-        view
-        returns (ISuperchainConfig)
-    {
-        // eip150-safe
-        try IETHLockbox(_target).superchainConfig() returns (ISuperchainConfig superchainConfig_) {
-            return address(superchainConfig_) == address(0) ? _default : superchainConfig_;
-        } catch {
-            return _default;
-        }
-    }
-
-    /// @notice Returns the target's ETHLockbox or `_default` if unavailable.
-    /// @param _default The fallback ETHLockbox.
-    /// @param _target The target proxy.
-    /// @return The resolved ETHLockbox.
-    function ethLockboxFor(IETHLockbox _default, address _target) external view returns (IETHLockbox) {
-        // eip150-safe
-        try IAnchorStateRegistry(_target).ethLockbox() returns (IETHLockbox ethLockbox_) {
-            return address(ethLockbox_) == address(0) ? _default : ethLockbox_;
-        } catch {
-            return _default;
         }
     }
 
