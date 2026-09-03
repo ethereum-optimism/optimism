@@ -510,7 +510,8 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
     function test_validate_sckdgGargs30WrongWeth_succeeds() public {
         address badWeth = address(0xbad);
         DisputeGames.mockGameImplWeth(sharedDGF, GameTypes.SUPER_CANNON_KONA, badWeth);
-        // Mock the bad WETH to satisfy drill-down so only GARGS-30 (the cross-chain check) fires.
+        // Mock the bad WETH to satisfy drill-down, leaving GARGS-30 (the cross-chain check) and
+        // DWETH-70 (the SystemConfig binding), which no mock on the WETH itself can satisfy.
         vm.mockCall(badWeth, abi.encodeCall(ISemver.version, ()), abi.encode(ISemver(sharedWETH).version()));
         vm.mockCall(
             sharedProxyAdmin,
@@ -527,7 +528,7 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
         );
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(sharedLockbox));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(sharedProxyAdmin));
-        assertEq("MIG-SCKDG-GARGS-30", _validateMigration(true));
+        assertEq("MIG-SCKDG-GARGS-30,MIG-SCKDG-DWETH-70", _validateMigration(true));
     }
 
     /// @notice MIG-SCKDG-100: Wrong maxGameDepth on SCKDG game impl.

@@ -145,7 +145,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	return nil
 }
 
-func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1EthClient *ethclient.Client, caller *batching.MultiCaller) {
+func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1EthClient l1BlockHashSource, caller *batching.MultiCaller) {
 	defer r.wg.Done()
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
@@ -160,7 +160,7 @@ func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *so
 	}
 }
 
-func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfig RunConfig, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1EthClient *ethclient.Client, caller *batching.MultiCaller) {
+func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfig RunConfig, rollupClient *sources.RollupClient, superRoots super.SuperNodeRootProvider, l1EthClient l1BlockHashSource, caller *batching.MultiCaller) {
 	recordError := func(err error, configName string, m Metricer, log log.Logger) {
 		if errors.Is(err, ErrUnexpectedStatusCode) {
 			log.Error("Incorrect status code", "type", runConfig.Name, "err", err)
@@ -225,14 +225,27 @@ func (r *Runner) runOnce(ctx context.Context, logger log.Logger, name string, ga
 		ctx, cancel = context.WithTimeout(ctx, r.vmTimeout)
 		defer cancel()
 	}
+	// The VM timeout is enforced by killing the VM's process group, so exec reports an
+	// *exec.ExitError ("signal: killed") and Cmd.Wait discards the context error. Testing
+	// the returned error for context.DeadlineExceeded therefore never matches and a stuck
+	// run gets recorded as a setup failure. Classify on the deadline instead of the error.
+	asTimeout := func(err error) error {
+		if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil
+		}
+		return fmt.Errorf("%w after %v: %w", ErrVMTimeout, r.vmTimeout, errors.Join(err, ctx.Err()))
+	}
 	provider, err := r.traceProviderCreator(ctx, logger, metrics.NewTypedVmMetrics(r.m, name), r.cfg, prestateSource, gameType, localInputs, dir)
 	if err != nil {
+		if timedOut := asTimeout(err); timedOut != nil {
+			return timedOut
+		}
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
 	hash, err := provider.Get(ctx, types.RootPosition)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("%w: %w", ErrVMTimeout, err)
+		if timedOut := asTimeout(err); timedOut != nil {
+			return timedOut
 		}
 		return fmt.Errorf("failed to execute trace provider: %w", err)
 	}

@@ -6,19 +6,29 @@
 //! aggregation-input validation. The mock provider then returns placeholder bytes; the network
 //! provider proves each chunk in compressed mode and aggregates them with PLONK.
 
-use std::{future::Future, num::NonZeroUsize};
+use std::{collections::HashMap, future::Future, num::NonZeroUsize, ops::AsyncFnOnce, sync::Arc};
 
-use alloy_primitives::B256;
+use alloy_primitives::{Address, B256, U256, keccak256};
+use alloy_sol_types::SolValue;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use futures::stream::{FuturesUnordered, StreamExt};
-use kona_sp1_client_utils::super_root::{SuperAggregationInputs, TimestampSpan};
+use kona_sp1_client_utils::{
+    super_root::{
+        SuperAggregationInputs, SuperAggregationPublicValues, SuperConsolidationInputs,
+        SuperConsolidationOutputs, SuperRangeInputs, SuperRangeOutputs, TimestampSpan,
+    },
+    witness::DefaultWitnessData,
+};
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
-    HostInputs, SuperRootAtTimestampResponse, build_interop_host, build_super_consolidation_stdin,
-    build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
-    proof_from_super_v1, synthesize_execution,
+    HostInputs, SuperRootAtTimestampResponse, SynthesizedExecution, build_interop_host,
+    build_super_consolidation_stdin, build_super_range_stdin, collect_consolidation_witness,
+    collect_range_witness, decode_super_consolidation_public_values,
+    decode_super_range_public_values, proof_from_super_v1, synthesize_execution,
 };
-use sp1_sdk::{SP1Proof, SP1Stdin};
+use parking_lot::Mutex;
+use serde::Serialize;
+use sp1_sdk::{HashableKey, SP1Proof, SP1ProofWithPublicValues, SP1Stdin};
 use tracing::Instrument;
 
 pub use crate::ports::GameProofInputs;
@@ -27,7 +37,9 @@ use crate::{
     config::RangeSplitCount,
     metrics::ProposerGauge,
     ports::SuperRootSource,
-    prover::{MOCK_PROOF_BYTES, ProofKeys, ProofProvider},
+    prover::{
+        MOCK_PROOF_BYTES, ProofId, ProofKeys, ProofProvider, ProofTerminalState, ProofWaitError,
+    },
 };
 
 /// Marker error: this game can never be proven by this proposer. The
@@ -185,13 +197,277 @@ fn check_provable(game: &GameProofInputs, last: &SuperRootAtTimestampResponse) -
     Ok(())
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ChunkIdentity {
+    index: u8,
+    agreed_ts: u64,
+    claimed_ts: u64,
+    range_input_digest: B256,
+    consolidation_input_digest: B256,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ProviderIdentity {
+    Mock,
+    Network { range_vkey: B256, aggregation_vkey: B256 },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct AttemptIdentity {
+    game: GameProofInputs,
+    provider: ProviderIdentity,
+    chunks: Vec<ChunkIdentity>,
+}
+
+struct ChunkPlan {
+    index: usize,
+    agreed_timestamp: u64,
+    claimed_timestamp: u64,
+    synthesized: SynthesizedExecution,
+}
+
+#[derive(Clone, Default)]
+enum RequestState {
+    #[default]
+    Missing,
+    Submitting,
+    Submitted(ProofId),
+    Fulfilled(Arc<SP1ProofWithPublicValues>),
+    Terminal(ProofTerminalState),
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct RequestSummary {
+    submitted_ids: Vec<ProofId>,
+    submitting: usize,
+    fulfilled: usize,
+}
+
+#[derive(Default)]
+struct ChunkProgress {
+    completed: Mutex<Option<Arc<ChunkResult>>>,
+    range_request: Mutex<RequestState>,
+    consolidation_request: Mutex<RequestState>,
+}
+
+struct GameProgress {
+    identity: AttemptIdentity,
+    chunks: Vec<ChunkProgress>,
+    aggregation_request: Mutex<RequestState>,
+}
+
+impl GameProgress {
+    fn new(identity: AttemptIdentity) -> Self {
+        let chunks = (0..identity.chunks.len()).map(|_| ChunkProgress::default()).collect();
+        Self { identity, chunks, aggregation_request: Mutex::new(RequestState::Missing) }
+    }
+
+    fn request_summary(&self) -> RequestSummary {
+        let mut summary = RequestSummary::default();
+        let mut record = |state: &Mutex<RequestState>| match &*state.lock() {
+            RequestState::Submitting => summary.submitting += 1,
+            RequestState::Submitted(proof_id) => summary.submitted_ids.push(*proof_id),
+            RequestState::Fulfilled(_) => summary.fulfilled += 1,
+            RequestState::Missing | RequestState::Terminal(_) => {}
+        };
+        for chunk in &self.chunks {
+            record(&chunk.range_request);
+            record(&chunk.consolidation_request);
+        }
+        record(&self.aggregation_request);
+        summary
+    }
+}
+
+/// Process-local proof work retained across scheduler retries.
+#[derive(Default)]
+pub struct InMemoryProofProgress {
+    games: Mutex<HashMap<Address, Arc<GameProgress>>>,
+}
+
+impl std::fmt::Debug for InMemoryProofProgress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InMemoryProofProgress").field("games", &self.games.lock().len()).finish()
+    }
+}
+
+impl InMemoryProofProgress {
+    fn load_or_create(
+        &self,
+        game_address: Address,
+        identity: AttemptIdentity,
+    ) -> Arc<GameProgress> {
+        let mut games = self.games.lock();
+        if let Some(progress) = games.get(&game_address) {
+            if progress.identity == identity {
+                return Arc::clone(progress);
+            }
+            let summary = progress.request_summary();
+            tracing::warn!(
+                %game_address,
+                submitted_request_ids = ?summary.submitted_ids,
+                submitting_request_count = summary.submitting,
+                fulfilled_request_count = summary.fulfilled,
+                game_changed = progress.identity.game != identity.game,
+                provider_changed = progress.identity.provider != identity.provider,
+                chunks_changed = progress.identity.chunks != identity.chunks,
+                "Proving inputs changed; replacing cached proof progress"
+            );
+        }
+
+        let progress = Arc::new(GameProgress::new(identity));
+        games.insert(game_address, Arc::clone(&progress));
+        progress
+    }
+
+    pub(crate) fn clear(&self, game_address: Address) {
+        self.games.lock().remove(&game_address);
+    }
+}
+
+fn fingerprint<T: Serialize>(value: &T) -> Result<B256> {
+    let bytes = bincode::serde::encode_to_vec(value, bincode::config::standard())
+        .context("encode proof input fingerprint")?;
+    Ok(keccak256(bytes))
+}
+
+fn provider_identity(
+    provider: &ProofProvider,
+    keys: Option<&ProofKeys>,
+) -> Result<ProviderIdentity> {
+    if provider.is_mock() {
+        return Ok(ProviderIdentity::Mock);
+    }
+    let keys = keys.context("network proving requires prestate proving keys")?;
+    Ok(ProviderIdentity::Network {
+        range_vkey: B256::from(keys.range_vk.bytes32_raw()),
+        aggregation_vkey: B256::from(keys.agg_vk.bytes32_raw()),
+    })
+}
+
+fn expected_aggregation_public_values(game: &GameProofInputs) -> Vec<u8> {
+    SuperAggregationPublicValues {
+        l1Head: game.l1_head,
+        startingRootHash: game.starting_root,
+        rootClaim: game.root_claim,
+        l2SequenceNumber: U256::from(game.claim_ts),
+        prover: game.prover,
+    }
+    .abi_encode()
+}
+const fn terminal_request_can_retry(outcome: ProofTerminalState) -> bool {
+    match outcome {
+        ProofTerminalState::Cancelled |
+        ProofTerminalState::Expired |
+        ProofTerminalState::Reverted |
+        ProofTerminalState::Unfulfillable => true,
+        ProofTerminalState::Unexecutable | ProofTerminalState::ValidationFailed => false,
+    }
+}
+
+async fn complete_request(
+    state: &Mutex<RequestState>,
+    submit: impl AsyncFnOnce() -> Result<ProofId>,
+    poll: impl AsyncFnOnce(ProofId) -> Result<SP1ProofWithPublicValues, ProofWaitError>,
+    verify: impl FnOnce(&SP1ProofWithPublicValues) -> Result<()>,
+) -> Result<Arc<SP1ProofWithPublicValues>> {
+    let existing = {
+        let mut state = state.lock();
+        match &*state {
+            RequestState::Missing => {
+                *state = RequestState::Submitting;
+                None
+            }
+            RequestState::Submitting => bail!("proof request submission is already in progress"),
+            RequestState::Submitted(proof_id) => Some(*proof_id),
+            RequestState::Fulfilled(proof) => return Ok(Arc::clone(proof)),
+            RequestState::Terminal(outcome) => {
+                bail!("proof request reached terminal state: {outcome:?}")
+            }
+        }
+    };
+
+    let proof_id = match existing {
+        Some(proof_id) => proof_id,
+        None => match submit().await {
+            Ok(proof_id) => {
+                *state.lock() = RequestState::Submitted(proof_id);
+                proof_id
+            }
+            Err(err) => {
+                *state.lock() = RequestState::Missing;
+                return Err(err);
+            }
+        },
+    };
+
+    let proof = match poll(proof_id).await {
+        Ok(proof) => proof,
+        Err(err @ ProofWaitError::Terminal { state: outcome, .. }) => {
+            *state.lock() = if terminal_request_can_retry(outcome) {
+                RequestState::Missing
+            } else {
+                RequestState::Terminal(outcome)
+            };
+            return Err(err.into());
+        }
+        Err(err) => return Err(err.into()),
+    };
+    if let Err(err) = verify(&proof) {
+        *state.lock() = RequestState::Terminal(ProofTerminalState::ValidationFailed);
+        return Err(err);
+    }
+
+    let proof = Arc::new(proof);
+    *state.lock() = RequestState::Fulfilled(Arc::clone(&proof));
+    Ok(proof)
+}
+
+fn reuse_fulfilled_aggregation(
+    state: &Mutex<RequestState>,
+    game: &GameProofInputs,
+    verify: impl FnOnce(&SP1ProofWithPublicValues) -> Result<()>,
+) -> Result<Option<Vec<u8>>> {
+    let proof = match &*state.lock() {
+        RequestState::Fulfilled(proof) => Arc::clone(proof),
+        RequestState::Terminal(outcome) => {
+            bail!("aggregation proof request reached terminal state: {outcome:?}")
+        }
+        _ => return Ok(None),
+    };
+    verify(&proof)?;
+    ensure!(
+        proof.public_values.as_slice() == expected_aggregation_public_values(game),
+        "aggregation proof public values do not match the game's expected tuple"
+    );
+    Ok(Some(proof.bytes()))
+}
+
+async fn run_chunk_with_progress<F>(progress: &ChunkProgress, task: F) -> Result<Arc<ChunkResult>>
+where
+    F: Future<Output = Result<ChunkResult>>,
+{
+    if let Some(result) = progress.completed.lock().as_ref() {
+        return Ok(Arc::clone(result));
+    }
+    let result = Arc::new(task.await?);
+    *progress.completed.lock() = Some(Arc::clone(&result));
+    Ok(result)
+}
+
+#[derive(Clone)]
+struct ChildProofs {
+    range: Arc<SP1ProofWithPublicValues>,
+    consolidation: Arc<SP1ProofWithPublicValues>,
+}
+
 /// One proven (or natively executed) span chunk, tagged with its position.
+#[derive(Clone)]
 struct ChunkResult {
     index: usize,
-    range_outputs: kona_sp1_client_utils::super_root::SuperRangeOutputs,
-    consolidation_outputs: kona_sp1_client_utils::super_root::SuperConsolidationOutputs,
-    /// `Some((range_proof, consolidation_proof))` in network mode.
-    proofs: Option<(SP1Proof, SP1Proof)>,
+    range_outputs: SuperRangeOutputs,
+    consolidation_outputs: SuperConsolidationOutputs,
+    proofs: Option<ChildProofs>,
 }
 
 /// Runs a range-witness chunk with proof-replay context attached for its full async lifetime.
@@ -254,110 +530,106 @@ where
     first_error.map_or_else(|| Ok(results), Err)
 }
 
-/// Proves the game's span end to end and returns the on-chain proof bytes.
+async fn run_indexed_chunk<F>(
+    progress: Arc<GameProgress>,
+    index: usize,
+    task: F,
+) -> Result<Arc<ChunkResult>>
+where
+    F: Future<Output = Result<ChunkResult>>,
+{
+    run_chunk_with_progress(&progress.chunks[index], task).await
+}
+
+async fn run_chunk_attempts_with_progress<F>(
+    attempts: Vec<(usize, F)>,
+    progress: Arc<GameProgress>,
+    max_concurrent: usize,
+) -> Result<Vec<Arc<ChunkResult>>>
+where
+    F: Future<Output = Result<ChunkResult>>,
+{
+    let tasks = attempts
+        .into_iter()
+        .map(|(index, task)| run_indexed_chunk(Arc::clone(&progress), index, task));
+    run_chunk_tasks_until_error(tasks, max_concurrent).await
+}
+
+async fn prove_range_request(
+    provider: &ProofProvider,
+    keys: &ProofKeys,
+    inputs: &SuperRangeInputs,
+    witness: DefaultWitnessData,
+    expected: &SuperRangeOutputs,
+    state: &Mutex<RequestState>,
+) -> Result<Arc<SP1ProofWithPublicValues>> {
+    let stdin = build_super_range_stdin(inputs, witness)?;
+    complete_request(
+        state,
+        async move || provider.request_range_proof(keys, stdin).await,
+        async |proof_id| provider.wait_for_proof(proof_id).await,
+        |proof| {
+            provider.verify_range_proof(keys, proof)?;
+            let mut public_values = proof.public_values.clone();
+            let actual = decode_super_range_public_values(&mut public_values)?;
+            ensure!(actual == *expected, "range proof output changed");
+            Ok(())
+        },
+    )
+    .await
+}
+
+async fn prove_consolidation_request(
+    provider: &ProofProvider,
+    keys: &ProofKeys,
+    inputs: &SuperConsolidationInputs,
+    witness: DefaultWitnessData,
+    expected: &SuperConsolidationOutputs,
+    state: &Mutex<RequestState>,
+) -> Result<Arc<SP1ProofWithPublicValues>> {
+    let stdin = build_super_consolidation_stdin(inputs, witness)?;
+    complete_request(
+        state,
+        async move || provider.request_range_proof(keys, stdin).await,
+        async |proof_id| provider.wait_for_proof(proof_id).await,
+        |proof| {
+            provider.verify_range_proof(keys, proof)?;
+            let mut public_values = proof.public_values.clone();
+            let actual = decode_super_consolidation_public_values(&mut public_values)?;
+            ensure!(actual == *expected, "consolidation proof output changed");
+            Ok(())
+        },
+    )
+    .await
+}
+
+/// Executes one chunk in three steps:
+/// 1. collect the range and consolidation witnesses and native outputs;
+/// 2. in network mode, submit or resume the two child proof requests in order;
+/// 3. return the outputs and proofs for game-level aggregation.
 ///
-/// `keys` must be `Some` in network mode (resolved per-prestate through the
-/// prestate cache) and may be `None` in mock mode.
-pub async fn prove_game_inner(
+/// Per-stage request state lives in `progress`. The caller caches this function's result only
+/// after both child proofs complete.
+async fn prove_chunk(
     provider: &ProofProvider,
     keys: Option<&ProofKeys>,
     host_inputs: &HostInputs,
     game: &GameProofInputs,
-    responses: &[SuperRootAtTimestampResponse],
-    split: RangeSplitCount,
-    max_concurrent: NonZeroUsize,
-) -> Result<Vec<u8>> {
-    if !provider.is_mock() {
-        ensure!(keys.is_some(), "network proving requires prestate proving keys");
-    }
-    let chunks = split.split(game.starting_ts, game.claim_ts)?;
-    let chunk_count = chunks.len();
-    tracing::info!(
-        starting_ts = game.starting_ts,
-        claim_ts = game.claim_ts,
-        chunks = chunk_count,
-        "Proving game span"
-    );
-
-    let tasks = chunks.into_iter().enumerate().map(|(index, (agreed_ts, claimed_ts))| {
-        // Responses cover `starting_ts..=claim_ts`; this chunk needs
-        // `agreed_ts..=claimed_ts`.
-        let first = (agreed_ts - game.starting_ts) as usize;
-        let last = (claimed_ts - game.starting_ts) as usize;
-        let chunk_responses = &responses[first..=last];
-        with_proof_replay_chunk_span(index, chunk_count, agreed_ts, claimed_ts, async move {
-            let result = async {
-                // `split` yields `(agreed, claimed]` chunks; the guest span
-                // names the claimed timestamps.
-                let span = TimestampSpan::new(agreed_ts + 1, claimed_ts)
-                    .map_err(|err| anyhow!("invalid chunk span: {err:?}"))?;
-                let synthesized =
-                    synthesize_execution(span, game.l1_head, game.l1_head_number, chunk_responses)
-                        .with_context(|| {
-                            format!("failed to synthesize span {}..={}", span.start, span.end)
-                        })?;
-
-                let range_host = build_interop_host(
-                    host_inputs,
-                    game.l1_head,
-                    &synthesized.previous_super_root_proof_bytes,
-                    synthesized.current_super_root,
-                    span.end,
-                )?;
-                let (range_witness, range_outputs) = collect_range_witness(
-                    range_host,
-                    &synthesized.range_inputs,
-                    &synthesized.preloaded_preimages,
-                )
-                .await
-                .with_context(|| format!("range witness collection failed for span {span:?}"))?;
-
-                let consolidation_host = build_interop_host(
-                    host_inputs,
-                    game.l1_head,
-                    &synthesized.previous_super_root_proof_bytes,
-                    synthesized.current_super_root,
-                    span.end,
-                )?;
-                let (consolidation_witness, consolidation_outputs) =
-                    collect_consolidation_witness(
-                        consolidation_host,
-                        &synthesized.consolidation_inputs,
-                        &synthesized.preloaded_preimages,
-                    )
-                    .await
-                    .with_context(|| {
-                        format!("consolidation witness collection failed for span {span:?}")
-                    })?;
-
-                let proofs = match (provider, keys) {
-                    (ProofProvider::Mock(_), _) => None,
-                    (provider, Some(keys)) => {
-                        let range_stdin =
-                            build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
-                        let range_proof = provider.generate_range_proof(keys, range_stdin).await?;
-                        let consolidation_stdin = build_super_consolidation_stdin(
-                            &synthesized.consolidation_inputs,
-                            consolidation_witness,
-                        )?;
-                        // Both guest modes run the super-range ELF, so both
-                        // proofs use the range proving key.
-                        let consolidation_proof =
-                            provider.generate_range_proof(keys, consolidation_stdin).await?;
-                        Some((range_proof.proof, consolidation_proof.proof))
-                    }
-                    (_, None) => bail!("network proving requires prestate proving keys"),
-                };
-
-                Ok::<_, anyhow::Error>(ChunkResult {
-                    index,
-                    range_outputs,
-                    consolidation_outputs,
-                    proofs,
-                })
-            }
-            .await;
-
+    plan: ChunkPlan,
+    chunk_count: usize,
+    progress: Arc<GameProgress>,
+) -> Result<ChunkResult> {
+    let index = plan.index;
+    let agreed_timestamp = plan.agreed_timestamp;
+    let claimed_timestamp = plan.claimed_timestamp;
+    with_proof_replay_chunk_span(
+        index,
+        chunk_count,
+        agreed_timestamp,
+        claimed_timestamp,
+        async move {
+            let result =
+                prove_chunk_inner(provider, keys, host_inputs, game, plan, progress).await;
             match &result {
                 Ok(chunk) => tracing::info!(
                     range_transition_count = chunk.range_outputs.transitions.len(),
@@ -371,20 +643,205 @@ pub async fn prove_game_inner(
                 ),
             }
             result
+        },
+    )
+    .await
+}
+
+async fn prove_chunk_inner(
+    provider: &ProofProvider,
+    keys: Option<&ProofKeys>,
+    host_inputs: &HostInputs,
+    game: &GameProofInputs,
+    plan: ChunkPlan,
+    progress: Arc<GameProgress>,
+) -> Result<ChunkResult> {
+    let index = plan.index;
+    let chunk_progress = &progress.chunks[index];
+    let synthesized = &plan.synthesized;
+    let span = synthesized.range_inputs.span;
+
+    let range_host = build_interop_host(
+        host_inputs,
+        game.l1_head,
+        &synthesized.previous_super_root_proof_bytes,
+        synthesized.current_super_root,
+        span.end,
+    )?;
+    let (range_witness, range_outputs) = collect_range_witness(
+        range_host,
+        &synthesized.range_inputs,
+        &synthesized.preloaded_preimages,
+    )
+    .await
+    .with_context(|| format!("range witness collection failed for span {span:?}"))?;
+
+    let consolidation_host = build_interop_host(
+        host_inputs,
+        game.l1_head,
+        &synthesized.previous_super_root_proof_bytes,
+        synthesized.current_super_root,
+        span.end,
+    )?;
+    let (consolidation_witness, consolidation_outputs) = collect_consolidation_witness(
+        consolidation_host,
+        &synthesized.consolidation_inputs,
+        &synthesized.preloaded_preimages,
+    )
+    .await
+    .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;
+
+    let proofs = match (provider, keys) {
+        (ProofProvider::Mock(_), _) => None,
+        (provider, Some(keys)) => {
+            let range_proof = prove_range_request(
+                provider,
+                keys,
+                &synthesized.range_inputs,
+                range_witness,
+                &range_outputs,
+                &chunk_progress.range_request,
+            )
+            .await?;
+            let consolidation_proof = prove_consolidation_request(
+                provider,
+                keys,
+                &synthesized.consolidation_inputs,
+                consolidation_witness,
+                &consolidation_outputs,
+                &chunk_progress.consolidation_request,
+            )
+            .await?;
+            Some(ChildProofs { range: range_proof, consolidation: consolidation_proof })
+        }
+        (_, None) => bail!("network proving requires prestate proving keys"),
+    };
+
+    Ok(ChunkResult { index, range_outputs, consolidation_outputs, proofs })
+}
+
+fn plan_game_attempt(
+    provider: &ProofProvider,
+    keys: Option<&ProofKeys>,
+    game: &GameProofInputs,
+    responses: &[SuperRootAtTimestampResponse],
+    split: RangeSplitCount,
+) -> Result<(Vec<ChunkPlan>, AttemptIdentity)> {
+    let chunks = split.split(game.starting_ts, game.claim_ts)?;
+    let mut plans = Vec::with_capacity(chunks.len());
+    let mut chunk_identities = Vec::with_capacity(chunks.len());
+    for (index, (agreed_ts, claimed_ts)) in chunks.into_iter().enumerate() {
+        let first = (agreed_ts - game.starting_ts) as usize;
+        let last = (claimed_ts - game.starting_ts) as usize;
+        let span = TimestampSpan::new(agreed_ts + 1, claimed_ts)
+            .map_err(|err| anyhow!("invalid chunk span: {err:?}"))?;
+        let synthesized =
+            synthesize_execution(span, game.l1_head, game.l1_head_number, &responses[first..=last])
+                .with_context(|| {
+                    format!("failed to synthesize span {}..={}", span.start, span.end)
+                })?;
+        chunk_identities.push(ChunkIdentity {
+            index: u8::try_from(index).context("chunk index exceeds u8")?,
+            agreed_ts,
+            claimed_ts,
+            range_input_digest: fingerprint(&synthesized.range_inputs)?,
+            consolidation_input_digest: fingerprint(&synthesized.consolidation_inputs)?,
+        });
+        plans.push(ChunkPlan {
+            index,
+            agreed_timestamp: agreed_ts,
+            claimed_timestamp: claimed_ts,
+            synthesized,
+        });
+    }
+    let identity = AttemptIdentity {
+        game: game.clone(),
+        provider: provider_identity(provider, keys)?,
+        chunks: chunk_identities,
+    };
+    Ok((plans, identity))
+}
+
+/// Inputs for one in-process game-proving attempt.
+#[derive(Debug)]
+pub struct ProveGameRequest<'a> {
+    /// Dispute game whose work owns the cache entry.
+    pub game_address: Address,
+    /// Immutable inputs bound into the proof.
+    pub game: &'a GameProofInputs,
+    /// Validated super-root responses covering the game span.
+    pub responses: &'a [SuperRootAtTimestampResponse],
+    /// Number of chunks used for the span.
+    pub split: RangeSplitCount,
+    /// Maximum number of concurrently active chunk tasks.
+    pub max_concurrent: NonZeroUsize,
+    /// Process-local progress retained between scheduler attempts.
+    pub proof_progress: &'a InMemoryProofProgress,
+}
+
+/// Proves the game's span end to end and returns the on-chain proof bytes.
+///
+/// `keys` must be `Some` in network mode (resolved per-prestate through the
+/// prestate cache) and may be `None` in mock mode.
+pub async fn prove_game_inner(
+    provider: &ProofProvider,
+    keys: Option<&ProofKeys>,
+    host_inputs: &HostInputs,
+    request: ProveGameRequest<'_>,
+) -> Result<Vec<u8>> {
+    let ProveGameRequest { game_address, game, responses, split, max_concurrent, proof_progress } =
+        request;
+    if !provider.is_mock() {
+        ensure!(keys.is_some(), "network proving requires prestate proving keys");
+    }
+    let (plans, identity) = plan_game_attempt(provider, keys, game, responses, split)?;
+    let chunk_count = plans.len();
+    tracing::info!(
+        starting_ts = game.starting_ts,
+        claim_ts = game.claim_ts,
+        chunks = chunk_count,
+        "Proving game span"
+    );
+    let progress = proof_progress.load_or_create(game_address, identity);
+
+    if !provider.is_mock() &&
+        let Some(proof) =
+            reuse_fulfilled_aggregation(&progress.aggregation_request, game, |proof| {
+                let keys = keys.context("network proving requires prestate proving keys")?;
+                provider.verify_aggregation_proof(keys, proof)
+            })?
+    {
+        return Ok(proof);
+    }
+
+    let attempts = plans
+        .into_iter()
+        .map(|plan| {
+            let index = plan.index;
+            let attempt = prove_chunk(
+                provider,
+                keys,
+                host_inputs,
+                game,
+                plan,
+                chunk_count,
+                Arc::clone(&progress),
+            );
+            (index, attempt)
         })
-    });
+        .collect();
 
     let max_concurrent = max_concurrent.get().min(chunk_count);
-    let results: Vec<ChunkResult> = run_chunk_tasks_until_error(tasks, max_concurrent).await?;
+    let results =
+        run_chunk_attempts_with_progress(attempts, Arc::clone(&progress), max_concurrent).await?;
 
-    // Chunk tasks complete out of order; restore chunk order by index.
     let mut range_outputs = vec![None; chunk_count];
     let mut consolidation_outputs = vec![None; chunk_count];
     let mut proofs = vec![None; chunk_count];
     for result in results {
-        range_outputs[result.index] = Some(result.range_outputs);
-        consolidation_outputs[result.index] = Some(result.consolidation_outputs);
-        proofs[result.index] = result.proofs;
+        range_outputs[result.index] = Some(result.range_outputs.clone());
+        consolidation_outputs[result.index] = Some(result.consolidation_outputs.clone());
+        proofs[result.index] = result.proofs.clone();
     }
     let range_outputs = collect_indexed(range_outputs, "range outputs")?;
     let consolidation_outputs = collect_indexed(consolidation_outputs, "consolidation outputs")?;
@@ -403,7 +860,6 @@ pub async fn prove_game_inner(
         range_outputs,
         consolidation_outputs,
     };
-    // Invalid aggregation inputs must not reach proof generation.
     inputs.validate().with_context(|| {
         format!(
             "assembled aggregation inputs failed validation for span {}..={}",
@@ -422,35 +878,40 @@ pub async fn prove_game_inner(
         ProofProvider::Network(_) => {
             let keys = keys.context("network proving requires prestate proving keys")?;
             let mut stdin = SP1Stdin::new();
-            // Child proofs ride the SP1 proof stream: all range-mode proofs
-            // in chunk order, then all consolidation-mode proofs in chunk
-            // order (the aggregation guest consumes them in exactly this
-            // order). Both verify against the super-range vkey.
             let (range_proofs, consolidation_proofs): (Vec<_>, Vec<_>) = proofs
                 .into_iter()
                 .enumerate()
-                .map(|(index, pair)| {
-                    pair.ok_or_else(|| anyhow!("missing proofs for chunk {index}"))
+                .map(|(index, proofs)| {
+                    let proofs =
+                        proofs.ok_or_else(|| anyhow!("missing proofs for chunk {index}"))?;
+                    Ok((proofs.range, proofs.consolidation))
                 })
                 .collect::<Result<Vec<_>>>()?
                 .into_iter()
                 .unzip();
             for proof in range_proofs.into_iter().chain(consolidation_proofs) {
-                let SP1Proof::Compressed(compressed) = proof else {
+                let SP1Proof::Compressed(compressed) = &proof.proof else {
                     bail!("child proof is not in compressed form");
                 };
-                stdin.write_proof(*compressed, keys.range_vk.vk.clone());
+                stdin.write_proof((**compressed).clone(), keys.range_vk.vk.clone());
             }
             stdin.write(&inputs);
 
-            let aggregation = provider.generate_agg_proof(keys, stdin).await?;
-            // Never submit a proof whose public values differ from the
-            // tuple `prove()` reconstructs on-chain.
             let expected = inputs.zk_dispute_game_public_values();
-            ensure!(
-                aggregation.public_values.as_slice() == expected.as_slice(),
-                "aggregation proof public values do not match the game's expected tuple",
-            );
+            let aggregation = complete_request(
+                &progress.aggregation_request,
+                async move || provider.request_aggregation_proof(keys, stdin).await,
+                async |proof_id| provider.wait_for_proof(proof_id).await,
+                |proof| {
+                    provider.verify_aggregation_proof(keys, proof)?;
+                    ensure!(
+                        proof.public_values.as_slice() == expected.as_slice(),
+                        "aggregation proof public values do not match the game's expected tuple"
+                    );
+                    Ok(())
+                },
+            )
+            .await?;
             Ok(aggregation.bytes())
         }
     }
@@ -468,20 +929,22 @@ fn collect_indexed<T>(items: Vec<Option<T>>, what: &str) -> Result<Vec<T>> {
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::HashMap,
+        collections::{BTreeMap, HashMap},
         fmt::Write,
         sync::{
-            Arc, Mutex,
+            Arc, Mutex as StdMutex,
             atomic::{AtomicBool, AtomicUsize, Ordering},
         },
     };
 
-    use alloy_primitives::{Address, U256};
+    use alloy_primitives::{Address, U256, keccak256};
     use futures::StreamExt;
     use kona_sp1_client_utils::test_utils::valid_aggregation_inputs;
     use kona_sp1_super_range_executor::{
-        BlockId, ChainId, ChainIdAndOutput, SuperRootResponseData, SuperV1,
+        BlockId, ChainId, ChainIdAndOutput, OutputV0, OutputWithRequiredL1, SuperRootResponseData,
+        SuperV1,
     };
+    use sp1_sdk::SP1PublicValues;
     use tracing::{
         Event, Instrument, Level, Metadata, Subscriber,
         field::{Field, Visit},
@@ -507,7 +970,7 @@ mod tests {
     }
 
     #[derive(Debug)]
-    struct CapturingSubscriber(Arc<Mutex<TraceCapture>>);
+    struct CapturingSubscriber(Arc<StdMutex<TraceCapture>>);
 
     struct FieldVisitor<'a>(&'a mut String);
 
@@ -567,13 +1030,20 @@ mod tests {
         required_l1: u64,
     ) -> SuperRootAtTimestampResponse {
         use kona_sp1_client_utils::super_root::hash_super_root_proof;
-        let super_v1 = SuperV1 {
-            timestamp,
-            chains: vec![ChainIdAndOutput {
-                chain_id: ChainId(U256::from(10)),
-                output: B256::repeat_byte(output_byte),
-            }],
+
+        let chain_id = ChainId(U256::from(10));
+        let output = OutputV0 {
+            state_root: B256::repeat_byte(0x11),
+            message_passer_storage_root: B256::repeat_byte(0x22),
+            block_hash: B256::repeat_byte(output_byte),
         };
+        let mut preimage = vec![0u8; 128];
+        preimage[32..64].copy_from_slice(output.state_root.as_slice());
+        preimage[64..96].copy_from_slice(output.message_passer_storage_root.as_slice());
+        preimage[96..128].copy_from_slice(output.block_hash.as_slice());
+        let output_root = keccak256(preimage);
+        let super_v1 =
+            SuperV1 { timestamp, chains: vec![ChainIdAndOutput { chain_id, output: output_root }] };
         let proof = proof_from_super_v1(&super_v1).unwrap();
         let super_root = B256::from(*hash_super_root_proof(&proof).unwrap());
         SuperRootAtTimestampResponse {
@@ -581,8 +1051,15 @@ mod tests {
             current_safe_timestamp: timestamp,
             current_local_safe_timestamp: timestamp,
             current_finalized_timestamp: timestamp,
-            optimistic_at_timestamp: Default::default(),
-            chain_ids: vec![ChainId(U256::from(10))],
+            optimistic_at_timestamp: BTreeMap::from([(
+                chain_id,
+                OutputWithRequiredL1 {
+                    output: Some(output),
+                    output_root,
+                    required_l1: BlockId { number: required_l1, ..Default::default() },
+                },
+            )]),
+            chain_ids: vec![chain_id],
             data: Some(SuperRootResponseData {
                 verified_required_l1: BlockId { number: required_l1, ..Default::default() },
                 super_v1,
@@ -625,6 +1102,365 @@ mod tests {
             prestate: B256::repeat_byte(0x22),
             prover: Address::repeat_byte(0x33),
         }
+    }
+
+    fn attempt_identity(game: GameProofInputs) -> AttemptIdentity {
+        AttemptIdentity {
+            game,
+            provider: ProviderIdentity::Mock,
+            chunks: (0..2)
+                .map(|index| ChunkIdentity {
+                    index,
+                    agreed_ts: u64::from(index) + 100,
+                    claimed_ts: u64::from(index) + 101,
+                    range_input_digest: B256::repeat_byte(index + 0x44),
+                    consolidation_input_digest: B256::repeat_byte(index + 0x46),
+                })
+                .collect(),
+        }
+    }
+
+    fn chunk_result(index: usize) -> ChunkResult {
+        let inputs = valid_aggregation_inputs();
+        ChunkResult {
+            index,
+            range_outputs: inputs.range_outputs[index].clone(),
+            consolidation_outputs: inputs.consolidation_outputs[index].clone(),
+            proofs: None,
+        }
+    }
+
+    fn fulfilled_proof() -> SP1ProofWithPublicValues {
+        SP1ProofWithPublicValues {
+            proof: SP1Proof::Core(Vec::new()),
+            public_values: SP1PublicValues::new(),
+            sp1_version: String::new(),
+            tee_proof: None,
+        }
+    }
+
+    #[test]
+    fn fulfilled_aggregation_is_reverified_before_reuse() {
+        let start = response_at(100, 0x01, 5);
+        let end = response_at(101, 0x02, 5);
+        let game = game_for(&start, &end, 10);
+        let expected = expected_aggregation_public_values(&game);
+        let proof = SP1ProofWithPublicValues {
+            proof: SP1Proof::Plonk(Default::default()),
+            public_values: SP1PublicValues::from(&expected),
+            sp1_version: String::new(),
+            tee_proof: None,
+        };
+        let proof_bytes = proof.bytes();
+        let state = Mutex::new(RequestState::Fulfilled(Arc::new(proof)));
+        let verified = AtomicBool::new(false);
+
+        let reused = reuse_fulfilled_aggregation(&state, &game, |_| {
+            verified.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .unwrap()
+        .unwrap();
+
+        assert!(verified.load(Ordering::SeqCst));
+        assert_eq!(reused, proof_bytes);
+
+        let mut changed_game = game;
+        changed_game.root_claim = B256::repeat_byte(0x03);
+        let err = reuse_fulfilled_aggregation(&state, &changed_game, |_| Ok(())).unwrap_err();
+        assert!(err.to_string().contains("public values do not match"));
+    }
+
+    #[test]
+    fn synthesized_input_change_replaces_progress() {
+        let start = response_at(100, 0x01, 5);
+        let middle = response_at(101, 0x02, 5);
+        let end = response_at(102, 0x03, 5);
+        let game = game_for(&start, &end, 10);
+        let responses = vec![start.clone(), middle, end.clone()];
+        let provider = ProofProvider::Mock(crate::prover::MockProofProvider);
+        let cache = InMemoryProofProgress::default();
+        let game_address = Address::repeat_byte(0x45);
+
+        let (_, identity) =
+            plan_game_attempt(&provider, None, &game, &responses, RangeSplitCount::one()).unwrap();
+        let first = cache.load_or_create(game_address, identity);
+
+        let (_, identity) =
+            plan_game_attempt(&provider, None, &game, &responses, RangeSplitCount::one()).unwrap();
+        let unchanged = cache.load_or_create(game_address, identity);
+        assert!(Arc::ptr_eq(&first, &unchanged));
+
+        let changed_responses = vec![start, response_at(101, 0x04, 5), end];
+        let (_, identity) =
+            plan_game_attempt(&provider, None, &game, &changed_responses, RangeSplitCount::one())
+                .unwrap();
+        let changed = cache.load_or_create(game_address, identity);
+
+        assert!(!Arc::ptr_eq(&first, &changed));
+        assert_eq!(first.identity.game, changed.identity.game);
+        assert_eq!(first.identity.provider, changed.identity.provider);
+        assert_ne!(first.identity.chunks, changed.identity.chunks);
+    }
+
+    #[test]
+    fn network_vkey_change_replaces_progress() {
+        let start = response_at(100, 0x01, 5);
+        let end = response_at(101, 0x02, 5);
+        let game = game_for(&start, &end, 10);
+        let game_address = Address::repeat_byte(0x46);
+        let cache = InMemoryProofProgress::default();
+        let mut identity = attempt_identity(game);
+        identity.provider = ProviderIdentity::Network {
+            range_vkey: B256::repeat_byte(0x10),
+            aggregation_vkey: B256::repeat_byte(0x11),
+        };
+        let first = cache.load_or_create(game_address, identity.clone());
+
+        identity.provider = ProviderIdentity::Network {
+            range_vkey: B256::repeat_byte(0x12),
+            aggregation_vkey: B256::repeat_byte(0x11),
+        };
+        let changed = cache.load_or_create(game_address, identity);
+
+        assert!(!Arc::ptr_eq(&first, &changed));
+    }
+
+    #[test]
+    fn request_summary_reports_abandoned_work() {
+        let start = response_at(100, 0x01, 5);
+        let end = response_at(101, 0x02, 5);
+        let progress = GameProgress::new(attempt_identity(game_for(&start, &end, 10)));
+        let first_id = B256::repeat_byte(0x13);
+        let second_id = B256::repeat_byte(0x14);
+        *progress.chunks[0].range_request.lock() = RequestState::Submitted(first_id);
+        *progress.chunks[0].consolidation_request.lock() = RequestState::Submitting;
+        *progress.chunks[1].range_request.lock() =
+            RequestState::Fulfilled(Arc::new(fulfilled_proof()));
+        *progress.chunks[1].consolidation_request.lock() = RequestState::Submitted(second_id);
+        *progress.aggregation_request.lock() = RequestState::Fulfilled(Arc::new(fulfilled_proof()));
+
+        assert_eq!(
+            progress.request_summary(),
+            RequestSummary {
+                submitted_ids: vec![first_id, second_id],
+                submitting: 1,
+                fulfilled: 2,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn retry_reuses_completed_chunks_and_changed_identity_invalidates_them() {
+        let start = response_at(100, 0x01, 5);
+        let end = response_at(101, 0x02, 5);
+        let game = game_for(&start, &end, 10);
+        let address = Address::repeat_byte(0x46);
+        let cache = InMemoryProofProgress::default();
+        let generations = Arc::new([AtomicUsize::new(0), AtomicUsize::new(0)]);
+        let first_progress = cache.load_or_create(address, attempt_identity(game.clone()));
+        let first_done = Arc::new(tokio::sync::Notify::new());
+        let first_attempt = (0..2)
+            .map(|index| {
+                let generations = Arc::clone(&generations);
+                let first_done = Arc::clone(&first_done);
+                (index, async move {
+                    if index == 1 {
+                        first_done.notified().await;
+                        generations[index].fetch_add(1, Ordering::SeqCst);
+                        Err(anyhow!("chunk B failed"))
+                    } else {
+                        generations[index].fetch_add(1, Ordering::SeqCst);
+                        let result = chunk_result(index);
+                        first_done.notify_one();
+                        Ok(result)
+                    }
+                })
+            })
+            .collect();
+
+        let first =
+            run_chunk_attempts_with_progress(first_attempt, Arc::clone(&first_progress), 2).await;
+        assert_eq!(first.err().unwrap().to_string(), "chunk B failed");
+        assert_eq!(generations[0].load(Ordering::SeqCst), 1);
+        assert_eq!(generations[1].load(Ordering::SeqCst), 1);
+
+        let retry = (0..2)
+            .map(|index| {
+                let generations = Arc::clone(&generations);
+                (index, async move {
+                    generations[index].fetch_add(1, Ordering::SeqCst);
+                    Ok(chunk_result(index))
+                })
+            })
+            .collect();
+        run_chunk_attempts_with_progress(retry, Arc::clone(&first_progress), 2).await.unwrap();
+        assert_eq!(generations[0].load(Ordering::SeqCst), 1);
+        assert_eq!(generations[1].load(Ordering::SeqCst), 2);
+
+        let mut changed = game;
+        changed.root_claim = B256::repeat_byte(0x47);
+        let changed_progress = cache.load_or_create(address, attempt_identity(changed));
+        let changed_attempt = (0..2)
+            .map(|index| {
+                let generations = Arc::clone(&generations);
+                (index, async move {
+                    generations[index].fetch_add(1, Ordering::SeqCst);
+                    Ok(chunk_result(index))
+                })
+            })
+            .collect();
+        run_chunk_attempts_with_progress(changed_attempt, changed_progress, 2).await.unwrap();
+        assert_eq!(generations[0].load(Ordering::SeqCst), 2);
+        assert_eq!(generations[1].load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn changed_identity_replaces_submitted_request_for_liveness() {
+        let start = response_at(100, 0x01, 5);
+        let end = response_at(101, 0x02, 5);
+        let game = game_for(&start, &end, 10);
+        let address = Address::repeat_byte(0x48);
+        let cache = InMemoryProofProgress::default();
+        let progress = cache.load_or_create(address, attempt_identity(game.clone()));
+        *progress.chunks[0].range_request.lock() = RequestState::Submitted(B256::repeat_byte(0x49));
+
+        let mut changed = game;
+        changed.root_claim = B256::repeat_byte(0x4a);
+        let replacement = cache.load_or_create(address, attempt_identity(changed));
+
+        assert!(!Arc::ptr_eq(&progress, &replacement));
+        assert!(matches!(*replacement.chunks[0].range_request.lock(), RequestState::Missing));
+    }
+
+    #[tokio::test]
+    async fn submitted_request_id_is_polled_without_resubmission() {
+        let state = Mutex::new(RequestState::Missing);
+        let submissions = AtomicUsize::new(0);
+        let polls = AtomicUsize::new(0);
+        let proof_id = B256::repeat_byte(0x4b);
+
+        let first = complete_request(
+            &state,
+            async || {
+                submissions.fetch_add(1, Ordering::SeqCst);
+                Ok(proof_id)
+            },
+            async |observed| {
+                assert_eq!(observed, proof_id);
+                polls.fetch_add(1, Ordering::SeqCst);
+                Err(ProofWaitError::Uncertain(anyhow!("temporary polling failure")))
+            },
+            |_| Ok(()),
+        )
+        .await;
+        assert!(first.is_err());
+
+        let proof = complete_request(
+            &state,
+            async || {
+                submissions.fetch_add(1, Ordering::SeqCst);
+                Ok(B256::repeat_byte(0xff))
+            },
+            async |observed| {
+                assert_eq!(observed, proof_id);
+                polls.fetch_add(1, Ordering::SeqCst);
+                Ok(fulfilled_proof())
+            },
+            |_| Ok(()),
+        )
+        .await
+        .unwrap();
+        let cached = complete_request(
+            &state,
+            async || {
+                submissions.fetch_add(1, Ordering::SeqCst);
+                Ok(B256::repeat_byte(0xfe))
+            },
+            async |_| {
+                polls.fetch_add(1, Ordering::SeqCst);
+                Ok(fulfilled_proof())
+            },
+            |_| Ok(()),
+        )
+        .await
+        .unwrap();
+
+        assert!(Arc::ptr_eq(&proof, &cached));
+
+        assert!(proof.public_values.as_slice().is_empty());
+        assert_eq!(submissions.load(Ordering::SeqCst), 1);
+        assert_eq!(polls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn settled_terminal_request_can_be_replaced() {
+        let proof_id = B256::repeat_byte(0x4c);
+        let replacement_id = B256::repeat_byte(0x4d);
+        let state = Mutex::new(RequestState::Submitted(proof_id));
+        let submissions = AtomicUsize::new(0);
+
+        let first = complete_request(
+            &state,
+            async || panic!("submitted request must not be replaced yet"),
+            async |observed| {
+                Err(ProofWaitError::Terminal {
+                    proof_id: observed,
+                    state: ProofTerminalState::Cancelled,
+                    fulfillment_status: 0,
+                    execution_status: 0,
+                })
+            },
+            |_| Ok(()),
+        )
+        .await;
+        assert!(first.is_err());
+        assert!(matches!(*state.lock(), RequestState::Missing));
+
+        complete_request(
+            &state,
+            async || {
+                submissions.fetch_add(1, Ordering::SeqCst);
+                Ok(replacement_id)
+            },
+            async |observed| {
+                assert_eq!(observed, replacement_id);
+                Ok(fulfilled_proof())
+            },
+            |_| Ok(()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(submissions.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn validation_failure_stays_terminal_without_resubmission() {
+        let proof_id = B256::repeat_byte(0x4e);
+        let state = Mutex::new(RequestState::Missing);
+
+        let first = complete_request(
+            &state,
+            async || Ok(proof_id),
+            async |_| Ok(fulfilled_proof()),
+            |_| bail!("invalid proof"),
+        )
+        .await;
+        assert!(first.is_err());
+        assert!(matches!(
+            *state.lock(),
+            RequestState::Terminal(ProofTerminalState::ValidationFailed)
+        ));
+
+        let second = complete_request(
+            &state,
+            async || panic!("terminal request must not be resubmitted"),
+            async |_| panic!("terminal request must not be polled"),
+            |_| panic!("terminal proof must not be reverified"),
+        )
+        .await;
+        assert!(second.unwrap_err().to_string().contains("terminal state"));
     }
 
     #[test]
@@ -719,7 +1555,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn proof_replay_chunk_span_survives_unordered_execution() {
-        let capture = Arc::new(Mutex::new(TraceCapture::default()));
+        let capture = Arc::new(StdMutex::new(TraceCapture::default()));
         let subscriber = CapturingSubscriber(capture.clone());
         let _guard = tracing::subscriber::set_default(subscriber);
 

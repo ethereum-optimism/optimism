@@ -299,8 +299,6 @@ contract StandardValidatorUtils {
         );
         _errors = internalRequire(_admin.getProxyImplementation(address(_portal)) == _impl, "PORTAL-20", _errors);
 
-        IDisputeGameFactory _dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        _errors = internalRequire(address(_portal.disputeGameFactory()) == address(_dgf), "PORTAL-30", _errors);
         _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
         _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
         _errors = internalRequire(IProxyAdminOwnedBase(address(_portal)).proxyAdmin() == _admin, "PORTAL-90", _errors);
@@ -367,6 +365,7 @@ contract StandardValidatorUtils {
         _errors = internalRequire(
             IProxyAdminOwnedBase(address(_weth)).proxyAdmin() == _admin, string.concat(_errorPrefix, "-60"), _errors
         );
+        _errors = internalRequire(address(_weth) == _sysCfg.delayedWETH(), string.concat(_errorPrefix, "-70"), _errors);
         return _errors;
     }
 

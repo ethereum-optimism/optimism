@@ -253,8 +253,10 @@ free of `op-core/superchain`, which embeds the bundle — anything in its build 
 bundle generated before it compiles, and external module consumers (the superchain-registry ops
 tooling) cannot generate it at all. The registry→`ChainConfig` conversion (`OpChainConfig`,
 `LoadOpChainConfig`) therefore lives in **`op-core/superchain`**, which imports `op-core/params`
-one-way. Transitive guard tests in `op-node/rollup`, `op-chain-ops/script`, and
-`op-fetcher/pkg/fetcher/fetch/script` enforce the boundary (`op-service/testutils/depguard`).
+one-way. `TestBundleReachability` in `op-core/superchain/deps_test.go` guards the whole
+monorepo against reaching the bundle via a `bundleAllowed` allowlist; per-package guard
+tests (`op-service/testutils/depguard`) in `op-node/rollup`, `op-chain-ops/{genesis,script}`,
+and `op-fetcher/pkg/fetcher/fetch{,/script}` give a local failure signal on top.
 
 `rollup.Config` carries the full OP hardfork schedule itself (loaded from the registry,
 bypassing any geth `ChainConfig`); future forks extend `rollup.Config` directly. Any remaining

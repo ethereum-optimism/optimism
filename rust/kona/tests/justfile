@@ -225,11 +225,12 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     --jsonfile=./tmp/testlogs/log.json \
     -- -count=1 -parallel=$PARALLEL -timeout=60m -run "{{test_name}}"
 
-# Run the kona-sp1 range guest in SP1 execute mode against the action-test chain.
+# Run the kona-sp1 super-range guest in SP1 execute mode against the action-test chain.
 #
-# Builds the guest ELFs (Dockerized SP1 toolchain) and the range-executor binary, then runs the SP1
-# execute action tests with KONA_SP1_RANGE_EXECUTOR_PATH and KONA_SP1_ELF_DIR set. Tests skip when
-# the executor path is unset.
+# Builds the guest ELFs (Dockerized SP1 toolchain) and the super-range-executor binary, then runs
+# the SP1 execute action tests with KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH and KONA_SP1_ELF_DIR
+# set — the same two variables the op-acceptance-tests full-ELF suite reads. Tests skip when the
+# executor path is unset.
 action-tests-sp1 test_name='TestSP1.*':
   #!/bin/bash
   set -euo pipefail
@@ -239,11 +240,11 @@ action-tests-sp1 test_name='TestSP1.*':
   export KONA_SP1_ELF_DIR="{{SOURCE}}/../sp1/elf"
   echo "KONA_SP1_ELF_DIR: $KONA_SP1_ELF_DIR"
 
-  echo "Building kona-sp1-range-executor..."
-  ( cd {{SOURCE}}/../sp1 && just build-range-executor )
+  echo "Building kona-sp1-super-range-executor..."
+  ( cd {{SOURCE}}/../sp1 && just build-super-range-executor )
 
-  export KONA_SP1_RANGE_EXECUTOR_PATH="{{SOURCE}}/../../target/release/kona-sp1-range-executor"
-  echo "KONA_SP1_RANGE_EXECUTOR_PATH: $KONA_SP1_RANGE_EXECUTOR_PATH"
+  export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="{{SOURCE}}/../../target/release/kona-sp1-super-range-executor"
+  echo "KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH: $KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
 
   cd {{SOURCE}}/proofs
   go test -count=1 -timeout=60m -run "{{test_name}}" .

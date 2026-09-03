@@ -172,7 +172,7 @@ contract L1CrossDomainMessenger_Initialize_Test is L1CrossDomainMessenger_TestIn
 contract L1CrossDomainMessenger_Paused_Test is L1CrossDomainMessenger_TestInit {
     /// @notice Tests that the superchain config is called by the messenger's paused function.
     function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeWithSelector(ISuperchainConfig.isPaused.selector));
+        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.isPaused, (address(ethLockbox))));
         l1CrossDomainMessenger.paused();
     }
 
