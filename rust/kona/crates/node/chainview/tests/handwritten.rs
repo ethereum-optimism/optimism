@@ -1,12 +1,17 @@
-//! The chain view's finality chain written by hand against the DBSP Rust API, checked against
-//! the compiled SQL circuit on the same inputs.
+//! The chain view's finality chain three ways: the compiled SQL circuit, the same chain written
+//! by hand against the DBSP Rust API, and the same chain as a plain Rust store whose view is
+//! recomputed from scratch on every read. The differential tests feed identical rows to all
+//! three and require identical `finalized_l2` output after every step.
 //!
-//! This is a measurement, not a shipping path: it is what `l2_safe_canonical`,
-//! `finalized_candidate` and `finalized_l2` in `chainview.sql` look like without the compiler.
-//! The differential tests feed identical rows to both circuits and require identical
-//! `finalized_l2` output after every step.
+//! The two non-SQL forms are measurements, not shipping paths. The hand-written circuit is what
+//! `l2_safe_canonical`, `finalized_candidate` and `finalized_l2` look like without the
+//! compiler; the plain store is what the same consequences look like without any engine, and
+//! `recompute_cost_at_window_scale` says what that costs per read.
 
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    time::{Duration, Instant},
+};
 
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
@@ -92,6 +97,72 @@ fn build_by_hand(
 }
 // ---- hand-written circuit: end ----
 
+// ---- plain Rust store: begin ----
+/// The same facts as the circuit's tables, in maps; the view is a function over them.
+#[derive(Debug, Default)]
+struct PlainChainView {
+    /// One L1 block per height; a re-walked height with another hash replaces it.
+    l1_blocks: BTreeMap<i64, L1BlockRow>,
+    /// One current row per kind.
+    l1_status: BTreeMap<String, L1StatusRow>,
+    /// One current row per kind.
+    l2_status: BTreeMap<String, L2StatusRow>,
+    /// Engine-confirmed derived blocks by host sequence number.
+    l2_safe_blocks: BTreeMap<i64, L2SafeRow>,
+}
+
+impl PlainChainView {
+    fn push_l1_block(&mut self, row: L1BlockRow, weight: i64) {
+        if weight > 0 {
+            self.l1_blocks.insert(row.0, row);
+        } else if self.l1_blocks.get(&row.0) == Some(&row) {
+            self.l1_blocks.remove(&row.0);
+        }
+    }
+
+    fn push_l1_status(&mut self, row: L1StatusRow, weight: i64) {
+        Self::replace(&mut self.l1_status, row.0.str().to_owned(), row, weight);
+    }
+
+    fn push_l2_status(&mut self, row: L2StatusRow, weight: i64) {
+        Self::replace(&mut self.l2_status, row.0.str().to_owned(), row, weight);
+    }
+
+    fn push_l2_safe_block(&mut self, row: L2SafeRow, weight: i64) {
+        if weight > 0 {
+            self.l2_safe_blocks.insert(row.0, row);
+        } else if self.l2_safe_blocks.get(&row.0) == Some(&row) {
+            self.l2_safe_blocks.remove(&row.0);
+        }
+    }
+
+    fn replace<R: PartialEq>(map: &mut BTreeMap<String, R>, key: String, row: R, weight: i64) {
+        if weight > 0 {
+            map.insert(key, row);
+        } else if map.get(&key) == Some(&row) {
+            map.remove(&key);
+        }
+    }
+
+    /// `finalized_l2`, recomputed from the facts: the newest canonical derived block derived
+    /// from at or below finalized L1 and at or below the engine's safe head, if it is above the
+    /// engine's finalized head. Absent statuses read as -1, as the SQL's COALESCE does.
+    fn finalized_l2(&self) -> Option<FinalizedL2Row> {
+        let finalized_l1 = self.l1_status.get("finalized").map_or(-1, |r| r.1);
+        let engine_safe = self.l2_status.get("safe").map_or(-1, |r| r.1);
+        let engine_finalized = self.l2_status.get("finalized").map_or(-1, |r| r.1);
+        let canonical = |s: &L2SafeRow| self.l1_blocks.get(&s.8).is_none_or(|b| b.1 == s.9);
+        let c = self
+            .l2_safe_blocks
+            .values()
+            .filter(|s| canonical(s) && s.8 <= finalized_l1 && s.1 <= engine_safe)
+            .max_by_key(|s| s.0)?;
+        (c.1 > engine_finalized)
+            .then(|| Tup4::new(Some(c.1), Some(c.2.clone()), Some(c.8), Some(c.9.clone())))
+    }
+}
+// ---- plain Rust store: end ----
+
 fn l1_hash(number: u64, fork: u8) -> B256 {
     let mut bytes = [0u8; 32];
     bytes[0] = fork;
@@ -127,16 +198,18 @@ fn l2(number: u64) -> L2BlockInfo {
     }
 }
 
-/// Both circuits, fed identically.
+/// All three implementations, fed identically.
 struct Pair {
     sql: DBSPHandle,
     handles: Handles,
     hand: DBSPHandle,
     inputs: Inputs,
     hand_out: OutputHandle<OrdZSet<FinalizedL2Row>>,
+    plain: PlainChainView,
     sql_acc: BTreeMap<FinalizedL2Row, i64>,
     hand_acc: BTreeMap<FinalizedL2Row, i64>,
     heads: Vec<L2StatusRow>,
+    finalized_l1_row: Option<L1StatusRow>,
     seq: u64,
 }
 
@@ -151,32 +224,44 @@ impl Pair {
             hand,
             inputs,
             hand_out,
+            plain: PlainChainView::default(),
             sql_acc: BTreeMap::new(),
             hand_acc: BTreeMap::new(),
             heads: Vec::new(),
+            finalized_l1_row: None,
             seq: 0,
         }
     }
 
-    fn l1_blocks(&self, blocks: impl IntoIterator<Item = BlockInfo>, weight: i64) {
+    fn l1_blocks(&mut self, blocks: impl IntoIterator<Item = BlockInfo>, weight: i64) {
         for block in blocks {
             let row = l1_block_row(&block).expect("row");
             self.handles.l1_blocks.push(row.clone(), weight);
-            self.inputs.l1_blocks.push(row, weight);
+            self.inputs.l1_blocks.push(row.clone(), weight);
+            self.plain.push_l1_block(row, weight);
         }
     }
 
-    fn finalized_l1(&self, block: BlockInfo) {
+    /// Replaces the finalized L1 status row, as the driver does.
+    fn finalized_l1(&mut self, block: BlockInfo) {
+        if let Some(previous) = self.finalized_l1_row.take() {
+            self.handles.l1_status.push(previous.clone(), -1);
+            self.inputs.l1_status.push(previous.clone(), -1);
+            self.plain.push_l1_status(previous, -1);
+        }
         let row = l1_status_row(L1StatusKind::Finalized, &block).expect("row");
         self.handles.l1_status.push(row.clone(), 1);
-        self.inputs.l1_status.push(row, 1);
+        self.inputs.l1_status.push(row.clone(), 1);
+        self.plain.push_l1_status(row.clone(), 1);
+        self.finalized_l1_row = Some(row);
     }
 
     /// Replaces the engine's four head rows: unsafe = safe + 4, local-safe = safe.
     fn l2_heads(&mut self, safe: u64, finalized: u64) {
-        for row in self.heads.drain(..) {
+        for row in std::mem::take(&mut self.heads) {
             self.handles.l2_status.push(row.clone(), -1);
-            self.inputs.l2_status.push(row, -1);
+            self.inputs.l2_status.push(row.clone(), -1);
+            self.plain.push_l2_status(row, -1);
         }
         let labels = [
             (L2StatusKind::Unsafe, safe + 4),
@@ -188,6 +273,7 @@ impl Pair {
             let row = l2_status_row(kind, &l2(number)).expect("row");
             self.handles.l2_status.push(row.clone(), 1);
             self.inputs.l2_status.push(row.clone(), 1);
+            self.plain.push_l2_status(row.clone(), 1);
             self.heads.push(row);
         }
     }
@@ -198,16 +284,18 @@ impl Pair {
         let row = l2_safe_row(&fact).expect("row");
         self.handles.l2_safe_blocks.push(row.clone(), 1);
         self.inputs.l2_safe_blocks.push(row.clone(), 1);
+        self.plain.push_l2_safe_block(row.clone(), 1);
         row
     }
 
-    fn retract(&self, row: L2SafeRow) {
+    fn retract(&mut self, row: L2SafeRow) {
         self.handles.l2_safe_blocks.push(row.clone(), -1);
-        self.inputs.l2_safe_blocks.push(row, -1);
+        self.inputs.l2_safe_blocks.push(row.clone(), -1);
+        self.plain.push_l2_safe_block(row, -1);
     }
 
-    /// Steps both circuits, folds their deltas, and requires the integrated views to agree.
-    /// Returns the finalized L2 number both name, if any.
+    /// Steps both circuits, folds their deltas, recomputes the plain view, and requires all
+    /// three to agree. Returns the finalized L2 number they name, if any.
     fn step(&mut self) -> Option<u64> {
         self.sql.transaction().expect("sql step");
         self.hand.transaction().expect("hand step");
@@ -225,8 +313,55 @@ impl Pair {
         self.hand_acc.retain(|_, w| *w != 0);
         assert_eq!(self.sql_acc, self.hand_acc, "compiled and hand-written circuits disagree");
         assert!(self.sql_acc.len() <= 1, "finalized_l2 has at most one row");
-        self.sql_acc.keys().next().and_then(|row| row.0).map(|n| n as u64)
+        let from_circuit = self.sql_acc.keys().next().cloned();
+        assert_eq!(from_circuit, self.plain.finalized_l2(), "circuit and plain store disagree");
+        from_circuit.and_then(|row| row.0).map(|n| n as u64)
     }
+}
+
+/// What recomputing the plain view from scratch costs at window scale, next to one circuit
+/// step at the same scale: 4,096 L1 blocks (the LATENESS window), 2,000 derived blocks above
+/// finalized, one new derived block per step. Printed, not asserted; run with `--nocapture`.
+#[test]
+fn recompute_cost_at_window_scale() {
+    const L1: u64 = 4096;
+    const DERIVED: u64 = 2000;
+    const ROUNDS: u32 = 500;
+    let mut p = Pair::start();
+    p.l1_blocks((1..=L1).map(l1), 1);
+    p.l2_heads(DERIVED + 4, 0);
+    for n in 1..=DERIVED {
+        p.confirm(n, l1(n / 2 + 1));
+    }
+    p.finalized_l1(l1(L1 / 2));
+    p.step();
+
+    let mut plain = Duration::ZERO;
+    let mut circuit = Duration::ZERO;
+    for round in 0..ROUNDS {
+        let number = DERIVED + 1 + u64::from(round);
+        let row = l2_safe_row(&L2SafeFact {
+            seq: p.seq + 1 + u64::from(round),
+            block: l2(number),
+            derived_from: l1(number / 2 + 1),
+        })
+        .expect("row");
+        p.handles.l2_safe_blocks.push(row.clone(), 1);
+        let started = Instant::now();
+        p.sql.transaction().expect("step");
+        p.handles.finalized_l2.take_from_all();
+        circuit += started.elapsed();
+
+        p.plain.push_l2_safe_block(row, 1);
+        let started = Instant::now();
+        let _ = std::hint::black_box(p.plain.finalized_l2());
+        plain += started.elapsed();
+    }
+    println!(
+        "per event at {L1} L1 blocks and {DERIVED} derived rows: plain recompute {:.1} us, circuit step {:.1} us",
+        plain.as_secs_f64() * 1e6 / f64::from(ROUNDS),
+        circuit.as_secs_f64() * 1e6 / f64::from(ROUNDS)
+    );
 }
 
 #[test]
