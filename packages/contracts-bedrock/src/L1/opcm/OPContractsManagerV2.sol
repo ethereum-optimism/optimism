@@ -922,14 +922,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Preserve the pause source of existing shared contracts.
-        IETHLockbox ethLockbox = _cts.ethLockbox;
+        IETHLockbox ethLockbox = _ethLockboxFor(_cts.ethLockbox, address(_cts.anchorStateRegistry));
 
         // Update the DelayedWETH.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_ethLockboxFor(ethLockbox, address(_cts.delayedWETH))))
+            abi.encodeCall(IDelayedWETH.initialize, (ethLockbox))
         );
 
         // Update the AnchorStateRegistry.
@@ -939,12 +939,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (
-                    _ethLockboxFor(ethLockbox, address(_cts.anchorStateRegistry)),
-                    _cts.disputeGameFactory,
-                    _cfg.startingAnchorRoot,
-                    _cfg.startingRespectedGameType
-                )
+                (ethLockbox, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
             )
         );
 
