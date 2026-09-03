@@ -24,6 +24,63 @@ default:
 install-nightly:
   rustup toolchain install {{NIGHTLY}} --component rustfmt --component rust-src
 
+############################### Chainview ###############################
+
+# The sql-to-dbsp compiler version, JAR name and sha256 are pinned in build.rs; the recipes
+# below read them through kona/crates/node/chainview/pin.sh so there is exactly one pin, and
+# only when they run (a top-level backtick assignment would run on every `just` call).
+CHAINVIEW_PIN := "kona/crates/node/chainview/pin.sh"
+
+# Download and sha256-verify the pinned sql-to-dbsp compiler JAR (idempotent)
+[script('bash')]
+chainview-fetch-compiler:
+  set -euo pipefail
+  read -r version jar_file sha jar < <(bash "{{CHAINVIEW_PIN}}")
+  if [ -f "$jar" ] && echo "$sha  $jar" | sha256sum -c --status; then
+    echo "sql-to-dbsp v$version already present at $jar"
+    exit 0
+  fi
+  mkdir -p "$(dirname "$jar")"
+  url="https://github.com/feldera/feldera/releases/download/v$version/$jar_file"
+  echo "fetching $url"
+  curl -fsSL --retry 5 --retry-delay 2 -o "$jar.part" "$url"
+  echo "$sha  $jar.part" | sha256sum -c --status || { rm -f "$jar.part"; echo "sha256 mismatch for $url" >&2; exit 1; }
+  mv "$jar.part" "$jar"
+  echo "installed sql-to-dbsp v$version at $jar"
+
+# Report the Java and compiler-JAR state build.rs will see
+[script('bash')]
+chainview-doctor:
+  set -uo pipefail
+  read -r version jar_file sha jar < <(bash "{{CHAINVIEW_PIN}}")
+  java_bin="${JAVA_HOME:+$JAVA_HOME/bin/java}"; java_bin="${java_bin:-java}"
+  echo "java: $("$java_bin" -version 2>&1 | head -1)  ($(command -v "$java_bin" || echo "$java_bin"))"
+  echo "sql-to-dbsp pin: v$version ($jar_file)"
+  if [ -f "$jar" ]; then
+    if echo "$sha  $jar" | sha256sum -c --status; then echo "jar: $jar (sha256 ok)"; else echo "jar: $jar (SHA256 MISMATCH; run just chainview-fetch-compiler)"; fi
+  else
+    echo "jar: missing at $jar (run just chainview-fetch-compiler or set KONA_SQL2DBSP_JAR)"
+  fi
+
+# Compile a SQL file with the pinned compiler and print the generated circuit signature
+[script('bash')]
+chainview-sql-smoke sql="kona/crates/node/chainview/src/chainview.sql":
+  set -euo pipefail
+  read -r _version _jar_file _sha jar < <(bash "{{CHAINVIEW_PIN}}")
+  out="target/chainview-smoke"; mkdir -p "$out"
+  java -jar "$jar" "{{sql}}" -i --handles --alltables --ignoreOrder --outputsAreSets \
+    -je --errors "$out/errors.json" -js "$out/schema.json" -o "$out/lib.rs"
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])) if open(sys.argv[1]).read().strip() else []; [print(("warning" if e.get("warning") else "ERROR"), e.get("error_type"), "|", e.get("message"), "@", e.get("start_line_number")) for e in d]' "$out/errors.json"
+  grep -n "pub fn circuit" -A 40 "$out/lib.rs" | sed '/^[0-9]*-)), Error> {/q'
+
+# Type-check the chain view crate
+chainview-check:
+  cargo check -p kona-chainview
+
+# Run the chain view crate's tests
+chainview-test:
+  cargo nextest run -p kona-chainview
+
 ############################### Build ###############################
 
 # Build the workspace
