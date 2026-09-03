@@ -87,7 +87,7 @@ parameters:
 
 orbs:
   continuation: circleci/continuation@2.0.1
-  utils: ethereum-optimism/circleci-utils@1.0.30
+  utils: ethereum-optimism/circleci-utils@1.0.31
 
 jobs:
   # --------------------------------------------------------------------------

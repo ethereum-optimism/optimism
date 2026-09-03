@@ -888,30 +888,39 @@ fn test_post_exec_tx_does_not_accrue_da_footprint() {
     assert_eq!(result.receipts.len(), 2, "the 0x7D still gets a receipt");
 }
 
-/// Regression coverage for a warm-set leak in op-revm's `catch_error`.
+/// Regression coverage for state leaked by a dropped transaction.
 ///
-/// `catch_error` must discard the journal on a non-deposit tx error, as upstream revm's
-/// `EthHandler::catch_error` does. Were it not to, then on the SDM Produce execution path
-/// (`alloy-op-evm` routes to `inspect_tx`, which skips `finalize()` on error) a failed candidate
-/// tx would leave its sender EIP-2929-warm in the shared journal, so a later tx executed on the
-/// same EVM would be mischarged — diverging from a validator that never executed the failed tx.
-/// These tests pin that the leak does not occur, and that the current production (SDM-disabled)
-/// configuration is unaffected either way.
+/// The first three tests cover a warm-set leak in op-revm's `catch_error`. `catch_error` must
+/// discard the journal on a non-deposit tx error, as upstream revm's `EthHandler::catch_error`
+/// does. Were it not to, then on the SDM Produce execution path (`alloy-op-evm` routes to
+/// `inspect_tx`, which skips `finalize()` on error) a failed candidate tx would leave its sender
+/// EIP-2929-warm in the shared journal, so a later tx executed on the same EVM would be mischarged
+/// — diverging from a validator that never executed the failed tx. Those tests pin that the leak
+/// does not occur, and that the current production (SDM-disabled) configuration is unaffected
+/// either way.
 ///
-/// The probed path is policy-independent: Produce mode routes through `inspect_tx` whatever the
-/// policy, and the assertion is on `B`'s EIP-2929 gas, not on any refund. [`FixedRefundPolicy`]
-/// serves only to make the block carry a `0x7D` payload, as a real SDM block does.
+/// The journal-warmth path is policy-independent: Produce mode routes through `inspect_tx` whatever
+/// the policy, and the assertion is on `B`'s EIP-2929 gas, not on any refund.
+/// [`FixedRefundPolicy`] serves only to make the block carry a `0x7D` payload, as a real SDM block
+/// does. op-revm's `catch_error_tests.rs` keeps the unit matrix for that invariant; the first two
+/// tests here are the end-to-end builder-vs-validator pin.
 ///
-/// op-revm's `catch_error_tests.rs` keeps the unit matrix for the same invariant; this mod is the
-/// end-to-end builder-vs-validator pin.
+/// The final two tests cover a separate leak in the producer policy's block-scoped state. They use
+/// a stateful policy, assert on its snapshot rather than probe transaction gas, and specifically
+/// pin this crate's candidate-rollback wrapper; op-revm's unit matrix does not cover that
+/// invariant.
 mod warm_set_leak {
     use super::*;
+    use alloc::collections::BTreeSet;
+    use revm::context::result::InvalidTransaction;
 
     /// Sender of the failing tx `A` — loaded+warmed during validation before the nonce check
     /// rejects it. Its leaked warmth is the bug.
     const LEAK_ADDR: Address = Address::new([0xAA; 20]);
     /// Sender of the probe tx `B`.
     const PROBE_SENDER: Address = Address::new([0xBB; 20]);
+    /// Unique policy-state marker used to distinguish snapshot restoration from clearing state.
+    const POLICY_SENTINEL: Address = Address::new([0xDD; 20]);
     /// Probe contract: `PUSH20 <LEAK_ADDR>; BALANCE; POP; STOP` — a Berlin account access on `A`'s
     /// sender, charged 100 (warm) or 2600 (cold).
     const PROBE_CONTRACT: Address = Address::new([0xCC; 20]);
@@ -1135,6 +1144,154 @@ mod warm_set_leak {
         assert_eq!(
             without, with_failed_a,
             "with SDM disabled (prod config) a skipped failing tx must not affect the next tx",
+        );
+    }
+
+    // Leak B: unlike the journal-warmth leak above, this rides the producer *policy's* block-scoped
+    // state. `FixedRefundPolicy` is stateless, so it cannot detect it; use a policy whose only
+    // mutation is in `note_account_touch` — the `transact_raw` error-path call
+    // (`note_post_exec_account_touch`) a dropped tx triggers.
+    #[derive(Debug, Clone, Default)]
+    struct FeeVaultTouchPolicy {
+        touched: BTreeSet<Address>,
+    }
+
+    impl PostExecRefundInspector for FeeVaultTouchPolicy {
+        type Snapshot = BTreeSet<Address>;
+
+        fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
+
+        fn note_account_touch(&mut self, address: Address) {
+            self.touched.insert(address);
+        }
+
+        fn finish_tx(&mut self) -> PostExecExecutedTx {
+            PostExecExecutedTx::default()
+        }
+
+        fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+        where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+        where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_call_end<CTX>(
+            &mut self,
+            _context: &mut CTX,
+            _inputs: &CallInputs,
+            _outcome: &CallOutcome,
+        ) where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+        where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_create_end<CTX>(
+            &mut self,
+            _context: &mut CTX,
+            _inputs: &CreateInputs,
+            _outcome: &CreateOutcome,
+        ) where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
+
+        fn snapshot(&self) -> Self::Snapshot {
+            self.touched.clone()
+        }
+
+        fn restore(&mut self, snapshot: Self::Snapshot) {
+            self.touched = snapshot;
+        }
+    }
+
+    fn assert_invalid_transaction(err: BlockExecutionError, expected: InvalidTransaction) {
+        match err {
+            BlockExecutionError::Validation(BlockValidationError::InvalidTx { error, .. }) => {
+                assert_eq!(error.as_invalid_tx_err(), Some(&expected));
+            }
+            other => panic!("expected invalid transaction {expected:?}, got: {other:?}"),
+        }
+    }
+
+    /// A dropped state-invalid tx must restore a stateful producer policy to its per-candidate
+    /// snapshot. The sentinel proves the wrapper restores rather than clears prior block-scoped
+    /// state; the successful probe afterward proves this fixture exercises fee-vault touch
+    /// tracking. Removing the `Err`-branch restore leaves the failed tx's touches alongside the
+    /// sentinel and fails the exact-snapshot assertion.
+    fn assert_dropped_tx_leaves_no_policy_touch(
+        make_db: impl Fn() -> State<InMemoryDB>,
+        expected_error: InvalidTransaction,
+        a_error_context: &str,
+    ) {
+        let mut db = make_db();
+        let receipt_builder = OpAlloyReceiptBuilder::default();
+        let op_chain_hardforks = hardforks();
+        let mut executor = build_policy_executor_with::<FeeVaultTouchPolicy>(
+            &mut db,
+            &receipt_builder,
+            &op_chain_hardforks,
+            0,
+            Address::ZERO,
+            Inspect::Disabled,
+        );
+
+        let sentinel_snapshot = BTreeSet::from([POLICY_SENTINEL]);
+        executor.seed_refund_snapshot(sentinel_snapshot.clone());
+        assert_eq!(executor.refund_snapshot(), sentinel_snapshot);
+
+        let err = executor
+            .execute_transaction(&legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000))
+            .expect_err(a_error_context);
+        assert_invalid_transaction(err, expected_error);
+        assert_eq!(
+            executor.refund_snapshot(),
+            sentinel_snapshot,
+            "a dropped failing tx did not restore the producer policy's per-candidate snapshot",
+        );
+
+        executor.execute_transaction(&probe_tx()).expect("probe tx B executes");
+        let expected_committed_snapshot = BTreeSet::from([
+            POLICY_SENTINEL,
+            L1_FEE_RECIPIENT,
+            BASE_FEE_RECIPIENT,
+            OPERATOR_FEE_RECIPIENT,
+        ]);
+        assert_eq!(
+            executor.refund_snapshot(),
+            expected_committed_snapshot,
+            "a committed tx must exercise and retain the fee-vault touch pathway",
+        );
+    }
+
+    #[test]
+    fn dropped_nonce_too_low_tx_leaves_no_fee_vault_touch_in_policy() {
+        assert_dropped_tx_leaves_no_policy_touch(
+            nonce_too_low_db,
+            InvalidTransaction::NonceTooLow { tx: 0, state: 5 },
+            "tx A must fail NonceTooLow and be skipped",
+        );
+    }
+
+    #[test]
+    fn dropped_eip3607_tx_leaves_no_fee_vault_touch_in_policy() {
+        assert_dropped_tx_leaves_no_policy_touch(
+            contract_sender_db,
+            InvalidTransaction::RejectCallerWithCode,
+            "tx A must fail EIP-3607 (contract sender) and be skipped",
         );
     }
 }

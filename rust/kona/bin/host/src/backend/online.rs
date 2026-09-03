@@ -8,9 +8,12 @@ use kona_preimage::{
     errors::{PreimageOracleError, PreimageOracleResult},
 };
 use kona_proof::{Hint, errors::HintParsingError};
-use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc};
+use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 use tracing::{debug, error, trace};
+
+const INITIAL_RETRY_DELAY: Duration = Duration::from_millis(100);
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
 
 /// The [`OnlineHostBackendCfg`] trait is used to define the type configuration for the
 /// [`OnlineHostBackend`].
@@ -137,6 +140,7 @@ where
         drop(kv_lock);
 
         // Use a loop to keep retrying the prefetch as long as the key is not found
+        let mut retry_delay = INITIAL_RETRY_DELAY;
         while preimage.is_none() {
             // Try the retained high-level hint first (see `last_high_level_hint`).
             let high_level_hint = self.last_high_level_hint.read().await.clone();
@@ -153,7 +157,7 @@ where
                         }
                     }
                     Err(e) => {
-                        error!(target: "host_backend", "Failed to prefetch high-level hint: {e}");
+                        error!(target: "host_backend", "Failed to prefetch high-level hint: {e:#}");
                     }
                 }
             }
@@ -163,12 +167,17 @@ where
                 if let Err(e) =
                     H::fetch_hint(hint, &self.cfg, &self.providers, self.kv.clone()).await
                 {
-                    error!(target: "host_backend", "Failed to prefetch hint: {e}");
-                    continue;
+                    error!(target: "host_backend", "Failed to prefetch hint: {e:#}");
+                } else {
+                    preimage = self.kv.read().await.get(key.into());
+                    if preimage.is_some() {
+                        break;
+                    }
                 }
-
-                preimage = self.kv.read().await.get(key.into());
             }
+
+            tokio::time::sleep(retry_delay).await;
+            retry_delay = retry_delay.saturating_mul(2).min(MAX_RETRY_DELAY);
         }
 
         preimage.ok_or(PreimageOracleError::KeyNotFound)
@@ -276,8 +285,9 @@ mod tests {
     /// The core regression: a transient high-level (witness) fetch failure is retried by the
     /// `get_preimage` loop until it succeeds, rather than being surfaced as a permanent error that
     /// forces a fall-through to the unsupported `debug_dbGet`.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn high_level_hint_retried_until_success_then_cleared() {
+        let start = tokio::time::Instant::now();
         let (key, target) = target_key();
         let high_level_attempts = Arc::new(AtomicUsize::new(0));
         let backend = new_backend(TestProviders {
@@ -299,6 +309,7 @@ mod tests {
             3,
             "should fail twice then succeed on the third attempt"
         );
+        assert_eq!(start.elapsed(), Duration::from_millis(300));
         assert!(
             backend.last_high_level_hint.read().await.is_none(),
             "high-level hint should be cleared once it succeeds"
@@ -368,8 +379,9 @@ mod tests {
 
     /// A high-level hint that keeps failing (e.g. an unimplemented `debug_executePayload`) is
     /// retried and kept, but never blocks the fine-grained fallback that still serves the key.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn fine_grained_fallback_survives_failing_high_level_hint() {
+        let start = tokio::time::Instant::now();
         let (key, target) = target_key();
         let high_level_attempts = Arc::new(AtomicUsize::new(0));
         let low_level_attempts = Arc::new(AtomicUsize::new(0));
@@ -388,6 +400,7 @@ mod tests {
         let preimage = backend.get_preimage(key).await.unwrap();
 
         assert_eq!(preimage, b"node".to_vec());
+        assert_eq!(start.elapsed(), Duration::ZERO);
         assert!(high_level_attempts.load(Ordering::SeqCst) >= 1);
         assert!(low_level_attempts.load(Ordering::SeqCst) >= 1);
         assert!(

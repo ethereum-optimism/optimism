@@ -1,7 +1,8 @@
-// Package superchain loads OP-Stack rollup configs from the superchain-registry.
-// It is kept separate from op-node/rollup so that the many packages depending on
-// the rollup config types do not pull in op-core/superchain, which embeds the
-// multi-megabyte superchain config bundle and must generate it before it compiles.
+// Package superchain loads OP-Stack rollup configs and dependency sets from the
+// superchain-registry. It is kept separate from op-node/rollup and
+// op-core/interop/depset so that the many packages depending on those types do
+// not pull in op-core/superchain, which embeds the multi-megabyte superchain
+// config bundle and must generate it before it compiles.
 package superchain
 
 import (

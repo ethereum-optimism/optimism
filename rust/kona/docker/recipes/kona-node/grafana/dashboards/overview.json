@@ -708,23 +708,6 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "kona_node_block_labels{instance=~\"$instance\", label=~\"cross-unsafe\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "{{label}}",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
           "expr": "kona_node_block_labels{instance=~\"$instance\", label=~\"local-safe\"}",
           "fullMetaSearch": false,
           "hide": false,

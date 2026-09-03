@@ -127,19 +127,10 @@ where
 
                                     kona_macros::inc!(counter, Metrics::L1_REORG_COUNT);
                                 }
-                                // send the `reset` signal to the engine actor only when interop is
-                                // not active.
-                                if !self.pipeline.rollup_config().is_interop_active(
-                                    self.derivation_state_machine
-                                        .last_confirmed_safe_head()
-                                        .block_info
-                                        .timestamp,
-                                ) {
-                                    self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
-                                        error!(target: "derivation", ?e, "Failed to send reset request");
-                                        DerivationError::Sender(Box::new(e))
-                                    })?;
-                                }
+                                self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
+                                    error!(target: "derivation", ?e, "Failed to send reset request");
+                                    DerivationError::Sender(Box::new(e))
+                                })?;
                                 self.derivation_state_machine
                                     .update(&DerivationStateUpdate::SignalNeeded)?;
                                 return Err(DerivationError::Yield);
@@ -288,4 +279,102 @@ pub enum DerivationError {
     /// An invalid state transition occurred.
     #[error(transparent)]
     StateTransitionError(#[from] DerivationStateTransitionError),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actors::derivation::engine_client::MockDerivationEngineClient;
+    use alloy_primitives::B256;
+    use kona_derive::PipelineResult;
+    use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
+    use kona_protocol::{BlockInfo, L2BlockInfo};
+    use rstest::rstest;
+    use std::sync::Arc;
+
+    /// A pipeline stub whose every step reports an L1 reorg, forcing the reset branch of
+    /// [`DerivationActor::produce_next_attributes`].
+    #[derive(Debug)]
+    struct ReorgingPipeline {
+        rollup_config: Arc<RollupConfig>,
+    }
+
+    impl Iterator for ReorgingPipeline {
+        type Item = OpAttributesWithParent;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            None
+        }
+    }
+
+    impl kona_derive::OriginProvider for ReorgingPipeline {
+        fn origin(&self) -> Option<BlockInfo> {
+            Some(BlockInfo::default())
+        }
+    }
+
+    #[async_trait]
+    impl SignalReceiver for ReorgingPipeline {
+        async fn signal(&mut self, _: Signal) -> PipelineResult<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl Pipeline for ReorgingPipeline {
+        fn peek(&self) -> Option<&OpAttributesWithParent> {
+            None
+        }
+
+        async fn step(&mut self, _: L2BlockInfo) -> StepResult {
+            StepResult::StepFailed(PipelineErrorKind::Reset(ResetError::ReorgDetected(
+                B256::ZERO,
+                B256::repeat_byte(1),
+            )))
+        }
+
+        fn rollup_config(&self) -> &RollupConfig {
+            &self.rollup_config
+        }
+
+        async fn system_config_by_l2_hash(
+            &mut self,
+            _: B256,
+        ) -> Result<SystemConfig, PipelineErrorKind> {
+            Ok(SystemConfig::default())
+        }
+    }
+
+    /// A pipeline-driven reset must always reach the engine actor. The engine's reset is what
+    /// sends the pipeline its [`Signal`] back; without it the actor parks in
+    /// [`DerivationState::AwaitingSignal`] forever.
+    #[rstest]
+    #[case::interop_inactive(None)]
+    #[case::interop_active(Some(0))]
+    #[tokio::test]
+    async fn test_pipeline_reset_always_resets_engine(#[case] lagoon_time: Option<u64>) {
+        let rollup_config = Arc::new(RollupConfig {
+            hardforks: HardForkConfig { lagoon_time, ..Default::default() },
+            ..Default::default()
+        });
+
+        let mut engine_client = MockDerivationEngineClient::new();
+        engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
+
+        let (request_tx, request_rx) = mpsc::channel(1);
+        let mut actor = DerivationActor::new(
+            engine_client,
+            request_rx,
+            ReorgingPipeline { rollup_config: rollup_config.clone() },
+        );
+
+        // Complete EL sync so the actor starts deriving, then let it hit the reorg.
+        request_tx
+            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::default()))
+            .await
+            .unwrap();
+        actor.step().await.unwrap();
+
+        assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingSignal);
+    }
 }

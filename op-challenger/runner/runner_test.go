@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -93,12 +94,16 @@ func (s *stubTraceProvider) GetL2BlockNumberChallenge(_ context.Context) (*types
 	return nil, types.ErrL2BlockNumberValid
 }
 
+// errVMKilled is what a real run reports when the VM timeout fires: the VM's process group
+// is killed, so exec surfaces an *exec.ExitError and Cmd.Wait discards the context error.
+var errVMKilled = errors.New("signal: killed")
+
 // slowTraceProvider blocks until context is done, simulating a slow VM
 type slowTraceProvider struct{}
 
 func (s *slowTraceProvider) Get(ctx context.Context, _ types.Position) (common.Hash, error) {
 	<-ctx.Done()
-	return common.Hash{}, ctx.Err()
+	return common.Hash{}, errVMKilled
 }
 
 func (s *slowTraceProvider) GetStepData(_ context.Context, _ types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
@@ -135,4 +140,54 @@ func TestRunOnceReturnsTimeoutError(t *testing.T) {
 	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonGameType, nil, utils.LocalGameInputs{}, "")
 	require.ErrorIs(t, err, ErrVMTimeout)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestRunOnceReturnsTimeoutErrorWhenCreatingTraceProvider(t *testing.T) {
+	slowCreator := func(
+		ctx context.Context,
+		_ log.Logger,
+		_ vm.Metricer,
+		_ *config.Config,
+		_ prestateFetcher,
+		_ gameTypes.GameType,
+		_ utils.LocalGameInputs,
+		_ string,
+	) (types.TraceProvider, error) {
+		<-ctx.Done()
+		return nil, errVMKilled
+	}
+
+	r := &Runner{
+		vmTimeout:            50 * time.Millisecond,
+		traceProviderCreator: slowCreator,
+	}
+
+	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonGameType, nil, utils.LocalGameInputs{}, "")
+	require.ErrorIs(t, err, ErrVMTimeout)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestRunOnceDoesNotReportTimeoutForOtherFailures(t *testing.T) {
+	expectedErr := errors.New("boom")
+	failingCreator := func(
+		_ context.Context,
+		_ log.Logger,
+		_ vm.Metricer,
+		_ *config.Config,
+		_ prestateFetcher,
+		_ gameTypes.GameType,
+		_ utils.LocalGameInputs,
+		_ string,
+	) (types.TraceProvider, error) {
+		return nil, expectedErr
+	}
+
+	r := &Runner{
+		vmTimeout:            time.Minute,
+		traceProviderCreator: failingCreator,
+	}
+
+	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonGameType, nil, utils.LocalGameInputs{}, "")
+	require.ErrorIs(t, err, expectedErr)
+	require.NotErrorIs(t, err, ErrVMTimeout)
 }

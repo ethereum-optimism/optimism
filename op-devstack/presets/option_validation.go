@@ -14,7 +14,6 @@ const (
 	optionKindDeployer optionKinds = 1 << iota
 	optionKindBatcher
 	optionKindProposer
-	optionKindOPRBuilder
 	optionKindOpReth
 	optionKindGlobalL2CL
 	optionKindGlobalSyncTesterEL
@@ -43,7 +42,6 @@ const (
 const allOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
-	optionKindOPRBuilder |
 	optionKindOpReth |
 	optionKindGlobalL2CL |
 	optionKindGlobalSyncTesterEL |
@@ -75,7 +73,6 @@ var optionKindLabels = []struct {
 	{kind: optionKindDeployer, label: "deployer options"},
 	{kind: optionKindBatcher, label: "batcher options"},
 	{kind: optionKindProposer, label: "proposer options"},
-	{kind: optionKindOPRBuilder, label: "builder options"},
 	{kind: optionKindOpReth, label: "op-reth options"},
 	{kind: optionKindGlobalL2CL, label: "L2 CL options"},
 	{kind: optionKindGlobalSyncTesterEL, label: "sync tester EL options"},
@@ -214,8 +211,3 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 // option is accepted here and nowhere else to avoid a silent no-op.
 const twoL2SupernodeLightSequencerPresetSupportedOptionKinds = twoL2SupernodeInteropPresetSupportedOptionKinds |
 	optionKindGlobalL2CL
-
-const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindOPRBuilder |
-	optionKindOpReth |
-	optionKindInteropAtGenesis

@@ -2,7 +2,9 @@
 
 use derive_more::Debug;
 use libp2p::{
-    gossipsub::{Config, IdentTopic, MessageAuthenticity},
+    gossipsub::{
+        Config, IdentTopic, IdentityTransform, MessageAuthenticity, WhitelistSubscriptionFilter,
+    },
     swarm::NetworkBehaviour,
 };
 
@@ -22,6 +24,9 @@ pub enum BehaviourError {
     PeerScoreFailed(String),
 }
 
+/// The gossipsub behaviour, restricted to the topics the handlers serve.
+pub type Gossipsub = libp2p::gossipsub::Behaviour<IdentityTransform, WhitelistSubscriptionFilter>;
+
 /// Specifies the [`NetworkBehaviour`] of the node
 #[derive(NetworkBehaviour, Debug)]
 #[behaviour(out_event = "Event")]
@@ -30,7 +35,7 @@ pub struct Behaviour {
     #[debug(skip)]
     pub ping: libp2p::ping::Behaviour,
     /// Enables gossipsub as the routing layer.
-    pub gossipsub: libp2p::gossipsub::Behaviour,
+    pub gossipsub: Gossipsub,
     /// Enables the identify protocol.
     #[debug(skip)]
     pub identify: libp2p::identify::Behaviour,
@@ -50,8 +55,14 @@ impl Behaviour {
     ) -> Result<Self, BehaviourError> {
         let ping = libp2p::ping::Behaviour::default();
 
-        let mut gossipsub = libp2p::gossipsub::Behaviour::new(MessageAuthenticity::Anonymous, cfg)
-            .map_err(|_| BehaviourError::GossipsubCreationFailed)?;
+        let topics = handlers.iter().flat_map(|handler| handler.topics()).collect::<Vec<_>>();
+
+        let mut gossipsub = libp2p::gossipsub::Behaviour::new_with_subscription_filter(
+            MessageAuthenticity::Anonymous,
+            cfg,
+            WhitelistSubscriptionFilter(topics.iter().cloned().collect()),
+        )
+        .map_err(|_| BehaviourError::GossipsubCreationFailed)?;
 
         let identify = libp2p::identify::Behaviour::new(
             libp2p::identify::Config::new(String::new(), public_key)
@@ -60,27 +71,12 @@ impl Behaviour {
 
         let sync_req_resp = libp2p_stream::Behaviour::new();
 
-        let subscriptions = handlers
-            .iter()
-            .flat_map(|handler| {
-                handler
-                    .topics()
-                    .iter()
-                    .map(|topic| {
-                        let topic = IdentTopic::new(topic.to_string());
-                        gossipsub
-                            .subscribe(&topic)
-                            .map_err(|_| BehaviourError::SubscriptionFailed)?;
-                        Ok(topic.to_string())
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Result<Vec<String>, BehaviourError>>()?;
-
-        if !subscriptions.is_empty() {
+        if !topics.is_empty() {
             tracing::info!(target: "gossip", "Subscribed to topics:");
         }
-        for topic in subscriptions {
+        for topic in &topics {
+            let topic = IdentTopic::new(topic.to_string());
+            gossipsub.subscribe(&topic).map_err(|_| BehaviourError::SubscriptionFailed)?;
             tracing::info!(target: "gossip", "-> {}", topic);
         }
 
@@ -95,7 +91,7 @@ mod tests {
     use alloy_chains::Chain;
     use alloy_primitives::Address;
     use kona_genesis::RollupConfig;
-    use libp2p::gossipsub::{IdentTopic, TopicHash};
+    use libp2p::gossipsub::{IdentTopic, SubscriptionError, TopicHash};
 
     fn op_mainnet_topics() -> Vec<TopicHash> {
         vec![
@@ -112,6 +108,29 @@ mod tests {
         let cfg = config::default_config();
         let handlers = vec![];
         let _ = Behaviour::new(key.public(), cfg, &handlers).unwrap();
+    }
+
+    #[test]
+    fn test_behaviour_rejects_topics_outside_the_handler_set() {
+        let key = libp2p::identity::Keypair::generate_secp256k1();
+        let cfg = config::default_config();
+        let (_, recv) = tokio::sync::watch::channel(Address::default());
+        let block_handler = BlockHandler::new(
+            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
+            recv,
+        );
+        let handlers: Vec<Box<dyn Handler>> = vec![Box::new(block_handler)];
+        let mut behaviour = Behaviour::new(key.public(), cfg, &handlers).unwrap();
+
+        // The filter gates our own subscriptions and the ones peers announce.
+        let result = behaviour.gossipsub.subscribe(&IdentTopic::new("/optimism/10/9/blocks"));
+        assert!(matches!(result, Err(SubscriptionError::NotAllowed)), "unexpected: {result:?}");
+
+        // `Ok(false)` means we already subscribed.
+        let result = behaviour.gossipsub.subscribe(&IdentTopic::new("/optimism/10/0/blocks"));
+        assert!(matches!(result, Ok(false)), "unexpected: {result:?}");
+
+        assert_eq!(behaviour.gossipsub.topics().count(), op_mainnet_topics().len());
     }
 
     #[test]

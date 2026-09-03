@@ -253,8 +253,10 @@ free of `op-core/superchain`, which embeds the bundle — anything in its build 
 bundle generated before it compiles, and external module consumers (the superchain-registry ops
 tooling) cannot generate it at all. The registry→`ChainConfig` conversion (`OpChainConfig`,
 `LoadOpChainConfig`) therefore lives in **`op-core/superchain`**, which imports `op-core/params`
-one-way. Transitive guard tests in `op-node/rollup`, `op-chain-ops/script`, and
-`op-fetcher/pkg/fetcher/fetch/script` enforce the boundary (`op-service/testutils/depguard`).
+one-way. `TestBundleReachability` in `op-core/superchain/deps_test.go` guards the whole
+monorepo against reaching the bundle via a `bundleAllowed` allowlist; per-package guard
+tests (`op-service/testutils/depguard`) in `op-node/rollup`, `op-chain-ops/{genesis,script}`,
+and `op-fetcher/pkg/fetcher/fetch{,/script}` give a local failure signal on top.
 
 `rollup.Config` carries the full OP hardfork schedule itself (loaded from the registry,
 bypassing any geth `ChainConfig`); future forks extend `rollup.Config` directly. Any remaining
@@ -322,11 +324,12 @@ shedding. Instead, partition the `apis.EthClient` accessors by tx class:
   structs.
 - `InfoAndFirstDeposit(...)` — header + the L1-info deposit only, for hot paths (pattern
   prototyped in the closed PR #20532; revive).
-- No `InfoAndPostExecTx` **yet, deliberately**: every known consumer of post-exec data reads it
-  from batch/flashblock bytes (span-batch decode, `op-chain-ops/pkg/sdm`, the flashblock
-  client), not from L2 block bodies — block-fetching code only needs the *exclusion* that
-  `InfoAndUserTxs` provides. Add the accessor when a consumer (e.g. a rebate checker) first
-  needs to read the trailing `0x7D` tx off a block.
+- No `InfoAndPostExecTx` **yet, deliberately**: no known consumer needs an `apis.EthClient`
+  accessor. Span-batch decoding reads post-exec data from batch bytes, while
+  `op-chain-ops/pkg/sdm` fetches raw RPC blocks into its own permissive representation. Other
+  block-fetching code only needs the *exclusion* that `InfoAndUserTxs` provides. Add the
+  accessor when a consumer (e.g. a rebate checker) first needs to read the trailing `0x7D` tx
+  off a block.
 
 `InfoAndTxsBy*` stays as-is for **L1**. Internally `RPCBlock` keeps txs as raw per-tx bytes: the
 transactions-trie root is recomputed directly from those bytes (a typed tx's trie leaf *is* its

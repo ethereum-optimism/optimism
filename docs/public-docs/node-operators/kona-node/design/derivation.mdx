@@ -50,30 +50,17 @@ The actor coordinates with several other node components:
 
 ### Pipeline Construction
 
-The derivation pipeline is constructed by the `RollupNode` service when it wires up the derivation actor. The node builds caching L1/L2 providers and then creates an `OnlinePipeline` in one of two modes, selected by `InteropMode`:
-
-1. **Polled Mode**: Uses polling-based L1 block traversal
-2. **Indexed Mode**: Uses indexed L1 block traversal for more efficient L1 block handling
+The derivation pipeline is constructed by the `RollupNode` service when it wires up the derivation actor. The node builds caching L1/L2 providers and then creates an `OnlinePipeline`, which traverses L1 by polling its chain provider for the next block:
 
 ```rust
-match self.interop_mode {
-    InteropMode::Polled => OnlinePipeline::new_polled(
-        self.config.clone(),
-        self.l1_config.chain_config.clone(),
-        OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
-        l1_derivation_provider,
-        l2_derivation_provider,
-        self.dependency_set.clone(),
-    ),
-    InteropMode::Indexed => OnlinePipeline::new_indexed(
-        self.config.clone(),
-        self.l1_config.chain_config.clone(),
-        OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
-        l1_derivation_provider,
-        l2_derivation_provider,
-        self.dependency_set.clone(),
-    ),
-}
+OnlinePipeline::new_polled(
+    self.config.clone(),
+    self.l1_config.chain_config.clone(),
+    OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
+    l1_derivation_provider,
+    l2_derivation_provider,
+    self.dependency_set.clone(),
+)
 ```
 
 ### Provider Configuration
@@ -129,9 +116,8 @@ The derivation actor handles three categories of pipeline errors:
 - `PipelineError::Eof`: Yield and wait for more L1 data
 
 #### Reset Errors  
-- `ResetError::HoloceneActivation`: Send `ActivationSignal` to handle hardfork
-- `ResetError::ReorgDetected`: Send reset request to engine (if not in interop mode)
-- Other reset errors: Wait for external signal before continuing
+- `ResetError::HoloceneActivation`: Send an `ActivationSignal` to the pipeline and keep stepping
+- Any other reset error, including `ResetError::ReorgDetected`: Send a reset request to the engine, then wait for the engine's signal before continuing. `ReorgDetected` additionally increments the `L1_REORG_COUNT` metric.
 
 #### Critical Errors
 - Unrecoverable errors that terminate the derivation process
@@ -162,7 +148,6 @@ The derivation pipeline requires a [`RollupConfig`][rc] that defines:
 Runtime configuration includes:
 - Provider cache sizes
 - Polling intervals for L1 data
-- Interop mode selection
 - Metrics collection settings
 
 ## Integration Patterns

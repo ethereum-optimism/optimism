@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const pcdGenesisTimeOffset = 600
+const pcdGenesisTimeOffset = standard.MinGenesisTimeOffsetSeconds
 
 type pcdChainArtifacts struct {
 	chainID     common.Hash

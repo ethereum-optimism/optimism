@@ -54,9 +54,7 @@
       },
       "use_gha_cache": true,
       "cache_key_files": [
-        "rust/Cargo.lock",
-        "rust/op-rbuilder/Cargo.lock",
-        "rust/rollup-boost/Cargo.lock"
+        "rust/Cargo.lock"
       ]
     },
     "multicannon": {
@@ -341,32 +339,6 @@
         "apko/op-reth.yaml"
       ],
       "smoke_test": "op-reth --version"
-    },
-    "op-rbuilder": {
-      "type": "rust",
-      "needs_melange": [
-        "op-stack-rust"
-      ],
-      "paths": [
-        "rust/**"
-      ],
-      "nexus_paths": [
-        "apko/op-rbuilder.yaml"
-      ],
-      "smoke_test": "/app/rbuilder --help"
-    },
-    "rollup-boost": {
-      "type": "rust",
-      "needs_melange": [
-        "op-stack-rust"
-      ],
-      "paths": [
-        "rust/**"
-      ],
-      "nexus_paths": [
-        "apko/rollup-boost.yaml"
-      ],
-      "smoke_test": "rollup-boost --help"
     },
     "op-deployer": {
       "type": "go",

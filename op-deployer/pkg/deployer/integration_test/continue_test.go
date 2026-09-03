@@ -601,7 +601,7 @@ func newContinuationEnvWithIntentMutator(
 		PrivateKey:        privateKey,
 		L1RPCUrl:          l1RPC,
 		CacheDir:          cacheDir,
-		GenesisTimeOffset: 600,
+		GenesisTimeOffset: standard.MinGenesisTimeOffsetSeconds,
 	}))
 
 	prepared, err := pipeline.ReadState(workdir)

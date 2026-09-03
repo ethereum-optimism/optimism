@@ -13,7 +13,7 @@ All Rust code lives under `rust/`. This is a unified Cargo workspace — always 
 
 Check `rust/Cargo.toml` for the full workspace member list, dependency versions, and lint configuration. The Rust toolchain version is pinned in `rust/rust-toolchain.toml`.
 
-Workspace tool config lives at **`rust/.config/`** — `nextest.toml` (test settings, JUnit output) and `zepter.yaml` (feature-propagation lint). `nextest`, `zepter`, and `cargo-release` discover config **only from the workspace root**, so per-component `rust/<crate>/.config/*.toml` files are *not* read and have no effect — put new test/lint config at `rust/.config/`. (`rust/op-rbuilder` and `rust/rollup-boost` are separate vendored Cargo workspaces with their own root configs.)
+Workspace tool config lives at **`rust/.config/`** — `nextest.toml` (test settings, JUnit output) and `zepter.yaml` (feature-propagation lint). `nextest`, `zepter`, and `cargo-release` discover config **only from the workspace root**, so per-component `rust/<crate>/.config/*.toml` files are *not* read and have no effect — put new test/lint config at `rust/.config/`.
 
 ### Migrated, not vendored
 
@@ -28,8 +28,6 @@ Most of the OP Stack Rust code here was **officially migrated** into the monorep
 These crates are owned and edited directly here — do not look upstream for their source. They still *depend on* generic upstream crates (e.g. reth's engine/provider crates, `alloy`, `revm`), which remain external and pinned in `rust/Cargo.toml`; a change to one of those generic APIs has to go upstream first and then be consumed via a version bump. When changing upstream behavior or API leads to a better overall solution than working around it locally, it is acceptable — and often preferable — to propose that change upstream (a PR to the respective repository); suggest this when it applies.
 
 **Known exception:** `op-alloy-flz` has not been migrated yet and is still an external dependency, tracked by [#21087](https://github.com/ethereum-optimism/optimism/issues/21087).
-
-**Still vendored:** `rust/op-rbuilder/` and `rust/rollup-boost/` are vendored copies, slated for deprecation.
 
 ## Build System
 
@@ -148,6 +146,11 @@ The workspace uses `cargo-deny` for license, advisory, and dependency checks. Co
 cd rust
 just deny
 ```
+
+When auditing behavior controlled by Cargo features, match the production package selection. The
+Rust image recipe builds several binaries in one Cargo invocation, so features can be unified across
+selected workspace roots; a `cargo tree -p <binary>` run may not describe the resulting image. Use
+the package list in `melange/op-stack-rust.yaml` when optional transports or TLS backends matter.
 
 ## Before Every Commit
 

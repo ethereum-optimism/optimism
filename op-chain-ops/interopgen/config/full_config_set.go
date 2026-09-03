@@ -73,24 +73,3 @@ func (f FullConfigSetMerged) CheckChains() error {
 	}
 	return nil
 }
-
-type FullConfigSetSource interface {
-	LoadFullConfigSet(ctx context.Context) (FullConfigSet, error)
-}
-
-type FullConfigSetSourceMerged struct {
-	RollupConfigSetSource
-	coredepset.DependencySetSource
-}
-
-func (l *FullConfigSetSourceMerged) LoadFullConfigSet(ctx context.Context) (FullConfigSet, error) {
-	rollupConfigSet, err := l.RollupConfigSetSource.LoadRollupConfigSet(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load rollup config set: %w", err)
-	}
-	dependencySet, err := l.DependencySetSource.LoadDependencySet()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load dependency set: %w", err)
-	}
-	return NewFullConfigSetMerged(rollupConfigSet, dependencySet)
-}
