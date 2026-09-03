@@ -267,11 +267,7 @@ impl ProposerConfig {
                 .map(|list| list.split(',').map(|path| PathBuf::from(path.trim())).collect()),
             l1_config_path: optional_env("L1_CONFIG_PATH").map(PathBuf::from),
             dependency_set_path: optional_env("DEPENDENCY_SET_PATH").map(PathBuf::from),
-            range_split_count: parsed_env_or(
-                "RANGE_SPLIT_COUNT",
-                RangeSplitCount::new(RangeSplitCount::DEFAULT)
-                    .expect("default is a valid range split count"),
-            )?,
+            range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::default())?,
             max_concurrent_range_proofs: parsed_env_or(
                 "MAX_CONCURRENT_RANGE_PROOFS",
                 NonZeroUsize::MIN,
@@ -418,9 +414,6 @@ impl ProofProviderConfig {
 pub struct RangeSplitCount(NonZeroU8);
 
 impl RangeSplitCount {
-    /// Default chunk count when the operator does not configure one.
-    pub const DEFAULT: u8 = 16;
-
     /// Maximum accepted chunk count.
     pub const MAX: u8 = 128;
 
@@ -485,6 +478,11 @@ impl RangeSplitCount {
         }
 
         Ok(ranges)
+    }
+}
+impl Default for RangeSplitCount {
+    fn default() -> Self {
+        Self::new(16).expect("default is a valid range split count")
     }
 }
 
@@ -730,7 +728,7 @@ mod tests {
             assert!(RangeSplitCount::new(0).is_err());
             assert!(RangeSplitCount::new(129).is_err());
             assert_eq!(RangeSplitCount::one().to_usize(), 1);
-            assert_eq!(RangeSplitCount::new(RangeSplitCount::DEFAULT).unwrap().to_usize(), 16);
+            assert_eq!(RangeSplitCount::default().to_usize(), 16);
             assert_eq!(RangeSplitCount::new(RangeSplitCount::MAX).unwrap().to_usize(), 128);
         }
 

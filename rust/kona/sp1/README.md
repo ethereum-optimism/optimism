@@ -264,20 +264,17 @@ arrival (3-10s) and no more. It must leave assignment margin under
 `AUCTION_TIMEOUT`; cancellation retries the unfinished request while completed
 chunks remain cached when the proving inputs are unchanged.
 
-A defended span produces up to 128 chunks, with 16 by default. Each
-sufficiently large chunk can require a range proof and a consolidation proof,
-for up to 256 compressed child proofs before the final PLONK aggregation proof.
-`SP1_TIMEOUT_SECONDS` applies independently to each proof request, not to the
-complete defense.
+A defended span is split into up to the configured number of chunks. Each sufficiently
+large chunk can require a range proof and a consolidation proof before the final
+PLONK aggregation proof. `SP1_TIMEOUT_SECONDS` applies independently to each
+proof request, not to the complete defense.
 
 At the default one-hour interval, an OP Mainnet span contains about 1,800
 two-second blocks. The default 16 chunks average 112.5 blocks each; configuring
-18 targets 100 blocks per chunk. Configuring the maximum produces 125 chunks
-averaging 14.4 blocks because ceil division may yield fewer chunks than
-requested. Higher counts reduce per-request work but increase witness
-collection, fixed proving overhead, SPN request count, and aggregation input
-size. `RANGE_GAS_LIMIT` limits each range request, not the total work of the
-defense.
+18 targets 100 blocks per chunk. Higher counts reduce per-request work but
+increase witness collection, fixed proving overhead, SPN request count, and
+aggregation input size. `RANGE_GAS_LIMIT` limits each range request, not the
+total work of the defense.
 
 Transaction signing requires one of these configurations:
 
