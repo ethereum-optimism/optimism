@@ -1439,8 +1439,10 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         vm.prank(superchainConfig.guardian());
         anchorStateRegistry.setRespectedGameType(GameTypes.SUPER_CANNON_KONA);
 
+        // In fork mode setUp already created a game for this root at _proposedBlockNumber, so use the
+        // next block number to avoid a GameAlreadyExists collision.
         ISuperFaultDisputeGame superGame = ISuperFaultDisputeGame(
-            address(_createDisputeGame(GameTypes.SUPER_CANNON_KONA, _outputRoot, _proposedBlockNumber))
+            address(_createDisputeGame(GameTypes.SUPER_CANNON_KONA, _outputRoot, _proposedBlockNumber + 1))
         );
         uint256 superGameIndex = disputeGameFactory.gameCount() - 1;
         vm.warp(block.timestamp + superGame.maxClockDuration().raw() + 1 seconds);
