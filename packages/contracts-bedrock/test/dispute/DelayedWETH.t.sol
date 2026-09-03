@@ -14,7 +14,7 @@ import "src/dispute/lib/Errors.sol";
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
-import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title DelayedWETH_FallbackGasUser_Harness
 /// @notice Contract that burns gas in the fallback function.
@@ -72,8 +72,8 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_TestInit {
     /// @notice Tests that initialization is successful.
     function test_initialize_succeeds() public view {
         assertEq(delayedWeth.proxyAdminOwner(), proxyAdminOwner);
-        address expectedPauseIdentifier = address(optimismPortal2.ethLockbox());
-        assertEq(address(delayedWeth.pauseIdentifier()), expectedPauseIdentifier);
+        address expectedETHLockbox = address(optimismPortal2.ethLockbox());
+        assertEq(address(delayedWeth.ethLockbox()), expectedETHLockbox);
         assertEq(address(delayedWeth.config()), address(superchainConfig));
     }
 
@@ -110,7 +110,7 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_TestInit {
 
         // Call the `initialize` function with the sender.
         vm.prank(_sender);
-        delayedWeth.initialize(IPauseSource(address(1234)));
+        delayedWeth.initialize(IETHLockbox(payable(address(1234))));
     }
 }
 
@@ -268,7 +268,7 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_TestInit {
     /// @notice Tests withdrawal behavior under a scoped pause.
     function test_withdraw_whenScopedPaused_fails() public {
         address guardian = optimismPortal2.guardian();
-        address pauseIdentifier = address(delayedWeth.pauseIdentifier());
+        address ethLockbox = address(delayedWeth.ethLockbox());
 
         vm.prank(alice);
         delayedWeth.deposit{ value: 2 ether }();
@@ -282,7 +282,7 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_TestInit {
         delayedWeth.withdraw(1 ether);
 
         vm.prank(guardian);
-        superchainConfig.pause(pauseIdentifier);
+        superchainConfig.pause(ethLockbox);
         vm.expectRevert("DelayedWETH: contract is paused");
         vm.prank(alice);
         delayedWeth.withdraw(1 ether);

@@ -1969,10 +1969,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(cts.disputeGameFactory.owner(), deployConfig.proxyAdminOwner, "disputeGameFactory owner mismatch");
         assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "ETH_LOCKBOX not enabled");
         assertEq(address(cts.optimismPortal.ethLockbox()), address(cts.ethLockbox), "portal lockbox mismatch");
-        assertEq(
-            address(cts.anchorStateRegistry.pauseIdentifier()), address(cts.ethLockbox), "ASR pause source mismatch"
-        );
-        assertEq(address(cts.delayedWETH.pauseIdentifier()), address(cts.ethLockbox), "WETH pause source mismatch");
+        assertEq(address(cts.anchorStateRegistry.ethLockbox()), address(cts.ethLockbox), "ASR ETHLockbox mismatch");
+        assertEq(address(cts.delayedWETH.ethLockbox()), address(cts.ethLockbox), "WETH ETHLockbox mismatch");
     }
 
     /// @notice Tests upgrading a custom gas token chain.
@@ -1986,10 +1984,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertTrue(cts.systemConfig.isCustomGasToken(), "CGT not enabled");
         assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "ETH_LOCKBOX not enabled");
         assertEq(address(cts.optimismPortal.ethLockbox()), address(cts.ethLockbox), "portal lockbox mismatch");
-        assertEq(
-            address(cts.anchorStateRegistry.pauseIdentifier()), address(cts.ethLockbox), "ASR pause source mismatch"
-        );
-        assertEq(address(cts.delayedWETH.pauseIdentifier()), address(cts.ethLockbox), "WETH pause source mismatch");
+        assertEq(address(cts.anchorStateRegistry.ethLockbox()), address(cts.ethLockbox), "ASR ETHLockbox mismatch");
+        assertEq(address(cts.delayedWETH.ethLockbox()), address(cts.ethLockbox), "WETH ETHLockbox mismatch");
 
         uint256 portalBalance = address(cts.optimismPortal).balance;
         uint256 lockboxBalance = address(cts.ethLockbox).balance;
@@ -3438,7 +3434,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             "member chains should have distinct SystemConfigs"
         );
         assertEq(
-            address(sharedAsr.pauseIdentifier()),
+            address(sharedAsr.ethLockbox()),
             address(sharedLockbox),
             "shared AnchorStateRegistry should be bound to the shared ETHLockbox"
         );
@@ -3477,7 +3473,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         // Upgrading another member preserves the shared contracts.
         assertEq(
-            address(sharedAsr.pauseIdentifier()),
+            address(sharedAsr.ethLockbox()),
             address(sharedLockbox),
             "shared AnchorStateRegistry re-pointed away from the shared ETHLockbox"
         );
@@ -3487,7 +3483,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             "shared ETHLockbox re-pointed to a different SuperchainConfig"
         );
         assertEq(
-            address(sharedWeth.pauseIdentifier()),
+            address(sharedWeth.ethLockbox()),
             address(sharedLockbox),
             "shared DelayedWETH re-pointed away from the shared ETHLockbox"
         );

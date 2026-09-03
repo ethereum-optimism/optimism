@@ -11,7 +11,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerUtilsCaller
 /// @notice OPContractsManagerUtilsCaller is an abstract contract that exists to hide all of the
@@ -196,14 +196,13 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
-    /// @notice Returns the target's pause identifier or `_default` if unavailable.
-    /// @param _default The fallback pause identifier.
+    /// @notice Returns the target's ETHLockbox or `_default` if unavailable.
+    /// @param _default The fallback ETHLockbox.
     /// @param _target The target proxy.
-    /// @return The resolved pause identifier.
-    function _pauseIdentifierFor(IPauseSource _default, address _target) internal view returns (IPauseSource) {
+    /// @return The resolved ETHLockbox.
+    function _ethLockboxFor(IETHLockbox _default, address _target) internal view returns (IETHLockbox) {
         return abi.decode(
-            _staticcall(abi.encodeCall(IOPContractsManagerUtils.pauseIdentifierFor, (_default, _target))),
-            (IPauseSource)
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.ethLockboxFor, (_default, _target))), (IETHLockbox)
         );
     }
 

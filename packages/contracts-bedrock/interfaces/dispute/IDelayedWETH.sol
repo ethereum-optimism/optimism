@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
@@ -19,11 +19,11 @@ interface IDelayedWETH is IProxyAdminOwnedBase {
     receive() external payable;
 
     function initVersion() external view returns (uint8);
-    function pauseIdentifier() external view returns (IPauseSource);
+    function ethLockbox() external view returns (IETHLockbox);
     function delay() external view returns (uint256);
     function hold(address _guy) external;
     function hold(address _guy, uint256 _wad) external;
-    function initialize(IPauseSource _pauseIdentifier) external;
+    function initialize(IETHLockbox _ethLockbox) external;
     function recover(uint256 _wad) external;
     function unlock(address _guy, uint256 _wad) external;
     function withdraw(address _guy, uint256 _wad) external;

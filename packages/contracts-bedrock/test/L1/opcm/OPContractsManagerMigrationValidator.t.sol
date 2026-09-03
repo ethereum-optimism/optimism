@@ -525,7 +525,7 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.pauseIdentifier, ()), abi.encode(sharedLockbox));
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(sharedLockbox));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(sharedProxyAdmin));
         assertEq("MIG-SCKDG-GARGS-30", _validateMigration(true));
     }

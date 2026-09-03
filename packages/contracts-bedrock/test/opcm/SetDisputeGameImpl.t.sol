@@ -24,7 +24,6 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
 
 contract SetDisputeGameImplInput_Test is Test {
     SetDisputeGameImplInput input;
@@ -120,7 +119,7 @@ contract SetDisputeGameImpl_Test is Test {
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
                 (
-                    IPauseSource(address(ethLockboxProxy)),
+                    IETHLockbox(payable(address(ethLockboxProxy))),
                     factory,
                     Proposal({ root: Hash.wrap(0), l2SequenceNumber: 0 }),
                     GameType.wrap(100)

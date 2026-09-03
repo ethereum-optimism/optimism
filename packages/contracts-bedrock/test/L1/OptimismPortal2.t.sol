@@ -35,7 +35,6 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
@@ -767,12 +766,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
             impl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (
-                    IPauseSource(address(ethLockbox)),
-                    disputeGameFactory,
-                    startingAnchorRoot,
-                    GameTypes.SUPER_PERMISSIONED
-                )
+                (ethLockbox, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
             )
         );
 

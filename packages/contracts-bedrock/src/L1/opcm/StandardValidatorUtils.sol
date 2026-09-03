@@ -126,8 +126,8 @@ contract StandardValidatorUtils {
         }
     }
 
-    /// @notice Returns the expected pause identifier for a chain.
-    function expectedPauseIdentifier(ISystemConfig _sysCfg) internal view returns (address) {
+    /// @notice Returns the expected ETHLockbox for a chain.
+    function expectedETHLockbox(ISystemConfig _sysCfg) internal view returns (address) {
         IOptimismPortal2 portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
         return address(portal.ethLockbox());
     }
@@ -362,9 +362,7 @@ contract StandardValidatorUtils {
             internalRequire(_weth.proxyAdminOwner() == _l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
         _errors = internalRequire(_weth.delay() == _withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
         _errors = internalRequire(
-            address(_weth.pauseIdentifier()) == expectedPauseIdentifier(_sysCfg),
-            string.concat(_errorPrefix, "-50"),
-            _errors
+            address(_weth.ethLockbox()) == expectedETHLockbox(_sysCfg), string.concat(_errorPrefix, "-50"), _errors
         );
         _errors = internalRequire(
             IProxyAdminOwnedBase(address(_weth)).proxyAdmin() == _admin, string.concat(_errorPrefix, "-60"), _errors
@@ -401,9 +399,7 @@ contract StandardValidatorUtils {
             address(_asr.disputeGameFactory()) == address(_dgf), string.concat(_errorPrefix, "-30"), _errors
         );
         _errors = internalRequire(
-            address(_asr.pauseIdentifier()) == expectedPauseIdentifier(_sysCfg),
-            string.concat(_errorPrefix, "-40"),
-            _errors
+            address(_asr.ethLockbox()) == expectedETHLockbox(_sysCfg), string.concat(_errorPrefix, "-40"), _errors
         );
         _errors = internalRequire(
             IProxyAdminOwnedBase(address(_asr)).proxyAdmin() == _admin, string.concat(_errorPrefix, "-50"), _errors

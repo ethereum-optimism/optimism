@@ -114,6 +114,30 @@
   {
     "inputs": [
       {
+        "internalType": "contract IETHLockbox",
+        "name": "_default",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      }
+    ],
+    "name": "ethLockboxFor",
+    "outputs": [
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "GameType",
         "name": "_gameType",
         "type": "uint32"
@@ -576,30 +600,6 @@
         "internalType": "bytes",
         "name": "",
         "type": "bytes"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "contract IPauseSource",
-        "name": "_default",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_target",
-        "type": "address"
-      }
-    ],
-    "name": "pauseIdentifierFor",
-    "outputs": [
-      {
-        "internalType": "contract IPauseSource",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",

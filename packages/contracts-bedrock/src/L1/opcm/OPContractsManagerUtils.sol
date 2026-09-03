@@ -20,7 +20,6 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerUtils
@@ -423,14 +422,14 @@ contract OPContractsManagerUtils {
         }
     }
 
-    /// @notice Returns the target's pause identifier or `_default` if unavailable.
-    /// @param _default The fallback pause identifier.
+    /// @notice Returns the target's ETHLockbox or `_default` if unavailable.
+    /// @param _default The fallback ETHLockbox.
     /// @param _target The target proxy.
-    /// @return The resolved pause identifier.
-    function pauseIdentifierFor(IPauseSource _default, address _target) external view returns (IPauseSource) {
+    /// @return The resolved ETHLockbox.
+    function ethLockboxFor(IETHLockbox _default, address _target) external view returns (IETHLockbox) {
         // eip150-safe
-        try IAnchorStateRegistry(_target).pauseIdentifier() returns (IPauseSource pauseIdentifier_) {
-            return address(pauseIdentifier_) == address(0) ? _default : pauseIdentifier_;
+        try IAnchorStateRegistry(_target).ethLockbox() returns (IETHLockbox ethLockbox_) {
+            return address(ethLockbox_) == address(0) ? _default : ethLockbox_;
         } catch {
             return _default;
         }

@@ -30,7 +30,6 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -923,14 +922,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Preserve the pause source of existing shared contracts.
-        IPauseSource pauseIdentifier = IPauseSource(address(_cts.ethLockbox));
+        IETHLockbox ethLockbox = _cts.ethLockbox;
 
         // Update the DelayedWETH.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_pauseIdentifierFor(pauseIdentifier, address(_cts.delayedWETH))))
+            abi.encodeCall(IDelayedWETH.initialize, (_ethLockboxFor(ethLockbox, address(_cts.delayedWETH))))
         );
 
         // Update the AnchorStateRegistry.
@@ -941,7 +940,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
                 (
-                    _pauseIdentifierFor(pauseIdentifier, address(_cts.anchorStateRegistry)),
+                    _ethLockboxFor(ethLockbox, address(_cts.anchorStateRegistry)),
                     _cts.disputeGameFactory,
                     _cfg.startingAnchorRoot,
                     _cfg.startingRespectedGameType

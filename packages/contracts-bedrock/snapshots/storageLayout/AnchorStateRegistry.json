@@ -64,9 +64,9 @@
   },
   {
     "bytes": "20",
-    "label": "pauseIdentifier",
+    "label": "ethLockbox",
     "offset": 12,
     "slot": "6",
-    "type": "contract IPauseSource"
+    "type": "contract IETHLockbox"
   }
 ]

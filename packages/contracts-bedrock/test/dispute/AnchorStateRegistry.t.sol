@@ -13,7 +13,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
@@ -23,8 +23,8 @@ abstract contract AnchorStateRegistry_TestInit is BaseFaultDisputeGame_TestInit 
     /// @dev A valid l2BlockNumber that comes after the current anchor root block.
     uint256 validL2BlockNumber;
 
-    /// @dev The configured pause identifier.
-    IPauseSource asrPauseIdentifier;
+    /// @dev The configured ETHLockbox.
+    IETHLockbox asrETHLockbox;
 
     event AnchorUpdated(IFaultDisputeGame indexed game);
     event RespectedGameTypeSet(GameType gameType);
@@ -43,12 +43,12 @@ abstract contract AnchorStateRegistry_TestInit is BaseFaultDisputeGame_TestInit 
         Claim rootClaim = Claim.wrap(Hash.unwrap(root));
         super.init({ rootClaim: rootClaim, absolutePrestate: absolutePrestate, l2BlockNumber: validL2BlockNumber });
 
-        asrPauseIdentifier = anchorStateRegistry.pauseIdentifier();
+        asrETHLockbox = anchorStateRegistry.ethLockbox();
     }
 
-    /// @notice Returns the expected pause identifier.
-    function expectedPauseIdentifier() internal view returns (IPauseSource) {
-        return IPauseSource(address(optimismPortal2.ethLockbox()));
+    /// @notice Returns the expected ETHLockbox.
+    function expectedETHLockbox() internal view returns (IETHLockbox) {
+        return optimismPortal2.ethLockbox();
     }
 }
 
@@ -74,7 +74,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         assertEq(l2BlockNumber, 0);
 
         // Verify contract addresses.
-        assert(anchorStateRegistry.pauseIdentifier() == expectedPauseIdentifier());
+        assert(anchorStateRegistry.ethLockbox() == expectedETHLockbox());
         assert(anchorStateRegistry.disputeGameFactory() == disputeGameFactory);
         assert(anchorStateRegistry.superchainConfig() == superchainConfig);
     }
@@ -115,7 +115,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
 
         vm.prank(proxyAdminOwner);
         anchorStateRegistry.initialize(
-            asrPauseIdentifier,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({ root: root, l2SequenceNumber: l2SequenceNumber }),
             startingGameType
@@ -147,7 +147,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
 
         vm.prank(proxyAdminOwner);
         anchorStateRegistry.initialize(
-            asrPauseIdentifier,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({ root: root, l2SequenceNumber: l2SequenceNumber }),
             startingGameType
@@ -160,7 +160,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
     function test_initialize_twice_reverts() public {
         vm.expectRevert("Initializable: contract is already initialized");
         anchorStateRegistry.initialize(
-            asrPauseIdentifier,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
@@ -190,7 +190,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         // Call the `initialize` function with the sender
         vm.prank(_sender);
         anchorStateRegistry.initialize(
-            asrPauseIdentifier,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
@@ -224,9 +224,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
             Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: currentSeqNum + 42 });
 
         vm.prank(anchorStateRegistry.proxyAdminOwner());
-        anchorStateRegistry.initialize(
-            asrPauseIdentifier, disputeGameFactory, newStartingRoot, GameTypes.SUPER_CANNON_KONA
-        );
+        anchorStateRegistry.initialize(asrETHLockbox, disputeGameFactory, newStartingRoot, GameTypes.SUPER_CANNON_KONA);
 
         // anchorGame should be cleared.
         assertEq(address(anchorStateRegistry.anchorGame()), address(0));
@@ -259,7 +257,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
 
         // Re-initialize with the same starting anchor root.
         vm.prank(anchorStateRegistry.proxyAdminOwner());
-        anchorStateRegistry.initialize(asrPauseIdentifier, disputeGameFactory, currentRoot, GameTypes.SUPER_CANNON_KONA);
+        anchorStateRegistry.initialize(asrETHLockbox, disputeGameFactory, currentRoot, GameTypes.SUPER_CANNON_KONA);
 
         // anchorGame should still be the same.
         assertEq(address(anchorStateRegistry.anchorGame()), anchorGameBefore);
@@ -285,7 +283,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
 
         vm.prank(anchorStateRegistry.proxyAdminOwner());
         anchorStateRegistry.initialize(
-            asrPauseIdentifier,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 42 }),
             GameTypes.SUPER_CANNON_KONA
@@ -315,7 +313,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         vm.prank(anchorStateRegistry.proxyAdminOwner());
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.initialize(
-            asrPauseIdentifier,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 50 }),
             GameTypes.SUPER_CANNON_KONA
@@ -341,7 +339,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         Proposal memory currentRoot = anchorStateRegistry.getStartingAnchorRoot();
 
         vm.prank(anchorStateRegistry.proxyAdminOwner());
-        anchorStateRegistry.initialize(asrPauseIdentifier, disputeGameFactory, currentRoot, GameType.wrap(_gameTypeRaw));
+        anchorStateRegistry.initialize(asrETHLockbox, disputeGameFactory, currentRoot, GameType.wrap(_gameTypeRaw));
 
         // respectedGameType must be unchanged.
         assertEq(anchorStateRegistry.respectedGameType().raw(), _gameTypeRaw);
@@ -375,7 +373,7 @@ contract AnchorStateRegistry_Paused_Test is AnchorStateRegistry_TestInit {
         assertFalse(anchorStateRegistry.paused());
 
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(asrPauseIdentifier));
+        superchainConfig.pause(address(asrETHLockbox));
         assertTrue(anchorStateRegistry.paused());
     }
 }
