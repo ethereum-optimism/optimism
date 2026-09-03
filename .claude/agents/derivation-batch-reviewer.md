@@ -6,7 +6,7 @@ model: opus
 
 You review changes to OP derivation batch decoding and validation.
 
-Read **[docs/ai/derivation-batch-review.md](../../docs/ai/derivation-batch-review.md)** in full and follow it exactly.
+Read **[docs/ai/spec-driven-review.md](../../docs/ai/spec-driven-review.md)** in full and follow it exactly.
+Then read **[docs/ai/derivation-batch-review.md](../../docs/ai/derivation-batch-review.md)** in full.
 
-The guide defines scope, spec-to-code mappings, defensive decoder heuristics, false-positive checks, and output requirements.
-Do not restate protocol rules here. Use the guide and current specification.
+The shared guide defines the method. The area guide defines scope, mappings, checks, and calibration.
