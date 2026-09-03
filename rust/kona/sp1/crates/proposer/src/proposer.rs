@@ -365,15 +365,19 @@ impl ProposerState {
         reachable
     }
 
-    /// Mark a game and every cached descendant as terminally invalid, then
-    /// remove the subtree from the parent-eligible game cache.
-    fn invalidate_subtree(&mut self, root_index: U256) {
+    /// Marks a game and every cached descendant as terminally invalid, removes
+    /// the subtree, and returns the removed game addresses.
+    #[must_use]
+    fn invalidate_subtree(&mut self, root_index: U256) -> Vec<Address> {
         let invalid_subtree = self.descendants_of(root_index);
         self.invalid_games.extend(invalid_subtree.iter().copied());
-        for index in invalid_subtree {
-            tracing::info!(?index, "Removing invalid game from cache");
-            self.games.remove(&index);
-        }
+        invalid_subtree
+            .into_iter()
+            .filter_map(|index| {
+                tracing::info!(?index, "Removing invalid game from cache");
+                self.games.remove(&index).map(|game| game.address)
+            })
+            .collect()
     }
 
     /// Challenged, in-progress games as defense candidates, sorted by prove
@@ -423,13 +427,16 @@ impl ProposerState {
         candidates
     }
 
-    /// Drop all cached state tied to the prior factory history
-    fn reset_factory_cache(&mut self) {
+    /// Drops all cached state tied to the prior factory history and returns
+    /// the removed game addresses.
+    #[must_use]
+    fn reset_factory_cache(&mut self) -> Vec<Address> {
         self.anchor_game = None;
         self.canonical_head_index = None;
         self.cursor = Cursor::none();
-        self.games.clear();
+        let removed_addresses = self.games.drain().map(|(_, game)| game.address).collect();
         self.invalid_games.clear();
+        removed_addresses
     }
 
     /// Selects the canonical head: the highest-L2-timestamp game on the best valid chain.
@@ -648,7 +655,6 @@ fn classify_game_sync(
         GameSyncFacts::ChallengerWins { index } => Ok(GameSyncAction::RemoveSubtree(index)),
     }
 }
-
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
 /// resolves finished ones, and claims bonds.
 #[derive(Clone)]
@@ -913,9 +919,9 @@ impl Proposer {
     /// 2. `sync_anchor_game` aligns the cached anchor pointer with the registry contract.
     /// 3. `compute_canonical_head` recomputes the head game used for proposal selection.
     pub(crate) async fn sync_state(&self) -> Result<SyncDisposition> {
-        // Pin L1 block for the entire sync cycle so all state reads see a consistent
-        // snapshot. Without this, load-balanced RPCs can return data from different block
-        // heights, breaking atomicity between related reads (e.g. credit vs anchorGame).
+        // Pin one L1 block for the entire sync cycle so every state read sees a consistent
+        // snapshot. Without this, load-balanced RPCs or a reorg can make related reads resolve
+        // against different L1 states (e.g. credit vs anchorGame).
         // Ref: https://github.com/celo-org/op-succinct/issues/132
         let latest_block =
             self.l1_view.latest_head().await?.context("Failed to fetch latest L1 block")?;
@@ -964,7 +970,7 @@ impl Proposer {
                 }
             }
         };
-        let pinned_block = BlockId::number(pinned_l1.number);
+        let pinned_block = BlockId::hash(pinned_l1.hash);
         let pinned_timestamp = pinned_l1.timestamp;
 
         // Pull new games and synchronize cached game statuses.
@@ -1003,7 +1009,10 @@ impl Proposer {
             .set(pinned_latest_index.map_or(-1.0, |i| i.to::<u64>() as f64));
 
         let Some(latest_index) = pinned_latest_index else {
-            self.state.write().await.reset_factory_cache();
+            let removed_addresses = self.state.write().await.reset_factory_cache();
+            for address in removed_addresses {
+                self.proof_engine.clear(address);
+            }
             self.pending_games.write().await.clear();
             ProposerGauge::SyncCursor.set(-1.0);
             return Ok(());
@@ -1059,7 +1068,7 @@ impl Proposer {
         anchor_address: Address,
         pinned_block: BlockId,
     ) -> Result<GameDiscovery> {
-        let (cursor, factory_reset) = {
+        let (cursor, removed_addresses) = {
             let mut state = self.state.write().await;
             let current_cursor = state.cursor.clone();
             if latest_index < current_cursor {
@@ -1068,13 +1077,15 @@ impl Proposer {
                     current_cursor = %current_cursor,
                     "Factory reset suspected; resetting cursor to 0"
                 );
-                state.reset_factory_cache();
-                (Cursor::none(), true)
+                (Cursor::none(), Some(state.reset_factory_cache()))
             } else {
-                (current_cursor, false)
+                (current_cursor, None)
             }
         };
-        if factory_reset {
+        if let Some(removed_addresses) = removed_addresses {
+            for address in removed_addresses {
+                self.proof_engine.clear(address);
+            }
             self.pending_games.write().await.clear();
         }
 
@@ -1152,12 +1163,17 @@ impl Proposer {
             return;
         }
         let mut state = self.state.write().await;
+        let mut removed_addresses = Vec::new();
         for index in invalid_game_ids {
             tracing::warn!(
                 game_index = %index,
                 "Removing invalid game and its subtree from cache"
             );
-            state.invalidate_subtree(index);
+            removed_addresses.extend(state.invalidate_subtree(index));
+        }
+        drop(state);
+        for address in removed_addresses {
+            self.proof_engine.clear(address);
         }
     }
 
@@ -1226,7 +1242,10 @@ impl Proposer {
                 }
                 Ok(GameFetchResult::InvalidGame { index }) => {
                     self.pending_games.write().await.remove(&index);
-                    self.state.write().await.invalidate_subtree(index);
+                    let removed_addresses = self.state.write().await.invalidate_subtree(index);
+                    for address in removed_addresses {
+                        self.proof_engine.clear(address);
+                    }
                 }
                 Ok(_) => {
                     self.pending_games.write().await.remove(&index);
@@ -1324,6 +1343,7 @@ impl Proposer {
     /// Applies the completed action batch under one state write lock.
     async fn apply_game_sync_actions(&self, actions: Vec<GameSyncAction>) {
         let mut state = self.state.write().await;
+        let mut progress_addresses_to_clear = Vec::new();
         for action in actions {
             match action {
                 GameSyncAction::Update {
@@ -1342,29 +1362,32 @@ impl Proposer {
                         }
                         None => {}
                     }
+                    let terminal = lifecycle.status != GameStatus::InProgress ||
+                        !awaiting_proof(lifecycle.proposal_status);
                     if let Some(game) = state.games.get_mut(&index) {
                         game.status = lifecycle.status;
                         game.proposal_status = lifecycle.proposal_status;
                         game.deadline = lifecycle.deadline;
                         game.should_attempt_to_resolve = should_attempt_to_resolve;
                         game.should_attempt_to_claim_bond = should_attempt_to_claim_bond;
+                        if terminal {
+                            progress_addresses_to_clear.push(game.address);
+                        }
                     }
                 }
                 GameSyncAction::Remove(index) => {
-                    state.games.remove(&index);
+                    if let Some(game) = state.games.remove(&index) {
+                        progress_addresses_to_clear.push(game.address);
+                    }
                     tracing::debug!(game_index = %index, "Removed game from cache");
                 }
                 GameSyncAction::RemoveSubtree(index) => {
+                    let subtree = state.descendants_of(index);
                     let guarded_addr = *self.last_created_game_address.lock().await;
                     if guarded_addr != Address::ZERO {
-                        let subtree = state.descendants_of(index);
-                        let guard_in_subtree =
-                            std::iter::once(&index).chain(subtree.iter()).any(|idx| {
-                                state
-                                    .games
-                                    .get(idx)
-                                    .is_some_and(|game| game.address == guarded_addr)
-                            });
+                        let guard_in_subtree = subtree.iter().any(|idx| {
+                            state.games.get(idx).is_some_and(|game| game.address == guarded_addr)
+                        });
                         if guard_in_subtree {
                             self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
                             *self.last_created_game_address.lock().await = Address::ZERO;
@@ -1375,9 +1398,13 @@ impl Proposer {
                             );
                         }
                     }
-                    state.invalidate_subtree(index);
+                    progress_addresses_to_clear.extend(state.invalidate_subtree(index));
                 }
             }
+        }
+        drop(state);
+        for address in progress_addresses_to_clear {
+            self.proof_engine.clear(address);
         }
     }
 
@@ -2511,7 +2538,11 @@ impl Proposer {
                         );
                     }
                 }
-                state.invalidate_subtree(root_index);
+                let removed_addresses = state.invalidate_subtree(root_index);
+                drop(state);
+                for address in removed_addresses {
+                    self.proof_engine.clear(address);
+                }
                 return Ok(false);
             }
         }
@@ -2593,6 +2624,7 @@ impl Proposer {
                             ?game_address,
                             "Skipping fast finality: game is blacklisted or retired"
                         );
+                        self.proof_engine.clear(game_address);
                         continue;
                     }
                     planned.push(OperationSummary::ProveGame {
@@ -2821,6 +2853,7 @@ impl Proposer {
                     ?game_address,
                     "Skipping defense: game is blacklisted or retired"
                 );
+                self.proof_engine.clear(game_address);
                 continue;
             }
 
@@ -2873,6 +2906,7 @@ impl Proposer {
                         ?game_address,
                         "Skipping proving: game already proven or resolved on chain"
                     );
+                    self.proof_engine.clear(game_address);
                     return Ok(true);
                 }
                 Ok(_) => {}
@@ -2914,6 +2948,7 @@ impl Proposer {
                     now,
                     "Game proving deadline passed, cannot prove"
                 );
+                self.proof_engine.clear(game_address);
                 return Ok(true);
             }
             DeadlineStatus::Approaching { hours_remaining } => {
@@ -2945,7 +2980,11 @@ impl Proposer {
                 );
                 ProposerGauge::GameUnprovable.increment(1.0);
                 let mut state = self.state.write().await;
-                if state.games.get(&game_index).is_some_and(|game| game.address == game_address) {
+                let progress_addresses_to_clear = if state
+                    .games
+                    .get(&game_index)
+                    .is_some_and(|game| game.address == game_address)
+                {
                     let guarded_addr = *self.last_created_game_address.lock().await;
                     if guarded_addr != Address::ZERO &&
                         state.descendants_of(game_index).iter().any(|index| {
@@ -2960,13 +2999,29 @@ impl Proposer {
                             "Reset creation guard: tracked game removed with unprovable subtree"
                         );
                     }
-                    state.invalidate_subtree(game_index);
-                }
+                    state.invalidate_subtree(game_index)
+                } else {
+                    vec![game_address]
+                };
                 drop(state);
+                for address in progress_addresses_to_clear {
+                    self.proof_engine.clear(address);
+                }
                 self.undefendable.lock().await.insert(game_address);
                 Ok(TaskSuccess::TerminallyUnprovable)
             }
-            Err(err) => Err(err),
+            Err(err) => {
+                let can_retry =
+                    self.state.read().await.games.get(&game_index).is_some_and(|game| {
+                        game.address == game_address &&
+                            game.status == GameStatus::InProgress &&
+                            awaiting_proof(game.proposal_status)
+                    });
+                if !can_retry {
+                    self.proof_engine.clear(game_address);
+                }
+                Err(err)
+            }
         }
     }
 
@@ -2999,16 +3054,18 @@ impl Proposer {
 
         let inputs = self.game_proof_inputs(proof_inputs, prestate);
         let responses = fetch_span_responses(self.superroot_source.as_ref(), &inputs).await?;
-        let proof_bytes = self.proof_engine.prove(keys, inputs, responses).await?;
+        let proof_bytes = self.proof_engine.prove(game_address, keys, inputs, responses).await?;
 
         // Pre-submit re-check: proving can take long; avoid a guaranteed
         // revert when the game was proven by someone else, resolved, hit
         // its deadline, or was evicted (parent lost) meanwhile.
         if !self.pre_submit_checks(game_address).await? {
+            self.proof_engine.clear(game_address);
             return Ok(());
         }
 
         let transaction_hash = self.action_executor.prove_game(game_address, proof_bytes).await?;
+        self.proof_engine.clear(game_address);
 
         ProposerGauge::GamesProven.increment(1.0);
         ProposerGauge::ProvingDurationSeconds.set(start_time.elapsed().as_secs_f64());
@@ -3713,12 +3770,16 @@ mod tests {
         calls: StdMutex<Vec<(GameProofInputs, Vec<SuperRootAtTimestampResponse>)>>,
         proof: Vec<u8>,
         fail: bool,
+        cleared: StdMutex<Vec<Address>>,
+        cached: StdMutex<Option<Vec<u8>>>,
+        generations: std::sync::atomic::AtomicUsize,
     }
 
     #[async_trait]
     impl ProofEngine for RecordingProofEngine {
         async fn prove(
             &self,
+            _game_address: Address,
             _keys: Option<Arc<ProofKeys>>,
             game: GameProofInputs,
             responses: Vec<SuperRootAtTimestampResponse>,
@@ -3727,7 +3788,18 @@ mod tests {
             if self.fail {
                 anyhow::bail!("proof execution failed")
             }
+            let mut cached = self.cached.lock().unwrap();
+            if let Some(proof) = cached.as_ref() {
+                return Ok(proof.clone());
+            }
+            self.generations.fetch_add(1, AtomicOrdering::SeqCst);
+            *cached = Some(self.proof.clone());
             Ok(self.proof.clone())
+        }
+
+        fn clear(&self, game_address: Address) {
+            *self.cached.lock().unwrap() = None;
+            self.cleared.lock().unwrap().push(game_address);
         }
     }
 
@@ -3749,6 +3821,7 @@ mod tests {
     struct RecordingActionExecutor {
         calls: StdMutex<Vec<ActionCall>>,
         create_failure: Option<CreateFailure>,
+        prove_failures: StdMutex<usize>,
     }
 
     #[async_trait]
@@ -3781,6 +3854,11 @@ mod tests {
 
         async fn prove_game(&self, game: Address, proof: Vec<u8>) -> anyhow::Result<B256> {
             self.calls.lock().unwrap().push(ActionCall::Prove { game, proof });
+            let mut failures = self.prove_failures.lock().unwrap();
+            if *failures > 0 {
+                *failures -= 1;
+                anyhow::bail!("prove transaction failed");
+            }
             Ok(B256::left_padding_from(&[0xc3]))
         }
 
@@ -3833,7 +3911,7 @@ mod tests {
                 bond_targets: StdMutex::new(Vec::new()),
                 lifecycle_targets: StdMutex::new(Vec::new()),
                 fail_on: None,
-                latest_head: Some(L1BlockRef { number: 1, timestamp: 1_000 }),
+                latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 1, timestamp: 1_000 }),
                 block_ref: None,
                 latest_game_index: None,
                 anchor_game: Address::ZERO,
@@ -4228,7 +4306,7 @@ mod tests {
                 range_gas_limit: 1,
                 agg_cycle_limit: 1,
                 agg_gas_limit: 1,
-                max_price_per_pgu: 1,
+                max_price_per_pgu: Some(std::num::NonZeroU64::MIN),
                 min_auction_period: 1,
             },
         }
@@ -4297,6 +4375,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn sync_state_pins_reads_to_selected_l1_hash() {
+        let latest_hash = B256::repeat_byte(0x11);
+        let confirmed_hash = B256::repeat_byte(0x22);
+        let cases = [
+            (0, L1BlockRef { hash: latest_hash, number: 5, timestamp: 1_000 }, None, latest_hash),
+            (
+                2,
+                L1BlockRef { hash: latest_hash, number: 7, timestamp: 1_000 },
+                Some(L1BlockRef { hash: confirmed_hash, number: 5, timestamp: 998 }),
+                confirmed_hash,
+            ),
+        ];
+
+        for (confirmations, latest_head, block_ref, expected_hash) in cases {
+            let mut config = test_config();
+            config.sync_l1_confirmations = confirmations;
+            let mut proposer = test_proposer_with(config).await;
+            let view = Arc::new(RecordingL1View {
+                fail_on: Some("latest_game_index"),
+                latest_head: Some(latest_head),
+                block_ref,
+                ..Default::default()
+            });
+            proposer.l1_view = view.clone();
+
+            assert!(proposer.sync_state().await.is_err());
+            assert_eq!(
+                view.block_calls(),
+                vec![("latest_game_index", BlockId::hash(expected_hash))]
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn sync_head_failures_and_no_advance_outcomes_preserve_the_last_pin() {
         let cases = [
             (Some("latest_head"), 1, 3, 0, None, &["latest_head"] as &[_]),
@@ -4325,19 +4437,19 @@ mod tests {
             let mut proposer = test_proposer_with(config).await;
             let view = Arc::new(RecordingL1View {
                 fail_on,
-                latest_head: Some(L1BlockRef { number: head, timestamp: 1_000 }),
+                latest_head: Some(L1BlockRef { hash: B256::ZERO, number: head, timestamp: 1_000 }),
                 ..Default::default()
             });
             proposer.l1_view = view.clone();
             *proposer.last_successful_pinned_l1.write().await =
-                Some(L1BlockRef { number: previous_pin, timestamp: 1_000 });
+                Some(L1BlockRef { hash: B256::ZERO, number: previous_pin, timestamp: 1_000 });
             match expected {
                 Some(expected) => assert_eq!(proposer.sync_state().await.unwrap(), expected),
                 None => assert!(proposer.sync_state().await.is_err()),
             }
             assert_eq!(
                 *proposer.last_successful_pinned_l1.read().await,
-                Some(L1BlockRef { number: previous_pin, timestamp: 1_000 })
+                Some(L1BlockRef { hash: B256::ZERO, number: previous_pin, timestamp: 1_000 })
             );
             assert_eq!(view.calls(), expected_calls);
         }
@@ -4347,7 +4459,7 @@ mod tests {
     async fn sync_state_advances_only_once_when_head_is_block_zero() {
         let mut proposer = test_proposer().await;
         proposer.l1_view = Arc::new(RecordingL1View {
-            latest_head: Some(L1BlockRef { number: 0, timestamp: 1_000 }),
+            latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 0, timestamp: 1_000 }),
             ..Default::default()
         });
 
@@ -4358,21 +4470,21 @@ mod tests {
     #[tokio::test]
     async fn factory_failure_does_not_advance_the_successful_pin() {
         let view = Arc::new(RecordingL1View {
-            latest_head: Some(L1BlockRef { number: 5, timestamp: 1_000 }),
+            latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 5, timestamp: 1_000 }),
             fail_on: Some("latest_game_index"),
             ..Default::default()
         });
         let mut proposer = test_proposer().await;
         proposer.l1_view = view.clone();
         *proposer.last_successful_pinned_l1.write().await =
-            Some(L1BlockRef { number: 3, timestamp: 900 });
+            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 });
         let cursor = Cursor::from(U256::from(7));
         proposer.state.write().await.cursor = cursor.clone();
 
         assert!(proposer.sync_state().await.is_err());
         assert_eq!(
             *proposer.last_successful_pinned_l1.read().await,
-            Some(L1BlockRef { number: 3, timestamp: 900 })
+            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 })
         );
         assert_eq!(proposer.state.read().await.cursor, cursor);
         assert_eq!(view.calls(), vec!["latest_head", "latest_game_index"]);
@@ -4393,7 +4505,10 @@ mod tests {
             });
             let mut proposer = test_proposer().await;
             proposer.l1_view = view;
+            let proof_engine = Arc::new(RecordingProofEngine::default());
+            proposer.proof_engine = proof_engine.clone();
             let cached = game_with(4, u32::MAX, 100);
+            let cached_address = cached.address;
             {
                 let mut state = proposer.state.write().await;
                 state.anchor_game = Some(cached.clone());
@@ -4423,13 +4538,14 @@ mod tests {
             assert!(state.games.is_empty());
             assert!(state.invalid_games.is_empty());
             assert!(proposer.pending_games.read().await.is_empty());
+            assert_eq!(*proof_engine.cleared.lock().unwrap(), vec![cached_address]);
         }
     }
 
     #[tokio::test]
     async fn sync_failure_boundaries_preserve_cursor_and_isolate_existing_games() {
         let anchor_failure = Arc::new(RecordingL1View {
-            latest_head: Some(L1BlockRef { number: 5, timestamp: 1_000 }),
+            latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 5, timestamp: 1_000 }),
             latest_game_index: Some(U256::ZERO),
             fail_on: Some("registered_anchor_game"),
             ..Default::default()
@@ -4437,13 +4553,13 @@ mod tests {
         let mut proposer = test_proposer().await;
         proposer.l1_view = anchor_failure.clone();
         *proposer.last_successful_pinned_l1.write().await =
-            Some(L1BlockRef { number: 3, timestamp: 900 });
+            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 });
         let cursor = Cursor::from(U256::ZERO);
         proposer.state.write().await.cursor = cursor.clone();
         assert!(proposer.sync_state().await.is_err());
         assert_eq!(
             *proposer.last_successful_pinned_l1.read().await,
-            Some(L1BlockRef { number: 3, timestamp: 900 })
+            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 })
         );
         assert_eq!(proposer.state.read().await.cursor, cursor);
         assert_eq!(
@@ -4452,7 +4568,7 @@ mod tests {
         );
 
         let discovery_failure = Arc::new(RecordingL1View {
-            latest_head: Some(L1BlockRef { number: 5, timestamp: 1_000 }),
+            latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 5, timestamp: 1_000 }),
             latest_game_index: Some(U256::ZERO),
             fail_on: Some("factory_game"),
             ..Default::default()
@@ -4460,11 +4576,11 @@ mod tests {
         let mut proposer = test_proposer().await;
         proposer.l1_view = discovery_failure.clone();
         *proposer.last_successful_pinned_l1.write().await =
-            Some(L1BlockRef { number: 3, timestamp: 900 });
+            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 });
         assert!(proposer.sync_state().await.is_err());
         assert_eq!(
             *proposer.last_successful_pinned_l1.read().await,
-            Some(L1BlockRef { number: 3, timestamp: 900 })
+            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 })
         );
         assert_eq!(proposer.state.read().await.cursor, Cursor::none());
         assert_eq!(
@@ -4662,7 +4778,11 @@ mod tests {
             ..game_with(0, u32::MAX, 100)
         };
         let completed = Game { absolute_prestate: prestate, ..game_with(1, 0, 101) };
+        let retained_address = retained.address;
+        let completed_address = completed.address;
         let mut proposer = test_proposer().await;
+        let proof_engine = Arc::new(RecordingProofEngine::default());
+        proposer.proof_engine = proof_engine.clone();
         proposer.l1_view = Arc::new(RecordingL1View {
             latest_game_index: Some(U256::ZERO),
             anchor_game: retained.address,
@@ -4706,6 +4826,34 @@ mod tests {
         assert!(!cached.should_attempt_to_resolve);
         assert!(!cached.should_attempt_to_claim_bond);
         assert!(!state.games.contains_key(&U256::ONE));
+        let cleared = proof_engine.cleared.lock().unwrap().iter().copied().collect::<HashSet<_>>();
+        assert_eq!(cleared, HashSet::from([retained_address, completed_address]));
+    }
+
+    #[tokio::test]
+    async fn removing_subtree_clears_its_proof_progress() {
+        let root = game_with(7, u32::MAX, 100);
+        let child = game_with(8, 7, 101);
+        let sibling = game_with(9, u32::MAX, 102);
+        let removed_addresses = HashSet::from([root.address, child.address]);
+        let sibling_index = sibling.index;
+        let mut proposer = test_proposer().await;
+        let proof_engine = Arc::new(RecordingProofEngine::default());
+        proposer.proof_engine = proof_engine.clone();
+        {
+            let mut state = proposer.state.write().await;
+            state.games.insert(root.index, root);
+            state.games.insert(child.index, child);
+            state.games.insert(sibling.index, sibling);
+        }
+
+        proposer.apply_game_sync_actions(vec![GameSyncAction::RemoveSubtree(U256::from(7))]).await;
+
+        let state = proposer.state.read().await;
+        assert_eq!(state.games.len(), 1);
+        assert!(state.games.contains_key(&sibling_index));
+        let cleared = proof_engine.cleared.lock().unwrap().iter().copied().collect::<HashSet<_>>();
+        assert_eq!(cleared, removed_addresses);
     }
 
     mod game_sync_classification {
@@ -5263,7 +5411,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn proof_port_forwards_validated_inputs_and_opaque_bytes() {
+    async fn l1_submission_retry_reuses_cached_proof() {
         let starting_root = B256::repeat_byte(0x11);
         let root_claim = B256::repeat_byte(0x22);
         let proof = vec![0xaa, 0xbb];
@@ -5283,8 +5431,14 @@ mod tests {
             calls: StdMutex::new(Vec::new()),
             proof: proof.clone(),
             fail: false,
+            cleared: StdMutex::new(Vec::new()),
+            cached: StdMutex::new(None),
+            generations: std::sync::atomic::AtomicUsize::new(0),
         });
-        let actions = Arc::new(RecordingActionExecutor::default());
+        let actions = Arc::new(RecordingActionExecutor {
+            prove_failures: StdMutex::new(1),
+            ..Default::default()
+        });
         let mut proposer = test_proposer().await;
         proposer.l1_view = view;
         proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
@@ -5298,19 +5452,28 @@ mod tests {
         proposer.action_executor = actions.clone();
         proposer.state.write().await.games.insert(game.index, game.clone());
 
+        assert!(proposer.prove_game(game.address).await.is_err());
+        assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
+        assert!(engine.cleared.lock().unwrap().is_empty());
+
         proposer.prove_game(game.address).await.unwrap();
 
         let calls = engine.calls.lock().unwrap();
-        assert_eq!(calls.len(), 1);
+        assert_eq!(calls.len(), 2);
         assert_eq!(calls[0].0.starting_root, starting_root);
         assert_eq!(calls[0].0.root_claim, root_claim);
         assert_eq!(calls[0].0.prover, proposer.proposer_address);
         assert_eq!(calls[0].1.len(), 2);
         drop(calls);
+        assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
         assert_eq!(
             *actions.calls.lock().unwrap(),
-            vec![ActionCall::Prove { game: game.address, proof }]
+            vec![
+                ActionCall::Prove { game: game.address, proof: proof.clone() },
+                ActionCall::Prove { game: game.address, proof },
+            ]
         );
+        assert_eq!(*engine.cleared.lock().unwrap(), vec![game.address]);
     }
 
     #[tokio::test]
@@ -5342,6 +5505,9 @@ mod tests {
                 calls: StdMutex::new(Vec::new()),
                 proof: vec![0xaa],
                 fail,
+                cleared: StdMutex::new(Vec::new()),
+                cached: StdMutex::new(None),
+                generations: std::sync::atomic::AtomicUsize::new(0),
             });
             let actions = Arc::new(RecordingActionExecutor::default());
             let mut proposer = test_proposer().await;
@@ -5353,13 +5519,15 @@ mod tests {
                     (101, super_root_at_timestamp(101, root_claim, 12, 10)),
                 ],
             });
-            proposer.proof_engine = engine;
+            proposer.proof_engine = engine.clone();
             proposer.action_executor = actions.clone();
             proposer.state.write().await.games.insert(game.index, game.clone());
 
             let result = proposer.prove_game(game.address).await;
             assert_eq!(result.is_err(), fail);
             assert!(actions.calls.lock().unwrap().is_empty());
+            let expected_clears = if fail { Vec::new() } else { vec![game.address] };
+            assert_eq!(*engine.cleared.lock().unwrap(), expected_clears);
         }
     }
 
@@ -5576,7 +5744,9 @@ mod tests {
 
         #[tokio::test]
         async fn unprovable_result_invalidates_cached_subtree() {
-            let proposer = test_proposer().await;
+            let mut proposer = test_proposer().await;
+            let proof_engine = Arc::new(RecordingProofEngine::default());
+            proposer.proof_engine = proof_engine.clone();
             let root = game_with(1, u32::MAX, 100);
             let child = game_with(2, 1, 200);
             let sibling = game_with(3, u32::MAX, 150);
@@ -5604,11 +5774,16 @@ mod tests {
             drop(state);
             assert_eq!(proposer.last_created_game_l2_sequence_number.load(Ordering::Relaxed), 0);
             assert_eq!(*proposer.last_created_game_address.lock().await, Address::ZERO);
+            let cleared =
+                proof_engine.cleared.lock().unwrap().iter().copied().collect::<HashSet<_>>();
+            assert_eq!(cleared, HashSet::from([root.address, child.address]));
         }
 
         #[tokio::test]
         async fn stale_unprovable_result_does_not_invalidate_replacement() {
-            let proposer = test_proposer().await;
+            let mut proposer = test_proposer().await;
+            let proof_engine = Arc::new(RecordingProofEngine::default());
+            proposer.proof_engine = proof_engine.clone();
             let old_game = game_with(1, u32::MAX, 100);
             let mut replacement = game_with(1, u32::MAX, 101);
             replacement.address = Address::left_padding_from(&[0xaa]);
@@ -5631,13 +5806,58 @@ mod tests {
             assert!(state.games.contains_key(&replacement.index));
             assert!(state.games.contains_key(&child.index));
             assert!(state.invalid_games.is_empty());
+            assert_eq!(*proof_engine.cleared.lock().unwrap(), vec![old_game.address]);
+        }
+
+        #[tokio::test]
+        async fn transient_error_retains_progress_only_while_game_can_retry() {
+            let mut proposer = test_proposer().await;
+            let proof_engine = Arc::new(RecordingProofEngine::default());
+            proposer.proof_engine = proof_engine.clone();
+            let active = game_with(1, u32::MAX, 100);
+            proposer.state.write().await.games.insert(active.index, active.clone());
+
+            let result = Err(anyhow::anyhow!("transient proving error"));
+            assert!(
+                proposer
+                    .handle_game_proving_result(active.index, active.address, result)
+                    .await
+                    .is_err()
+            );
+            assert!(proof_engine.cleared.lock().unwrap().is_empty());
+
+            proposer.state.write().await.games.remove(&active.index);
+            let result = Err(anyhow::anyhow!("transient proving error"));
+            assert!(
+                proposer
+                    .handle_game_proving_result(active.index, active.address, result)
+                    .await
+                    .is_err()
+            );
+
+            let mut terminal = game_with(2, u32::MAX, 101);
+            terminal.proposal_status = ProposalStatus::Resolved;
+            proposer.state.write().await.games.insert(terminal.index, terminal.clone());
+            let result = Err(anyhow::anyhow!("transient proving error"));
+            assert!(
+                proposer
+                    .handle_game_proving_result(terminal.index, terminal.address, result)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(
+                *proof_engine.cleared.lock().unwrap(),
+                vec![active.address, terminal.address]
+            );
         }
 
         #[tokio::test]
         async fn should_skip_proving_uses_l1_time_and_strict_expiry() {
             let asserter = Asserter::new();
             let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
-            let proposer = test_proposer_with_provider(provider).await;
+            let mut proposer = test_proposer_with_provider(provider).await;
+            let proof_engine = Arc::new(RecordingProofEngine::default());
+            proposer.proof_engine = proof_engine.clone();
             proposer.max_prove_duration.set(7200).unwrap();
             let game = Address::left_padding_from(&[0xdd]);
 
@@ -5652,6 +5872,7 @@ mod tests {
                 proposer.should_skip_proving(game, 1_000, true).await.unwrap(),
                 "L1 timestamp past the deadline must skip"
             );
+            assert_eq!(*proof_engine.cleared.lock().unwrap(), vec![game]);
 
             push_claim_error_and_head(&asserter, 1_000);
             assert!(
@@ -6341,13 +6562,17 @@ mod tests {
             None,
         );
 
-        s.invalidate_subtree(U256::from(1));
+        let removed = s.invalidate_subtree(U256::from(1)).into_iter().collect::<HashSet<_>>();
 
         assert_eq!(s.invalid_games, HashSet::from([U256::from(1), U256::from(2)]));
         assert!(s.games.contains_key(&U256::from(0)));
         assert!(s.games.contains_key(&U256::from(3)));
         assert!(!s.games.contains_key(&U256::from(1)));
         assert!(!s.games.contains_key(&U256::from(2)));
+        assert_eq!(
+            removed,
+            HashSet::from([Address::left_padding_from(&[1]), Address::left_padding_from(&[2]),])
+        );
     }
 
     #[test]
@@ -6359,7 +6584,7 @@ mod tests {
         s.canonical_head_sequence_number = Some(200);
         s.invalid_games.insert(U256::from(1));
 
-        s.reset_factory_cache();
+        let removed = s.reset_factory_cache().into_iter().collect::<HashSet<_>>();
 
         assert_eq!(s.cursor, Cursor::none());
         assert!(s.games.is_empty());
@@ -6367,6 +6592,10 @@ mod tests {
         assert!(s.anchor_game.is_none());
         assert!(s.canonical_head_index.is_none());
         assert_eq!(s.canonical_head_sequence_number, Some(200));
+        assert_eq!(
+            removed,
+            HashSet::from([Address::left_padding_from(&[0]), Address::left_padding_from(&[1]),])
+        );
     }
 
     mod canonical_head {

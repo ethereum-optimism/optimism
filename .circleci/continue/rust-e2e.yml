@@ -5,7 +5,7 @@ version: 2.1
 # It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.30
+  utils: ethereum-optimism/circleci-utils@1.0.31
 
 parameters:
   c-default_docker_image:

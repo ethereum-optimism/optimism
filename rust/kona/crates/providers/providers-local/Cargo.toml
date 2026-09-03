@@ -34,7 +34,6 @@ op-alloy-consensus.workspace = true
 async-trait.workspace = true
 lru.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["sync"] }
 
 # `metrics` feature
 metrics = { workspace = true, optional = true }

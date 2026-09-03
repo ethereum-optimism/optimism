@@ -1,0 +1,39 @@
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+  packages:
+    - ca-certificates-bundle
+    - wolfi-baselayout
+    - ca-certificates
+    - busybox
+    - glibc
+    - libgcc
+    - libstdc++
+    - openssl
+    - lokahi@local
+    - apk-tools
+
+environment:
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+      gid: 65532
+  # No deployed image to stay drop-in compatible with, so run unprivileged from
+  # the start. The other Rust images pin an existing uid for parity instead.
+  run-as: 65532
+
+entrypoint:
+  command: /usr/local/bin/lokahi
+
+annotations:
+  org.opencontainers.image.source: https://github.com/ethereum-optimism/optimism
+  org.opencontainers.image.title: lokahi

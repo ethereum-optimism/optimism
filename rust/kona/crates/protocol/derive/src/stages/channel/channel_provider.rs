@@ -152,10 +152,6 @@ where
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         dispatch_inner!(self, flush_channel)
     }
-
-    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
-        dispatch_inner!(self, provide_block, block)
-    }
 }
 
 #[async_trait]

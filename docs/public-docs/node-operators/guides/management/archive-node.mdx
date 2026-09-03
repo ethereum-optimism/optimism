@@ -111,7 +111,7 @@ op-node's safe derivation reads the L1-info deposit transaction — the first tr
 
 Body pruning is therefore **not supported, and we advise against it** — you run it at your own risk, with no guarantees. It can be made to work if you know what you're doing, subject to one hard requirement: the retained body window must always cover the `--syncmode.offset-el-safe` range. Concretely, set [`--prune.bodies.distance`](/node-operators/op-reth/cli/op-reth/node) (in blocks) comfortably **greater than** the offset converted to blocks (the default `12h` ≈ 21,600 at a 2s block time), with margin for the block-time and offset you actually run. And if you restore a safedb, you also have to take the maximum distance to its head into account.
 
-Do not use `--minimal`: it prunes bodies to a fixed 10,064-block window, which is smaller than the default offset and cannot be widened independently.
+op-reth rejects `--minimal` at startup: it prunes bodies to a fixed 10,064-block window, which is smaller than the default offset and cannot be widened independently.
 
 <Warning>
   Body pruning is unsupported. If you enable it anyway, `--prune.bodies.distance` must always exceed `--syncmode.offset-el-safe` (in blocks), and additionally the distance to a restoring safedb's head, or execution-layer sync fails with `l2 block is missing L1 info deposit tx`. Prefer pruning only the state and receipt segments above.

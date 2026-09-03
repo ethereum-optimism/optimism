@@ -80,24 +80,29 @@ build-op-reth:
 build-op-reth-debug:
   cargo build --bin op-reth
 
-# Build rust-supernode. The package is not a workspace default member, so `-p`
+# Build lokahi. The package is not a workspace default member, so `-p`
 # is required for `cargo` to resolve the binary.
-build-rust-supernode:
-  cargo build --release -p rust-supernode
+build-lokahi:
+  cargo build --release -p lokahi
 
-# Build rust-supernode in debug mode (faster compilation for local iteration)
-build-rust-supernode-debug:
-  cargo build -p rust-supernode
+# Build lokahi in debug mode (faster compilation for local iteration)
+build-lokahi-debug:
+  cargo build -p lokahi
 
 ############################### Test ################################
 
 # Run all outer-workspace tests. SP1 guests require generated vkeys and are tested by CI after
 # their ELFs are built.
-test: test-unit test-docs
+test: test-unit test-beacon-blob-stack test-docs
 
 # Run unit tests (excluding online tests)
 test-unit *args="-E '!test(test_online)'":
   cargo nextest run --workspace --all-features {{args}}
+
+# Exercise the production beacon blob parser without debug assertions on a bounded stack.
+test-beacon-blob-stack:
+  cargo test --profile fast-build --locked -p kona-providers-alloy \
+    test_filtered_beacon_blobs_deserializes_on_small_stack
 
 # Run online tests only
 test-online:

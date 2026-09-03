@@ -15,7 +15,20 @@ diataxis: reference
 
 **op-node** implements the [rollup-node spec](https://specs.optimism.io/protocol/rollup-node.html), functioning as the consensus layer (CL) client of an OP Stack chain. It builds, relays, and verifies the canonical L2 chain, working alongside an execution layer client such as op-reth.
 
-<Update label="August 3, 2026" description="v1.19.4" tags={["Latest", "Stable"]}>
+<Update label="August 20, 2026" description="v1.19.5" tags={["Latest", "Stable"]}>
+
+## Overview
+
+> [!NOTE]
+> This is a patch release of op-node containing a sequencer improvement and a flag fix. It is an optional upgrade, but recommended for sequencers.
+
+Note: the Lagoon (interop) hardfork is not yet live in production. Changes to those code paths in this release are preparation for future functionality and do not affect operators today.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.19.5)
+
+</Update>
+
+<Update label="August 3, 2026" description="v1.19.4" tags={["Stable"]}>
 
 > [!NOTE]
 > **Optional upgrade.** Sequencer and interop correctness fixes, plus an operator-facing compatibility improvement.

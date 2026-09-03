@@ -17,6 +17,7 @@ use crate::{
 /// A compact L1 block observation used for proposer synchronization.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct L1BlockRef {
+    pub(crate) hash: B256,
     pub(crate) number: u64,
     pub(crate) timestamp: u64,
 }
@@ -141,7 +142,7 @@ pub(crate) struct SuperRootAtTimestamp {
 }
 
 /// The on-chain facts and proposer identity bound into a game proof.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GameProofInputs {
     /// The game's pinned L1 head.
     pub l1_head: B256,
@@ -228,10 +229,12 @@ pub(crate) trait SuperRootSource: Send + Sync {
 pub(crate) trait ProofEngine: Send + Sync {
     async fn prove(
         &self,
+        game_address: Address,
         keys: Option<Arc<ProofKeys>>,
         game: GameProofInputs,
         responses: Vec<SuperRootAtTimestampResponse>,
     ) -> Result<Vec<u8>>;
+    fn clear(&self, game_address: Address);
 }
 
 /// Confirmed proposer transaction effects.

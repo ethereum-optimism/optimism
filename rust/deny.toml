@@ -14,12 +14,6 @@ ignore = [
   "RUSTSEC-2024-0436",
   # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
   "RUSTSEC-2025-0141",
-  # hickory-proto <0.26.1 NSEC3 closest-encloser DNSSEC validation unbounded loop;
-  # transitive via reth-network -> reth-dns-discovery. Pending upstream bump.
-  "RUSTSEC-2026-0118",
-  # hickory-proto <0.26.1 O(n^2) name-compression CPU exhaustion in BinEncoder;
-  # transitive via reth-network -> reth-dns-discovery. Pending upstream bump.
-  "RUSTSEC-2026-0119",
   # proc-macro-error2 is unmaintained (no vulnerability, no patched release exists).
   # Build-time-only dep pulled in via alloy-sol-macro; latest alloy-core (1.6.0) and
   # its main branch still pin it (it uses a private API), so no upgrade removes it.
@@ -130,8 +124,8 @@ allow-git = [
   "https://github.com/paradigmxyz/jsonrpsee",
   "https://github.com/paradigmxyz/revm-inspectors",
   "https://github.com/foundry-rs/block-explorers",
-  "https://github.com/flashbots/rollup-boost",
   "https://github.com/sigp/discv5",
+  "https://github.com/libp2p/rust-libp2p",
 ]
 unknown-registry = "warn"
 unknown-git = "deny"

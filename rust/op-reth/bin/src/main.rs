@@ -1,6 +1,5 @@
 #![allow(missing_docs, rustdoc::missing_crate_level_docs)]
 
-use clap::Parser;
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
 use reth_optimism_node::{args::RollupArgs, proof_history};
@@ -25,7 +24,7 @@ fn main() {
         }
     }
 
-    // Install op-reth's own build metadata before clap reads it in `Cli::parse`.
+    // Install op-reth's own build metadata before clap reads it during parsing.
     const CLIENT_NAME: &str = "op-reth";
     let info = op_version::build_info!();
     let result = try_init_version_metadata(RethCliVersionConsts {
@@ -51,12 +50,12 @@ fn main() {
         eprintln!("Error: build info is already embedded. This is a bug.")
     }
 
-    if let Err(err) =
-        Cli::<OpChainSpecParser, RollupArgs>::parse().run(async move |builder, args| {
+    if let Err(err) = Cli::<OpChainSpecParser, RollupArgs>::parse_with_denied_args().run(
+        async move |builder, args| {
             info!(target: "reth::cli", "Launching node");
             proof_history::launch_node(builder, args).await
-        })
-    {
+        },
+    ) {
         eprintln!("Error: {err:?}");
         std::process::exit(1);
     }

@@ -116,9 +116,6 @@ func testSafetyProgression(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 		sys.L2ACL.AdvancedFn(safety.LocalSafe, delta, 30),
 		sys.L2BCL.AdvancedFn(safety.LocalSafe, delta, 30),
 
-		sys.L2ACL.AdvancedFn(safety.CrossUnsafe, delta, 30),
-		sys.L2BCL.AdvancedFn(safety.CrossUnsafe, delta, 30),
-
 		sys.L2ACL.AdvancedFn(safety.CrossSafe, delta, 60),
 		sys.L2BCL.AdvancedFn(safety.CrossSafe, delta, 60),
 	)

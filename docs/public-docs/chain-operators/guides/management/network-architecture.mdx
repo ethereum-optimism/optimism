@@ -69,7 +69,7 @@ We recommend setting up some archive nodes for internal RPC usage, primarily use
 
 ### Configuration
 
-op-reth runs as an archive node by default, so no extra flags are required — simply do **not** pass `--full` or `--minimal` (both enable pruning). op-reth stores state in MDBX plus static files, so the geth-specific `GETH_DB_ENGINE` and `GETH_STATE_SCHEME` options have no equivalent.
+op-reth runs as an archive node by default, so no extra flags are required — simply do **not** pass `--full` (which enables pruning; the upstream `--minimal` flag is not supported and op-reth rejects it at startup). op-reth stores state in MDBX plus static files, so the geth-specific `GETH_DB_ENGINE` and `GETH_STATE_SCHEME` options have no equivalent.
 
 ```sh
 # op-reth is archive by default; no pruning flags needed.
@@ -82,7 +82,7 @@ These nodes run as full (pruned) nodes. op-reth does not implement geth-style sn
 ### Configuration
 
 ```sh
---full        # run a pruned full node (or --minimal for maximum pruning)
+--full        # run a pruned full node (--minimal is not supported by op-reth)
 ```
 
 ## P2P Bootnodes (Execution Layer)

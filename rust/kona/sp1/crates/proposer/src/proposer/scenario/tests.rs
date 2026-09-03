@@ -79,11 +79,11 @@ impl L1View for ScenarioL1View {
         if self.fail_latest_head.load(Ordering::Relaxed) {
             anyhow::bail!("latest head unavailable")
         }
-        Ok(Some(L1BlockRef { number: HEAD_NUMBER, timestamp: HEAD_TIMESTAMP }))
+        Ok(Some(L1BlockRef { hash: B256::ZERO, number: HEAD_NUMBER, timestamp: HEAD_TIMESTAMP }))
     }
 
     async fn block_ref(&self, number: u64) -> anyhow::Result<Option<L1BlockRef>> {
-        Ok(Some(L1BlockRef { number, timestamp: HEAD_TIMESTAMP }))
+        Ok(Some(L1BlockRef { hash: B256::ZERO, number, timestamp: HEAD_TIMESTAMP }))
     }
 
     async fn registered_game_args(&self, _block: BlockId) -> anyhow::Result<ZKGameArgs> {
@@ -292,12 +292,15 @@ struct NoopProofEngine;
 impl ProofEngine for NoopProofEngine {
     async fn prove(
         &self,
+        _game_address: Address,
         _keys: Option<Arc<ProofKeys>>,
         _game: GameProofInputs,
         _responses: Vec<SuperRootAtTimestampResponse>,
     ) -> anyhow::Result<Vec<u8>> {
         Ok(vec![1])
     }
+
+    fn clear(&self, _game_address: Address) {}
 }
 
 struct NoopActionExecutor;
@@ -364,7 +367,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
             range_gas_limit: 1,
             agg_cycle_limit: 1,
             agg_gas_limit: 1,
-            max_price_per_pgu: 1,
+            max_price_per_pgu: Some(NonZeroU64::MIN),
             min_auction_period: 1,
         },
     }
@@ -543,7 +546,7 @@ async fn tick_reaps_finished_tasks_before_scheduling_replacements() {
     assert_eq!(second.snapshot.sync_disposition, SyncDisposition::UnchangedConfirmedHead);
     assert_eq!(
         second.snapshot.last_successful_pinned_l1,
-        Some(L1BlockRef { number: 1, timestamp: 1_000 })
+        Some(L1BlockRef { hash: B256::ZERO, number: 1, timestamp: 1_000 })
     );
     assert_eq!(
         second.completions.iter().map(|completion| completion.task_id).collect::<Vec<_>>(),
@@ -700,7 +703,7 @@ async fn snapshot_is_sorted_and_detached_from_proposer_state() {
     let result = control.tick().await.unwrap();
     assert_eq!(
         result.snapshot.last_successful_pinned_l1,
-        Some(L1BlockRef { number: 1, timestamp: 1_000 })
+        Some(L1BlockRef { hash: B256::ZERO, number: 1, timestamp: 1_000 })
     );
     assert_eq!(result.snapshot.sync_disposition, SyncDisposition::UnchangedConfirmedHead);
     assert_eq!(

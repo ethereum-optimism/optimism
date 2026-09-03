@@ -20,7 +20,8 @@ func TestCLIPCDBoot(t *testing.T) {
 
 	// Backdate L1 so the L2 genesis time is in the past when the node starts.
 	// The sequencer cannot create block 1 before that time.
-	requestedL1Timestamp := uint64(time.Now().Add(-time.Hour).Unix())
+	backdate := time.Duration(pcdGenesisTimeOffset)*time.Second + time.Hour
+	requestedL1Timestamp := uint64(time.Now().Add(-backdate).Unix())
 	chainIDs := []common.Hash{uint256.NewInt(1).Bytes32()}
 	journey := newPCDJourneyFixtureWithAnvilOptions(
 		t,

@@ -31,7 +31,7 @@ use crate::{
         SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
     prover::{ProofKeys, ProofProvider},
-    proving::{GameProofInputs, prove_game_inner},
+    proving::{GameProofInputs, InMemoryProofProgress, ProveGameRequest, prove_game_inner},
     signer::{FeeCaps, SignerLock},
     superroot::{ResponseSelection, SuperrootClient},
 };
@@ -60,13 +60,21 @@ where
 {
     async fn latest_head(&self) -> Result<Option<L1BlockRef>> {
         Ok(self.provider.get_block_by_number(BlockNumberOrTag::Latest).await?.map(|block| {
-            L1BlockRef { number: block.header.number, timestamp: block.header.timestamp }
+            L1BlockRef {
+                hash: block.header.hash,
+                number: block.header.number,
+                timestamp: block.header.timestamp,
+            }
         }))
     }
 
     async fn block_ref(&self, number: u64) -> Result<Option<L1BlockRef>> {
         Ok(self.provider.get_block_by_number(BlockNumberOrTag::Number(number)).await?.map(
-            |block| L1BlockRef { number: block.header.number, timestamp: block.header.timestamp },
+            |block| L1BlockRef {
+                hash: block.header.hash,
+                number: block.header.number,
+                timestamp: block.header.timestamp,
+            },
         ))
     }
 
@@ -343,16 +351,23 @@ pub(crate) struct ProductionProofEngine {
     host_inputs: Arc<HostInputs>,
     split: RangeSplitCount,
     max_concurrent: NonZeroUsize,
+    proof_progress: InMemoryProofProgress,
 }
 
 impl ProductionProofEngine {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         provider: ProofProvider,
         host_inputs: Arc<HostInputs>,
         split: RangeSplitCount,
         max_concurrent: NonZeroUsize,
     ) -> Self {
-        Self { provider, host_inputs, split, max_concurrent }
+        Self {
+            provider,
+            host_inputs,
+            split,
+            max_concurrent,
+            proof_progress: InMemoryProofProgress::default(),
+        }
     }
 }
 
@@ -360,6 +375,7 @@ impl ProductionProofEngine {
 impl ProofEngine for ProductionProofEngine {
     async fn prove(
         &self,
+        game_address: Address,
         keys: Option<Arc<ProofKeys>>,
         game: GameProofInputs,
         responses: Vec<SuperRootAtTimestampResponse>,
@@ -368,12 +384,20 @@ impl ProofEngine for ProductionProofEngine {
             &self.provider,
             keys.as_deref(),
             &self.host_inputs,
-            &game,
-            &responses,
-            self.split,
-            self.max_concurrent,
+            ProveGameRequest {
+                game_address,
+                game: &game,
+                responses: &responses,
+                split: self.split,
+                max_concurrent: self.max_concurrent,
+                proof_progress: &self.proof_progress,
+            },
         )
         .await
+    }
+
+    fn clear(&self, game_address: Address) {
+        self.proof_progress.clear(game_address);
     }
 }
 
@@ -674,7 +698,8 @@ mod tests {
             NonZeroUsize::MIN,
         );
 
-        let error = engine.prove(None, game, vec![previous, current]).await.unwrap_err();
+        let error =
+            engine.prove(Address::ZERO, None, game, vec![previous, current]).await.unwrap_err();
         assert!(!is_unprovable(&error));
     }
 

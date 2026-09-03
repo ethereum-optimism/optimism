@@ -14,7 +14,7 @@ categories:
   - infrastructure
 is_imported_content: 'false'
 audit-source:
-  - rust/rollup-boost/crates/rollup-boost/src/flashblocks/primitives.rs
+  - rust/op-alloy/crates/rpc-types-engine/src/flashblock/delta.rs
 ---
 
 Subblocks (formerly Flashblocks) stream pre-confirmations on OP Stack chains.
@@ -30,7 +30,7 @@ The stream keeps its existing wire format, and the payload type is still named `
 
 ## What this means
 
-*   **The interval drops from 250 ms to 200 ms.** This brings OP Sepolia and OP Mainnet to `FLASHBLOCKS_TIME = 200ms`, the default in the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html).
+*   **The interval drops from 250 ms to 200 ms.** This brings OP Sepolia and OP Mainnet to `FLASHBLOCKS_TIME = 200ms`.
 *   **Four payload fields are set to their zero value.** All four remain present in `ExecutionPayloadFlashblockDeltaV1`. Nothing is removed from the wire format.
 *   **Every other field, including `receipts_root` and `logs_bloom`, continues to carry a real value.**
 
@@ -69,6 +69,6 @@ Both dates are targets and may move.
 
 | Resource | Link |
 | --- | --- |
-| Flashblocks specification | [specs.optimism.io](https://specs.optimism.io/protocol/flashblocks.html) |
+| Subblocks specification | [specs.optimism.io](https://specs.optimism.io/protocol/subblocks.html) |
 | Subblocks explainer | [How Subblocks work](/op-stack/features/subblocks) |
 | App integration guide | [Integrate Subblocks in your app](/app-developers/guides/transactions/integrating-subblocks) |

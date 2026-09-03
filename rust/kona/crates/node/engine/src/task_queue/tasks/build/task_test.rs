@@ -1,5 +1,3 @@
-//! Tests for `BuildTask::execute`
-
 use crate::{
     BuildTask, BuildTaskError, EngineBuildError, EngineClient, EngineForkchoiceVersion,
     EngineState, EngineTaskExt,

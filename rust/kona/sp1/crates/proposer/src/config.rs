@@ -225,7 +225,7 @@ impl ProposerConfig {
     /// Parses the configuration from environment variables, applying defaults
     /// for optional settings and failing on missing or invalid required ones.
     pub fn from_env() -> Result<Self> {
-        let tx_confirmation_timeout = parsed_env_or("TX_CONFIRMATION_TIMEOUT", 60u64)?;
+        let tx_confirmation_timeout = parsed_env_or("TX_CONFIRMATION_TIMEOUT", 180u64)?;
         anyhow::ensure!(
             tx_confirmation_timeout > 0,
             "{} must be positive (0 would time out every transaction immediately)",
@@ -267,7 +267,7 @@ impl ProposerConfig {
                 .map(|list| list.split(',').map(|path| PathBuf::from(path.trim())).collect()),
             l1_config_path: optional_env("L1_CONFIG_PATH").map(PathBuf::from),
             dependency_set_path: optional_env("DEPENDENCY_SET_PATH").map(PathBuf::from),
-            range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::one())?,
+            range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::default())?,
             max_concurrent_range_proofs: parsed_env_or(
                 "MAX_CONCURRENT_RANGE_PROOFS",
                 NonZeroUsize::MIN,
@@ -305,7 +305,22 @@ fn parse_url_list(value: &str) -> Result<Vec<Url>> {
     Ok(urls)
 }
 
-const DEFAULT_PROOF_LIMIT: u64 = 1_000_000_000_000;
+const DEFAULT_PROOF_CYCLE_LIMIT: u64 = 1_000_000_000_000;
+const DEFAULT_RANGE_GAS_LIMIT: u64 = 200_000_000_000;
+const DEFAULT_AGG_GAS_LIMIT: u64 = 1_000_000_000;
+
+/// Floor on how long an auction stays open, so the field can bid and undercut
+/// rather than the fastest poller winning at the ceiling. Observed arrivals are
+/// 3-10s, on other requesters' traffic; this doubles that for margin, at the
+/// cost of ~90s per defense (range, consolidation and agg wait it out in turn).
+const DEFAULT_MIN_AUCTION_PERIOD_SECONDS: u64 = 30;
+
+/// Grace for an unassigned request before cancellation and retry.
+const DEFAULT_AUCTION_TIMEOUT_SECONDS: u64 = 300;
+
+/// Room between an auction closing and its request being cancelled: the
+/// auctioneer still has to assign the winner, and the proposer to observe it.
+const AUCTION_ASSIGNMENT_MARGIN_SECONDS: u64 = 30;
 
 /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
 ///
@@ -313,8 +328,8 @@ const DEFAULT_PROOF_LIMIT: u64 = 1_000_000_000_000;
 /// `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` is read only when the network provider is built.
 #[derive(Debug, Clone)]
 pub struct ProofProviderConfig {
-    /// Overall per-proof timeout in seconds: the server-side deadline for
-    /// proof requests and the client-side maximum wait.
+    /// Per-proof timeout in seconds: the server-side deadline for proof
+    /// requests and the client-side maximum wait.
     pub timeout: u64,
     /// Timeout in seconds for individual network API calls (calls exceeding
     /// it are retried).
@@ -334,8 +349,8 @@ pub struct ProofProviderConfig {
     pub agg_cycle_limit: u64,
     /// Gas limit for the aggregation proof request.
     pub agg_gas_limit: u64,
-    /// Maximum price per proving gas unit.
-    pub max_price_per_pgu: u64,
+    /// Optional maximum price per proving gas unit.
+    pub max_price_per_pgu: Option<NonZeroU64>,
     /// Minimum auction period in seconds.
     pub min_auction_period: u64,
 }
@@ -343,11 +358,11 @@ pub struct ProofProviderConfig {
 impl ProofProviderConfig {
     /// Reads proof-provider settings from environment variables.
     pub fn from_env() -> Result<Self> {
-        let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?;
+        let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 7_200u64)?;
         anyhow::ensure!(
             timeout > 0,
-            "{} must be positive: 0 would abandon every proof request at its first poll, right \
-             after paying to submit it",
+            "{} must be positive: 0 would stop every proof polling attempt immediately after \
+             submission",
             env_var("SP1_TIMEOUT_SECONDS")
         );
         let network_calls_timeout = parsed_env_or("NETWORK_CALLS_TIMEOUT", 15u64)?;
@@ -356,10 +371,20 @@ impl ProofProviderConfig {
             "{} must be positive: 0 would time out every SPN call before any I/O completes",
             env_var("NETWORK_CALLS_TIMEOUT")
         );
-        let auction_timeout = parsed_env_or("AUCTION_TIMEOUT", 60u64)?;
+        let auction_timeout = parsed_env_or("AUCTION_TIMEOUT", DEFAULT_AUCTION_TIMEOUT_SECONDS)?;
         anyhow::ensure!(
             auction_timeout > 0,
             "{} must be positive: 0 would cancel every mainnet request by its second poll",
+            env_var("AUCTION_TIMEOUT")
+        );
+        let min_auction_period =
+            parsed_env_or("MIN_AUCTION_PERIOD", DEFAULT_MIN_AUCTION_PERIOD_SECONDS)?;
+        anyhow::ensure!(
+            min_auction_period + AUCTION_ASSIGNMENT_MARGIN_SECONDS <= auction_timeout,
+            "{} ({min_auction_period}s) must leave {AUCTION_ASSIGNMENT_MARGIN_SECONDS}s under {} \
+             ({auction_timeout}s): requests would be cancelled before a closing auction could be \
+             assigned",
+            env_var("MIN_AUCTION_PERIOD"),
             env_var("AUCTION_TIMEOUT")
         );
         Ok(Self {
@@ -368,31 +393,29 @@ impl ProofProviderConfig {
             auction_timeout,
             range_proof_strategy: parse_fulfillment_strategy(env_or(
                 "RANGE_PROOF_STRATEGY",
-                "reserved",
+                "auction",
             ))
             .with_context(|| format!("invalid {}", env_var("RANGE_PROOF_STRATEGY")))?,
-            agg_proof_strategy: parse_fulfillment_strategy(env_or(
-                "AGG_PROOF_STRATEGY",
-                "reserved",
-            ))
-            .with_context(|| format!("invalid {}", env_var("AGG_PROOF_STRATEGY")))?,
-            range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
-            range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
-            agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
-            agg_gas_limit: parsed_env_or("AGG_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
-            max_price_per_pgu: parsed_env_or("MAX_PRICE_PER_PGU", 300_000_000u64)?,
-            min_auction_period: parsed_env_or("MIN_AUCTION_PERIOD", 1u64)?,
+            agg_proof_strategy: parse_fulfillment_strategy(env_or("AGG_PROOF_STRATEGY", "auction"))
+                .with_context(|| format!("invalid {}", env_var("AGG_PROOF_STRATEGY")))?,
+            range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
+            range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_RANGE_GAS_LIMIT)?,
+            agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
+            agg_gas_limit: parsed_env_or("AGG_GAS_LIMIT", DEFAULT_AGG_GAS_LIMIT)?,
+            max_price_per_pgu: parsed_optional_env::<u64>("MAX_PRICE_PER_PGU")?
+                .and_then(NonZeroU64::new),
+            min_auction_period,
         })
     }
 }
 
-/// Splits defended super-root timestamp spans into 1 to 16 chunks.
+/// Splits defended super-root timestamp spans into 1 to 128 chunks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RangeSplitCount(NonZeroU8);
 
 impl RangeSplitCount {
     /// Maximum accepted chunk count.
-    pub const MAX: u8 = 16;
+    pub const MAX: u8 = 128;
 
     /// Creates a new `RangeSplitCount`, rejecting 0 and values above
     /// [`Self::MAX`].
@@ -455,6 +478,11 @@ impl RangeSplitCount {
         }
 
         Ok(ranges)
+    }
+}
+impl Default for RangeSplitCount {
+    fn default() -> Self {
+        Self::new(16).expect("default is a valid range split count")
     }
 }
 
@@ -698,9 +726,10 @@ mod tests {
         #[test]
         fn range_split_bounds() {
             assert!(RangeSplitCount::new(0).is_err());
-            assert!(RangeSplitCount::new(17).is_err());
+            assert!(RangeSplitCount::new(129).is_err());
             assert_eq!(RangeSplitCount::one().to_usize(), 1);
-            assert_eq!(RangeSplitCount::new(16).unwrap().to_usize(), 16);
+            assert_eq!(RangeSplitCount::default().to_usize(), 16);
+            assert_eq!(RangeSplitCount::new(RangeSplitCount::MAX).unwrap().to_usize(), 128);
         }
 
         #[test]
@@ -718,16 +747,45 @@ mod tests {
                 RangeSplitCount::new(16).unwrap().split(0, 4).unwrap(),
                 vec![(0, 1), (1, 2), (2, 3), (3, 4)]
             );
+            // A long enough span can use the full supported chunk count.
+            assert_eq!(
+                RangeSplitCount::new(RangeSplitCount::MAX)
+                    .unwrap()
+                    .split(0, u64::from(RangeSplitCount::MAX))
+                    .unwrap()
+                    .len(),
+                128
+            );
+            // Ceil division produces fewer than 128 chunks for a one-hour timestamp span.
+            let chunks =
+                RangeSplitCount::new(RangeSplitCount::MAX).unwrap().split(0, 3_600).unwrap();
+            assert_eq!(chunks.len(), 125);
+            assert_eq!(chunks.first(), Some(&(0, 29)));
+            assert_eq!(chunks.last(), Some(&(3_596, 3_600)));
             // Chunks exactly cover (start, end] with no gaps or overlaps.
-            let chunks = RangeSplitCount::new(7).unwrap().split(10, 55).unwrap();
-            assert_eq!(chunks.first().unwrap().0, 10);
-            assert_eq!(chunks.last().unwrap().1, 55);
             for pair in chunks.windows(2) {
                 assert_eq!(pair[0].1, pair[1].0);
             }
             // Degenerate spans are rejected.
             assert!(RangeSplitCount::one().split(5, 5).is_err());
             assert!(RangeSplitCount::one().split(6, 5).is_err());
+        }
+
+        /// Safe under nextest's process-per-test model; environment mutation
+        /// is `unsafe` on edition 2024.
+        #[test]
+        fn auction_period_crowding_the_cancel_timeout_is_rejected() {
+            // An auction needs assignment margin before the cancellation timeout.
+            set_proposer_env("AUCTION_TIMEOUT", "300");
+            for crowding in ["300", "290"] {
+                set_proposer_env("MIN_AUCTION_PERIOD", crowding);
+                let err = ProofProviderConfig::from_env().unwrap_err().to_string();
+                assert!(err.contains("KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD"), "unexpected: {err}");
+                assert!(err.contains("KONA_SP1_PROPOSER_AUCTION_TIMEOUT"), "unexpected: {err}");
+            }
+
+            set_proposer_env("MIN_AUCTION_PERIOD", "270");
+            assert_eq!(ProofProviderConfig::from_env().unwrap().min_auction_period, 270);
         }
 
         /// Safe under nextest's process-per-test model; environment mutation
@@ -758,11 +816,44 @@ mod tests {
             assert_eq!(config.superroot_rpcs.len(), 2);
             assert_eq!(config.l2_rpcs.len(), 2);
             assert!(config.rollup_config_paths.is_none());
-            assert_eq!(config.range_split_count, RangeSplitCount::one());
+            assert_eq!(config.tx_confirmation_timeout, 180);
+            assert_eq!(config.range_split_count.to_usize(), 16);
+            set_proposer_env("RANGE_SPLIT_COUNT", "128");
+            assert_eq!(ProposerConfig::from_env().unwrap().range_split_count.to_usize(), 128);
+            set_proposer_env("RANGE_SPLIT_COUNT", "129");
+            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("range splits must be between 1 and 128"), "unexpected: {err}");
             assert_eq!(config.max_concurrent_defense_tasks.get(), 8);
             assert!(!config.fast_finality_mode);
             assert_eq!(config.fast_finality_proving_limit.get(), 1);
-            assert_eq!(config.proof_provider_config.timeout, 14_400);
+            assert_eq!(config.proof_provider_config.timeout, 7_200);
+            assert_eq!(
+                config.proof_provider_config.range_proof_strategy,
+                FulfillmentStrategy::Auction
+            );
+            assert_eq!(
+                config.proof_provider_config.agg_proof_strategy,
+                FulfillmentStrategy::Auction
+            );
+            assert_eq!(config.proof_provider_config.range_cycle_limit, 1_000_000_000_000);
+            assert_eq!(config.proof_provider_config.range_gas_limit, 200_000_000_000);
+            assert_eq!(config.proof_provider_config.agg_cycle_limit, 1_000_000_000_000);
+            assert_eq!(config.proof_provider_config.agg_gas_limit, 1_000_000_000);
+            assert_eq!(config.proof_provider_config.max_price_per_pgu, None);
+        }
+
+        /// Zero disables the explicit SPN price ceiling while positive values
+        /// are preserved. Safe under nextest's process-per-test model.
+        #[test]
+        fn max_price_per_pgu_zero_disables_explicit_ceiling() {
+            set_proposer_env("MAX_PRICE_PER_PGU", "0");
+            assert_eq!(ProofProviderConfig::from_env().unwrap().max_price_per_pgu, None);
+
+            set_proposer_env("MAX_PRICE_PER_PGU", "123");
+            assert_eq!(
+                ProofProviderConfig::from_env().unwrap().max_price_per_pgu,
+                NonZeroU64::new(123)
+            );
         }
 
         /// A zero defense cap would silently disable defense entirely;
@@ -785,9 +876,8 @@ mod tests {
             );
         }
 
-        /// Zero SPN timeouts are configuration errors, not degraded modes:
-        /// each would spin or abandon paid work at the first poll. Safe
-        /// under nextest's process-per-test model.
+        /// Zero SPN timeouts prevent useful polling. Safe under nextest's
+        /// process-per-test model.
         #[test]
         fn zero_spn_timeouts_are_rejected() {
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");

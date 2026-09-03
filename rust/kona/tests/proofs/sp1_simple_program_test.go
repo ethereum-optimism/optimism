@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func runSP1RangeSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+func runSP1SuperRangeSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	if helpers.SP1RangeExecutorPath() == "" {
-		t.Skip("KONA_SP1_RANGE_EXECUTOR_PATH not set; build the range-executor with built ELFs " +
-			"(see rust/kona/sp1) to run the SP1 execute action tests")
+	if helpers.SP1SuperRangeExecutorPath() == "" {
+		t.Skip("KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH not set; build the super-range-executor with " +
+			"built ELFs (see rust/kona/sp1) to run the SP1 execute action tests")
 	}
 
 	testSetup := func(dc *genesis.DeployConfig) {
@@ -53,25 +53,26 @@ func runSP1RangeSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) 
 	require.Equal(t, uint64(1), bigs.Uint64Strict(l1Head.Number))
 	require.Equal(t, uint64(1), bigs.Uint64Strict(l2SafeHead.Number))
 
-	// Run the kona-sp1 range guest in SP1 execute mode over the 0 -> 1 transition.
-	env.RunSP1RangeProgram(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
+	// Run the kona-sp1 super-range guest in SP1 execute mode over the super-root transition into
+	// block 1. Both the range and the consolidation mode of the guest run.
+	env.RunSP1SuperRangeProgram(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
 }
 
-// TestSP1RangeSimpleEmptyChain runs the kona-sp1 range guest in SP1 execute mode against a single
-// real state transition, covering both the honest-claim and invalid-claim paths.
-func TestSP1RangeSimpleEmptyChain(gt *testing.T) {
+// TestSP1SuperRangeSimpleEmptyChain runs the kona-sp1 super-range guest in SP1 execute mode against
+// a single real state transition, covering both the honest-claim and invalid-claim paths.
+func TestSP1SuperRangeSimpleEmptyChain(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
 		helpers.LatestForkOnly,
-		runSP1RangeSimpleProgramTest,
+		runSP1SuperRangeSimpleProgramTest,
 		helpers.ExpectNoError(),
 	).AddTestCase(
 		"JunkClaim",
 		nil,
 		helpers.LatestForkOnly,
-		runSP1RangeSimpleProgramTest,
+		runSP1SuperRangeSimpleProgramTest,
 		helpers.ExpectError(helpers.ErrClaimNotValid),
 		helpers.WithCorruptClaim(),
 	)

@@ -90,44 +90,6 @@ func newL2BatcherFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndp
 	return newPresetL2Batcher(t, name, chainID, rpcCl)
 }
 
-func newOPRBuilderFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, flashblocksWSURL string, updateRuleSet func(string) error, rollupCfg *rollup.Config, lifecycle ...stack.Lifecycle) *oprBuilderFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
-	t.Require().NoError(err)
-	t.Cleanup(rpcCl.Close)
-
-	t.Require().NotEmpty(flashblocksWSURL, "missing flashblocks ws url for %s", name)
-	wsCl, err := client.DialWS(t.Ctx(), client.WSConfig{
-		URL: flashblocksWSURL,
-		Log: t.Logger(),
-	})
-	t.Require().NoError(err)
-
-	oprb := newPresetOPRBuilderNode(t, name, chainID, rpcCl, userRPC, rollupCfg, wsCl, updateRuleSet)
-	if len(lifecycle) > 0 {
-		oprb.lifecycle = lifecycle[0]
-	}
-	return oprb
-}
-
-func newRollupBoostFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, flashblocksWSURL string, rollupCfg *rollup.Config, lifecycle ...stack.Lifecycle) *rollupBoostFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
-	t.Require().NoError(err)
-	t.Cleanup(rpcCl.Close)
-
-	t.Require().NotEmpty(flashblocksWSURL, "missing flashblocks ws url for %s", name)
-	wsCl, err := client.DialWS(t.Ctx(), client.WSConfig{
-		URL: flashblocksWSURL,
-		Log: t.Logger(),
-	})
-	t.Require().NoError(err)
-
-	rollupBoost := newPresetRollupBoostNode(t, name, chainID, rpcCl, userRPC, rollupCfg, wsCl)
-	if len(lifecycle) > 0 {
-		rollupBoost.lifecycle = lifecycle[0]
-	}
-	return rollupBoost
-}
-
 func newSupernodeFrontend(t devtest.T, name string, userRPC string, control ...stack.ControlledLifecycle) *supernodeFrontend {
 	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
 	t.Require().NoError(err)

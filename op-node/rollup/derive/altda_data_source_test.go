@@ -447,6 +447,7 @@ func TestAltDADataSourceInvalidData(t *testing.T) {
 	batcherPriv := testutils.RandomKey()
 	batcherAddr := crypto.PubkeyToAddress(batcherPriv.PublicKey)
 	batcherInbox := common.Address{42}
+	maxInputSize := uint64(3_000)
 	cfg := &rollup.Config{
 		L1ChainID: big.NewInt(42), // any, for L1Signer
 		Genesis: rollup.Genesis{
@@ -461,6 +462,7 @@ func TestAltDADataSourceInvalidData(t *testing.T) {
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
 			CommitmentType:    altda.KeccakCommitmentString,
+			MaxInputSize:      &maxInputSize,
 		},
 	}
 
@@ -478,7 +480,7 @@ func TestAltDADataSourceInvalidData(t *testing.T) {
 	}
 	l1F.ExpectFetchReceipts(ref.Hash, nil, optypes.Receipts{}, nil)
 	// mock input commitments in l1 transactions with an oversized input
-	input := testutils.RandomData(rng, altda.MaxInputSize+1)
+	input := testutils.RandomData(rng, int(maxInputSize)+1)
 	comm, _ := storage.SetInput(ctx, input)
 
 	tx1, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
