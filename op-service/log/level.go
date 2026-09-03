@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // LevelFromString returns the appropriate Level from a string name.
@@ -17,18 +15,18 @@ func LevelFromString(lvlString string) (slog.Level, error) {
 	lvlString = strings.ToLower(lvlString) // ignore case
 	switch lvlString {
 	case "trace", "trce":
-		return log.LevelTrace, nil
+		return LevelTrace, nil
 	case "debug", "dbug":
-		return log.LevelDebug, nil
+		return LevelDebug, nil
 	case "info":
-		return log.LevelInfo, nil
+		return LevelInfo, nil
 	case "warn":
-		return log.LevelWarn, nil
+		return LevelWarn, nil
 	case "error", "eror":
-		return log.LevelError, nil
+		return LevelError, nil
 	case "crit":
-		return log.LevelCrit, nil
+		return LevelCrit, nil
 	default:
-		return log.LevelDebug, fmt.Errorf("unknown level: %v", lvlString)
+		return LevelDebug, fmt.Errorf("unknown level: %v", lvlString)
 	}
 }

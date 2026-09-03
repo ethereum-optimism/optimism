@@ -5,8 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"strings"
-
-	elog "github.com/ethereum/go-ethereum/log"
 )
 
 // FormatType defines a type of log format.
@@ -44,13 +42,13 @@ func SupportedFormatsString() string {
 // FormatHandler returns the correct slog handler factory for the provided format.
 func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
 	termColorHandler := func(w io.Writer) slog.Handler {
-		return elog.NewTerminalHandler(w, color)
+		return NewTerminalHandler(w, color)
 	}
-	logfmtHandler := func(w io.Writer) slog.Handler { return elog.LogfmtHandlerWithLevel(w, elog.LevelTrace) }
-	logfmtMsHandler := func(w io.Writer) slog.Handler { return LogfmtMsHandlerWithLevel(w, elog.LevelTrace) }
+	logfmtHandler := func(w io.Writer) slog.Handler { return LogfmtHandlerWithLevel(w, LevelTrace) }
+	logfmtMsHandler := func(w io.Writer) slog.Handler { return LogfmtMsHandlerWithLevel(w, LevelTrace) }
 	switch ft {
 	case FormatJSON:
-		return elog.JSONHandler
+		return JSONHandler
 	case FormatJSONMs:
 		return JSONMsHandler
 	case FormatText:

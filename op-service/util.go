@@ -16,9 +16,9 @@ import (
 	"golang.org/x/mod/modfile"
 
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
 

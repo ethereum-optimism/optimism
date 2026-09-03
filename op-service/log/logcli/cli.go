@@ -18,12 +18,10 @@ import (
 	"github.com/urfave/cli/v2"
 	"golang.org/x/term"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 )
 
@@ -60,8 +58,8 @@ func CLIFlagsWithCategory(envPrefix string, category string) []cli.Flag {
 		},
 		&cli.GenericFlag{
 			Name:     FormatFlagName,
-			Usage:    fmt.Sprintf("Format the log output. Supported formats: %s", oplog.SupportedFormatsString()),
-			Value:    NewFormatFlagValue(oplog.FormatText),
+			Usage:    fmt.Sprintf("Format the log output. Supported formats: %s", log.SupportedFormatsString()),
+			Value:    NewFormatFlagValue(log.FormatText),
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
 			Category: category,
 		},
@@ -90,7 +88,7 @@ func NewLevelFlagValue(lvl slog.Level) *LevelFlagValue {
 
 func (fv *LevelFlagValue) Set(value string) error {
 	value = strings.ToLower(value) // ignore case
-	lvl, err := oplog.LevelFromString(value)
+	lvl, err := log.LevelFromString(value)
 	if err != nil {
 		return err
 	}
@@ -114,15 +112,15 @@ func (fv *LevelFlagValue) Clone() any {
 var _ cliapp.CloneableGeneric = (*LevelFlagValue)(nil)
 
 // FormatFlagValue is a value type for cli.GenericFlag to parse and validate log-formatting-type values
-type FormatFlagValue oplog.FormatType
+type FormatFlagValue log.FormatType
 
-func NewFormatFlagValue(fmtType oplog.FormatType) *FormatFlagValue {
+func NewFormatFlagValue(fmtType log.FormatType) *FormatFlagValue {
 	return (*FormatFlagValue)(&fmtType)
 }
 
 func (fv *FormatFlagValue) Set(value string) error {
-	switch oplog.FormatType(value) {
-	case oplog.FormatText, oplog.FormatTerminal, oplog.FormatLogFmt, oplog.FormatLogFmtMs, oplog.FormatJSON, oplog.FormatJSONMs:
+	switch log.FormatType(value) {
+	case log.FormatText, log.FormatTerminal, log.FormatLogFmt, log.FormatLogFmtMs, log.FormatJSON, log.FormatJSONMs:
 		*fv = FormatFlagValue(value)
 		return nil
 	default:
@@ -131,11 +129,11 @@ func (fv *FormatFlagValue) Set(value string) error {
 }
 
 func (fv FormatFlagValue) String() string {
-	return oplog.FormatType(fv).String()
+	return log.FormatType(fv).String()
 }
 
-func (fv FormatFlagValue) FormatType() oplog.FormatType {
-	return oplog.FormatType(fv)
+func (fv FormatFlagValue) FormatType() log.FormatType {
+	return log.FormatType(fv)
 }
 
 func (fv *FormatFlagValue) Clone() any {
@@ -148,7 +146,7 @@ var _ cliapp.CloneableGeneric = (*FormatFlagValue)(nil)
 type CLIConfig struct {
 	Level  slog.Level
 	Color  bool
-	Format oplog.FormatType
+	Format log.FormatType
 	Pid    bool
 }
 
@@ -163,8 +161,8 @@ func AppOut(ctx *cli.Context) io.Writer {
 
 // NewLogHandler creates a new configured handler, compatible as LvlSetter for log-level changes during runtime.
 func NewLogHandler(wr io.Writer, cfg CLIConfig) slog.Handler {
-	handler := oplog.FormatHandler(cfg.Format, cfg.Color)(wr)
-	return oplog.NewDynamicLogHandler(cfg.Level, handler)
+	handler := log.FormatHandler(cfg.Format, cfg.Color)(wr)
+	return log.NewDynamicLogHandler(cfg.Level, handler)
 }
 
 // NewLogger creates a new configured logger.
@@ -199,7 +197,7 @@ func SetGlobalLogHandler(h slog.Handler) {
 func DefaultCLIConfig() CLIConfig {
 	return CLIConfig{
 		Level:  log.LevelInfo,
-		Format: oplog.FormatText,
+		Format: log.FormatText,
 		Color:  term.IsTerminal(int(os.Stdout.Fd())),
 	}
 }
@@ -232,14 +230,14 @@ func ReadTestCLIConfig() CLIConfig {
 		*flPID = v == "true"
 	}
 
-	lvl, err := oplog.LevelFromString(*flLevel)
+	lvl, err := log.LevelFromString(*flLevel)
 	if err != nil {
 		panic(fmt.Errorf("failed to parse log level: %w", err))
 	}
 
 	return CLIConfig{
 		Level:  lvl,
-		Format: oplog.FormatType(*flFormat),
+		Format: log.FormatType(*flFormat),
 		Color:  term.IsTerminal(int(os.Stdout.Fd())) || *flColor,
 		Pid:    *flPID,
 	}
