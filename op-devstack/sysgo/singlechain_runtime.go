@@ -399,18 +399,23 @@ func startMinimalChallenger(
 	options := []sharedchallenger.Option{
 		sharedchallenger.WithFactoryAddress(l2Net.deployment.DisputeGameFactoryProxyAddr()),
 		sharedchallenger.WithPrivKey(challengerSecret),
-		sharedchallenger.WithPermissionedCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses),
-		sharedchallenger.WithPermissionedGameType(),
 		sharedchallenger.WithFastGames(),
 	}
-	var cannonKonaEnabled, superCannonKonaEnabled, zkEnabled bool
+	var permissionedEnabled, cannonKonaEnabled, superCannonKonaEnabled, zkEnabled bool
 	for _, gameType := range addedGameTypes {
+		permissionedEnabled = permissionedEnabled || gameType == gameTypes.PermissionedGameType
 		cannonKonaEnabled = cannonKonaEnabled || gameType == gameTypes.CannonKonaGameType
 		superCannonKonaEnabled = superCannonKonaEnabled || gameType == gameTypes.SuperCannonKonaGameType
 		zkEnabled = zkEnabled || gameType == gameTypes.ZKDisputeGameType
 	}
 	require.False(cannonKonaEnabled && superCannonKonaEnabled, "minimal challenger cannot use legacy and interop Cannon Kona prestates simultaneously")
 	require.False(zkEnabled && (cannonKonaEnabled || superCannonKonaEnabled), "minimal challenger cannot use the ZK game alongside cannon-kona game types")
+	if permissionedEnabled {
+		options = append(options,
+			sharedchallenger.WithPermissionedCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses),
+			sharedchallenger.WithPermissionedGameType(),
+		)
+	}
 	var zkChallengerSuperRootRPCProxy *StallableProxy
 	switch {
 	case zkEnabled:
