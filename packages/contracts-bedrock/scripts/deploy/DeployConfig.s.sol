@@ -172,7 +172,7 @@ contract DeployConfig is Script {
 
         proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", uint256(0));
         disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", uint256(0));
-        respectedGameType = _readOr(_json, "$.respectedGameType", uint256(0));
+        respectedGameType = _readOr(_json, "$.respectedGameType", uint256(5));
 
         faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
         faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
@@ -376,7 +376,7 @@ contract DeployConfig is Script {
         systemConfigStartBlock = 0;
         proofMaturityDelaySeconds = 604800;
         disputeGameFinalityDelaySeconds = 302400;
-        respectedGameType = 0;
+        respectedGameType = 5;
         useAltDA = false;
         daCommitmentType = "KeccakCommitment";
         daChallengeWindow = 100;
