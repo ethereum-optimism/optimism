@@ -1938,6 +1938,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         });
 
         prankDelegateCall(deployConfig.proxyAdminOwner);
+        // nosemgrep: sol-safety-expectrevert-before-ll-call
         vm.expectRevert(
             abi.encodeWithSelector(
                 IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInstruction.selector, "unknown"
