@@ -320,7 +320,7 @@ impl NodeCommand {
 
         let dependency_set = self.load_dependency_set(&cfg)?;
 
-        RollupNodeBuilder::new(
+        let builder = RollupNodeBuilder::new(
             cfg,
             l1_config,
             self.l2_client_args.l2_trust_rpc,
@@ -330,11 +330,8 @@ impl NodeCommand {
         )
         .with_sequencer_config(self.sequencer_flags.config())
         .with_derivation_delegate_config(self.derivation_delegate_args.config())
-        .with_dependency_set(dependency_set)
-        .build()
-        .start()
-        .await
-        .map_err(|e| {
+        .with_dependency_set(dependency_set);
+        builder.build().start().await.map_err(|e| {
             error!(target: "rollup_node", "Failed to start rollup node service: {e}");
             anyhow::anyhow!("{e}")
         })?;

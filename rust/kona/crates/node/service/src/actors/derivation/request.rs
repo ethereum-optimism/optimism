@@ -29,8 +29,6 @@ pub enum DerivationActorRequest {
     /// A request containing a [`Signal`] to the derivation pipeline.
     /// This allows the Engine to send the `DerivationActor` signals (e.g. to Flush or Reset).
     ProcessEngineSignalRequest(Box<Signal>),
-    /// A request to process the provided finalized L1 [`BlockInfo`].
-    ProcessFinalizedL1Block(Box<BlockInfo>),
     /// Request to process the provided L1 head block update.
     ProcessL1HeadUpdateRequest(Box<BlockInfo>),
 }
