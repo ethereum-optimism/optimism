@@ -25,7 +25,7 @@ use reth_evm::{
 use reth_execution_types::BlockExecutionOutput;
 use reth_metrics::{
     Metrics,
-    metrics::{self, Counter, Gauge},
+    metrics::{self, Counter, Gauge, Histogram},
 };
 use reth_optimism_evm::{
     ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode, PreRefundGasUsed,
@@ -57,7 +57,7 @@ use revm::context::{Block, BlockEnv};
 use std::{
     marker::PhantomData,
     sync::{Arc, mpsc::RecvTimeoutError},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tracing::{debug, trace, warn};
 
@@ -83,6 +83,28 @@ impl OpPayloadBuilderMetrics {
     }
 }
 
+/// Metrics for waiting on the engine's shared sparse trie.
+#[derive(Metrics, Clone)]
+#[metrics(scope = "optimism_payload_builder")]
+struct StateRootWaitMetrics {
+    /// Time spent waiting for the shared sparse trie's state root, in seconds.
+    state_root_wait_duration_seconds: Histogram,
+}
+
+impl StateRootWaitMetrics {
+    fn record(outcome: &'static str, elapsed: Duration) {
+        Self::new_with_labels(&[("outcome", outcome)])
+            .state_root_wait_duration_seconds
+            .record(elapsed);
+    }
+}
+
+enum StateRootWaitResult {
+    Task(Result<StateRootComputeOutcome, StateRootTaskError>),
+    Timeout(Duration),
+    Disconnected(&'static str),
+}
+
 /// Waits for the engine's shared sparse trie to produce a state root, bounded by `wait`.
 ///
 /// `None` waits indefinitely, which is what reth's `newPayload` path does when
@@ -96,15 +118,43 @@ fn await_sparse_trie_state_root(
     handle: &mut PayloadStateRootHandle,
     wait: Option<Duration>,
 ) -> Result<StateRootComputeOutcome, StateRootTaskError> {
-    let Some(wait) = wait else { return handle.state_root() };
+    let receiver = handle.take_state_root_rx();
+    let started = Instant::now();
+    let result = wait.map_or_else(
+        || {
+            receiver.recv().map_or_else(
+                |_| StateRootWaitResult::Disconnected("state root task dropped"),
+                StateRootWaitResult::Task,
+            )
+        },
+        |wait| match receiver.recv_timeout(wait) {
+            Ok(result) => StateRootWaitResult::Task(result),
+            Err(RecvTimeoutError::Timeout) => StateRootWaitResult::Timeout(wait),
+            Err(RecvTimeoutError::Disconnected) => {
+                StateRootWaitResult::Disconnected("sparse trie task dropped")
+            }
+        },
+    );
+    let elapsed = started.elapsed();
 
-    match handle.take_state_root_rx().recv_timeout(wait) {
-        Ok(result) => result,
-        Err(RecvTimeoutError::Timeout) => Err(StateRootTaskError::Other(format!(
-            "sparse trie task did not produce a state root within {wait:?}"
-        ))),
-        Err(RecvTimeoutError::Disconnected) => {
-            Err(StateRootTaskError::Other("sparse trie task dropped".to_string()))
+    match result {
+        StateRootWaitResult::Task(Ok(outcome)) => {
+            StateRootWaitMetrics::record("success", elapsed);
+            Ok(outcome)
+        }
+        StateRootWaitResult::Task(Err(err)) => {
+            StateRootWaitMetrics::record("task_error", elapsed);
+            Err(err)
+        }
+        StateRootWaitResult::Timeout(wait) => {
+            StateRootWaitMetrics::record("timeout", elapsed);
+            Err(StateRootTaskError::Other(format!(
+                "sparse trie task did not produce a state root within {wait:?}"
+            )))
+        }
+        StateRootWaitResult::Disconnected(message) => {
+            StateRootWaitMetrics::record("disconnected", elapsed);
+            Err(StateRootTaskError::Other(message.to_string()))
         }
     }
 }

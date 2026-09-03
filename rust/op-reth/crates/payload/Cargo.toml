@@ -58,3 +58,4 @@ serde.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }

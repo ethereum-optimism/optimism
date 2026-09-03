@@ -13598,6 +13598,7 @@ dependencies = [
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth 2.1.1",
  "derive_more 2.1.1",
+ "metrics-util",
  "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "op-revm",
