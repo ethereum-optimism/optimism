@@ -544,9 +544,10 @@ release-paths component:
     # Shared Go infrastructure linked into every Go binary.
     go_shared="shared=go.*,op-core/,op-service/"
     # kona-host's local-path dependency closure per `cargo metadata`, excluding
-    # rust/kona/crates/node/ because kona-node is a separate binary. Blind spot: a
-    # dependency bump touching only rust/Cargo.lock appears in no path here.
-    kona_host="kona-host=rust/kona/bin/host/,rust/kona/crates/proof/,rust/kona/crates/protocol/,rust/kona/crates/providers/,rust/kona/crates/utilities/,rust/alloy-op-evm/,rust/alloy-op-hardforks/,rust/op-alloy/,rust/op-revm/"
+    # rust/kona/crates/node/ because kona-node is a separate binary. rust/Cargo.toml
+    # is included because a dependency bump reaches the binary; a bump touching only
+    # rust/Cargo.lock still appears under no path here.
+    kona_host="kona-host=rust/Cargo.toml,rust/kona/bin/host/,rust/kona/crates/proof/,rust/kona/crates/protocol/,rust/kona/crates/providers/,rust/kona/crates/utilities/,rust/alloy-op-evm/,rust/alloy-op-hardforks/,rust/op-alloy/,rust/op-revm/"
     specs=()
     case "{{ component }}" in
         op-node|op-batcher|op-proposer|op-supernode|op-dispute-mon)
@@ -562,10 +563,10 @@ release-paths component:
             specs=("op-challenger/" "cannon/" "$kona_host" "$go_shared")
             ;;
         op-reth)
-            specs=("rust/{{ component }}/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op*/")
+            specs=("rust/{{ component }}/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/")
             ;;
         kona-*)
-            specs=("rust/kona/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op*/" "rust/op-revm/")
+            specs=("rust/kona/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/" "rust/op-revm/")
             ;;
         op-deployer)
             specs=("op-deployer/")
@@ -630,7 +631,7 @@ release-notes component from='latest' to='latest-rc' mode='':
     if [ -z "$from_tag" ]; then echo "error: could not resolve from tag '{{ from }}' for {{ component }}"; exit 1; fi
     # release-paths is the single source of truth for what ships in a component.
     # Assigning first (rather than piping) so `set -e` aborts on an unknown one.
-    component_paths="$({{ just_executable() }} release-paths "{{ component }}")"
+    component_paths="$({{ just_executable() }} --justfile {{ justfile() }} release-paths "{{ component }}")"
     include_path_args=()
     # Second column only — the label just names a section, which notes don't use.
     # Not `path`: this recipe is zsh, where $path is tied to $PATH and reading
@@ -641,10 +642,6 @@ release-notes component from='latest' to='latest-rc' mode='':
         case "$include_path" in */) include_path="${include_path}**/*" ;; esac
         include_path_args+=(--include-path "$include_path")
     done <<< "$component_paths"
-    if [ ${#include_path_args[@]} -eq 0 ]; then
-        echo "error: no paths for component '{{ component }}'"
-        exit 1
-    fi
     tag_args=()
     if [ "{{ to }}" = "develop" ]; then
         tag_args=(--unreleased)
