@@ -489,6 +489,9 @@ async fn tick_does_not_wait_for_fetch_interval() {
     assert!(matches!(result.scheduled[0].operation, OperationSummary::ProposeGame { .. }));
     assert!(matches!(result.scheduled[1].operation, OperationSummary::ResolutionSweep));
     assert!(matches!(result.scheduled[2].operation, OperationSummary::ClaimSweep));
+    assert!(result.scheduled.iter().all(|scheduled| {
+        result.snapshot.active_tasks.iter().all(|active| active.task_id != scheduled.task_id)
+    }));
     let tasks = proposer.tasks.lock().await;
     for scheduled in result.scheduled {
         assert_eq!(
@@ -546,6 +549,7 @@ async fn tick_reaps_finished_tasks_before_scheduling_replacements() {
         second.completions.iter().map(|completion| completion.task_id).collect::<Vec<_>>(),
         vec![completed]
     );
+    assert!(!second.snapshot.active_tasks.iter().any(|active| active.task_id == completed));
     let replacement = second
         .scheduled
         .iter()
@@ -904,7 +908,12 @@ async fn task_finishing_after_reap_remains_settleable() {
     assert!(proposer.tasks.lock().await.get(&task_id).unwrap().0.is_finished());
     assert_eq!(control.settle(&[task_id]).await.unwrap()[0].task_id, task_id);
     let scheduled = result.scheduled.iter().map(|item| item.task_id).collect::<Vec<_>>();
-    control.settle(&scheduled).await.unwrap();
+    let completions = control.settle(&scheduled).await.unwrap();
+    assert!(
+        completions
+            .iter()
+            .all(|completion| matches!(&completion.outcome, TaskCompletionOutcome::Success))
+    );
 }
 
 #[tokio::test]
@@ -1056,7 +1065,12 @@ async fn tick_accepts_a_recorded_parked_task() {
     let parked_tick = control.tick().await.unwrap();
     let scheduled_ids =
         parked_tick.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>();
-    control.settle(&scheduled_ids).await.unwrap();
+    let completions = control.settle(&scheduled_ids).await.unwrap();
+    assert!(
+        completions
+            .iter()
+            .all(|completion| matches!(&completion.outcome, TaskCompletionOutcome::Success))
+    );
     running.release();
     assert_eq!(control.settle(&[running.task_id]).await.unwrap()[0].task_id, running.task_id);
 }

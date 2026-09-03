@@ -187,6 +187,7 @@ pub(crate) struct ScheduledOperation {
 pub(crate) enum SyncDisposition {
     Advanced,
     UnchangedConfirmedHead,
+    ConfirmedHeadRegressed { observed_number: u64 },
     ConfirmedBlockUnavailable,
 }
 
@@ -934,13 +935,15 @@ impl Proposer {
                     last_synced = previous_pin.number,
                     "L1 confirmed head moved backwards (backend regression or deep reorg), skipping sync"
                 );
-            } else {
-                tracing::debug!(
-                    confirmed_number,
-                    last_synced = previous_pin.number,
-                    "L1 head unchanged, skipping sync"
-                );
+                return Ok(SyncDisposition::ConfirmedHeadRegressed {
+                    observed_number: confirmed_number,
+                });
             }
+            tracing::debug!(
+                confirmed_number,
+                last_synced = previous_pin.number,
+                "L1 head unchanged, skipping sync"
+            );
             return Ok(SyncDisposition::UnchangedConfirmedHead);
         }
 
@@ -4298,7 +4301,14 @@ mod tests {
         let cases = [
             (Some("latest_head"), 1, 3, 0, None, &["latest_head"] as &[_]),
             (None, 5, 5, 0, Some(SyncDisposition::UnchangedConfirmedHead), &["latest_head"]),
-            (None, 4, 5, 0, Some(SyncDisposition::UnchangedConfirmedHead), &["latest_head"]),
+            (
+                None,
+                4,
+                5,
+                0,
+                Some(SyncDisposition::ConfirmedHeadRegressed { observed_number: 4 }),
+                &["latest_head"],
+            ),
             (
                 None,
                 10,
