@@ -10,13 +10,13 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 var Version = "v0.0.0"
 
 func main() {
-	oplog.SetupDefaults()
+	logcli.SetupDefaults()
 
 	app := cli.NewApp()
 	app.Flags = cliapp.ProtectFlags(Flags)

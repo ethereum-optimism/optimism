@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/urfave/cli/v2"
 )
 
@@ -155,7 +155,7 @@ var (
 	}
 )
 
-var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
+var GlobalFlags = append([]cli.Flag{CacheDirFlag}, logcli.CLIFlags(EnvVarPrefix)...)
 
 var InitFlags = []cli.Flag{
 	L1ChainIDFlag,

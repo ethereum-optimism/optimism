@@ -32,7 +32,7 @@ import (
 	"strings"
 	"sync"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -118,7 +118,7 @@ func fileHandler(t Testing, outdir string, level slog.Level) slog.Handler {
 		// if rootHdlr.WithAttrs ever winds up being called.
 		writer := newSyncWriter(bufio.NewWriter(f))
 		rootHdlr := log.NewTerminalHandlerWithLevel(writer, level, false)
-		oplog.SetGlobalLogHandler(rootHdlr)
+		logcli.SetGlobalLogHandler(rootHdlr)
 		t.Logf("redirecting root logger to %s", f.Name())
 		rootLoggerName = f.Name()
 	})

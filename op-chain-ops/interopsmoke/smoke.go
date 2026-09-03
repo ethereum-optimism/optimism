@@ -37,7 +37,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -373,12 +373,12 @@ func firstLogFrom(logs []*types.Log, origin common.Address) int {
 }
 
 func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
-	logHandler := oplog.NewLogHandler(stderr, oplog.DefaultCLIConfig())
+	logHandler := logcli.NewLogHandler(stderr, logcli.DefaultCLIConfig())
 	logHandler = logfilter.WrapFilterHandler(logHandler)
 	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
 	logHandler = logfilter.WrapContextHandler(logHandler)
 	logger := log.NewLogger(logHandler)
-	oplog.SetGlobalLogHandler(logHandler)
+	logcli.SetGlobalLogHandler(logHandler)
 	logger.SetContext(ctx)
 	return logger
 }

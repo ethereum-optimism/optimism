@@ -111,3 +111,32 @@ func TestFindForbiddenChainsExcept(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// TestFindChainsUnder is the positive control for the prefix variant.
+func TestFindChainsUnder(t *testing.T) {
+	t.Run("detects a transitive import under the prefix", func(t *testing.T) {
+		chains, err := findChainsUnder(".", "golang.org/x/tools")
+		require.NoError(t, err)
+		require.NotEmpty(t, chains)
+		require.Contains(t, chains[0], " -> golang.org/x/tools/")
+	})
+
+	t.Run("the package itself is exempt", func(t *testing.T) {
+		// This package lives under the module path; only its test file
+		// imports another package of the module.
+		chains, err := findChainsUnder(".", "github.com/ethereum-optimism/optimism")
+		require.NoError(t, err)
+		require.Empty(t, chains)
+	})
+
+	t.Run("prefix binds at path boundaries", func(t *testing.T) {
+		chains, err := findChainsUnder(".", "golang.org/x/too")
+		require.NoError(t, err)
+		require.Empty(t, chains)
+	})
+
+	t.Run("broken pattern cannot silently pass", func(t *testing.T) {
+		_, err := findChainsUnder("./no-such-package", "golang.org/x/tools")
+		require.Error(t, err)
+	})
+}

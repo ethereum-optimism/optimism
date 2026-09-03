@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 const EnvPrefix = "OP_CHAIN_OPS_RECEIPT_REFERENCE_BUILDER"
@@ -78,7 +78,7 @@ var (
 
 func main() {
 	color := term.IsTerminal(int(os.Stderr.Fd()))
-	oplog.SetGlobalLogHandler(log.NewTerminalHandlerWithLevel(os.Stdout, slog.LevelDebug, color))
+	logcli.SetGlobalLogHandler(log.NewTerminalHandlerWithLevel(os.Stdout, slog.LevelDebug, color))
 
 	app := &cli.App{
 		Name:   "receipt-reference-builder",

@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 
 	_ "embed"
 )
@@ -126,8 +127,8 @@ func ensureAllocType(allocType AllocType) {
 	}
 	once.Do(func() {
 		if errorLogHandler != nil {
-			oplog.SetGlobalLogHandler(errorLogHandler)
-			defer oplog.SetGlobalLogHandler(regularLogHandler)
+			logcli.SetGlobalLogHandler(errorLogHandler)
+			defer logcli.SetGlobalLogHandler(regularLogHandler)
 		}
 		initAllocType(monorepoRoot, allocType)
 	})
@@ -223,13 +224,13 @@ func init() {
 		// We cannot attach a testlog logger,
 		// because the global logger is shared between different independent parallel tests.
 		// Tests that write to a testlogger of another finished test fail.
-		handler = oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
+		handler = logcli.NewLogHandler(os.Stdout, logcli.CLIConfig{
 			Level:  lvl,
 			Color:  false, // some CI logs do not handle colors well
 			Format: oplog.FormatTerminal,
 		})
 
-		errHandler = oplog.NewLogHandler(os.Stderr, oplog.CLIConfig{
+		errHandler = logcli.NewLogHandler(os.Stderr, logcli.CLIConfig{
 			Level:  log.LevelError,
 			Color:  false,
 			Format: oplog.FormatTerminal,
@@ -242,7 +243,7 @@ func init() {
 	// level to error only while generating.
 	regularLogHandler = handler
 	errorLogHandler = errHandler
-	oplog.SetGlobalLogHandler(handler)
+	logcli.SetGlobalLogHandler(handler)
 }
 
 func initAllocType(root string, allocType AllocType) {

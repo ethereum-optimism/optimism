@@ -18,7 +18,7 @@ import (
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -72,9 +72,9 @@ func newContinueConfig(cliCtx *cli.Context, lgr log.Logger) ContinueConfig {
 
 func ContinueCLI() func(cliCtx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
-		logCfg := oplog.ReadCLIConfig(cliCtx)
-		lgr := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-		oplog.SetGlobalLogHandler(lgr.Handler())
+		logCfg := logcli.ReadCLIConfig(cliCtx)
+		lgr := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+		logcli.SetGlobalLogHandler(lgr.Handler())
 
 		ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 		return Continue(ctx, newContinueConfig(cliCtx, lgr))

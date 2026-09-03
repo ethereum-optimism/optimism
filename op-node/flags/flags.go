@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
@@ -517,7 +517,7 @@ var rpcDefaults = oprpc.CLIConfig{
 func init() {
 	DeprecatedFlags = append(DeprecatedFlags, deprecatedP2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, oplog.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, oprpc.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory, rpcDefaults)...)

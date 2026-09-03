@@ -10,7 +10,7 @@ import (
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 var Subcommands = []*cli.Command{
@@ -21,8 +21,8 @@ var Subcommands = []*cli.Command{
 			opflags.CLINetworkFlag(flags.EnvVarPrefix, ""),
 		},
 		Action: func(ctx *cli.Context) error {
-			logCfg := oplog.ReadCLIConfig(ctx)
-			logger := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
+			logCfg := logcli.ReadCLIConfig(ctx)
+			logger := logcli.NewLogger(logcli.AppOut(ctx), logCfg)
 
 			network := ctx.String(opflags.NetworkFlagName)
 			if network == "" {

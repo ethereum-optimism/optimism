@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -80,9 +80,9 @@ func (a *ApplyConfig) Check() error {
 
 func ApplyCLI() func(cliCtx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
-		logCfg := oplog.ReadCLIConfig(cliCtx)
-		l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-		oplog.SetGlobalLogHandler(l.Handler())
+		logCfg := logcli.ReadCLIConfig(cliCtx)
+		l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+		logcli.SetGlobalLogHandler(l.Handler())
 
 		l1RPCUrl := cliCtx.String(L1RPCURLFlagName)
 		workdir := cliCtx.String(WorkdirFlagName)
