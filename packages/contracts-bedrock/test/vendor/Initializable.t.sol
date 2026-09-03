@@ -21,6 +21,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IInitializable } from "interfaces/dispute/IInitializable.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @title Initializer_Test
@@ -47,6 +49,7 @@ contract Initializer_Test is CommonTest {
 
     function setUp() public override {
         super.enableAltDA();
+        super.enableInterop();
         super.setUp();
 
         // Initialize the `contracts` array with the addresses of the contracts to test, the
@@ -102,6 +105,34 @@ contract Initializer_Test is CommonTest {
                 name: "DisputeGameFactoryProxy",
                 target: address(disputeGameFactory),
                 initCalldata: abi.encodeCall(disputeGameFactory.initialize, (address(0)))
+            })
+        );
+        contracts.push(
+            InitializeableContract({
+                name: "FaultDisputeGameImpl",
+                target: artifacts.mustGetAddress("FaultDisputeGameImpl"),
+                initCalldata: abi.encodeCall(IInitializable.initialize, ())
+            })
+        );
+        contracts.push(
+            InitializeableContract({
+                name: "PermissionedDisputeGameImpl",
+                target: artifacts.mustGetAddress("PermissionedDisputeGameImpl"),
+                initCalldata: abi.encodeCall(IInitializable.initialize, ())
+            })
+        );
+        contracts.push(
+            InitializeableContract({
+                name: "SuperFaultDisputeGameImpl",
+                target: artifacts.mustGetAddress("SuperFaultDisputeGameImpl"),
+                initCalldata: abi.encodeCall(IInitializable.initialize, ())
+            })
+        );
+        contracts.push(
+            InitializeableContract({
+                name: "SuperPermissionedDisputeGameImpl",
+                target: artifacts.mustGetAddress("SuperPermissionedDisputeGameImpl"),
+                initCalldata: abi.encodeCall(IInitializable.initialize, ())
             })
         );
         // DelayedWETHImpl
@@ -360,18 +391,9 @@ contract Initializer_Test is CommonTest {
     function test_cannotReinitialize_succeeds() public {
         // Collect exclusions.
         uint256 j;
-        string[] memory excludes = new string[](9);
+        string[] memory excludes = new string[](3);
         // Periphery contracts don't get deployed as part of the standard deployment script.
         excludes[j++] = "src/periphery/*";
-        // TODO: Deployment script is currently "broken" in the sense that it doesn't properly
-        //       label the FaultDisputeGame, PermissionedDisputeGame, SuperFaultDisputeGame, and
-        // SuperPermissionedDisputeGame
-        //       contracts and instead simply deploys them anonymously. Means that functions like "getInitializedSlot"
-        //       don't work properly. Remove these exclusions once the deployment script is fixed.
-        excludes[j++] = "src/dispute/FaultDisputeGame.sol";
-        excludes[j++] = "src/dispute/PermissionedDisputeGame.sol";
-        excludes[j++] = "src/dispute/SuperFaultDisputeGame.sol";
-        excludes[j++] = "src/dispute/SuperPermissionedDisputeGame.sol";
         excludes[j++] = "src/dispute/zk/ZKDisputeGame.sol";
         // L2 contract initialization is tested in Predeploys.t.sol
         excludes[j++] = "src/L2/*";
@@ -437,7 +459,11 @@ contract Initializer_Test is CommonTest {
             // Then, attempt to re-initialize the contract. This should fail.
             (bool success, bytes memory returnData) = _contract.target.call(_contract.initCalldata);
             assertFalse(success);
-            assertEq(_extractErrorString(returnData), "Initializable: contract is already initialized");
+            if (bytes4(returnData) == IFaultDisputeGame.AlreadyInitialized.selector) {
+                assertEq(returnData.length, 4);
+            } else {
+                assertEq(_extractErrorString(returnData), "Initializable: contract is already initialized");
+            }
         }
     }
 
