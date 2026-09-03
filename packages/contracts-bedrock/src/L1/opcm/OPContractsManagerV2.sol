@@ -30,6 +30,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -158,9 +159,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.3
+    /// @custom:semver 8.0.4
     function version() public pure returns (string memory) {
-        return "8.0.3";
+        return "8.0.4";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -342,6 +343,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
         if (SemverComp.lt(_version(), "9.0.0")) {
+            // Allow deploying an ETHLockbox for existing chains.
+            if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"))) {
+                return true;
+            }
+
             // Super root games migration requires overriding anchor root.
             if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
                 if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
@@ -443,28 +449,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             )
         );
 
-        // ETHLockbox is a special case. It's only to be used or deployed if the ETH_LOCKBOX
-        // feature is enabled. If this is an initial deployment, we'll deploy a proxy for it
-        // largely because the legacy code expects this proxy to be deployed on initial deployment
-        // though this doesn't mean we actually have to set it up and initialize it. If this is an
-        // upgrade, we'll load/deploy the proxy only if the system feature is set.
-        // NOTE: It's important that we don't try to load the proxy here if we're upgrading a chain
-        // that doesn't have the feature enabled. Chains that don't have the feature enabled will
-        // return address(0) for optimismPortal.ethLockbox(). If we try to load the proxy here, we
-        // will revert because the contract returns the zero address (reverting is the safe thing
-        // to do, so we want to revert, but that would break the upgrade flow).
-        IETHLockbox ethLockbox;
-        if (isInitialDeployment || systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            ethLockbox = IETHLockbox(
-                _loadOrDeployProxy(
-                    address(optimismPortal),
-                    optimismPortal.ethLockbox.selector,
-                    proxyDeployArgs,
-                    "ETHLockbox",
-                    _extraInstructions
-                )
-            );
-        }
+        // Load or deploy the ETHLockbox.
+        IETHLockbox ethLockbox = IETHLockbox(
+            _loadOrDeployProxy(
+                address(optimismPortal),
+                optimismPortal.ethLockbox.selector,
+                proxyDeployArgs,
+                "ETHLockbox",
+                _extraInstructions
+            )
+        );
 
         // For every other contract, we load-or-build the proxy. Each contract has a theoretical
         // source where the address would be found. If the address isn't found there, we assume the
@@ -847,36 +841,42 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin, address(_cts.systemConfig), impls.systemConfigImpl, _makeSystemConfigInitArgs(_cfg, _cts)
         );
 
-        // Update the OptimismPortal. If a chain already uses ETHLockbox, preserve that lockbox
-        // during standard upgrades. New interop lockbox activation is performed by migrate().
-        bool isEthLockboxEnabled = _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
-        if (isEthLockboxEnabled && address(_cts.ethLockbox) == address(0)) {
+        // Enable ETHLockbox before updating the portal.
+        bool wasEthLockboxEnabled = _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
+        if (address(_cts.ethLockbox) == address(0)) {
             revert OPContractsManagerV2_InvalidEthLockbox();
         }
-        IETHLockbox portalLockbox = isEthLockboxEnabled ? _cts.ethLockbox : IETHLockbox(address(0));
+        if (!wasEthLockboxEnabled) {
+            _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        }
+
+        // Update the OptimismPortal.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.optimismPortal),
             impls.optimismPortalImpl,
-            abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, portalLockbox))
+            abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox))
         );
 
         // NOTE: Same general pattern, we call _upgrade for each contract rather than
         // iterating over some sort of array because it's easier to implement and understand.
 
-        // We upgrade/initialize the ETHLockbox if this is an initial deployment or if it's an
-        // upgrade and the ETH_LOCKBOX feature is enabled.
-        if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            IOptimismPortal[] memory portals = new IOptimismPortal[](1);
-            portals[0] = _cts.optimismPortal;
-            _upgrade(
-                _cts.proxyAdmin,
-                address(_cts.ethLockbox),
-                impls.ethLockboxImpl,
-                abi.encodeCall(
-                    IETHLockbox.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.ethLockbox)), portals)
-                )
-            );
+        // Preserve the SuperchainConfig of an existing ETHLockbox.
+        IOptimismPortal[] memory portals = new IOptimismPortal[](1);
+        portals[0] = _cts.optimismPortal;
+        _upgrade(
+            _cts.proxyAdmin,
+            address(_cts.ethLockbox),
+            impls.ethLockboxImpl,
+            abi.encodeCall(
+                IETHLockbox.initialize,
+                (_superchainConfigFor(_cts.systemConfig.superchainConfig(), address(_cts.ethLockbox)), portals)
+            )
+        );
+
+        // CGT chains use ETHLockbox only as a pause source.
+        if (!wasEthLockboxEnabled && !_cfg.useCustomGasToken) {
+            _cts.optimismPortal.migrateLiquidity();
         }
 
         // Update the L1CrossDomainMessenger.
@@ -922,12 +922,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
         );
 
+        // Preserve the pause source of existing shared contracts.
+        IPauseSource pauseIdentifier = IPauseSource(address(_cts.ethLockbox));
+
         // Update the DelayedWETH.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.delayedWETH))))
+            abi.encodeCall(IDelayedWETH.initialize, (_pauseIdentifierFor(pauseIdentifier, address(_cts.delayedWETH))))
         );
 
         // Update the AnchorStateRegistry.
@@ -938,7 +941,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
                 (
-                    _systemConfigFor(_cts.systemConfig, address(_cts.anchorStateRegistry)),
+                    _pauseIdentifierFor(pauseIdentifier, address(_cts.anchorStateRegistry)),
                     _cts.disputeGameFactory,
                     _cfg.startingAnchorRoot,
                     _cfg.startingRespectedGameType

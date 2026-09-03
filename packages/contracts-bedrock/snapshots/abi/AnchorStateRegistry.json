@@ -164,8 +164,8 @@
   {
     "inputs": [
       {
-        "internalType": "contract ISystemConfig",
-        "name": "_systemConfig",
+        "internalType": "contract IPauseSource",
+        "name": "_pauseIdentifier",
         "type": "address"
       },
       {
@@ -355,6 +355,19 @@
   },
   {
     "inputs": [],
+    "name": "pauseIdentifier",
+    "outputs": [
+      {
+        "internalType": "contract IPauseSource",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "paused",
     "outputs": [
       {
@@ -450,19 +463,6 @@
     "outputs": [
       {
         "internalType": "contract ISuperchainConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "systemConfig",
-    "outputs": [
-      {
-        "internalType": "contract ISystemConfig",
         "name": "",
         "type": "address"
       }

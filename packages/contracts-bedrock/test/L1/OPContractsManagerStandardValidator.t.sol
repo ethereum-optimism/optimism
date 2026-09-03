@@ -117,6 +117,12 @@ contract BadVersionReturner {
     }
 }
 
+/// @notice Returns the expected pause identifier.
+function expectedPauseIdentifierFor(ISystemConfig _sysCfg) view returns (address) {
+    IOptimismPortal2 portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
+    return address(portal.ethLockbox());
+}
+
 /// @title OPContractsManagerStandardValidator_TestInit
 /// @notice Base contract for `OPContractsManagerStandardValidator` tests, handles common setup.
 abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
@@ -879,16 +885,22 @@ contract OPContractsManagerStandardValidator_OptimismPortal_Test is OPContractsM
 /// @title OPContractsManagerStandardValidator_ETHLockbox_Test
 /// @notice Tests validation of `ETHLockbox` configuration
 contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManagerStandardValidator_TestInit {
+    /// @notice Tests that ETHLockbox must be enabled.
+    function test_validate_ethLockboxFeatureDisabled_succeeds() public {
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
+            abi.encode(false)
+        );
+        assertEq("LOCKBOX-00", _validate(true));
+    }
+
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         ETHLockbox version is invalid.
     function test_validate_ethLockboxInvalidVersion_succeeds() public {
         vm.mockCall(address(ethLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-10", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -900,11 +912,7 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
             abi.encode(address(0xbad))
         );
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-20", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-20", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -914,23 +922,15 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
             address(ethLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-30", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-30", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         ETHLockbox systemConfig is invalid.
-    function test_validate_ethLockboxInvalidSystemConfig_succeeds() public {
-        vm.mockCall(address(ethLockbox), abi.encodeCall(IETHLockbox.systemConfig, ()), abi.encode(address(0xbad)));
+    ///         ETHLockbox superchainConfig is invalid.
+    function test_validate_ethLockboxInvalidSuperchainConfig_succeeds() public {
+        vm.mockCall(address(ethLockbox), abi.encodeCall(IETHLockbox.superchainConfig, ()), abi.encode(address(0xbad)));
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-40", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-40", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -940,11 +940,7 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
             address(ethLockbox), abi.encodeCall(IETHLockbox.authorizedPortals, (optimismPortal2)), abi.encode(false)
         );
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-50", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-50", _validate(true));
     }
 }
 
@@ -1143,7 +1139,11 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
             abi.encode(Hash.wrap(bytes32(uint256(0x123))), uint256(123))
         );
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(dgf));
-        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(
+            badASR,
+            abi.encodeCall(IAnchorStateRegistry.pauseIdentifier, ()),
+            abi.encode(expectedPauseIdentifierFor(sysCfg))
+        );
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
 
@@ -1169,7 +1169,9 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
         vm.mockCall(
             badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
         );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(
+            badWeth, abi.encodeCall(IDelayedWETH.pauseIdentifier, ()), abi.encode(expectedPauseIdentifierFor(sysCfg))
+        );
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
 
         assertEq("PDDG-DWETH-10,PDDG-DWETH-20", _validate(true));
@@ -1316,11 +1318,11 @@ contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         AnchorStateRegistry systemConfig is invalid.
-    function test_validate_anchorStateRegistryInvalidSystemConfig_succeeds() public {
+    ///         AnchorStateRegistry pauseIdentifier is invalid.
+    function test_validate_anchorStateRegistryInvalidPauseIdentifier_succeeds() public {
         vm.mockCall(
             address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.systemConfig, ()),
+            abi.encodeCall(IAnchorStateRegistry.pauseIdentifier, ()),
             abi.encode(address(0xbad))
         );
         assertEq("PDDG-ANCHORP-40,CKDG-ANCHORP-40", _validate(true));
@@ -1396,9 +1398,9 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         DelayedWETH systemConfig is invalid.
-    function test_validate_delayedWETHInvalidSystemConfig_succeeds() public {
-        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(address(0xbad)));
+    ///         DelayedWETH pauseIdentifier is invalid.
+    function test_validate_delayedWETHInvalidPauseIdentifier_succeeds() public {
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.pauseIdentifier, ()), abi.encode(address(0xbad)));
         assertEq("PDDG-DWETH-50,CKDG-DWETH-50", _validate(true));
     }
 
@@ -1515,7 +1517,11 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
             abi.encode(Hash.wrap(bytes32(uint256(0x123))), uint256(123))
         );
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(dgf));
-        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(
+            badASR,
+            abi.encodeCall(IAnchorStateRegistry.pauseIdentifier, ()),
+            abi.encode(expectedPauseIdentifierFor(sysCfg))
+        );
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
     }
@@ -1544,7 +1550,9 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         vm.mockCall(
             badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
         );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(
+            badWeth, abi.encodeCall(IDelayedWETH.pauseIdentifier, ()), abi.encode(expectedPauseIdentifierFor(sysCfg))
+        );
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
     }
 
@@ -1871,6 +1879,22 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
         assertEq(errors, "");
     }
 
+    /// @notice Tests that ETHLockbox must be enabled.
+    function test_validate_ethLockboxFeatureDisabled_succeeds() public {
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
+            abi.encode(false)
+        );
+        assertEq("LOCKBOX-00", _validate(true));
+    }
+
+    /// @notice Tests that the ETHLockbox must be non-zero.
+    function test_validate_ethLockboxMissing_succeeds() public {
+        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(address(0)));
+        assertEq("SPDG-ANCHORP-40,SCKDG-DWETH-50,SCKDG-ANCHORP-40,LOCKBOX-05", _validate(true));
+    }
+
     /// @notice Tests that the validate function returns SYSCON-140 when the SystemConfig l2ChainId
     ///         does not match the expected chain ID.
     function test_validate_systemConfigInvalidL2ChainId_succeeds() public {
@@ -2030,7 +2054,11 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
             abi.encode(Hash.wrap(bytes32(uint256(0x123))), uint256(123))
         );
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(dgf));
-        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(
+            badASR,
+            abi.encodeCall(IAnchorStateRegistry.pauseIdentifier, ()),
+            abi.encode(expectedPauseIdentifierFor(sysCfg))
+        );
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
 

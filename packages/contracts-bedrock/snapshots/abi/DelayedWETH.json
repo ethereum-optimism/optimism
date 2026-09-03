@@ -178,8 +178,8 @@
   {
     "inputs": [
       {
-        "internalType": "contract ISystemConfig",
-        "name": "_systemConfig",
+        "internalType": "contract IPauseSource",
+        "name": "_pauseIdentifier",
         "type": "address"
       }
     ],
@@ -196,6 +196,19 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pauseIdentifier",
+    "outputs": [
+      {
+        "internalType": "contract IPauseSource",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -248,19 +261,6 @@
         "internalType": "string",
         "name": "",
         "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "systemConfig",
-    "outputs": [
-      {
-        "internalType": "contract ISystemConfig",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",

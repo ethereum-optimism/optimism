@@ -19,7 +19,8 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerUtils
@@ -402,21 +403,34 @@ contract OPContractsManagerUtils {
         }
     }
 
-    /// @notice Resolves the SystemConfig a proxy is already bound to, so an upgrade driven by one
-    ///         member of an interop set does not re-point the shared contracts (ETHLockbox,
-    ///         AnchorStateRegistry, DelayedWETH) at the caller's SystemConfig. migrate() binds those
-    ///         to the first member chain's SystemConfig. Per-chain contracts report the caller's own
-    ///         SystemConfig, so behavior is unchanged for them. Falls back to _default for a
-    ///         freshly-deployed proxy that can't report one yet. Ref: #21731.
-    /// @dev The contracts exposing systemConfig() share no common base interface; IETHLockbox is
-    ///      only the source of the (identical) selector.
-    /// @param _default Fallback SystemConfig for not-yet-initialized proxies.
-    /// @param _target The proxy whose bound SystemConfig should be resolved.
-    /// @return The bound SystemConfig.
-    function systemConfigFor(ISystemConfig _default, address _target) external view returns (ISystemConfig) {
+    /// @notice Returns the target's SuperchainConfig or `_default` if unavailable.
+    /// @param _default The fallback SuperchainConfig.
+    /// @param _target The ETHLockbox proxy.
+    /// @return The resolved SuperchainConfig.
+    function superchainConfigFor(
+        ISuperchainConfig _default,
+        address _target
+    )
+        external
+        view
+        returns (ISuperchainConfig)
+    {
         // eip150-safe
-        try IETHLockbox(_target).systemConfig() returns (ISystemConfig systemConfig_) {
-            return address(systemConfig_) == address(0) ? _default : systemConfig_;
+        try IETHLockbox(_target).superchainConfig() returns (ISuperchainConfig superchainConfig_) {
+            return address(superchainConfig_) == address(0) ? _default : superchainConfig_;
+        } catch {
+            return _default;
+        }
+    }
+
+    /// @notice Returns the target's pause identifier or `_default` if unavailable.
+    /// @param _default The fallback pause identifier.
+    /// @param _target The target proxy.
+    /// @return The resolved pause identifier.
+    function pauseIdentifierFor(IPauseSource _default, address _target) external view returns (IPauseSource) {
+        // eip150-safe
+        try IAnchorStateRegistry(_target).pauseIdentifier() returns (IPauseSource pauseIdentifier_) {
+            return address(pauseIdentifier_) == address(0) ? _default : pauseIdentifier_;
         } catch {
             return _default;
         }

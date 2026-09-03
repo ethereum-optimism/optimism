@@ -7,7 +7,8 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
 import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
 
 interface IOPContractsManagerUtils {
@@ -164,7 +165,14 @@ interface IOPContractsManagerUtils {
         view
         returns (bytes memory);
 
-    function systemConfigFor(ISystemConfig _default, address _target) external view returns (ISystemConfig);
+    function superchainConfigFor(
+        ISuperchainConfig _default,
+        address _target
+    )
+        external
+        view
+        returns (ISuperchainConfig);
+    function pauseIdentifierFor(IPauseSource _default, address _target) external view returns (IPauseSource);
 
     function __constructor__(IOPContractsManagerContainer _contractsContainer) external;
 }

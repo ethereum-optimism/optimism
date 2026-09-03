@@ -584,7 +584,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract ISystemConfig",
+        "internalType": "contract IPauseSource",
         "name": "_default",
         "type": "address"
       },
@@ -594,10 +594,34 @@
         "type": "address"
       }
     ],
-    "name": "systemConfigFor",
+    "name": "pauseIdentifierFor",
     "outputs": [
       {
-        "internalType": "contract ISystemConfig",
+        "internalType": "contract IPauseSource",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "_default",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      }
+    ],
+    "name": "superchainConfigFor",
+    "outputs": [
+      {
+        "internalType": "contract ISuperchainConfig",
         "name": "",
         "type": "address"
       }

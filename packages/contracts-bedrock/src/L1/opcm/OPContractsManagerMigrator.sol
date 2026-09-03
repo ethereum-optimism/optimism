@@ -18,6 +18,7 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { GameType, Proposal } from "src/dispute/lib/Types.sol";
@@ -206,16 +207,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             // Grab the implementations.
             IOPContractsManagerContainer.Implementations memory impls = contractsContainer().implementations();
 
-            // Initialize the new ETHLockbox.
-            // NOTE: Shared contracts (ETHLockbox, AnchorStateRegistry, DelayedWETH) are
-            // intentionally initialized with chainSystemConfigs[0]. All chains are validated to
-            // share the same ProxyAdmin owner and SuperchainConfig, so the first chain's
-            // SystemConfig is used as the canonical governance reference for shared contracts.
+            // Initialize the shared ETHLockbox.
             _upgrade(
                 proxyDeployArgs.proxyAdmin,
                 address(ethLockbox),
                 impls.ethLockboxImpl,
-                abi.encodeCall(IETHLockbox.initialize, (_input.chainSystemConfigs[0], new IOptimismPortal[](0)))
+                abi.encodeCall(
+                    IETHLockbox.initialize, (_input.chainSystemConfigs[0].superchainConfig(), new IOptimismPortal[](0))
+                )
             );
 
             // Initialize the new DisputeGameFactory.
@@ -234,12 +233,20 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 abi.encodeCall(
                     IAnchorStateRegistry.initialize,
                     (
-                        _input.chainSystemConfigs[0],
+                        IPauseSource(address(ethLockbox)),
                         disputeGameFactory,
                         _input.startingAnchorRoot,
                         _input.startingRespectedGameType
                     )
                 )
+            );
+
+            // Update the shared DelayedWETH pause source.
+            _upgrade(
+                proxyDeployArgs.proxyAdmin,
+                address(delayedWETH),
+                impls.delayedWETHImpl,
+                abi.encodeCall(IDelayedWETH.initialize, (IPauseSource(address(ethLockbox))))
             );
 
             // Migrate each portal to the new ETHLockbox and AnchorStateRegistry.

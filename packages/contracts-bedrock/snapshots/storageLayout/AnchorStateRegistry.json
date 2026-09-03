@@ -15,10 +15,10 @@
   },
   {
     "bytes": "20",
-    "label": "systemConfig",
+    "label": "spacer_0_2_20",
     "offset": 2,
     "slot": "0",
-    "type": "contract ISystemConfig"
+    "type": "address"
   },
   {
     "bytes": "20",
@@ -61,5 +61,12 @@
     "offset": 4,
     "slot": "6",
     "type": "uint64"
+  },
+  {
+    "bytes": "20",
+    "label": "pauseIdentifier",
+    "offset": 12,
+    "slot": "6",
+    "type": "contract IPauseSource"
   }
 ]

@@ -10,7 +10,8 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IPauseSource } from "interfaces/L1/IPauseSource.sol";
 
 /// @title OPContractsManagerUtilsCaller
 /// @notice OPContractsManagerUtilsCaller is an abstract contract that exists to hide all of the
@@ -177,14 +178,32 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
-    /// @notice Resolves the SystemConfig a target proxy is already bound to, falling back to
-    ///         _default when it can't report one. See OPContractsManagerUtils.systemConfigFor.
-    /// @param _default Fallback SystemConfig for not-yet-initialized proxies.
-    /// @param _target The proxy whose bound SystemConfig should be resolved.
-    /// @return The bound SystemConfig.
-    function _systemConfigFor(ISystemConfig _default, address _target) internal view returns (ISystemConfig) {
+    /// @notice Returns the target's SuperchainConfig or `_default` if unavailable.
+    /// @param _default The fallback SuperchainConfig.
+    /// @param _target The ETHLockbox proxy.
+    /// @return The resolved SuperchainConfig.
+    function _superchainConfigFor(
+        ISuperchainConfig _default,
+        address _target
+    )
+        internal
+        view
+        returns (ISuperchainConfig)
+    {
         return abi.decode(
-            _staticcall(abi.encodeCall(IOPContractsManagerUtils.systemConfigFor, (_default, _target))), (ISystemConfig)
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.superchainConfigFor, (_default, _target))),
+            (ISuperchainConfig)
+        );
+    }
+
+    /// @notice Returns the target's pause identifier or `_default` if unavailable.
+    /// @param _default The fallback pause identifier.
+    /// @param _target The target proxy.
+    /// @return The resolved pause identifier.
+    function _pauseIdentifierFor(IPauseSource _default, address _target) internal view returns (IPauseSource) {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.pauseIdentifierFor, (_default, _target))),
+            (IPauseSource)
         );
     }
 

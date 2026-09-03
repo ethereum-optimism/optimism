@@ -17,6 +17,7 @@ import { Features } from "src/libraries/Features.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @title ETHLockbox_TestInit
 /// @notice Base contract that sets up the testing environment for ETHLockbox tests.
@@ -32,9 +33,7 @@ abstract contract ETHLockbox_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-
-        // If the ETHLockbox system feature is not enabled, skip these tests.
-        skipIfSysFeatureDisabled(Features.ETH_LOCKBOX);
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "ETH_LOCKBOX must be enabled");
     }
 }
 
@@ -53,9 +52,8 @@ contract ETHLockbox_Version_Test is ETHLockbox_TestInit {
 contract ETHLockbox_Initialize_Test is ETHLockbox_TestInit {
     /// @notice Tests the superchain config was correctly set during initialization.
     function test_initialize_succeeds() public view {
-        assertEq(address(ethLockbox.systemConfig().superchainConfig()), address(superchainConfig));
-        assertEq(ethLockbox.authorizedPortals(optimismPortal2), true);
         assertEq(address(ethLockbox.superchainConfig()), address(superchainConfig));
+        assertEq(ethLockbox.authorizedPortals(optimismPortal2), true);
     }
 
     /// @notice Tests that the initializer value is correct. Trivial test for normal initialization
@@ -92,14 +90,14 @@ contract ETHLockbox_Initialize_Test is ETHLockbox_TestInit {
         // Call the `initialize` function with the sender
         vm.prank(_sender);
         IOptimismPortal2[] memory _portals = new IOptimismPortal2[](1);
-        ethLockbox.initialize(systemConfig, _portals);
+        ethLockbox.initialize(superchainConfig, _portals);
     }
 
     /// @notice Tests it reverts when the contract is already initialized.
     function test_initialize_alreadyInitialized_reverts() public {
         vm.expectRevert("Initializable: contract is already initialized");
         IOptimismPortal2[] memory _portals = new IOptimismPortal2[](1);
-        ethLockbox.initialize(systemConfig, _portals);
+        ethLockbox.initialize(superchainConfig, _portals);
     }
 }
 
@@ -111,13 +109,47 @@ contract ETHLockbox_Paused_Test is ETHLockbox_TestInit {
         // Assert the paused status is false
         assertEq(ethLockbox.paused(), false);
 
-        // Mock the superchain config to return true for the paused status
-        // We use abi.encodeWithSignature because paused is overloaded.
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(address(superchainConfig), abi.encodeWithSignature("paused(address)", address(0)), abi.encode(true));
+        // Pause the lockbox.
+        vm.mockCall(
+            address(superchainConfig),
+            abi.encodeCall(ISuperchainConfig.isPaused, (address(ethLockbox))),
+            abi.encode(true)
+        );
 
         // Assert the paused status is true
         assertEq(ethLockbox.paused(), true);
+    }
+
+    /// @notice Tests that a global pause pauses the lockbox.
+    function test_paused_globalPause_succeeds() public {
+        assertEq(ethLockbox.paused(), false);
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        assertEq(ethLockbox.paused(), true);
+    }
+
+    /// @notice Tests scoped pause behavior.
+    function test_paused_scopedPause_succeeds() public {
+        assertEq(ethLockbox.paused(), false);
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0xbad));
+        assertEq(ethLockbox.paused(), false);
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(ethLockbox));
+        assertEq(ethLockbox.paused(), true);
+    }
+}
+
+/// @title ETHLockbox_Guardian_Test
+/// @notice Test contract for the `guardian` function.
+contract ETHLockbox_Guardian_Test is ETHLockbox_TestInit {
+    /// @notice Tests that guardian returns the SuperchainConfig guardian.
+    function test_guardian_succeeds() public view {
+        assertEq(ethLockbox.guardian(), superchainConfig.guardian());
     }
 }
 
@@ -361,10 +393,12 @@ contract ETHLockbox_LockETH_Test is ETHLockbox_TestInit {
 contract ETHLockbox_UnlockETH_Test is ETHLockbox_TestInit {
     /// @notice Tests `unlockETH` reverts when the contract is paused.
     function testFuzz_unlockETH_paused_reverts(address _caller, uint256 _value) public {
-        // Mock the superchain config to return true for the paused status
-        // We use abi.encodeWithSignature because paused is overloaded.
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(address(superchainConfig), abi.encodeWithSignature("paused(address)", address(0)), abi.encode(true));
+        // Pause the lockbox.
+        vm.mockCall(
+            address(superchainConfig),
+            abi.encodeCall(ISuperchainConfig.isPaused, (address(ethLockbox))),
+            abi.encode(true)
+        );
 
         // Expect the revert with `Paused` selector
         vm.expectRevert(IETHLockbox.ETHLockbox_Paused.selector);

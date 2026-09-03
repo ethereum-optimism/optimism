@@ -52,8 +52,8 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.3
-    string public constant version = "2.4.3";
+    /// @custom:semver 2.5.0
+    string public constant version = "2.5.0";
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() ReinitializableBase(2) {
@@ -143,6 +143,13 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
         uint256 timestamp = pauseTimestamps[_identifier];
         if (timestamp == 0) return false;
         return block.timestamp < timestamp + PAUSE_EXPIRY;
+    }
+
+    /// @notice Checks if the global or identifier-specific pause is active.
+    /// @param _identifier The address identifier to check.
+    /// @return True if the global pause or the identifier-scoped pause is active.
+    function isPaused(address _identifier) external view returns (bool) {
+        return paused(address(0)) || paused(_identifier);
     }
 
     /// @notice Gets the expiration timestamp for a specific pause identifier.

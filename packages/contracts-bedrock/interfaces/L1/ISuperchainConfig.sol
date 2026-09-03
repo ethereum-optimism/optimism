@@ -25,6 +25,7 @@ interface ISuperchainConfig is IProxyAdminOwnedBase {
     function pausable(address _identifier) external view returns (bool);
     function paused() external view returns (bool);
     function paused(address _identifier) external view returns (bool);
+    function isPaused(address _identifier) external view returns (bool);
     function expiration(address _identifier) external view returns (uint256);
     function extend(address _identifier) external;
     function version() external view returns (string memory);
