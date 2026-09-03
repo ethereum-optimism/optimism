@@ -15,6 +15,6 @@ import (
 // The check is transitive: a direct-import check misses the bundle sneaking in
 // through an intermediate package.
 func TestNoSuperchainImport(t *testing.T) {
-	depguard.RequireNoTransitiveImport(t, ".",
+	depguard.RequireNoTransitiveImport(t, "./...",
 		"github.com/ethereum-optimism/optimism/op-core/superchain")
 }

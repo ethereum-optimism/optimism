@@ -622,8 +622,8 @@ zstd = "0.13"
 # ==================== NETWORKING ====================
 discv5 = "0.10.2"
 ipnet = "2.11.0"
-libp2p = "0.56.0"
-libp2p-stream = "0.4.0-alpha"
+libp2p = { git = "https://github.com/libp2p/rust-libp2p", rev = "efc2bfc156b592838c7d469dab345714069619d6" }
+libp2p-stream = { git = "https://github.com/libp2p/rust-libp2p", rev = "efc2bfc156b592838c7d469dab345714069619d6" }
 libp2p-identity = "0.2.13"
 openssl = "0.10.75"
 

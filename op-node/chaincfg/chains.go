@@ -23,14 +23,13 @@ func mustLoadRollupConfig(name string) *rollup.Config {
 	return cfg
 }
 
+// L2ChainIDToNetworkDisplayName maps chain IDs to registry chain names. It is built from the
+// registry's chain index alone — the index key is the chain ID (pinned by
+// TestAllEmbeddedConfigsDecodeStrictly) — so no chain config is parsed.
 var L2ChainIDToNetworkDisplayName = func() map[string]string {
 	out := make(map[string]string)
-	for _, netCfg := range registry.Chains {
-		cfg, err := netCfg.Config()
-		if err != nil {
-			panic(fmt.Errorf("failed to load chain config: %w", err))
-		}
-		out[fmt.Sprintf("%d", cfg.ChainID)] = netCfg.Name
+	for chainID, netCfg := range registry.Chains {
+		out[fmt.Sprintf("%d", chainID)] = netCfg.Name
 	}
 	return out
 }()

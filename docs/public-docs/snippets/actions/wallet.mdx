@@ -19,6 +19,7 @@ Base actions wallet class
 | Namespace | Type | Description |
 |-----------|------|-------------|
 | `lend` | `WalletLendNamespace` | Lend namespace with all lending operations |
+| `borrow` | `WalletBorrowNamespace` | Borrow namespace with all borrow operations |
 | `swap` | `WalletSwapNamespace` | Swap namespace with all swap operations |
 
 ### Properties
@@ -32,17 +33,38 @@ Base actions wallet class
 
 | Function | Description |
 |----------|-------------|
-| **[getBalance()](#getbalance)** | Get asset balances across all supported chains |
+| **[has()](#has)** | Check whether a wallet namespace (`lend`, `swap`, `borrow`) is configured on this wallet. Useful for callers that branch on capability instead of catching a `TypeError` later. |
+| **[getBalance()](#getbalance)** | Get asset balances across the requested chains (or all supported chains). |
 | **[send()](#send)** | Send a transaction using this actions wallet |
 | **[sendBatch()](#sendbatch)** | Send a batch of transactions using this actions wallet |
 
+#### `has()`
+
+Check whether a wallet namespace (`lend`, `swap`, `borrow`) is
+configured on this wallet. Useful for callers that branch on
+capability instead of catching a `TypeError` later.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `namespace` | `ActionName` | Wallet namespace name to probe. |
+
+**Returns:** `true` when the namespace is configured.
+
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/wallet/core/wallets/abstract/Wallet.ts#L111)</sub>
+
+---
+
 #### `getBalance()`
 
-Get asset balances across all supported chains
+Get asset balances across the requested chains (or all supported chains).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `options` | `BalanceFetchOptions` | Optional `chainIds` filter |
 
 **Returns:** Promise resolving to array of token balances with chain breakdown
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/wallet/core/wallets/abstract/Wallet.ts#L89)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/wallet/core/wallets/abstract/Wallet.ts#L121)</sub>
 
 ---
 
@@ -57,7 +79,7 @@ Send a transaction using this actions wallet
 
 **Returns:** Promise resolving to the transaction hash
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/wallet/core/wallets/abstract/Wallet.ts#L150)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/wallet/core/wallets/abstract/Wallet.ts#L183)</sub>
 
 ---
 
@@ -67,11 +89,11 @@ Send a batch of transactions using this actions wallet
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `transactionData` | `TransactionData[]` | The transaction data to execute |
+| `transactionData` | `readonly TransactionData[]` | The transaction data to execute |
 | `chainId` | `SupportedChainId` | Target blockchain chain ID |
 
 **Returns:** Promise resolving to the transaction hash
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/wallet/core/wallets/abstract/Wallet.ts#L162)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/wallet/core/wallets/abstract/Wallet.ts#L195)</sub>
 
 ---
