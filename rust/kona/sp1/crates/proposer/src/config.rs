@@ -267,11 +267,7 @@ impl ProposerConfig {
                 .map(|list| list.split(',').map(|path| PathBuf::from(path.trim())).collect()),
             l1_config_path: optional_env("L1_CONFIG_PATH").map(PathBuf::from),
             dependency_set_path: optional_env("DEPENDENCY_SET_PATH").map(PathBuf::from),
-            range_split_count: parsed_env_or(
-                "RANGE_SPLIT_COUNT",
-                RangeSplitCount::new(RangeSplitCount::MAX)
-                    .expect("maximum is a valid range split count"),
-            )?,
+            range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::default())?,
             max_concurrent_range_proofs: parsed_env_or(
                 "MAX_CONCURRENT_RANGE_PROOFS",
                 NonZeroUsize::MIN,
@@ -413,13 +409,13 @@ impl ProofProviderConfig {
     }
 }
 
-/// Splits defended super-root timestamp spans into 1 to 16 chunks.
+/// Splits defended super-root timestamp spans into 1 to 128 chunks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RangeSplitCount(NonZeroU8);
 
 impl RangeSplitCount {
     /// Maximum accepted chunk count.
-    pub const MAX: u8 = 16;
+    pub const MAX: u8 = 128;
 
     /// Creates a new `RangeSplitCount`, rejecting 0 and values above
     /// [`Self::MAX`].
@@ -482,6 +478,11 @@ impl RangeSplitCount {
         }
 
         Ok(ranges)
+    }
+}
+impl Default for RangeSplitCount {
+    fn default() -> Self {
+        Self::new(16).expect("default is a valid range split count")
     }
 }
 
@@ -725,9 +726,10 @@ mod tests {
         #[test]
         fn range_split_bounds() {
             assert!(RangeSplitCount::new(0).is_err());
-            assert!(RangeSplitCount::new(17).is_err());
+            assert!(RangeSplitCount::new(129).is_err());
             assert_eq!(RangeSplitCount::one().to_usize(), 1);
-            assert_eq!(RangeSplitCount::new(16).unwrap().to_usize(), 16);
+            assert_eq!(RangeSplitCount::default().to_usize(), 16);
+            assert_eq!(RangeSplitCount::new(RangeSplitCount::MAX).unwrap().to_usize(), 128);
         }
 
         #[test]
@@ -745,10 +747,22 @@ mod tests {
                 RangeSplitCount::new(16).unwrap().split(0, 4).unwrap(),
                 vec![(0, 1), (1, 2), (2, 3), (3, 4)]
             );
+            // A long enough span can use the full supported chunk count.
+            assert_eq!(
+                RangeSplitCount::new(RangeSplitCount::MAX)
+                    .unwrap()
+                    .split(0, u64::from(RangeSplitCount::MAX))
+                    .unwrap()
+                    .len(),
+                128
+            );
+            // Ceil division produces fewer than 128 chunks for a one-hour timestamp span.
+            let chunks =
+                RangeSplitCount::new(RangeSplitCount::MAX).unwrap().split(0, 3_600).unwrap();
+            assert_eq!(chunks.len(), 125);
+            assert_eq!(chunks.first(), Some(&(0, 29)));
+            assert_eq!(chunks.last(), Some(&(3_596, 3_600)));
             // Chunks exactly cover (start, end] with no gaps or overlaps.
-            let chunks = RangeSplitCount::new(7).unwrap().split(10, 55).unwrap();
-            assert_eq!(chunks.first().unwrap().0, 10);
-            assert_eq!(chunks.last().unwrap().1, 55);
             for pair in chunks.windows(2) {
                 assert_eq!(pair[0].1, pair[1].0);
             }
@@ -804,6 +818,11 @@ mod tests {
             assert!(config.rollup_config_paths.is_none());
             assert_eq!(config.tx_confirmation_timeout, 180);
             assert_eq!(config.range_split_count.to_usize(), 16);
+            set_proposer_env("RANGE_SPLIT_COUNT", "128");
+            assert_eq!(ProposerConfig::from_env().unwrap().range_split_count.to_usize(), 128);
+            set_proposer_env("RANGE_SPLIT_COUNT", "129");
+            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("range splits must be between 1 and 128"), "unexpected: {err}");
             assert_eq!(config.max_concurrent_defense_tasks.get(), 8);
             assert!(!config.fast_finality_mode);
             assert_eq!(config.fast_finality_proving_limit.get(), 1);

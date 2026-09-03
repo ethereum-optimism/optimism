@@ -228,7 +228,7 @@ Optional core and operational configuration:
 | `KONA_SP1_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `180`) |
 | `KONA_SP1_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
 | `KONA_SP1_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
-| `KONA_SP1_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default and maximum `16`) |
+| `KONA_SP1_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
 | `KONA_SP1_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
 | `KONA_SP1_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
@@ -264,10 +264,17 @@ arrival (3-10s) and no more. It must leave assignment margin under
 `AUCTION_TIMEOUT`; cancellation retries the unfinished request while completed
 chunks remain cached when the proving inputs are unchanged.
 
-A defended span produces up to 16 chunks. Each sufficiently large chunk can
-require a range proof and a consolidation proof, for up to 32 compressed child
-proofs before the final PLONK aggregation proof. `SP1_TIMEOUT_SECONDS` applies
-independently to each proof request, not to the complete defense.
+A defended span is split into up to the configured number of chunks. Each sufficiently
+large chunk can require a range proof and a consolidation proof before the final
+PLONK aggregation proof. `SP1_TIMEOUT_SECONDS` applies independently to each
+proof request, not to the complete defense.
+
+At the default one-hour interval, an OP Mainnet span contains about 1,800
+two-second blocks. The default 16 chunks average 112.5 blocks each; configuring
+18 targets 100 blocks per chunk. Higher counts reduce per-request work but
+increase witness collection, fixed proving overhead, SPN request count, and
+aggregation input size. `RANGE_GAS_LIMIT` limits each range request, not the
+total work of the defense.
 
 Transaction signing requires one of these configurations:
 
