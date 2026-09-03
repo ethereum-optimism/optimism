@@ -66,3 +66,62 @@ func TestResolveMixedL2ELOptsReadsEnv(t *testing.T) {
 	require.Equal(t, []string{"--extra.bind=127.0.0.1:0"}, cfg.ExtraArgs)
 	require.True(t, cfg.DisableProofsHistory)
 }
+
+func TestMixedCLPeeringTracksFactoryHandlingPerSlot(t *testing.T) {
+	stock := mixedSingleChainNode{}
+	external := mixedSingleChainNode{factoryHandledCL: true}
+
+	require.True(t, shouldConnectMixedCLPeers(stock, stock),
+		"no factory, or a factory that declines every slot, preserves stock peering")
+	require.False(t, shouldConnectMixedCLPeers(stock, external),
+		"a mixed stock/external edge must not assume the external CL implements op-node admin RPCs")
+	require.False(t, shouldConnectMixedCLPeers(external, stock))
+	require.False(t, shouldConnectMixedCLPeers(external, external))
+}
+
+func TestMixedUnsafeSourceIsIndependentOfSpecOrder(t *testing.T) {
+	verifier := MixedSingleChainNodeSpec{CLKey: "verifier"}
+	sequencer := MixedSingleChainNodeSpec{CLKey: "sequencer", IsSequencer: true}
+	nodes := []mixedSingleChainNode{
+		{spec: verifier},
+		{spec: sequencer},
+	}
+
+	source := mixedUnsafeSourceNode(nodes, verifier)
+	require.NotNil(t, source)
+	require.Equal(t, "sequencer", source.spec.CLKey)
+	require.Nil(t, mixedUnsafeSourceNode(nodes, sequencer))
+
+	isolatedVerifier := verifier
+	isolatedVerifier.IsolateFromL2P2P = true
+	require.Nil(t, mixedUnsafeSourceNode(nodes, isolatedVerifier))
+
+	isolatedSequencer := sequencer
+	isolatedSequencer.IsolateFromL2P2P = true
+	nodes[1].spec = isolatedSequencer
+	require.Nil(t, mixedUnsafeSourceNode(nodes, verifier),
+		"an isolated sequencer cannot become another node's unsafe source")
+}
+
+func TestMixedFactoryStartsSequencersBeforeVerifiers(t *testing.T) {
+	nodes := []mixedSingleChainNode{
+		{spec: MixedSingleChainNodeSpec{CLKey: "verifier-a"}},
+		{spec: MixedSingleChainNodeSpec{CLKey: "sequencer", IsSequencer: true}},
+		{spec: MixedSingleChainNodeSpec{CLKey: "verifier-b"}},
+	}
+
+	require.Equal(t, []int{1, 0, 2}, mixedCLStartOrder(nodes))
+}
+
+func TestMixedDeclinedVerifierFollowsOnlyExternalSourceCL(t *testing.T) {
+	source := &mixedSingleChainNode{
+		el: &fakeFactoryL2EL{rpc: "http://127.0.0.1:8545"},
+		cl: &fakeExternalL2CL{rpc: "http://127.0.0.1:9545"},
+	}
+
+	require.Empty(t, mixedNodeFollowSource(source),
+		"a factory that declines all slots retains stock P2P-only follow behavior")
+	source.factoryHandledCL = true
+	require.Equal(t, source.cl.UserRPC(), mixedNodeFollowSource(source),
+		"a declined stock verifier follows an external source through its rollup RPC")
+}

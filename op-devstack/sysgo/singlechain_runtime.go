@@ -39,13 +39,23 @@ type singleChainRuntimeWorld struct {
 }
 
 type singleChainPrimaryRuntime struct {
-	EL L2ELNode
-	CL L2CLNode
+	EL               L2ELNode
+	CL               L2CLNode
+	FactoryHandledCL bool
 }
 
 type singleChainRuntimeSpec struct {
 	BuildWorld      func(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld
 	StartPrimary    func(t devtest.T, keys devkeys.Keys, world singleChainRuntimeWorld, l1EL *L1Geth, l1CL *L1CLNode, jwtPath string, jwtSecret [32]byte, cfg PresetConfig) singleChainPrimaryRuntime
+	StartBatcher    bool
+	StartProposer   bool
+	StartChallenger bool
+	TestSequencer   string
+}
+
+// SingleChainRuntimeOptions controls which product-neutral services surround
+// the primary L2 node. Additional nodes can be attached with AddSingleChainNode.
+type SingleChainRuntimeOptions struct {
 	StartBatcher    bool
 	StartProposer   bool
 	StartChallenger bool
@@ -101,22 +111,31 @@ func startDefaultSingleChainPrimary(
 	// Env-resolved options come first so an explicit binary from the test overrides the env one.
 	sequencerELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
 	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
+	var depSet depset.DependencySet
 	if world.Interop != nil {
-		l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-			Key:           "sequencer",
-			IsSequencer:   true,
-			NoDiscovery:   true,
-			EnableReqResp: true,
-			DependencySet: world.Interop.DependencySet,
-			L2CLOptions:   l2CLOptions,
-		})
-		return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
+		depSet = world.Interop.DependencySet
 	}
-	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLOptions)
+	fallbackKind := singleChainPrimaryFallbackKind(world)
+	result := startL2CLForKeyWithKind(
+		t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret,
+		"sequencer", "sequencer", true, "", depSet, l2CLOptions, cfg.L2CLFactory,
+		nil, false, fallbackKind,
+	)
 	return singleChainPrimaryRuntime{
-		EL: l2EL,
-		CL: l2CL,
+		EL:               l2EL,
+		CL:               result.Node,
+		FactoryHandledCL: result.FactoryHandled,
 	}
+}
+
+func singleChainPrimaryFallbackKind(world singleChainRuntimeWorld) MixedL2CLKind {
+	if world.Interop != nil {
+		// Interop primaries were explicitly op-node before the external factory
+		// seam and must not become env-selected Kona nodes when the factory is
+		// absent or declines.
+		return MixedL2CLOpNode
+	}
+	return devstackL2CLKind()
 }
 
 func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleChainRuntimeSpec) *SingleChainRuntime {
@@ -138,6 +157,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	primary := spec.StartPrimary(t, keys, world, l1EL, l1CL, jwtPath, jwtSecret, cfg)
 	primaryNode := newSingleChainNodeRuntime("sequencer", true, primary.EL, primary.CL)
+	primaryNode.FactoryHandledCL = primary.FactoryHandledCL
 
 	var l2Batcher *L2Batcher
 	if spec.StartBatcher {
@@ -162,6 +182,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	return &SingleChainRuntime{
 		Keys:                          keys,
+		L2CLFactory:                   cfg.L2CLFactory,
 		L1Network:                     world.L1Network,
 		L2Network:                     world.L2Network,
 		L1EL:                          l1EL,
@@ -195,6 +216,19 @@ func NewMinimalRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRunt
 		StartBatcher:    true,
 		StartProposer:   true,
 		StartChallenger: true,
+	})
+}
+
+// NewSingleChainRuntime constructs a composable single-chain runtime using
+// the default world and primary-node builders.
+func NewSingleChainRuntime(t devtest.T, cfg PresetConfig, opts SingleChainRuntimeOptions) *SingleChainRuntime {
+	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:      newDefaultSingleChainWorld,
+		StartPrimary:    startDefaultSingleChainPrimary,
+		StartBatcher:    opts.StartBatcher,
+		StartProposer:   opts.StartProposer,
+		StartChallenger: opts.StartChallenger,
+		TestSequencer:   opts.TestSequencer,
 	})
 }
 

@@ -88,6 +88,13 @@ func collectPresetConfig(opts []Option) (sysgo.PresetConfig, CombinedOption) {
 	return cfg, combined
 }
 
+// PresetConfigFromOptions applies preset options for callers using lower-level
+// sysgo composition APIs. Frontend-only hooks are intentionally not run.
+func PresetConfigFromOptions(opts ...Option) sysgo.PresetConfig {
+	cfg, _ := collectPresetConfig(opts)
+	return cfg
+}
+
 func WithDeployerOptions(opts ...sysgo.DeployerOption) Option {
 	var kinds optionKinds
 	for _, opt := range opts {
@@ -151,6 +158,21 @@ func WithGlobalL2CLOption(opt sysgo.L2CLOption) Option {
 				return
 			}
 			cfg.GlobalL2CLOptions = append(cfg.GlobalL2CLOptions, opt)
+		},
+	}
+}
+
+// WithL2CLFactory injects an external, product-neutral L2 consensus-client
+// factory. The factory may decline individual slots to retain stock behavior.
+func WithL2CLFactory(factory sysgo.L2CLFactory) Option {
+	var kinds optionKinds
+	if factory != nil {
+		kinds = optionKindL2CLFactory
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.L2CLFactory = factory
 		},
 	}
 }

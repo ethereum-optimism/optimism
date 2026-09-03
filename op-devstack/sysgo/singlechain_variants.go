@@ -9,6 +9,7 @@ import (
 	"time"
 
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -30,9 +31,8 @@ func NewSingleChainMultiNodeRuntimeWithConfig(t devtest.T, withP2P bool, cfg Pre
 	runtime := NewMinimalRuntimeWithConfig(t, cfg)
 	nodeB := addSingleChainOpNode(t, runtime, "b", false, "", cfg.GlobalL2CLOptions...)
 	if withP2P {
-		connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeB)
+		runtime.P2PEnabled = connectSingleChainNodes(t, runtime.Nodes["sequencer"], nodeB)
 	}
-	runtime.P2PEnabled = withP2P
 	return runtime
 }
 
@@ -44,10 +44,12 @@ func NewSingleChainTwoVerifiersRuntimeWithConfig(t devtest.T, cfg PresetConfig) 
 	runtime := NewSingleChainMultiNodeRuntimeWithConfig(t, true, cfg)
 	nodeB := runtime.Nodes["b"]
 	t.Require().NotNil(nodeB, "missing single-chain node b")
-	nodeC := addSingleChainOpNode(t, runtime, "c", false, nodeB.CL.UserRPC(), cfg.GlobalL2CLOptions...)
+	nodeC := addSingleChainOpNodeWithSource(
+		t, runtime, "c", false, nodeB, nodeB.CL.UserRPC(), cfg.GlobalL2CLOptions...,
+	)
 
-	connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeC)
-	connectSingleChainNodes(t, nodeB.EL, nodeB.CL, nodeC)
+	connectSingleChainNodes(t, runtime.Nodes["sequencer"], nodeC)
+	connectSingleChainNodes(t, nodeB, nodeC)
 
 	// Follow legacy behavior: test-sequencer is wired against node "b".
 	replaceSingleChainTestSequencer(t, runtime, "dev", nodeB)
@@ -118,14 +120,14 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	// apply to all of them or it would silently stop taking effect on transfer. The primary already
 	// received these options from startDefaultSingleChainPrimary.
 	candidateELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
-	nodeB := addSingleChainOpNodeWithELOpts(t, runtime, "b", true, "", candidateELOpts, cfg.GlobalL2CLOptions...)
-	nodeC := addSingleChainOpNodeWithELOpts(t, runtime, "c", true, "", candidateELOpts, cfg.GlobalL2CLOptions...)
+	nodeB := addSingleChainOpNodeWithELOpts(t, runtime, "b", true, nil, "", candidateELOpts, cfg.GlobalL2CLOptions...)
+	nodeC := addSingleChainOpNodeWithELOpts(t, runtime, "c", true, nil, "", candidateELOpts, cfg.GlobalL2CLOptions...)
 
 	// A non-candidate node, always stock: it never sequences, so it independently validates every
 	// block the candidates build. Without it an overridden binary on all three members could accept
 	// its own invalid blocks and the run would still pass.
 	nodeVerifier := addSingleChainOpNode(t, runtime, "verifier", false, "", cfg.GlobalL2CLOptions...)
-	connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeVerifier)
+	connectSingleChainNodes(t, runtime.Nodes["sequencer"], nodeVerifier)
 
 	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, runtime.L2CL.(*OpNode), runtime.L2EL, true, false)
 	conductorB := startConductorNode(t, "b", runtime.L2Network, nodeB.CL.(*OpNode), nodeB.EL, false, true)
@@ -140,9 +142,19 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	return runtime
 }
 
-func connectSingleChainNodes(t devtest.T, sourceEL L2ELNode, sourceCL L2CLNode, target *SingleChainNodeRuntime) {
-	connectL2ELPeers(t, t.Logger(), sourceEL.UserRPC(), target.EL.UserRPC())
-	connectSingleChainCLPeer(t, sourceCL, target.CL)
+func connectSingleChainNodes(t devtest.T, source, target *SingleChainNodeRuntime) bool {
+	t.Require().NotNil(source, "single-chain P2P source is required")
+	t.Require().NotNil(target, "single-chain P2P target is required")
+	connectL2ELPeers(t, t.Logger(), source.EL.UserRPC(), target.EL.UserRPC())
+	if shouldConnectSingleChainCLPeers(source, target) {
+		connectSingleChainCLPeer(t, source.CL, target.CL)
+		return true
+	}
+	return false
+}
+
+func shouldConnectSingleChainCLPeers(source, target *SingleChainNodeRuntime) bool {
+	return !source.FactoryHandledCL && !target.FactoryHandledCL
 }
 
 func connectSingleChainCLPeer(t devtest.T, sourceCL, targetCL L2CLNode) {
@@ -150,19 +162,18 @@ func connectSingleChainCLPeer(t devtest.T, sourceCL, targetCL L2CLNode) {
 }
 
 func replaceSingleChainTestSequencer(t devtest.T, runtime *SingleChainRuntime, name string, node *SingleChainNodeRuntime) {
-	l2CL, ok := node.CL.(*OpNode)
-	t.Require().True(ok, "single-chain test sequencer requires an op-node CL node")
-	testSequencer := startTestSequencer(
+	testSequencer := startTestSequencerForRPCs(
 		t,
 		runtime.Keys,
+		name,
 		runtime.L2EL.JWTPath(),
 		readJWTSecretFromPath(t, runtime.L2EL.JWTPath()),
 		runtime.L1Network,
 		runtime.L1EL,
 		runtime.L1CL,
-		node.EL,
-		runtime.L2Network,
-		l2CL,
+		runtime.L2Network.ChainID(),
+		node.EL.UserRPC(),
+		node.CL.UserRPC(),
 	)
 	runtime.TestSequencer = newTestSequencerRuntime(testSequencer, name)
 }
@@ -175,7 +186,23 @@ func addSingleChainOpNode(
 	followSource string,
 	l2Opts ...L2CLOption,
 ) *SingleChainNodeRuntime {
-	return addSingleChainOpNodeWithELOpts(t, runtime, name, isSequencer, followSource, nil, l2Opts...)
+	var source *SingleChainNodeRuntime
+	if !isSequencer && followSource == "" {
+		source = runtime.Nodes["sequencer"]
+	}
+	return addSingleChainOpNodeWithELOpts(t, runtime, name, isSequencer, source, followSource, nil, l2Opts...)
+}
+
+func addSingleChainOpNodeWithSource(
+	t devtest.T,
+	runtime *SingleChainRuntime,
+	name string,
+	isSequencer bool,
+	source *SingleChainNodeRuntime,
+	followSource string,
+	l2Opts ...L2CLOption,
+) *SingleChainNodeRuntime {
+	return addSingleChainOpNodeWithELOpts(t, runtime, name, isSequencer, source, followSource, nil, l2Opts...)
 }
 
 // addSingleChainOpNodeWithELOpts adds a node whose EL takes op-reth options. Passing none yields a
@@ -186,17 +213,58 @@ func addSingleChainOpNodeWithELOpts(
 	runtime *SingleChainRuntime,
 	name string,
 	isSequencer bool,
+	source *SingleChainNodeRuntime,
 	followSource string,
 	elOpts []OpRethOption,
 	l2Opts ...L2CLOption,
 ) *SingleChainNodeRuntime {
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
+	depSet := singleChainAddedNodeDependencySet(runtime)
 	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0), elOpts...)
-	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts)
-	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, l2CL)
+	stockFollowSource, unsafeSourceEL := singleChainNodeSources(source, followSource)
+	result := startL2CLForKeyWithKind(
+		t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL,
+		l2EL, jwtSecret, name, name, isSequencer, stockFollowSource, depSet, l2Opts,
+		runtime.L2CLFactory, unsafeSourceEL,
+		source != nil && source.FactoryHandledCL, devstackL2CLKind(),
+	)
+	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, result.Node)
+	node.FactoryHandledCL = result.FactoryHandled
 	runtime.Nodes[name] = node
 	return node
+}
+
+func singleChainAddedNodeDependencySet(runtime *SingleChainRuntime) depset.DependencySet {
+	if runtime.L2CLFactory == nil || runtime.Interop == nil {
+		return nil
+	}
+	return runtime.Interop.DependencySet
+}
+
+func singleChainNodeSources(source *SingleChainNodeRuntime, requested string) (string, L2ELNode) {
+	if source == nil {
+		return requested, nil
+	}
+	if requested == "" && source.FactoryHandledCL {
+		// A declined stock verifier cannot use op-node admin peering when its
+		// source CL is external, so follow the source's rollup RPC.
+		return source.CL.UserRPC(), source.EL
+	}
+	return requested, source.EL
+}
+
+// AddSingleChainNode adds a sequencer or verifier slot to an existing runtime.
+// The runtime's L2CLFactory is consulted for the new slot.
+func AddSingleChainNode(
+	t devtest.T,
+	runtime *SingleChainRuntime,
+	name string,
+	isSequencer bool,
+	followSource string,
+	l2Opts ...L2CLOption,
+) *SingleChainNodeRuntime {
+	return addSingleChainOpNode(t, runtime, name, isSequencer, followSource, l2Opts...)
 }
 
 func startSyncTesterService(t devtest.T, chainRPCs map[eth.ChainID]string) *SyncTesterService {
