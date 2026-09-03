@@ -47,7 +47,6 @@ impl NamedBarrier {
     }
 
     pub(super) async fn park(&self, task_id: TaskId) {
-        assert_ne!(task_id, 0, "barriers cannot be reached by an unknown task");
         assert!(
             self.0.reached_by.set(task_id).is_ok(),
             "barrier '{}' cannot be reused",
@@ -167,7 +166,7 @@ impl ScenarioControl {
 
     fn classify_missing(&self, task_id: TaskId) -> ScenarioError {
         let next_task_id = self.proposer.next_task_id.load(std::sync::atomic::Ordering::Relaxed);
-        if task_id == 0 || task_id >= next_task_id {
+        if task_id.get() >= next_task_id {
             ScenarioError::UnknownTask { task_id }
         } else {
             ScenarioError::AlreadyFinalized { task_id }

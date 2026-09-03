@@ -37,7 +37,7 @@ use crate::{
 
 use crate::proposer::{
     CompactGameSummary, InFlightCreation, OperationSummary, Proposer, ProvingPurpose,
-    SyncDisposition, TaskClass, TaskCompletionOutcome, TaskFailureClass, TaskSuccess,
+    SyncDisposition, TaskClass, TaskCompletionOutcome, TaskFailureClass, TaskId, TaskSuccess,
 };
 
 const HEAD_NUMBER: u64 = 1;
@@ -421,19 +421,19 @@ async fn insert_task(
     proposer: &Proposer,
     operation: OperationSummary,
     handle: tokio::task::JoinHandle<anyhow::Result<TaskSuccess>>,
-) -> u64 {
+) -> TaskId {
     let task_id = allocate_task_id(proposer);
     insert_allocated_task(proposer, task_id, operation, handle).await;
     task_id
 }
 
-fn allocate_task_id(proposer: &Proposer) -> u64 {
-    proposer.next_task_id.fetch_add(1, Ordering::Relaxed)
+fn allocate_task_id(proposer: &Proposer) -> TaskId {
+    TaskId::allocate(&proposer.next_task_id)
 }
 
 async fn insert_allocated_task(
     proposer: &Proposer,
-    task_id: u64,
+    task_id: TaskId,
     operation: OperationSummary,
     handle: tokio::task::JoinHandle<anyhow::Result<TaskSuccess>>,
 ) {
@@ -441,7 +441,7 @@ async fn insert_allocated_task(
 }
 
 struct ParkedTask {
-    task_id: u64,
+    task_id: TaskId,
     barrier: NamedBarrier,
 }
 
@@ -842,7 +842,8 @@ async fn settle_rejects_unknown_and_finalized_task_ids() {
         control.settle(&[success]).await.unwrap_err(),
         ScenarioError::AlreadyFinalized { task_id: success }
     );
-    let unknown = proposer.next_task_id.load(Ordering::Relaxed) + 10;
+    let unknown =
+        TaskId(NonZeroU64::new(proposer.next_task_id.load(Ordering::Relaxed) + 10).unwrap());
     assert_eq!(
         control.settle(&[unknown]).await.unwrap_err(),
         ScenarioError::UnknownTask { task_id: unknown }
@@ -1088,7 +1089,8 @@ async fn record_parked_requires_task_to_reach_matching_barrier() {
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
 
     let mismatched = NamedBarrier::new("different task barrier");
-    let mismatched_task = proposer.next_task_id.load(Ordering::Relaxed);
+    let mismatched_task =
+        TaskId(NonZeroU64::new(proposer.next_task_id.load(Ordering::Relaxed)).unwrap());
     let mismatched_worker = {
         let mismatched = mismatched.clone();
         tokio::spawn(async move { mismatched.park(mismatched_task).await })

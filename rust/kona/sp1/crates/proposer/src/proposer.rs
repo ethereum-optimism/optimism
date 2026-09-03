@@ -10,6 +10,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    num::NonZeroU64,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -62,7 +63,25 @@ mod scenario;
 /// ensuring all actionable games are included under normal conditions.
 pub const MAX_GAME_DEADLINE_LAG: u64 = 60 * 60 * 24 * 14; // 14 days
 
-pub(crate) type TaskId = u64;
+/// Nonzero identifier assigned to a proposer task.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(crate) struct TaskId(NonZeroU64);
+
+impl TaskId {
+    fn allocate(next_task_id: &AtomicU64) -> Self {
+        let task_id = next_task_id
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |task_id| {
+                if task_id == 0 { None } else { task_id.checked_add(1) }
+            })
+            .expect("task ID counter must be nonzero and not exhausted");
+        Self(NonZeroU64::new(task_id).expect("task ID was validated before allocation"))
+    }
+
+    const fn get(self) -> u64 {
+        self.0.get()
+    }
+}
+
 type TaskHandle = tokio::task::JoinHandle<Result<TaskSuccess>>;
 type TaskMap = HashMap<TaskId, (TaskHandle, OperationSummary)>;
 
@@ -2737,7 +2756,7 @@ impl Proposer {
         let mut scheduled = Vec::with_capacity(planned.len());
 
         for operation in planned {
-            let task_id = self.next_task_id.fetch_add(1, Ordering::Relaxed);
+            let task_id = TaskId::allocate(&self.next_task_id);
             let proposer = self.clone();
             let operation_for_task = operation.clone();
             let handle = tokio::spawn(async move {
@@ -2773,7 +2792,7 @@ impl Proposer {
                     }
                 }
             }
-            tracing::info!(task_id, ?operation, "Spawned proposer task");
+            tracing::info!(task_id = task_id.get(), ?operation, "Spawned proposer task");
             scheduled.push(ScheduledOperation { task_id, operation });
         }
         scheduled.sort_unstable_by(|left, right| {
@@ -3669,7 +3688,10 @@ impl PrestateCache {
 mod tests {
     use std::{
         collections::HashSet,
-        sync::{Arc, Mutex as StdMutex, atomic::Ordering as AtomicOrdering},
+        sync::{
+            Arc, Mutex as StdMutex,
+            atomic::{AtomicU64, Ordering as AtomicOrdering},
+        },
     };
 
     use alloy_eips::BlockId;
@@ -3687,7 +3709,7 @@ mod tests {
         ClaimPreflightDecision, CompactGameSummary, Cursor, DEADLINE_WARNING_DIVISOR,
         DeadlineStatus, Game, GameFetchResult, GameSyncAction, GameSyncFacts, GameSyncRetention,
         MAX_GAME_DEADLINE_LAG, OperationSummary, PrestateCache, Proposer, ProposerState,
-        ProvingPurpose, SyncDisposition, TaskDeduplicationKey, TaskSuccess, awaiting_proof,
+        ProvingPurpose, SyncDisposition, TaskDeduplicationKey, TaskId, TaskSuccess, awaiting_proof,
         check_deadline_status, classify_claim_preflight, classify_game_sync,
         next_proposal_timestamp,
     };
@@ -4359,9 +4381,17 @@ mod tests {
     }
 
     async fn insert_task(proposer: &Proposer, operation: OperationSummary) {
-        let task_id = proposer.next_task_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let task_id = TaskId::allocate(&proposer.next_task_id);
         let handle = tokio::spawn(async { Ok(TaskSuccess::Completed) });
         proposer.tasks.lock().await.insert(task_id, (handle, operation));
+    }
+
+    #[test]
+    fn task_id_allocation_rejects_exhaustion_without_wrapping() {
+        let next_task_id = AtomicU64::new(u64::MAX);
+
+        assert!(std::panic::catch_unwind(|| TaskId::allocate(&next_task_id)).is_err());
+        assert_eq!(next_task_id.load(AtomicOrdering::Relaxed), u64::MAX);
     }
 
     async fn active_task_keys(proposer: &Proposer) -> HashSet<TaskDeduplicationKey> {
