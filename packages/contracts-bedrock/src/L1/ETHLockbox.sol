@@ -14,6 +14,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 /// @custom:proxied true
 /// @title ETHLockbox
@@ -220,8 +221,11 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
         // Check that the portal has the same proxy admin owner.
         _assertSharedProxyAdminOwner(address(_portal));
 
-        // Check that the portal has the same superchain config.
-        if (_portal.superchainConfig() != superchainConfig) revert ETHLockbox_DifferentSuperchainConfig();
+        // Check that the portal's chain uses the same SuperchainConfig. Read it through the
+        // portal's SystemConfig: the portal's own superchainConfig() is served by its lockbox, so
+        // once the portal points at this lockbox it would compare the stored value with itself.
+        ISuperchainConfig portalSuperchainConfig = ISystemConfig(_portal.systemConfig()).superchainConfig();
+        if (portalSuperchainConfig != superchainConfig) revert ETHLockbox_DifferentSuperchainConfig();
 
         // Authorize the portal.
         authorizedPortals[_portal] = true;
