@@ -185,7 +185,10 @@ type MixedSingleChainNodeSpec struct {
 }
 
 type MixedSingleChainPresetConfig struct {
-	NodeSpecs                  []MixedSingleChainNodeSpec
+	NodeSpecs []MixedSingleChainNodeSpec
+	// GlobalL2CLOptions apply to every op-node consensus client the runtime starts (the
+	// kona-node slots take their configuration from KONA_NODE_* env vars instead).
+	GlobalL2CLOptions          []L2CLOption
 	WithTestSequencer          bool
 	TestSequencerName          string
 	LocalContractArtifactsPath string
@@ -274,6 +277,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				NoDiscovery:   true,
 				EnableReqResp: true,
 				DependencySet: depSet,
+				L2CLOptions:   cfg.GlobalL2CLOptions,
 			})
 		case MixedL2CLKona:
 			cl = startMixedKonaNode(
