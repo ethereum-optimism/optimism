@@ -1220,7 +1220,7 @@ async fn blocked_creation_stays_single_until_its_task_is_released() {
     let create_id = scheduled_task(&first, |operation| {
         matches!(operation, OperationSummary::ProposeGame { .. })
     });
-    assert_eq!(create_id, 1);
+    assert_eq!(create_id.get(), 1);
     scenario
         .wait_for_action_barrier(create_id, &target, 1, BarrierPoint::AfterSubmission)
         .await
@@ -1263,7 +1263,7 @@ async fn blocked_proof_uses_one_slot_without_blocking_another_game() {
             OperationSummary::ProveGame { address, .. } if *address == first_target.address
         )
     });
-    assert_eq!(first_id, 1);
+    assert_eq!(first_id.get(), 1);
     scenario.wait_for_proof_barrier(first_id, &first_target, 1).await.unwrap();
     scenario.settle(&other_task_ids(&first, first_id)).await.unwrap();
 
@@ -1381,7 +1381,7 @@ async fn failed_create_before_submission_allows_a_later_create_without_consuming
         .settle(&failed.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
         .await
         .unwrap();
-    assert_eq!(create_id, 1);
+    assert_eq!(create_id.get(), 1);
     assert_eq!(world.observation().nonce, NonceState { pending: 0, latest: 0 });
     assert!(world.observation().games.is_empty());
     assert_eq!(
