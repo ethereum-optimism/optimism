@@ -116,11 +116,21 @@ func TestProjectGenesisFromRewritesOnlyThePublicProjectionState(t *testing.T) {
 }
 
 func TestProjectGenesisFromRejectsNonSources(t *testing.T) {
-	t.Run("ordinary ETH genesis", func(t *testing.T) {
+	t.Run("interop-active ETH genesis is accepted", func(t *testing.T) {
+		// An ETH private chain is a supported source: there is no CGT machinery to strip, so the
+		// source's own L1Block and L2ToL1MessagePasser implementations are left exactly as they are.
 		g := loadPrivateChainGenesis(t)
 		deleteStorage(g.Alloc, predeploys.L1BlockAddr, customGasTokenSlot)
-		_, err := ProjectGenesisFrom(g)
-		require.ErrorIs(t, err, ErrNotCustomGasToken)
+		public, err := ProjectGenesisFrom(g)
+		require.NoError(t, err)
+		for _, proxy := range []common.Address{predeploys.L1BlockAddr, predeploys.L2ToL1MessagePasserAddr} {
+			requireSameAccount(t, g.Alloc[codeNamespace(proxy)], public.Alloc[codeNamespace(proxy)], "%s implementation untouched", proxy)
+		}
+		require.Equal(t, trueWord, public.Alloc[predeploys.L1BlockAddr].Storage[l1BlockInteropFeatureSlot])
+		// The projection's own contracts are installed either way.
+		for _, proxy := range []common.Address{predeploys.L2toL2CrossDomainMessengerAddr, predeploys.ClaimRegistryAddr, predeploys.EventReplayerAddr} {
+			require.Equal(t, common.BytesToHash(codeNamespace(proxy).Bytes()), public.Alloc[proxy].Storage[implementationSlot])
+		}
 	})
 	t.Run("interop not active in L1Block", func(t *testing.T) {
 		g := loadPrivateChainGenesis(t)
@@ -150,7 +160,7 @@ func TestProjectGenesisFromRejectsNonSources(t *testing.T) {
 		require.Error(t, err)
 		// The projection has no custom gas token and a replay messenger; whichever check fires
 		// first, a projection is never accepted as a source.
-		require.True(t, err == ErrNotCustomGasToken || err == ErrMessengerNotStock || err == ErrAlreadyProjected, err.Error())
+		require.True(t, err == ErrMessengerNotStock || err == ErrAlreadyProjected, err.Error())
 
 		// A projection that somehow kept the CGT marker and stock messenger is still caught by its
 		// projection predeploys.

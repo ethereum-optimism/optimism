@@ -1,8 +1,14 @@
 // Package genesis defines the deterministic genesis projection for private interop.
 //
-// The source of a projection is a STOCK op-deployer genesis: a custom-gas-token chain with interop
-// active at genesis. No private marker, dev-feature bit, or bespoke predeploy identifies the source;
-// the validator recognises it by the state that shape leaves behind, and rejects everything else.
+// The source of a projection is a STOCK op-deployer genesis with interop active at genesis. A
+// custom-gas-token source is supported and its CGT machinery is stripped; an ordinary ETH source is
+// supported too, and then there is nothing to strip.
+//
+// No private marker, dev-feature bit, or bespoke predeploy identifies the source. WHICH chain is the
+// private one is therefore explicit runtime configuration (the chain-ID flags), not something the
+// validator can infer: an ETH private chain and its public counterparty have the same genesis shape.
+// What the validator still rejects is a genesis this projection is not defined over — interop
+// inactive, a messenger from another contract release, or a genesis already projected.
 package genesis
 
 import (
@@ -28,8 +34,6 @@ var (
 	errNilGenesis         = errors.New("private-chain genesis is nil")
 	errMissingChainConfig = errors.New("private-chain genesis has no chain config")
 
-	// ErrNotCustomGasToken rejects an ordinary ETH genesis.
-	ErrNotCustomGasToken = errors.New("genesis is not a private chain: custom gas token is disabled")
 	// ErrInteropInactive rejects a genesis whose interop feature set is not active at genesis. The
 	// projection is only defined over a Lagoon-at-genesis source: an activation block on the
 	// projection would run the stock network-upgrade bundle and replace the replay messenger.
@@ -83,9 +87,10 @@ var publicProjectionCode = map[common.Address][]byte{
 // ETHLiquidity with its uint128-max liquidity, L1Block.isFeatureEnabled[INTEROP]). The projection
 // keeps all of that and changes exactly what makes the private chain private or custom-gas-token:
 //
-//   - execution semantics: the L1BlockCGT and L2ToL1MessagePasserCGT implementations become the
-//     ETH ones and the custom-gas-token marker is cleared; LiquidityController and
-//     NativeAssetLiquidity are deactivated;
+//   - execution semantics, only when the source is a custom-gas-token chain: the L1BlockCGT and
+//     L2ToL1MessagePasserCGT implementations become the ETH ones and the custom-gas-token marker is
+//     cleared; LiquidityController and NativeAssetLiquidity are deactivated. An ETH source already
+//     has ETH semantics and is left alone;
 //   - messaging: the stock L2ToL2CrossDomainMessenger implementation becomes the replay messenger,
 //     and ClaimRegistry and EventReplayer are installed;
 //   - block parameters: the gas limit is the maximum and the base fee is zero, because the batcher
@@ -105,14 +110,18 @@ func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error
 	out.GasLimit = gethparams.MaxGasLimit
 	out.BaseFee = new(big.Int)
 
-	// The public projection executes ordinary ETH semantics, not the private chain's custom gas
-	// token semantics. Every other L1Block storage word, the INTEROP feature bit included, is kept:
-	// L1Block and L1BlockCGT share a storage layout.
-	deleteStorage(out.Alloc, predeploys.L1BlockAddr, customGasTokenSlot)
-	activateProxy(out.Alloc, predeploys.L1BlockAddr, publicProjectionCode[codeNamespace(predeploys.L1BlockAddr)])
-	activateProxy(out.Alloc, predeploys.L2ToL1MessagePasserAddr, publicProjectionCode[codeNamespace(predeploys.L2ToL1MessagePasserAddr)])
-	deactivateProxy(out.Alloc, predeploys.NativeAssetLiquidityAddr)
-	deactivateProxy(out.Alloc, predeploys.LiquidityControllerAddr)
+	// The public projection executes ordinary ETH semantics. When the source is a custom-gas-token
+	// chain that means replacing its CGT execution path; when the source is already an ETH chain
+	// there is nothing to replace, and touching it would swap the source's own implementations for
+	// this package's embedded copies. Every other L1Block storage word, the INTEROP feature bit
+	// included, is kept either way: L1Block and L1BlockCGT share a storage layout.
+	if isCustomGasToken(privateChainGenesis) {
+		deleteStorage(out.Alloc, predeploys.L1BlockAddr, customGasTokenSlot)
+		activateProxy(out.Alloc, predeploys.L1BlockAddr, publicProjectionCode[codeNamespace(predeploys.L1BlockAddr)])
+		activateProxy(out.Alloc, predeploys.L2ToL1MessagePasserAddr, publicProjectionCode[codeNamespace(predeploys.L2ToL1MessagePasserAddr)])
+		deactivateProxy(out.Alloc, predeploys.NativeAssetLiquidityAddr)
+		deactivateProxy(out.Alloc, predeploys.LiquidityControllerAddr)
+	}
 
 	// Public batches replay selected private-chain events and record the claim for every range.
 	activateProxy(out.Alloc, predeploys.L2toL2CrossDomainMessengerAddr, publicProjectionCode[codeNamespace(predeploys.L2toL2CrossDomainMessengerAddr)])
@@ -147,10 +156,15 @@ func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, publicProjection
 
 // validatePrivateChainGenesis accepts exactly the stock op-deployer shape the projection is
 // defined over, and names the first thing that is wrong otherwise.
+// isCustomGasToken reports whether the source runs the custom-gas-token execution path.
+func isCustomGasToken(g *core.Genesis) bool {
+	return g.Alloc[predeploys.L1BlockAddr].Storage[customGasTokenSlot] != (common.Hash{})
+}
+
 func validatePrivateChainGenesis(g *core.Genesis) error {
 	l1Block, ok := g.Alloc[predeploys.L1BlockAddr]
-	if !ok || l1Block.Storage[customGasTokenSlot] == (common.Hash{}) {
-		return ErrNotCustomGasToken
+	if !ok {
+		return ErrInteropInactive
 	}
 	if l1Block.Storage[l1BlockInteropFeatureSlot] != trueWord {
 		return ErrInteropInactive
