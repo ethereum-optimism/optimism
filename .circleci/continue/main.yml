@@ -1060,6 +1060,31 @@ jobs:
       - check-changed:
           patterns: <<parameters.check_changed_patterns>>
       - install-solc-compilers
+      # Tests outside test/L2 run against the Amsterdam EVM version (see "Run tests"), which the
+      # mise-pinned forge does not know — Amsterdam needs a forge nightly. nightly-269c7255 is
+      # the floor because the suite uses vm.skip in setUp, which older nightlies misreport as
+      # FAIL (fixed in foundry-rs/foundry#16204). It shadows the pinned forge via PATH.
+      - restore_cache:
+          name: Restore Amsterdam forge
+          keys:
+            - amsterdam-forge-v2-nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105
+      - run:
+          name: Install Amsterdam forge (nightly 269c7255)
+          command: |
+            DEST="$HOME/.amsterdam-foundry/bin"
+            if [ ! -x "$DEST/forge" ]; then
+              mkdir -p "$DEST"
+              curl -fsSL --retry 5 --retry-delay 5 \
+                "https://github.com/foundry-rs/foundry/releases/download/nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105/foundry_nightly_linux_amd64.tar.gz" \
+                | tar -xz -C "$DEST" forge
+            fi
+            echo "export PATH=$DEST:\$PATH" >> "$BASH_ENV"
+            "$DEST/forge" --version
+      - save_cache:
+          name: Save Amsterdam forge
+          key: amsterdam-forge-v2-nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105
+          paths:
+            - ~/.amsterdam-foundry
       - run:
           name: Print dependencies
           command: just dep-status
@@ -1080,13 +1105,13 @@ jobs:
           features: <<parameters.features>>
       - run:
           name: Run tests
+          # `just test` partitions the list: everything outside test/L2 runs against the Amsterdam
+          # EVM version, test/L2 runs at the foundry.toml default (see the justfile recipe).
           command: |
             TEST_FILES=$(<<parameters.test_list>>)
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
-            TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
-            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            mkdir -p results
-            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
+            export TEST_FILES
+            JUNIT_TEST_DIR=results just test
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
@@ -1117,6 +1142,29 @@ jobs:
           checkout-method: full
           enable-mise-cache: true
       - install-contracts-dependencies
+      # `just test` runs everything outside test/L2 against the Amsterdam EVM version, which
+      # needs a forge nightly >= 269c7255 (see contracts-bedrock-tests for details).
+      - restore_cache:
+          name: Restore Amsterdam forge
+          keys:
+            - amsterdam-forge-v2-nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105
+      - run:
+          name: Install Amsterdam forge (nightly 269c7255)
+          command: |
+            DEST="$HOME/.amsterdam-foundry/bin"
+            if [ ! -x "$DEST/forge" ]; then
+              mkdir -p "$DEST"
+              curl -fsSL --retry 5 --retry-delay 5 \
+                "https://github.com/foundry-rs/foundry/releases/download/nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105/foundry_nightly_linux_amd64.tar.gz" \
+                | tar -xz -C "$DEST" forge
+            fi
+            echo "export PATH=$DEST:\$PATH" >> "$BASH_ENV"
+            "$DEST/forge" --version
+      - save_cache:
+          name: Save Amsterdam forge
+          key: amsterdam-forge-v2-nightly-269c725512d1c0fad024e78d0b8edcf9a4f05105
+          paths:
+            - ~/.amsterdam-foundry
       - run:
           name: Print dependencies
           command: just dep-status
@@ -1133,12 +1181,10 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Run heavy fuzz tests
-          command: |
-            mkdir -p results
-            just test
+          command: just test
           environment:
             FOUNDRY_PROFILE: ciheavy
-            JUNIT_TEST_PATH: results/results.xml
+            JUNIT_TEST_DIR: results
           working_directory: packages/contracts-bedrock
           no_output_timeout: 90m
       - run:
