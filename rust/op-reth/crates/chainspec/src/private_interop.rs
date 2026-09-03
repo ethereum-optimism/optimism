@@ -1,8 +1,9 @@
 //! Deterministic private-chain genesis to public-projection genesis transformation.
 //!
-//! The source is a STOCK op-deployer genesis: a custom-gas-token chain with interop active at
-//! genesis. No private marker, dev-feature bit, or bespoke predeploy identifies the source; the
-//! validator recognises it by the state that shape leaves behind, and rejects everything else. This
+//! The source is a STOCK op-deployer genesis with interop active at genesis. A custom-gas-token
+//! source is supported and its CGT machinery is stripped; an ordinary ETH source is supported too,
+//! and then there is nothing to strip. WHICH chain is the private one is explicit runtime
+//! configuration, not something the validator can infer. This
 //! is the Rust mirror of `op-private-interop/genesis/projection.go`; the two must project the
 //! shared fixture to the same block hash (see the tests).
 
@@ -57,8 +58,6 @@ const EVENT_REPLAYER_CODE: &str =
 /// A private-chain genesis cannot be projected safely.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GenesisProjectionError {
-    /// The genesis is an ordinary ETH chain, not a custom-gas-token chain.
-    NotCustomGasToken,
     /// Interop is not active at genesis: an activation block on the projection would run the
     /// stock network-upgrade bundle and replace the replay messenger.
     InteropInactive,
@@ -72,9 +71,6 @@ pub enum GenesisProjectionError {
 impl fmt::Display for GenesisProjectionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotCustomGasToken => {
-                f.write_str("genesis is not a private chain: custom gas token is disabled")
-            }
             Self::InteropInactive => {
                 f.write_str("genesis is not a private chain: interop is not active at genesis")
             }
@@ -111,11 +107,20 @@ pub fn project_genesis_from(
     projected.gas_limit = i64::MAX as u64;
     projected.base_fee_per_gas = Some(0);
 
-    delete_storage(&mut projected, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT);
-    activate_proxy(&mut projected, L1_BLOCK, bytecode(L1_BLOCK_CODE));
-    activate_proxy(&mut projected, L2_TO_L1_MESSAGE_PASSER, bytecode(L2_TO_L1_MESSAGE_PASSER_CODE));
-    deactivate_proxy(&mut projected, NATIVE_ASSET_LIQUIDITY);
-    deactivate_proxy(&mut projected, LIQUIDITY_CONTROLLER);
+    // Only a custom-gas-token source has CGT machinery to replace. An ETH source already runs ETH
+    // semantics, and touching it would swap its own implementations for this crate's embedded
+    // copies.
+    if is_custom_gas_token(private_chain_genesis) {
+        delete_storage(&mut projected, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT);
+        activate_proxy(&mut projected, L1_BLOCK, bytecode(L1_BLOCK_CODE));
+        activate_proxy(
+            &mut projected,
+            L2_TO_L1_MESSAGE_PASSER,
+            bytecode(L2_TO_L1_MESSAGE_PASSER_CODE),
+        );
+        deactivate_proxy(&mut projected, NATIVE_ASSET_LIQUIDITY);
+        deactivate_proxy(&mut projected, LIQUIDITY_CONTROLLER);
+    }
 
     activate_proxy(&mut projected, L2_TO_L2_MESSENGER, bytecode(L2_TO_L2_MESSENGER_CODE));
     activate_proxy(&mut projected, CLAIM_REGISTRY, bytecode(CLAIM_REGISTRY_CODE));
@@ -124,10 +129,12 @@ pub fn project_genesis_from(
     Ok(projected)
 }
 
+/// Reports whether the source runs the custom-gas-token execution path.
+fn is_custom_gas_token(genesis: &Genesis) -> bool {
+    storage_at(genesis, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT) != B256::ZERO
+}
+
 fn validate_private_chain_genesis(genesis: &Genesis) -> Result<(), GenesisProjectionError> {
-    if storage_at(genesis, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT) == B256::ZERO {
-        return Err(GenesisProjectionError::NotCustomGasToken);
-    }
     if storage_at(genesis, L1_BLOCK, L1_BLOCK_INTEROP_FEATURE_SLOT) != TRUE_WORD {
         return Err(GenesisProjectionError::InteropInactive);
     }
@@ -340,9 +347,18 @@ mod tests {
 
     #[test]
     fn non_sources_are_rejected() {
-        let mut ordinary = private_chain_genesis();
-        delete_storage(&mut ordinary, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT);
-        assert_eq!(project_genesis_from(&ordinary), Err(GenesisProjectionError::NotCustomGasToken));
+        // An interop-active ETH source is supported: nothing to strip, implementations untouched.
+        let mut eth_source = private_chain_genesis();
+        delete_storage(&mut eth_source, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT);
+        let projected_eth = project_genesis_from(&eth_source).unwrap();
+        assert_eq!(
+            eth_source.alloc[&code_namespace(L1_BLOCK)].code,
+            projected_eth.alloc[&code_namespace(L1_BLOCK)].code
+        );
+        assert_eq!(
+            storage_at(&projected_eth, L2_TO_L2_MESSENGER, IMPLEMENTATION_SLOT),
+            address_word(code_namespace(L2_TO_L2_MESSENGER))
+        );
 
         let mut inactive = private_chain_genesis();
         delete_storage(&mut inactive, L1_BLOCK, L1_BLOCK_INTEROP_FEATURE_SLOT);
