@@ -159,8 +159,24 @@ mod test {
     use super::*;
     use crate::Metrics;
     use kona_protocol::BlockInfo;
-    use metrics_exporter_prometheus::PrometheusBuilder;
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
     use rstest::rstest;
+
+    #[cfg(feature = "metrics")]
+    fn chain_label_value(
+        snapshot: metrics_util::debugging::Snapshot,
+        label_name: &str,
+    ) -> Option<f64> {
+        for (ckey, _unit, _description, value) in snapshot.into_vec() {
+            let key = ckey.key();
+            let is_match = key.name() == Metrics::BLOCK_LABELS &&
+                key.labels().any(|label| label.key() == "label" && label.value() == label_name);
+            if is_match && let DebugValue::Gauge(value) = value {
+                return Some(value.into_inner());
+            }
+        }
+        None
+    }
 
     impl EngineState {
         /// Set the unsafe head.
@@ -207,20 +223,21 @@ mod test {
         #[case] label_name: &str,
         #[case] number: u64,
     ) {
-        let handle = PrometheusBuilder::new().install_recorder().unwrap();
-        crate::Metrics::init();
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            crate::Metrics::init();
 
-        let mut state = EngineState::default();
-        set_fn(
-            &mut state,
-            L2BlockInfo {
-                block_info: BlockInfo { number, ..Default::default() },
-                ..Default::default()
-            },
-        );
+            let mut state = EngineState::default();
+            set_fn(
+                &mut state,
+                L2BlockInfo {
+                    block_info: BlockInfo { number, ..Default::default() },
+                    ..Default::default()
+                },
+            );
+        });
 
-        assert!(handle.render().contains(
-            format!("kona_node_block_labels{{label=\"{label_name}\"}} {number}").as_str()
-        ));
+        assert_eq!(chain_label_value(snapshotter.snapshot(), label_name), Some(number as f64));
     }
 }
