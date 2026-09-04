@@ -19,11 +19,11 @@ func newSDMRethSystemWithBatcherOptions(t devtest.T, sdmEnabled bool, batcherOpt
 	// SDM rides the Lagoon hardfork. The stock constructor covers the disabled and
 	// null-policy regressions while still provisioning the dependency set required
 	// whenever Lagoon is scheduled.
-	return buildSDMRethSystem(t, sdmEnabled, false, false, nil, batcherOpts...)
+	return buildSDMRethSystem(t, sdmEnabled, false, false, false, nil, batcherOpts...)
 }
 
 func newFixtureSDMRethSystem(t devtest.T, batcherOpts ...sysgo.BatcherOption) *sdmtest.RethSystem {
-	return buildSDMRethSystem(t, true, true, false, nil, batcherOpts...)
+	return buildSDMRethSystem(t, true, true, false, false, nil, batcherOpts...)
 }
 
 // newSDMRethSystemWithIsolatedVerifier builds the SDM system (Interop/SDM at genesis) with the
@@ -42,7 +42,7 @@ func newSDMRethSystemWithIsolatedVerifier(t devtest.T) *sdmtest.RethSystem {
 	if sysgo.ResolveMixedL2CLKind() == sysgo.MixedL2CLKona {
 		t.Skip("isolated-verifier force-build path is not supported by kona-node (no L1-only EL-sync bootstrap); op-node only")
 	}
-	return buildSDMRethSystem(t, true, true, true, nil)
+	return buildSDMRethSystem(t, true, true, true, false, nil)
 }
 
 // newSDMRethSystemWithLagoonOffset builds the SDM system with Lagoon scheduled at the given
@@ -64,9 +64,9 @@ func newSDMRethSystemWithLagoonOffset(
 				l2Cfg.WithForkAtOffset(forks.Lagoon, &offset)
 			}
 		})
-		return buildSDMRethSystem(t, true, true, false, deployerOpts, batcherOpts...)
+		return buildSDMRethSystem(t, true, true, false, true, deployerOpts, batcherOpts...)
 	}
-	return buildSDMRethSystem(t, false, true, false, deployerOpts, batcherOpts...)
+	return buildSDMRethSystem(t, false, true, false, false, deployerOpts, batcherOpts...)
 }
 
 func buildSDMRethSystem(
@@ -74,6 +74,7 @@ func buildSDMRethSystem(
 	interopAtGenesis bool,
 	fixtureSequencer bool,
 	isolateVerifier bool,
+	sequencerStopped bool,
 	deployerOpts []sysgo.DeployerOption,
 	batcherOpts ...sysgo.BatcherOption,
 ) *sdmtest.RethSystem {
@@ -108,12 +109,13 @@ func buildSDMRethSystem(
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
 			{
-				ELKey:       sequencerKey,
-				CLKey:       "sequencer",
-				ELKind:      sysgo.MixedL2ELOpReth,
-				CLKind:      clKind,
-				IsSequencer: true,
-				OpRethOpts:  sequencerOpts,
+				ELKey:            sequencerKey,
+				CLKey:            "sequencer",
+				ELKind:           sysgo.MixedL2ELOpReth,
+				CLKind:           clKind,
+				IsSequencer:      true,
+				SequencerStopped: sequencerStopped,
+				OpRethOpts:       sequencerOpts,
 			},
 			{
 				ELKey:            "verifier-op-reth",
