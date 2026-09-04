@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/zkproposer"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -42,8 +43,7 @@ type SingleChainInterop struct {
 	// May be nil if not using sysgo
 	challengerConfig              *challengerConfig.Config
 	zkChallengerSuperRootRPCProxy *sysgo.StallableProxy
-	startZKProposer               func()
-	zkMetricsAddr                 func() string
+	sysgoRuntime                  *sysgo.MultiChainRuntime
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -68,18 +68,15 @@ func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 
 // StartZKProposer starts the kona-sp1-proposer after a system configured with
 // WithZK and WithoutHonestProposer has seeded its initial dispute games.
-func (s *SingleChainInterop) StartZKProposer() {
-	s.T.Require().NotNil(s.startZKProposer, "ZK proposer is not configured")
-	s.startZKProposer()
+func (s *SingleChainInterop) StartZKProposer() *zkproposer.ZKProposer {
+	s.T.Require().NotNil(s.sysgoRuntime, "ZK proposer controls require a sysgo-backed preset")
+	return zkproposer.New(s.T, s.sysgoRuntime.StartZKProposer(s.T))
 }
 
-// ZKProposerMetricsURL returns the proposer's Prometheus scrape URL. It
-// requires WithZKProposerOption(sysgo.WithZKMetrics()).
-func (s *SingleChainInterop) ZKProposerMetricsURL() string {
-	s.T.Require().NotNil(s.zkMetricsAddr, "ZK proposer is not configured")
-	addr := s.zkMetricsAddr()
-	s.T.Require().NotEmpty(addr, "no ZK proposer metrics endpoint; pass sysgo.WithZKMetrics()")
-	return "http://" + addr + "/metrics"
+// ZKProposer returns the already-running kona-sp1-proposer.
+func (s *SingleChainInterop) ZKProposer() *zkproposer.ZKProposer {
+	s.T.Require().NotNil(s.sysgoRuntime, "ZK proposer controls require a sysgo-backed preset")
+	return zkproposer.New(s.T, s.sysgoRuntime.ZKProposer(s.T))
 }
 
 // ZKChallengerSuperRootRPCProxy returns the proxy in front of the live ZK

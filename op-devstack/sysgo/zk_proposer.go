@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 )
@@ -72,6 +73,16 @@ type zkProposerConfig struct {
 	Metrics          bool
 }
 
+// ZKProposerRuntime is the opaque handle for a running kona-sp1-proposer.
+type ZKProposerRuntime struct {
+	metricsClient client.HTTP
+}
+
+// MetricsClient returns the optional process-owned metrics transport.
+func (r *ZKProposerRuntime) MetricsClient() client.HTTP {
+	return r.metricsClient
+}
+
 // ZKProposerOption configures the kona-sp1-proposer process started by
 // devstack.
 type ZKProposerOption func(cfg *zkProposerConfig)
@@ -92,12 +103,8 @@ func WithZKFastFinality() ZKProposerOption {
 	}
 }
 
-// WithZKMetrics exposes the proposer's Prometheus metrics on a port the
-// proposer picks and reports, returned by StartZKProposer (metrics are
-// disabled by default). Tests use this to observe internal counters, e.g.
-// concurrent defense-task spawning. The proposer owns the port so that no
-// window exists between choosing it and binding it, in which another socket
-// could take it.
+// WithZKMetrics enables proposer-state verification through the acceptance-test
+// DSL. Metrics are disabled by default. The proposer owns its selected port.
 func WithZKMetrics() ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.Metrics = true
@@ -124,8 +131,7 @@ func newZKProposerConfig(opts ...ZKProposerOption) (zkProposerConfig, error) {
 
 // startZKProposer launches the Rust kona-sp1-proposer binary against the ZK
 // dispute game type. The process has no HTTP API and is configured through
-// environment variables. It returns the loopback address of the proposer's
-// metrics endpoint, empty unless WithZKMetrics was set.
+// environment variables.
 func startZKProposer(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -141,7 +147,7 @@ func startZKProposer(
 	programVKey common.Hash,
 	elfDir string,
 	proposerOpts ...ZKProposerOption,
-) string {
+) *ZKProposerRuntime {
 	require := t.Require()
 	cfg, err := newZKProposerConfig(proposerOpts...)
 	require.NoError(err, "invalid ZK proposer config")
@@ -276,13 +282,15 @@ func startZKProposer(
 	}
 
 	var metricsAddr string
+	var metricsClient client.HTTP
 	if cfg.Metrics {
 		metricsAddr = loopbackMetricsAddr(t, started)
+		metricsClient = client.NewBasicHTTPClient("http://"+metricsAddr, t.Logger())
 	}
 
 	t.Logger().Info("kona-sp1-proposer is up",
 		"chain", proposerChainID, "factory", factoryAddr, "metricsAddr", metricsAddr)
-	return metricsAddr
+	return &ZKProposerRuntime{metricsClient: metricsClient}
 }
 
 // loopbackMetricsAddr reads the metrics address the proposer reports on its

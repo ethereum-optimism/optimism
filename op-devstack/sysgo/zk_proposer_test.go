@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -66,13 +65,49 @@ func TestZKProposerConfigRejectsInvalidProposalInterval(t *testing.T) {
 	require.EqualError(t, err, "ZK proposer interval must use whole seconds")
 }
 
-func TestStartZKProposerStoresMetricsAddress(t *testing.T) {
-	const metricsAddr = "127.0.0.1:1234"
-	runtime := &MultiChainRuntime{
-		startZKProposerFn: func() string { return metricsAddr },
-	}
+func TestZKProposerRuntimeLifecycle(t *testing.T) {
+	t.Run("not configured", func(t *testing.T) {
+		runtime := &MultiChainRuntime{}
 
-	runtime.StartZKProposer(devtest.SerialT(t))
+		_, err := runtime.zkProposerRuntime()
+		require.EqualError(t, err, "ZK proposer is not configured")
+		_, err = runtime.startZKProposerRuntime()
+		require.EqualError(t, err, "ZK proposer is not configured")
+	})
 
-	require.Equal(t, metricsAddr, runtime.ZKProposerMetricsAddr())
+	t.Run("configured for delayed start", func(t *testing.T) {
+		handle := &ZKProposerRuntime{}
+		starts := 0
+		runtime := &MultiChainRuntime{
+			startZKProposerFn: func() *ZKProposerRuntime {
+				starts++
+				return handle
+			},
+		}
+
+		_, err := runtime.zkProposerRuntime()
+		require.EqualError(t, err, "ZK proposer is configured but not started; call StartZKProposer")
+
+		started, err := runtime.startZKProposerRuntime()
+		require.NoError(t, err)
+		require.Same(t, handle, started)
+		require.Equal(t, 1, starts)
+
+		running, err := runtime.zkProposerRuntime()
+		require.NoError(t, err)
+		require.Same(t, handle, running)
+
+		_, err = runtime.startZKProposerRuntime()
+		require.EqualError(t, err, "ZK proposer is already started")
+		require.Equal(t, 1, starts)
+	})
+
+	t.Run("automatically started", func(t *testing.T) {
+		handle := &ZKProposerRuntime{}
+		runtime := &MultiChainRuntime{zkProposer: handle}
+
+		running, err := runtime.zkProposerRuntime()
+		require.NoError(t, err)
+		require.Same(t, handle, running)
+	})
 }
