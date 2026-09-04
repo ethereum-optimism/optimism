@@ -13,10 +13,12 @@ import (
 )
 
 const (
-	metricPollInterval         = 100 * time.Millisecond
-	defenseTasksSpawnedMetric  = "kona_sp1_proposer_games_defense_spawned"
-	gameProvingFailuresMetric  = "kona_sp1_proposer_game_proving_error"
-	metricsDisabledInstruction = "ZK proposer metrics are disabled; pass sysgo.WithZKMetrics() when creating the preset"
+	metricPollInterval               = 100 * time.Millisecond
+	stateWaitTimeout                 = 10 * time.Minute
+	defenseTasksSpawnedMetric        = "kona_sp1_proposer_games_defense_spawned"
+	peakConcurrentDefenseTasksMetric = "kona_sp1_proposer_peak_concurrent_defense_tasks"
+	gameProvingFailuresMetric        = "kona_sp1_proposer_game_proving_error"
+	metricsDisabledInstruction       = "ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset"
 )
 
 // Runtime provides the process-owned metrics transport without exposing its endpoint.
@@ -36,7 +38,7 @@ func New(t devtest.T, runtime Runtime) *ZKProposer {
 	t.Require().NotNil(runtime, "ZK proposer runtime must not be nil")
 	var metricsClient *devtestmetrics.MetricsClient
 	if httpClient := runtime.MetricsClient(); httpClient != nil {
-		metricsClient = devtestmetrics.NewMetricsClient(httpClient)
+		metricsClient = devtestmetrics.NewMetricsClient(httpClient, devtestmetrics.WithWaitTimeout(stateWaitTimeout))
 	}
 	return &ZKProposer{t: t, log: t.Logger(), metrics: metricsClient}
 }
@@ -54,6 +56,15 @@ func DefenseTasksSpawned(expected int) *StateExpectation {
 		description: "defense tasks spawned",
 		expected:    expected,
 		metric:      defenseTasksSpawnedMetric,
+	}
+}
+
+// PeakConcurrentDefenseTasks expects the peak number of concurrently scheduled defense tasks.
+func PeakConcurrentDefenseTasks(expected int) *StateExpectation {
+	return &StateExpectation{
+		description: "peak concurrent defense tasks",
+		expected:    expected,
+		metric:      peakConcurrentDefenseTasksMetric,
 	}
 }
 

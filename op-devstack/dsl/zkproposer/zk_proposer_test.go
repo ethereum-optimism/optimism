@@ -44,9 +44,12 @@ func metricsResponse(payload string) *http.Response {
 
 func metricsPayload(spawned, failures int) string {
 	return fmt.Sprintf(
-		"# TYPE %s gauge\n%s %d\n# TYPE %s gauge\n%s %d\n",
+		"# TYPE %s gauge\n%s %d\n# TYPE %s gauge\n%s %d\n# TYPE %s gauge\n%s %d\n",
 		defenseTasksSpawnedMetric,
 		defenseTasksSpawnedMetric,
+		spawned,
+		peakConcurrentDefenseTasksMetric,
+		peakConcurrentDefenseTasksMetric,
 		spawned,
 		gameProvingFailuresMetric,
 		gameProvingFailuresMetric,
@@ -69,7 +72,12 @@ func TestVerifyStateMatchesExactValuesFromOneSnapshot(t *testing.T) {
 		return metricsResponse(metricsPayload(2, 0)), nil
 	})
 
-	err := proposer.verifyState(context.Background(), DefenseTasksSpawned(2), ProvingFailures(0))
+	err := proposer.verifyState(
+		context.Background(),
+		DefenseTasksSpawned(2),
+		PeakConcurrentDefenseTasks(2),
+		ProvingFailures(0),
+	)
 
 	require.NoError(t, err)
 	require.Equal(t, 1, fetches)
@@ -87,6 +95,23 @@ func TestNewUsesRuntimeMetricsTransport(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 1, fetches)
+}
+
+func TestNewPreservesTenMinuteWaitBudget(t *testing.T) {
+	proposer := New(devtest.SerialT(t), stubRuntime{metrics: stubHTTP(
+		func(ctx context.Context, _ string, _ url.Values, _ http.Header) (*http.Response, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	)})
+	synctest.Test(t, func(t *testing.T) {
+		started := time.Now()
+
+		err := proposer.verifyState(context.Background(), DefenseTasksSpawned(1))
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Equal(t, 10*time.Minute, time.Since(started))
+	})
 }
 
 func TestVerifyStateDoesNotComposeDifferentSnapshots(t *testing.T) {
@@ -145,8 +170,8 @@ func TestVerifyStateRejectsDisabledMetricsBeforeFetching(t *testing.T) {
 
 	err := proposer.verifyState(context.Background(), DefenseTasksSpawned(2))
 
-	require.EqualError(t, err, metricsDisabledInstruction)
-	require.ErrorContains(t, err, "sysgo.WithZKMetrics()")
+	require.EqualError(t, err,
+		"ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset")
 }
 
 func TestVerifyStateLogsExpectationsAndObservations(t *testing.T) {
