@@ -4,11 +4,8 @@ use std::{
     hash::Hash,
     io::Write,
     num::{NonZeroU64, NonZeroUsize},
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex as StdMutex,
-        atomic::{AtomicU64, Ordering},
-    },
+    path::Path,
+    sync::{Arc, Mutex as StdMutex},
     time::Duration,
 };
 
@@ -22,6 +19,7 @@ use kona_sp1_host_utils::metrics::MetricsListen;
 use kona_sp1_super_range_executor::{
     BlockId as SuperBlockId, SuperRootAtTimestampResponse, SuperRootResponseData, SuperV1,
 };
+use tempfile::TempDir;
 use tokio::sync::Mutex as AsyncMutex;
 
 use super::{NamedBarrier, ScenarioControl, ScenarioError};
@@ -51,8 +49,6 @@ const INITIAL_SUPER_ROOT_HORIZON: u64 = 4;
 const DEFAULT_PRESTATE_BYTE: u8 = 0x11;
 pub(super) const DEFAULT_MAX_DURATION: u64 = 3_600;
 const SCENARIO_WATCHDOG: Duration = Duration::from_secs(10);
-
-static ARTIFACT_DIR_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(super) struct GameTarget {
@@ -112,10 +108,49 @@ struct BarrierKey {
     attempt: u64,
 }
 
+impl BarrierKey {
+    fn matches(&self, operation: &OperationSummary) -> bool {
+        match (&self.target, operation) {
+            (
+                ScriptTarget::Action(ActionTarget::Create { sequence_number, parent_game_index }),
+                OperationSummary::ProposeGame {
+                    sequence_number: scheduled_sequence,
+                    parent_game_index: scheduled_parent,
+                },
+            ) => sequence_number == scheduled_sequence && parent_game_index == scheduled_parent,
+            (
+                ScriptTarget::Action(ActionTarget::Prove(target)),
+                OperationSummary::ProveGame { factory_index, address, .. },
+            ) |
+            (
+                ScriptTarget::Proof(target),
+                OperationSummary::ProveGame { factory_index, address, .. },
+            ) => target.factory_index == *factory_index && target.address == *address,
+            (ScriptTarget::Action(ActionTarget::Resolve(_)), OperationSummary::ResolutionSweep) |
+            (ScriptTarget::Action(ActionTarget::ClaimCredit(_)), OperationSummary::ClaimSweep) => {
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum ScriptTarget {
     Action(ActionTarget),
     Proof(GameTarget),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct AttemptKey<K> {
+    target: K,
+    attempt: u64,
+}
+
+impl<K> AttemptKey<K> {
+    const fn new(target: K, attempt: u64) -> Self {
+        Self { target, attempt }
+    }
 }
 
 #[derive(Clone)]
@@ -144,7 +179,7 @@ impl ProofScript {
 }
 
 struct Scripts<K, V> {
-    exact: HashMap<(K, u64), V>,
+    exact: HashMap<AttemptKey<K>, V>,
     queued: HashMap<K, VecDeque<V>>,
     fallback: Option<V>,
     attempts: HashMap<K, u64>,
@@ -168,7 +203,10 @@ where
 {
     fn script_exact(&mut self, key: K, attempt: u64, value: V) {
         assert!(attempt > 0, "script attempts are one-based");
-        assert!(self.exact.insert((key, attempt), value).is_none(), "duplicate exact script");
+        assert!(
+            self.exact.insert(AttemptKey::new(key, attempt), value).is_none(),
+            "duplicate exact script"
+        );
     }
 
     fn script_next(&mut self, key: K, value: V) {
@@ -185,7 +223,7 @@ where
         let current = *attempt;
         let value = self
             .exact
-            .remove(&(key.clone(), current))
+            .remove(&AttemptKey::new(key.clone(), current))
             .or_else(|| self.queued.get_mut(key).and_then(VecDeque::pop_front))
             .or_else(|| self.fallback.clone());
         (current, value)
@@ -271,6 +309,19 @@ impl ScenarioGame {
         self.finalized = true;
         self.bond.credit = U256::from(credit);
         self
+    }
+
+    fn bind_proof_inputs(&mut self, state: &L1State) {
+        self.proof_inputs.l1_head_number = state.block.number;
+        self.proof_inputs.l1_head = deterministic_hash(0x80, state.block.number);
+        if self.parent_index == u32::MAX {
+            self.proof_inputs.starting_root = state.anchor_root.root;
+            self.proof_inputs.starting_sequence_number =
+                state.anchor_root.sequence_number.to::<u64>();
+        } else if let Some(parent) = state.games.get(&U256::from(self.parent_index)) {
+            self.proof_inputs.starting_root = parent.root_claim;
+            self.proof_inputs.starting_sequence_number = parent.sequence_number;
+        }
     }
 
     pub(super) fn target(&self) -> GameTarget {
@@ -383,6 +434,15 @@ struct L1State {
     games: BTreeMap<U256, ScenarioGame>,
 }
 
+impl L1State {
+    fn game(&self, address: Address) -> Result<&ScenarioGame> {
+        self.games
+            .values()
+            .find(|game| game.address == address)
+            .with_context(|| format!("scenario game {address} missing"))
+    }
+}
+
 #[derive(Clone)]
 enum PendingEffect {
     Create { root_claim: B256, extra_data: Vec<u8>, sequence_number: u64, parent_game_index: u32 },
@@ -393,18 +453,8 @@ enum PendingEffect {
 
 #[derive(Clone)]
 struct PendingTransaction {
-    target: ActionTarget,
-    attempt: u64,
     nonce: u64,
     effect: PendingEffect,
-}
-
-struct ArtifactDirectory(PathBuf);
-
-impl Drop for ArtifactDirectory {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
 }
 
 struct WorldData {
@@ -418,23 +468,23 @@ struct WorldData {
     action_scripts: Scripts<ActionTarget, ActionScript>,
     proof_scripts: Scripts<GameTarget, ProofScript>,
     barriers: HashMap<BarrierKey, NamedBarrier>,
-    action_records: HashMap<(ActionTarget, u64), ActionRecord>,
-    proof_records: HashMap<(GameTarget, u64), ProofRecord>,
-    pending_transactions: HashMap<(ActionTarget, u64), PendingTransaction>,
+    action_records: HashMap<AttemptKey<ActionTarget>, ActionRecord>,
+    proof_records: HashMap<AttemptKey<GameTarget>, ProofRecord>,
+    pending_transactions: HashMap<AttemptKey<ActionTarget>, PendingTransaction>,
 }
 
 #[derive(Clone)]
 pub(super) struct ScenarioWorld {
     data: Arc<StdMutex<WorldData>>,
     signer_gate: Arc<AsyncMutex<()>>,
-    artifacts: Arc<ArtifactDirectory>,
+    artifacts: Arc<TempDir>,
 }
 
 impl ScenarioWorld {
     pub(super) fn new() -> Self {
-        let artifacts = create_artifact_directory();
+        let artifacts = tempfile::tempdir().expect("create scenario artifact directory");
         let prestate = Self::default_prestate();
-        publish_prestate_at(&artifacts.0, prestate);
+        publish_prestate_at(artifacts.path(), prestate);
         let registry = deterministic_address(0x70, 1);
         let weth = deterministic_address(0x60, 1);
         let initial = L1State {
@@ -491,25 +541,16 @@ impl ScenarioWorld {
     }
 
     pub(super) fn prestates_url(&self) -> Url {
-        Url::from_directory_path(&self.artifacts.0).expect("artifact path must form a file URL")
+        Url::from_directory_path(self.artifacts.path()).expect("artifact path must form a file URL")
     }
 
     pub(super) fn publish_prestate(&self, prestate: B256) {
-        publish_prestate_at(&self.artifacts.0, prestate);
+        publish_prestate_at(self.artifacts.path(), prestate);
     }
 
     pub(super) fn add_game(&self, mut game: ScenarioGame) -> L1BlockRef {
         self.append_block(|state| {
-            game.proof_inputs.l1_head_number = state.block.number;
-            game.proof_inputs.l1_head = deterministic_hash(0x80, state.block.number);
-            if game.parent_index == u32::MAX {
-                game.proof_inputs.starting_root = state.anchor_root.root;
-                game.proof_inputs.starting_sequence_number =
-                    state.anchor_root.sequence_number.to::<u64>();
-            } else if let Some(parent) = state.games.get(&U256::from(game.parent_index)) {
-                game.proof_inputs.starting_root = parent.root_claim;
-                game.proof_inputs.starting_sequence_number = parent.sequence_number;
-            }
+            game.bind_proof_inputs(state);
             state.games.insert(game.factory_index, game);
         })
     }
@@ -647,11 +688,11 @@ impl ScenarioWorld {
         target: &ActionTarget,
         attempt: u64,
     ) -> Option<ActionRecord> {
-        self.lock().action_records.get(&(target.clone(), attempt)).cloned()
+        self.lock().action_records.get(&AttemptKey::new(target.clone(), attempt)).cloned()
     }
 
     pub(super) fn proof_record(&self, target: &GameTarget, attempt: u64) -> Option<ProofRecord> {
-        self.lock().proof_records.get(&(target.clone(), attempt)).cloned()
+        self.lock().proof_records.get(&AttemptKey::new(target.clone(), attempt)).cloned()
     }
 
     pub(super) fn observation(&self) -> WorldObservation {
@@ -661,10 +702,10 @@ impl ScenarioWorld {
         games.sort_unstable_by_key(|game| game.factory_index);
         let mut pending_transactions = data
             .pending_transactions
-            .values()
-            .map(|transaction| PendingTransactionObservation {
-                target: transaction.target.clone(),
-                attempt: transaction.attempt,
+            .iter()
+            .map(|(key, transaction)| PendingTransactionObservation {
+                target: key.target.clone(),
+                attempt: key.attempt,
                 nonce: transaction.nonce,
             })
             .collect::<Vec<_>>();
@@ -693,13 +734,14 @@ impl ScenarioWorld {
 
     fn drop_transaction(&self, target: &ActionTarget, attempt: u64) -> Result<()> {
         let mut data = self.lock();
+        let key = AttemptKey::new(target.clone(), attempt);
         data.pending_transactions
-            .remove(&(target.clone(), attempt))
+            .remove(&key)
             .with_context(|| format!("no pending transaction for {target:?} attempt {attempt}"))?;
         data.recompute_pending_nonce();
         let record = data
             .action_records
-            .get_mut(&(target.clone(), attempt))
+            .get_mut(&key)
             .context("pending transaction has no action record")?;
         record.lifecycle = ActionLifecycle::Dropped;
         record.effect = CommittedEffect::None;
@@ -778,32 +820,23 @@ impl WorldData {
     }
 
     fn game_target(&self, address: Address) -> Result<GameTarget> {
-        self.latest_state()
-            .games
-            .values()
-            .find(|game| game.address == address)
-            .map(|game| GameTarget { factory_index: game.factory_index, address: game.address })
-            .with_context(|| format!("unknown scenario game {address}"))
+        Ok(self.latest_state().game(address)?.target())
     }
 
     fn proof_target(&self, address: Address, game: &GameProofInputs) -> Result<GameTarget> {
         let state = self.latest_state();
-        let candidate = state
-            .games
-            .values()
-            .find(|candidate| candidate.address == address)
-            .with_context(|| format!("unknown scenario game {address}"))?;
-        ensure!(
-            candidate.proof_inputs.l1_head == game.l1_head &&
-                candidate.proof_inputs.l1_head_number == game.l1_head_number &&
-                candidate.proof_inputs.starting_root == game.starting_root &&
-                candidate.proof_inputs.starting_sequence_number == game.starting_ts &&
-                candidate.proof_inputs.root_claim == game.root_claim &&
-                candidate.proof_inputs.sequence_number == game.claim_ts &&
-                candidate.absolute_prestate == game.prestate &&
-                game.prover == ScenarioWorld::proposer_address(),
-            "proof inputs do not match scenario game {address}"
-        );
+        let candidate = state.game(address)?;
+        let expected = GameProofInputs {
+            l1_head: candidate.proof_inputs.l1_head,
+            l1_head_number: candidate.proof_inputs.l1_head_number,
+            starting_root: candidate.proof_inputs.starting_root,
+            starting_ts: candidate.proof_inputs.starting_sequence_number,
+            root_claim: candidate.proof_inputs.root_claim,
+            claim_ts: candidate.proof_inputs.sequence_number,
+            prestate: candidate.absolute_prestate,
+            prover: ScenarioWorld::proposer_address(),
+        };
+        ensure!(&expected == game, "proof inputs do not match scenario game {address}");
         Ok(candidate.target())
     }
 
@@ -814,7 +847,7 @@ impl WorldData {
         depth: InclusionDepth,
         inclusion: TransactionInclusion,
     ) -> Result<CommittedEffect> {
-        let selected = (target.clone(), attempt);
+        let selected = AttemptKey::new(target.clone(), attempt);
         let selected_nonce = self
             .pending_transactions
             .get(&selected)
@@ -936,16 +969,7 @@ impl WorldData {
                     game.anchor_state_registry = state.registered_args.anchor_state_registry;
                     game.deadline =
                         state.block.timestamp + state.registered_args.max_challenge_duration;
-                    game.proof_inputs.l1_head_number = state.block.number;
-                    game.proof_inputs.l1_head = deterministic_hash(0x80, state.block.number);
-                    if parent_game_index == u32::MAX {
-                        game.proof_inputs.starting_root = state.anchor_root.root;
-                        game.proof_inputs.starting_sequence_number =
-                            state.anchor_root.sequence_number.to::<u64>();
-                    } else if let Some(parent) = state.games.get(&U256::from(parent_game_index)) {
-                        game.proof_inputs.starting_root = parent.root_claim;
-                        game.proof_inputs.starting_sequence_number = parent.sequence_number;
-                    }
+                    game.bind_proof_inputs(state);
                     state.games.insert(index, game);
                     CommittedEffect::Created { factory_index: index, address }
                 }
@@ -1021,15 +1045,6 @@ fn super_root_timestamp(root: B256) -> Result<u64> {
     Ok(u64::from_be_bytes(root[24..].try_into().expect("eight-byte timestamp")))
 }
 
-fn create_artifact_directory() -> ArtifactDirectory {
-    let id = ARTIFACT_DIR_ID.fetch_add(1, Ordering::Relaxed);
-    let path =
-        std::env::temp_dir().join(format!("kona-sp1-scenario-world-{}-{id}", std::process::id()));
-    let _ = fs::remove_dir_all(&path);
-    fs::create_dir_all(&path).expect("create scenario artifact directory");
-    ArtifactDirectory(path)
-}
-
 fn publish_prestate_at(directory: &Path, prestate: B256) {
     for suffix in [AGGREGATION_ARTIFACT_SUFFIX, RANGE_ARTIFACT_SUFFIX] {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
@@ -1087,7 +1102,7 @@ impl L1View for FakeL1View {
 
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim> {
         let state = self.state(block)?;
-        let game = game_by_address(&state, game)?;
+        let game = state.game(game)?;
         Ok(GameClaim {
             status: game.proposal_status as u8,
             deadline: game.deadline,
@@ -1097,7 +1112,7 @@ impl L1View for FakeL1View {
 
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity> {
         let state = self.state(block)?;
-        let game = game_by_address(&state, game)?;
+        let game = state.game(game)?;
         Ok(GameIdentity {
             anchor_state_registry: game.anchor_state_registry,
             weth: game.weth,
@@ -1108,7 +1123,7 @@ impl L1View for FakeL1View {
 
     async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity> {
         let state = self.state(block)?;
-        let game = game_by_address(&state, game)?;
+        let game = state.game(game)?;
         Ok(GameValidity {
             root_claim: game.root_claim,
             was_respected: game.was_respected,
@@ -1124,7 +1139,7 @@ impl L1View for FakeL1View {
         block: BlockId,
     ) -> Result<GameLifecycle> {
         let state = self.state(block)?;
-        let game = game_by_address(&state, game)?;
+        let game = state.game(game)?;
         Ok(GameLifecycle {
             proposal_status: game.proposal_status,
             deadline: game.deadline,
@@ -1147,7 +1162,7 @@ impl L1View for FakeL1View {
         block: BlockId,
     ) -> Result<BondState> {
         let state = self.state(block)?;
-        Ok(game_by_address(&state, game)?.bond)
+        Ok(state.game(game)?.bond)
     }
 
     async fn init_bond(&self) -> Result<U256> {
@@ -1156,7 +1171,7 @@ impl L1View for FakeL1View {
 
     async fn game_status(&self, game: Address) -> Result<u8> {
         let state = self.latest_state();
-        Ok(game_by_address(&state, game)?.status as u8)
+        Ok(state.game(game)?.status as u8)
     }
 
     async fn claim_preflight(
@@ -1166,8 +1181,8 @@ impl L1View for FakeL1View {
         _proposer: Address,
     ) -> ClaimPreflight {
         let state = self.latest_state();
-        let credit = game_by_address(&state, game).map(|game| game.bond.credit);
-        let withdrawal = game_by_address(&state, game).map(|game| WithdrawalState {
+        let credit = state.game(game).map(|game| game.bond.credit);
+        let withdrawal = state.game(game).map(|game| WithdrawalState {
             amount: game.bond.withdrawal_amount,
             timestamp: game.bond.withdrawal_timestamp,
         });
@@ -1194,7 +1209,7 @@ impl L1View for FakeL1View {
 
     async fn game_creator(&self, game: Address) -> Result<Address> {
         let state = self.latest_state();
-        Ok(game_by_address(&state, game)?.creator)
+        Ok(state.game(game)?.creator)
     }
 
     async fn nonce_state(&self, _proposer: Address) -> Result<NonceState> {
@@ -1208,40 +1223,32 @@ impl L1View for FakeL1View {
 
     async fn parent_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
         let state = self.latest_state();
-        Ok(game_by_address(&state, game)?.standing)
+        Ok(state.game(game)?.standing)
     }
 
     async fn game_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
         let state = self.latest_state();
-        Ok(game_by_address(&state, game)?.standing)
+        Ok(state.game(game)?.standing)
     }
 
     async fn proof_status(&self, game: Address) -> Result<u8> {
         let state = self.latest_state();
-        Ok(game_by_address(&state, game)?.proposal_status as u8)
+        Ok(state.game(game)?.proposal_status as u8)
     }
 
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs> {
         let state = self.latest_state();
-        Ok(game_by_address(&state, game)?.proof_inputs)
+        Ok(state.game(game)?.proof_inputs)
     }
 
     async fn anchor_state_registry(&self, game: Address) -> Result<Address> {
         let state = self.latest_state();
-        Ok(game_by_address(&state, game)?.anchor_state_registry)
+        Ok(state.game(game)?.anchor_state_registry)
     }
 
     async fn latest_l1_timestamp(&self) -> Result<u64> {
         Ok(self.latest_state().block.timestamp)
     }
-}
-
-fn game_by_address(state: &L1State, address: Address) -> Result<&ScenarioGame> {
-    state
-        .games
-        .values()
-        .find(|game| game.address == address)
-        .with_context(|| format!("scenario game {address} missing"))
 }
 
 #[derive(Clone)]
@@ -1271,12 +1278,12 @@ impl SuperRootSource for FakeSuperRootSource {
         let safe = data.safe_time;
         let finalized = data.finalized_time;
         if timestamp > safe {
-            let response = superroot_response(timestamp, safe, safe, finalized, 2, None);
+            let response = superroot_response(timestamp, safe, finalized, None);
             return Ok(SuperRootAtTimestamp { response, root: None });
         }
 
         let root = canonical_super_root(timestamp);
-        let response = superroot_response(timestamp, safe, safe, finalized, 2, Some((1, root)));
+        let response = superroot_response(timestamp, safe, finalized, Some((1, root)));
         Ok(SuperRootAtTimestamp {
             response,
             root: Some(SuperRootAt { proof_bytes: vec![0x01], super_root: root }),
@@ -1287,15 +1294,13 @@ impl SuperRootSource for FakeSuperRootSource {
 fn superroot_response(
     timestamp: u64,
     safe: u64,
-    local_safe: u64,
     finalized: u64,
-    current_l1: u64,
     data: Option<(u64, B256)>,
 ) -> SuperRootAtTimestampResponse {
     SuperRootAtTimestampResponse {
-        current_l1: SuperBlockId { number: current_l1, ..Default::default() },
+        current_l1: SuperBlockId { number: 2, ..Default::default() },
         current_safe_timestamp: safe,
-        current_local_safe_timestamp: local_safe,
+        current_local_safe_timestamp: safe,
         current_finalized_timestamp: finalized,
         optimistic_at_timestamp: Default::default(),
         chain_ids: Vec::new(),
@@ -1325,7 +1330,7 @@ impl ProofEngine for FakeProofEngine {
             let (attempt, script) = data.proof_scripts.next(&target);
             let script = script.unwrap_or_else(|| ProofScript::immediate(ProofOutcome::Success));
             data.proof_records.insert(
-                (target.clone(), attempt),
+                AttemptKey::new(target.clone(), attempt),
                 ProofRecord {
                     target: target.clone(),
                     attempt,
@@ -1345,7 +1350,7 @@ impl ProofEngine for FakeProofEngine {
         self.0
             .lock()
             .proof_records
-            .get_mut(&(target.clone(), attempt))
+            .get_mut(&AttemptKey::new(target.clone(), attempt))
             .expect("proof record must exist")
             .lifecycle = lifecycle;
         match script.outcome {
@@ -1387,7 +1392,7 @@ impl FakeActionExecutor {
         let _signer = self.0.signer_gate.lock().await;
         if script.outcome == ActionOutcome::PreSubmitFailure {
             self.0.lock().action_records.insert(
-                (target.clone(), attempt),
+                AttemptKey::new(target.clone(), attempt),
                 ActionRecord {
                     target: target.clone(),
                     attempt,
@@ -1409,11 +1414,11 @@ impl FakeActionExecutor {
             );
             let transaction_hash = deterministic_hash(0xa0, nonce);
             data.pending_transactions.insert(
-                (target.clone(), attempt),
-                PendingTransaction { target: target.clone(), attempt, nonce, effect },
+                AttemptKey::new(target.clone(), attempt),
+                PendingTransaction { nonce, effect },
             );
             data.action_records.insert(
-                (target.clone(), attempt),
+                AttemptKey::new(target.clone(), attempt),
                 ActionRecord {
                     target: target.clone(),
                     attempt,
@@ -1457,7 +1462,7 @@ impl FakeActionExecutor {
                 self.0
                     .lock()
                     .action_records
-                    .get_mut(&(target.clone(), attempt))
+                    .get_mut(&AttemptKey::new(target.clone(), attempt))
                     .expect("action record must exist")
                     .lifecycle = ActionLifecycle::TimedOut;
                 bail!("scripted confirmation timeout for {target:?} attempt {attempt}")
@@ -1568,9 +1573,17 @@ impl ScenarioHarness {
         self.control.settle(task_ids).await
     }
 
+    pub(super) async fn settle_scheduled(
+        &mut self,
+        result: &CycleResult,
+    ) -> Result<Vec<TaskCompletion>, ScenarioError> {
+        let task_ids = result.task_ids();
+        self.settle(&task_ids).await
+    }
+
     #[allow(
         clippy::needless_pass_by_ref_mut,
-        reason = "runtime world changes require exclusive access through the scenario harness"
+        reason = "scenario controls require exclusive harness access"
     )]
     pub(super) fn include_transaction(
         &mut self,
@@ -1583,7 +1596,7 @@ impl ScenarioHarness {
 
     #[allow(
         clippy::needless_pass_by_ref_mut,
-        reason = "runtime world changes require exclusive access through the scenario harness"
+        reason = "scenario controls require exclusive harness access"
     )]
     pub(super) fn drop_transaction(&mut self, target: &ActionTarget, attempt: u64) -> Result<()> {
         self.world.drop_transaction(target, attempt)
@@ -1665,7 +1678,7 @@ impl ScenarioHarness {
             .get(&task_id)
             .map(|(_, operation)| operation.clone())
             .ok_or(ScenarioError::UnknownTask { task_id })?;
-        if !barrier_matches_operation(&key, &operation) {
+        if !key.matches(&operation) {
             return Err(ScenarioError::BarrierOperationMismatch { task_id, barrier: barrier_name });
         }
         tokio::time::timeout(SCENARIO_WATCHDOG, barrier.wait_until_reached())
@@ -1677,7 +1690,7 @@ impl ScenarioHarness {
 
     #[allow(
         clippy::needless_pass_by_ref_mut,
-        reason = "barrier release requires exclusive access through the scenario harness"
+        reason = "scenario controls require exclusive harness access"
     )]
     fn release_barrier(&mut self, key: BarrierKey) -> Result<(), ScenarioError> {
         let barrier = self
@@ -1686,29 +1699,6 @@ impl ScenarioHarness {
             .ok_or_else(|| ScenarioError::UnknownBarrier { barrier: format!("{key:?}") })?;
         barrier.release();
         Ok(())
-    }
-}
-
-fn barrier_matches_operation(key: &BarrierKey, operation: &OperationSummary) -> bool {
-    match (&key.target, operation) {
-        (
-            ScriptTarget::Action(ActionTarget::Create { sequence_number, parent_game_index }),
-            OperationSummary::ProposeGame {
-                sequence_number: scheduled_sequence,
-                parent_game_index: scheduled_parent,
-            },
-        ) => sequence_number == scheduled_sequence && parent_game_index == scheduled_parent,
-        (
-            ScriptTarget::Action(ActionTarget::Prove(target)),
-            OperationSummary::ProveGame { factory_index, address, .. },
-        ) |
-        (
-            ScriptTarget::Proof(target),
-            OperationSummary::ProveGame { factory_index, address, .. },
-        ) => target.factory_index == *factory_index && target.address == *address,
-        (ScriptTarget::Action(ActionTarget::Resolve(_)), OperationSummary::ResolutionSweep) |
-        (ScriptTarget::Action(ActionTarget::ClaimCredit(_)), OperationSummary::ClaimSweep) => true,
-        _ => false,
     }
 }
 
@@ -1774,23 +1764,24 @@ pub(super) fn scenario_config() -> ProposerConfig {
     }
 }
 
-pub(super) fn scheduled_task(
-    result: &CycleResult,
-    predicate: impl Fn(&OperationSummary) -> bool,
-) -> TaskId {
-    result
-        .scheduled
-        .iter()
-        .find(|scheduled| predicate(&scheduled.operation))
-        .map(|scheduled| scheduled.task_id)
-        .expect("expected scheduled operation")
-}
+impl CycleResult {
+    pub(super) fn task_ids(&self) -> Vec<TaskId> {
+        self.scheduled.iter().map(|scheduled| scheduled.task_id).collect()
+    }
 
-pub(super) fn other_task_ids(result: &CycleResult, excluded: TaskId) -> Vec<TaskId> {
-    result
-        .scheduled
-        .iter()
-        .filter(|scheduled| scheduled.task_id != excluded)
-        .map(|scheduled| scheduled.task_id)
-        .collect()
+    pub(super) fn task_ids_except(&self, excluded: TaskId) -> Vec<TaskId> {
+        self.scheduled
+            .iter()
+            .filter(|scheduled| scheduled.task_id != excluded)
+            .map(|scheduled| scheduled.task_id)
+            .collect()
+    }
+
+    pub(super) fn task_id_for(&self, predicate: impl Fn(&OperationSummary) -> bool) -> TaskId {
+        self.scheduled
+            .iter()
+            .find(|scheduled| predicate(&scheduled.operation))
+            .map(|scheduled| scheduled.task_id)
+            .expect("expected scheduled operation")
+    }
 }

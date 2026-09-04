@@ -1147,9 +1147,8 @@ async fn barrier_wait_fails_when_the_scripted_attempt_never_reaches_it() {
     );
     let mut scenario = ScenarioHarness::new(world, scenario_config()).await.unwrap();
     let result = scenario.tick().await.unwrap();
-    let create_id = scheduled_task(&result, |operation| {
-        matches!(operation, OperationSummary::ProposeGame { .. })
-    });
+    let create_id =
+        result.task_id_for(|operation| matches!(operation, OperationSummary::ProposeGame { .. }));
 
     let error = scenario
         .wait_for_action_barrier(create_id, &target, 2, ActionBarrierPoint::AfterSubmission)
@@ -1160,10 +1159,7 @@ async fn barrier_wait_fails_when_the_scripted_attempt_never_reaches_it() {
         error,
         ScenarioError::BarrierWatchdog { barrier } if barrier.contains("attempt: 2")
     ));
-    scenario
-        .settle(&result.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&result).await.unwrap();
 }
 
 #[tokio::test]
@@ -1367,9 +1363,8 @@ async fn blocked_creation_stays_single_until_its_task_is_released() {
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let first = scenario.tick().await.unwrap();
-    let create_id = scheduled_task(&first, |operation| {
-        matches!(operation, OperationSummary::ProposeGame { .. })
-    });
+    let create_id =
+        first.task_id_for(|operation| matches!(operation, OperationSummary::ProposeGame { .. }));
     assert_eq!(create_id.get(), 1);
     scenario
         .wait_for_action_barrier(create_id, &target, 1, ActionBarrierPoint::AfterSubmission)
@@ -1394,7 +1389,7 @@ async fn blocked_creation_stays_single_until_its_task_is_released() {
     assert_eq!(submitted_record.lifecycle, ActionLifecycle::Submitted);
     assert!(submitted_record.transaction_hash.is_some());
     assert_eq!(submitted_record.effect, CommittedEffect::None);
-    scenario.settle(&other_task_ids(&first, create_id)).await.unwrap();
+    scenario.settle(&first.task_ids_except(create_id)).await.unwrap();
 
     let blocked = scenario.tick().await.unwrap();
     assert!(blocked.snapshot.active_tasks.iter().any(|task| task.task_id == create_id));
@@ -1402,10 +1397,7 @@ async fn blocked_creation_stays_single_until_its_task_is_released() {
         scheduled.operation,
         OperationSummary::ProposeGame { .. } | OperationSummary::ReconcileCreation { .. }
     )));
-    scenario
-        .settle(&blocked.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&blocked).await.unwrap();
 
     scenario.release_action_barrier(&target, 1, ActionBarrierPoint::AfterSubmission).unwrap();
     scenario.settle(&[create_id]).await.unwrap();
@@ -1434,7 +1426,7 @@ async fn blocked_proof_uses_one_slot_without_blocking_another_game() {
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let first = scenario.tick().await.unwrap();
-    let first_id = scheduled_task(&first, |operation| {
+    let first_id = first.task_id_for(|operation| {
         matches!(
             operation,
             OperationSummary::ProveGame { address, .. } if *address == first_target.address
@@ -1442,7 +1434,7 @@ async fn blocked_proof_uses_one_slot_without_blocking_another_game() {
     });
     assert_eq!(first_id.get(), 1);
     scenario.wait_for_proof_barrier(first_id, &first_target, 1).await.unwrap();
-    scenario.settle(&other_task_ids(&first, first_id)).await.unwrap();
+    scenario.settle(&first.task_ids_except(first_id)).await.unwrap();
 
     let mut second_game =
         ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).challenged();
@@ -1456,16 +1448,13 @@ async fn blocked_proof_uses_one_slot_without_blocking_another_game() {
         scheduled.operation,
         OperationSummary::ProveGame { address, .. } if address == first_target.address
     )));
-    let second_id = scheduled_task(&second, |operation| {
+    let second_id = second.task_id_for(|operation| {
         matches!(
             operation,
             OperationSummary::ProveGame { address, .. } if *address == second_target.address
         )
     });
-    scenario
-        .settle(&second.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&second).await.unwrap();
     assert_eq!(world.proof_record(&second_target, 1).unwrap().lifecycle, ProofLifecycle::Succeeded);
 
     scenario.release_proof_barrier(&first_target, 1).unwrap();
@@ -1503,11 +1492,10 @@ async fn one_submission_finishes_before_the_next_one_starts() {
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let result = scenario.tick().await.unwrap();
-    let create_id = scheduled_task(&result, |operation| {
-        matches!(operation, OperationSummary::ProposeGame { .. })
-    });
+    let create_id =
+        result.task_id_for(|operation| matches!(operation, OperationSummary::ProposeGame { .. }));
     let resolve_id =
-        scheduled_task(&result, |operation| matches!(operation, OperationSummary::ResolutionSweep));
+        result.task_id_for(|operation| matches!(operation, OperationSummary::ResolutionSweep));
     scenario
         .wait_for_action_barrier(resolve_id, &resolve, 1, ActionBarrierPoint::BeforeSigner)
         .await
@@ -1541,13 +1529,9 @@ async fn failed_create_before_submission_allows_a_later_create_without_consuming
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let failed = scenario.tick().await.unwrap();
-    let create_id = scheduled_task(&failed, |operation| {
-        matches!(operation, OperationSummary::ProposeGame { .. })
-    });
-    scenario
-        .settle(&failed.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    let create_id =
+        failed.task_id_for(|operation| matches!(operation, OperationSummary::ProposeGame { .. }));
+    scenario.settle_scheduled(&failed).await.unwrap();
     assert_eq!(create_id.get(), 1);
     assert_eq!(world.observation().nonce, NonceState { pending: 0, latest: 0 });
     assert!(world.observation().games.is_empty());
@@ -1568,18 +1552,12 @@ async fn failed_create_before_submission_allows_a_later_create_without_consuming
             .iter()
             .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProposeGame { .. }))
     );
-    scenario
-        .settle(&follow_up.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&follow_up).await.unwrap();
 
     world.set_horizons(0, 0);
     let ready = scenario.tick().await.unwrap();
     assert!(ready.snapshot.in_flight_creation.is_none());
-    scenario
-        .settle(&ready.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&ready).await.unwrap();
 
     world.set_horizons(1, 1);
     let later = scenario.tick().await.unwrap();
@@ -1587,10 +1565,7 @@ async fn failed_create_before_submission_allows_a_later_create_without_consuming
         scheduled.operation,
         OperationSummary::ProposeGame { sequence_number: 1, parent_game_index: u32::MAX }
     )));
-    scenario
-        .settle(&later.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&later).await.unwrap();
     assert_eq!(world.action_record(&target, 2).unwrap().lifecycle, ActionLifecycle::Confirmed);
     assert_eq!(world.observation().games.len(), 1);
 }
@@ -1604,10 +1579,7 @@ async fn reverted_create_consumes_a_nonce_without_creating_a_game() {
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let result = scenario.tick().await.unwrap();
-    scenario
-        .settle(&result.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&result).await.unwrap();
     let observation = world.observation();
     assert_eq!(observation.nonce, NonceState { pending: 1, latest: 1 });
     assert!(observation.games.is_empty());
@@ -1615,10 +1587,7 @@ async fn reverted_create_consumes_a_nonce_without_creating_a_game() {
     world.set_horizons(0, 0);
     let next = scenario.tick().await.unwrap();
     assert!(next.snapshot.in_flight_creation.is_none());
-    scenario
-        .settle(&next.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&next).await.unwrap();
 }
 
 #[tokio::test]
@@ -1632,10 +1601,7 @@ async fn timed_out_create_that_lands_late_is_not_duplicated() {
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
     let timed_out = scenario.tick().await.unwrap();
-    scenario
-        .settle(&timed_out.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&timed_out).await.unwrap();
     assert_eq!(world.observation().nonce, NonceState { pending: 1, latest: 0 });
     assert!(world.observation().games.is_empty());
     assert_eq!(
@@ -1646,10 +1612,7 @@ async fn timed_out_create_that_lands_late_is_not_duplicated() {
 
     let held = scenario.tick().await.unwrap();
     assert!(held.snapshot.in_flight_creation.is_some());
-    scenario
-        .settle(&held.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&held).await.unwrap();
     let pinned_block = world.observation().latest_l1.number;
     scenario.include_transaction(&target, 1, InclusionDepth::LatestOnly).unwrap();
     assert_eq!(world.action_record(&target, 1).unwrap().lifecycle, ActionLifecycle::IncludedLate);
@@ -1672,10 +1635,7 @@ async fn timed_out_create_that_lands_late_is_not_duplicated() {
             .iter()
             .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProposeGame { .. }))
     );
-    scenario
-        .settle(&adopted.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&adopted).await.unwrap();
     let learned = scenario.tick().await.unwrap();
     assert!(learned.snapshot.in_flight_creation.is_none());
     assert!(
@@ -1684,10 +1644,7 @@ async fn timed_out_create_that_lands_late_is_not_duplicated() {
             .iter()
             .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProposeGame { .. }))
     );
-    scenario
-        .settle(&learned.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&learned).await.unwrap();
 }
 
 #[tokio::test]
@@ -1699,10 +1656,7 @@ async fn dropped_create_does_not_block_a_later_create() {
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let timed_out = scenario.tick().await.unwrap();
-    scenario
-        .settle(&timed_out.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&timed_out).await.unwrap();
     assert_eq!(
         world.observation().pending_transactions,
         vec![PendingTransactionObservation { target: target.clone(), attempt: 1, nonce: 0 }]
@@ -1717,18 +1671,12 @@ async fn dropped_create_does_not_block_a_later_create() {
 
     let follow_up = scenario.tick().await.unwrap();
     assert!(follow_up.snapshot.in_flight_creation.is_some());
-    scenario
-        .settle(&follow_up.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&follow_up).await.unwrap();
     world.set_horizons(0, 0);
     let ready = scenario.tick().await.unwrap();
     assert!(ready.snapshot.in_flight_creation.is_none());
     assert!(world.observation().games.is_empty());
-    scenario
-        .settle(&ready.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&ready).await.unwrap();
 
     world.set_horizons(1, 1);
     let later = scenario.tick().await.unwrap();
@@ -1736,10 +1684,7 @@ async fn dropped_create_does_not_block_a_later_create() {
         scheduled.operation,
         OperationSummary::ProposeGame { sequence_number: 1, parent_game_index: u32::MAX }
     )));
-    scenario
-        .settle(&later.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&later).await.unwrap();
     let replacement = world.action_record(&target, 2).unwrap();
     assert_eq!(replacement.lifecycle, ActionLifecycle::Confirmed);
     assert_eq!(
@@ -1787,10 +1732,7 @@ async fn failed_proofs_are_retried_without_blocking_other_games() {
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
     let first = scenario.tick().await.unwrap();
-    scenario
-        .settle(&first.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&first).await.unwrap();
     assert_eq!(world.proof_record(&failed, 1).unwrap().lifecycle, ProofLifecycle::Failed);
     assert_eq!(world.proof_record(&panicked, 1).unwrap().lifecycle, ProofLifecycle::Panicked);
     assert_eq!(world.proof_record(&succeeded, 1).unwrap().lifecycle, ProofLifecycle::Succeeded);
@@ -1810,10 +1752,7 @@ async fn failed_proofs_are_retried_without_blocking_other_games() {
         scheduled.operation,
         OperationSummary::ProveGame { address, .. } if address == panicked.address
     )));
-    scenario
-        .settle(&retry.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&retry).await.unwrap();
     assert_eq!(world.proof_record(&failed, 2).unwrap().lifecycle, ProofLifecycle::Succeeded);
     assert_eq!(world.proof_record(&panicked, 2).unwrap().lifecycle, ProofLifecycle::Succeeded);
 }
@@ -1836,10 +1775,7 @@ async fn failed_resolution_does_not_stop_other_games() {
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let result = scenario.tick().await.unwrap();
-    scenario
-        .settle(&result.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&result).await.unwrap();
     assert_eq!(
         world.action_record(&failed, 1).unwrap().lifecycle,
         ActionLifecycle::PreSubmitFailed
@@ -1867,10 +1803,7 @@ async fn failed_claim_does_not_stop_other_games() {
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let result = scenario.tick().await.unwrap();
-    scenario
-        .settle(&result.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&result).await.unwrap();
     assert_eq!(
         world.action_record(&failed, 1).unwrap().lifecycle,
         ActionLifecycle::PreSubmitFailed
@@ -1889,10 +1822,7 @@ async fn claim_success_unlocks_then_pays_out() {
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let unlock = scenario.tick().await.unwrap();
-    scenario
-        .settle(&unlock.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&unlock).await.unwrap();
     assert_eq!(
         world.action_record(&target, 1).unwrap().effect,
         CommittedEffect::ClaimUnlocked { game: address, amount: U256::from(20) }
@@ -1900,10 +1830,7 @@ async fn claim_success_unlocks_then_pays_out() {
 
     world.set_latest_l1_time(world.observation().latest_l1.timestamp + 20);
     let payout = scenario.tick().await.unwrap();
-    scenario
-        .settle(&payout.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&payout).await.unwrap();
     assert_eq!(
         world.action_record(&target, 2).unwrap().effect,
         CommittedEffect::ClaimPaid { game: address, amount: U256::from(20) }
@@ -1965,10 +1892,7 @@ async fn publishing_a_rotated_prestate_enables_defense_on_the_next_tick() {
         scheduled.operation,
         OperationSummary::ProveGame { address, .. } if address == target.address
     )));
-    scenario
-        .settle(&missing.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&missing).await.unwrap();
 
     world.publish_prestate(rotated);
     let recovered = scenario.tick().await.unwrap();
@@ -1976,9 +1900,6 @@ async fn publishing_a_rotated_prestate_enables_defense_on_the_next_tick() {
         scheduled.operation,
         OperationSummary::ProveGame { address, .. } if address == target.address
     )));
-    scenario
-        .settle(&recovered.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>())
-        .await
-        .unwrap();
+    scenario.settle_scheduled(&recovered).await.unwrap();
     assert_eq!(world.proof_record(&target, 1).unwrap().lifecycle, ProofLifecycle::Succeeded);
 }
