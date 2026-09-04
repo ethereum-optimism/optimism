@@ -193,7 +193,8 @@ impl P2pRpcRequest {
                 kona_macros::record!(
                     histogram,
                     crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS,
-                    _peer_duration.as_secs_f64()
+                    _peer_duration.as_secs_f64(),
+                    crate::Metrics::CHAIN_ID_LABEL => gossip.handler.chain_id_label.clone()
                 );
             }
         }

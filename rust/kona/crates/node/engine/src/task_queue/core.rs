@@ -109,7 +109,11 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             }
         }
 
-        kona_macros::inc!(counter, Metrics::ENGINE_RESET_COUNT);
+        kona_macros::inc!(
+            counter,
+            Metrics::ENGINE_RESET_COUNT,
+            Metrics::CHAIN_ID_LABEL => self.state.chain_id.to_string()
+        );
 
         Ok(start.safe)
     }

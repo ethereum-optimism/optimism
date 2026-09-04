@@ -38,6 +38,8 @@ pub struct AlloyL2ChainProvider {
     block_by_number_cache: LruCache<u64, Arc<OpBlock>>,
     /// The `block_by_hash` LRU cache. Shares its blocks with `block_by_number_cache`.
     block_by_hash_cache: LruCache<B256, Arc<OpBlock>>,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    chain_id_label: Arc<str>,
 }
 
 impl AlloyL2ChainProvider {
@@ -64,12 +66,14 @@ impl AlloyL2ChainProvider {
         cache_size: usize,
         trust_rpc: bool,
     ) -> Self {
+        let chain_id_label = kona_macros::chain_id_label(rollup_config.l2_chain_id.id());
         Self {
             inner,
             trust_rpc,
             rollup_config,
             block_by_number_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
             block_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
+            chain_id_label,
         }
     }
 
@@ -82,7 +86,12 @@ impl AlloyL2ChainProvider {
             return Ok(Arc::clone(block));
         }
 
-        kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_REQUESTS, "method" => "l2_block_by_hash");
+        kona_macros::inc!(
+            gauge,
+            Metrics::L2_CHAIN_PROVIDER_REQUESTS,
+            "method" => "l2_block_by_hash",
+            Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+        );
 
         let block = self
             .inner
@@ -90,7 +99,12 @@ impl AlloyL2ChainProvider {
             .full()
             .await
             .map_err(|e| {
-                kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_ERRORS, "method" => "l2_block_by_hash");
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::L2_CHAIN_PROVIDER_ERRORS,
+                    "method" => "l2_block_by_hash",
+                    Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
                 AlloyL2ChainProviderError::Transport(e)
             })?
             .ok_or(AlloyL2ChainProviderError::BlockHashNotFound(hash))?;
@@ -231,7 +245,12 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
             return Ok(Arc::clone(block));
         }
 
-        kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_REQUESTS, "method" => "l2_block_ref_by_number");
+        kona_macros::inc!(
+            gauge,
+            Metrics::L2_CHAIN_PROVIDER_REQUESTS,
+            "method" => "l2_block_ref_by_number",
+            Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+        );
 
         let block = Arc::new(
             self.inner
@@ -239,7 +258,12 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
                 .full()
                 .await
                 .map_err(|e| {
-                    kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_ERRORS, "method" => "l2_block_ref_by_number");
+                    kona_macros::inc!(
+                        gauge,
+                        Metrics::L2_CHAIN_PROVIDER_ERRORS,
+                        "method" => "l2_block_ref_by_number",
+                        Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                    );
                     AlloyL2ChainProviderError::Transport(e)
                 })?
                 .ok_or(AlloyL2ChainProviderError::BlockNotFound(number))?

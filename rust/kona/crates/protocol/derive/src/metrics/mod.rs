@@ -5,6 +5,10 @@
 pub struct Metrics;
 
 impl Metrics {
+    /// Label key carrying the L2 chain ID, present on every metric emitted by the derivation
+    /// pipeline.
+    pub const CHAIN_ID_LABEL: &str = kona_macros::CHAIN_ID_LABEL;
+
     /// Identifier for the pipeline origin gauge.
     pub const PIPELINE_ORIGIN: &str = "kona_derive_pipeline_origin";
 
@@ -110,9 +114,9 @@ impl Metrics {
     /// * Describes various metrics.
     /// * Initializes metrics to 0 so they can be queried immediately.
     #[cfg(feature = "metrics")]
-    pub fn init() {
+    pub fn init(chain_id: u64) {
         Self::describe();
-        Self::zero();
+        Self::zero(chain_id);
     }
 
     /// Describes metrics.
@@ -230,41 +234,64 @@ impl Metrics {
 
     /// Initializes metrics to 0 so they can be queried immediately.
     #[cfg(feature = "metrics")]
-    pub fn zero() {
-        // The batch reader is by default not set.
-        kona_macros::set!(gauge, Self::PIPELINE_BATCH_READER_SET, 0);
+    pub fn zero(chain_id: u64) {
+        let chain_id = kona_macros::chain_id_label(chain_id);
 
-        // No source data is initially read.
-        kona_macros::set!(gauge, Self::PIPELINE_DATA_AVAILABILITY_PROVIDER, "source", "blobs", 0);
+        // The batch reader is by default not set.
         kona_macros::set!(
             gauge,
-            Self::PIPELINE_DATA_AVAILABILITY_PROVIDER,
-            "source",
-            "calldata",
-            0
+            Self::PIPELINE_BATCH_READER_SET,
+            0,
+            Self::CHAIN_ID_LABEL => chain_id.clone()
         );
 
-        // Manually translate a value of `0` for sys config update as no update yet.
-        kona_macros::set!(gauge, Self::PIPELINE_LATEST_SYS_CONFIG_UPDATE, 0);
-        kona_macros::set!(gauge, Self::PIPELINE_SYS_CONFIG_UPDATE_ERROR, 0);
+        // No source data is initially read.
+        for source in ["blobs", "calldata"] {
+            kona_macros::set!(
+                gauge,
+                Self::PIPELINE_DATA_AVAILABILITY_PROVIDER,
+                0,
+                "source" => source,
+                Self::CHAIN_ID_LABEL => chain_id.clone()
+            );
+        }
 
         // Pipeline signals start at zero.
-        kona_macros::set!(gauge, Self::PIPELINE_SIGNALS, "type", "reset", 0);
-        kona_macros::set!(gauge, Self::PIPELINE_SIGNALS, "type", "activation", 0);
-        kona_macros::set!(gauge, Self::PIPELINE_SIGNALS, "type", "flush_channel", 0);
+        for signal in ["reset", "activation", "flush_channel"] {
+            kona_macros::set!(
+                gauge,
+                Self::PIPELINE_SIGNALS,
+                0,
+                "type" => signal,
+                Self::CHAIN_ID_LABEL => chain_id.clone()
+            );
+        }
 
         // No batches are initially read.
-        kona_macros::set!(gauge, Self::PIPELINE_READ_BATCHES, "type", "single", 0);
-        kona_macros::set!(gauge, Self::PIPELINE_READ_BATCHES, "type", "span", 0);
+        for batch in ["single", "span"] {
+            kona_macros::set!(
+                gauge,
+                Self::PIPELINE_READ_BATCHES,
+                0,
+                "type" => batch,
+                Self::CHAIN_ID_LABEL => chain_id.clone()
+            );
+        }
 
-        // Cumulative counters start at zero.
-        kona_macros::set!(gauge, Self::PIPELINE_STEPS, 0);
-        kona_macros::set!(gauge, Self::PIPELINE_PREPARED_ATTRIBUTES, 0);
-
-        // All buffers can be zeroed out since they are expected to return to zero.
-        kona_macros::set!(gauge, Self::PIPELINE_BATCH_BUFFER, 0);
-        kona_macros::set!(gauge, Self::PIPELINE_CHANNEL_BUFFER, 0);
-        kona_macros::set!(gauge, Self::PIPELINE_FRAME_QUEUE_BUFFER, 0);
-        kona_macros::set!(gauge, Self::PIPELINE_PAYLOAD_ATTRIBUTES_BUFFER, 0);
+        // Unlabelled gauges: sys config updates, cumulative counters and buffers, all of which
+        // are expected to start at (and return to) zero.
+        for metric in [
+            // Manually translate a value of `0` for sys config update as no update yet.
+            Self::PIPELINE_LATEST_SYS_CONFIG_UPDATE,
+            Self::PIPELINE_SYS_CONFIG_UPDATE_ERROR,
+            Self::PIPELINE_STEPS,
+            Self::PIPELINE_PREPARED_ATTRIBUTES,
+            Self::PIPELINE_BATCH_BUFFER,
+            Self::PIPELINE_CHANNEL_BUFFER,
+            Self::PIPELINE_FRAME_QUEUE_BUFFER,
+            Self::PIPELINE_PAYLOAD_ATTRIBUTES_BUFFER,
+        ] {
+            kona_macros::set!(gauge, metric, 0, Self::CHAIN_ID_LABEL => chain_id.clone());
+        }
     }
 }

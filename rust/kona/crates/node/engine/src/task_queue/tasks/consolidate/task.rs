@@ -209,7 +209,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                     let total_duration = global_start.elapsed();
 
                     // Apply a transient update to the safe head.
-                    state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+                    state.sync_state = state.apply_sync_update(EngineSyncStateUpdate {
                         safe_head: Some(block_info),
                         local_safe_head: Some(block_info),
                         ..Default::default()

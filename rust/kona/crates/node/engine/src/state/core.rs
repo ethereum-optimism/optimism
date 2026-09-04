@@ -71,24 +71,34 @@ impl EngineSyncState {
 
     /// Applies the update to the provided sync state, using the current state values if the update
     /// is not specified. Returns the new sync state.
-    pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
+    ///
+    /// Private to this module: callers go through [`EngineState::apply_sync_update`], which
+    /// supplies the chain ID from the state that already owns it.
+    fn apply_update(self, chain_id: u64, sync_state_update: EngineSyncStateUpdate) -> Self {
         if let Some(unsafe_head) = sync_state_update.unsafe_head {
             Self::update_block_label_metric(
+                chain_id,
                 Metrics::UNSAFE_BLOCK_LABEL,
                 unsafe_head.block_info.number,
             );
         }
         if let Some(local_safe_head) = sync_state_update.local_safe_head {
             Self::update_block_label_metric(
+                chain_id,
                 Metrics::LOCAL_SAFE_BLOCK_LABEL,
                 local_safe_head.block_info.number,
             );
         }
         if let Some(safe_head) = sync_state_update.safe_head {
-            Self::update_block_label_metric(Metrics::SAFE_BLOCK_LABEL, safe_head.block_info.number);
+            Self::update_block_label_metric(
+                chain_id,
+                Metrics::SAFE_BLOCK_LABEL,
+                safe_head.block_info.number,
+            );
         }
         if let Some(finalized_head) = sync_state_update.finalized_head {
             Self::update_block_label_metric(
+                chain_id,
                 Metrics::FINALIZED_BLOCK_LABEL,
                 finalized_head.block_info.number,
             );
@@ -102,10 +112,16 @@ impl EngineSyncState {
         }
     }
 
-    /// Updates a block label metric, keyed by the label.
+    /// Updates a block label metric, keyed by the chain ID and the label.
     #[inline]
-    fn update_block_label_metric(label: &'static str, number: u64) {
-        kona_macros::set!(gauge, Metrics::BLOCK_LABELS, "label", label, number as f64);
+    fn update_block_label_metric(chain_id: u64, label: &'static str, number: u64) {
+        kona_macros::set!(
+            gauge,
+            Metrics::BLOCK_LABELS,
+            number as f64,
+            "label" => label,
+            Metrics::CHAIN_ID_LABEL => chain_id.to_string()
+        );
     }
 }
 
@@ -127,6 +143,10 @@ pub struct EngineSyncStateUpdate {
 /// The chain state viewed by the engine controller.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct EngineState {
+    /// The L2 chain ID this engine drives. Emitted as a label on every engine metric so that a
+    /// multi-chain process can tell the per-chain series apart.
+    pub chain_id: u64,
+
     /// The sync state of the engine.
     pub sync_state: EngineSyncState,
 
@@ -142,6 +162,14 @@ pub struct EngineState {
 }
 
 impl EngineState {
+    /// Applies `update` to this state's sync state, returning the new sync state.
+    ///
+    /// [`EngineState`] owns both the sync state and the chain ID that its metrics are labelled
+    /// with, so callers never pass the chain ID across the API boundary themselves.
+    pub fn apply_sync_update(&self, update: EngineSyncStateUpdate) -> EngineSyncState {
+        self.sync_state.apply_update(self.chain_id, update)
+    }
+
     /// Returns if consolidation is needed.
     ///
     /// [Consolidation] is only performed by a rollup node when the unsafe head
@@ -165,7 +193,7 @@ mod test {
     impl EngineState {
         /// Set the unsafe head.
         pub fn set_unsafe_head(&mut self, unsafe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.apply_sync_update(EngineSyncStateUpdate {
                 unsafe_head: Some(unsafe_head),
                 ..Default::default()
             });
@@ -173,7 +201,7 @@ mod test {
 
         /// Set the local safe head.
         pub fn set_local_safe_head(&mut self, local_safe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.apply_sync_update(EngineSyncStateUpdate {
                 local_safe_head: Some(local_safe_head),
                 ..Default::default()
             });
@@ -181,7 +209,7 @@ mod test {
 
         /// Set the safe head.
         pub fn set_safe_head(&mut self, safe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.apply_sync_update(EngineSyncStateUpdate {
                 safe_head: Some(safe_head),
                 ..Default::default()
             });
@@ -189,7 +217,7 @@ mod test {
 
         /// Set the finalized head.
         pub fn set_finalized_head(&mut self, finalized_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.apply_sync_update(EngineSyncStateUpdate {
                 finalized_head: Some(finalized_head),
                 ..Default::default()
             });
@@ -207,20 +235,35 @@ mod test {
         #[case] label_name: &str,
         #[case] number: u64,
     ) {
-        let handle = PrometheusBuilder::new().install_recorder().unwrap();
-        crate::Metrics::init();
+        const CHAIN_ID: u64 = 10;
 
-        let mut state = EngineState::default();
-        set_fn(
-            &mut state,
-            L2BlockInfo {
-                block_info: BlockInfo { number, ..Default::default() },
-                ..Default::default()
-            },
-        );
+        // A local recorder keeps the rstest cases independent; a global one can only be
+        // installed once per process, so all but the first case would fail.
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
 
-        assert!(handle.render().contains(
-            format!("kona_node_block_labels{{label=\"{label_name}\"}} {number}").as_str()
-        ));
+        metrics::with_local_recorder(&recorder, || {
+            crate::Metrics::init(CHAIN_ID);
+
+            let mut state = EngineState { chain_id: CHAIN_ID, ..Default::default() };
+            set_fn(
+                &mut state,
+                L2BlockInfo {
+                    block_info: BlockInfo { number, ..Default::default() },
+                    ..Default::default()
+                },
+            );
+        });
+
+        let rendered = handle.render();
+        // The exporter does not guarantee label ordering, so match the line, not a full string.
+        let line = rendered
+            .lines()
+            .find(|line| line.starts_with(&format!("{}{{", Metrics::BLOCK_LABELS)))
+            .expect("block labels metric was not rendered");
+
+        assert!(line.contains(&format!("label=\"{label_name}\"")), "{line}");
+        assert!(line.contains(&format!("{}=\"{CHAIN_ID}\"", Metrics::CHAIN_ID_LABEL)), "{line}");
+        assert!(line.ends_with(&format!(" {number}")), "{line}");
     }
 }

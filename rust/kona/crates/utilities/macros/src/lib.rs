@@ -8,4 +8,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![no_std]
 
+extern crate alloc;
+
 mod metrics;
+
+mod labels;
+pub use labels::{CHAIN_ID_LABEL, chain_id_label};

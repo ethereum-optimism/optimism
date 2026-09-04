@@ -109,6 +109,11 @@ pub struct ChainStateBuffer {
     max_reorg_depth: u64,
     /// Cache capacity
     capacity: usize,
+    /// The L2 chain ID, pre-rendered as the `chain_id` metric label value.
+    ///
+    /// Cached so the per-query cache-hit/miss emits clone a refcount rather than re-allocating
+    /// the label.
+    chain_id_label: Arc<str>,
 }
 
 impl ChainStateBuffer {
@@ -117,13 +122,15 @@ impl ChainStateBuffer {
     /// # Arguments
     /// * `capacity` - Maximum number of blocks to cache (affects memory usage)
     /// * `max_reorg_depth` - Maximum reorg depth to handle before clearing cache
-    pub fn new(capacity: usize, max_reorg_depth: u64) -> Self {
+    /// * `chain_id` - L2 chain ID, attached to this buffer's metrics as the `chain_id` label
+    pub fn new(capacity: usize, max_reorg_depth: u64, chain_id: u64) -> Self {
         Self {
             blocks_by_hash: RwLock::new(LruCache::new(NonZeroUsize::new(capacity).unwrap())),
             blocks_by_number: RwLock::new(LruCache::new(NonZeroUsize::new(capacity).unwrap())),
             canonical_head: RwLock::new(None),
             max_reorg_depth,
             capacity,
+            chain_id_label: kona_macros::chain_id_label(chain_id),
         }
     }
 
@@ -160,16 +167,16 @@ impl ChainStateBuffer {
             kona_macros::set!(
                 gauge,
                 Metrics::CACHE_ENTRIES,
-                "cache",
-                "blocks_by_hash",
-                blocks_by_hash.len() as f64
+                blocks_by_hash.len() as f64,
+                "cache" => "blocks_by_hash",
+                crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
             );
             kona_macros::set!(
                 gauge,
                 Metrics::CACHE_ENTRIES,
-                "cache",
-                "blocks_by_number",
-                blocks_by_number.len() as f64
+                blocks_by_number.len() as f64,
+                "cache" => "blocks_by_number",
+                crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
             );
         }
     }
@@ -224,7 +231,12 @@ impl ChainStateBuffer {
         #[cfg(feature = "metrics")]
         {
             use crate::Metrics;
-            kona_macros::set!(gauge, Metrics::REORG_DEPTH, depth as f64);
+            kona_macros::set!(
+                gauge,
+                Metrics::REORG_DEPTH,
+                depth as f64,
+                crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
         }
 
         // Update canonical head
@@ -242,7 +254,11 @@ impl ChainStateBuffer {
             #[cfg(feature = "metrics")]
             {
                 use crate::Metrics;
-                kona_macros::inc!(gauge, Metrics::CACHE_CLEARS);
+                kona_macros::inc!(
+                    gauge,
+                    Metrics::CACHE_CLEARS,
+                    crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+                );
             }
         }
 
@@ -303,9 +319,25 @@ impl ChainStateBuffer {
         #[cfg(feature = "metrics")]
         {
             use crate::Metrics;
-            kona_macros::inc!(gauge, Metrics::CACHE_CLEARS);
-            kona_macros::set!(gauge, Metrics::CACHE_ENTRIES, "cache", "blocks_by_hash", 0);
-            kona_macros::set!(gauge, Metrics::CACHE_ENTRIES, "cache", "blocks_by_number", 0);
+            kona_macros::inc!(
+                gauge,
+                Metrics::CACHE_CLEARS,
+                crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
+            kona_macros::set!(
+                gauge,
+                Metrics::CACHE_ENTRIES,
+                0,
+                "cache" => "blocks_by_hash",
+                crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
+            kona_macros::set!(
+                gauge,
+                Metrics::CACHE_ENTRIES,
+                0,
+                "cache" => "blocks_by_number",
+                crate::Metrics::CHAIN_ID_LABEL => self.chain_id_label.clone()
+            );
         }
     }
 }
@@ -389,7 +421,7 @@ mod tests {
 
     #[test]
     fn test_buffer_basic_operations() {
-        let buffer = ChainStateBuffer::new(100, 10);
+        let buffer = ChainStateBuffer::new(100, 10, 10);
 
         let (block, l2_info) = create_test_block(1, B256::ZERO, B256::ZERO);
         let cached_block = CachedBlock::new(block, l2_info);
@@ -411,7 +443,7 @@ mod tests {
 
     #[test]
     fn test_chain_committed_event() {
-        let buffer = ChainStateBuffer::new(100, 10);
+        let buffer = ChainStateBuffer::new(100, 10, 10);
 
         let hash1 = B256::with_last_byte(1);
         let hash2 = B256::with_last_byte(2);
@@ -436,7 +468,7 @@ mod tests {
 
     #[test]
     fn test_reorg_too_deep() {
-        let buffer = ChainStateBuffer::new(100, 5);
+        let buffer = ChainStateBuffer::new(100, 5, 10);
 
         let hash1 = B256::with_last_byte(1);
         let hash2 = B256::with_last_byte(2);
@@ -454,7 +486,7 @@ mod tests {
 
     #[test]
     fn test_cache_stats() {
-        let buffer = ChainStateBuffer::new(100, 10);
+        let buffer = ChainStateBuffer::new(100, 10, 10);
 
         let hash1 = B256::with_last_byte(1);
         let (block, l2_info) = create_test_block(1, hash1, B256::ZERO);
@@ -471,7 +503,7 @@ mod tests {
 
     #[test]
     fn test_clear_cache() {
-        let buffer = ChainStateBuffer::new(100, 10);
+        let buffer = ChainStateBuffer::new(100, 10, 10);
 
         let (block, l2_info) = create_test_block(1, B256::ZERO, B256::ZERO);
         let cached_block = CachedBlock::new(block, l2_info);

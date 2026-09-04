@@ -69,6 +69,7 @@ impl NetCommand {
 
         // Start the Network Stack
         self.p2p.check_ports()?;
+        let l2_chain_id = rollup_config.l2_chain_id.id();
         let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
 
         let (block_tx, mut block_rx) = mpsc::channel(1024);
@@ -111,7 +112,7 @@ impl NetCommand {
 
             // Setup the RPC server with the P2P RPC Module
             let mut launcher = RpcModule::new(());
-            launcher.merge(P2pRpc::new(rpc.clone()).into_rpc())?;
+            launcher.merge(P2pRpc::new(rpc.clone(), l2_chain_id).into_rpc())?;
 
             let server = Server::builder().build(config.socket).await?;
             Some(server.start(launcher))

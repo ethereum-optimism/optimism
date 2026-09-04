@@ -5,6 +5,10 @@
 pub struct Metrics;
 
 impl Metrics {
+    /// Label key carrying the L2 chain ID, present on every metric emitted by the discovery
+    /// service.
+    pub const CHAIN_ID_LABEL: &str = kona_macros::CHAIN_ID_LABEL;
+
     /// Identifier for discv5 events.
     pub const DISCOVERY_EVENT: &str = "kona_node_discovery_events";
 
@@ -23,9 +27,9 @@ impl Metrics {
     /// * Describes various metrics.
     /// * Initializes metrics to 0 so they can be queried immediately.
     #[cfg(feature = "metrics")]
-    pub fn init() {
+    pub fn init(chain_id: u64) {
         Self::describe();
-        Self::zero();
+        Self::zero(chain_id);
     }
 
     /// Describes metrics used in the discovery service.
@@ -49,14 +53,35 @@ impl Metrics {
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
     #[cfg(feature = "metrics")]
-    pub fn zero() {
+    pub fn zero(chain_id: u64) {
+        let chain_id = kona_macros::chain_id_label(chain_id);
+
         // Discovery Event
-        kona_macros::set!(gauge, Self::DISCOVERY_EVENT, "type", "discovered", 0);
-        kona_macros::set!(gauge, Self::DISCOVERY_EVENT, "type", "session_established", 0);
-        kona_macros::set!(gauge, Self::DISCOVERY_EVENT, "type", "unverifiable_enr", 0);
+        for event in ["discovered", "session_established", "unverifiable_enr"] {
+            kona_macros::set!(
+                gauge,
+                Self::DISCOVERY_EVENT,
+                0,
+                "type" => event,
+                Self::CHAIN_ID_LABEL => chain_id.clone()
+            );
+        }
 
         // Peer Counts
-        kona_macros::set!(gauge, Self::DISCOVERY_PEER_COUNT, 0);
-        kona_macros::set!(gauge, Self::FIND_NODE_REQUEST, 0);
+        kona_macros::set!(
+            gauge,
+            Self::DISCOVERY_PEER_COUNT,
+            0,
+            Self::CHAIN_ID_LABEL => chain_id.clone()
+        );
+        // The emit site in `driver.rs` tags this gauge with a constant `find_node` label, so the
+        // pre-created series has to carry it too or it is never the one incremented.
+        kona_macros::set!(
+            gauge,
+            Self::FIND_NODE_REQUEST,
+            0,
+            "find_node" => "find_node",
+            Self::CHAIN_ID_LABEL => chain_id
+        );
     }
 }
