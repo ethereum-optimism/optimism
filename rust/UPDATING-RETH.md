@@ -1,7 +1,7 @@
 # Updating the reth dependency
 
-The Rust workspace pins ~70 `reth-*` crates from `paradigmxyz/reth` to a single
-git ref in [`rust/Cargo.toml`](Cargo.toml) — `tag = "vX.Y.Z"` when tracking a
+The Rust workspace pins ~70 `reth-*` crates to a single git ref, from upstream
+`paradigmxyz/reth` or from an OP-maintained fork of it, in [`rust/Cargo.toml`](Cargo.toml) — `tag = "vX.Y.Z"` when tracking a
 release (the normal case; self-documenting), or `rev = "<sha>"` when pinning a
 non-release commit. This guide describes how to bump that pin safely and keep
 the shared `revm`/`alloy` versions in sync with it.
@@ -33,6 +33,17 @@ main's CI actually validated.
    (`gh api repos/paradigmxyz/reth/commits/<sha>/pulls`) — and verify each
    carried change is contained in, or explicitly superseded by, the target.
    Never silently drop a fix the pin was carrying.
+
+   The same audit applies to the fork itself. Our pin is OP's reth fork, whose
+   branch is an upstream revision plus cherry-picks that have not merged
+   upstream yet, so every bump has to triage them one by one: list the commits
+   the branch carries on top of its upstream base
+   (`git log --oneline <upstream-base>..<pin>`) and for each decide whether it
+   has landed upstream. If it has, drop it — the bump already contains it, and
+   replaying it will conflict or silently double-apply. If it has not, it must
+   be replayed on top of the new upstream revision or the bump regresses it.
+   When it is unclear whether a patch landed — a rewritten or squashed upstream
+   equivalent is the usual ambiguous case — ask rather than guess.
 
 3. Update the pin in `rust/Cargo.toml`.
 
@@ -83,6 +94,18 @@ main's CI actually validated.
    keeps the manifest honest about what we actually build against and signals
    the sync to downstream consumers (e.g. Hardhat tracking `op-revm`).
 
+   Conversely, do **not** bump the `version` of our own published crates
+   (`op-revm`, `alloy-op-evm`, `alloy-op-hardforks`, `op-alloy*`) as a side
+   effect of a pin bump. Downstream consumers pin them by version requirement
+   and redirect the source with `[patch.crates-io]` — Flashbots' `op-rbuilder`
+   does this for eight of them, against a monorepo tag. If our version stops
+   satisfying their requirement, cargo only *warns* that the patch went unused
+   and silently resolves the crates.io version instead. Note the 0.x crates are
+   the fragile ones: `alloy-op-evm` at `0.32.x` breaks on a **minor** bump,
+   while `op-revm` at `20.x` only breaks on a major. If a bump genuinely needs
+   one, call it out in the PR description so the downstream pin can move with
+   it.
+
 5. Refresh both lockfiles — the main workspace and the SP1 guest programs
    workspace each have their own. `cargo update -p reth` does **not** work —
    there is no top-level crate literally named `reth` in the dependency graph.
@@ -132,6 +155,19 @@ main's CI actually validated.
    never invent logic. Any new semantic branch (even fork-gated and inert
    today) gets a unit test, verified red against a deliberately broken variant
    and green against the real code.
+
+   The compiler will not point you at the overrides that *should* have changed
+   but didn't. Two things to do by hand:
+
+   - `just mirrors stale` lists the OP code that reproduces upstream logic and
+     hasn't been verified since before this pin. Work through it, and advance
+     the version in each `UPSTREAM-MIRROR` tag only once you've actually
+     re-checked that mirror. See `docs/ai/reth-upstream-mirrors.md`.
+   - For anything touching validation or gas, ask which upstream precondition
+     makes the change safe and whether the OP Stack holds it. Deposits skip
+     `validate_env` outright, which exempts them from a long list of checks
+     upstream may treat as guaranteed. `docs/ai/reth-update-review.md`,
+     "The precondition question", has the list and the procedure.
 
 8. Build, format, and test before pushing:
 
@@ -220,8 +256,15 @@ onto an older base, or accept the broader catch-up work as part of the bump.
 ## See also
 
 - `docs/ai/reth-update-review.md` — the review guide for these bumps: the risk
-  taxonomy and the `reth-update-reviewer` agent that surfaces upstream changes
-  which should have forced an op- change but didn't.
+  taxonomy, the deliberately-broken upstream preconditions to check against, and
+  the `reth-update-reviewer` agent that surfaces upstream changes which should
+  have forced an op- change but didn't.
+- `docs/ai/reth-upstream-mirrors.md` — the `UPSTREAM-MIRROR` tags marking OP code
+  that reproduces upstream logic instead of calling it, each recording the
+  upstream version it was last verified against. `just mirrors stale` turns them
+  into the worklist for a bump.
+- `rust/scripts/upstream-mirrors.py` — the tag checker behind `just mirrors` and
+  `just check-upstream-mirrors` (the latter runs as part of `just lint`).
 - `docs/ai/rust-dev.md` — broader Rust workflow (build, test, lint).
 - `rust/Cargo.toml` — where the pin lives (~70 occurrences).
 - `rust/kona/sp1/programs/Cargo.lock` — the second lockfile; refresh it when

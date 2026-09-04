@@ -1,4 +1,10 @@
 //! [`FpvmOpTx`] newtype wrapper around [`OpTransaction<TxEnv>`].
+//!
+//! This duplicates `alloy_op_evm::OpTx`: modulo the type name, every `Transaction` method
+//! body and every `FromRecoveredTx`/`FromTxWithEncoded` conversion here is identical to
+//! `alloy-op-evm/src/tx.rs`. Those conversions track upstream revm and alloy types, so both
+//! copies need the same edits and nothing enforces it. `alloy_op_evm::OpTx` is public and
+//! already a dependency of this crate — prefer deleting this module over syncing it.
 
 use alloy_consensus::{
     Signed, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy,
