@@ -1851,7 +1851,8 @@ jobs:
                 mentions: "<<parameters.mentions>>"
 
   # Runs the op-e2e action tests against the out-of-process op-reth-test-engine
-  # execution layer (the go-tests jobs above cover the in-process op-geth EL).
+  # execution layer (their only EL; the packages are excluded from the go-tests
+  # sweep, which has no engine binary).
   # The engine binary comes prebuilt from the rust-op-reth-binary workspace;
   # REQUIRE_RUST_ENGINE turns a missing binary into a hard failure so a
   # provisioning bug cannot silently skip the reth coverage.

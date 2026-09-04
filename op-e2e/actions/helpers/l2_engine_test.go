@@ -29,7 +29,6 @@ import (
 
 func TestL2EngineAPI(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
@@ -39,7 +38,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
 	sd.L2Cfg.MustCommit(db, tdb)
 
-	engine := NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg)
 
 	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
@@ -105,7 +104,6 @@ func TestL2EngineAPI(gt *testing.T) {
 
 func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
@@ -114,7 +112,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
 	sd.L2Cfg.MustCommit(db, tdb)
 
-	engine := NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg)
 	t.Cleanup(func() {
 		_ = engine.Close()
 	})
@@ -206,11 +204,10 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 
 func TestL2EngineAPIFail(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	engine := NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg)
 	// mock an RPC failure
 	mockErr := errors.New("mock L2 RPC error")
 	engine.ActL2RPCFail(t, mockErr)
