@@ -119,8 +119,14 @@ func addGameTypesForRuntime(
 	}
 	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
 
-	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
-	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
+	var cannonKonaPrestate common.Hash
+	if enabled[gameTypes.CannonKonaGameType] {
+		cannonKonaPrestate = PrestateForGameType(t, gameTypes.CannonKonaGameType)
+	}
+	var superCannonKonaPrestate common.Hash
+	if enabled[gameTypes.SuperCannonKonaGameType] {
+		superCannonKonaPrestate = PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
+	}
 	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
 	startingAnchorRoot := opcm.DefaultStartingAnchorRoot
 	if enabled[gameTypes.SuperCannonKonaGameType] {
@@ -154,9 +160,9 @@ func addGameTypesForRuntime(
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime()
 	}
 
-	// OPCMv2 requires all 6 game configs in order. Keep the legacy Cannon Kona
-	// slot available for pre-Isthmus hard-fork tests while using super-root games
-	// for post-migration configurations.
+	// OPCMv2 requires all 6 game configs in order, so disabled slots are still listed.
+	// CANNON is never installed. PERMISSIONED_CANNON and CANNON_KONA are enabled only for the
+	// acceptance tests that still cover legacy output-root game play.
 	configs := []embedded.DisputeGameConfig{
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
 		{

@@ -62,7 +62,6 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
     function setUp() public override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
         vm.deal(flipProposer, 100 ether);
         vm.deal(flipChallenger, 100 ether);

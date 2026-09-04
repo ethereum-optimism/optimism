@@ -22,9 +22,10 @@ type genesisOutput struct {
 // ComputeGenesisOutputRoots builds the L2 genesis block for every chain that has not been deployed
 // yet, then computes and persists each chain's genesis block hash and starting anchor proposal.
 //
-// It runs in two passes: The first pass derives each chain's own V0 output root, the second decides
-// what is handed to the AnchorStateRegistry and is the only writer of StartingAnchorRoot, so the
-// two game families cannot drift apart.
+// Every prepared chain receives the same SuperV1 root over the dependency set, because both
+// supported initial game types are super-root games. This is the only writer of
+// StartingAnchorRoot. A dependency-set member that is already deployed is rejected, not skipped:
+// its on-chain anchor cannot be replaced.
 func ComputeGenesisOutputRoots(pEnv *Env, intent *state.Intent, st *state.State) error {
 	lgr := pEnv.Logger.New("stage", "compute-genesis-output-root")
 
@@ -34,8 +35,8 @@ func ComputeGenesisOutputRoots(pEnv *Env, intent *state.Intent, st *state.State)
 		if st.IsChainDeployed(chain.ID) {
 			// A deployed chain's on-chain anchor is immutable, and chains deployed via plain apply
 			// never populate these fields, so writing them here would fabricate values unrelated
-			// to what is actually on L1.
-			lgr.Info("chain already deployed, leaving its genesis output root alone", "id", chain.ID.Hex())
+			// to what is actually on L1. The super-root pass below rejects it as a member.
+			lgr.Info("chain already deployed; its on-chain anchor cannot be re-anchored to a new super root", "id", chain.ID.Hex())
 			continue
 		}
 		out, err := computeGenesisOutput(lgr, intent, st, chain.ID)
@@ -45,14 +46,7 @@ func ComputeGenesisOutputRoots(pEnv *Env, intent *state.Intent, st *state.State)
 		outputs[chain.ID] = out
 	}
 
-	useSuperRoots, err := DeploymentUsesSuperRoots(intent, st)
-	if err != nil {
-		return err
-	}
-	if useSuperRoots {
-		return setSuperRootAnchors(lgr, intent, st, outputs)
-	}
-	return setOutputRootAnchors(lgr, intent, st, outputs)
+	return setSuperRootAnchors(lgr, intent, st, outputs)
 }
 
 // computeGenesisOutput builds one chain's L2 genesis block from its generated allocs,
@@ -116,27 +110,6 @@ func computeGenesisOutput(lgr log.Logger, intent *state.Intent, st *state.State,
 	return genesisOutput{outputRoot: common.Hash(outputRoot), timestamp: header.Time}, nil
 }
 
-// setOutputRootAnchors seeds each chain with its own plain V0 genesis output root. For output-root
-// games l2SequenceNumber is an L2 block number, and the genesis block is 0.
-func setOutputRootAnchors(lgr log.Logger, intent *state.Intent, st *state.State, outputs map[common.Hash]genesisOutput) error {
-	for _, chain := range intent.Chains {
-		out, ok := outputs[chain.ID]
-		if !ok {
-			continue
-		}
-		if err := setStartingAnchor(st, chain.ID, out.outputRoot, 0); err != nil {
-			return err
-		}
-		lgr.Info(
-			"committed genesis anchor",
-			"id", chain.ID.Hex(),
-			"anchorRoot", out.outputRoot,
-			"anchorSequenceNumber", 0,
-		)
-	}
-	return nil
-}
-
 // setSuperRootAnchors seeds every chain with the one SuperV1 root covering the whole dependency
 // set. Each chain keeps its own AnchorStateRegistry (registries are never shared) but all of
 // them are anchored to the same cluster-wide super root.
@@ -163,7 +136,8 @@ func setSuperRootAnchors(lgr log.Logger, intent *state.Intent, st *state.State, 
 		if !ok {
 			return fmt.Errorf(
 				"cannot compute a super-root genesis anchor: dependency set member %s has no genesis output root in this run; "+
-					"it is either already deployed, in which case run op-deployer continue to reuse the committed anchors, "+
+					"it is either already deployed, in which case its on-chain anchor cannot join a new super root "+
+					"(run op-deployer continue to finish a partial deployment, or add new chains in a fresh workdir), "+
 					"or missing from the intent",
 				id.Hex(),
 			)

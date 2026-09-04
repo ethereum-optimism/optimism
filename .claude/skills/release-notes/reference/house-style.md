@@ -134,11 +134,9 @@ grep -rl '<fork>_time' superchain-registry/superchain/configs/mainnet/
 grep -rl '<fork>_time' superchain-registry/superchain/configs/sepolia/
 ```
 
-For a `DevFeatures` bit, the default is the answer: anything behind a DevFeature that isn't
-forced to `true` should be considered disabled and not yet in production — we ship the
-defaults for feature toggles. `docs/ai/devfeatures.md` lists them; today only
-`SuperRootGamesMigration` is default-on, so everything else behind a bit is dormant unless a
-chain has explicitly set it.
+For a `DevFeatures` bit, the bitmap is the answer: code behind an unset bit is disabled and
+not yet in production. `docs/ai/devfeatures.md` lists the active bits. Confirm whether a chain
+has explicitly set one before describing the feature as live.
 
 For anything expressed neither as a hardfork nor a DevFeature — dispute game types, say —
 there is no equivalent lookup, so ask the release manager rather than guessing.

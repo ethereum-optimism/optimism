@@ -27,10 +27,7 @@ const (
 	ProofMaturityDelaySeconds       uint64 = 604800
 	DisputeGameFinalityDelaySeconds uint64 = 302400
 	MIPSVersion                     uint64 = 8
-	// DisputeGameType is the SUPER_PERMISSIONED game type. DeployOPChain requires the initial game
-	// type to match the OPCM's family, and SUPER_ROOT_GAMES_MIGRATION is enabled by default, so the
-	// permissioned selector for a standard deploy is the super root one.
-	// TODO(#21662): revisit with the broader SuperRootGamesMigration cleanup.
+	// DisputeGameType is the SUPER_PERMISSIONED game type used for standard deployments.
 	DisputeGameType          uint32 = 5
 	DisputeMaxGameDepth      uint64 = 73
 	DisputeSplitDepth        uint64 = 30

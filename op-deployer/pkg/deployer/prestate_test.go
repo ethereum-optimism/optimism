@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -53,7 +55,7 @@ func TestPrestateRoleSourceResolution(t *testing.T) {
 			if test.global != "" {
 				global[state.FaultGameAbsolutePrestateOverrideKey] = with0xPrefix(test.global)
 			}
-			overrides := gameOverride(embedded.GameTypeCannonKona)
+			overrides := gameOverride(embedded.GameTypeSuperCannonKona)
 			if test.chain != "" {
 				overrides[state.FaultGameAbsolutePrestateOverrideKey] = test.chain
 			}
@@ -98,7 +100,7 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 			}
 			t.Run(source+"/"+invalid.name, func(t *testing.T) {
 				global := map[string]any{state.FaultGameAbsolutePrestateOverrideKey: valid}
-				overrides := gameOverride(embedded.GameTypeCannonKona)
+				overrides := gameOverride(embedded.GameTypeSuperCannonKona)
 				cfgValue := false
 				switch source {
 				case "command":
@@ -142,7 +144,7 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 		t.Run("invalid global hidden by chain/"+invalid.name, func(t *testing.T) {
 			global := map[string]any{state.FaultGameAbsolutePrestateOverrideKey: invalid.value}
 			overrides := map[string]any{
-				"respectedGameType":                        embedded.GameTypeCannonKona,
+				"respectedGameType":                        embedded.GameTypeSuperCannonKona,
 				state.FaultGameAbsolutePrestateOverrideKey: valid,
 			}
 			workdir := writePrestateWorkdir(t, global, []prestateTestChain{{id: chainID, prepared: true, overrides: overrides}}, true, 1)
@@ -159,7 +161,7 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 
 		t.Run("invalid chain alongside command/"+invalid.name, func(t *testing.T) {
 			overrides := map[string]any{
-				"respectedGameType":                        embedded.GameTypeCannonKona,
+				"respectedGameType":                        embedded.GameTypeSuperCannonKona,
 				state.FaultGameAbsolutePrestateOverrideKey: invalid.value,
 			}
 			workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{id: chainID, prepared: true, overrides: overrides}}, true, 1)
@@ -191,23 +193,6 @@ func TestPrestateRejectsPermissionedPlaceholderAcrossSources(t *testing.T) {
 		global      map[string]any
 	}{
 		{
-			name:        "CANNON_KONA command/environment",
-			gameType:    embedded.GameTypeCannonKona,
-			source:      "command/environment",
-			environment: true,
-		},
-		{
-			name:     "CANNON_KONA global override",
-			gameType: embedded.GameTypeCannonKona,
-			source:   "global override",
-			global:   map[string]any{state.FaultGameAbsolutePrestateOverrideKey: placeholder},
-		},
-		{
-			name:     "CANNON_KONA chain override",
-			gameType: embedded.GameTypeCannonKona,
-			source:   "chain override",
-		},
-		{
 			name:     "SUPER_CANNON_KONA command/environment",
 			gameType: embedded.GameTypeSuperCannonKona,
 			source:   "command/environment",
@@ -225,7 +210,7 @@ func TestPrestateRejectsPermissionedPlaceholderAcrossSources(t *testing.T) {
 		},
 		{
 			name:     "reserved lower-precedence command alongside valid global override",
-			gameType: embedded.GameTypeCannonKona,
+			gameType: embedded.GameTypeSuperCannonKona,
 			source:   "command/environment",
 			global:   map[string]any{state.FaultGameAbsolutePrestateOverrideKey: valid},
 		},
@@ -323,7 +308,7 @@ func TestPrestatePermissionedPlaceholderScope(t *testing.T) {
 			{
 				id:        chainB,
 				prepared:  true,
-				overrides: gameOverride(embedded.GameTypeCannonKona),
+				overrides: gameOverride(embedded.GameTypeSuperCannonKona),
 			},
 		}, true, 1)
 		cfg := newTestPrestateConfig(t, workdir)
@@ -402,20 +387,9 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 			want:   map[common.Hash]common.Hash{chainA: {}},
 		},
 		{
-			name:   "legacy permissioned absolute prestate is not copied",
+			name:   "permissioned absolute prestate is not copied",
 			chains: []prestateTestChain{{id: chainA, prepared: true, overrides: map[string]any{state.FaultGameAbsolutePrestateOverrideKey: selected}}},
 			want:   map[common.Hash]common.Hash{chainA: {}},
-		},
-		{
-			name:      "CANNON_KONA commits selected",
-			chains:    []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)}},
-			configure: setCommandPrestate(selected),
-			want:      map[common.Hash]common.Hash{chainA: common.HexToHash(selected)},
-		},
-		{
-			name:         "CANNON_KONA rejects missing selected",
-			chains:       []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)}},
-			wantErrParts: []string{"CANNON_KONA", "requires selected prestate"},
 		},
 		{
 			name:      "SUPER_CANNON_KONA commits selected",
@@ -439,27 +413,6 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 			chains:       []prestateTestChain{{id: chainA, prepared: true, overrides: map[string]any{"respectedGamType": embedded.GameTypeCannonKona}}},
 			configure:    setCommandPrestate(selected),
 			wantErrParts: []string{"--" + PrestateFlagName, "no undeployed chain resolves", "respectedGameType"},
-		},
-		{
-			name: "permissioned plus CANNON_KONA succeeds",
-			chains: []prestateTestChain{
-				{id: chainA, prepared: true, initialSelected: stale},
-				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)},
-			},
-			configure: setCommandPrestate(selected),
-			want: map[common.Hash]common.Hash{
-				chainA: {},
-				chainB: common.HexToHash(selected),
-			},
-		},
-		{
-			name: "CANNON_KONA plus SUPER_CANNON_KONA fails",
-			chains: []prestateTestChain{
-				{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)},
-				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)},
-			},
-			configure:    setCommandPrestate(selected),
-			wantErrParts: []string{"cannot mix CANNON_KONA and SUPER_CANNON_KONA"},
 		},
 		{
 			name: "multiple SUPER_CANNON_KONA chains commit selected",
@@ -493,7 +446,7 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 					overrides:       map[string]any{"respectedGameType": embedded.GameTypeCannonKona, state.FaultGameAbsolutePrestateOverrideKey: testPrestate("33")},
 					initialSelected: stale,
 				},
-				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)},
+				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)},
 			},
 			configure: setCommandPrestate(selected),
 			want: map[common.Hash]common.Hash{
@@ -607,8 +560,8 @@ func TestPrestateCommandValueFansOutOnlyToApplicableChains(t *testing.T) {
 	selected := testPrestate("11")
 	workdir := writePrestateWorkdir(t, nil, []prestateTestChain{
 		{id: chainA, prepared: true},
-		{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)},
-		{id: chainC, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)},
+		{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)},
+		{id: chainC, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)},
 	}, true, 1)
 	cfg := newTestPrestateConfig(t, workdir)
 	cfg.Prestate = selected
@@ -646,8 +599,8 @@ func TestPrestatePreconditionsAndAtomicity(t *testing.T) {
 		{
 			name: "unknown later chain creates no entry", prepared: true, version: 1,
 			chains: []prestateTestChain{
-				{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona), initialSelected: oldSelected},
-				{id: chainB, prepared: false, overrides: gameOverride(embedded.GameTypeCannonKona)},
+				{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialSelected: oldSelected},
+				{id: chainB, prepared: false, overrides: gameOverride(embedded.GameTypeSuperCannonKona)},
 			},
 			configure: setCommandPrestate(selected), wantErr: "prepared chain " + chainB.Hex() + " disappeared",
 		},
@@ -655,8 +608,8 @@ func TestPrestatePreconditionsAndAtomicity(t *testing.T) {
 			name: "conflict after earlier chain resolves", prepared: true, version: 1,
 			global: map[string]any{state.FaultGameAbsolutePrestateOverrideKey: selected},
 			chains: []prestateTestChain{
-				{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona), initialSelected: oldSelected},
-				{id: chainB, prepared: true, overrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona, state.FaultGameAbsolutePrestateOverrideKey: testPrestate("44")}},
+				{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialSelected: oldSelected},
+				{id: chainB, prepared: true, overrides: map[string]any{"respectedGameType": embedded.GameTypeSuperCannonKona, state.FaultGameAbsolutePrestateOverrideKey: testPrestate("44")}},
 			},
 			configure: setCommandPrestate(selected), wantErr: "conflicting selected prestate sources",
 		},
@@ -713,7 +666,7 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			name:   "game type changed",
 			chains: []prestateTestChain{{id: chainA, prepared: true}},
 			mutate: func(intent *state.Intent, _ *state.State) {
-				intent.Chains[0].DeployOverrides = gameOverride(embedded.GameTypeCannonKona)
+				intent.Chains[0].DeployOverrides = gameOverride(embedded.GameTypeSuperCannonKona)
 			},
 			// ValidatePreparedDeployment runs before the per-chain game type check, so the
 			// snapshot comparison reports the drift first.
@@ -725,7 +678,7 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			mutate: func(intent *state.Intent, _ *state.State) {
 				intent.Chains = append(intent.Chains, &state.ChainIntent{
 					ID:              chainB,
-					DeployOverrides: gameOverride(embedded.GameTypePermissionedCannon),
+					DeployOverrides: gameOverride(embedded.GameTypeSuperPermissioned),
 				})
 			},
 			wantErrs: []string{"deployment intent changed after prepare", "rerun op-deployer prepare"},
@@ -780,31 +733,40 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 }
 
 func TestPrestateRejectsUnsupportedPreparedGameTypeWithoutWritingState(t *testing.T) {
-	chainID := common.HexToHash("0x01")
-	workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
-		id:        chainID,
-		prepared:  true,
-		overrides: gameOverride(embedded.GameTypePermissionedCannon),
-	}}, true, 1)
-	intent, err := pipeline.ReadIntent(workdir)
-	require.NoError(t, err)
-	st, err := pipeline.ReadState(workdir)
-	require.NoError(t, err)
-	intent.Chains[0].DeployOverrides = gameOverride(embedded.GameTypeZKDisputeGame)
-	st.PreparedDeployment.Intent.Chains[0].DeployOverrides = gameOverride(embedded.GameTypeZKDisputeGame)
-	require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
-	require.NoError(t, pipeline.WriteState(workdir, st))
-	statePath := filepath.Join(workdir, "state.json")
-	before, err := os.ReadFile(statePath)
-	require.NoError(t, err)
+	for _, gameType := range []embedded.GameType{
+		embedded.GameTypePermissionedCannon,
+		embedded.GameTypeCannonKona,
+		embedded.GameTypeZKDisputeGame,
+	} {
+		t.Run(fmt.Sprintf("%d", gameType), func(t *testing.T) {
+			chainID := common.HexToHash("0x01")
+			workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
+				id:        chainID,
+				prepared:  true,
+				overrides: gameOverride(embedded.GameTypeSuperPermissioned),
+			}}, true, 1)
+			intent, err := pipeline.ReadIntent(workdir)
+			require.NoError(t, err)
+			st, err := pipeline.ReadState(workdir)
+			require.NoError(t, err)
+			intent.Chains[0].DeployOverrides = gameOverride(gameType)
+			st.PreparedDeployment.Intent.Chains[0].DeployOverrides = gameOverride(gameType)
+			st.Chains[0].InitialGameType = ptr.New(uint32(gameType))
+			require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
+			require.NoError(t, pipeline.WriteState(workdir, st))
+			statePath := filepath.Join(workdir, "state.json")
+			before, err := os.ReadFile(statePath)
+			require.NoError(t, err)
 
-	err = Prestate(context.Background(), newTestPrestateConfig(t, workdir))
-	require.ErrorContains(t, err, chainID.Hex())
-	require.ErrorContains(t, err, "unsupported initial dispute game type 10")
+			err = Prestate(context.Background(), newTestPrestateConfig(t, workdir))
+			require.ErrorContains(t, err, chainID.Hex())
+			require.ErrorContains(t, err, fmt.Sprintf("unsupported initial dispute game type %d", gameType))
 
-	after, readErr := os.ReadFile(statePath)
-	require.NoError(t, readErr)
-	require.Equal(t, before, after)
+			after, readErr := os.ReadFile(statePath)
+			require.NoError(t, readErr)
+			require.Equal(t, before, after)
+		})
+	}
 }
 
 func TestPrestateAllowsAbsolutePrestateChangeAfterPrepare(t *testing.T) {
@@ -815,7 +777,7 @@ func TestPrestateAllowsAbsolutePrestateChangeAfterPrepare(t *testing.T) {
 		id:       chainID,
 		prepared: true,
 		overrides: map[string]any{
-			"respectedGameType":                        embedded.GameTypeCannonKona,
+			"respectedGameType":                        embedded.GameTypeSuperCannonKona,
 			state.FaultGameAbsolutePrestateOverrideKey: initial,
 		},
 	}}, true, 1)
@@ -834,7 +796,7 @@ func TestPrestatePersistenceReplacementAndIdempotency(t *testing.T) {
 	selectedA := testPrestate("11")
 	selectedB := testPrestate("33")
 	workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
-		id: chainID, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona),
+		id: chainID, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona),
 	}}, true, 1)
 
 	cfg := newTestPrestateConfig(t, workdir)
@@ -867,7 +829,7 @@ func TestPrestateEnvironmentOnly(t *testing.T) {
 	selected := testPrestate("11")
 	t.Setenv("DEPLOYER_DISPUTE_ABSOLUTE_PRESTATE", selected)
 	workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
-		id: chainID, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona),
+		id: chainID, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona),
 	}}, true, 1)
 	cfg := parsePrestateCLIConfig(t, []string{"--" + WorkdirFlagName, workdir})
 
@@ -879,7 +841,7 @@ func TestNewPrestateConfigPreservesExplicitEmptyEnvironment(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	t.Setenv("DEPLOYER_DISPUTE_ABSOLUTE_PRESTATE", "")
 	workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
-		id: chainID, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona),
+		id: chainID, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona),
 	}}, true, 1)
 	cfg := parsePrestateCLIConfig(t, []string{"--" + WorkdirFlagName, workdir})
 	require.Empty(t, cfg.Prestate)

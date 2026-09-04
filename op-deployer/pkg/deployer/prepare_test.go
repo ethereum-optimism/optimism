@@ -32,7 +32,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
@@ -162,18 +161,13 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 		usesPredictionAnchor bool
 	}{
 		{
-			name:                 "CANNON_KONA",
-			gameType:             embedded.GameTypeCannonKona,
-			usesPredictionAnchor: true,
-		},
-		{
 			name:                 "SUPER_CANNON_KONA",
 			gameType:             embedded.GameTypeSuperCannonKona,
 			usesPredictionAnchor: true,
 		},
 		{
-			name:     "PERMISSIONED_CANNON",
-			gameType: embedded.GameTypePermissionedCannon,
+			name:     "SUPER_PERMISSIONED",
+			gameType: embedded.GameTypeSuperPermissioned,
 		},
 	}
 
@@ -195,15 +189,7 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 				require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 			}
 
-			switch tt.gameType {
-			case embedded.GameTypeCannonKona:
-				require.Equal(t, opcm.PermissionedCannonFallbackPrestatePlaceholder, dci.CannonAbsolutePrestate)
-				require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
-			case embedded.GameTypeSuperCannonKona:
-				require.Zero(t, dci.CannonAbsolutePrestate)
-			default:
-				require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
-			}
+			require.Zero(t, dci.CannonAbsolutePrestate)
 		})
 	}
 }
@@ -226,6 +212,16 @@ func TestMakePredictionInput_RejectsInvalidInitialGameType(t *testing.T) {
 			name:     "CANNON",
 			gameType: uint32(embedded.GameTypeCannon),
 			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "PERMISSIONED_CANNON",
+			gameType: uint32(embedded.GameTypePermissionedCannon),
+			wantErr:  "unsupported initial dispute game type 1",
+		},
+		{
+			name:     "CANNON_KONA",
+			gameType: uint32(embedded.GameTypeCannonKona),
+			wantErr:  "unsupported initial dispute game type 8",
 		},
 		{
 			name:     "ZK_DISPUTE_GAME",
@@ -325,56 +321,6 @@ func TestCheckOPCMHasCode(t *testing.T) {
 	err := checkOPCMHasCode(ctx, newClient(t, "0x"), opcmAddr)
 	require.ErrorContains(t, err, "no contract code at intent.opcmAddress")
 	require.ErrorContains(t, err, opcmAddr.Hex())
-}
-
-func TestValidateInitialGameTypes(t *testing.T) {
-	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
-
-	newIntent := func(gameTypes ...uint32) (*state.Intent, *state.State) {
-		intent := &state.Intent{}
-		st := &state.State{}
-		for i, gameType := range gameTypes {
-			id := common.BigToHash(big.NewInt(int64(i + 1)))
-			intent.Chains = append(intent.Chains, &state.ChainIntent{
-				ID:              id,
-				DeployOverrides: map[string]any{"respectedGameType": gameType},
-			})
-			st.Chains = append(st.Chains, &state.ChainState{ID: id, Deployed: ptr.New(false)})
-		}
-		return intent, st
-	}
-
-	t.Run("accepts the family the OPCM installs", func(t *testing.T) {
-		intent, st := newIntent(uint32(embedded.GameTypeSuperCannonKona), uint32(embedded.GameTypeSuperPermissioned))
-		require.NoError(t, validateInitialGameTypes(intent, st, true, opcmAddr))
-
-		intent, st = newIntent(uint32(embedded.GameTypeCannonKona), uint32(embedded.GameTypePermissionedCannon))
-		require.NoError(t, validateInitialGameTypes(intent, st, false, opcmAddr))
-	})
-
-	t.Run("rejects the other family, naming the chain and the alternatives", func(t *testing.T) {
-		intent, st := newIntent(uint32(embedded.GameTypeCannonKona))
-		err := validateInitialGameTypes(intent, st, true, opcmAddr)
-		require.ErrorContains(t, err, intent.Chains[0].ID.Hex())
-		require.ErrorContains(t, err, "CANNON_KONA (8) is not deployable by the OPCM")
-		require.ErrorContains(t, err, opcmAddr.Hex())
-		require.ErrorContains(t, err, "SUPER_CANNON_KONA (9) or SUPER_PERMISSIONED (5)")
-	})
-
-	t.Run("skips chains already deployed", func(t *testing.T) {
-		intent, st := newIntent(uint32(embedded.GameTypeCannonKona))
-		st.Chains[0].Deployed = ptr.New(true)
-		require.NoError(t, validateInitialGameTypes(intent, st, true, opcmAddr))
-	})
-
-	t.Run("validates a chain with no state entry yet", func(t *testing.T) {
-		intent, _ := newIntent(uint32(embedded.GameTypeCannonKona))
-		require.ErrorContains(
-			t,
-			validateInitialGameTypes(intent, &state.State{}, true, opcmAddr),
-			"is not deployable by the OPCM",
-		)
-	})
 }
 
 func TestResolveSuperchainConfigProxy(t *testing.T) {
@@ -698,11 +644,14 @@ func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 		SuperchainConfigProxy: &superchainConfig,
 		GlobalDeployOverrides: make(map[string]any),
 		Chains: []*state.ChainIntent{
-			{ID: deployedID},
+			{
+				ID:              deployedID,
+				DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
+			},
 			{
 				ID: freshID,
 				DeployOverrides: map[string]any{
-					"respectedGameType": embedded.GameTypeCannonKona,
+					"respectedGameType": embedded.GameTypeSuperCannonKona,
 				},
 			},
 		},
@@ -722,7 +671,7 @@ func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 
 	deployed.Prestate = deployedPrestate
 	deployed.StartingAnchorRoot = deployedStartingAnchorRoot
-	deployedInitialGameType := uint32(embedded.GameTypeSuperPermissioned)
+	deployedInitialGameType := uint32(embedded.GameTypeCannonKona)
 	deployed.InitialGameType = &deployedInitialGameType
 	deployed.Allocs = deployedAllocs
 	deployed.GenesisBlockHash = &deployedGenesisBlockHash
@@ -730,7 +679,7 @@ func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	require.NoError(t, err)
 	fresh.Prestate = freshPrestate
 	fresh.StartingAnchorRoot = freshStartingAnchorRoot
-	freshInitialGameType := uint32(embedded.GameTypePermissionedCannon)
+	freshInitialGameType := uint32(embedded.GameTypeSuperPermissioned)
 	fresh.InitialGameType = &freshInitialGameType
 	fresh.Allocs = freshAllocs
 	fresh.GenesisBlockHash = &freshGenesisBlockHash
@@ -773,7 +722,7 @@ func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
 	require.Equal(t, deployedPrestate, deployed.Prestate)
 	require.Equal(t, deployedStartingAnchorRoot, deployed.StartingAnchorRoot)
-	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
+	require.Equal(t, uint32(embedded.GameTypeCannonKona), *deployed.InitialGameType)
 	require.Same(t, deployedAllocs, deployed.Allocs, "a deployed chain's allocs must remain untouched")
 	require.Equal(t, &deployedGenesisBlockHash, deployed.GenesisBlockHash)
 
@@ -784,7 +733,7 @@ func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	require.Nil(t, fresh.StartingAnchorRoot)
 	require.Nil(t, fresh.Allocs, "a re-predicted chain's allocs must be rebuilt")
 	require.Nil(t, fresh.GenesisBlockHash)
-	require.Equal(t, uint32(embedded.GameTypeCannonKona), *fresh.InitialGameType)
+	require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), *fresh.InitialGameType)
 	require.Equal(t, anchor, fresh.StartBlock, "fresh chain must have its anchor block pinned")
 	require.NotNil(t, fresh.GenesisTime, "fresh chain must have its genesis time committed")
 	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *fresh.GenesisTime)
@@ -826,32 +775,37 @@ func TestPrepareChainsBuildsInteropDepSetBeforePrediction(t *testing.T) {
 	require.Equal(t, 2, predictions)
 }
 
-func TestPrepareChainsRejectsMixedInitialGameTypesBeforePrediction(t *testing.T) {
-	firstID := common.HexToHash("0x0a")
-	secondID := common.HexToHash("0x0b")
-	intent := &state.Intent{
-		Chains: []*state.ChainIntent{
-			{
-				ID:              firstID,
-				DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
-			},
-			{
-				ID:              secondID,
-				DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeSuperCannonKona},
-			},
-		},
-	}
-	st := &state.State{}
-	var predictions int
-	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
-		predictions++
-		return emptyDeployOPChainOutput(), nil
-	}
+func TestPrepareChainsRejectsLegacyInitialGameTypesBeforePrediction(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
 
-	err := prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, nil, nil, 0)
-	require.EqualError(t, err, "an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games")
-	require.Nil(t, st.InteropDepSet)
-	require.Zero(t, predictions)
+	for _, gameType := range []embedded.GameType{
+		embedded.GameTypePermissionedCannon,
+		embedded.GameTypeCannonKona,
+	} {
+		t.Run(fmt.Sprintf("%d", gameType), func(t *testing.T) {
+			intent := &state.Intent{
+				OPCMAddress:           &opcmAddr,
+				SuperchainConfigProxy: &superchainConfig,
+				Chains: []*state.ChainIntent{{
+					ID:              common.HexToHash("0x0a"),
+					DeployOverrides: map[string]any{"respectedGameType": gameType},
+				}},
+			}
+			st := &state.State{Create2Salt: common.HexToHash("0x03")}
+			var predictions int
+			run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+				predictions++
+				return emptyDeployOPChainOutput(), nil
+			}
+			selectAnchor := func(*common.Hash) (*state.L1BlockRefJSON, error) { return anchor, nil }
+
+			err := prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, 600)
+			require.ErrorContains(t, err, fmt.Sprintf("unsupported initial dispute game type %d", gameType))
+			require.Zero(t, predictions)
+		})
+	}
 }
 
 func TestPrepareChainsRejectsDuplicateChainIDsBeforeDepSet(t *testing.T) {
@@ -951,18 +905,13 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 		reminderMessage string
 	}{
 		{
-			name:            "CANNON_KONA",
-			gameType:        embedded.GameTypeCannonKona,
-			reminderMessage: "selected prestate must be committed",
-		},
-		{
 			name:            "SUPER_CANNON_KONA",
 			gameType:        embedded.GameTypeSuperCannonKona,
 			reminderMessage: "selected prestate must be committed",
 		},
 		{
-			name:     "PERMISSIONED_CANNON",
-			gameType: embedded.GameTypePermissionedCannon,
+			name:     "SUPER_PERMISSIONED",
+			gameType: embedded.GameTypeSuperPermissioned,
 		},
 	}
 
@@ -1348,6 +1297,10 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 		Time:   hexutil.Uint64(uint64(genesisTime) - 100),
 	}, genesisTime)
 
+	depSet, err := pipeline.BuildInteropDepSet(intent.Chains)
+	require.NoError(t, err)
+	st.InteropDepSet = depSet
+
 	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
@@ -1374,14 +1327,19 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 	require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
 	require.NotNil(t, chainState.GenesisBlockHash)
 	require.NotNil(t, chainState.StartingAnchorRoot)
-	require.Zero(t, uint64(chainState.StartingAnchorRoot.L2SequenceNumber))
+	require.Equal(t, uint64(genesisTime), uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
+		"a super-root anchor is sequenced by the pinned genesis time")
 
 	l2GenesisBlock := l2Genesis.ToBlock()
 	require.Equal(t, l2GenesisBlock.Hash(), *chainState.GenesisBlockHash)
 	require.NotNil(t, l2GenesisBlock.Header().WithdrawalsHash)
 	wantOutputRoot, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(l2GenesisBlock.Header()), *l2GenesisBlock.Header().WithdrawalsHash)
 	require.NoError(t, err)
-	require.Equal(t, common.Hash(wantOutputRoot), chainState.StartingAnchorRoot.Root)
+	wantAnchor := eth.SuperRoot(eth.NewSuperV1(uint64(genesisTime), eth.ChainIDAndOutput{
+		ChainID: eth.ChainIDFromBytes32(chain.ID),
+		Output:  wantOutputRoot,
+	}))
+	require.Equal(t, common.Hash(wantAnchor), chainState.StartingAnchorRoot.Root)
 
 	// Re-running the output-root computation is deterministic. The anchor is recomputed.
 	anchorBefore := *chainState.StartingAnchorRoot
@@ -1441,7 +1399,7 @@ func TestPrepare_RepredictionRebuildsL2Genesis(t *testing.T) {
 	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	prepareOnce := func() *state.ChainState {
-		require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
+		require.NoError(t, prepareChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
 		require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
 		require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
 		chainState, err := st.Chain(chain.ID)

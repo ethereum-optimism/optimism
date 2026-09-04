@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
@@ -89,9 +88,6 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 	t.Run("live validation gates the next send", func(t *testing.T) {
 		testContinueMultiChainSequentialValidation(t)
 	})
-	t.Run("mixed permissionless families are rejected", func(t *testing.T) {
-		testContinueRejectsMixedPermissionlessFamilies(t)
-	})
 }
 
 func testContinuePermissionless(t *testing.T) {
@@ -122,18 +118,6 @@ func testContinuePermissionless(t *testing.T) {
 	require.ErrorContains(t, err, "standard validator reported errors: TEST-FAIL")
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.standardValidator, validatorCode)
-
-	// The game mode read is the first call made against the pinned OPCM, so an unusable
-	// OPCM stops the run before the fork simulation.
-	opcmCode, err := env.l1Client.CodeAt(env.ctx, env.opcm, nil)
-	require.NoError(t, err)
-	setAnvilCode(t, env.l1Client, env.opcm, []byte{byte(vm.PUSH0), byte(vm.PUSH0), byte(vm.REVERT)})
-	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
-	err = deployer.Continue(env.ctx, env.config())
-	require.ErrorContains(t, err, "failed to read the OPCM game mode")
-	require.ErrorContains(t, err, env.opcm.Hex())
-	require.Equal(t, nonceBefore, pendingNonce(t, env))
-	setAnvilCode(t, env.l1Client, env.opcm, opcmCode)
 
 	env.preparedSnapshotChain.SystemConfigProxy = common.Address{0xff}
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
@@ -245,11 +229,7 @@ func testContinuePermissioned(t *testing.T) {
 
 func testContinuePermissionedSuperRoot(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnvForGameTypesAndFeatures(
-		t,
-		[]embedded.GameType{embedded.GameTypeSuperPermissioned},
-		devfeatures.SuperRootGamesMigrationFlag,
-	)
+	env := newContinuationEnv(t, embedded.GameTypeSuperPermissioned)
 	require.Zero(t, env.preparedChain.Prestate)
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	nonceBefore := pendingNonce(t, env)
@@ -473,32 +453,6 @@ func testContinueMultiChainSequentialValidation(t *testing.T) {
 	}
 }
 
-func testContinueRejectsMixedPermissionlessFamilies(t *testing.T) {
-	t.Helper()
-	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypeSuperPermissioned,
-		embedded.GameTypeSuperPermissioned,
-	})
-	gameTypes := []embedded.GameType{
-		embedded.GameTypeCannonKona,
-		embedded.GameTypeSuperCannonKona,
-	}
-	for i, gameType := range gameTypes {
-		setPermissionlessContinuationInputs(env.preparedChains[i], uint64(i+1))
-		env.intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
-		env.prepared.PreparedDeployment.Intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
-		recordedGameType := uint32(gameType)
-		env.preparedChains[i].InitialGameType = &recordedGameType
-	}
-	require.NoError(t, env.intent.WriteToFile(filepath.Join(env.workdir, "intent.toml")))
-	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
-	nonceBefore := pendingNonce(t, env)
-
-	err := deployer.Continue(env.ctx, env.config())
-	require.ErrorContains(t, err, "cannot mix CANNON_KONA and SUPER_CANNON_KONA")
-	require.Equal(t, nonceBefore, pendingNonce(t, env))
-}
-
 func setPermissionlessContinuationInputs(chain *state.ChainState, sequenceNumber uint64) {
 	chain.Prestate = common.BigToHash(new(big.Int).SetUint64(0x1200 + sequenceNumber))
 	chain.StartingAnchorRoot = &state.StartingAnchorProposal{
@@ -512,15 +466,7 @@ func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationE
 }
 
 func newContinuationEnvForGameTypes(t *testing.T, gameTypes []embedded.GameType) *continuationEnv {
-	return newContinuationEnvForGameTypesAndFeatures(t, gameTypes, common.Hash{})
-}
-
-func newContinuationEnvForGameTypesAndFeatures(
-	t *testing.T,
-	gameTypes []embedded.GameType,
-	devFeatureBitmap common.Hash,
-) *continuationEnv {
-	return newContinuationEnvWithIntentMutator(t, gameTypes, devFeatureBitmap, nil)
+	return newContinuationEnvWithIntentMutator(t, gameTypes, common.Hash{}, nil)
 }
 
 func newContinuationEnvWithIntentMutator(
