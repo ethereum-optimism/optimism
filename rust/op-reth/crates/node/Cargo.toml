@@ -90,6 +90,8 @@ reth-optimism-node = { workspace = true, features = ["test-utils"] }
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-db-common.workspace = true
 reth-node-builder = { workspace = true, features = ["test-utils"] }
+# Reads the payload builder's counters in tests/e2e-testsuite/sparse_trie.rs.
+reth-node-metrics.workspace = true
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-tasks.workspace = true
 reth-payload-util.workspace = true

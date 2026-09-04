@@ -426,6 +426,7 @@ reth-transaction-pool = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef
 reth-trie = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
 reth-trie-common = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
 reth-trie-db = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
+reth-trie-parallel = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
 
 # ==================== REVM (latest: op-reth versions) ====================
 revm = { version = "41.0.0", default-features = false }
