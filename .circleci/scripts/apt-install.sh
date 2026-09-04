@@ -20,5 +20,5 @@ APT_OPTS=(-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::
 export NEEDRESTART_MODE=a
 export DEBIAN_FRONTEND=noninteractive
 
-sudo -E apt-get "${APT_OPTS[@]}" update
+sudo -E apt-get "${APT_OPTS[@]}" update --error-on=any
 sudo -E apt-get "${APT_OPTS[@]}" install -y "$@"
