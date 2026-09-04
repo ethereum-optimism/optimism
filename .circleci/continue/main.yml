@@ -1850,6 +1850,68 @@ jobs:
             - notify-failures-on-develop:
                 mentions: "<<parameters.mentions>>"
 
+  # Runs the op-e2e action tests against the out-of-process op-reth-test-engine
+  # execution layer (the go-tests jobs above cover the in-process op-geth EL).
+  # The engine binary comes prebuilt from the rust-op-reth-binary workspace;
+  # REQUIRE_RUST_ENGINE turns a missing binary into a hard failure so a
+  # provisioning bug cannot silently skip the reth coverage.
+  go-actions-tests-reth:
+    parameters:
+      notify:
+        description: Whether to notify on failure
+        type: boolean
+        default: false
+      mentions:
+        description: Slack user or group to mention when notifying of failures
+        type: string
+        default: ""
+      no_output_timeout:
+        description: Timeout for when CircleCI kills the job if there's no output
+        type: string
+        default: 30m
+      test_timeout:
+        description: Timeout for running tests
+        type: string
+        default: 30m
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: 2xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: go-actions-tests-reth
+      - run:
+          name: Run op-e2e action tests on op-reth-test-engine
+          no_output_timeout: <<parameters.no_output_timeout>>
+          command: |
+            export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$(pwd)/rust/target/release/op-reth-test-engine"
+            if [ ! -x "$RUST_BINARY_PATH_OP_RETH_TEST_ENGINE" ]; then
+              echo "op-reth-test-engine binary missing from the attached workspace" >&2
+              exit 1
+            fi
+            export TEST_TIMEOUT=<<parameters.test_timeout>>
+            just go-actions-tests-reth-ci
+      - go-save-cache:
+          namespace: go-actions-tests-reth
+      - store_test_results:
+          path: ./tmp/test-results
+      - run:
+          name: Compress test logs
+          command: tar -czf testlogs.tar.gz -C ./tmp testlogs
+          when: always
+      - store_artifacts:
+          path: testlogs.tar.gz
+          when: always
+      - when:
+          condition: "<<parameters.notify>>"
+          steps:
+            - notify-failures-on-develop:
+                mentions: "<<parameters.mentions>>"
+
   go-tests-with-fault-proof-deps:
     parameters:
       notify:
@@ -1972,6 +2034,7 @@ jobs:
             echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE=$ROOT_DIR/rust/target/release/op-reth-sdm-fixture" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE=$ROOT_DIR/rust/target/release/op-reth-test-engine" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
 
             # Fail here in seconds rather than ~25 minutes into the test run: a drift in the
@@ -2527,6 +2590,14 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
+      - go-actions-tests-reth:
+          requires:
+            - contracts-bedrock-build
+            - rust-op-reth-binary
+            - prep-superchain
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2649,6 +2720,7 @@ workflows:
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
             - go-tests: terminal
+            - go-actions-tests-reth: terminal
             - memory-all-opn-op-reth-fusaka: terminal
             - memory-all-kona-op-reth-fusaka: terminal
             - kona-build-sp1-elfs: terminal
