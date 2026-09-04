@@ -21,6 +21,7 @@ pub(super) enum ScenarioError {
     BarrierNotReached { task_id: TaskId, barrier: String },
     BarrierTaskMismatch { task_id: TaskId, barrier: String, reached_by: TaskId },
     BarrierOperationMismatch { task_id: TaskId, barrier: String },
+    BarrierWatchdog { barrier: String },
     UnknownBarrier { barrier: String },
     SettlementWatchdog { task_ids: Vec<TaskId>, completions: Vec<TaskCompletion> },
 }
@@ -116,7 +117,8 @@ impl ScenarioControl {
             let tasks = self.proposer.tasks.lock().await;
             for (task_id, (handle, _)) in tasks.iter() {
                 let is_parked = self.parked.get(task_id).is_some_and(|barrier| {
-                    barrier.0.reached_by.get() == Some(task_id) &&
+                    barrier.0.reached.load(Ordering::Acquire) &&
+                        barrier.0.reached_by.get() == Some(task_id) &&
                         !barrier.0.released.load(Ordering::Acquire)
                 });
                 if !handle.is_finished() && !is_parked {
@@ -142,6 +144,12 @@ impl ScenarioControl {
             return Err(self.classify_missing(task_id));
         }
         drop(tasks);
+        if !barrier.0.reached.load(Ordering::Acquire) {
+            return Err(ScenarioError::BarrierNotReached {
+                task_id,
+                barrier: barrier.0.name.clone(),
+            });
+        }
         let Some(&reached_by) = barrier.0.reached_by.get() else {
             return Err(ScenarioError::BarrierNotReached {
                 task_id,

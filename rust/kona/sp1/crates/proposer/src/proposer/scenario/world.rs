@@ -15,7 +15,7 @@ use std::{
 use alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, U256};
 use alloy_transport_http::reqwest::Url;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use async_trait::async_trait;
 use flate2::{Compression, write::GzEncoder};
 use kona_sp1_host_utils::metrics::MetricsListen;
@@ -47,8 +47,10 @@ use crate::{
 
 const INITIAL_BLOCK: u64 = 10;
 const INITIAL_L1_TIME: u64 = 1_000;
+const INITIAL_SUPER_ROOT_HORIZON: u64 = 4;
 const DEFAULT_PRESTATE_BYTE: u8 = 0x11;
 pub(super) const DEFAULT_MAX_DURATION: u64 = 3_600;
+const SCENARIO_WATCHDOG: Duration = Duration::from_secs(10);
 
 static ARTIFACT_DIR_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -82,10 +84,25 @@ pub(super) enum ProofOutcome {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(super) enum BarrierPoint {
+pub(super) enum ActionBarrierPoint {
+    BeforeSigner,
+    AfterSubmission,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum BarrierPoint {
     BeforeSigner,
     AfterSubmission,
     Proof,
+}
+
+impl From<ActionBarrierPoint> for BarrierPoint {
+    fn from(point: ActionBarrierPoint) -> Self {
+        match point {
+            ActionBarrierPoint::BeforeSigner => Self::BeforeSigner,
+            ActionBarrierPoint::AfterSubmission => Self::AfterSubmission,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -308,6 +325,14 @@ pub(super) enum ProofLifecycle {
     Panicked,
 }
 
+const fn proof_lifecycle(outcome: ProofOutcome) -> ProofLifecycle {
+    match outcome {
+        ProofOutcome::Success => ProofLifecycle::Succeeded,
+        ProofOutcome::Failure => ProofLifecycle::Failed,
+        ProofOutcome::Panic => ProofLifecycle::Panicked,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ProofRecord {
     pub(super) target: GameTarget,
@@ -319,6 +344,13 @@ pub(super) struct ProofRecord {
 pub(super) enum InclusionDepth {
     LatestOnly,
     Confirmed,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TransactionInclusion {
+    Confirmed,
+    Reverted,
+    Late,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -353,14 +385,7 @@ struct L1State {
 
 #[derive(Clone)]
 enum PendingEffect {
-    Create {
-        index: U256,
-        address: Address,
-        root_claim: B256,
-        extra_data: Vec<u8>,
-        sequence_number: u64,
-        parent_game_index: u32,
-    },
+    Create { root_claim: B256, extra_data: Vec<u8>, sequence_number: u64, parent_game_index: u32 },
     Prove(Address),
     Resolve(Address),
     Claim(Address),
@@ -388,7 +413,7 @@ struct WorldData {
     host_time: u64,
     safe_time: u64,
     finalized_time: u64,
-    sync_confirmations: u64,
+    sync_confirmations: Option<u64>,
     pending_nonce: u64,
     action_scripts: Scripts<ActionTarget, ActionScript>,
     proof_scripts: Scripts<GameTarget, ProofScript>,
@@ -441,9 +466,9 @@ impl ScenarioWorld {
                 states,
                 latest_block: INITIAL_BLOCK,
                 host_time: INITIAL_L1_TIME,
-                safe_time: 4,
-                finalized_time: 4,
-                sync_confirmations: 0,
+                safe_time: INITIAL_SUPER_ROOT_HORIZON,
+                finalized_time: INITIAL_SUPER_ROOT_HORIZON,
+                sync_confirmations: None,
                 pending_nonce: 0,
                 action_scripts: Scripts::default(),
                 proof_scripts: Scripts::default(),
@@ -530,8 +555,17 @@ impl ScenarioWorld {
         self.lock().finalized_time = finalized;
     }
 
-    pub(super) fn set_sync_confirmations(&self, confirmations: u64) {
-        self.lock().sync_confirmations = confirmations;
+    pub(super) fn configure_sync_confirmations(&self, confirmations: u64) -> Result<()> {
+        let mut data = self.lock();
+        if let Some(configured) = data.sync_confirmations {
+            ensure!(
+                configured == confirmations,
+                "scenario sync confirmations already configured as {configured}, cannot reconfigure as {confirmations}"
+            );
+        } else {
+            data.sync_confirmations = Some(confirmations);
+        }
+        Ok(())
     }
 
     pub(super) fn script_action(&self, target: ActionTarget, attempt: u64, outcome: ActionOutcome) {
@@ -546,29 +580,34 @@ impl ScenarioWorld {
         &self,
         target: ActionTarget,
         attempt: u64,
-        point: BarrierPoint,
+        point: ActionBarrierPoint,
         outcome: ActionOutcome,
         name: &str,
     ) {
-        assert!(point != BarrierPoint::Proof, "proof barriers use block_proof");
+        assert!(
+            point != ActionBarrierPoint::AfterSubmission ||
+                outcome != ActionOutcome::PreSubmitFailure,
+            "a pre-submit failure cannot reach an after-submission barrier"
+        );
         let barrier = NamedBarrier::new(name);
         let script = match point {
-            BarrierPoint::BeforeSigner => ActionScript {
+            ActionBarrierPoint::BeforeSigner => ActionScript {
                 outcome,
                 before_signer: Some(barrier.clone()),
                 after_submission: None,
             },
-            BarrierPoint::AfterSubmission => ActionScript {
+            ActionBarrierPoint::AfterSubmission => ActionScript {
                 outcome,
                 before_signer: None,
                 after_submission: Some(barrier.clone()),
             },
-            BarrierPoint::Proof => unreachable!(),
         };
         let mut data = self.lock();
         data.action_scripts.script_exact(target.clone(), attempt, script);
-        data.barriers
-            .insert(BarrierKey { point, target: ScriptTarget::Action(target), attempt }, barrier);
+        data.barriers.insert(
+            BarrierKey { point: point.into(), target: ScriptTarget::Action(target), attempt },
+            barrier,
+        );
     }
 
     pub(super) fn script_proof(&self, target: GameTarget, attempt: u64, outcome: ProofOutcome) {
@@ -643,28 +682,21 @@ impl ScenarioWorld {
         }
     }
 
-    pub(super) fn include_transaction(
+    fn include_transaction(
         &self,
         target: &ActionTarget,
         attempt: u64,
         depth: InclusionDepth,
     ) -> Result<CommittedEffect> {
-        self.lock().include_transaction(target, attempt, depth, true, true)
+        self.lock().include_transaction(target, attempt, depth, TransactionInclusion::Late)
     }
 
-    pub(super) fn drop_transaction(&self, target: &ActionTarget, attempt: u64) -> Result<()> {
+    fn drop_transaction(&self, target: &ActionTarget, attempt: u64) -> Result<()> {
         let mut data = self.lock();
         data.pending_transactions
             .remove(&(target.clone(), attempt))
             .with_context(|| format!("no pending transaction for {target:?} attempt {attempt}"))?;
-        let latest_nonce = data.latest_state().latest_nonce;
-        data.pending_nonce = data
-            .pending_transactions
-            .values()
-            .map(|transaction| transaction.nonce + 1)
-            .max()
-            .unwrap_or(latest_nonce)
-            .max(latest_nonce);
+        data.recompute_pending_nonce();
         let record = data
             .action_records
             .get_mut(&(target.clone(), attempt))
@@ -754,24 +786,25 @@ impl WorldData {
             .with_context(|| format!("unknown scenario game {address}"))
     }
 
-    fn proof_target(&self, game: &GameProofInputs) -> Result<GameTarget> {
-        let matches = self
-            .latest_state()
+    fn proof_target(&self, address: Address, game: &GameProofInputs) -> Result<GameTarget> {
+        let state = self.latest_state();
+        let candidate = state
             .games
             .values()
-            .find(|candidate| {
-                candidate.proof_inputs.l1_head == game.l1_head &&
-                    candidate.proof_inputs.l1_head_number == game.l1_head_number &&
-                    candidate.proof_inputs.starting_root == game.starting_root &&
-                    candidate.proof_inputs.starting_sequence_number == game.starting_ts &&
-                    candidate.proof_inputs.root_claim == game.root_claim &&
-                    candidate.proof_inputs.sequence_number == game.claim_ts &&
-                    candidate.absolute_prestate == game.prestate
-            })
-            .cloned();
-        matches
-            .map(|candidate| candidate.target())
-            .context("proof inputs do not uniquely identify a scenario game")
+            .find(|candidate| candidate.address == address)
+            .with_context(|| format!("unknown scenario game {address}"))?;
+        ensure!(
+            candidate.proof_inputs.l1_head == game.l1_head &&
+                candidate.proof_inputs.l1_head_number == game.l1_head_number &&
+                candidate.proof_inputs.starting_root == game.starting_root &&
+                candidate.proof_inputs.starting_sequence_number == game.starting_ts &&
+                candidate.proof_inputs.root_claim == game.root_claim &&
+                candidate.proof_inputs.sequence_number == game.claim_ts &&
+                candidate.absolute_prestate == game.prestate &&
+                game.prover == ScenarioWorld::proposer_address(),
+            "proof inputs do not match scenario game {address}"
+        );
+        Ok(candidate.target())
     }
 
     fn include_transaction(
@@ -779,42 +812,89 @@ impl WorldData {
         target: &ActionTarget,
         attempt: u64,
         depth: InclusionDepth,
-        apply_effect: bool,
-        late: bool,
+        inclusion: TransactionInclusion,
     ) -> Result<CommittedEffect> {
-        let transaction = self
+        let selected = (target.clone(), attempt);
+        let selected_nonce = self
             .pending_transactions
-            .remove(&(target.clone(), attempt))
-            .with_context(|| format!("no pending transaction for {target:?} attempt {attempt}"))?;
-        let effect_plan = transaction.effect.clone();
-        let nonce = transaction.nonce;
-        let effect = self.commit_transaction(effect_plan, nonce, apply_effect)?;
+            .get(&selected)
+            .with_context(|| format!("no pending transaction for {target:?} attempt {attempt}"))?
+            .nonce;
+        let latest_nonce = self.latest_state().latest_nonce;
+        let mut included = self
+            .pending_transactions
+            .iter()
+            .filter(|(_, transaction)| transaction.nonce <= selected_nonce)
+            .map(|(key, transaction)| (transaction.nonce, key.clone()))
+            .collect::<Vec<_>>();
+        included.sort_unstable_by_key(|(nonce, _)| *nonce);
+        let mut expected_nonce = latest_nonce;
+        for (nonce, key) in &included {
+            ensure!(
+                *nonce == expected_nonce,
+                "cannot include {key:?} at nonce {nonce} before nonce {expected_nonce}"
+            );
+            ensure!(
+                self.action_records.contains_key(key),
+                "pending transaction {key:?} has no action record"
+            );
+            expected_nonce += 1;
+        }
+        ensure!(
+            expected_nonce == selected_nonce + 1,
+            "cannot include nonce {selected_nonce} before nonce {expected_nonce}"
+        );
+
+        let mut selected_effect = None;
+        for (_, key) in included {
+            let transaction = self
+                .pending_transactions
+                .remove(&key)
+                .expect("validated pending transaction must exist");
+            let is_selected = key == selected;
+            let (transaction_applies, lifecycle) = if is_selected {
+                match inclusion {
+                    TransactionInclusion::Confirmed => (true, ActionLifecycle::Confirmed),
+                    TransactionInclusion::Reverted => (false, ActionLifecycle::Reverted),
+                    TransactionInclusion::Late => (true, ActionLifecycle::IncludedLate),
+                }
+            } else {
+                (true, ActionLifecycle::IncludedLate)
+            };
+            let effect = self.commit_transaction(
+                transaction.effect,
+                transaction.nonce,
+                transaction_applies,
+            )?;
+            let record = self
+                .action_records
+                .get_mut(&key)
+                .expect("validated pending transaction must have an action record");
+            record.lifecycle = lifecycle;
+            record.effect = effect.clone();
+            if is_selected {
+                selected_effect = Some(effect);
+            }
+        }
         let confirmations = match depth {
             InclusionDepth::LatestOnly => 1,
-            InclusionDepth::Confirmed => NUM_CONFIRMATIONS + self.sync_confirmations,
+            InclusionDepth::Confirmed => {
+                NUM_CONFIRMATIONS + self.sync_confirmations.unwrap_or_default()
+            }
         };
         for _ in 1..confirmations {
             self.append_block(|_| {});
         }
-        let latest_nonce = self.latest_state().latest_nonce;
-        self.pending_nonce = self
-            .pending_transactions
-            .values()
-            .map(|pending| pending.nonce + 1)
-            .max()
-            .unwrap_or(latest_nonce)
-            .max(latest_nonce);
-        let record = self
-            .action_records
-            .get_mut(&(target.clone(), attempt))
-            .context("pending transaction has no action record")?;
-        record.lifecycle = if apply_effect {
-            if late { ActionLifecycle::IncludedLate } else { ActionLifecycle::Confirmed }
-        } else {
-            ActionLifecycle::Reverted
-        };
-        record.effect = effect.clone();
-        Ok(effect)
+        self.recompute_pending_nonce();
+        selected_effect.context("selected pending transaction was not included")
+    }
+
+    fn recompute_pending_nonce(&mut self) {
+        let mut nonce = self.latest_state().latest_nonce;
+        while self.pending_transactions.values().any(|transaction| transaction.nonce == nonce) {
+            nonce += 1;
+        }
+        self.pending_nonce = nonce;
     }
 
     fn commit_transaction(
@@ -823,21 +903,25 @@ impl WorldData {
         nonce: u64,
         apply_effect: bool,
     ) -> Result<CommittedEffect> {
+        let latest_nonce = self.latest_state().latest_nonce;
+        ensure!(nonce == latest_nonce, "cannot commit nonce {nonce} after nonce {latest_nonce}");
         let mut committed = CommittedEffect::None;
         self.append_block(|state| {
-            state.latest_nonce = state.latest_nonce.max(nonce + 1);
+            state.latest_nonce = nonce + 1;
             if !apply_effect {
                 return;
             }
             committed = match plan {
                 PendingEffect::Create {
-                    index,
-                    address,
                     root_claim,
                     extra_data,
                     sequence_number,
                     parent_game_index,
                 } => {
+                    let index =
+                        state.games.keys().next_back().map_or(0, |index| index.to::<u64>() + 1);
+                    let index = U256::from(index);
+                    let address = deterministic_address(0x40, index.to::<u64>());
                     let mut game = ScenarioGame::new(
                         index.to::<u64>(),
                         parent_game_index,
@@ -941,6 +1025,7 @@ fn create_artifact_directory() -> ArtifactDirectory {
     let id = ARTIFACT_DIR_ID.fetch_add(1, Ordering::Relaxed);
     let path =
         std::env::temp_dir().join(format!("kona-sp1-scenario-world-{}-{id}", std::process::id()));
+    let _ = fs::remove_dir_all(&path);
     fs::create_dir_all(&path).expect("create scenario artifact directory");
     ArtifactDirectory(path)
 }
@@ -1229,14 +1314,14 @@ struct FakeProofEngine(ScenarioWorld);
 impl ProofEngine for FakeProofEngine {
     async fn prove(
         &self,
-        _game_address: Address,
+        game_address: Address,
         _keys: Option<Arc<ProofKeys>>,
         game: GameProofInputs,
         _responses: Vec<SuperRootAtTimestampResponse>,
     ) -> Result<Vec<u8>> {
         let (target, attempt, script) = {
             let mut data = self.0.lock();
-            let target = data.proof_target(&game)?;
+            let target = data.proof_target(game_address, &game)?;
             let (attempt, script) = data.proof_scripts.next(&target);
             let script = script.unwrap_or_else(|| ProofScript::immediate(ProofOutcome::Success));
             data.proof_records.insert(
@@ -1247,7 +1332,7 @@ impl ProofEngine for FakeProofEngine {
                     lifecycle: if script.barrier.is_some() {
                         ProofLifecycle::Parked
                     } else {
-                        ProofLifecycle::Succeeded
+                        proof_lifecycle(script.outcome)
                     },
                 },
             );
@@ -1256,11 +1341,7 @@ impl ProofEngine for FakeProofEngine {
         if let Some(barrier) = script.barrier {
             barrier.park_unassigned().await;
         }
-        let lifecycle = match script.outcome {
-            ProofOutcome::Success => ProofLifecycle::Succeeded,
-            ProofOutcome::Failure => ProofLifecycle::Failed,
-            ProofOutcome::Panic => ProofLifecycle::Panicked,
-        };
+        let lifecycle = proof_lifecycle(script.outcome);
         self.0
             .lock()
             .proof_records
@@ -1319,15 +1400,14 @@ impl FakeActionExecutor {
             bail!("scripted pre-submit failure for {target:?} attempt {attempt}")
         }
 
-        let (transaction_hash, created_address) = {
+        let transaction_hash = {
             let mut data = self.0.lock();
             let nonce = data.pending_nonce;
-            data.pending_nonce += 1;
+            assert!(
+                data.pending_transactions.values().all(|transaction| transaction.nonce != nonce),
+                "pending nonce {nonce} is already occupied"
+            );
             let transaction_hash = deterministic_hash(0xa0, nonce);
-            let created_address = match &effect {
-                PendingEffect::Create { address, .. } => Some(*address),
-                _ => None,
-            };
             data.pending_transactions.insert(
                 (target.clone(), attempt),
                 PendingTransaction { target: target.clone(), attempt, nonce, effect },
@@ -1343,7 +1423,8 @@ impl FakeActionExecutor {
                     effect: CommittedEffect::None,
                 },
             );
-            (transaction_hash, created_address)
+            data.recompute_pending_nonce();
+            transaction_hash
         };
 
         if let Some(barrier) = script.after_submission {
@@ -1351,13 +1432,16 @@ impl FakeActionExecutor {
         }
         match script.outcome {
             ActionOutcome::Success => {
-                self.0.lock().include_transaction(
+                let effect = self.0.lock().include_transaction(
                     &target,
                     attempt,
                     InclusionDepth::Confirmed,
-                    true,
-                    false,
+                    TransactionInclusion::Confirmed,
                 )?;
+                let created_address = match effect {
+                    CommittedEffect::Created { address, .. } => Some(address),
+                    _ => None,
+                };
                 Ok(ActionResult { transaction_hash, created_address })
             }
             ActionOutcome::Revert => {
@@ -1365,8 +1449,7 @@ impl FakeActionExecutor {
                     &target,
                     attempt,
                     InclusionDepth::Confirmed,
-                    false,
-                    false,
+                    TransactionInclusion::Reverted,
                 )?;
                 bail!("{TX_REVERTED_PREFIX} scripted receipt")
             }
@@ -1396,30 +1479,12 @@ impl ActionExecutor for FakeActionExecutor {
         let parent_game_index = u32::from_be_bytes(
             extra_data.get(..4).context("create extra data lacks parent index")?.try_into()?,
         );
-        let (index, address) = {
-            let data = self.0.lock();
-            let next_index = data
-                .latest_state()
-                .games
-                .keys()
-                .next_back()
-                .map_or(0, |index| index.to::<u64>() + 1);
-            let reserved = data
-                .pending_transactions
-                .values()
-                .filter(|transaction| matches!(transaction.effect, PendingEffect::Create { .. }))
-                .count() as u64;
-            let index = U256::from(next_index + reserved);
-            (index, deterministic_address(0x40, index.to::<u64>()))
-        };
         let target = ActionTarget::Create { sequence_number, parent_game_index };
         let result = self
             .execute(
                 target,
                 ActionInputs::Create { root_claim, parent_game_index, sequence_number },
                 PendingEffect::Create {
-                    index,
-                    address,
                     root_claim,
                     extra_data,
                     sequence_number,
@@ -1471,8 +1536,8 @@ impl ActionExecutor for FakeActionExecutor {
 }
 
 pub(super) struct ScenarioHarness {
-    pub(super) world: ScenarioWorld,
-    pub(super) proposer: Arc<Proposer>,
+    world: ScenarioWorld,
+    proposer: Arc<Proposer>,
     control: ScenarioControl,
 }
 
@@ -1488,7 +1553,7 @@ impl ScenarioHarness {
             .validate_and_init()
             .await
             .map_err(|error| ScenarioError::Initialization(error.to_string()))?;
-        let control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
+        let control = ScenarioControl::new(proposer.clone(), SCENARIO_WATCHDOG);
         Ok(Self { world, proposer, control })
     }
 
@@ -1503,14 +1568,43 @@ impl ScenarioHarness {
         self.control.settle(task_ids).await
     }
 
+    #[allow(
+        clippy::needless_pass_by_ref_mut,
+        reason = "runtime world changes require exclusive access through the scenario harness"
+    )]
+    pub(super) fn include_transaction(
+        &mut self,
+        target: &ActionTarget,
+        attempt: u64,
+        depth: InclusionDepth,
+    ) -> Result<CommittedEffect> {
+        self.world.include_transaction(target, attempt, depth)
+    }
+
+    #[allow(
+        clippy::needless_pass_by_ref_mut,
+        reason = "runtime world changes require exclusive access through the scenario harness"
+    )]
+    pub(super) fn drop_transaction(&mut self, target: &ActionTarget, attempt: u64) -> Result<()> {
+        self.world.drop_transaction(target, attempt)
+    }
+
+    pub(super) fn max_prove_duration(&self) -> Option<u64> {
+        self.proposer.max_prove_duration.get().copied()
+    }
+
     pub(super) async fn wait_for_action_barrier(
         &mut self,
         task_id: TaskId,
         target: &ActionTarget,
         attempt: u64,
-        point: BarrierPoint,
+        point: ActionBarrierPoint,
     ) -> Result<(), ScenarioError> {
-        let key = BarrierKey { point, target: ScriptTarget::Action(target.clone()), attempt };
+        let key = BarrierKey {
+            point: point.into(),
+            target: ScriptTarget::Action(target.clone()),
+            attempt,
+        };
         self.bind_reached_barrier(task_id, key).await
     }
 
@@ -1529,20 +1623,20 @@ impl ScenarioHarness {
     }
 
     pub(super) fn release_action_barrier(
-        &self,
+        &mut self,
         target: &ActionTarget,
         attempt: u64,
-        point: BarrierPoint,
+        point: ActionBarrierPoint,
     ) -> Result<(), ScenarioError> {
         self.release_barrier(BarrierKey {
-            point,
+            point: point.into(),
             target: ScriptTarget::Action(target.clone()),
             attempt,
         })
     }
 
     pub(super) fn release_proof_barrier(
-        &self,
+        &mut self,
         target: &GameTarget,
         attempt: u64,
     ) -> Result<(), ScenarioError> {
@@ -1574,12 +1668,18 @@ impl ScenarioHarness {
         if !barrier_matches_operation(&key, &operation) {
             return Err(ScenarioError::BarrierOperationMismatch { task_id, barrier: barrier_name });
         }
-        barrier.wait_until_reached().await;
+        tokio::time::timeout(SCENARIO_WATCHDOG, barrier.wait_until_reached())
+            .await
+            .map_err(|_| ScenarioError::BarrierWatchdog { barrier: barrier_name.clone() })?;
         barrier.bind_task(task_id);
         self.control.record_parked(task_id, &barrier).await
     }
 
-    fn release_barrier(&self, key: BarrierKey) -> Result<(), ScenarioError> {
+    #[allow(
+        clippy::needless_pass_by_ref_mut,
+        reason = "barrier release requires exclusive access through the scenario harness"
+    )]
+    fn release_barrier(&mut self, key: BarrierKey) -> Result<(), ScenarioError> {
         let barrier = self
             .world
             .barrier(&key)
@@ -1615,7 +1715,7 @@ fn barrier_matches_operation(key: &BarrierKey, operation: &OperationSummary) -> 
 async fn build_proposer(world: &ScenarioWorld, config: &ProposerConfig) -> Result<Arc<Proposer>> {
     let mut config = config.clone();
     config.prestates_url = world.prestates_url();
-    world.set_sync_confirmations(config.sync_l1_confirmations);
+    world.configure_sync_confirmations(config.sync_l1_confirmations)?;
     let prestates =
         Arc::new(PrestateCache::with_retry_window(config.prestates_url.clone(), Duration::ZERO));
     Ok(Arc::new(
