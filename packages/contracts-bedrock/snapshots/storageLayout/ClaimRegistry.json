@@ -1,0 +1,23 @@
+[
+  {
+    "bytes": "8",
+    "label": "rangeCount",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint64"
+  },
+  {
+    "bytes": "8",
+    "label": "lastPostedLastBlock",
+    "offset": 8,
+    "slot": "0",
+    "type": "uint64"
+  },
+  {
+    "bytes": "32",
+    "label": "lastClaimHash",
+    "offset": 0,
+    "slot": "1",
+    "type": "bytes32"
+  }
+]

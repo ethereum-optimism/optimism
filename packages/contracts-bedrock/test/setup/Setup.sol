@@ -448,7 +448,11 @@ abstract contract Setup is FeatureFlags {
                 gasPayingTokenSymbol: deploy.cfg().gasPayingTokenSymbol(),
                 nativeAssetLiquidityAmount: deploy.cfg().nativeAssetLiquidityAmount(),
                 liquidityControllerOwner: deploy.cfg().liquidityControllerOwner(),
-                devFeatureBitmap: devFeatureBitmap
+                devFeatureBitmap: devFeatureBitmap,
+                // Private interop is never rendered in the contract-test setup: neither half's dev
+                // feature bit is ever set here, so these are inert.
+                privateInteropCounterpartyChainID: 0,
+                privateInteropLockVault: address(0)
             })
         );
 

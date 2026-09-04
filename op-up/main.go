@@ -23,6 +23,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -71,6 +73,25 @@ var (
 		Usage:   "start a 2-chain interop devnet backed by op-supernode.",
 		EnvVars: opservice.PrefixEnvVar(envPrefix, "INTEROP"),
 	}
+	privateInteropFlag = &cli.BoolFlag{
+		Name: "private-interop",
+		Usage: "start the 2-chain interop devnet with chain B as a private-interop pair: " +
+			"a private sequenced chain plus the public rendering the supernode judges. Implies --interop.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "PRIVATE_INTEROP"),
+	}
+	smokeFlag = &cli.BoolFlag{
+		Name: "smoke",
+		Usage: "run the interop smoke tests against the devnet once it is up, then exit with their result " +
+			"instead of staying up. Implies --interop.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE"),
+	}
+)
+
+// devstack environment variables op-up reads to fail early rather than half-build a system. They
+// are sysgo's (op-devstack/sysgo/mixed_runtime.go), which does not export them.
+const (
+	devstackL2ELKindEnv           = "DEVSTACK_L2EL_KIND"
+	devstackL2ELOverrideBinaryEnv = "DEVSTACK_L2EL_OVERRIDE_BINARY"
 )
 
 func main() {
@@ -89,7 +110,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, VersionMeta)
 	app.Name = "op-up"
 	app.Usage = "deploys an in-memory OP Stack devnet."
-	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag, interopFlag})
+	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag, interopFlag, privateInteropFlag, smokeFlag})
 	// The default OnUsageError behavior will print the error twice: once in the cli package and
 	// once in our main function.
 	// The function below prints help and returns the error for further handling/error messages.
@@ -100,7 +121,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	app.Action = func(cliCtx *cli.Context) error {
-		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name))
+		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, opUpConfig{
+			dir:            cliCtx.String(dirFlag.Name),
+			interop:        cliCtx.Bool(interopFlag.Name),
+			privateInterop: cliCtx.Bool(privateInteropFlag.Name),
+			smoke:          cliCtx.Bool(smokeFlag.Name),
+		})
 	}
 	app.Commands = []*cli.Command{
 		interopsmoke.Command(envPrefix),
@@ -108,13 +134,30 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	return app.RunContext(ctx, args)
 }
 
-func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool) error {
+// opUpConfig is what the command line asked for.
+type opUpConfig struct {
+	dir string
+	// interop starts the two-chain supernode devnet.
+	interop bool
+	// privateInterop makes that devnet's chain B a private-interop pair. It implies interop.
+	privateInterop bool
+	// smoke runs the interop smoke tests against the devnet and exits with their result. It
+	// implies interop: there is nothing for an interop smoke to do on a single chain.
+	smoke bool
+}
+
+// interopTopology reports whether the two-chain supernode devnet is what was asked for.
+func (c opUpConfig) interopTopology() bool {
+	return c.interop || c.privateInterop || c.smoke
+}
+
+func runOpUp(ctx context.Context, stderr io.Writer, cfg opUpConfig) error {
 	fmt.Fprintf(stderr, "%s\n", asciiArt)
 
-	if err := os.MkdirAll(opUpDir, 0o755); err != nil {
+	if err := os.MkdirAll(cfg.dir, 0o755); err != nil {
 		return fmt.Errorf("create the op-up dir: %w", err)
 	}
-	tempRoot := filepath.Join(opUpDir, "tmp")
+	tempRoot := filepath.Join(cfg.dir, "tmp")
 	if err := os.MkdirAll(tempRoot, 0o755); err != nil {
 		return fmt.Errorf("create the op-up temp dir: %w", err)
 	}
@@ -123,12 +166,25 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 	t := newTestingT(ctx, stderr, tempRoot)
 	defer t.doCleanup()
 
-	if interop {
+	if cfg.privateInterop {
+		// Checked before anything is built: both failures below would otherwise land as a fatal
+		// "unexpected skip" or a stack trace out of the middle of a half-built system.
+		if err := checkPrivateInteropPrerequisites(ctx, t.Logger()); err != nil {
+			return err
+		}
+		sys, err := newPrivateInteropSystem(t)
+		if err != nil {
+			return err
+		}
+		if err := runSupernodeSystem(ctx, stderr, sys, cfg); err != nil {
+			return err
+		}
+	} else if cfg.interopTopology() {
 		sys, err := newSupernodeInteropSystem(t)
 		if err != nil {
 			return err
 		}
-		if err := runSupernodeSystem(ctx, stderr, sys); err != nil {
+		if err := runSupernodeSystem(ctx, stderr, sys, cfg); err != nil {
 			return err
 		}
 	} else {
@@ -155,7 +211,9 @@ func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
 	return logger
 }
 
-func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
+// buildSystem turns a preset constructor's fatal-failure panic back into an error, so op-up can
+// report it and exit rather than unwinding through main.
+func buildSystem[S any](build func() S) (sys S, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			var failure testingFailure
@@ -166,28 +224,76 @@ func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
 			panic(recovered)
 		}
 	}()
-	// op-up exposes a lightweight devnet; it does not need dispute-game helpers,
-	// and go-tests-short does not build kona-host for the challenger.
-	return presets.NewMinimalNoFaultProofs(t), nil
+	return build(), nil
 }
 
-func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			var failure testingFailure
-			if errors.As(asError(recovered), &failure) {
-				err = failure.err
-				return
-			}
-			panic(recovered)
-		}
-	}()
-	// Use a small activation delay so that interop bridge contracts
-	// (SuperchainETHBridge, ETHLiquidity) get properly initialized.
-	const interopDelay = uint64(2)
-	return presets.NewTwoL2SupernodeInterop(t, interopDelay,
-		presets.WithSuggestedLagoonActivationOffset(interopDelay),
-	), nil
+func newMinimalSystem(t *testingT) (*presets.Minimal, error) {
+	// op-up exposes a lightweight devnet; it does not need dispute-game helpers,
+	// and go-tests-short does not build kona-host for the challenger.
+	return buildSystem(func() *presets.Minimal { return presets.NewMinimalNoFaultProofs(t) })
+}
+
+// interopDelay is a small activation delay, so that interop bridge contracts
+// (SuperchainETHBridge, ETHLiquidity) get properly initialized.
+const interopDelay = uint64(2)
+
+func newSupernodeInteropSystem(t *testingT) (*presets.TwoL2SupernodeInterop, error) {
+	return buildSystem(func() *presets.TwoL2SupernodeInterop {
+		return presets.NewTwoL2SupernodeInterop(t, interopDelay,
+			presets.WithSuggestedLagoonActivationOffset(interopDelay),
+		)
+	})
+}
+
+// newPrivateInteropSystem is the interop system above with chain B replaced by a private-interop
+// pair: a private sequenced chain that holds the RPC surface, and the public rendering the
+// supernode judges. Every other handle keeps its ordinary meaning, which is the whole point of the
+// preset option (op-devstack/presets/options.go, WithPrivateInteropChain).
+//
+// Interop is at GENESIS here, where the public devnet above activates it two seconds in. That is
+// not a preference: the pair's genesis is generated by a contracts-bedrock dev feature that
+// refuses to build otherwise ("private interop private chain requires interop at genesis",
+// L2Genesis.s.sol), and the private-interop acceptance tests construct their presets the same way.
+// A delay -- or a suggested Lagoon offset, which is the same statement made through the deployer --
+// fails during genesis generation, before any node starts.
+//
+// The standing rendering-invariant checker is off. It asserts at t.Cleanup, and op-up's cleanup
+// runs on Ctrl-C: a devnet the operator stopped mid-range would fail the assertion and panic out
+// of the shutdown path, which is not what "the operator pressed Ctrl-C" should look like.
+func newPrivateInteropSystem(t *testingT) (*presets.TwoL2SupernodeInterop, error) {
+	return buildSystem(func() *presets.TwoL2SupernodeInterop {
+		return presets.NewTwoL2SupernodeInterop(t, 0,
+			presets.WithPrivateInteropChain(sysgo.WithoutRenderingInvariantCheck()),
+		)
+	})
+}
+
+// checkPrivateInteropPrerequisites reports the two environment problems that stop a pair before it
+// starts, in the operator's terms.
+//
+// A pair is two op-reths on one chain ID, and the rendering's genesis comes from a dev feature only
+// the op-reth lane runs, so the preset skips on op-geth (presets/twol2.go). op-up's testing handle
+// treats a skip as fatal, and the resulting message is about a skip rather than about the
+// environment that caused it.
+func checkPrivateInteropPrerequisites(ctx context.Context, logger log.Logger) error {
+	if kind := os.Getenv(devstackL2ELKindEnv); kind == string(sysgo.MixedL2ELOpGeth) {
+		return fmt.Errorf("--private-interop needs op-reth, but %s=%s; unset it or set it to %q",
+			devstackL2ELKindEnv, kind, sysgo.MixedL2ELOpReth)
+	}
+	// The same binary the devstack will launch: an override names a CLI-superset of op-reth, and
+	// rustbin derives its path variable from the name (RUST_BINARY_PATH_OP_RETH by default).
+	binary := os.Getenv(devstackL2ELOverrideBinaryEnv)
+	if binary == "" {
+		binary = "op-reth"
+	}
+	path, err := rustbin.Spec{SrcDir: "rust", Package: binary, Binary: binary}.EnsureExists(ctx, logger)
+	if err != nil {
+		return fmt.Errorf("--private-interop needs the %s binary: %w\n"+
+			"Build it ('cd rust && just build-%s'), or set RUST_BINARY_PATH_%s to a prebuilt one",
+			binary, err, binary, strings.ToUpper(strings.ReplaceAll(binary, "-", "_")))
+	}
+	logger.Info("Using L2 execution binary", "binary", binary, "path", path)
+	return nil
 }
 
 func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal) error {
@@ -211,7 +317,7 @@ func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal) erro
 	return nil
 }
 
-func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL2SupernodeInterop) error {
+func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL2SupernodeInterop, cfg opUpConfig) error {
 	if err := printAccountInfo(stderr); err != nil {
 		return err
 	}
@@ -219,6 +325,20 @@ func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL
 	fmt.Fprintf(stderr, "L2A EL Node URL: %s\n", "http://localhost:8545")
 	fmt.Fprintf(stderr, "L2B Chain ID: %s\n", sys.L2B.ChainID())
 	fmt.Fprintf(stderr, "L2B EL Node URL: %s\n", "http://localhost:8546")
+	// The two URLs above are op-up's logging proxy, which speaks one JSON-RPC object per request.
+	// A client that batches (the interop smoke does) needs the node itself.
+	fmt.Fprintf(stderr, "L2A EL Node URL (direct, batch-capable): %s\n", sys.L2ELA.Escape().UserRPC())
+	fmt.Fprintf(stderr, "L2B EL Node URL (direct, batch-capable): %s\n", sys.L2ELB.Escape().UserRPC())
+
+	if pi := sys.PrivateInterop; pi != nil {
+		// L2B above is the PRIVATE chain: it holds the RPC surface, and its blocks are not public.
+		// What every counterparty means by chain B is the rendering, which is what the supernode
+		// judges and what message identifiers name.
+		fmt.Fprintf(stderr, "L2B is a private-interop pair; the endpoints above are its PRIVATE half.\n")
+		fmt.Fprintf(stderr, "L2B Rendering EL Node URL: %s\n", sys.L2BSupernodeEL.Escape().UserRPC())
+		fmt.Fprintf(stderr, "L2B Rendering CL Node URL: %s\n", sys.L2BSupernodeCL.Escape().UserRPC())
+		fmt.Fprintf(stderr, "L2B Private op-node follow source: %s\n", pi.FollowSource())
+	}
 
 	go logBlocks(ctx, stderr, "L2A", sys.L2ELA)
 	go logBlocks(ctx, stderr, "L2B", sys.L2ELB)
@@ -235,29 +355,63 @@ func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL
 		}
 	}()
 
+	if cfg.smoke {
+		return runSmoke(ctx, stderr, sys)
+	}
+
 	<-ctx.Done()
 
 	return nil
 }
 
-func printAccountInfo(stderr io.Writer) error {
+// runSmoke runs the interop smoke tests in THIS process, against the nodes' own RPCs.
+//
+// Both details are load-bearing. The URLs are the ELs' own, not op-up's 8545/8546 proxy, which
+// speaks one JSON-RPC object per request and cannot serve a batching client. And in-process is the
+// only place a private-interop pair can be smoked at all: a message initiated on the private chain
+// is named by its position on the rendering, and that correction lives in a resolver the devstack
+// registers in the process that built the pair.
+func runSmoke(ctx context.Context, stderr io.Writer, sys *presets.TwoL2SupernodeInterop) error {
+	privKeyHex, _, err := funderAccount()
+	if err != nil {
+		return err
+	}
+	return interopsmoke.Run(ctx, stderr, interopsmoke.Config{
+		L2AURL:     sys.L2ELA.Escape().UserRPC(),
+		L2BURL:     sys.L2ELB.Escape().UserRPC(),
+		PrivateKey: privKeyHex,
+		// Read off the system rather than off the command line: the topology is what decides how
+		// the private chain's messages are named, not what the operator typed.
+		PrivatePairB: sys.PrivateInterop != nil,
+	})
+}
+
+// funderAccount is the prefunded devkeys account op-up hands out, as a hex secret and its address.
+func funderAccount() (privKeyHex string, address common.Address, err error) {
 	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	if err != nil {
-		return fmt.Errorf("new mnemonic dev keys: %w", err)
+		return "", common.Address{}, fmt.Errorf("new mnemonic dev keys: %w", err)
 	}
 	const funderIndex = 10_000
 	funderUserKey := devkeys.UserKey(funderIndex)
 	funderAddress, err := hd.Address(funderUserKey)
 	if err != nil {
-		return fmt.Errorf("address: %w", err)
+		return "", common.Address{}, fmt.Errorf("address: %w", err)
 	}
 	funderPrivKey, err := hd.Secret(funderUserKey)
 	if err != nil {
-		return fmt.Errorf("secret: %w", err)
+		return "", common.Address{}, fmt.Errorf("secret: %w", err)
 	}
+	return "0x" + common.Bytes2Hex(crypto.FromECDSA(funderPrivKey)), funderAddress, nil
+}
 
-	fmt.Fprintf(stderr, "Test Account Address: %s\n", funderAddress)
-	fmt.Fprintf(stderr, "Test Account Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(funderPrivKey)))
+func printAccountInfo(stderr io.Writer) error {
+	privKeyHex, address, err := funderAccount()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stderr, "Test Account Address: %s\n", address)
+	fmt.Fprintf(stderr, "Test Account Private Key: %s\n", privKeyHex)
 	return nil
 }
 
@@ -307,7 +461,7 @@ func logInterop(ctx context.Context, stderr io.Writer, sys *presets.TwoL2Superno
 					lastLocalSafe[id] = cs.LocalSafeL2.Number
 				}
 
-				// Cross-safe (safe head) — reorg shows as decrease
+				// Cross-safe (safe head) -- reorg shows as decrease
 				if cs.SafeL2.Number != lastSafe[id] {
 					if cs.SafeL2.Number < lastSafe[id] {
 						fmt.Fprintf(stderr, "[interop] Chain %s REORG: safe #%d -> #%d\n",

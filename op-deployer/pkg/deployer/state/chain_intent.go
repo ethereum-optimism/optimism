@@ -69,6 +69,146 @@ type L2DevGenesisParams struct {
 	Prefund map[common.Address]*hexutil.U256 `json:"prefund" toml:"prefund"`
 }
 
+// PrivateInteropRole names which half of a private interop pair a chain's genesis renders.
+// The two halves share a chain ID -- the public rendering IS the private chain's identity in the
+// dependency set -- so they can never be two chains in one intent, and the role is what tells one
+// deployment apart from the other.
+type PrivateInteropRole string
+
+const (
+	// PrivateInteropRendering renders the PUBLIC half: a derived-only interop chain carrying the
+	// standard batcher's replay transactions and range claims.
+	PrivateInteropRendering PrivateInteropRole = "rendering"
+	// PrivateInteropPrivateChain renders the PRIVATE half: a custom gas token chain with the
+	// application-level mint bridge authorized as a liquidity minter.
+	PrivateInteropPrivateChain PrivateInteropRole = "private"
+)
+
+// PrivateInterop configures a chain as one half of a private interop pair. Absent (nil) on every
+// ordinary chain, which is what keeps an ordinary chain's genesis byte-identical.
+type PrivateInterop struct {
+	// Role selects which half this genesis renders. Required.
+	Role PrivateInteropRole `json:"role" toml:"role"`
+
+	// CounterpartyChainID is the chain holding the ETHLockVault the private chain's
+	// NativeMintBridge mints against. Private half only.
+	CounterpartyChainID uint64 `json:"counterpartyChainID,omitempty" toml:"counterpartyChainID,omitempty"`
+
+	// LockVault is the ETHLockVault's address on the counterparty chain. Private half only.
+	LockVault common.Address `json:"lockVault,omitempty" toml:"lockVault,omitempty"`
+
+	// ExtraEmitters are additional application contracts whose logs are published by the public
+	// rendering, beyond the two standard interop predeploys. Rendering half only. The generated
+	// rollup config is the runtime source of truth for this set.
+	ExtraEmitters []common.Address `json:"extraEmitters,omitempty" toml:"extraEmitters,omitempty"`
+}
+
+// IsRendering returns true when this chain renders the public half.
+func (p *PrivateInterop) IsRendering() bool {
+	return p != nil && p.Role == PrivateInteropRendering
+}
+
+// IsPrivateChain returns true when this chain renders the private half.
+func (p *PrivateInterop) IsPrivateChain() bool {
+	return p != nil && p.Role == PrivateInteropPrivateChain
+}
+
+// Check validates the private interop configuration.
+func (p *PrivateInterop) Check() error {
+	if p == nil {
+		return nil
+	}
+	switch p.Role {
+	case PrivateInteropRendering, PrivateInteropPrivateChain:
+	default:
+		return fmt.Errorf("%w: privateInterop.role must be %q or %q, got %q",
+			ErrIncompatibleValue, PrivateInteropRendering, PrivateInteropPrivateChain, p.Role)
+	}
+	if p.IsRendering() {
+		if p.CounterpartyChainID != 0 || p.LockVault != (common.Address{}) {
+			return fmt.Errorf("%w: privateInterop.counterpartyChainID and .lockVault belong to the "+
+				"private half, not the rendering", ErrIncompatibleValue)
+		}
+	} else if len(p.ExtraEmitters) != 0 {
+		return fmt.Errorf("%w: privateInterop.extraEmitters belongs to the rendering half", ErrIncompatibleValue)
+	}
+	if p.IsPrivateChain() {
+		if p.CounterpartyChainID == 0 {
+			return fmt.Errorf("%w: privateInterop.counterpartyChainID must be set on the private half", ErrIncompatibleValue)
+		}
+		if p.LockVault == (common.Address{}) {
+			return fmt.Errorf("%w: privateInterop.lockVault must be set on the private half", ErrIncompatibleValue)
+		}
+	}
+	return nil
+}
+
+// ResourceConfig overrides the L1 resource config a chain's SystemConfig is initialized with.
+// Absent (nil) on every ordinary chain, which then gets the gas-limit-derived default.
+//
+// The reason to set one at all: a chain becomes undepositable, on a completely stock portal, when
+// it is initialized with MaxResourceLimit = 0. Every OptimismPortal.depositTransaction is metered
+// against that limit with a gas limit of at least 21000, so every deposit reverts on L1 and no user
+// deposit ever exists for derivation or attribute handling to see. That is what a private interop
+// pair needs: its ETH solvency story rests on the public rendering never minting ETH out of a
+// deposit.
+//
+// It can only be set at initialization -- this SystemConfig has no owner-callable setter -- so a
+// live owner can still rotate the batcher key without being able to reopen deposits, and undoing it
+// is a governed upgrade-and-reinitialize like any other L1 change.
+type ResourceConfig struct {
+	// MaxResourceLimit is the deposit gas budget per L1 block. Zero closes deposits.
+	MaxResourceLimit uint32 `json:"maxResourceLimit" toml:"maxResourceLimit"`
+	// ElasticityMultiplier must be positive and must divide MaxResourceLimit exactly. Use 1
+	// alongside a zero limit.
+	ElasticityMultiplier uint8 `json:"elasticityMultiplier" toml:"elasticityMultiplier"`
+	// SystemTxMaxGas is the gas reserved for the L1 attributes deposit.
+	SystemTxMaxGas uint32 `json:"systemTxMaxGas" toml:"systemTxMaxGas"`
+}
+
+const PrivateInteropSystemTxMaxGas uint32 = 1_000_000
+
+// ClosedDepositsResourceConfig is the resource configuration every private-interop pair derives.
+// It is deliberately not a deployment option: selecting either half of a pair closes the shared
+// portal structurally, so omitting an otherwise-independent intent field cannot reopen deposits.
+func ClosedDepositsResourceConfig() *ResourceConfig {
+	return &ResourceConfig{
+		MaxResourceLimit:     0,
+		ElasticityMultiplier: 1,
+		SystemTxMaxGas:       PrivateInteropSystemTxMaxGas,
+	}
+}
+
+// EffectiveResourceConfig returns the configuration the deployer must apply. A private-interop
+// stanza takes precedence over the ordinary optional override because closed deposits are part of
+// that chain type, not an operator-selected tuning value.
+func (c *ChainIntent) EffectiveResourceConfig() *ResourceConfig {
+	if c.PrivateInterop != nil {
+		return ClosedDepositsResourceConfig()
+	}
+	return c.ResourceConfig
+}
+
+// Check validates the override against the constraints SystemConfig._setResourceConfig enforces,
+// so a bad value is rejected while the intent is still a file rather than halfway through a deploy.
+func (r *ResourceConfig) Check(gasLimit uint64) error {
+	if r == nil {
+		return nil
+	}
+	if r.ElasticityMultiplier == 0 {
+		return fmt.Errorf("%w: resourceConfig.elasticityMultiplier must be positive", ErrIncompatibleValue)
+	}
+	if uint64(r.MaxResourceLimit)%uint64(r.ElasticityMultiplier) != 0 {
+		return fmt.Errorf("%w: resourceConfig.maxResourceLimit must be a multiple of elasticityMultiplier",
+			ErrIncompatibleValue)
+	}
+	if uint64(r.MaxResourceLimit)+uint64(r.SystemTxMaxGas) > gasLimit {
+		return fmt.Errorf("%w: resourceConfig.maxResourceLimit + systemTxMaxGas exceeds the chain's gas limit",
+			ErrIncompatibleValue)
+	}
+	return nil
+}
+
 type CustomGasToken struct {
 	Name                     string         `json:"name,omitempty" toml:"name,omitempty"`
 	Symbol                   string         `json:"symbol,omitempty" toml:"symbol,omitempty"`
@@ -96,6 +236,8 @@ type ChainIntent struct {
 	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
 	DAFootprintGasScalar       uint16                    `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 	CustomGasToken             CustomGasToken            `json:"customGasToken" toml:"customGasToken"`
+	PrivateInterop             *PrivateInterop           `json:"privateInterop,omitempty" toml:"privateInterop,omitempty"`
+	ResourceConfig             *ResourceConfig           `json:"resourceConfig,omitempty" toml:"resourceConfig,omitempty"`
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
@@ -166,6 +308,30 @@ func (c *ChainIntent) Check() error {
 		// LiquidityControllerOwner is optional - if not set, L2ProxyAdminOwner will be used as default
 	}
 
+	if c.PrivateInterop != nil && c.ResourceConfig != nil {
+		closed := ClosedDepositsResourceConfig()
+		if *c.ResourceConfig != *closed {
+			return fmt.Errorf("%w: private interop derives a closed-deposit resource config; remove the conflicting resourceConfig override, chainId=%s",
+				ErrIncompatibleValue, c.ID)
+		}
+	}
+
+	if err := c.EffectiveResourceConfig().Check(c.GasLimit); err != nil {
+		return fmt.Errorf("%w: chainId=%s", err, c.ID)
+	}
+
+	if err := c.PrivateInterop.Check(); err != nil {
+		return fmt.Errorf("%w: chainId=%s", err, c.ID)
+	}
+
+	// The private half IS a custom gas token chain; the rendering deliberately is not, because its
+	// replay transactions pay gas in the rendering's own ETH.
+	if c.PrivateInterop.IsPrivateChain() && !c.IsCustomGasTokenEnabled() {
+		return fmt.Errorf("%w: the private interop private chain requires a custom gas token, chainId=%s", ErrIncompatibleValue, c.ID)
+	}
+	if c.PrivateInterop.IsRendering() && c.IsCustomGasTokenEnabled() {
+		return fmt.Errorf("%w: the private interop rendering must not be a custom gas token chain, chainId=%s", ErrIncompatibleValue, c.ID)
+	}
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)
 	}

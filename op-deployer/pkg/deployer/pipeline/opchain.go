@@ -561,6 +561,23 @@ func BuildDeployOPChainInput(
 		OperatorFeeConstant:          chain.OperatorFeeConstant,
 		SuperchainConfig:             superchainConfig,
 		UseCustomGasToken:            chain.IsCustomGasTokenEnabled(),
+		ResourceConfigOverride:       resourceConfigOverride(chain),
+	}
+}
+
+// resourceConfigOverride flattens the chain's optional resource config into the shape the deploy
+// script takes. Absent means "use the gas-limit-derived default", which is what every ordinary
+// chain gets and why an ordinary deployment is unchanged by this field existing.
+func resourceConfigOverride(chain *state.ChainIntent) opcm.ResourceConfigOverride {
+	cfg := chain.EffectiveResourceConfig()
+	if cfg == nil {
+		return opcm.ResourceConfigOverride{}
+	}
+	return opcm.ResourceConfigOverride{
+		Enabled:              true,
+		MaxResourceLimit:     cfg.MaxResourceLimit,
+		ElasticityMultiplier: cfg.ElasticityMultiplier,
+		SystemTxMaxGas:       cfg.SystemTxMaxGas,
 	}
 }
 

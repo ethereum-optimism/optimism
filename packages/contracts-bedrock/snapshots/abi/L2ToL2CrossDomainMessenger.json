@@ -1,6 +1,19 @@
 [
   {
     "inputs": [],
+    "name": "MAX_PRIVATE_INTEROP_MESSAGE_SIZE",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "crossDomainMessageContext",
     "outputs": [
       {
@@ -340,6 +353,16 @@
   {
     "inputs": [],
     "name": "MessageTargetL2ToL2CrossDomainMessenger",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageTargetSuperchainETHBridge",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MessageTooLarge",
     "type": "error"
   },
   {

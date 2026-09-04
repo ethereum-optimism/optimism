@@ -390,6 +390,34 @@ func WithInteropAtGenesis() Option {
 // ELSync sequencers stopped, so the VN can bootstrap the chain the light sequencers
 // EL-sync from. Pair with the system's BootstrapLightSequencersViaVNHandoff method,
 // which drives the bootstrap and hands sequencing off to the light sequencers (#21164).
+// WithPrivateInteropChain makes the preset's SECOND L2 chain (chain B) a private-interop pair.
+//
+// What a test holds afterwards is deliberately the same three surfaces every two-L2 interop test
+// already holds, pointed at different processes:
+//
+//   - the transaction/RPC surface is the PRIVATE chain's sequencer EL -- internally a stock
+//     sequenced chain, so funding, deploys, receipts and nonces work untouched;
+//   - the derivation/judge surface is the public RENDERING's node, attached to the supernode
+//     exactly like any other chain, because to the supernode it IS any other chain;
+//   - `chain.Batcher` is the private-interop batcher, which presents the stock batcher's
+//     ActivityAPI.
+//
+// The two halves share a chain ID and are never peered: see op-private-interop/docs/DESIGN.md.
+func WithPrivateInteropChain(opts ...sysgo.PrivateInteropOption) Option {
+	return option{
+		kinds: optionKindPrivateInteropChain,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			pi := sysgo.DefaultPrivateInteropConfig()
+			for _, opt := range opts {
+				if opt != nil {
+					opt(&pi)
+				}
+			}
+			cfg.PrivateInterop = &pi
+		},
+	}
+}
+
 func WithSupernodeVNSequencerForBootstrap() Option {
 	return option{
 		kinds: optionKindSupernodeVNSequencerForBootstrap,
