@@ -145,6 +145,13 @@ impl Metrics {
             Self::SIGNING_ERROR_SIGNER,
             0
         );
+        kona_macros::set!(
+            counter,
+            Self::BLOCK_SIGNING_ERRORS,
+            "kind",
+            Self::SIGNING_ERROR_MISMATCH,
+            0
+        );
 
         // Sequencer: reset total transactions sequenced
         kona_macros::set!(counter, Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED, 0);

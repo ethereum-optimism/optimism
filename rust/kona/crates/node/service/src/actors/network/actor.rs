@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use alloy_primitives::{Address, ChainId};
 use alloy_signer::Signature;
 use async_trait::async_trait;
@@ -6,7 +8,6 @@ use kona_rpc::NetworkAdminQuery;
 use kona_sources::{BlockSignerError, BlockSignerHandler, RemoteSignerError};
 use libp2p::TransportError;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, PayloadHash};
-use std::time::Duration;
 use thiserror::Error;
 use tokio::{
     self, select,
@@ -29,14 +30,18 @@ const BLOCK_SIGNING_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Why signing an unsafe payload failed.
 ///
-/// `Timeout` and `Signer` are transient: drop the payload and carry on. `NotAuthorized` is not,
-/// and is handled separately - see [`NetworkActor::sign_payload`].
-#[derive(Debug, thiserror::Error)]
+/// `Timeout` and `Signer` are not fatal: drop the payload and carry on. `NotAuthorized` is, and
+/// is handled separately - see [`NetworkActor::sign_payload`].
+#[derive(Debug, Error)]
 enum SigningFailure {
     /// The signer did not answer within [`BLOCK_SIGNING_TIMEOUT`].
     #[error("signing timed out after {BLOCK_SIGNING_TIMEOUT:?}")]
     Timeout,
-    /// The signer refused or failed the request.
+    /// The signer refused or failed the request, or answered with something that is not a
+    /// signature.
+    ///
+    /// Usually transient. A signer that persistently returns malformed responses is not, and
+    /// drops every block until fixed; the `signer_error` counter is the only signal.
     #[error(transparent)]
     Signer(BlockSignerError),
     /// This node's signer is not the chain's current unsafe block signer.
@@ -118,6 +123,10 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     /// Nothing else stops it sequencing - the sequencer canonicalises the block and commits it to
     /// the conductor before the payload ever reaches this actor, so the unsafe head keeps
     /// advancing and conductor health checks keep passing while nothing is ever published.
+    ///
+    /// Only a remote signer reports the mismatch, as [`RemoteSignerError::InvalidAddress`],
+    /// before any transport work. A local signer never compares its key against
+    /// `sender_address`, so a rotated local key still fails silently.
     async fn sign_payload(
         signer: &BlockSignerHandler,
         payload_hash: PayloadHash,
@@ -131,12 +140,11 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
         .await
         .map_err(|_| SigningFailure::Timeout)
         .and_then(|result| {
-            result.map_err(|e| {
-                if matches!(e, BlockSignerError::Remote(RemoteSignerError::InvalidAddress { .. })) {
+            result.map_err(|e| match e {
+                BlockSignerError::Remote(RemoteSignerError::InvalidAddress { .. }) => {
                     SigningFailure::NotAuthorized(e)
-                } else {
-                    SigningFailure::Signer(e)
                 }
+                e => SigningFailure::Signer(e),
             })
         });
 
@@ -195,8 +203,8 @@ pub enum NetworkActorError {
     ChannelClosed,
     /// This node cannot sign unsafe payloads for this chain.
     ///
-    /// Only raised when the configured signer is not the chain's unsafe block signer, which no
-    /// retry can fix. Transient signing failures are logged against
+    /// Only raised when a remote signer reports that it is not the chain's unsafe block signer,
+    /// which no retry can fix. Every other signing failure is logged against
     /// `kona_node_block_signing_errors` and the payload dropped, rather than surfacing here.
     #[error("Failed to sign the payload: {0}")]
     FailedToSignPayload(#[from] BlockSignerError),
@@ -308,6 +316,13 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::B256;
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV3};
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+    use arbitrary::Arbitrary;
+    use rand::Rng;
+
     use super::*;
     use crate::actors::network::{
         engine_client::MockNetworkEngineClient,
@@ -315,12 +330,6 @@ mod tests {
             SignerBehaviour, spawn_mock_signer, test_actor, test_actor_with_unsafe_signer,
         },
     };
-    use alloy_primitives::B256;
-    use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV3};
-    use alloy_signer::SignerSync;
-    use alloy_signer_local::PrivateKeySigner;
-    use arbitrary::Arbitrary;
-    use rand::Rng;
 
     /// Whether the driving runtime starts with a paused clock.
     #[derive(Debug, Clone, Copy)]
@@ -329,12 +338,15 @@ mod tests {
         Paused,
     }
 
-    fn arbitrary_payload() -> OpExecutionPayloadEnvelope {
+    /// A `T` built from random bytes.
+    fn arbitrary<T: for<'a> Arbitrary<'a>>() -> T {
         let mut bytes = [0u8; 4096];
         rand::rng().fill(bytes.as_mut_slice());
-        OpExecutionPayloadEnvelope::V1(
-            ExecutionPayloadV1::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap(),
-        )
+        T::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap()
+    }
+
+    fn arbitrary_payload() -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V1(arbitrary::<ExecutionPayloadV1>())
     }
 
     fn runtime(clock: Clock) -> tokio::runtime::Runtime {
@@ -376,11 +388,8 @@ mod tests {
         assert!(result.is_ok(), "a signer error reported a fatal condition: {result:?}");
     }
 
-    /// A rotated-away signer key is the one signing failure that must stay fatal.
-    ///
-    /// Nothing else stops a sequencer with the wrong signer key: it canonicalises and commits to
-    /// the conductor before the payload reaches this actor, so its unsafe head advances and
-    /// conductor health checks pass while it publishes nothing.
+    /// A rotated-away signer key is the one signing failure that must stay fatal; see
+    /// [`NetworkActor::sign_payload`] for why nothing else would stop the sequencer.
     #[test]
     fn a_signer_address_mismatch_is_fatal() {
         let result = runtime(Clock::Real).block_on(async {
@@ -484,16 +493,12 @@ mod tests {
 
     #[test]
     fn test_payload_signature_v3() {
-        let mut bytes = [0u8; 4096];
-        rand::rng().fill(bytes.as_mut_slice());
-
         let pubkey = PrivateKeySigner::random();
         let expected_address = pubkey.address();
         const CHAIN_ID: u64 = 1337;
 
         let block = OpExecutionPayloadEnvelope::V3 {
-            payload: ExecutionPayloadV3::arbitrary(&mut arbitrary::Unstructured::new(&bytes))
-                .unwrap(),
+            payload: arbitrary::<ExecutionPayloadV3>(),
             parent_beacon_block_root: B256::random(),
         };
 
