@@ -38,6 +38,30 @@ import (
 // Update to Prague if L1 changes to Prague and we need more blobs in multi-blob tests.
 var maxBlobsPerBlock = params.DefaultCancunBlobConfig.Max
 
+func findBatcherTxTypes(txs []*types.Transaction, inbox common.Address, expectedType uint8) (foundExpected, foundOther bool) {
+	for _, tx := range txs {
+		if tx.To() == nil || tx.To().Cmp(inbox) != 0 {
+			continue
+		}
+		if tx.Type() == expectedType {
+			foundExpected = true
+			continue
+		}
+		foundOther = true
+	}
+	return foundExpected, foundOther
+}
+
+func TestFindBatcherTxTypesInspectsTransactionsAfterExpectedType(t *testing.T) {
+	inbox := common.Address{0xff}
+	expected := types.NewTx(&types.DynamicFeeTx{To: &inbox})
+	unexpected := types.NewTx(&types.AccessListTx{To: &inbox})
+
+	foundExpected, foundOther := findBatcherTxTypes([]*types.Transaction{expected, unexpected}, inbox, expected.Type())
+	require.True(t, foundExpected)
+	require.True(t, foundOther)
+}
+
 // TestSystem4844E2E* run the SystemE2E test with 4844 enabled on L1, and active on the rollup in
 // the op-batcher and verifier.  It submits a txpool-blocking transaction before running
 // each test to ensure the batcher is able to clear it.
@@ -265,7 +289,10 @@ func TestBatcherAutoDA(t *testing.T) {
 	cfg.DisableProposer = true // disable L2 output submission for this test
 	cfg.DisableTxForwarder = true
 	cfg.DisableBatcher = true // disable batcher because we start it manually later
-	sys, err := cfg.Start(t)
+
+	// System startup may include an external L2 EL. Pause L1 immediately after
+	// block 2 so variable startup duration cannot mutate the initial fee market.
+	sys, err := cfg.Start(t, e2esys.WithL1BlockPauseAtBlock2())
 	require.NoError(t, err, "Error starting up system")
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
@@ -292,35 +319,47 @@ func TestBatcherAutoDA(t *testing.T) {
 	}
 	requireEventualBatcherTxType := func(txType uint8, timeout time.Duration, strict bool) {
 		var foundOtherTxType bool
-		require.Eventually(t, func() bool {
-			b, err := l1Client.BlockByNumber(ctx, nil)
-			require.NoError(t, err)
-			for _, tx := range b.Transactions() {
-				if tx.To() == nil || tx.To().Cmp(cfg.DeployConfig.BatchInboxAddress) != 0 {
-					continue
-				}
-				if typ := tx.Type(); typ == txType {
-					return true
-				} else if strict {
-					foundOtherTxType = true
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			var content struct {
+				Pending map[string]*types.Transaction `json:"pending"`
+				Queued  map[string]*types.Transaction `json:"queued"`
+			}
+			err := l1Client.Client().CallContext(ctx, &content, "txpool_contentFrom", cfg.Secrets.Addresses().Batcher)
+			require.NoError(ct, err)
+			txs := make([]*types.Transaction, 0, len(content.Pending)+len(content.Queued))
+			for _, txGroup := range []map[string]*types.Transaction{content.Pending, content.Queued} {
+				for _, tx := range txGroup {
+					txs = append(txs, tx)
 				}
 			}
-			return false
-		}, timeout, time.Second, "expected batcher tx type didn't arrive")
+			latest, err := l1Client.BlockByNumber(ctx, nil)
+			require.NoError(ct, err)
+			txs = append(txs, latest.Transactions()...)
+			foundExpected, foundOther := findBatcherTxTypes(txs, cfg.DeployConfig.BatchInboxAddress, txType)
+			if strict && foundOther {
+				foundOtherTxType = true
+			}
+			assert.True(ct, foundExpected, "expected batcher tx type didn't arrive")
+		}, timeout, 100*time.Millisecond)
 		require.False(t, foundOtherTxType, "unexpected batcher tx type found")
 	}
 
-	// Check markets are set up as expected.
-	// There is a race condition where the batcher might already
-	// impact the markets before we query the feeRatio. Therefore
-	// the L1GenesisBlockExcessBlobGas above is tuned so that
-	// the feeRatio remains above 41.0 even after the market begins to
-	// change:
-	// initially:     feeRatio = 43.67449956483899
-	// after block 3: feeRatio = 42.65440079562407 (using geth.WaitForBlock(big.NewInt(3), l1Client))
-
+	// L1 is paused at block 2 until the test explicitly resumes it, so this
+	// observes the intended initial market.
 	_, _, _, feeRatio := mustGetFees()
 	require.Greater(t, feeRatio, 41.0, "expected feeRatio to be greater than 41 (calldata should be cheaper, even with Pectra)")
+
+	// Let the rollup nodes observe one post-start L1 head, then pause again while
+	// the initial batch is selected. The fee ratio remains in the
+	// calldata-cheaper range at block 3.
+	pausedAtBlock3, err := sys.PauseL1AtBlock(3)
+	require.NoError(t, err)
+	require.NoError(t, sys.ResumeL1())
+	select {
+	case <-pausedAtBlock3:
+	case <-ctx.Done():
+		require.NoError(t, ctx.Err(), "waiting for L1 to pause at block 3")
+	}
 
 	// Market manipulations:
 	// Send deposit transactions in a loop to shore up L1 base fee
@@ -337,10 +376,11 @@ func TestBatcherAutoDA(t *testing.T) {
 		txs = append(txs, tx)
 	}
 
-	// At this point, we didn't wait on any blocks yet, so we can check that
-	// the first batcher tx used calldata.
+	// L1 is still paused, so inspect the pending batcher transaction before it
+	// can be mined and confirm the initial selection used calldata.
 	require.NoError(t, sys.BatchSubmitter.TestDriver().StartBatchSubmitting())
 	requireEventualBatcherTxType(types.DynamicFeeTxType, 8*time.Second, true)
+	require.NoError(t, sys.ResumeL1())
 
 	// Now wait for txs to confirm on L1:
 	t.Logf("Confirming %d txs on L1...", numTxs)

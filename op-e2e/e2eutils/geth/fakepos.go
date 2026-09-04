@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -49,6 +50,12 @@ type FakePoS struct {
 	beacon Beacon
 
 	config *params.ChainConfig
+
+	pauseMu      sync.Mutex
+	pauseAt      uint64
+	pauseReached chan struct{}
+	paused       bool
+	resumeCh     chan struct{}
 }
 
 type Backend interface {
@@ -84,6 +91,67 @@ func NewFakePoS(backend Backend, engineAPI EngineAPI, c clock.Clock, logger log.
 		engineAPI:         engineAPI,
 		beacon:            beacon,
 		config:            config,
+		resumeCh:          make(chan struct{}, 1),
+	}
+}
+
+// PauseAtBlock configures the block producer to pause immediately after block
+// number is made canonical. The returned channel closes when the pause has
+// taken effect.
+func (f *FakePoS) PauseAtBlock(number uint64) (<-chan struct{}, error) {
+	f.pauseMu.Lock()
+	defer f.pauseMu.Unlock()
+	if f.pauseAt != 0 {
+		return nil, fmt.Errorf("L1 block producer already configured to pause at block %d", f.pauseAt)
+	}
+
+	head, err := f.eth.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("get L1 head before configuring pause: %w", err)
+	}
+	headNumber := bigs.Uint64Strict(head.Number)
+	if headNumber >= number {
+		return nil, fmt.Errorf("cannot pause at L1 block %d: current head is %d", number, headNumber)
+	}
+
+	f.pauseAt = number
+	f.pauseReached = make(chan struct{})
+	return f.pauseReached, nil
+}
+
+// Resume resumes block production after a configured pause has taken effect.
+func (f *FakePoS) Resume() error {
+	f.pauseMu.Lock()
+	if !f.paused {
+		f.pauseMu.Unlock()
+		return errors.New("L1 block producer is not paused")
+	}
+	f.paused = false
+	f.pauseMu.Unlock()
+	f.resumeCh <- struct{}{}
+	return nil
+}
+
+// pauseIfConfigured returns true if the subscription context ended while the
+// block producer was paused.
+func (f *FakePoS) pauseIfConfigured(ctx context.Context, number uint64) bool {
+	f.pauseMu.Lock()
+	if f.pauseAt != number {
+		f.pauseMu.Unlock()
+		return false
+	}
+	reached := f.pauseReached
+	f.pauseAt = 0
+	f.pauseReached = nil
+	f.paused = true
+	f.pauseMu.Unlock()
+	close(reached)
+
+	select {
+	case <-f.resumeCh:
+		return false
+	case <-ctx.Done():
+		return true
 	}
 }
 
@@ -308,6 +376,9 @@ func (f *FakePoS) Start() error {
 				// The EL doesn't really care about the value,
 				// but it's nice to mock something consistent with the CL specs.
 				f.withdrawalsIndex += uint64(len(withdrawals))
+				if f.pauseIfConfigured(ctx, bigs.Uint64Strict(nextHeight)) {
+					return nil
+				}
 			case <-ctx.Done():
 				return nil
 			}

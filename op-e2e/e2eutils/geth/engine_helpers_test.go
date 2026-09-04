@@ -70,15 +70,32 @@ func TestFakePoSAdvancesAmsterdamChain(t *testing.T) {
 	require.NoError(t, err)
 
 	logicalClock := clock.NewAdvancingClock()
-	instance, _, err := InitL1(1, 64, l1Genesis, logicalClock, t.TempDir(), noOpBeacon{})
+	instance, fakePoS, err := InitL1(1, 64, l1Genesis, logicalClock, t.TempDir(), noOpBeacon{})
+	require.NoError(t, err)
+	pausedAtBlock1, err := fakePoS.PauseAtBlock(1)
 	require.NoError(t, err)
 	require.NoError(t, instance.Node.Start())
 	t.Cleanup(func() { require.NoError(t, instance.Close()) })
 
 	logicalClock.AdvanceTime(2 * time.Second)
-	require.Eventually(t, func() bool {
-		return instance.Backend.BlockChain().CurrentBlock().Number.Cmp(big.NewInt(1)) >= 0
-	}, 10*time.Second, 100*time.Millisecond)
+	select {
+	case <-pausedAtBlock1:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for fake PoS to pause at block 1")
+	}
+	require.Equal(t, big.NewInt(1), instance.Backend.BlockChain().CurrentBlock().Number)
+
+	pausedAtBlock2, err := fakePoS.PauseAtBlock(2)
+	require.NoError(t, err)
+	logicalClock.AdvanceTime(10 * time.Second)
+	require.Equal(t, big.NewInt(1), instance.Backend.BlockChain().CurrentBlock().Number)
+	require.NoError(t, fakePoS.Resume())
+	select {
+	case <-pausedAtBlock2:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for fake PoS to pause at block 2")
+	}
+	require.Equal(t, big.NewInt(2), instance.Backend.BlockChain().CurrentBlock().Number)
 }
 
 type noOpBeacon struct{}
