@@ -1,6 +1,14 @@
+# CI's go-mod cache key checksums this file; moving/renaming it breaks restore-go-mod-cache.
+go_toolchain := "go1.24.13"
+
 # Build minimal hello ELF used by diff-cannon parity checks and op-challenger
 # provider tests. Built with Go 1.24 so the guest avoids Go 1.26 runtime
 # syscalls (e.g. prctl) that production Cannon no longer tracks.
 diff-hello-elf:
     mkdir -p bin
-    cd diff-hello && GOTOOLCHAIN=go1.24.13 GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -o ../bin/hello.64.elf .
+    cd diff-hello && GOTOOLCHAIN={{go_toolchain}} GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -o ../bin/hello.64.elf .
+
+# Downloads the pinned toolchain into the Go module cache. CI runs this in
+# prep-go-modules so test shards restore it instead of fetching it per shard.
+fetch-go-toolchain:
+    GOTOOLCHAIN={{go_toolchain}} go version
