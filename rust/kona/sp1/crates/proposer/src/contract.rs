@@ -7,7 +7,7 @@
 //! discriminants are pinned here (and by unit tests) against the contract
 //! sources instead:
 //! - `packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol` (`ProposalStatus`)
-//! - `packages/contracts-bedrock/src/dispute/lib/Types.sol` (`GameStatus`)
+//! - `packages/contracts-bedrock/src/dispute/lib/Types.sol` (`GameStatus`, `BondDistributionMode`)
 
 use alloy_primitives::U256;
 use alloy_sol_types::sol;
@@ -104,6 +104,32 @@ impl TryFrom<u8> for GameStatus {
     }
 }
 
+/// Bond distribution state, mirroring
+/// `packages/contracts-bedrock/src/dispute/lib/Types.sol` `BondDistributionMode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum BondDistributionMode {
+    /// The game has not selected a distribution mode yet.
+    Undecided = 0,
+    /// Bonds are distributed according to the resolved game outcome.
+    Normal = 1,
+    /// Bonds are refunded because the game is invalidated.
+    Refund = 2,
+}
+
+impl TryFrom<u8> for BondDistributionMode {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Undecided),
+            1 => Ok(Self::Normal),
+            2 => Ok(Self::Refund),
+            _ => Err(anyhow!("invalid bond distribution mode: {value}")),
+        }
+    }
+}
+
 /// Decoded ZK game args (140-byte packed layout from `LibGameArgs.sol`;
 /// mirrors `op-challenger/game/fault/contracts/gameargs` `ZKGameArgs`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,6 +185,17 @@ mod tests {
         assert_eq!(GameStatus::ChallengerWins as u8, 1);
         assert_eq!(GameStatus::DefenderWins as u8, 2);
         assert!(GameStatus::try_from(3).is_err());
+    }
+
+    #[test]
+    fn bond_distribution_mode_values_match_types_sol() {
+        assert_eq!(BondDistributionMode::Undecided as u8, 0);
+        assert_eq!(BondDistributionMode::Normal as u8, 1);
+        assert_eq!(BondDistributionMode::Refund as u8, 2);
+        assert_eq!(BondDistributionMode::try_from(0).unwrap(), BondDistributionMode::Undecided);
+        assert_eq!(BondDistributionMode::try_from(1).unwrap(), BondDistributionMode::Normal);
+        assert_eq!(BondDistributionMode::try_from(2).unwrap(), BondDistributionMode::Refund);
+        assert!(BondDistributionMode::try_from(3).is_err());
     }
 
     #[test]

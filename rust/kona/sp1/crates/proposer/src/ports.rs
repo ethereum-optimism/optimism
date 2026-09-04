@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
 
 use crate::{
-    contract::{GameStatus, ProposalStatus, ZKGameArgs},
+    contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     prover::ProofKeys,
     superroot::SuperRootAt,
 };
@@ -72,10 +72,12 @@ pub(crate) struct GameLifecycle {
     pub(crate) is_finalized: bool,
 }
 
-/// Bond fields read only for a defender-wins game.
+/// Bond-distribution and withdrawal fields for terminal lifecycle recovery.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BondState {
+    pub(crate) bond_distribution_mode: BondDistributionMode,
     pub(crate) credit: U256,
+    pub(crate) refund_mode_credit: U256,
     pub(crate) withdrawal_amount: U256,
     pub(crate) withdrawal_timestamp: U256,
     pub(crate) delay: U256,
@@ -91,7 +93,9 @@ pub(crate) struct WithdrawalState {
 /// Independently failing fields from the latest-state claim preflight.
 #[derive(Debug)]
 pub(crate) struct ClaimPreflight {
+    pub(crate) bond_distribution_mode: Result<BondDistributionMode>,
     pub(crate) credit: Result<U256>,
+    pub(crate) refund_mode_credit: Result<U256>,
     pub(crate) withdrawal: Result<WithdrawalState>,
 }
 
@@ -197,7 +201,7 @@ pub(crate) trait L1View: Send + Sync {
         block: BlockId,
     ) -> Result<BondState>;
     async fn init_bond(&self) -> Result<U256>;
-    async fn game_status(&self, game: Address) -> Result<u8>;
+    async fn game_status(&self, game: Address, block: BlockId) -> Result<u8>;
     async fn claim_preflight(
         &self,
         game: Address,
@@ -210,10 +214,14 @@ pub(crate) trait L1View: Send + Sync {
     async fn nonce_state(&self, proposer: Address) -> Result<NonceState>;
     async fn respected_game_type(&self, block: BlockId) -> Result<u32>;
     async fn parent_standing(&self, game: Address, registry: Address) -> Result<GameStanding>;
-    async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding>;
+    async fn game_standing(
+        &self,
+        game: Address,
+        registry: Address,
+        block: BlockId,
+    ) -> Result<GameStanding>;
     async fn proof_status(&self, game: Address) -> Result<u8>;
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs>;
-    async fn anchor_state_registry(&self, game: Address) -> Result<Address>;
     async fn latest_l1_timestamp(&self) -> Result<u64>;
 }
 

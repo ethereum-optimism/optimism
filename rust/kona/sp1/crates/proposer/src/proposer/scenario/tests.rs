@@ -23,7 +23,7 @@ use crate::{
         PrestatePrograms, ProofProviderConfig, ProofProviderKind, ProposalSafety, ProposerConfig,
         RangeSplitCount,
     },
-    contract::{GameStatus, ProposalStatus, ZKGameArgs},
+    contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     ports::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
         GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
@@ -147,7 +147,9 @@ impl L1View for ScenarioL1View {
         _block: BlockId,
     ) -> anyhow::Result<BondState> {
         Ok(BondState {
+            bond_distribution_mode: BondDistributionMode::Normal,
             credit: U256::ZERO,
+            refund_mode_credit: U256::ZERO,
             withdrawal_amount: U256::ZERO,
             withdrawal_timestamp: U256::ZERO,
             delay: U256::ZERO,
@@ -158,7 +160,7 @@ impl L1View for ScenarioL1View {
         Ok(U256::ZERO)
     }
 
-    async fn game_status(&self, _game: Address) -> anyhow::Result<u8> {
+    async fn game_status(&self, _game: Address, _block: BlockId) -> anyhow::Result<u8> {
         Ok(GameStatus::InProgress as u8)
     }
 
@@ -169,7 +171,9 @@ impl L1View for ScenarioL1View {
         _proposer: Address,
     ) -> ClaimPreflight {
         ClaimPreflight {
+            bond_distribution_mode: Ok(BondDistributionMode::Normal),
             credit: Ok(U256::ZERO),
+            refund_mode_credit: Ok(U256::ZERO),
             withdrawal: Ok(WithdrawalState { amount: U256::ZERO, timestamp: U256::ZERO }),
         }
     }
@@ -221,6 +225,7 @@ impl L1View for ScenarioL1View {
         &self,
         _game: Address,
         _registry: Address,
+        _block: BlockId,
     ) -> anyhow::Result<GameStanding> {
         Ok(GameStanding { blacklisted: false, retired: false })
     }
@@ -231,10 +236,6 @@ impl L1View for ScenarioL1View {
 
     async fn proof_inputs(&self, _game: Address) -> anyhow::Result<ProofInputs> {
         Ok(ProofInputs::default())
-    }
-
-    async fn anchor_state_registry(&self, _game: Address) -> anyhow::Result<Address> {
-        Ok(Address::ZERO)
     }
 
     async fn latest_l1_timestamp(&self) -> anyhow::Result<u64> {
