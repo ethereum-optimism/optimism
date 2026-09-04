@@ -43,8 +43,7 @@ type SingleChainInterop struct {
 	// May be nil if not using sysgo
 	challengerConfig              *challengerConfig.Config
 	zkChallengerSuperRootRPCProxy *sysgo.StallableProxy
-	startZKProposer               func() *sysgo.ZKProposerRuntime
-	zkProposer                    func() *sysgo.ZKProposerRuntime
+	sysgoRuntime                  *sysgo.MultiChainRuntime
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -70,14 +69,14 @@ func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 // StartZKProposer starts the kona-sp1-proposer after a system configured with
 // WithZK and WithoutHonestProposer has seeded its initial dispute games.
 func (s *SingleChainInterop) StartZKProposer() *zkproposer.ZKProposer {
-	s.T.Require().NotNil(s.startZKProposer, "ZK proposer is not configured")
-	return zkproposer.New(s.T, s.startZKProposer())
+	s.T.Require().NotNil(s.sysgoRuntime, "ZK proposer controls require a sysgo-backed preset")
+	return zkproposer.New(s.T, s.sysgoRuntime.StartZKProposer(s.T))
 }
 
 // ZKProposer returns the already-running kona-sp1-proposer.
 func (s *SingleChainInterop) ZKProposer() *zkproposer.ZKProposer {
-	s.T.Require().NotNil(s.zkProposer, "ZK proposer is not configured")
-	return zkproposer.New(s.T, s.zkProposer())
+	s.T.Require().NotNil(s.sysgoRuntime, "ZK proposer controls require a sysgo-backed preset")
+	return zkproposer.New(s.T, s.sysgoRuntime.ZKProposer(s.T))
 }
 
 // ZKChallengerSuperRootRPCProxy returns the proxy in front of the live ZK
