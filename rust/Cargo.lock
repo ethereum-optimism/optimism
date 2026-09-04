@@ -3113,41 +3113,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "cargo-platform"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87a0c0e6148f11f01f32650a2ea02d532b2ad4e81d8bd41e6e565b5adc5e6082"
-dependencies = [
- "serde",
- "serde_core",
-]
-
-[[package]]
 name = "cargo_metadata"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d886547e41f740c616ae73108f6eb70afe6d940c7bc697cb30f13daec073037"
 dependencies = [
  "camino",
- "cargo-platform 0.1.9",
+ "cargo-platform",
  "semver 1.0.28",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "cargo_metadata"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef987d17b0a113becdd19d3d0022d04d7ef41f9efe4f3fb63ac44ba61df3ade9"
-dependencies = [
- "camino",
- "cargo-platform 0.3.2",
- "semver 1.0.28",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -7688,71 +7664,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "kona-sp1-ethereum-host-utils"
-version = "0.0.1"
-dependencies = [
- "alloy-eips 2.1.1",
- "alloy-primitives",
- "anyhow",
- "async-trait",
- "kona-derive",
- "kona-host",
- "kona-preimage",
- "kona-proof",
- "kona-sp1-client-utils",
- "kona-sp1-ethereum-client-utils",
- "kona-sp1-host-utils",
- "rkyv",
- "sp1-sdk",
-]
-
-[[package]]
 name = "kona-sp1-host-utils"
 version = "0.0.1"
 dependencies = [
  "alloy-consensus 2.1.1",
- "alloy-contract",
  "alloy-eips 2.1.1",
  "alloy-primitives",
- "alloy-provider",
- "alloy-rlp",
- "alloy-sol-types",
- "alloy-trie",
  "anyhow",
  "async-trait",
  "bytes",
  "c-kzg",
- "cargo_metadata 0.23.1",
- "cfg-if",
- "futures",
  "http-body-util",
  "hyper",
  "hyper-util",
  "kona-derive",
- "kona-genesis",
- "kona-host",
  "kona-preimage",
  "kona-proof",
  "kona-protocol",
- "kona-registry",
- "kona-rpc",
  "kona-sp1-client-utils",
  "kzg-rs",
- "lazy_static",
  "metrics",
  "metrics-exporter-prometheus",
  "metrics-process",
- "num-format",
- "op-alloy-consensus",
- "op-alloy-network",
  "opentelemetry 0.32.0",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "reqwest 0.13.2",
- "rkyv",
- "serde",
- "serde_json",
  "sp1-sdk",
  "strum",
  "tokio",
@@ -7792,27 +7730,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "kona-sp1-range-executor"
-version = "0.0.1"
-dependencies = [
- "alloy-primitives",
- "anyhow",
- "clap",
- "kona-host",
- "kona-preimage",
- "kona-proof",
- "kona-sp1-client-utils",
- "kona-sp1-elfs",
- "kona-sp1-ethereum-client-utils",
- "kona-sp1-ethereum-host-utils",
- "kona-sp1-host-utils",
- "sp1-sdk",
- "tokio",
- "tracing",
- "tracing-subscriber 0.3.23",
 ]
 
 [[package]]
@@ -9134,16 +9051,6 @@ name = "num-conv"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
-
-[[package]]
-name = "num-format"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a652d9771a63711fd3c3deb670acfbe5c30a4072e664d7a3bf5a9e1056ac72c3"
-dependencies = [
- "arrayvec",
- "itoa",
-]
 
 [[package]]
 name = "num-integer"
@@ -16587,7 +16494,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4767bc4addfc49402c4aa3d48424f5b6207021ccce7d90c6f2e21637f88875d"
 dependencies = [
  "anyhow",
- "cargo_metadata 0.18.1",
+ "cargo_metadata",
  "chrono",
  "clap",
  "dirs 5.0.1",
@@ -16643,7 +16550,7 @@ checksum = "c71cd12e2b4cf675331efc84e4dfa35291b58324830322f9f358fb0fed9377ad"
 dependencies = [
  "base64 0.22.1",
  "bincode 1.3.3",
- "cargo_metadata 0.18.1",
+ "cargo_metadata",
  "hashbrown 0.14.5",
  "hex",
  "libc",

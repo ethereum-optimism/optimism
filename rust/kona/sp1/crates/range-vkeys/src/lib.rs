@@ -1,5 +1,4 @@
-//! Compile-time SP1 range and super-range guest verification keys, embedded from
-//! `elf/vkeys.toml`.
+//! Compile-time SP1 super-range guest verification key, embedded from `elf/vkeys.toml`.
 
 #![cfg_attr(not(test), no_std)]
 
@@ -10,7 +9,7 @@ mod codec;
 
 #[cfg(test)]
 mod tests {
-    use super::{RANGE_VKEY, SUPER_RANGE_VKEY};
+    use super::SUPER_RANGE_VKEY;
     use crate::codec::{parse_hex32, unpack_vkey_bytes32, vkey_hex};
 
     const SP1_FIELD_MODULUS: u32 = 2_130_706_433;
@@ -34,13 +33,6 @@ mod tests {
     }
 
     #[test]
-    fn range_vkey_packs_back_to_committed_bytes() {
-        let committed = parse_hex32(vkey_hex(VKEYS_TOML, "range"));
-        assert_eq!(repack(RANGE_VKEY), committed);
-        assert_canonical(RANGE_VKEY);
-    }
-
-    #[test]
     fn super_range_vkey_packs_back_to_committed_bytes() {
         let committed = parse_hex32(vkey_hex(VKEYS_TOML, "super-range"));
         assert_eq!(repack(SUPER_RANGE_VKEY), committed);
@@ -51,21 +43,21 @@ mod tests {
     fn parse_is_format_invariant() {
         const VALUE: &str = "0x0000000000000000000000000000000000000000000000000000000000000001";
         let first = format!(
-            "range = \"{VALUE}\"\naggregation = \
+            "super-range = \"{VALUE}\"\nsuper-aggregation = \
              \"0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"\n\
-             super-range = \
-             \"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"\n"
+             unrelated = \"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"\n"
         );
         let second = format!(
-            "# reordered with unrelated aggregate data\naggregation = \
+            "# reordered with unrelated aggregate data\nsuper-aggregation = \
              \"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n\n\
-             super-range = \
+             unrelated = \
              \"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"\n\
              # exact-key parsing ignores comments and spacing\n\
-             range=\"{VALUE}\"\n"
+             super-range=\"{VALUE}\"\n"
         );
 
-        let parse = |manifest: &str| unpack_vkey_bytes32(&parse_hex32(vkey_hex(manifest, "range")));
+        let parse =
+            |manifest: &str| unpack_vkey_bytes32(&parse_hex32(vkey_hex(manifest, "super-range")));
         assert_eq!(parse(&first), parse(&second));
     }
 }
