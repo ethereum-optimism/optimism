@@ -3655,11 +3655,14 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 /// @notice Tests batch upgrade functionality with freshly deployed chains (non-forked).
 contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that multiple upgrade operations can be executed within a single transaction.
-
     ///         This enforces the OPCMV2 invariant that multiple upgrade operations should be
     ///         executable in one transaction.
+    /// forge-config: default.enable_tx_gas_limit = true
     function test_batchUpgrade_multipleChains_succeeds() public {
         skipIfUnoptimized();
+
+        // Enforce the transaction gas limit only on batchUpgrade().
+        vm.pauseGasMetering();
 
         uint256 numberOfChains = 14;
 
@@ -3766,21 +3769,14 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             });
         }
 
+        vm.resumeGasMetering();
+
         // 5. Execute batch upgrade of all chains in a single transaction.
         batchUpgrader.batchUpgrade(upgradeInputs);
-        VmSafe.Gas memory gas = vm.lastCallGas();
 
-        // 6. Verify that the upgrade gas usage is less than the EIP-7825 gas limit.
-        // See https://eip.tools/eip/eip-7825.md for more details.
-        // The upgradeGasBuffer amount below is an approximation of the overhead that is required
-        // to execute a call to Safe.executeTransaction() prior to the call to IOPContractsManagerV2.upgrade().
-        // The approximate value of 65,000 gas, was taken from a previous upgrade transaction on OP Mainnet:
-        // https://dashboard.tenderly.co/oplabs/op-mainnet/tx/0x9b9aa2d8e857e1a28e55b124e931eac706b3ae04c1b33ba949f0366359860993/gas-usage?trace=0.1.7
-        uint256 fusakaLimit = 2 ** 24;
-        uint256 upgradeGasBuffer = 65_000;
-        assertLt(gas.gasTotalUsed, fusakaLimit - upgradeGasBuffer, "Upgrade exceeds gas target");
+        vm.pauseGasMetering();
 
-        // 7. Verify all chains upgraded successfully.
+        // 6. Verify all chains upgraded successfully.
         for (uint256 i = 0; i < numberOfChains; i++) {
             ISystemConfig systemConfig = chains[i].systemConfig;
 
