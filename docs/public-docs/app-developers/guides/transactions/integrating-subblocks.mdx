@@ -25,7 +25,7 @@ You read subblock state with the same Ethereum JSON-RPC calls you already use.
 The difference is using the "pending" tag in some of them to explicitly query the pre-confirmed state instead of the last finalized block.
 
 *   **`eth_getBlockByNumber`**: Use the `pending` tag to retrieve the latest subblock snapshot.
-    <Expandable title="Sample response">
+    <Accordion title="Sample response">
 
       ```json
           {
@@ -38,11 +38,11 @@ The difference is using the "pending" tag in some of them to explicitly query th
             }
           }
       ```
-    </Expandable>
+    </Accordion>
 
 *   **`eth_call`**: Use the `pending` tag to execute calls against the most recent pre-confirmed state.
 
-    <Expandable title="Sample request">
+    <Accordion title="Sample request">
 
       ```json
       {
@@ -52,11 +52,11 @@ The difference is using the "pending" tag in some of them to explicitly query th
         "id": 1
       }
       ```
-    </Expandable>
+    </Accordion>
 
 *   `eth_getBalance` / `eth_getTransactionCount`: Use the `pending` tag to fetch balances or transaction counts respectively as they evolve within the block window.
 
-    <Expandable title="Sample response for `eth_getBalance`">
+    <Accordion title="Sample response for `eth_getBalance`">
 
       ```json
       {
@@ -65,9 +65,9 @@ The difference is using the "pending" tag in some of them to explicitly query th
         "result": "0x0234"
       }
       ```
-    </Expandable>
+    </Accordion>
 
-    <Expandable title="Sample response for `eth_getTransactionCount`">
+    <Accordion title="Sample response for `eth_getTransactionCount`">
 
       ```json
       {
@@ -76,7 +76,7 @@ The difference is using the "pending" tag in some of them to explicitly query th
         "result": "0x1b" // 27 transactions
       }
       ```
-    </Expandable>
+    </Accordion>
 
     Other methods, like `eth_getTransactionReceipt`, `eth_getTransactionByHash` or `eth_simulateV1`, return data from pre-confirmed transactions without requiring the `pending` tag.
     Consult the [Subblocks specification](https://specs.optimism.io/protocol/subblocks.html#json-rpc) for the supported methods and pending-state behavior.

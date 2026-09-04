@@ -110,40 +110,44 @@ For availability information, see [Enabling Subblocks](/chain-operators/guides/f
 
 ### Block building and availability
 
-<Expandable title="How often are subblocks produced?">
-  Every 200ms, but configurable to lower values.
-  OP Sepolia and OP Mainnet both move to 200 ms; see the [Subblocks notice](/notices/subblocks) for the rollout dates.
-</Expandable>
+<AccordionGroup>
+  <Accordion title="How often are subblocks produced?">
+    Every 200ms, but configurable to lower values.
+    OP Sepolia and OP Mainnet both move to 200 ms; see the [Subblocks notice](/notices/subblocks) for the rollout dates.
+  </Accordion>
 
-<Expandable title="Will a block always contain the maximum number of subblocks?">
-  No. Heavy execution in one interval reduces the time available for the ones after it, so the count varies between blocks.
-</Expandable>
+  <Accordion title="Will a block always contain the maximum number of subblocks?">
+    No. Heavy execution in one interval reduces the time available for the ones after it, so the count varies between blocks.
+  </Accordion>
 
-<Expandable title="Do large transactions get delayed?">
-  A large transaction can land in any subblock with enough gas capacity left, so in practice it lands later in the block.
-  See [Subblocks and gas usage](/app-developers/guides/transactions/subblocks-and-gas-usage) for a worked example.
-</Expandable>
+  <Accordion title="Do large transactions get delayed?">
+    A large transaction can land in any subblock with enough gas capacity left, so in practice it lands later in the block.
+    See [Subblocks and gas usage](/app-developers/guides/transactions/subblocks-and-gas-usage) for a worked example.
+  </Accordion>
+</AccordionGroup>
 
 ### Safety and continuity
 
-<Expandable title="What happens if the sequencer fails mid-block?">
-  The subblocks already published for the abandoned block do not seal.
-  In a multi-sequencer setup, `op-conductor` transfers leadership to a healthy sequencer, and the stream continues from the new leader through the same endpoint.
-  For details, see the [op-conductor documentation](/chain-operators/tools/op-conductor).
-</Expandable>
+<AccordionGroup>
+  <Accordion title="What happens if the sequencer fails mid-block?">
+    The subblocks already published for the abandoned block do not seal.
+    In a multi-sequencer setup, `op-conductor` transfers leadership to a healthy sequencer, and the stream continues from the new leader through the same endpoint.
+    For details, see the [op-conductor documentation](/chain-operators/tools/op-conductor).
+  </Accordion>
 
-<Expandable title="Do subblocks change the safety model of the chain?">
-  No. Every transaction in a subblock is executed by the same engine, under the same rules, as it would be in a block. Subblocks change when the sequencer tells you the outcome, not what the outcome is.
-</Expandable>
+  <Accordion title="Do subblocks change the safety model of the chain?">
+    No. Every transaction in a subblock is executed by the same engine, under the same rules, as it would be in a block. Subblocks change when the sequencer tells you the outcome, not what the outcome is.
+  </Accordion>
 
-<Expandable title="Can a pre-confirmation be revoked?">
-  Yes, under the same conditions that let the sequencer reorg an unsafe block. A pre-confirmation carries the sequencer's trust assumption, not the protocol's. See [Transaction finality](/op-stack/transactions/transaction-finality) for what each stage guarantees.
-</Expandable>
+  <Accordion title="Can a pre-confirmation be revoked?">
+    Yes, under the same conditions that let the sequencer reorg an unsafe block. A pre-confirmation carries the sequencer's trust assumption, not the protocol's. See [Transaction finality](/op-stack/transactions/transaction-finality) for what each stage guarantees.
+  </Accordion>
 
-<Expandable title="What does a pre-confirmation response contain?">
-  The transactions executed so far in the block, their receipts, and the cumulative `gas_used`, `receipts_root`, and `logs_bloom`.
-  It does not contain a usable `state_root` or `block_hash` — both are zeroed, as described in [what a subblock payload carries](#what-a-subblock-payload-carries).
-</Expandable>
+  <Accordion title="What does a pre-confirmation response contain?">
+    The transactions executed so far in the block, their receipts, and the cumulative `gas_used`, `receipts_root`, and `logs_bloom`.
+    It does not contain a usable `state_root` or `block_hash` — both are zeroed, as described in [what a subblock payload carries](#what-a-subblock-payload-carries).
+  </Accordion>
+</AccordionGroup>
 
 ## Next steps
 
