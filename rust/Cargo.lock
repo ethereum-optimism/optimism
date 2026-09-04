@@ -13409,6 +13409,7 @@ dependencies = [
  "reth-basic-payload-builder",
  "reth-chainspec",
  "reth-evm",
+ "reth-execution-cache",
  "reth-execution-types",
  "reth-metrics",
  "reth-optimism-chainspec",
