@@ -58,6 +58,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peer_stats(&self) -> RpcResult<PeerStats> {
+        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_peerStats");
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.sender
             .send(P2pRpcRequest::PeerStats(tx))
@@ -313,5 +314,127 @@ mod tests {
             libp2p::multiaddr::Protocol::Ip4(std::net::Ipv4Addr::new(127, 0, 0, 1))
         );
         assert_eq!(components[1], libp2p::multiaddr::Protocol::Udt);
+    }
+
+    /// Never called; `AdminRpc` needs a concrete type parameter even when it holds `None`.
+    #[cfg(feature = "metrics")]
+    #[derive(Debug)]
+    struct NoSequencer;
+
+    #[cfg(feature = "metrics")]
+    #[async_trait::async_trait]
+    impl crate::SequencerAdminAPIClient for NoSequencer {
+        async fn is_sequencer_active(&self) -> Result<bool, crate::SequencerAdminAPIError> {
+            unreachable!("the admin rpc holds no sequencer client")
+        }
+        async fn is_conductor_enabled(&self) -> Result<bool, crate::SequencerAdminAPIError> {
+            unreachable!("the admin rpc holds no sequencer client")
+        }
+        async fn is_recovery_mode(&self) -> Result<bool, crate::SequencerAdminAPIError> {
+            unreachable!("the admin rpc holds no sequencer client")
+        }
+        async fn start_sequencer(&self) -> Result<(), crate::SequencerAdminAPIError> {
+            unreachable!("the admin rpc holds no sequencer client")
+        }
+        async fn stop_sequencer(
+            &self,
+        ) -> Result<alloy_primitives::B256, crate::SequencerAdminAPIError> {
+            unreachable!("the admin rpc holds no sequencer client")
+        }
+        async fn set_recovery_mode(
+            &self,
+            _mode: bool,
+        ) -> Result<(), crate::SequencerAdminAPIError> {
+            unreachable!("the admin rpc holds no sequencer client")
+        }
+        async fn override_leader(&self) -> Result<(), crate::SequencerAdminAPIError> {
+            unreachable!("the admin rpc holds no sequencer client")
+        }
+        async fn reset_derivation_pipeline(&self) -> Result<(), crate::SequencerAdminAPIError> {
+            unreachable!("the admin rpc holds no sequencer client")
+        }
+    }
+
+    /// The pre-created `kona_node_rpc_calls` series must be exactly the ones these handlers emit.
+    ///
+    /// `kona-gossip` owns the metric and cannot see these emit sites, so this is the only place
+    /// the two halves can be compared.
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn rpc_call_metric_is_pre_created_for_every_emitted_method() {
+        use crate::{AdminApiServer, AdminRpc, OpP2PApiServer, net::P2pRpc};
+        use metrics_util::debugging::DebuggingRecorder;
+        use std::collections::BTreeSet;
+
+        fn methods_of(f: impl FnOnce()) -> BTreeSet<String> {
+            let recorder = DebuggingRecorder::new();
+            let snapshotter = recorder.snapshotter();
+            metrics::with_local_recorder(&recorder, f);
+
+            snapshotter
+                .snapshot()
+                .into_vec()
+                .into_iter()
+                .map(|(ckey, ..)| ckey)
+                .filter(|ckey| ckey.key().name() == kona_gossip::Metrics::RPC_CALLS)
+                .map(|ckey| {
+                    ckey.key()
+                        .labels()
+                        .find(|l| l.key() == "method")
+                        .map(|l| l.value().to_string())
+                        .expect("every emit carries a `method` label")
+                })
+                .collect()
+        }
+
+        // The receivers are dropped, so each handler's first send fails and it returns early.
+        // Every one emits before that send.
+        // `_`, not `_rx`: a named binding keeps the receiver alive and the handler blocks for
+        // ever awaiting a reply.
+        let (p2p_tx, _) = tokio::sync::mpsc::channel(1);
+        let (admin_tx, _) = tokio::sync::mpsc::channel(1);
+        let p2p = P2pRpc::new(p2p_tx);
+        let admin = AdminRpc::<NoSequencer>::new(None, admin_tx);
+
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let emitted = methods_of(|| {
+            runtime.block_on(async {
+                let localhost = std::net::IpAddr::from([127, 0, 0, 1]);
+                let subnet: ipnet::IpNet = "127.0.0.0/8".parse().unwrap();
+
+                let _ = p2p.opp2p_self().await;
+                let _ = p2p.opp2p_peer_count().await;
+                let _ = p2p.opp2p_peers(true).await;
+                let _ = p2p.opp2p_peer_stats().await;
+                let _ = p2p.opp2p_discovery_table().await;
+                let _ = p2p.opp2p_block_peer(String::new()).await;
+                let _ = p2p.opp2p_unblock_peer(String::new()).await;
+                let _ = p2p.opp2p_list_blocked_peers().await;
+                let _ = p2p.opp2p_block_addr(localhost).await;
+                let _ = p2p.opp2p_unblock_addr(localhost).await;
+                let _ = p2p.opp2p_list_blocked_addrs().await;
+                let _ = p2p.opp2p_block_subnet(subnet).await;
+                let _ = p2p.opp2p_unblock_subnet(subnet).await;
+                let _ = p2p.opp2p_list_blocked_subnets().await;
+                let _ = p2p.opp2p_protect_peer(String::new()).await;
+                let _ = p2p.opp2p_unprotect_peer(String::new()).await;
+                let _ = p2p.opp2p_connect_peer(String::new()).await;
+                let _ = p2p.opp2p_disconnect_peer(String::new()).await;
+
+                let payload = op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope::V1(
+                    alloy_rpc_types_engine::ExecutionPayloadV1::from_block_slow(
+                        &alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default(),
+                    ),
+                );
+                let _ = admin.admin_post_unsafe_payload(payload).await;
+            });
+        });
+
+        let pre_created = methods_of(kona_gossip::Metrics::zero);
+
+        assert_eq!(
+            emitted, pre_created,
+            "every emitted `method` must be pre-created, and nothing else"
+        );
     }
 }
