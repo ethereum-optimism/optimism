@@ -138,6 +138,18 @@ fn is_custom_gas_token(genesis: &Genesis) -> bool {
     storage_at(genesis, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT) != B256::ZERO
 }
 
+/// Identifies the public projection by its installed genesis contracts, independently of the
+/// private chain's asset backing. This also works when opening a materialized projection genesis.
+pub fn is_public_projection_genesis(genesis: &Genesis) -> bool {
+    [
+        (L2_TO_L2_MESSENGER, L2_TO_L2_MESSENGER_CODE),
+        (CLAIM_REGISTRY, CLAIM_REGISTRY_CODE),
+        (EVENT_REPLAYER, EVENT_REPLAYER_CODE),
+    ]
+    .into_iter()
+    .all(|(proxy, code)| implementation_code_hash(genesis, proxy) == keccak256(bytecode(code)))
+}
+
 fn validate_private_chain_genesis(genesis: &Genesis) -> Result<(), GenesisProjectionError> {
     if storage_at(genesis, L1_BLOCK, L1_BLOCK_INTEROP_FEATURE_SLOT) != TRUE_WORD {
         return Err(GenesisProjectionError::InteropInactive);
@@ -261,9 +273,9 @@ mod tests {
         "../../../../../op-private-interop/genesis/testdata/private-chain-genesis.json"
     );
     const PUBLIC_PROJECTION_STATE_ROOT: B256 =
-        b256!("0bcc2c671be43df86d2bdfc0e2ef4a8402924e2bdfaf5e8e432eb5841282c81f");
+        b256!("88e65cf29ff2b1143db9167bf9ffcb52002722154f500a048855f4f2beacf1a0");
     const PUBLIC_PROJECTION_BLOCK_HASH: B256 =
-        b256!("b16205791987c1d52be25be000d27661f42aeccf033183f3a1ea396ce23539be");
+        b256!("c581fb8dd0b9faf6bdc2352a57aa1b36a34f3e81863449118d9a85d107b04cbc");
 
     const SUPERCHAIN_ETH_BRIDGE: Address = address!("4200000000000000000000000000000000000024");
     const ETH_LIQUIDITY: Address = address!("4200000000000000000000000000000000000025");
@@ -296,6 +308,17 @@ mod tests {
     }
 
     #[test]
+    fn only_projection_genesis_enables_deposit_log_suppression() {
+        let private = private_chain_genesis();
+        assert!(!is_public_projection_genesis(&private));
+        assert!(!is_public_projection_genesis(&Genesis::default()));
+        let mut projected = project_genesis_from(&private).unwrap();
+        assert!(is_public_projection_genesis(&projected));
+        deactivate_proxy(&mut projected, CLAIM_REGISTRY);
+        assert!(!is_public_projection_genesis(&projected));
+    }
+
+    #[test]
     fn policy_profile_matches_the_cross_language_golden_vector() {
         let mut private = private_chain_genesis();
         delete_storage(&mut private, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT);
@@ -308,11 +331,6 @@ mod tests {
         deactivate_proxy(&mut private, NATIVE_ASSET_LIQUIDITY);
         deactivate_proxy(&mut private, LIQUIDITY_CONTROLLER);
         activate_proxy(&mut private, L2_TO_L2_MESSENGER, bytecode(POLICY_MESSENGER_CODE));
-        account_at(&mut private, L2_TO_L2_MESSENGER)
-            .storage
-            .as_mut()
-            .unwrap()
-            .insert(keccak256("privateinterop.requirePaidMessages"), TRUE_WORD);
         activate_proxy(
             &mut private,
             SUPERCHAIN_ETH_BRIDGE,
@@ -322,16 +340,16 @@ mod tests {
         );
         assert_eq!(
             OpChainSpec::from_genesis(private.clone()).genesis_hash(),
-            b256!("bdd4b5a0b1d41a1467f4cede7fa52f4d0f56e59cc9556f95cd75b818fb73a374")
+            b256!("452938229ba232178e219a0ebce32533ebfa8654c9ebda74c69b3946151a7395")
         );
         let spec = OpChainSpec::from_genesis(project_genesis_from(&private).unwrap());
         assert_eq!(
             spec.genesis_hash(),
-            b256!("a7f8b6152f13136eaac74fada0f2d43cfc84d62844bdf000d88ea36be3a53008")
+            b256!("f460f40066130af21bdaf2fcc3d732572c7e5cf225bc9a306342d75773986e04")
         );
         assert_eq!(
             spec.genesis_header().state_root,
-            b256!("abb2fb272931bef047ae2ff61312e2ad82e369573552e351e2e3e68bae5372f6")
+            b256!("d69dd9061d84611d2868393b68813314b2b01027cf6924ceb85ce872530cf9cc")
         );
     }
 

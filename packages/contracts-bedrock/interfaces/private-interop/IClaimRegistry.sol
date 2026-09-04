@@ -39,6 +39,7 @@ struct RangeClaim {
 /// @title IClaimRegistry
 /// @notice Interface for the ClaimRegistry contract.
 interface IClaimRegistry is ISemver, IProxyAdminOwnedBase {
+    error ClaimRegistry_NotBatcher();
     error ClaimRegistry_UnsupportedClaimVersion();
     error ClaimRegistry_ProofNotSupported();
     error ClaimRegistry_InvalidRange();

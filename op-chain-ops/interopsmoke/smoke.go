@@ -181,7 +181,7 @@ type Config struct {
 	L2BURL string
 
 	// PrivateKey funds every transaction, hex, with or without the 0x prefix. Empty means the
-	// devkeys funder the devstack premines.
+	// devkeys funder allocated funds by devstack at genesis.
 	PrivateKey string
 
 	// Tests names the tests to run, by the same names the subcommands carry. Empty, or the single
@@ -587,8 +587,7 @@ var suiteTests = []string{TestIdentity, TestTransfer, TestBridge, TestValidMessa
 func smokeTests() []smokeTest {
 	return []smokeTest{
 		{key: TestIdentity, name: "Chain Identity", fn: smokeIdentity},
-		// A private chain in a pair is a custom-gas-token chain: what its funder holds and what a
-		// transfer moves is its own native unit, and calling that ETH would be wrong.
+		// Private pairs support both ETH and legacy custom gas tokens.
 		{key: TestTransfer, name: "ETH Transfers", privateName: "Native-Unit Transfers", fn: smokeTransfer},
 		{key: TestBridge, name: "Cross-Chain ETH Bridge", fn: smokeBridge},
 		{key: TestValidMessage, name: "Valid Exec Message", privateName: "Valid Exec Message (both directions)", fn: smokeValidMessage},
@@ -909,10 +908,6 @@ func smokeTransfer(env *smokeEnv) error {
 	}
 	fmt.Fprintf(env.stderr, "    Chain A transfer: OK\n")
 
-	if env.privatePairB {
-		// The amount is a quantity of wei either way; what it buys is not ETH here.
-		fmt.Fprintf(env.stderr, "    Chain B moves its own native unit, not ETH: the private chain is custom-gas-token\n")
-	}
 	recipientB := randomAddress()
 	if _, err := env.userB.transfer(env.ctx, recipientB, eth.OneHundredthEther); err != nil {
 		return fmt.Errorf("chain B transfer failed: %w", err)

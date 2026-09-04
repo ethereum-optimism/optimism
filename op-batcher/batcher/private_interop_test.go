@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-private-interop/builder"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/params"
@@ -112,7 +113,7 @@ type fixedReceipts struct{ calls int }
 
 func (f *fixedReceipts) FetchReceipts(_ context.Context, hash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {
 	f.calls++
-	num := new(big.Int).SetBytes(hash[24:]).Uint64()
+	num := bigs.Uint64Strict(new(big.Int).SetBytes(hash[24:]))
 	logs := []*types.Log{
 		{Address: piOtherAddr, Topics: []common.Hash{{0x1}}, Data: []byte{1}},
 		piExportLog(num),

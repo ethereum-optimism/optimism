@@ -44,7 +44,9 @@ pub use superchain::*;
 
 pub use basefee::*;
 pub use dev::OP_DEV;
-pub use private_interop::{GenesisProjectionError, project_genesis_from};
+pub use private_interop::{
+    GenesisProjectionError, is_public_projection_genesis, project_genesis_from,
+};
 
 /// Re-export for convenience
 pub use reth_optimism_forks::*;

@@ -282,11 +282,8 @@ func privateInteropChainIDs() (private, counterparty eth.ChainID) {
 // NewTwoL2PrivateInteropRuntimeWithConfig builds a two-L2 world in which chain B is a private
 // interop pair.
 //
-// Chain A is untouched: an ordinary public chain with a light sequencer, a supernode verifier route
-// and a stock batcher, exactly as the light-sequencer preset builds it. That is deliberate and
-// load-bearing rather than laziness -- the counterparty is what a fabricated import is checked
-// against, so the trust model only says anything if the counterparty is a chain the operator has no
-// special relationship with.
+// Chain A uses the public execution path and stock batcher; chain B publishes its interop logs
+// through the public projection. Both retain ordinary messenger send and resend semantics.
 func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
 	require := t.Require()
 	require.NotNil(cfg.PrivateInterop, "the private interop runtime needs a private interop configuration")
@@ -306,12 +303,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	// replace the replay messenger. The supernode's activation override below follows suit.
 	require.Zero(delaySeconds, "a private interop pair activates interop at genesis; a delayed activation has no projection")
 	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, true, 0, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
-
-	// Install the private policy on ordinary ETH artifacts before constructing either EL.
-	privateGenesis, privateRollup, err := projectiongenesis.ConfigurePrivateGenesis(l2BNet.genesis, l2BNet.rollupCfg)
-	require.NoError(err, "configuring the private ETH profile")
-	l2BNet.genesis, l2BNet.rollupCfg = privateGenesis, privateRollup
-	wb.outL2Genesis[privateID], wb.outL2RollupCfg[privateID] = privateGenesis, privateRollup
+	privateGenesis, privateRollup := l2BNet.genesis, l2BNet.rollupCfg
 
 	// Share the deployment and keys, but derive the projection's own genesis and rollup config.
 	renderingNet := ptr.New(*l2BNet)

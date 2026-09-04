@@ -36,7 +36,6 @@ func TestConfigurePrivateGenesis(t *testing.T) {
 	require.Equal(t, originalHash, cfg.Genesis.L2.Hash)
 	require.NotEqual(t, originalHash, privateCfg.Genesis.L2.Hash)
 	require.Equal(t, private.ToBlock().Hash(), privateCfg.Genesis.L2.Hash)
-	require.Equal(t, trueWord, private.Alloc[predeploys.L2toL2CrossDomainMessengerAddr].Storage[RequirePaidMessagesSlot])
 	require.Equal(t, PolicyBridgeCodeHash, implementationCodeHash(private.Alloc, predeploys.SuperchainETHBridgeAddr))
 	for _, addr := range []common.Address{predeploys.L1BlockAddr, predeploys.L2StandardBridgeAddr, predeploys.ETHLiquidityAddr} {
 		before, after := g.Alloc[addr], private.Alloc[addr]
@@ -50,12 +49,13 @@ func TestConfigurePrivateGenesis(t *testing.T) {
 	projection, err := ProjectGenesisFrom(private)
 	require.NoError(t, err)
 	// Shared with Rust's policy_profile_matches_the_cross_language_golden_vector.
-	require.Equal(t, common.HexToHash("0xbdd4b5a0b1d41a1467f4cede7fa52f4d0f56e59cc9556f95cd75b818fb73a374"), private.ToBlock().Hash())
-	require.Equal(t, common.HexToHash("0xa7f8b6152f13136eaac74fada0f2d43cfc84d62844bdf000d88ea36be3a53008"), projection.ToBlock().Hash())
-	require.Equal(t, common.HexToHash("0xabb2fb272931bef047ae2ff61312e2ad82e369573552e351e2e3e68bae5372f6"), projection.ToBlock().Root())
+	require.Equal(t, common.HexToHash("0x452938229ba232178e219a0ebce32533ebfa8654c9ebda74c69b3946151a7395"), private.ToBlock().Hash())
+	require.Equal(t, common.HexToHash("0xf460f40066130af21bdaf2fcc3d732572c7e5cf225bc9a306342d75773986e04"), projection.ToBlock().Hash())
+	require.Equal(t, common.HexToHash("0xd69dd9061d84611d2868393b68813314b2b01027cf6924ceb85ce872530cf9cc"), projection.ToBlock().Root())
 	require.NotEqual(t, private.ToBlock().Hash(), projection.ToBlock().Hash())
-	_, _, err = ConfigurePrivateGenesis(private, privateCfg)
-	require.ErrorContains(t, err, "already configured")
+	again, _, err := ConfigurePrivateGenesis(private, privateCfg)
+	require.NoError(t, err)
+	require.Equal(t, private.ToBlock().Hash(), again.ToBlock().Hash())
 }
 
 func TestConfigurePrivateGenesisRejectsUnsupportedSource(t *testing.T) {

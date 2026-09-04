@@ -175,6 +175,11 @@
   },
   {
     "inputs": [],
+    "name": "ClaimRegistry_NotBatcher",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ClaimRegistry_OverlappingRange",
     "type": "error"
   },

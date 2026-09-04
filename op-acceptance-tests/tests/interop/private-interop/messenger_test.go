@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -137,7 +138,7 @@ func TestPrivateInteropMessengerBothDirections(gt *testing.T) {
 	require.Equal(predeploys.L2toL2CrossDomainMessengerAddr, sendOut.Logs[1].Address, "the second log is the message")
 	const outIdx = 1
 	sentLog := sendOut.Logs[outIdx]
-	privateBlock := sendOut.BlockNumber.Uint64()
+	privateBlock := bigs.Uint64Strict(sendOut.BlockNumber)
 
 	// Evaluating the result is what runs the resolver: it waits for the rendering to derive this
 	// height and rewrites the identifier to the position the rendering carries. Nothing in this

@@ -99,17 +99,16 @@ func run() error {
 		digests[name] = fmt.Sprintf("%x", sha256.Sum256(data))
 	}
 	report := map[string]any{
-		"profile":                 "private-eth-v1",
-		"chainId":                 cfg.L2ChainID.String(),
-		"sourceGenesisHash":       g.ToBlock().Hash(),
-		"privateGenesisHash":      privateCfg.Genesis.L2.Hash,
-		"projectionGenesisHash":   projectionCfg.Genesis.L2.Hash,
-		"messengerCodeHash":       privategenesis.PolicyMessengerCodeHash,
-		"bridgeCodeHash":          privategenesis.PolicyBridgeCodeHash,
-		"requirePaidMessagesSlot": privategenesis.RequirePaidMessagesSlot,
-		"nativeETHRoutes":         []string{},
-		"l1BackingVerified":       false,
-		"sha256":                  digests,
+		"profile":               "private-eth-v1",
+		"chainId":               cfg.L2ChainID.String(),
+		"sourceGenesisHash":     g.ToBlock().Hash(),
+		"privateGenesisHash":    privateCfg.Genesis.L2.Hash,
+		"projectionGenesisHash": projectionCfg.Genesis.L2.Hash,
+		"messengerCodeHash":     privategenesis.PolicyMessengerCodeHash,
+		"bridgeCodeHash":        privategenesis.PolicyBridgeCodeHash,
+		"nativeETHRoutes":       []string{},
+		"l1BackingVerified":     false,
+		"sha256":                digests,
 	}
 	files["report.json"], err = json.MarshalIndent(report, "", "  ")
 	if err != nil {

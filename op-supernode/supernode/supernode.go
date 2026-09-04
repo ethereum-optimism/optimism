@@ -207,7 +207,6 @@ func FindPrivateInteropChain(cliCfg claimfollow.CLIConfig, vnCfgs map[eth.ChainI
 // path: no state, no goroutine, no route, and chain containers built with zero options. The
 // returned map is keyed by chain ID and is indexed unconditionally by the chain loop — a lookup
 // that misses yields a nil slice, and cc.WithExtraRPCRoutes of nothing registers nothing.
-//
 func (s *Supernode) initClaimFollow(cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*claimfollow.Activity, map[eth.ChainID][]cc.ExtraRPCRoute, error) {
 	routes := map[eth.ChainID][]cc.ExtraRPCRoute{}
 	cliCfg := claimfollow.ReadCLIConfig(cfg.RawCtx)

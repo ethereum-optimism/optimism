@@ -4,7 +4,11 @@ pragma solidity 0.8.15;
 // Contracts
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
 // Interfaces
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 
@@ -30,7 +34,8 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         at build time. The genesis range opens with its own claim like any other; the only
 ///         special case is the first post, which has no predecessor to sit after.
 ///
-///         The registry checks exactly what it can check cheaply and locally: the claim version,
+///         The registry checks exactly what it can check cheaply and locally: the current batcher
+///         is the caller, the claim version,
 ///         that each range starts strictly after the last posted range ended,
 ///         and that the proof slot is empty. It does NOT check that the range's contents match the
 ///         private chain — in v1 that is the operator's attestation, unproven by design. Claim N's
@@ -60,6 +65,9 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         publish something that merely looks proven. The empty-slot rule is what makes "this
 ///         range is attested, not proven" unambiguous on-chain.
 contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
+    /// @notice Thrown when someone other than the current batcher tries to post a claim.
+    error ClaimRegistry_NotBatcher();
+
     /// @notice Thrown when the claim version is not the version this registry accepts.
     error ClaimRegistry_UnsupportedClaimVersion();
 
@@ -83,8 +91,8 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     uint256 public constant MAX_PROOF_LENGTH = 65_536;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.0.1
+    string public constant version = "2.0.1";
 
     /// @notice Number of claims posted so far. Zero means no range has been posted, which is the
     ///         only state in which an arbitrary `firstBlock` is accepted.
@@ -116,6 +124,11 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     ///
     /// @param _claim Claim describing the range this transaction opens.
     function postClaim(RangeClaim calldata _claim) external {
+        // Deposits must not advance the range cursor on behalf of an unrelated account: doing so
+        // could block every later honest claim. The standard L1 attributes track batcher rotation.
+        if (bytes32(uint256(uint160(msg.sender))) != IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).batcherHash()) {
+            revert ClaimRegistry_NotBatcher();
+        }
         if (_claim.version != CLAIM_VERSION) revert ClaimRegistry_UnsupportedClaimVersion();
 
         // v1 is attested, never proven: the slot must be empty. A proof-accepting registry is a
