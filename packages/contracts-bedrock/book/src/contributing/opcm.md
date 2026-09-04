@@ -100,15 +100,11 @@ Typically a contract's `initializer()` will be modified when a new storage varia
 needs to be set. This may either be done by adding a new argument to the `initializer()`, by
 reading a value from the environment, or by reading a value from another contract.
 
-Whatever the case, a new `upgrade()` method should also be added which uses the same logic to set
-the new storage variable.
-
-In addition, the contract should inherit from `ReinitializableBase` and the `initializer()` and `upgrade()`
-methods should have the `reinitializer(reinitVersion())` modifier.
-
-The OPCM must then use `ProxyAdmin.upgradeAndCall()` to call the `upgrade()` method. Additionally, if the
-input value is not read from the chain, then it will need to be passed in as input. This will
-require a new field to be added to the `OpChainConfig` struct.
+No special handling is required in the contract itself: the OPCM upgrade flow resets the
+initialized slot (via `StorageSetter`) and then calls `initialize()` again with the full set of
+inputs, so the plain `initializer` modifier is sufficient. If the new input value is not read from
+the chain, then it will need to be passed in as input to the upgrade. This will require a new
+field to be added to the `OpChainConfig` struct.
 
 ### New derivation path events are being added
 

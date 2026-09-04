@@ -16,7 +16,6 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error EmptyItem();
     error InvalidDataRemainder();
     error InvalidHeader();
-    error ReinitializableBase_ZeroInitVersion();
     error OptimismPortal_AlreadyFinalized();
     error OptimismPortal_BadTarget();
     error OptimismPortal_CallPaused();
@@ -84,7 +83,6 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function finalizedWithdrawals(bytes32) external view returns (bool);
     function guardian() external view returns (address);
     function initialize(ISystemConfig _systemConfig, IAnchorStateRegistry _anchorStateRegistry, IETHLockbox _ethLockbox) external;
-    function initVersion() external view returns (uint8);
     function l2Sender() external view returns (address);
     function migrateLiquidity() external;
     function migrateToSharedDisputeGame(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;

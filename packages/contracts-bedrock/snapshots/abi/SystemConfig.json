@@ -315,19 +315,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "initVersion",
-    "outputs": [
-      {
-        "internalType": "uint8",
-        "name": "",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -1104,11 +1091,6 @@
   {
     "inputs": [],
     "name": "ProxyAdminOwnedBase_ProxyAdminNotFound",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ReinitializableBase_ZeroInitVersion",
     "type": "error"
   },
   {

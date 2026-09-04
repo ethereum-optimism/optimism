@@ -8,7 +8,6 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
-    error ReinitializableBase_ZeroInitVersion();
 
     event ERC20DepositInitiated(
         address indexed l1Token,
@@ -29,7 +28,6 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes extraData);
     event ETHWithdrawalFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
 
-    function initVersion() external view returns (uint8);
     function depositERC20(
         address _l1Token,
         address _l2Token,

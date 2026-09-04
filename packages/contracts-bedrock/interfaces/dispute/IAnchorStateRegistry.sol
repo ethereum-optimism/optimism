@@ -11,7 +11,6 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     error AnchorStateRegistry_InvalidAnchorGame();
     error AnchorStateRegistry_Unauthorized();
-    error ReinitializableBase_ZeroInitVersion();
 
     event AnchorUpdated(IDisputeGame indexed game);
     event DisputeGameBlacklisted(IDisputeGame indexed disputeGame);
@@ -19,7 +18,6 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     event RespectedGameTypeSet(GameType gameType);
     event RetirementTimestampSet(uint256 timestamp);
 
-    function initVersion() external view returns (uint8);
     function anchorGame() external view returns (IDisputeGame);
     function anchors(GameType) external view returns (Hash, uint256);
     function blacklistDisputeGame(IDisputeGame _disputeGame) external;

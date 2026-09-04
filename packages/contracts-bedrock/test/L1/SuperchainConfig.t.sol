@@ -68,7 +68,7 @@ contract SuperchainConfig_Initialize_Test is SuperchainConfig_TestInit {
         uint8 val = uint8(uint256(slotVal) & 0xFF);
 
         // Assert that the initializer value matches the expected value.
-        assertEq(val, superchainConfig.initVersion());
+        assertEq(val, 1);
     }
 
     /// @notice Tests that the `initialize` function reverts if called by a non-proxy admin or

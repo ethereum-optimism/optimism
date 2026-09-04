@@ -6,9 +6,8 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.sol";
 
-interface IETHLockbox is IProxyAdminOwnedBase, ISemver, IReinitializableBase {
+interface IETHLockbox is IProxyAdminOwnedBase, ISemver {
     error ETHLockbox_Unauthorized();
     error ETHLockbox_Paused();
     error ETHLockbox_InsufficientBalance();

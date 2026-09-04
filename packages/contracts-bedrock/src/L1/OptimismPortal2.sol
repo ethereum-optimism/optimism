@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 // Libraries
 import { EOA } from "src/libraries/EOA.sol";
@@ -34,7 +33,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
-contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase, ProxyAdminOwnedBase, ISemver {
+contract OptimismPortal2 is Initializable, ResourceMetering, ProxyAdminOwnedBase, ISemver {
     /// @notice Represents a proven withdrawal.
     /// @custom:field disputeGameProxy Game that the withdrawal was proven against.
     /// @custom:field timestamp        Timestamp at which the withdrawal was proven.
@@ -241,13 +240,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_LockboxNotAuthorizedForPortal();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.8.0
+    /// @custom:semver 5.9.0
     function version() public pure virtual returns (string memory) {
-        return "5.8.0";
+        return "5.9.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
-    constructor(uint256 _proofMaturityDelaySeconds) ReinitializableBase(3) {
+    constructor(uint256 _proofMaturityDelaySeconds) {
         PROOF_MATURITY_DELAY_SECONDS = _proofMaturityDelaySeconds;
         _disableInitializers();
     }
@@ -261,7 +260,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         IETHLockbox _ethLockbox
     )
         external
-        reinitializer(initVersion())
+        initializer
     {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();

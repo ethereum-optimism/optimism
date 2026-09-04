@@ -6,7 +6,6 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 interface IDelayedWETH is IProxyAdminOwnedBase {
-    error ReinitializableBase_ZeroInitVersion();
 
     struct WithdrawalRequest {
         uint256 amount;
@@ -18,7 +17,6 @@ interface IDelayedWETH is IProxyAdminOwnedBase {
     fallback() external payable;
     receive() external payable;
 
-    function initVersion() external view returns (uint8);
     function systemConfig() external view returns (ISystemConfig);
     function delay() external view returns (uint256);
     function hold(address _guy) external;

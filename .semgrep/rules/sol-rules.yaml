@@ -343,7 +343,6 @@ rules:
         - /packages/contracts-bedrock/src/safe/LivenessGuard.sol
         - /packages/contracts-bedrock/src/safe/LivenessModule.sol
         - /packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol
-        - /packages/contracts-bedrock/src/universal/ReinitializableBase.sol
 
   - id: sol-style-use-process-run
     languages: [solidity]

@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 
 // Libraries
@@ -22,7 +21,7 @@ import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
 ///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
 ///         acts as an escrow for ERC721 tokens deposited into L2.
-contract L1ERC721Bridge is ERC721Bridge, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
+contract L1ERC721Bridge is ERC721Bridge, ProxyAdminOwnedBase, ISemver {
     /// @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
@@ -33,27 +32,21 @@ contract L1ERC721Bridge is ERC721Bridge, ProxyAdminOwnedBase, ReinitializableBas
     address private spacer_50_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.9.1
-    string public constant version = "2.9.1";
+    /// @custom:semver 2.10.0
+    string public constant version = "2.10.0";
 
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1ERC721Bridge contract.
-    constructor() ERC721Bridge() ReinitializableBase(3) {
+    constructor() ERC721Bridge() {
         _disableInitializers();
     }
 
     /// @notice Initializes the contract.
     /// @param _messenger   Contract of the CrossDomainMessenger on this network.
     /// @param _systemConfig Contract of the SystemConfig contract on this network.
-    function initialize(
-        ICrossDomainMessenger _messenger,
-        ISystemConfig _systemConfig
-    )
-        external
-        reinitializer(initVersion())
-    {
+    function initialize(ICrossDomainMessenger _messenger, ISystemConfig _systemConfig) external initializer {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
