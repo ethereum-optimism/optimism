@@ -55,7 +55,8 @@ impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
             finalized_l1: l1_sync_status.finalized_l1.unwrap_or_default(),
             unsafe_l2: l2_sync_status.sync_state.unsafe_head(),
             local_safe_l2: l2_sync_status.sync_state.local_safe_head(),
-            safe_l2: l2_sync_status.sync_state.safe_head(),
+            // The `safe_l2` wire field is the forkchoice safe label, i.e. the cross-safe head.
+            safe_l2: l2_sync_status.sync_state.cross_safe_head(),
             finalized_l2: l2_sync_status.sync_state.finalized_head(),
         }
     }

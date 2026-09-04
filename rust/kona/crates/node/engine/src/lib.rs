@@ -27,7 +27,11 @@
 //!
 //! - **Task Queue** - Core engine task queue and execution logic via [`Engine`]
 //! - **Client** - HTTP client for Engine API communication via [`EngineClient`]
-//! - **State** - Engine state management and synchronization via [`EngineState`]
+//! - **State** - Engine state management and synchronization via [`EngineState`]. The cross-safe
+//!   head is the forkchoice `safeBlockHash` and advances only through [`CrossSafePromotion`]s
+//!   minted by an engine's unique [`CrossSafePromoter`]; every other head writer is
+//!   local-safe-only, and can move the cross-safe head only downwards, by rewinding the local-safe
+//!   head it is held at.
 //! - **Versions** - Engine API version selection via [`EngineForkchoiceVersion`],
 //!   [`EngineNewPayloadVersion`], [`EngineGetPayloadVersion`]
 //! - **Attributes** - Payload attribute validation via [`AttributesMatch`]
@@ -43,8 +47,8 @@ pub use task_queue::{
     BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
     ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask,
-    FinalizeTaskError, InsertTask, InsertTaskError, SealTask, SealTaskError, SynchronizeTask,
-    SynchronizeTaskError,
+    FinalizeTaskError, InsertTask, InsertTaskError, PromoteCrossSafeTask,
+    PromoteCrossSafeTaskError, SealTask, SealTaskError, SynchronizeTask, SynchronizeTaskError,
 };
 
 mod attributes;
@@ -63,7 +67,10 @@ mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};
 
 mod state;
-pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
+pub use state::{
+    CrossSafePromoter, CrossSafePromotion, CrossSafeSource, EngineState, EngineSyncState,
+    EngineSyncStateUpdate,
+};
 
 mod kinds;
 pub use kinds::EngineKind;

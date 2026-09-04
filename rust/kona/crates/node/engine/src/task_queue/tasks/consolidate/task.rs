@@ -11,12 +11,12 @@ use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types::Transaction;
 use std::{sync::Arc, time::Instant};
 
-/// Input for consolidation - either derived attributes or safe L2 block
+/// Input for consolidation - either derived attributes or a local-safe L2 block
 #[derive(Debug, Clone)]
 pub enum ConsolidateInput {
     /// Consolidate based on derived attributes.
     Attributes(Box<OpAttributesWithParent>),
-    /// Derivation Delegation: consolidate based on safe L2 block info.
+    /// Derivation Delegation: consolidate based on local-safe L2 block info.
     BlockInfo(L2BlockInfo),
 }
 
@@ -106,37 +106,36 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
     }
 
     /// This provides symmetric fallback behavior to with `build_and_seal`.
-    async fn reconcile_to_safe_head(
+    async fn reconcile_to_local_safe_head(
         &self,
         state: &mut EngineState,
-        safe_l2: &L2BlockInfo,
+        local_safe_l2: &L2BlockInfo,
     ) -> Result<(), ConsolidateTaskError> {
         warn!(
             target: "engine",
-            safe_l2 = %safe_l2,
-            "Apply safe head"
+            local_safe_l2 = %local_safe_l2,
+            "Apply local-safe head"
         );
 
         let fcu_start = Instant::now();
 
-        // We intentionally set the unsafe head to safe_l2 to ensure the engine observes a
+        // We intentionally set the unsafe head to local_safe_l2 to ensure the engine observes a
         // self-consistent head state. This is required to correctly handle reorgs (where unsafe
         // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
-        // lags behind the safe head.
+        // lags behind the local-safe head.
         SynchronizeTask::new(
             Arc::clone(&self.client),
             self.cfg.clone(),
             EngineSyncStateUpdate {
-                unsafe_head: Some(*safe_l2),
-                safe_head: Some(*safe_l2),
-                local_safe_head: Some(*safe_l2),
+                unsafe_head: Some(*local_safe_l2),
+                local_safe_head: Some(*local_safe_l2),
                 ..Default::default()
             },
         )
         .execute(state)
         .await
         .map_err(|e| {
-            warn!(target: "engine", ?e, "Apply safe head failed");
+            warn!(target: "engine", ?e, "Apply local-safe head failed");
             e
         })?;
 
@@ -144,17 +143,17 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
 
         info!(
             target: "engine",
-            hash = %safe_l2.block_info.hash,
-            number = safe_l2.block_info.number,
+            hash = %local_safe_l2.block_info.hash,
+            number = local_safe_l2.block_info.number,
             fcu_duration = ?fcu_duration,
-            "Updated safe head via follow safe"
+            "Updated local-safe head via follow safe"
         );
 
         Ok(())
     }
 
     /// Handles the fallback case when the block doesn't match the input or does not exist.
-    async fn reconcile_unsafe_to_safe(
+    async fn reconcile_unsafe_to_local_safe(
         &self,
         state: &mut EngineState,
     ) -> Result<(), ConsolidateTaskError> {
@@ -162,8 +161,8 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             ConsolidateInput::Attributes(attributes) => {
                 self.execute_build_and_seal_tasks(state, attributes).await
             }
-            ConsolidateInput::BlockInfo(safe_l2) => {
-                self.reconcile_to_safe_head(state, safe_l2).await
+            ConsolidateInput::BlockInfo(local_safe_l2) => {
+                self.reconcile_to_local_safe_head(state, local_safe_l2).await
             }
         }
     }
@@ -208,9 +207,8 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
 
                     let total_duration = global_start.elapsed();
 
-                    // Apply a transient update to the safe head.
+                    // Apply a transient update to the local-safe head.
                     state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
-                        safe_head: Some(block_info),
                         local_safe_head: Some(block_info),
                         ..Default::default()
                     });
@@ -221,7 +219,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                         number = block_info.block_info.number,
                         ?total_duration,
                         ?block_fetch_duration,
-                        "Updated safe head via L1 consolidation"
+                        "Updated local-safe head via L1 consolidation"
                     );
 
                     return Ok(());
@@ -236,7 +234,6 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                         Arc::clone(&self.client),
                         self.cfg.clone(),
                         EngineSyncStateUpdate {
-                            safe_head: Some(block_info),
                             local_safe_head: Some(block_info),
                             ..Default::default()
                         },
@@ -258,7 +255,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                         ?total_duration,
                         ?block_fetch_duration,
                         fcu_duration = ?fcu_duration,
-                        "Updated safe head via L1 consolidation"
+                        "Updated local-safe head via L1 consolidation"
                     );
 
                     return Ok(());
@@ -278,7 +275,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         );
         // Handle mismatch case - called when consistency check fails
         // or when L2BlockInfo construction fails in Attributes branch
-        self.reconcile_unsafe_to_safe(state).await
+        self.reconcile_unsafe_to_local_safe(state).await
     }
 }
 
@@ -288,25 +285,32 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
 
     type Error = ConsolidateTaskError;
 
-    // Behavior depends on how the safe head is provided:
+    // Behavior depends on how the local-safe head is provided:
     //
-    // - `Attributes`: The safe head is advanced through the normal derivation flow, where the
-    //   DerivationActor and EngineActor coordinate both safe and unsafe heads. In this case, we
-    //   consolidate as long as the unsafe head has not fallen behind.
+    // - `Attributes`: The local-safe head is advanced through the normal derivation flow, where the
+    //   DerivationActor and EngineActor coordinate both local-safe and unsafe heads. In this case,
+    //   we consolidate as long as the unsafe head has not fallen behind.
     //
-    // - `BlockInfo`: The safe head is injected externally by the DerivationActor while delegating
-    //   derivation, and is not coordinated with the EngineActor's safe/unsafe heads. If the
-    //   injected safe head is ahead of the EngineActor's unsafe head, we reconcile the unsafe chain
-    //   up to the safe head instead of consolidating.
+    // - `BlockInfo`: The local-safe head is injected externally by the DerivationActor while
+    //   delegating derivation, and is not coordinated with the EngineActor's local-safe/unsafe
+    //   heads. If the injected head is ahead of the EngineActor's unsafe head, we reconcile the
+    //   unsafe chain up to it instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
-        let safe_head_number = match &self.input {
-            ConsolidateInput::Attributes { .. } => state.sync_state.safe_head().block_info.number,
-            ConsolidateInput::BlockInfo(safe_block_info) => safe_block_info.block_info.number,
+        // Derivation drives consolidation, so the comparison is against the *local*-safe head.
+        // Reading cross-safe here would re-consolidate already-consolidated blocks whenever
+        // cross-safe lags local-safe under interop.
+        let local_safe_head_number = match &self.input {
+            ConsolidateInput::Attributes { .. } => {
+                state.sync_state.local_safe_head().block_info.number
+            }
+            ConsolidateInput::BlockInfo(local_safe_block_info) => {
+                local_safe_block_info.block_info.number
+            }
         };
-        if safe_head_number < state.sync_state.unsafe_head().block_info.number {
+        if local_safe_head_number < state.sync_state.unsafe_head().block_info.number {
             self.consolidate(state).await
         } else {
-            self.reconcile_unsafe_to_safe(state).await
+            self.reconcile_unsafe_to_local_safe(state).await
         }
     }
 }

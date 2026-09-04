@@ -32,9 +32,26 @@ impl<EngineClient_: EngineClient> EngineTaskExt for FinalizeTask<EngineClient_> 
     async fn execute(&self, state: &mut EngineState) -> Result<(), FinalizeTaskError> {
         let block_number = self.block_id.number();
 
-        // Sanity check that the block that is being finalized is at least safe.
-        if state.sync_state.safe_head().block_info.number < block_number {
-            return Err(FinalizeTaskError::BlockNotSafe);
+        // A block must be cross-safe before it can be finalized. Under interop the cross-safe head
+        // legitimately lags local-safe, so a finality signal naming a block that is only local-safe
+        // is an ordinary transient state rather than a fault, and the signal is dropped: a later L1
+        // finality signal names a block that has since been cross-verified, so finality catches up
+        // on its own. This mirrors `EngineController.promoteFinalized` in op-node, which logs and
+        // returns without moving the finalized head.
+        //
+        // Dropping is the only non-fatal option available here. Reporting an error would abort the
+        // task, and no severity expresses "skip this one": `Critical` kills the engine actor, while
+        // `Temporary` spins the retry loop in `EngineTask::execute` forever — that loop holds the
+        // drain, so the promotion that would let finality proceed could never run.
+        let cross_safe_head = state.sync_state.cross_safe_head();
+        if cross_safe_head.block_info.number < block_number {
+            warn!(
+                target: "engine",
+                block_number,
+                cross_safe = cross_safe_head.block_info.number,
+                "Dropping a finality signal for a block that is not yet cross-safe"
+            );
+            return Ok(());
         }
 
         // Look up by hash when the caller pinned a specific hash (delegated polling supplies

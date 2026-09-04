@@ -86,6 +86,10 @@ pub struct MockEngineStorage {
     pub l2_blocks_by_id: HashMap<String, Block<OpTransaction>>,
     /// Storage for proofs by (address, stringified `BlockId`) key.
     pub proofs_by_address: HashMap<(Address, String), EIP1186AccountProofResponse>,
+
+    /// Every [`ForkchoiceState`] the mock was asked to apply, in call order. Lets tests assert on
+    /// the labels actually put on the wire rather than only on the engine's own view.
+    pub fork_choice_states: Vec<ForkchoiceState>,
 }
 
 /// Builder for constructing a [`MockEngineClient`] with pre-configured responses.
@@ -328,6 +332,11 @@ impl MockEngineClient {
         self.storage.write().await.fork_choice_updated_v3_response = Some(response);
     }
 
+    /// Returns every [`ForkchoiceState`] the mock has been asked to apply, in call order.
+    pub async fn fork_choice_states(&self) -> Vec<ForkchoiceState> {
+        self.storage.read().await.fork_choice_states.clone()
+    }
+
     /// Sets the execution payload v2 response.
     pub async fn set_execution_payload_v2(&self, payload: ExecutionPayloadEnvelopeV2) {
         self.storage.write().await.execution_payload_v2 = Some(payload);
@@ -519,10 +528,11 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
 
     async fn fork_choice_updated_v2(
         &self,
-        _fork_choice_state: ForkchoiceState,
+        fork_choice_state: ForkchoiceState,
         _payload_attributes: Option<OpPayloadAttributes>,
     ) -> TransportResult<ForkchoiceUpdated> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.fork_choice_states.push(fork_choice_state);
         storage.fork_choice_updated_v2_response.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "fork_choice_updated_v2 was called but no v2 response configured. \
@@ -533,10 +543,11 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
 
     async fn fork_choice_updated_v3(
         &self,
-        _fork_choice_state: ForkchoiceState,
+        fork_choice_state: ForkchoiceState,
         _payload_attributes: Option<OpPayloadAttributes>,
     ) -> TransportResult<ForkchoiceUpdated> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.fork_choice_states.push(fork_choice_state);
         storage.fork_choice_updated_v3_response.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "fork_choice_updated_v3 was called but no v3 response configured. \

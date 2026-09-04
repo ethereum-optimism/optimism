@@ -137,7 +137,7 @@ async fn test_execute_variants(
 
     let mut state = TestEngineStateBuilder::new()
         .with_unsafe_head(unsafe_block)
-        .with_safe_head(parent_block)
+        .with_local_safe_head(parent_block)
         .with_finalized_head(parent_block)
         .build();
 

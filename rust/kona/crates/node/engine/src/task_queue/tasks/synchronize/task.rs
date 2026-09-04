@@ -1,11 +1,11 @@
 //! A task for the `engine_forkchoiceUpdated` method, with no attributes.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, SynchronizeTaskError, state::EngineSyncStateUpdate,
+    EngineClient, EngineState, EngineTaskExt, SynchronizeTaskError,
+    state::{CrossSafePromotion, EngineSyncStateUpdate},
 };
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
 use async_trait::async_trait;
-use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use std::sync::Arc;
 use tokio::time::Instant;
@@ -22,7 +22,7 @@ use tokio::time::Instant;
 /// - **Internal Synchronization**: Called by [`InsertTask`], [`ConsolidateTask`], and
 ///   [`FinalizeTask`]
 /// - **Engine Reset**: Used during engine resets to establish initial forkchoice state
-/// - **Safe Head Updates**: Synchronizes safe and finalized head changes
+/// - **Head Updates**: Synchronizes local-safe, cross-safe and finalized head changes
 ///
 /// ## Automatic Integration
 ///
@@ -34,7 +34,7 @@ use tokio::time::Instant;
 /// [`ConsolidateTask`]: crate::ConsolidateTask  
 /// [`FinalizeTask`]: crate::FinalizeTask
 /// [`BuildTask`]: crate::BuildTask
-#[derive(Debug, Clone, Constructor)]
+#[derive(Debug, Clone)]
 pub struct SynchronizeTask<EngineClient_: EngineClient> {
     /// The engine client.
     pub client: Arc<EngineClient_>,
@@ -42,9 +42,36 @@ pub struct SynchronizeTask<EngineClient_: EngineClient> {
     pub rollup: Arc<RollupConfig>,
     /// The sync state update to apply to the engine state.
     pub state_update: EngineSyncStateUpdate,
+    /// An optional cross-safe promotion to apply alongside the update.
+    pub cross_safe_promotion: Option<CrossSafePromotion>,
 }
 
 impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
+    /// Creates a [`SynchronizeTask`] applying `state_update`. The cross-safe head is untouched
+    /// unless this engine's own [`crate::CrossSafeSource`] mints a trivial promotion from the
+    /// local-safe advance.
+    pub const fn new(
+        client: Arc<EngineClient_>,
+        rollup: Arc<RollupConfig>,
+        state_update: EngineSyncStateUpdate,
+    ) -> Self {
+        Self { client, rollup, state_update, cross_safe_promotion: None }
+    }
+
+    /// Creates a [`SynchronizeTask`] that applies a cross-safe promotion and nothing else.
+    pub const fn promotion(
+        client: Arc<EngineClient_>,
+        rollup: Arc<RollupConfig>,
+        promotion: CrossSafePromotion,
+    ) -> Self {
+        Self {
+            client,
+            rollup,
+            state_update: EngineSyncStateUpdate::NONE,
+            cross_safe_promotion: Some(promotion),
+        }
+    }
+
     /// Checks the response of the `engine_forkchoiceUpdated` call, and updates the sync status if
     /// necessary.
     fn check_forkchoice_updated_status(
@@ -84,19 +111,29 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
 
     async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, SynchronizeTaskError> {
         // Apply the sync state update to the engine state.
-        let new_sync_state = state.sync_state.apply_update(self.state_update);
+        let mut new_sync_state = state.sync_state.apply_update(self.state_update);
+        if let Some(promotion) = self.cross_safe_promotion {
+            new_sync_state = new_sync_state.apply_cross_safe_promotion(promotion);
+        }
 
         // Check if a forkchoice update is not needed, return early.
         // A forkchoice update is not needed if...
-        // 1. The engine state is not default (initial forkchoice state has been emitted), and
+        // 1. The initial forkchoice state has already been emitted, and
         // 2. The new sync state is the same as the current sync state (no changes to the sync
         //    state).
+        //
+        // Condition 1 reads an explicit flag rather than `state.sync_state != Default::default()`.
+        // That comparison stood in for "the initial forkchoice state has been emitted", but it is
+        // true for any sync state that differs from the default in *any* field — including
+        // `cross_safe_source`, which `Engine::with_external_cross_safe` sets before the engine has
+        // done anything. Under that comparison an interop engine would take this early return on
+        // its first task and never emit an initial forkchoice update at all.
         //
         // NOTE:
         // We shouldn't retry the synchronize task there. Since the `sync_state` is only updated
         // inside the `SynchronizeTask` (except inside the ConsolidateTask, when the block is not
         // the last in the batch) - the engine will get stuck retrying the `SynchronizeTask`
-        if state.sync_state != Default::default() && state.sync_state == new_sync_state {
+        if state.forkchoice_emitted && state.sync_state == new_sync_state {
             debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
             return Ok(());
         }
@@ -139,8 +176,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
 
         self.check_forkchoice_updated_status(state, &valid_response.payload_status.status)?;
 
-        // Apply the new sync state to the engine state.
+        // Apply the new sync state to the engine state. The forkchoice update has been dispatched
+        // and accepted, so subsequent no-op updates may be skipped.
         state.sync_state = new_sync_state;
+        state.forkchoice_emitted = true;
 
         let fcu_duration = fcu_time_start.elapsed();
         debug!(

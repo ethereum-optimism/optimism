@@ -12,12 +12,17 @@ use tokio::sync::mpsc;
 pub trait EngineDerivationClient: Debug + Send + Sync {
     /// Notifies the [`crate::DerivationActor`] that engine syncing has completed.
     /// Note: Does not wait for the derivation client to process this message.
-    async fn notify_sync_completed(&self, safe_head: L2BlockInfo) -> DerivationClientResult<()>;
+    async fn notify_sync_completed(
+        &self,
+        local_safe_head: L2BlockInfo,
+    ) -> DerivationClientResult<()>;
 
-    /// Sends the new engine `safe_head` to the [`crate::DerivationActor`].
+    /// Sends the new engine local-safe head to the [`crate::DerivationActor`].
     /// Note: Does not wait for the derivation client to process this message.
-    async fn send_new_engine_safe_head(&self, safe_head: L2BlockInfo)
-    -> DerivationClientResult<()>;
+    async fn send_new_engine_local_safe_head(
+        &self,
+        local_safe_head: L2BlockInfo,
+    ) -> DerivationClientResult<()>;
 
     /// Sends the [`crate::DerivationActor`] the provided [`Signal`].
     /// Note: Does not wait for the derivation client to process this message.
@@ -33,11 +38,16 @@ pub struct QueuedEngineDerivationClient {
 
 #[async_trait]
 impl EngineDerivationClient for QueuedEngineDerivationClient {
-    async fn notify_sync_completed(&self, safe_head: L2BlockInfo) -> DerivationClientResult<()> {
+    async fn notify_sync_completed(
+        &self,
+        local_safe_head: L2BlockInfo,
+    ) -> DerivationClientResult<()> {
         info!(target: "engine", "Sending sync completed to derivation actor");
 
         self.derivation_actor_request_tx
-            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(safe_head)))
+            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(
+                local_safe_head,
+            )))
             .await
             .map_err(|_| {
                 DerivationClientError::RequestError("request channel closed.".to_string())
@@ -46,14 +56,16 @@ impl EngineDerivationClient for QueuedEngineDerivationClient {
         Ok(())
     }
 
-    async fn send_new_engine_safe_head(
+    async fn send_new_engine_local_safe_head(
         &self,
-        safe_head: L2BlockInfo,
+        local_safe_head: L2BlockInfo,
     ) -> DerivationClientResult<()> {
-        info!(target: "engine", safe_head = ?safe_head, "Sending new safe head to derivation actor");
+        info!(target: "engine", local_safe_head = ?local_safe_head, "Sending new local-safe head to derivation actor");
 
         self.derivation_actor_request_tx
-            .send(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(Box::new(safe_head)))
+            .send(DerivationActorRequest::ProcessEngineLocalSafeHeadUpdateRequest(Box::new(
+                local_safe_head,
+            )))
             .await
             .map_err(|_| {
                 DerivationClientError::RequestError("request channel closed.".to_string())

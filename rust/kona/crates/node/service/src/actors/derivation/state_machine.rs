@@ -159,7 +159,7 @@ fn transition(
 /// processed.
 #[derive(Debug)]
 pub struct DerivationStateMachine {
-    confirmed_safe_head: L2BlockInfo,
+    confirmed_local_safe_head: L2BlockInfo,
     state: DerivationState,
 }
 
@@ -173,7 +173,7 @@ impl DerivationStateMachine {
     /// Constructs a new [`DerivationStateMachine`].
     fn new() -> Self {
         Self {
-            confirmed_safe_head: L2BlockInfo::default(),
+            confirmed_local_safe_head: L2BlockInfo::default(),
             state: DerivationState::AwaitingELSyncCompletion,
         }
     }
@@ -183,9 +183,13 @@ impl DerivationStateMachine {
         self.state
     }
 
-    /// Gets the last [`L2BlockInfo`] confirmed by the engine.
-    pub const fn last_confirmed_safe_head(&self) -> L2BlockInfo {
-        self.confirmed_safe_head
+    /// Gets the last local-safe [`L2BlockInfo`] confirmed by the engine.
+    ///
+    /// The depth-1 lockstep gate is driven by local-safe, never cross-safe: under interop a
+    /// cross-safe-driven confirmation would deadlock, since the promotion it waits on itself waits
+    /// on every chain's derivation.
+    pub const fn last_confirmed_local_safe_head(&self) -> L2BlockInfo {
+        self.confirmed_local_safe_head
     }
 
     /// Applies the provided  [`DerivationStateUpdate`], returning an
@@ -194,19 +198,19 @@ impl DerivationStateMachine {
         &mut self,
         state_update: &DerivationStateUpdate,
     ) -> Result<(), DerivationStateTransitionError> {
-        if let DerivationStateUpdate::NewAttributesConfirmed(safe_head) = state_update &&
-            safe_head.block_info.hash == self.confirmed_safe_head.block_info.hash
+        if let DerivationStateUpdate::NewAttributesConfirmed(local_safe_head) = state_update &&
+            local_safe_head.block_info.hash == self.confirmed_local_safe_head.block_info.hash
         {
-            info!(target: "derivation", ?safe_head, "Re-received safe head. Skipping state transition.");
+            info!(target: "derivation", ?local_safe_head, "Re-received local-safe head. Skipping state transition.");
         }
 
         info!(target: "derivation", state=?self.state, ?state_update, "Executing derivation state update.");
         self.state = transition(&self.state, state_update)?;
 
-        if let DerivationStateUpdate::NewAttributesConfirmed(safe_head) = state_update {
-            self.confirmed_safe_head = **safe_head;
-        } else if let DerivationStateUpdate::ELSyncCompleted(safe_head) = state_update {
-            self.confirmed_safe_head = **safe_head;
+        if let DerivationStateUpdate::NewAttributesConfirmed(local_safe_head) = state_update {
+            self.confirmed_local_safe_head = **local_safe_head;
+        } else if let DerivationStateUpdate::ELSyncCompleted(local_safe_head) = state_update {
+            self.confirmed_local_safe_head = **local_safe_head;
         }
 
         Ok(())
@@ -350,22 +354,22 @@ mod tests {
     fn test_state_machine_initial_state() {
         let machine = DerivationStateMachine::new();
         assert_eq!(machine.current_state(), AwaitingELSyncCompletion);
-        assert_eq!(machine.last_confirmed_safe_head(), L2BlockInfo::default());
+        assert_eq!(machine.last_confirmed_local_safe_head(), L2BlockInfo::default());
     }
 
     #[test]
-    fn test_state_machine_sync_completed_safe_head_update() {
+    fn test_state_machine_sync_completed_local_safe_head_update() {
         let mut machine = DerivationStateMachine::new();
-        let safe_head = dummy_l2_block_info();
+        let local_safe_head = dummy_l2_block_info();
 
-        machine.update(&ELSyncCompleted(Box::new(safe_head))).unwrap();
+        machine.update(&ELSyncCompleted(Box::new(local_safe_head))).unwrap();
 
         assert_eq!(machine.current_state(), Deriving);
-        assert_eq!(machine.last_confirmed_safe_head(), safe_head);
+        assert_eq!(machine.last_confirmed_local_safe_head(), local_safe_head);
     }
 
     #[test]
-    fn test_state_machine_update_preserves_confirmed_safe_head() {
+    fn test_state_machine_update_preserves_confirmed_local_safe_head() {
         let mut machine = DerivationStateMachine::new();
         let first_safe_head = dummy_l2_block_info();
 
@@ -378,7 +382,7 @@ mod tests {
         machine.update(&L1DataReceived).unwrap();
 
         // Safe head should still be the first one
-        assert_eq!(machine.last_confirmed_safe_head(), first_safe_head);
+        assert_eq!(machine.last_confirmed_local_safe_head(), first_safe_head);
     }
 
     #[test]
@@ -406,7 +410,7 @@ mod tests {
         machine.update(&NewAttributesConfirmed(Box::new(new_safe_head))).unwrap();
 
         assert_eq!(machine.current_state(), Deriving);
-        assert_eq!(machine.last_confirmed_safe_head(), new_safe_head);
+        assert_eq!(machine.last_confirmed_local_safe_head(), new_safe_head);
     }
 
     #[test]

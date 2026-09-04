@@ -17,7 +17,7 @@ use crate::EngineClient;
 ///
 ///   - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a *plausible*
 ///     extension of the canonical L1 chain (as known to the rollup node).
-///   - The *safe L2 block*: This is the highest L2 block whose epoch's sequencing window is
+///   - The *local-safe L2 block*: This is the highest L2 block whose epoch's sequencing window is
 ///     complete within the canonical L1 chain (as known to the rollup node).
 ///   - The *finalized L2 block*: This is the L2 block which is known to be fully derived from
 ///     finalized L1 block data.
@@ -33,7 +33,7 @@ pub async fn find_starting_forkchoice<EngineClient_: EngineClient>(
     info!(
         target: "sync_start",
         unsafe = %current_fc.un_safe.block_info.number,
-        safe = %current_fc.safe.block_info.number,
+        local_safe = %current_fc.local_safe.block_info.number,
         finalized = %current_fc.finalized.block_info.number,
         "Loaded current L2 EL forkchoice state"
     );
@@ -73,40 +73,44 @@ pub async fn find_starting_forkchoice<EngineClient_: EngineClient>(
         }
     }
 
-    // Search for the highest `safe` block that's L1 origin is at least older than the sequencing
-    // window, relative to the L1 origin of the `unsafe` block.
-    let mut safe_cursor = current_fc.un_safe;
+    // Search for the highest local-safe block whose L1 origin is at least older than the
+    // sequencing window, relative to the L1 origin of the `unsafe` block.
+    let mut local_safe_cursor = current_fc.un_safe;
     loop {
         info!(
             target: "sync_start",
-            l1_origin = %safe_cursor.l1_origin.number,
-            l2_safe = %safe_cursor.block_info.number,
-            "Searching for L2 safe block beyond sequencing window"
+            l1_origin = %local_safe_cursor.l1_origin.number,
+            l2_local_safe = %local_safe_cursor.block_info.number,
+            "Searching for L2 local-safe block beyond sequencing window"
         );
 
         let is_behind_sequence_window =
             current_fc.un_safe.l1_origin.number.saturating_sub(cfg.seq_window_size) >
-                safe_cursor.l1_origin.number;
-        let is_finalized = safe_cursor.block_info.hash == current_fc.finalized.block_info.hash;
-        let is_genesis = safe_cursor.block_info.hash == cfg.genesis.l2.hash;
+                local_safe_cursor.l1_origin.number;
+        let is_finalized =
+            local_safe_cursor.block_info.hash == current_fc.finalized.block_info.hash;
+        let is_genesis = local_safe_cursor.block_info.hash == cfg.genesis.l2.hash;
         if is_behind_sequence_window || is_finalized || is_genesis {
             info!(
                 target: "sync_start",
-                l2_safe = %safe_cursor.block_info.number,
+                l2_local_safe = %local_safe_cursor.block_info.number,
                 is_behind_sequence_window,
                 is_finalized,
                 is_genesis,
-                "Found suitable L2 safe block"
+                "Found suitable L2 local-safe block"
             );
-            current_fc.safe = safe_cursor;
+            current_fc.local_safe = local_safe_cursor;
             break;
         }
         let block = engine_client
-            .get_l2_block(safe_cursor.block_info.parent_hash.into())
+            .get_l2_block(local_safe_cursor.block_info.parent_hash.into())
             .full()
             .await?
-            .ok_or(SyncStartError::BlockNotFound(safe_cursor.block_info.parent_hash.into()))?;
-        safe_cursor = L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &cfg.genesis)?;
+            .ok_or(SyncStartError::BlockNotFound(
+                local_safe_cursor.block_info.parent_hash.into(),
+            ))?;
+        local_safe_cursor =
+            L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &cfg.genesis)?;
     }
 
     // Leave the finalized block as-is, and return the current forkchoice.

@@ -1,4 +1,4 @@
-use crate::{EngineState, EngineSyncStateUpdate};
+use crate::{CrossSafePromoter, EngineState, EngineSyncStateUpdate};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, b256};
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -8,7 +8,7 @@ use kona_protocol::{BlockInfo, L2BlockInfo};
 pub struct TestEngineStateBuilder {
     unsafe_head: L2BlockInfo,
     local_safe_head: Option<L2BlockInfo>,
-    safe_head: Option<L2BlockInfo>,
+    cross_safe_head: Option<L2BlockInfo>,
     finalized_head: Option<L2BlockInfo>,
     el_sync_finished: bool,
 }
@@ -31,7 +31,7 @@ impl TestEngineStateBuilder {
         Self {
             unsafe_head: genesis,
             local_safe_head: None,
-            safe_head: None,
+            cross_safe_head: None,
             finalized_head: None,
             el_sync_finished: true,
         }
@@ -43,9 +43,15 @@ impl TestEngineStateBuilder {
         self
     }
 
-    /// Sets the safe head
-    pub const fn with_safe_head(mut self, block: L2BlockInfo) -> Self {
-        self.safe_head = Some(block);
+    /// Sets the local-safe head
+    pub const fn with_local_safe_head(mut self, block: L2BlockInfo) -> Self {
+        self.local_safe_head = Some(block);
+        self
+    }
+
+    /// Sets the cross-safe head
+    pub const fn with_cross_safe_head(mut self, block: L2BlockInfo) -> Self {
+        self.cross_safe_head = Some(block);
         self
     }
 
@@ -70,9 +76,14 @@ impl TestEngineStateBuilder {
         state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
             unsafe_head: Some(self.unsafe_head),
             local_safe_head: Some(self.local_safe_head.unwrap_or(self.unsafe_head)),
-            safe_head: Some(self.safe_head.unwrap_or(self.unsafe_head)),
             finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
         });
+        // Cross-safe defaults to local-safe, matching the standalone trivial feed. Tests that
+        // want cross-safe to lag set it explicitly.
+        state.sync_state =
+            state.sync_state.apply_cross_safe_promotion(CrossSafePromoter::new().promote(
+                self.cross_safe_head.or(self.local_safe_head).unwrap_or(self.unsafe_head),
+            ));
 
         state.el_sync_finished = self.el_sync_finished;
         state

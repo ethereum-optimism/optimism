@@ -23,5 +23,8 @@ pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
 mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
+mod promote;
+pub use promote::{PromoteCrossSafeTask, PromoteCrossSafeTaskError};
+
 mod util;
 pub(super) use util::{BuildAndSealError, build_and_seal};

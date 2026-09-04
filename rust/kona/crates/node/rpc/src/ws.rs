@@ -53,16 +53,18 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> WsServer for WsRPC<EngineRpcCl
 
         let mut subscription = self.engine_state_watcher().await?;
 
-        let mut current_safe_head = subscription.borrow().sync_state.safe_head();
+        // The `subscribe_safe_head` subscription tracks the forkchoice safe label, i.e. the
+        // cross-safe head. The wire name is unchanged.
+        let mut current_cross_safe_head = subscription.borrow().sync_state.cross_safe_head();
 
         while let Ok(new_state) = subscription
-            .wait_for(|state| state.sync_state.safe_head() != current_safe_head)
+            .wait_for(|state| state.sync_state.cross_safe_head() != current_cross_safe_head)
             .await
             .map(|state| *state)
         {
-            info!(target: "rpc::ws", "Sending safe head update: {:?}", new_state.sync_state.safe_head());
-            current_safe_head = new_state.sync_state.safe_head();
-            Self::send_state_update(&sink, current_safe_head).await?;
+            info!(target: "rpc::ws", "Sending safe head update: {:?}", new_state.sync_state.cross_safe_head());
+            current_cross_safe_head = new_state.sync_state.cross_safe_head();
+            Self::send_state_update(&sink, current_cross_safe_head).await?;
         }
 
         warn!(target: "rpc::ws", "Subscription to safe head updates has been closed.");

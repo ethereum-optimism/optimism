@@ -3,7 +3,7 @@ use crate::{
     test_utils::{TestEngineStateBuilder, test_engine_client_builder},
 };
 use alloy_eips::{BlockId, BlockNumHash};
-use alloy_primitives::b256;
+use alloy_primitives::{B256, b256};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use std::sync::Arc;
@@ -53,9 +53,10 @@ async fn finalize_task_by_hash_errors_when_engine_lacks_hash() {
         .with_l2_block(BlockId::Number(N.into()), block)
         .build();
 
-    // Place the safe head at N so the sanity check (`safe_head.number >= block_id.number`) passes
-    // and `execute()` reaches the lookup we care about.
-    let safe_head = L2BlockInfo {
+    // Place the cross-safe head at N so the sanity check
+    // (`cross_safe_head.number >= block_id.number`) passes and `execute()` reaches the lookup we
+    // care about.
+    let cross_safe_head = L2BlockInfo {
         block_info: BlockInfo {
             number: N,
             hash: hash_a,
@@ -65,8 +66,10 @@ async fn finalize_task_by_hash_errors_when_engine_lacks_hash() {
         l1_origin: BlockNumHash::default(),
         seq_num: 0,
     };
-    let mut state =
-        TestEngineStateBuilder::new().with_unsafe_head(safe_head).with_safe_head(safe_head).build();
+    let mut state = TestEngineStateBuilder::new()
+        .with_unsafe_head(cross_safe_head)
+        .with_cross_safe_head(cross_safe_head)
+        .build();
 
     let task = FinalizeTask::new(
         Arc::new(engine_client),
@@ -81,5 +84,70 @@ async fn finalize_task_by_hash_errors_when_engine_lacks_hash() {
         "expected BlockNotFound({N}) — got {result:?}. The by-hash lookup must fail loudly when \
          the engine lacks the requested hash; instead, the task either succeeded (finalizing the \
          wrong block) or surfaced a different error."
+    );
+}
+
+/// A finality signal naming a block that is local-safe but not yet cross-safe must be dropped, not
+/// turned into an error.
+///
+/// Under interop the cross-safe head legitimately lags local-safe, so this is an ordinary state
+/// rather than a fault. Before the fix the task returned `FinalizeTaskError::BlockNotCrossSafe`,
+/// classified `EngineTaskErrorSeverity::Critical`, which `EngineActor::drain` propagates as a fatal
+/// `EngineError` — a normal interop state would kill the engine actor.
+///
+/// The engine client here has no block registered and no forkchoice response configured, so the
+/// three outcomes are distinguishable: dropping returns `Ok` without touching the client, the old
+/// behaviour returns `BlockNotCrossSafe`, and wrongly proceeding returns `BlockNotFound`.
+#[tokio::test]
+async fn finalize_task_drops_a_signal_for_a_block_that_is_not_yet_cross_safe() {
+    fn block(number: u64) -> L2BlockInfo {
+        L2BlockInfo {
+            block_info: BlockInfo {
+                number,
+                hash: B256::repeat_byte(number as u8),
+                parent_hash: B256::repeat_byte(number.saturating_sub(1) as u8),
+                timestamp: number * 2,
+            },
+            l1_origin: BlockNumHash::default(),
+            seq_num: 0,
+        }
+    }
+
+    let (genesis, cross_safe, local_safe) = (block(0), block(5), block(10));
+
+    let cfg = Arc::new(RollupConfig::default());
+    let client = Arc::new(test_engine_client_builder().with_config(cfg.clone()).build());
+
+    let mut state = TestEngineStateBuilder::new()
+        .with_unsafe_head(local_safe)
+        .with_local_safe_head(local_safe)
+        .with_cross_safe_head(cross_safe)
+        .with_finalized_head(genesis)
+        .build();
+
+    assert_eq!(state.sync_state.cross_safe_head(), cross_safe, "test setup");
+    assert_eq!(state.sync_state.local_safe_head(), local_safe, "test setup");
+
+    let task = FinalizeTask::new(
+        client.clone(),
+        cfg,
+        FinalizeBlockId::ByNumber(local_safe.block_info.number),
+    );
+
+    let result = task.execute(&mut state).await;
+
+    assert!(
+        result.is_ok(),
+        "a finality signal for a local-safe-but-not-cross-safe block must be dropped, not \
+         reported as an error that kills the engine actor — got {result:?}"
+    );
+    assert_eq!(
+        state.sync_state.finalized_head(),
+        genesis,
+        "the dropped signal must not move the finalized head"
+    );
+    assert!(
+        client.fork_choice_states().await.is_empty(),
+        "the dropped signal must not dispatch a forkchoice update"
     );
 }

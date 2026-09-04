@@ -22,7 +22,7 @@
 /// counter!(Metrics::ENGINE_TASK_SUCCESS, "task" => Metrics::INSERT_TASK_LABEL);
 ///
 /// // Record block height at safety level
-/// gauge!(Metrics::BLOCK_LABELS, block_num as f64, "level" => Metrics::SAFE_BLOCK_LABEL);
+/// gauge!(Metrics::BLOCK_LABELS, block_num as f64, "level" => Metrics::CROSS_SAFE_BLOCK_LABEL);
 ///
 /// // Time Engine API calls
 /// histogram!(Metrics::ENGINE_METHOD_REQUEST_DURATION, duration.as_secs_f64());
@@ -37,8 +37,9 @@ impl Metrics {
     pub const UNSAFE_BLOCK_LABEL: &str = "unsafe";
     /// Local-safe block label.
     pub const LOCAL_SAFE_BLOCK_LABEL: &str = "local-safe";
-    /// Safe block label.
-    pub const SAFE_BLOCK_LABEL: &str = "safe";
+    /// Cross-safe block label. The label *value* is the wire-visible `safe` series and is
+    /// deliberately unchanged; only the Rust-side name says which head it is.
+    pub const CROSS_SAFE_BLOCK_LABEL: &str = "safe";
     /// Finalized block label.
     pub const FINALIZED_BLOCK_LABEL: &str = "finalized";
 
@@ -59,6 +60,8 @@ impl Metrics {
     pub const SEAL_TASK_LABEL: &str = "seal";
     /// Finalize task label.
     pub const FINALIZE_TASK_LABEL: &str = "finalize";
+    /// Cross-safe promotion task label.
+    pub const PROMOTE_CROSS_SAFE_TASK_LABEL: &str = "promote-cross-safe";
 
     /// Identifier for the histogram that tracks engine method call time.
     pub const ENGINE_METHOD_REQUEST_DURATION: &str = "kona_node_engine_method_request_duration";

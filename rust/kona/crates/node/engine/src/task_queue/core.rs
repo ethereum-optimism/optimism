@@ -4,7 +4,9 @@ use super::EngineTaskExt;
 use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTask, SynchronizeTaskError,
-    find_starting_forkchoice, task_queue::EngineTaskErrors,
+    find_starting_forkchoice,
+    state::{CrossSafePromoter, CrossSafeSource},
+    task_queue::EngineTaskErrors,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -39,12 +41,40 @@ pub struct Engine<EngineClient_: EngineClient> {
 
 impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// Creates a new [`Engine`] with an empty task queue and the passed initial [`EngineState`].
+    ///
+    /// The cross-safe head trivially follows local-safe, which is what standalone kona-node
+    /// wants: there is no cross-chain verifier, so every local-safe advance is cross-safe.
     pub fn new(
         initial_state: EngineState,
         state_sender: Sender<EngineState>,
         task_queue_length: Sender<usize>,
     ) -> Self {
         Self { state: initial_state, state_sender, task_queue_length, tasks: BinaryHeap::default() }
+    }
+
+    /// Creates a new [`Engine`] whose cross-safe head is fed exclusively by externally minted
+    /// [`crate::CrossSafePromotion`]s, returning the unique [`CrossSafePromoter`] that mints them.
+    ///
+    /// Local-safe advances no longer move the cross-safe head, so absence of promotion holds the
+    /// previous value — including across engine resets.
+    pub fn with_external_cross_safe(
+        initial_state: EngineState,
+        state_sender: Sender<EngineState>,
+        task_queue_length: Sender<usize>,
+    ) -> (Self, CrossSafePromoter) {
+        let mut initial_state = initial_state;
+        initial_state.sync_state =
+            initial_state.sync_state.with_cross_safe_source(CrossSafeSource::Promoted);
+
+        (
+            Self {
+                state: initial_state,
+                state_sender,
+                task_queue_length,
+                tasks: BinaryHeap::default(),
+            },
+            CrossSafePromoter::new(),
+        )
     }
 
     /// Returns a reference to the inner [`EngineState`].
@@ -72,6 +102,8 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// Resets the engine by finding a plausible sync starting point via
     /// [`find_starting_forkchoice`]. The state will be updated to the starting point, and a
     /// forkchoice update will be enqueued in order to reorg the execution layer.
+    ///
+    /// Returns the local-safe head the engine reset to.
     pub async fn reset(
         &mut self,
         client: Arc<EngineClient_>,
@@ -88,8 +120,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             config.clone(),
             EngineSyncStateUpdate {
                 unsafe_head: Some(start.un_safe),
-                local_safe_head: Some(start.safe),
-                safe_head: Some(start.safe),
+                local_safe_head: Some(start.local_safe),
                 finalized_head: Some(start.finalized),
             },
         )
@@ -111,7 +142,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
 
         kona_macros::inc!(counter, Metrics::ENGINE_RESET_COUNT);
 
-        Ok(start.safe)
+        Ok(start.local_safe)
     }
 
     /// Clears the task queue.
