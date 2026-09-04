@@ -91,11 +91,17 @@ func devstackL2ELKind() MixedL2ELKind {
 	return MixedL2ELKind(os.Getenv("DEVSTACK_L2EL_KIND"))
 }
 
+// devstackL2CLKindEnv selects the per-chain L2 CL of the single-chain presets. The
+// multi-chain / interop presets have no such node to swap — their CL is a supernode — and
+// select their implementation via DEVSTACK_SUPERNODE_KIND instead; see
+// devstackSupernodeKindEnv.
+const devstackL2CLKindEnv = "DEVSTACK_L2CL_KIND"
+
 // devstackL2CLKind returns the L2 CL kind requested via the DEVSTACK_L2CL_KIND
 // environment variable. Returns the empty string when the variable is unset,
 // meaning "use the runtime's default".
 func devstackL2CLKind() MixedL2CLKind {
-	return MixedL2CLKind(os.Getenv("DEVSTACK_L2CL_KIND"))
+	return MixedL2CLKind(os.Getenv(devstackL2CLKindEnv))
 }
 
 // ResolveMixedL2CLKind returns the L2 CL kind requested via DEVSTACK_L2CL_KIND,
