@@ -215,6 +215,10 @@
     "initCodeHash": "0x841042eeab4ff85b371aae0c4ee9c17b0a0757bca04fb8ce3054cc7503df9ace",
     "sourceCodeHash": "0x426f80c0cb5e237c87326daeb2bda675ab9a54531405f108075c8b8aa4743b48"
   },
+  "src/safe/UnorderedExecutionModule.sol:UnorderedExecutionModule": {
+    "initCodeHash": "0x74d2de3493cd643b971df1df7c2a7b8aff0db5e567d100dace7de8b05514440f",
+    "sourceCodeHash": "0x2dcd9c2ba71ba011f50874e91fcab86a549e684e34154ce176792adb0e93f749"
+  },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0x3c85eed0d017dca8eda6396aa842ddc12492587b061e8c756a8d32c4610a9658",
     "sourceCodeHash": "0x7023665d461f173417d932b55010b8f6c34f2bbaf56cfe4e1b15862c08cbcaac"
