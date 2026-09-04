@@ -33,6 +33,9 @@ reth-rpc-engine-api.workspace = true
 reth-rpc-api.workspace = true
 reth-db.workspace = true
 reth-db-api.workspace = true
+reth-chain-state.workspace = true
+reth-metrics.workspace = true
+metrics.workspace = true
 
 # op-reth
 reth-optimism-payload-builder.workspace = true
@@ -109,6 +112,7 @@ alloy-rpc-types-admin.workspace = true
 alloy-signer-local.workspace = true
 futures.workspace = true
 jsonrpsee.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
 # Fatal-signal handler in tests/it/crash_backtrace.rs.
 libc.workspace = true
 op-alloy-network.workspace = true
@@ -158,7 +162,8 @@ test-utils = [
 	"reth-db-api/test-utils",
 	"reth-tasks/test-utils",
 	"reth-optimism-exex/test-utils",
-	"reth-optimism-trie/test-utils"
+	"reth-optimism-trie/test-utils",
+	"reth-chain-state/test-utils"
 ]
 reth-codec = ["reth-optimism-primitives/reth-codec"]
 
