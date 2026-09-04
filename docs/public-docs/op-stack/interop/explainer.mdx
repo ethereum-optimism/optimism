@@ -148,7 +148,7 @@ The crucial property of interop is the second bullet: a block is only treated as
 
 This dependency check is what protects users against a [double-spend across chains](/op-stack/interop/reorg). When a sequencer chooses to accept executing messages that reference unsafe initiating messages, it gets the lowest possible cross-chain latency, but it takes on the trust assumption that every sequencer in its [transitive dependency set](#what-is-the-transitive-dependency-set) will eventually post the data it gossiped. If any of them equivocates, the executing-message blocks are reorged out and replaced with deposit-only blocks. For a deeper discussion of the latency / security trade-off and how a chain operator can configure the minimum safety level it will accept for an inbound message, see [Cross-chain security measures](/op-stack/security/interop-security).
 
-<Expandable title="What is the transitive dependency set?">
+<Accordion title="What is the transitive dependency set?">
 
   The dependency set of a chain is the set of chains it directly accepts initiating messages from. The *transitive* dependency set also includes the dependencies of those chains, and so on.
 
@@ -165,7 +165,7 @@ This dependency check is what protects users against a [double-spend across chai
   In the picture above, chain A's direct dependency set is `{B}`, but its transitive dependency set is `{B, C, D, E}`. A block on chain D that depends on an unsafe initiating message from chain E remains unsafe until that chain E block is on L1 — and so does every chain B and chain A block that depends on the chain D block.
 
   Verifying transitively is what lets a chain accept low-latency messages without inheriting unbounded trust from chains it has never heard of: chain A only needs to accept the trust assumptions of chains in its own transitive dependency set.
-</Expandable>
+</Accordion>
 
 ## Interop clusters
 

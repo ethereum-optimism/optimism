@@ -12,7 +12,7 @@ diataxis: tutorial
 This tutorial demonstrates how to implement cross-chain communication within the OP Stack ecosystem. You'll build a complete
 message passing system that enables different chains to interact with each other using the `L2ToL2CrossDomainMessenger` contract.
 
-<Expandable title="About this tutorial">
+<Accordion title="About this tutorial">
 
   **Prerequisite technical knowledge**
 
@@ -42,7 +42,7 @@ message passing system that enables different chains to interact with each other
   * Supersim: For local blockchain simulation (optional)
   * TypeScript: For offchain code (for relaying messages manually)
   * Viem: For interactions with the chain from the offchain app
-</Expandable>
+</Accordion>
 
 ### What You'll Build
 
@@ -140,7 +140,7 @@ The implementation consists of three main components:
             </Tab>
         </Tabs>
 
-    <Expandable title="Sanity check">
+    <Accordion title="Sanity check">
 
       To verify that the chains are running, check the balance of `$USER_ADDRESS`.
 
@@ -148,7 +148,7 @@ The implementation consists of three main components:
       cast balance --ether $USER_ADDRESS --rpc-url $URL_CHAIN_A
       cast balance --ether $USER_ADDRESS --rpc-url $URL_CHAIN_B
       ```
-    </Expandable>
+    </Accordion>
   </Step>
 
   <Step title="Create the contracts">
@@ -192,7 +192,7 @@ The implementation consists of three main components:
         GREETER_B_ADDRESS=`forge create --rpc-url $URL_CHAIN_B --private-key $PRIVATE_KEY Greeter --broadcast | awk '/Deployed to:/ {print $3}'`
         ```
 
-        <Expandable title="Explanation">
+        <Accordion title="Explanation">
 
             The command that deploys the contract is:
 
@@ -220,9 +220,9 @@ The implementation consists of three main components:
             ```sh
             GREETER_B_ADDRESS=<the address>
             ```
-        </Expandable>
+        </Accordion>
 
-    <Expandable title="Sanity check">
+    <Accordion title="Sanity check">
 
       Run these commands to verify the contract works.
       The first and third commands retrieve the current greeting, while the second command updates it.
@@ -232,7 +232,7 @@ The implementation consists of three main components:
       cast send --private-key $PRIVATE_KEY --rpc-url $URL_CHAIN_B $GREETER_B_ADDRESS "setGreeting(string)" Hello$$
       cast call --rpc-url $URL_CHAIN_B $GREETER_B_ADDRESS "greet()" | cast --to-ascii
       ```
-    </Expandable>
+    </Accordion>
 
     4.  Install the Optimism Solidity libraries into the project.
 
@@ -276,7 +276,7 @@ The implementation consists of three main components:
             }
         ```
 
-        <Expandable title="Explanation">
+        <Accordion title="Explanation">
 
            ```solidity
                 function setGreeting(string calldata greeting) public {
@@ -293,7 +293,7 @@ The implementation consists of three main components:
            The encoded message is then passed to `messenger.sendMessage`, which forwards it to the destination contract (`greeterAddress`) on the specified chain (`greeterChainId`).
 
            This ensures that `setGreeting` is executed remotely with the provided `greeting` value (as long as there is an executing message to relay it).
-        </Expandable>
+        </Accordion>
 
     7.  Deploy `GreetingSender` to chain A.
 
@@ -379,7 +379,7 @@ In this section we change `Greeter.sol` to emit a separate event in it receives 
             }
         ```
 
-        <Expandable title="Explanation">
+        <Accordion title="Explanation">
 
             ```solidity
             interface IL2ToL2CrossDomainMessenger {
@@ -398,7 +398,7 @@ In this section we change `Greeter.sol` to emit a separate event in it receives 
             ```
 
             If we see that we got a message from `L2ToL2CrossDomainMessenger`, we call [`L2ToL2CrossDomainMessenger.crossDomainMessageContext`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol#L118-L126).
-        </Expandable>
+        </Accordion>
 
     2.  Redeploy the contracts.
         Because the address of `Greeter` is immutable in `GreetingSender`, we need to redeploy both contracts.

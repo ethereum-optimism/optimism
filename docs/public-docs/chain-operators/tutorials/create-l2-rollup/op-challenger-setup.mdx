@@ -33,7 +33,7 @@ Complete these prerequisites before wiring up the challenger:
 <Steps>
 <Step title="Deploy OP Stack chain with fault proofs enabled">
 
-<Expandable title="Generate absolute prestate (Required)">
+<Accordion title="Generate absolute prestate (Required)">
 
 The challenger needs the absolute prestate to participate in dispute games. The prestate is the on-chain commitment to a specific build of `kona-client`, the maintained fault proof program. (`op-program`, which previously filled this role, has reached end-of-support; see [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation).) Here's how to generate it:
 
@@ -70,7 +70,7 @@ The challenger needs the absolute prestate to participate in dispute games. The 
   *   Keep the `0x<PRESTATE_HASH>.bin.gz` file accessible - you'll need it for the challenger setup
   *   For Superchain registry chains, you can find official `cannon64-kona` prestates in the [registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)
 </Info>
-</Expandable>
+</Accordion>
 </Step>
 
 <Step title="Set up required infrastructure access">
