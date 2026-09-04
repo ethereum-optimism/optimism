@@ -13,7 +13,7 @@ import { GameType, Proposal, Claim, GameStatus, Hash } from "src/dispute/lib/Typ
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
@@ -24,14 +24,16 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.9.0
-    string public constant version = "3.9.0";
+    /// @custom:semver 4.0.0
+    string public constant version = "4.0.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
 
-    /// @notice Address of the SystemConfig contract.
-    ISystemConfig public systemConfig;
+    /// @custom:legacy
+    /// @custom:spacer systemConfig
+    /// @notice Spacer taking up the legacy `systemConfig` address slot.
+    address private spacer_0_2_20;
 
     /// @notice Address of the DisputeGameFactory contract.
     IDisputeGameFactory public disputeGameFactory;
@@ -52,6 +54,9 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     ///         considered retired and are therefore not valid games. Retirement is used as a
     ///         blanket invalidation mechanism if games resolve incorrectly.
     uint64 public retirementTimestamp;
+
+    /// @notice The ETHLockbox used as the pause identifier.
+    IETHLockbox public ethLockbox;
 
     /// @notice Emitted when an anchor state is updated.
     /// @param game Game that was used as the new anchor game.
@@ -82,12 +87,12 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     }
 
     /// @notice Initializes the contract.
-    /// @param _systemConfig The address of the SystemConfig contract.
+    /// @param _ethLockbox The address of the ETHLockbox contract.
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
     /// @param _startingRespectedGameType The starting respected game type.
     function initialize(
-        ISystemConfig _systemConfig,
+        IETHLockbox _ethLockbox,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
@@ -99,7 +104,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
         // Now perform initialization logic.
-        systemConfig = _systemConfig;
+        ethLockbox = _ethLockbox;
         disputeGameFactory = _disputeGameFactory;
         respectedGameType = _startingRespectedGameType;
 
@@ -129,13 +134,13 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
 
     /// @notice Returns whether the contract is paused.
     function paused() public view returns (bool) {
-        return systemConfig.paused();
+        return ethLockbox.paused();
     }
 
     /// @notice Returns the SuperchainConfig contract.
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function superchainConfig() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
+        return ethLockbox.superchainConfig();
     }
 
     /// @notice Returns the dispute game finality delay in seconds.
@@ -362,7 +367,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
 
     /// @notice Asserts that the caller is the Guardian.
     function _assertOnlyGuardian() internal view {
-        if (msg.sender != systemConfig.guardian()) {
+        if (msg.sender != ethLockbox.guardian()) {
             revert AnchorStateRegistry_Unauthorized();
         }
     }

@@ -16,6 +16,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 // Target contract dependencies
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
@@ -171,9 +172,7 @@ contract L1CrossDomainMessenger_Initialize_Test is L1CrossDomainMessenger_TestIn
 contract L1CrossDomainMessenger_Paused_Test is L1CrossDomainMessenger_TestInit {
     /// @notice Tests that the superchain config is called by the messenger's paused function.
     function test_pause_callsSuperchainConfig_succeeds() external {
-        // We use abi.encodeWithSignature because paused is overloaded.
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.expectCall(address(superchainConfig), abi.encodeWithSignature("paused(address)", address(0)));
+        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.isPaused, (address(ethLockbox))));
         l1CrossDomainMessenger.paused();
     }
 

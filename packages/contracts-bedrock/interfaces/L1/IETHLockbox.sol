@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -23,9 +22,9 @@ interface IETHLockbox is IProxyAdminOwnedBase, ISemver, IReinitializableBase {
     event LiquidityMigrated(IETHLockbox indexed lockbox, uint256 amount);
     event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
 
-    function initialize(ISystemConfig _systemConfig, IOptimismPortal2[] calldata _portals) external;
-    function systemConfig() external view returns (ISystemConfig);
+    function initialize(ISuperchainConfig _superchainConfig, IOptimismPortal2[] calldata _portals) external;
     function paused() external view returns (bool);
+    function guardian() external view returns (address);
     function authorizedPortals(IOptimismPortal2) external view returns (bool);
     function authorizedLockboxes(IETHLockbox) external view returns (bool);
     function receiveLiquidity() external payable;

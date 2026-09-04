@@ -206,16 +206,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             // Grab the implementations.
             IOPContractsManagerContainer.Implementations memory impls = contractsContainer().implementations();
 
-            // Initialize the new ETHLockbox.
-            // NOTE: Shared contracts (ETHLockbox, AnchorStateRegistry, DelayedWETH) are
-            // intentionally initialized with chainSystemConfigs[0]. All chains are validated to
-            // share the same ProxyAdmin owner and SuperchainConfig, so the first chain's
-            // SystemConfig is used as the canonical governance reference for shared contracts.
+            // Initialize the shared ETHLockbox.
             _upgrade(
                 proxyDeployArgs.proxyAdmin,
                 address(ethLockbox),
                 impls.ethLockboxImpl,
-                abi.encodeCall(IETHLockbox.initialize, (_input.chainSystemConfigs[0], new IOptimismPortal[](0)))
+                abi.encodeCall(
+                    IETHLockbox.initialize, (_input.chainSystemConfigs[0].superchainConfig(), new IOptimismPortal[](0))
+                )
             );
 
             // Initialize the new DisputeGameFactory.
@@ -233,17 +231,13 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 impls.anchorStateRegistryImpl,
                 abi.encodeCall(
                     IAnchorStateRegistry.initialize,
-                    (
-                        _input.chainSystemConfigs[0],
-                        disputeGameFactory,
-                        _input.startingAnchorRoot,
-                        _input.startingRespectedGameType
-                    )
+                    (ethLockbox, disputeGameFactory, _input.startingAnchorRoot, _input.startingRespectedGameType)
                 )
             );
 
             // Migrate each portal to the new ETHLockbox and AnchorStateRegistry.
             for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
+                _updateDelayedWETHLockbox(_input.chainSystemConfigs[i], ethLockbox, impls.delayedWETHImpl);
                 _updateSystemConfigDelayedWETH(_input.chainSystemConfigs[i], delayedWETH, impls.systemConfigImpl);
                 _migratePortal(_input.chainSystemConfigs[i], ethLockbox, anchorStateRegistry);
             }
@@ -379,6 +373,26 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
     }
 
+    /// @notice Updates a chain's existing DelayedWETH to point at the shared ETHLockbox. Games
+    ///         created before the migration still read their pause state from it.
+    /// @param _systemConfig The system config for the chain being migrated.
+    /// @param _ethLockbox The shared ETHLockbox to store in the DelayedWETH.
+    /// @param _delayedWETHImpl The DelayedWETH implementation to reinitialize with.
+    function _updateDelayedWETHLockbox(
+        ISystemConfig _systemConfig,
+        IETHLockbox _ethLockbox,
+        address _delayedWETHImpl
+    )
+        internal
+    {
+        _upgrade(
+            _systemConfig.proxyAdmin(),
+            _systemConfig.delayedWETH(),
+            _delayedWETHImpl,
+            abi.encodeCall(IDelayedWETH.initialize, (_ethLockbox))
+        );
+    }
+
     /// @notice Updates a chain's SystemConfig to point at the shared DelayedWETH while preserving
     ///         all other per-chain configuration values.
     /// @param _systemConfig The system config for the chain being migrated.
@@ -433,7 +447,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         );
     }
 
-    /// @notice Migrates a single portal to the new ETHLockbox and AnchorStateRegistry.
+    /// @notice Migrates a single portal to the new ETHLockbox and AnchorStateRegistry and points its
+    ///         old AnchorStateRegistry at the new ETHLockbox.
     /// @param _systemConfig The system config for the chain being migrated.
     /// @param _newLockbox The new ETHLockbox.
     /// @param _newASR The new AnchorStateRegistry.
@@ -512,6 +527,18 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
         portal.migrateToSharedDisputeGame(_newLockbox, _newASR);
+
+        // Point the old AnchorStateRegistry at the new ETHLockbox. Games created before the
+        // migration still read their pause state from it.
+        _upgrade(
+            _systemConfig.proxyAdmin(),
+            address(oldASR),
+            contractsContainer().implementations().anchorStateRegistryImpl,
+            abi.encodeCall(
+                IAnchorStateRegistry.initialize,
+                (_newLockbox, oldASR.disputeGameFactory(), oldASR.getStartingAnchorRoot(), oldASR.respectedGameType())
+            )
+        );
     }
 
     /// @notice Returns the contracts container.

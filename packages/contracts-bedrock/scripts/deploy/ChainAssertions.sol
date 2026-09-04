@@ -12,6 +12,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { Features } from "src/libraries/Features.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { GameType, Proposal } from "src/dispute/lib/Types.sol";
@@ -274,10 +275,8 @@ library ChainAssertions {
             require(address(portal.superchainConfig()) == address(_superchainConfig), "PORTAL-40");
             require(portal.guardian() == _superchainConfig.guardian(), "CHECK-OP2-40");
             require(portal.paused() == ISystemConfig(_contracts.SystemConfig).paused(), "CHECK-OP2-60");
-            require(
-                address(portal.ethLockbox()) == _contracts.ETHLockbox || address(portal.ethLockbox()) == address(0),
-                "CHECK-OP2-80"
-            );
+            require(address(portal.ethLockbox()) == _contracts.ETHLockbox, "CHECK-OP2-80");
+            require(ISystemConfig(_contracts.SystemConfig).isFeatureEnabled(Features.ETH_LOCKBOX), "CHECK-OP2-85");
             require(portal.proxyAdminOwner() == _opChainProxyAdminOwner, "CHECK-OP2-90");
         } else {
             require(address(portal.anchorStateRegistry()) == address(0), "CHECK-OP2-80");
@@ -298,7 +297,7 @@ library ChainAssertions {
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(_ethLockbox), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
+        require(address(_ethLockbox.superchainConfig()) == address(0), "CHECK-ELB-50");
         require(_ethLockbox.authorizedPortals(_portal) == false, "CHECK-ELB-60");
     }
 

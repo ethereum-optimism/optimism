@@ -241,9 +241,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_LockboxNotAuthorizedForPortal();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.8.0
+    /// @custom:semver 5.9.0
     function version() public pure virtual returns (string memory) {
-        return "5.8.0";
+        return "5.9.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -289,7 +289,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
-        return systemConfig.paused();
+        return ethLockbox.paused();
     }
 
     /// @notice Getter for the proof maturity delay.
@@ -305,13 +305,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Returns the SuperchainConfig contract.
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function superchainConfig() external view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
+        return ethLockbox.superchainConfig();
     }
 
     /// @custom:legacy
     /// @notice Getter function for the address of the guardian.
     function guardian() external view returns (address) {
-        return systemConfig.guardian();
+        return ethLockbox.guardian();
     }
 
     /// @custom:legacy
@@ -484,7 +484,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Migrates the total ETH balance of this contract to the ETHLockbox.
     function migrateLiquidity() public {
-        if (!_isUsingInterop()) revert OptimismPortal_NotUsingInterop();
+        if (!_isUsingLockbox()) revert OptimismPortal_NotUsingInterop();
         // Liquidity migration can only be triggered by the ProxyAdmin owner.
         _assertOnlyProxyAdminOwner();
 
@@ -778,12 +778,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
     }
 
-    /// @notice Asserts that the ETHLockbox is set/unset correctly depending on the feature flag.
+    /// @notice Asserts that the ETHLockbox is configured.
     function _assertValidLockboxState() internal view {
-        if (
-            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) == address(0)
-                || !systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) != address(0)
-        ) {
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(ethLockbox) == address(0)) {
             revert OptimismPortal_InvalidLockboxState();
         }
     }
