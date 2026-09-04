@@ -1,4 +1,4 @@
-package metrics
+package test
 
 import (
 	"encoding/json"

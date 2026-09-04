@@ -212,7 +212,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		},
 		{
 			Namespace: "opstack",
-			Service:   node.NewOpstackAPI(ec, &testutils.FakePublishAPI{Log: log}),
+			Service:   node.NewOpstackAPI(ec, &FakePublishAPI{Log: log}),
 		},
 	}
 	require.NoError(t, gnode.RegisterApis(apis, nil, rollupNode.rpc), "failed to set up APIs")

@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	metricstest "github.com/ethereum-optimism/optimism/op-service/metrics/test"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -377,7 +377,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 
 			// Verify metrics: unsafe_da_bytes metric should be recorded in all cases
 			time.Sleep(200 * time.Millisecond) // Wait for metric updates
-			c := opmetrics.NewMetricChecker(t, metr.Registry())
+			c := metricstest.NewMetricChecker(t, metr.Registry())
 			prefix := "op_batcher_test_"
 			unsafeDABytesFamily := c.FindByName(prefix + "unsafe_da_bytes")
 			require.NotNil(t, unsafeDABytesFamily, "unsafe_da_bytes metric should exist")
