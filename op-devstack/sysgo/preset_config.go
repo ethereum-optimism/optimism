@@ -79,6 +79,13 @@ type PresetConfig struct {
 	// sequencers stopped, so the VN can bootstrap the chain the light sequencers EL-sync
 	// from before a test hands off sequencing to them.
 	SupernodeVNSequencerForBootstrap bool
+	// ConductorFastHealthChecks runs conductor health checks every second
+	// instead of the effectively-disabled hourly default, so conductor-driven
+	// failover reacts to sequencer failures within test timescales. Health
+	// stays purely liveness-based: the unsafe/safe staleness windows remain at
+	// an hour so chain-progression hiccups under CI load cannot flip a healthy
+	// sequencer to unhealthy.
+	ConductorFastHealthChecks bool
 }
 
 func NewPresetConfig() PresetConfig {

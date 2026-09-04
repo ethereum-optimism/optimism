@@ -101,11 +101,11 @@ func newSupernodeFrontend(t devtest.T, name string, userRPC string, control ...s
 	return supernode
 }
 
-func newConductorFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndpoint string) *conductorFrontend {
+func newConductorFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndpoint string, consensusEndpoint string) *conductorFrontend {
 	rpcCl, err := rpc.DialContext(t.Ctx(), rpcEndpoint)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
-	return newPresetConductor(t, name, chainID, rpcCl)
+	return newPresetConductor(t, name, chainID, rpcCl, consensusEndpoint)
 }
 
 func newTestSequencerFrontend(t devtest.T, name string, adminRPC string, controlRPCs map[eth.ChainID]string, jwtSecret [32]byte) *testSequencerFrontend {

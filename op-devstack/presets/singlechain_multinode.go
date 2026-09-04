@@ -47,6 +47,15 @@ func NewSingleChainMultiNodeWithoutP2PWithoutCheck(t devtest.T, opts ...Option) 
 	return out
 }
 
+// NewSingleChainWithIsolatedVerifier creates an isolated verifier without
+// starting fault-proof services or running initial sync checks.
+func NewSingleChainWithIsolatedVerifier(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainWithIsolatedVerifier", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainWithIsolatedVerifierRuntimeWithConfig(t, presetCfg), false)
+	presetOpts.applyPreset(out)
+	return out
+}
+
 type SingleChainMultiNodeWithTestSeq struct {
 	SingleChainMultiNode
 
