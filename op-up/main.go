@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -33,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -43,6 +46,12 @@ const asciiArt = ` ____  ____        _     ____
 | / \||  \/|_____ | | |||  \/|
 | \_/||  __/\____\| \_/||  __/
 \____/\_/         \____/\_/`
+
+const (
+	opUpInteropDelay        = uint64(2)
+	opUpSilhouetteBlockTime = uint64(1)
+	opUpDemoTxPoolSlots     = uint64(256)
+)
 
 var (
 	Version     = "v0.0.0"
@@ -71,6 +80,42 @@ var (
 		Usage:   "start a 2-chain interop devnet backed by op-supernode.",
 		EnvVars: opservice.PrefixEnvVar(envPrefix, "INTEROP"),
 	}
+	silhouetteFlag = &cli.BoolFlag{
+		Name: "silhouette",
+		Usage: "start a 2-chain interop devnet with L2B carried by proof batches " +
+			"from the ordinary batcher's silhouette encoder.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "SILHOUETTE"),
+	}
+	l2ARPCPortFlag = &cli.UintFlag{
+		Name:    "l2a-rpc-port",
+		Usage:   "host port for the L2A execution-layer JSON-RPC proxy.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "L2A_RPC_PORT"),
+		Value:   8545,
+	}
+	l2BRPCPortFlag = &cli.UintFlag{
+		Name:    "l2b-rpc-port",
+		Usage:   "host port for the L2B execution-layer JSON-RPC proxy.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "L2B_RPC_PORT"),
+		Value:   8546,
+	}
+	explorersFlag = &cli.BoolFlag{
+		Name:    "explorers",
+		Usage:   "start one Otterscan explorer GUI per L2 in two-chain devnets.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "EXPLORERS"),
+		Value:   false,
+	}
+	publicExplorerPortFlag = &cli.UintFlag{
+		Name:    "public-explorer-port",
+		Usage:   "host port for the light-themed chain 901 Otterscan GUI.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "PUBLIC_EXPLORER_PORT"),
+		Value:   defaultPublicExplorerPort,
+	}
+	privateExplorerPortFlag = &cli.UintFlag{
+		Name:    "private-explorer-port",
+		Usage:   "host port for the dark-themed chain 902 Otterscan GUI.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "PRIVATE_EXPLORER_PORT"),
+		Value:   defaultPrivateExplorerPort,
+	}
 )
 
 func main() {
@@ -89,7 +134,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, VersionMeta)
 	app.Name = "op-up"
 	app.Usage = "deploys an in-memory OP Stack devnet."
-	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag, interopFlag})
+	app.Flags = cliapp.ProtectFlags([]cli.Flag{
+		dirFlag, interopFlag, silhouetteFlag, l2ARPCPortFlag, l2BRPCPortFlag,
+		explorersFlag, publicExplorerPortFlag, privateExplorerPortFlag,
+	})
 	// The default OnUsageError behavior will print the error twice: once in the cli package and
 	// once in our main function.
 	// The function below prints help and returns the error for further handling/error messages.
@@ -100,7 +148,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	app.Action = func(cliCtx *cli.Context) error {
-		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name))
+		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name),
+			cliCtx.Bool(interopFlag.Name), cliCtx.Bool(silhouetteFlag.Name),
+			cliCtx.Uint(l2ARPCPortFlag.Name), cliCtx.Uint(l2BRPCPortFlag.Name),
+			cliCtx.Bool(explorersFlag.Name), cliCtx.Uint(publicExplorerPortFlag.Name),
+			cliCtx.Uint(privateExplorerPortFlag.Name))
 	}
 	app.Commands = []*cli.Command{
 		interopsmoke.Command(envPrefix),
@@ -108,7 +160,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	return app.RunContext(ctx, args)
 }
 
-func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool) error {
+func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop, silhouette bool,
+	l2APort, l2BPort uint, explorers bool, publicExplorerPort, privateExplorerPort uint,
+) error {
 	fmt.Fprintf(stderr, "%s\n", asciiArt)
 
 	if err := os.MkdirAll(opUpDir, 0o755); err != nil {
@@ -123,12 +177,22 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 	t := newTestingT(ctx, stderr, tempRoot)
 	defer t.doCleanup()
 
-	if interop {
-		sys, err := newSupernodeInteropSystem(t)
+	if silhouette {
+		sys, err := newSilhouetteSystem(t, explorers)
 		if err != nil {
 			return err
 		}
-		if err := runSupernodeSystem(ctx, stderr, sys); err != nil {
+		if err := runSupernodeSystem(ctx, stderr, t, sys, l2APort, l2BPort,
+			explorers, publicExplorerPort, privateExplorerPort); err != nil {
+			return err
+		}
+	} else if interop {
+		sys, err := newSupernodeInteropSystem(t, explorers)
+		if err != nil {
+			return err
+		}
+		if err := runSupernodeSystem(ctx, stderr, t, sys, l2APort, l2BPort,
+			explorers, publicExplorerPort, privateExplorerPort); err != nil {
 			return err
 		}
 	} else {
@@ -136,7 +200,7 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 		if err != nil {
 			return err
 		}
-		if err := runSystem(ctx, stderr, sys); err != nil {
+		if err := runSystem(ctx, stderr, sys, l2APort); err != nil {
 			return err
 		}
 	}
@@ -171,7 +235,7 @@ func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
 	return presets.NewMinimalNoFaultProofs(t), nil
 }
 
-func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop, err error) {
+func newSupernodeInteropSystem(t *testingT, explorers bool) (sys *presets.TwoL2SupernodeInterop, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			var failure testingFailure
@@ -182,62 +246,169 @@ func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop,
 			panic(recovered)
 		}
 	}()
-	// Use a small activation delay so that interop bridge contracts
-	// (SuperchainETHBridge, ETHLiquidity) get properly initialized.
-	const interopDelay = uint64(2)
-	return presets.NewTwoL2SupernodeInterop(t, interopDelay,
-		presets.WithSuggestedLagoonActivationOffset(interopDelay),
-	), nil
+	return presets.NewTwoL2SupernodeInterop(t, opUpInteropDelay, opUpInteropOptions(explorers)...), nil
 }
 
-func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal) error {
+func newSilhouetteSystem(t *testingT, explorers bool) (sys *presets.TwoL2SupernodeInterop, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			var failure testingFailure
+			if errors.As(asError(recovered), &failure) {
+				err = failure.err
+				return
+			}
+			panic(recovered)
+		}
+	}()
+	opts := append(opUpInteropOptions(explorers),
+		presets.WithSilhouetteChain(presets.SilhouetteChainB),
+		presets.WithUniformL2BlockTimes(opUpSilhouetteBlockTime),
+		presets.WithOpRethOption(sysgo.OpRethWithExtraArgs(
+			fmt.Sprintf("--txpool.max-account-slots=%d", opUpDemoTxPoolSlots),
+		)),
+	)
+	sys = presets.NewTwoL2SupernodeLightSequencerInterop(t, opUpInteropDelay, opts...)
+	// The private chains are always sequenced by their LightCL nodes. Be explicit here because the
+	// light-sequencer preset is also used by handoff tests that intentionally start them stopped.
+	for _, cl := range []*dsl.L2CLNode{sys.L2ACL, sys.L2BCL} {
+		active, activeErr := cl.Escape().RollupAPI().SequencerActive(t.Ctx())
+		if activeErr != nil {
+			return nil, activeErr
+		}
+		if !active {
+			cl.StartSequencer()
+		}
+	}
+	return sys, nil
+}
+
+// opUpInteropOptions is shared so silhouette mode changes only L2B's publication and verification
+// topology, not the activation configuration users get from ordinary --interop mode.
+func opUpInteropOptions(explorers bool) []presets.Option {
+	opts := []presets.Option{presets.WithSuggestedLagoonActivationOffset(opUpInteropDelay)}
+	if explorers {
+		opts = append(opts, presets.WithOpRethOption(sysgo.OpRethWithOtterscanAPI()))
+	}
+	return opts
+}
+
+func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal, l2Port uint) error {
 	if err := printAccountInfo(stderr); err != nil {
 		return err
 	}
-	fmt.Fprintf(stderr, "EL Node URL: %s\n", "http://localhost:8545")
+	rpcAddr := fmt.Sprintf("127.0.0.1:%d", l2Port)
+	fmt.Fprintf(stderr, "EL Node URL: http://%s\n", rpcAddr)
 
 	elNode := sys.L2EL
 	go logBlocks(ctx, stderr, "L2", elNode)
 
-	// Proxy L2 EL requests.
-	go func() {
-		if err := proxyEL(ctx, stderr, "localhost:8545", elNode.Escape().L2EthClient().RPC()); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintf(stderr, "error: %v", err)
-		}
-	}()
+	listener, err := net.Listen("tcp", rpcAddr)
+	if err != nil {
+		return fmt.Errorf("listen for L2 RPC on %s: %w", rpcAddr, err)
+	}
+	defer listener.Close()
+	errCh := make(chan error, 1)
+	go func() { errCh <- proxyEL(ctx, stderr, listener, elNode.Escape().L2EthClient().RPC()) }()
 
-	<-ctx.Done()
-
-	return nil
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }
 
-func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL2SupernodeInterop) error {
+func runSupernodeSystem(ctx context.Context, stderr io.Writer, t *testingT,
+	sys *presets.TwoL2SupernodeInterop, l2APort, l2BPort uint,
+	explorers bool, publicExplorerPort, privateExplorerPort uint,
+) error {
 	if err := printAccountInfo(stderr); err != nil {
 		return err
 	}
+	if sys.Silhouette != nil {
+		switch sys.Silhouette.ChainKey {
+		case presets.SilhouetteChainA:
+			sys.L2BatcherA.Start()
+		case presets.SilhouetteChainB:
+			sys.L2BatcherB.Start()
+		default:
+			return fmt.Errorf("unknown silhouette chain %q", sys.Silhouette.ChainKey)
+		}
+		fmt.Fprintf(stderr, "L2A submitter: op-batcher\n")
+		fmt.Fprintf(stderr, "L2B submitter: op-batcher (silhouette proof encoding)\n")
+		fmt.Fprintf(stderr, "Silhouette verifier manifest: %s\n", sys.Silhouette.Runtime.ManifestPath)
+	}
+	l2AAddr := fmt.Sprintf("127.0.0.1:%d", l2APort)
+	l2BAddr := fmt.Sprintf("127.0.0.1:%d", l2BPort)
 	fmt.Fprintf(stderr, "L2A Chain ID: %s\n", sys.L2A.ChainID())
-	fmt.Fprintf(stderr, "L2A EL Node URL: %s\n", "http://localhost:8545")
+	fmt.Fprintf(stderr, "L2A EL Node URL: http://%s\n", l2AAddr)
 	fmt.Fprintf(stderr, "L2B Chain ID: %s\n", sys.L2B.ChainID())
-	fmt.Fprintf(stderr, "L2B EL Node URL: %s\n", "http://localhost:8546")
+	fmt.Fprintf(stderr, "L2B EL Node URL: http://%s\n", l2BAddr)
 
 	go logBlocks(ctx, stderr, "L2A", sys.L2ELA)
 	go logBlocks(ctx, stderr, "L2B", sys.L2ELB)
 	go logInterop(ctx, stderr, sys)
 
-	go func() {
-		if err := proxyEL(ctx, stderr, "localhost:8545", sys.L2ELA.Escape().L2EthClient().RPC()); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintf(stderr, "error: %v", err)
+	l2AListener, err := net.Listen("tcp", l2AAddr)
+	if err != nil {
+		return fmt.Errorf("listen for L2A RPC on %s: %w", l2AAddr, err)
+	}
+	defer l2AListener.Close()
+	l2BListener, err := net.Listen("tcp", l2BAddr)
+	if err != nil {
+		return fmt.Errorf("listen for L2B RPC on %s: %w", l2BAddr, err)
+	}
+	defer l2BListener.Close()
+	explorerConfig := otterscanConfig{
+		publicRPCPort:       l2APort,
+		privateRPCPort:      l2BPort,
+		publicExplorerPort:  publicExplorerPort,
+		privateExplorerPort: privateExplorerPort,
+		publicChainID:       sys.L2A.ChainID().String(),
+		privateChainID:      sys.L2B.ChainID().String(),
+	}
+	var l2ACORSOrigins, l2BCORSOrigins []string
+	if explorers {
+		if err := explorerConfig.validate(); err != nil {
+			return err
 		}
+		l2ACORSOrigins = []string{explorerConfig.publicURL()}
+		l2BCORSOrigins = []string{explorerConfig.privateURL()}
+	}
+	errCh := make(chan error, 2)
+	go func() {
+		errCh <- proxyEL(ctx, stderr, l2AListener, sys.L2ELA.Escape().L2EthClient().RPC(), l2ACORSOrigins...)
 	}()
 	go func() {
-		if err := proxyEL(ctx, stderr, "localhost:8546", sys.L2ELB.Escape().L2EthClient().RPC()); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintf(stderr, "error: %v", err)
-		}
+		errCh <- proxyEL(ctx, stderr, l2BListener, sys.L2ELB.Escape().L2EthClient().RPC(), l2BCORSOrigins...)
 	}()
 
-	<-ctx.Done()
+	var explorerErrCh <-chan error
+	if explorers {
+		stack, err := startOtterscanStack(ctx, stderr, t.TempDirWithPrefix("otterscan"), explorerConfig)
+		if err != nil {
+			return err
+		}
+		t.Cleanup(func() {
+			if err := stack.stop(); err != nil {
+				fmt.Fprintf(stderr, "failed to stop Otterscan explorer GUIs: %v\n", err)
+			}
+		})
+		fmt.Fprintf(stderr, "Public chain explorer (%s, light): %s\n", sys.L2A.ChainID(), explorerConfig.publicURL())
+		fmt.Fprintf(stderr, "Private chain explorer (%s, dark): %s\n", sys.L2B.ChainID(), explorerConfig.privateURL())
+		monitorErrCh := make(chan error, 1)
+		explorerErrCh = monitorErrCh
+		go func() { monitorErrCh <- stack.monitor(ctx) }()
+	}
 
-	return nil
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		return err
+	case err := <-explorerErrCh:
+		return err
+	}
 }
 
 func printAccountInfo(stderr io.Writer) error {
@@ -342,122 +513,15 @@ func logBlocks(ctx context.Context, stderr io.Writer, name string, elNode *dsl.L
 	}
 }
 
-// proxyEL is a hacky way to intercept EL json rpc requests for logging to get around log filtering
-// bugs.
-func proxyEL(ctx context.Context, stderr io.Writer, addr string, client client.RPC) error {
-	mux := http.NewServeMux()
-	// Set up the HTTP handler for all incoming requests.
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Ensure the request method is POST, as JSON RPC typically uses POST.
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		// Read the entire request body.
-		requestBody, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
-			return
-		}
-		defer r.Body.Close() // Close the request body after reading
-
-		// Parse the incoming JSON RPC request. We use a map to dynamically
-		// extract the method, parameters, and ID.
-		var req map[string]any
-		if err := json.Unmarshal(requestBody, &req); err != nil {
-			http.Error(w, "Invalid JSON RPC request format", http.StatusBadRequest)
-			return
-		}
-
-		// Extract the RPC method name.
-		method, ok := req["method"].(string)
-		if !ok {
-			http.Error(w, "Missing or invalid 'method' field in JSON RPC request", http.StatusBadRequest)
-			return
-		}
-
-		// Extract RPC parameters. JSON RPC parameters can be an array, an object, or null/missing.
-		var callParams []any
-		if p, ok := req["params"]; ok && p != nil {
-			if arr, isArray := p.([]any); isArray {
-				// If parameters are an array, spread them directly.
-				callParams = arr
-			} else if obj, isObject := p.(map[string]any); isObject {
-				// If parameters are a JSON object, pass the entire object as a single argument.
-				callParams = []any{obj}
-			} else {
-				http.Error(w, "Invalid 'params' field in JSON RPC request (must be array, object, or null)", http.StatusBadRequest)
-				return
-			}
-		}
-		// If 'params' is missing or null, `callParams` remains empty, which is correct for methods without parameters.
-
-		// Extract the request ID. This is crucial for matching responses to requests.
-		id := req["id"] // ID can be string, number, or null. We don't need to check `ok` for this.
-
-		// Prepare a variable to hold the RPC response result.
-		// `json.RawMessage` is used to capture the raw JSON value from the backend
-		// without needing to know its specific Go type beforehand.
-		var rpcResult json.RawMessage
-
-		// Create a context with a timeout for the RPC call to the backend.
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // 30-second timeout
-		defer cancel()                                                           // Ensure the context is cancelled to release resources
-
-		fmt.Fprintf(stderr, "%s\n", method)
-
-		// Use the rpc.Client to make the actual call to the backend Ethereum node.
-		// The `callParams...` syntax unpacks the slice into variadic arguments.
-		err = client.CallContext(ctx, &rpcResult, method, callParams...)
-		if err != nil {
-			message := fmt.Sprintf("RPC call to backend failed for method '%s': %v", method, err)
-			// If the RPC call to the backend fails, construct a JSON RPC error response.
-			rpcErr := map[string]any{
-				"jsonrpc": "2.0",
-				"id":      id,
-				"error": map[string]any{
-					"code":    -32000, // Standard JSON RPC server error code for internal errors
-					"message": message,
-				},
-			}
-			fmt.Fprintf(stderr, "RPC error: %s\n", message)
-			jsonResponse, _ := json.Marshal(rpcErr) // Marshaling error is unlikely here, so we ignore it.
-			w.Header().Set("Content-Type", "application/json")
-			// For JSON-RPC, errors are typically returned with an HTTP 200 OK status,
-			// with the error details within the JSON payload.
-			w.WriteHeader(http.StatusOK)
-			if _, err := w.Write(jsonResponse); err != nil {
-				return
-			}
-			return
-		}
-
-		// If the RPC call was successful, construct the JSON RPC success response.
-		responseMap := map[string]any{
-			"jsonrpc": "2.0",
-			"id":      id,
-			"result":  rpcResult, // The raw JSON result from the backend node
-		}
-
-		jsonResponse, err := json.Marshal(responseMap)
-		if err != nil {
-			http.Error(w, "Failed to marshal RPC success response", http.StatusInternalServerError)
-			return
-		}
-
-		// Set the Content-Type header and write the successful JSON RPC response.
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(jsonResponse); err != nil {
-			return
-		}
-	})
-
-	server := &http.Server{Addr: addr, Handler: mux}
+// proxyEL intercepts EL JSON-RPC requests for logging. It also supports the batched requests and
+// narrowly scoped browser CORS access required by the optional local Otterscan explorers.
+func proxyEL(ctx context.Context, stderr io.Writer, listener net.Listener, rpcClient client.RPC,
+	allowedOrigins ...string,
+) error {
+	server := &http.Server{Handler: newELProxyHandler(stderr, rpcClient, allowedOrigins...)}
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- server.ListenAndServe()
+		errCh <- server.Serve(listener)
 	}()
 	select {
 	case <-ctx.Done():
@@ -466,13 +530,185 @@ func proxyEL(ctx context.Context, stderr io.Writer, addr string, client client.R
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("shutdown proxy server: %w", err)
 		}
-		return <-errCh
+		err := <-errCh
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
 	case err := <-errCh:
-		if err != nil {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("listen and serve: %w", err)
 		}
 		return nil
 	}
+}
+
+type elProxyRequest struct {
+	JSONRPC    string          `json:"jsonrpc"`
+	ID         json.RawMessage `json:"id"`
+	Method     string          `json:"method"`
+	Params     json.RawMessage `json:"params"`
+	callParams []any
+}
+
+type elProxyError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type elProxyResponse struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *elProxyError   `json:"error,omitempty"`
+}
+
+func newELProxyHandler(stderr io.Writer, rpcClient client.RPC, allowedOrigins ...string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			if !slices.Contains(allowedOrigins, origin) {
+				http.Error(w, "Origin not allowed", http.StatusForbidden)
+				return
+			}
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+		}
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		defer r.Body.Close()
+		requestBody, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 10<<20))
+		if err != nil {
+			http.Error(w, "Failed to read request body", http.StatusBadRequest)
+			return
+		}
+		requests, batch, err := decodeELProxyRequests(requestBody)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		forwardCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		responses := forwardELProxyRequests(forwardCtx, stderr, rpcClient, requests, batch)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		encoder := json.NewEncoder(w)
+		if batch {
+			_ = encoder.Encode(responses)
+		} else {
+			_ = encoder.Encode(responses[0])
+		}
+	})
+}
+
+func decodeELProxyRequests(body []byte) ([]elProxyRequest, bool, error) {
+	trimmed := strings.TrimSpace(string(body))
+	if trimmed == "" {
+		return nil, false, fmt.Errorf("empty JSON RPC request")
+	}
+	batch := strings.HasPrefix(trimmed, "[")
+	var requests []elProxyRequest
+	if batch {
+		if err := json.Unmarshal(body, &requests); err != nil {
+			return nil, true, fmt.Errorf("invalid JSON RPC batch request: %w", err)
+		}
+		if len(requests) == 0 {
+			return nil, true, fmt.Errorf("empty JSON RPC batch request")
+		}
+	} else {
+		var request elProxyRequest
+		if err := json.Unmarshal(body, &request); err != nil {
+			return nil, false, fmt.Errorf("invalid JSON RPC request: %w", err)
+		}
+		requests = []elProxyRequest{request}
+	}
+	for i := range requests {
+		if requests[i].Method == "" {
+			return nil, batch, fmt.Errorf("missing or invalid 'method' field in JSON RPC request")
+		}
+		params, err := decodeELProxyParams(requests[i].Params)
+		if err != nil {
+			return nil, batch, fmt.Errorf("%s params: %w", requests[i].Method, err)
+		}
+		requests[i].callParams = params
+	}
+	return requests, batch, nil
+}
+
+func decodeELProxyParams(raw json.RawMessage) ([]any, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil, nil
+	}
+	if strings.HasPrefix(trimmed, "[") {
+		var params []any
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return nil, err
+		}
+		return params, nil
+	}
+	if strings.HasPrefix(trimmed, "{") {
+		var params map[string]any
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return nil, err
+		}
+		return []any{params}, nil
+	}
+	return nil, fmt.Errorf("must be an array, object, or null")
+}
+
+func forwardELProxyRequests(ctx context.Context, stderr io.Writer, rpcClient client.RPC,
+	requests []elProxyRequest, batch bool,
+) []elProxyResponse {
+	responses := make([]elProxyResponse, len(requests))
+	results := make([]json.RawMessage, len(requests))
+	for i, request := range requests {
+		fmt.Fprintln(stderr, request.Method)
+		responses[i] = elProxyResponse{JSONRPC: "2.0", ID: request.ID}
+	}
+	if !batch {
+		err := rpcClient.CallContext(ctx, &results[0], requests[0].Method, requests[0].callParams...)
+		setELProxyResult(stderr, &responses[0], results[0], requests[0].Method, err)
+		return responses
+	}
+
+	elements := make([]gethrpc.BatchElem, len(requests))
+	for i, request := range requests {
+		elements[i] = gethrpc.BatchElem{Method: request.Method, Args: request.callParams, Result: &results[i]}
+	}
+	batchErr := rpcClient.BatchCallContext(ctx, elements)
+	for i, request := range requests {
+		err := elements[i].Error
+		if err == nil {
+			err = batchErr
+		}
+		setELProxyResult(stderr, &responses[i], results[i], request.Method, err)
+	}
+	return responses
+}
+
+func setELProxyResult(stderr io.Writer, response *elProxyResponse, result json.RawMessage, method string, err error) {
+	if err == nil {
+		if len(result) == 0 {
+			result = json.RawMessage("null")
+		}
+		response.Result = result
+		return
+	}
+	message := fmt.Sprintf("RPC call to backend failed for method '%s': %v", method, err)
+	fmt.Fprintf(stderr, "RPC error: %s\n", message)
+	response.Error = &elProxyError{Code: -32000, Message: message}
 }
 
 type testingT struct {

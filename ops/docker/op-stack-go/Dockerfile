@@ -169,7 +169,12 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 FROM --platform=$BUILDPLATFORM builder AS op-supernode-builder
 ARG OP_SUPERNODE_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  cd op-supernode && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_SUPERNODE_VERSION" just op-supernode
+  cd op-supernode && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_SUPERNODE_VERSION" just op-supernode proofbatch-inspect silhouette-bindings
+
+FROM --platform=$BUILDPLATFORM builder AS op-silhouette-el-builder
+ARG OP_SILHOUETTE_EL_VERSION=v0.0.0
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+  cd op-supernode && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_SILHOUETTE_EL_VERSION" just op-silhouette-el
 
 FROM --platform=$BUILDPLATFORM builder AS op-interop-filter-builder
 ARG OP_INTEROP_FILTER_VERSION=v0.0.0
@@ -348,7 +353,14 @@ CMD ["da-server"]
 FROM $TARGET_BASE_IMAGE AS op-supernode-target
 USER 0
 COPY --from=op-supernode-builder /app/op-supernode/bin/op-supernode /usr/local/bin/
+COPY --from=op-supernode-builder /app/op-supernode/bin/proofbatch-inspect /usr/local/bin/
+COPY --from=op-supernode-builder /app/op-supernode/bin/silhouette-bindings /usr/local/bin/
 CMD ["op-supernode"]
+
+FROM $TARGET_BASE_IMAGE AS op-silhouette-el-target
+USER 0
+COPY --from=op-silhouette-el-builder /app/op-supernode/bin/op-silhouette-el /usr/local/bin/
+CMD ["op-silhouette-el"]
 
 FROM $TARGET_BASE_IMAGE AS op-interop-filter-target
 USER 0

@@ -14,24 +14,29 @@ import (
 )
 
 type CLIConfig struct {
-	Chains                     []uint64
-	DataDir                    string
-	L1NodeAddr                 string
-	L1HTTPPollInterval         time.Duration
-	L1BeaconAddr               string
-	L1BeaconFallbackAddrs      []string
-	RPCConfig                  oprpc.CLIConfig
-	LogConfig                  oplog.CLIConfig
-	MetricsConfig              opmetrics.CLIConfig
-	PprofConfig                oppprof.CLIConfig
-	RawCtx                     *cli.Context
-	InteropActivationTimestamp *uint64
+	Chains                       []uint64
+	DataDir                      string
+	L1NodeAddr                   string
+	L1HTTPPollInterval           time.Duration
+	L1BeaconAddr                 string
+	L1BeaconFallbackAddrs        []string
+	L1BeaconSlotDurationOverride uint64
+	RPCConfig                    oprpc.CLIConfig
+	LogConfig                    oplog.CLIConfig
+	MetricsConfig                opmetrics.CLIConfig
+	PprofConfig                  oppprof.CLIConfig
+	RawCtx                       *cli.Context
+	InteropActivationTimestamp   *uint64
 	// InteropLogBackfillDepth is the duration (e.g. 168h) to extend initiating-message log ingestion
 	// backward from the tip before interop message validation runs. Set to zero to disable.
 	InteropLogBackfillDepth time.Duration
 	// DependencySetPath is the path to a JSON dependency-set file shared by every chain
 	// managed by the supernode. Empty means fall back to per-chain registry lookup.
 	DependencySetPath string
+	// SilhouetteManifestPath is the path to a JSON silhouette manifest declaring which of the
+	// configured chains are proof-carried. Empty means none of them are, and every chain is built
+	// exactly as it was before silhouette chains existed.
+	SilhouetteManifestPath string
 }
 
 func (c *CLIConfig) Check() error {
@@ -64,19 +69,21 @@ func (c *CLIConfig) Check() error {
 
 func NewConfig(ctx *cli.Context) *CLIConfig {
 	cfg := &CLIConfig{
-		Chains:                  ctx.Uint64Slice(flags.ChainsFlag.Name),
-		DataDir:                 ctx.String(flags.DataDirFlag.Name),
-		L1NodeAddr:              ctx.String(flags.L1NodeAddr.Name),
-		L1HTTPPollInterval:      ctx.Duration(flags.L1HTTPPollInterval.Name),
-		L1BeaconAddr:            ctx.String(flags.L1BeaconAddr.Name),
-		L1BeaconFallbackAddrs:   ctx.StringSlice(flags.L1BeaconFallbackAddrs.Name),
-		RPCConfig:               oprpc.ReadCLIConfig(ctx),
-		LogConfig:               oplog.ReadCLIConfig(ctx),
-		MetricsConfig:           opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:             oppprof.ReadCLIConfig(ctx),
-		RawCtx:                  ctx,
-		InteropLogBackfillDepth: ctx.Duration("interop.log-backfill-depth"),
-		DependencySetPath:       ctx.Path(flags.DependencySet.Name),
+		Chains:                       ctx.Uint64Slice(flags.ChainsFlag.Name),
+		DataDir:                      ctx.String(flags.DataDirFlag.Name),
+		L1NodeAddr:                   ctx.String(flags.L1NodeAddr.Name),
+		L1HTTPPollInterval:           ctx.Duration(flags.L1HTTPPollInterval.Name),
+		L1BeaconAddr:                 ctx.String(flags.L1BeaconAddr.Name),
+		L1BeaconFallbackAddrs:        ctx.StringSlice(flags.L1BeaconFallbackAddrs.Name),
+		L1BeaconSlotDurationOverride: ctx.Uint64(flags.L1BeaconSlotDurationOverride.Name),
+		RPCConfig:                    oprpc.ReadCLIConfig(ctx),
+		LogConfig:                    oplog.ReadCLIConfig(ctx),
+		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
+		RawCtx:                       ctx,
+		InteropLogBackfillDepth:      ctx.Duration("interop.log-backfill-depth"),
+		DependencySetPath:            ctx.Path(flags.DependencySet.Name),
+		SilhouetteManifestPath:       ctx.Path(flags.SilhouetteManifest.Name),
 	}
 	if ctx.IsSet("interop.activation-timestamp") {
 		ts := ctx.Uint64("interop.activation-timestamp")

@@ -1,0 +1,16 @@
+{
+  "name": "exec-msgs-unsorted",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Two distinct imports in DESCENDING key order. execMsgs[] must be strictly increasing in the 192-byte canonical key (decision D17), which is what makes 'deduplicated ordered set' a property of the ENCODING that a verifier can check without the proof. Rejected at decode.",
+  "expectedError": "invalid proof batch: blocks[0].execMsgs[1] sorts before its predecessor; execMsgs is a deduplicated set, strictly increasing in the canonical key",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 992,
+    "proofLen": 0,
+    "totalLen": 1005
+  },
+  "envelopeKeccak": "0x1ebb024f991c439cce124e4122181e485818d46915a17f597305098eaa8848b5"
+}

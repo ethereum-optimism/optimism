@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +16,11 @@ import (
 )
 
 func TestRun(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+	require.NoError(t, listener.Close())
+
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -23,12 +31,14 @@ func TestRun(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		defer close(errCh)
-		if err := run(ctx, []string{"op-up", "--dir", t.TempDir()}, io.Discard, io.Discard); err != nil {
+		if err := run(ctx, []string{
+			"op-up", "--dir", t.TempDir(), "--l2a-rpc-port", strconv.Itoa(port),
+		}, io.Discard, io.Discard); err != nil {
 			errCh <- err
 		}
 	}()
 
-	client, err := ethclient.DialContext(ctx, "http://localhost:8545")
+	client, err := ethclient.DialContext(ctx, fmt.Sprintf("http://127.0.0.1:%d", port))
 	require.NoError(t, err)
 	ticker := time.NewTicker(time.Millisecond * 250)
 	for {

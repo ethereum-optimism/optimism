@@ -1,0 +1,16 @@
+{
+  "name": "decreasing-timestamps",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Contiguous block numbers with a timestamp that goes backwards (decision D3).",
+  "expectedError": "invalid proof batch: blocks[1] timestamp 1800500002, must exceed 1800500004",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 800,
+    "proofLen": 0,
+    "totalLen": 813
+  },
+  "envelopeKeccak": "0xa817bd612771a5b9b894446902eac12fcc423f23acac4ccc586a16bae620df24"
+}

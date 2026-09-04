@@ -1,0 +1,37 @@
+{
+  "name": "single-block-no-logs",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "One block, zero exported logs. The common case on an idle chain: the batch still advances the proven head, still pins the config commitments, and still carries the three roots its output root is derived from.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 608,
+    "proofLen": 0,
+    "totalLen": 621
+  },
+  "publicValues": {
+    "prevOutputRoot": "0xa10d17ea79b37cf283478e2ae537ef25e3fde9044a83879527dc5b68aa335711",
+    "newOutputRoot": "0x5617abb9e007256a6397b8debe453e780a8739d0606bab2fe46fa4536707bc2e",
+    "l1Head": "0x8a44df776bb6b497d92c937ec9ed3a12218f9288a3cef833d5115befb13428a7",
+    "rollupConfigHash": "0xbd430eecd629a2e908b6aff85155cf1392f5eb2b054d957100ecb7f34ed77f91",
+    "depSetHash": "0xb1adb7f8dcaab2bfdbb80492078d64de5fe97dc5747f9ef794ae4db446dcc639",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 1000001,
+        "timestamp": 1800000002,
+        "blockHash": "0x69bd4b3bb8b3d161b4c7eee7cdfa6f9dd364171824ae062b0bad84dfb27f7f61",
+        "stateRoot": "0xf2da0ecb9cb6da40f28339e2c80088ff204687cea2702a1f04a951463091e858",
+        "messagePasserStorageRoot": "0x46906f6d320d798f7dbe764febbebee71b3fc1e9b2e3f6bcac1ac734928c2b58",
+        "outputRoot": "0x5617abb9e007256a6397b8debe453e780a8739d0606bab2fe46fa4536707bc2e",
+        "logs": [],
+        "execMsgs": []
+      }
+    ]
+  },
+  "publicValuesKeccak": "0x38ed9930fb07965908b74efd6f4f8c2f97aeb5e92d2770f9818b2df4e35e8bfe",
+  "proofHex": "0x",
+  "envelopeKeccak": "0xe6402add6cc6fa19dd65cbc1cd5322c9297096e3dfde946debec8765df7f1106"
+}

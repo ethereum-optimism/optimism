@@ -43,6 +43,9 @@ type frameID struct {
 type frameData struct {
 	data []byte
 	id   frameID
+	// raw marks a complete alternate blob payload. Normal channel frames receive a derivation
+	// version prefix in txData.Blobs; proof batches are already self-framed and must not.
+	raw bool
 }
 
 // ChannelBuilder uses a ChannelOut to create a channel with output frame
@@ -364,6 +367,9 @@ func (c *ChannelBuilder) outputFrame() error {
 	frame := frameData{
 		id:   frameID{chID: c.co.ID(), frameNumber: fn},
 		data: buf.Bytes(),
+	}
+	if raw, ok := c.co.(interface{ RawFrames() bool }); ok {
+		frame.raw = raw.RawFrames()
 	}
 	c.frames.Enqueue(frame)
 	c.numFrames++

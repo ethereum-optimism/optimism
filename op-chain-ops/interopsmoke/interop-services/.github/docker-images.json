@@ -1,0 +1,24 @@
+{
+  "shared_paths": [
+    "docker-bake.hcl",
+    "Dockerfile",
+    "pnpm-lock.yaml",
+    "package.json",
+    ".github/workflows/branches.yaml",
+    ".github/docker-images.json"
+  ],
+  "images": {
+    "ponder-interop": {
+      "check": "none",
+      "paths": ["apps/ponder-interop/**", "packages/**"]
+    },
+    "autorelayer-interop": {
+      "check": "none",
+      "paths": ["apps/autorelayer-interop/**", "packages/**"]
+    },
+    "sponsored-sender": {
+      "check": "none",
+      "paths": ["apps/sponsored-sender/**", "packages/**"]
+    }
+  }
+}

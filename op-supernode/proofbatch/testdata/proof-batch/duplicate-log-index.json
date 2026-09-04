@@ -1,0 +1,16 @@
+{
+  "name": "duplicate-log-index",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Two exported logs claiming the same block-level logIndex. Indices identify the log a CrossL2Inbox Identifier points at, so a repeat is unresolvable (decision D8), and a `<` check instead of `<=` would let it through.",
+  "expectedError": "invalid proof batch: blocks[0].logs[1] logIndex 3, must exceed 3",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 928,
+    "proofLen": 0,
+    "totalLen": 941
+  },
+  "envelopeKeccak": "0x112412691285402ff55a9c47e9109ef10e431869ffcba3e764cd06f0d18551f8"
+}

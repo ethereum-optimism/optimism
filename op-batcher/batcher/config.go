@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
 
@@ -152,6 +153,7 @@ type CLIConfig struct {
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
 	AltDA         altda.CLIConfig
+	ProofBatch    *ProofBatchConfig
 }
 
 func (c *CLIConfig) Check() error {
@@ -191,6 +193,20 @@ func (c *CLIConfig) Check() error {
 	if !flags.ValidDataAvailabilityType(c.DataAvailabilityType) {
 		return fmt.Errorf("unknown data availability type: %q", c.DataAvailabilityType)
 	}
+	if c.ProofBatch != nil {
+		if err := c.ProofBatch.Check(); err != nil {
+			return err
+		}
+		if c.DataAvailabilityType != flags.BlobsType {
+			return errors.New("silhouette proof-batch mode requires --data-availability-type=blobs")
+		}
+		if c.TargetNumFrames != maxBlobsPerBlock {
+			return fmt.Errorf("silhouette proof-batch mode requires --target-num-frames=%d so a multi-blob envelope stays in one transaction", maxBlobsPerBlock)
+		}
+		if c.AltDA.Enabled {
+			return errors.New("silhouette proof-batch mode does not support alt-DA")
+		}
+	}
 	// Most chains' L1s still have only Cancun active, but we don't want to
 	// overcomplicate this check with a dynamic L1 query, so we just use maxBlobsPerBlock.
 	// We want to check for both, blobs and auto da-type.
@@ -219,7 +235,7 @@ func (c *CLIConfig) Check() error {
 
 // NewConfig parses the Config from the provided flags or environment variables.
 func NewConfig(ctx *cli.Context) *CLIConfig {
-	return &CLIConfig{
+	cfg := &CLIConfig{
 		/* Required Flags */
 		L1EthRpc:        ctx.String(flags.L1EthRpcFlag.Name),
 		L2EthRpc:        ctx.StringSlice(flags.L2EthRpcFlag.Name),
@@ -265,4 +281,14 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 			PidSampleTime:       ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
 		},
 	}
+	if ctx.Bool(flags.SilhouetteFlag.Name) {
+		cfg.ProofBatch = &ProofBatchConfig{
+			Inbox:            common.HexToAddress(ctx.String(flags.SilhouetteInboxFlag.Name)),
+			RollupConfigHash: common.HexToHash(ctx.String(flags.SilhouetteRollupConfigHashFlag.Name)),
+			DepSetHash:       common.HexToHash(ctx.String(flags.SilhouetteDepSetHashFlag.Name)),
+			WireVersion:      uint8(ctx.Uint(flags.SilhouetteWireVersionFlag.Name)),
+			MaxBlocks:        ctx.Uint64(flags.SilhouetteMaxBlocksFlag.Name),
+		}
+	}
+	return cfg
 }

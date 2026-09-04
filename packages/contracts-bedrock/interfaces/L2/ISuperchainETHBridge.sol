@@ -6,12 +6,14 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 interface ISuperchainETHBridge is ISemver {
     error Unauthorized();
     error InvalidCrossDomainSender();
+    error InsufficientNetFlow();
     error ZeroAddress();
 
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
 
+    function netSent(uint256) external view returns (uint256);
     function sendETH(address _to, uint256 _chainId) external payable returns (bytes32 msgHash_);
     function relayETH(address _from, address _to, uint256 _amount) external;
 

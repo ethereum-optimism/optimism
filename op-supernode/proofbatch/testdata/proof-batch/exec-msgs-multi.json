@@ -1,0 +1,103 @@
+{
+  "name": "exec-msgs-multi",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "Three blocks with import counts 3, 0, 1 — including a SELF-import (chainId 424247, the exporting chain itself), which stock interop permits and a decoder must not treat as a remote-only field. Pins that execMsgs is per block and that an empty one between two non-empty ones is encoded like any other.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 2016,
+    "proofLen": 0,
+    "totalLen": 2029
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x21ebddae61e61200ee344edf8a2391dfb669a50e6700eec6ec1a4c644df22920",
+    "newOutputRoot": "0x54df1609d4840d384149e59bbe263a238e3bf8e0c4819353575627605f8b4492",
+    "l1Head": "0x98a9ed6cacb84ae6c01f319e026d98a8ea7ce78daa6c0e9f5a9f64a7713ff66b",
+    "rollupConfigHash": "0x0c21257a9f8978a89edb76c9b62fd364aed5cbae4ed556c01f46b90875e724c8",
+    "depSetHash": "0xb736750686229ccedd192711460327dc569e15eff65f9ff30cee7d86144fa371",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 1300001,
+        "timestamp": 1801200002,
+        "blockHash": "0xd166493f16f94f365eebee1aa10b1b202c27fc0f131bc5cf7f998df1a22f7e70",
+        "stateRoot": "0x3ab47761a8f00599c411e6f7d020055d831198761103757f24789dc6e9f457ee",
+        "messagePasserStorageRoot": "0xc29d9bf1716243bd8df1c3e4ab69697857b168cc5f6cccdf09125708457fed29",
+        "outputRoot": "0xffe8eff5f97b92c3d884c312902c20db4689f625acbd0649b83a2b822e48bb9f",
+        "logs": [],
+        "execMsgs": [
+          {
+            "origin": "0x61b8ce357b125f8ccf7278b91a57843254034a4d",
+            "blockNumber": 900,
+            "logIndex": 0,
+            "timestamp": 1801198000,
+            "chainId": "424247",
+            "msgHash": "0x0536e122a6b051e58c9252cbd385358f92e859269cc3d11854ab14de82311560",
+            "logHash": "0x83e492e568b10d0e9ac3aad1157e790ebffcef038672df7a81c2c16bf4e34863",
+            "checksum": "0x0354054b8be29a9b5158d08e71f2c6a34dc1caab14d9f6aff70b99274d244442",
+            "key": "0x00000000000000000000000061b8ce357b125f8ccf7278b91a57843254034a4d00000000000000000000000000000000000000000000000000000000000003840000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b5c19b000000000000000000000000000000000000000000000000000000000000679370536e122a6b051e58c9252cbd385358f92e859269cc3d11854ab14de82311560"
+          },
+          {
+            "origin": "0xa0b061b22ecb864e08036e22491fe5c2ef1b6e71",
+            "blockNumber": 500100,
+            "logIndex": 3,
+            "timestamp": 1801199000,
+            "chainId": "424246",
+            "msgHash": "0x91f8701cec9575a07f53df0568e707e2d8df0b5331a118b3c5a165c8390faee9",
+            "logHash": "0x2316c2c45cf178681886623052eb7de1a9173183f09e4ff0ac83bbb1eac2a73f",
+            "checksum": "0x035a521d966e47ffc5481366aa7b1f65faf18dba82930c68264044f7b1472d7b",
+            "key": "0x000000000000000000000000a0b061b22ecb864e08036e22491fe5c2ef1b6e71000000000000000000000000000000000000000000000000000000000007a1840000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000006b5c1d98000000000000000000000000000000000000000000000000000000000006793691f8701cec9575a07f53df0568e707e2d8df0b5331a118b3c5a165c8390faee9"
+          },
+          {
+            "origin": "0xbbbda03e67f09961095ed5a4a0798d353e661556",
+            "blockNumber": 500100,
+            "logIndex": 7,
+            "timestamp": 1801199000,
+            "chainId": "424246",
+            "msgHash": "0xcbcfcf3dc6a461f91a65c1123be22c0e153a96f4167b4aac08396fed443eaa34",
+            "logHash": "0xff5a7de87bd7e3fbdcbeb4ae0ccf1efc932e6b8803105621b67cd7b92e51dfe9",
+            "checksum": "0x0347922d72f49ef7bd5a6855a2192a3e0ebc45848b8a23a3cde59ef0e15e88de",
+            "key": "0x000000000000000000000000bbbda03e67f09961095ed5a4a0798d353e661556000000000000000000000000000000000000000000000000000000000007a1840000000000000000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000006b5c1d980000000000000000000000000000000000000000000000000000000000067936cbcfcf3dc6a461f91a65c1123be22c0e153a96f4167b4aac08396fed443eaa34"
+          }
+        ]
+      },
+      {
+        "blockNumber": 1300002,
+        "timestamp": 1801200004,
+        "blockHash": "0x7ae10f785c883f91b430713006c61a8f644ce0fb589fc95c20b639b359405d3d",
+        "stateRoot": "0x01ec4480f99375fb65f364a42ca730d5116c3e9a0010190265ac8721635e3ca1",
+        "messagePasserStorageRoot": "0x4ec973cd8bd89d3c76d03ccc8a42c35784901111f0bcaec05a806ebe4019e3c6",
+        "outputRoot": "0x9c09838c651745bdfd97e0345ed90eea0933090a0b7bfac0caba9d14b0d078c8",
+        "logs": [],
+        "execMsgs": []
+      },
+      {
+        "blockNumber": 1300003,
+        "timestamp": 1801200006,
+        "blockHash": "0xe4c086029d76fb5ea6624c3a0eebff161b0ea137e0211943736d66bd21811738",
+        "stateRoot": "0xeb600d25d04a6281eb8f354e5fff2158ff00b9cb3bf31862279fc9af8108cb2d",
+        "messagePasserStorageRoot": "0x7e1bcb912758e93beea4425e5fc742585729b7494c79826758062261a12aa51d",
+        "outputRoot": "0x54df1609d4840d384149e59bbe263a238e3bf8e0c4819353575627605f8b4492",
+        "logs": [],
+        "execMsgs": [
+          {
+            "origin": "0x5f2da70424ab7cb631b22c88b92af00ea700f404",
+            "blockNumber": 500101,
+            "logIndex": 0,
+            "timestamp": 1801199500,
+            "chainId": "424246",
+            "msgHash": "0x5a0f68253bf91295f4911309fc7fe21b7597c49b8109f2a697b06433f35b6f35",
+            "logHash": "0x39748bf07d54081238ed5e09b7a13f7efa2a3aee3772206cc0b1fa7a827aecbc",
+            "checksum": "0x03045700360d4d5b693cd39dcfa2d8b4f58d85f04dbf722a446af0ccbc4515e3",
+            "key": "0x0000000000000000000000005f2da70424ab7cb631b22c88b92af00ea700f404000000000000000000000000000000000000000000000000000000000007a1850000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b5c1f8c00000000000000000000000000000000000000000000000000000000000679365a0f68253bf91295f4911309fc7fe21b7597c49b8109f2a697b06433f35b6f35"
+          }
+        ]
+      }
+    ]
+  },
+  "publicValuesKeccak": "0x4377b765fdabb4bbb745b7a7d084aa8016d6b5fec99bd9ba7ad04e0c2c94a8e4",
+  "proofHex": "0x",
+  "envelopeKeccak": "0xb06facd7d53f1600bc56a8d65405946c15a9a4929f560e588efb9d9948263dd2"
+}

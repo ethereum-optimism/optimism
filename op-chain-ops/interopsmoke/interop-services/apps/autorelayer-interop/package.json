@@ -1,0 +1,58 @@
+{
+  "name": "@eth-optimism/autorelayer-interop",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/ecosystem.git",
+    "directory": "apps/autorelayer-interop"
+  },
+  "homepage": "https://github.com/ethereum-optimism/ecosystem/tree/main/apps/autorelayer-interop#readme",
+  "bugs": {
+    "url": "https://github.com/ethereum-optimism/ecosystem/issues"
+  },
+  "version": "0.0.18",
+  "description": "autorelay l2-to-l2 interop txs",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/app.js",
+  "types": "./dist/app.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/app.d.ts",
+      "import": "./dist/app.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm clean && tsc && resolve-tspaths",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "docker:up": "docker compose --profile app up -d",
+    "docker:down": "docker compose down",
+    "lint": "eslint \"**/*.{ts,tsx}\" && pnpm prettier --check \"**/*.{ts,tsx}\" --ignore-path \"../../.prettierignore\"",
+    "lint:fix": "eslint \"**/*.{ts,tsx}\" --fix && pnpm prettier \"**/*.{ts,tsx}\" --write --loglevel=warn --ignore-path \"../../.prettierignore\"",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@eth-optimism/ponder-interop": "workspace:*",
+    "@eth-optimism/utils-app": "workspace:*",
+    "@eth-optimism/viem": "workspace:*",
+    "@hono/node-server": "^2.0.10",
+    "better-sqlite3": "^11.7.0",
+    "commander": "^13.1.0",
+    "dotenv": "16.5.0",
+    "hono": "^4.12.34",
+    "viem": "2.17.9"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "vitest": "^3.0.0"
+  },
+  "peerDependencies": {
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0"
+  }
+}

@@ -1,0 +1,19 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "include": ["src"],
+    "compilerOptions": {
+        "rootDir": "src",
+        "baseUrl": ".",
+        "paths": {
+          "@/*": ["./src/*"]
+        },
+        "target": "es2021",
+        "lib": ["esnext"],
+        "strict": true,
+        "composite": true,
+        "outDir": "dist",
+        "moduleResolution": "NodeNext",
+        "module": "NodeNext",
+        "sourceMap": true
+    }
+}

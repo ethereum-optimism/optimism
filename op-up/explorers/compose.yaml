@@ -1,0 +1,50 @@
+services:
+  public-explorer:
+    image: otterscan/otterscan:v2.11.0@sha256:7636f835fcdfc550c205a78876013d6e54c95846f3566e59cc71bc6136c80cc9
+    platform: linux/amd64
+    pull_policy: missing
+    restart: unless-stopped
+    environment:
+      OTTERSCAN_CONFIG: >-
+        {"erigonURL":"http://127.0.0.1:${PUBLIC_RPC_PORT}","experimentalFixedChainId":${PUBLIC_CHAIN_ID},"chainInfo":{"name":"Public Chain","faucets":[],"nativeCurrency":{"name":"Ether","symbol":"ETH","decimals":18}},"branding":{"siteName":"Public Chain Explorer","networkTitle":"Chain ${PUBLIC_CHAIN_ID}","hideAnnouncements":true},"externalDataSources":{"ccip":{"ensLookups":false},"kleros":{"enabled":false}},"WIP_customAddressLabels":true}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        sed -i 's#<head>#<head><script>localStorage.theme = "light";</script>#' /usr/share/nginx/html/index.html
+        rm -f /usr/share/nginx/html/index.html.gz
+        exec /run-nginx.sh
+    ports:
+      - "127.0.0.1:${PUBLIC_EXPLORER_PORT}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
+    stop_grace_period: 5s
+
+  private-explorer:
+    image: otterscan/otterscan:v2.11.0@sha256:7636f835fcdfc550c205a78876013d6e54c95846f3566e59cc71bc6136c80cc9
+    platform: linux/amd64
+    pull_policy: missing
+    restart: unless-stopped
+    environment:
+      OTTERSCAN_CONFIG: >-
+        {"erigonURL":"http://127.0.0.1:${PRIVATE_RPC_PORT}","experimentalFixedChainId":${PRIVATE_CHAIN_ID},"chainInfo":{"name":"Private Chain","faucets":[],"nativeCurrency":{"name":"Ether","symbol":"ETH","decimals":18}},"branding":{"siteName":"Private Chain Explorer","networkTitle":"Chain ${PRIVATE_CHAIN_ID}","hideAnnouncements":true},"externalDataSources":{"ccip":{"ensLookups":false},"kleros":{"enabled":false}},"WIP_customAddressLabels":true}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        sed -i 's#<head>#<head><script>localStorage.theme = "dark";</script>#' /usr/share/nginx/html/index.html
+        rm -f /usr/share/nginx/html/index.html.gz
+        exec /run-nginx.sh
+    ports:
+      - "127.0.0.1:${PRIVATE_EXPLORER_PORT}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
+    stop_grace_period: 5s

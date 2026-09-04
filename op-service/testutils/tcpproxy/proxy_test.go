@@ -146,6 +146,28 @@ func TestProxyEcho(t *testing.T) {
 	require.NoError(t, echoRoundTrip(conn, "hello"))
 }
 
+func TestProxySwitchUpstreamClosesPersistentConnections(t *testing.T) {
+	upstreamA := startEchoUpstream(t)
+	upstreamB := startEchoUpstream(t)
+	p := startProxy(t, upstreamA.Addr().String())
+
+	oldConn, err := net.DialTimeout("tcp", p.Addr(), 5*time.Second)
+	require.NoError(t, err)
+	defer oldConn.Close()
+	require.NoError(t, oldConn.SetDeadline(time.Now().Add(5*time.Second)))
+	require.NoError(t, echoRoundTrip(oldConn, "before"))
+
+	p.SwitchUpstream(upstreamB.Addr().String())
+	_, err = oldConn.Read(make([]byte, 1))
+	require.Error(t, err, "switch must tear down persistent connections to the old upstream")
+
+	newConn, err := net.DialTimeout("tcp", p.Addr(), 5*time.Second)
+	require.NoError(t, err)
+	defer newConn.Close()
+	require.NoError(t, newConn.SetDeadline(time.Now().Add(5*time.Second)))
+	require.NoError(t, echoRoundTrip(newConn, "after"))
+}
+
 // TestProxyConcurrentConns verifies connections are handled concurrently:
 // many clients connect and complete round trips in parallel without
 // serializing behind one another.

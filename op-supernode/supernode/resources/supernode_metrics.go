@@ -27,6 +27,11 @@ type SupernodeMetrics struct {
 	// 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.
 	InteropActivityState prometheus.Gauge
 
+	// The silhouette gauge is exported for a
+	// chain the moment it is declared, at zero, so that "no series" means "no silhouette chain"
+	// rather than "nothing has gone wrong yet" — an alert on an absent series never fires.
+	SilhouetteProvenHead *prometheus.GaugeVec
+
 	registry *prometheus.Registry
 }
 
@@ -117,6 +122,11 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "interop_activity_state",
 			Help:      "Interop activity lifecycle state: 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.",
 		}),
+		SilhouetteProvenHead: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "silhouette_proven_head",
+			Help:      "Highest block of a proof-carried chain this verifier holds a proven-or-forced fact for.",
+		}, []string{"chain_id"}),
 		registry: reg,
 	}
 	reg.MustRegister(
@@ -136,6 +146,7 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.LogBackfillRetries,
 		m.ActivityErrors,
 		m.InteropActivityState,
+		m.SilhouetteProvenHead,
 	)
 	return m
 }

@@ -1,0 +1,49 @@
+{
+  "name": "@eth-optimism/viem",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/ecosystem.git",
+    "directory": "packages/viem"
+  },
+  "homepage": "https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem#readme",
+  "bugs": {
+    "url": "https://github.com/ethereum-optimism/ecosystem/issues"
+  },
+  "type": "module",
+  "version": "0.4.10",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/*",
+    "src/*"
+  ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./actions": "./dist/actions/index.js",
+    "./actions/interop": "./dist/actions/interop/index.js",
+    "./chains": "./dist/chains/index.js",
+    "./types/interop": "./dist/types/interop/index.js",
+    "./utils/interop": "./dist/utils/interop/index.js",
+    "./abis": "./dist/abis/index.js",
+    "./abis/experimental": "./dist/abis/experimental/index.js"
+  },
+  "scripts": {
+    "build": "tsc && resolve-tspaths",
+    "clean": "rm -rf dist types tsconfig.tsbuildinfo",
+    "docs": "typedoc",
+    "gen:abis": "pnpm dlx tsx ./scripts/abigen",
+    "gen:chains": "pnpm dlx tsx ./scripts/chaingen",
+    "gen:abi-docs": "pnpm dlx tsx ./scripts/abidocgen",
+    "lint": "eslint \"**/*.{ts,tsx}\" && pnpm prettier --check \"**/*.{ts,tsx}\" --ignore-path \"../../.prettierignore\"",
+    "lint:fix": "eslint \"**/*.{ts,tsx}\" --fix && pnpm prettier \"**/*.{ts,tsx}\" --write --loglevel=warn --ignore-path \"../../.prettierignore\"",
+    "test": "vitest --run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "devDependencies": {
+    "dotenv": "16.5.0",
+    "viem": "^2.17.9"
+  },
+  "peerDependencies": {
+    "viem": "^2.17.9"
+  }
+}

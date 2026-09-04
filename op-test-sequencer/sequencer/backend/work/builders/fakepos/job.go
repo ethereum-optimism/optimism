@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"sync"
@@ -183,7 +184,12 @@ func (j *Job) Open(ctx context.Context) error {
 		// modify gas limit so that we get a different block
 		envelope.ExecutionPayload.GasLimit = envelope.ExecutionPayload.GasLimit + 100
 
-		block, err := engine.ExecutableDataToBlockNoHash(*envelope.ExecutionPayload, make([]common.Hash, 0), &j.parentBeaconBlockRoot, make([][]byte, 0), j.b.config)
+		blobHashes, err := versionedHashesFromBundle(envelope.BlobsBundle)
+		if err != nil {
+			j.logger.Error("failed to recover blob hashes while rebuilding L1 block", "err", err)
+			return err
+		}
+		block, err := engine.ExecutableDataToBlockNoHash(*envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([][]byte, 0), j.b.config)
 		if err != nil {
 			j.logger.Error("failed to convert executable data to block", "err", err)
 			return err
@@ -196,6 +202,23 @@ func (j *Job) Open(ctx context.Context) error {
 	j.logger.Info("final envelope", "envelope", envelope)
 
 	return nil
+}
+
+// versionedHashesFromBundle returns the hashes committed to by the blob transactions in an
+// execution payload. Reusing an envelope to build an alternative block must preserve these hashes:
+// they are inputs to the block hash even though the gas-limit mutation does not touch blob data.
+func versionedHashesFromBundle(bundle *engine.BlobsBundle) ([]common.Hash, error) {
+	hashes := make([]common.Hash, 0) // engine API requires non-nil even when empty
+	if bundle == nil {
+		return hashes, nil
+	}
+	for _, commitment := range bundle.Commitments {
+		if len(commitment) != 48 {
+			return nil, fmt.Errorf("malformed KZG commitment: got %d bytes", len(commitment))
+		}
+		hashes = append(hashes, opeth.KZGToVersionedHash(*(*[48]byte)(commitment)))
+	}
+	return hashes, nil
 }
 
 func (j *Job) Seal(ctx context.Context) (work.Block, error) {

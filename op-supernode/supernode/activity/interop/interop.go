@@ -156,6 +156,11 @@ type Interop struct {
 	chains              map[eth.ChainID]cc.InteropChain
 	activationTimestamp uint64 // immutable protocol activation timestamp
 
+	// notReady holds the most recent reason every chain was not ready for the next timestamp, so the
+	// periodic progress line can name it. It is the difference between "this cluster is between
+	// batches" and "this cluster will never advance again", which look identical from outside.
+	notReady atomic.Pointer[error]
+
 	// verificationStartTimestamp is the first L2 timestamp the main loop
 	// attempts to verify. Set exactly once during tryInitFromVerifiedDB
 	// (resume path) or by advanceColdStartInit, then immutable.
@@ -186,6 +191,11 @@ type Interop struct {
 
 	// l1Heads is the snapshot captured with blocksAtTimestamp in observeRound; passing
 	// it through avoids a TOCTOU race against L2 reorgs.
+	// provenTrustWarned latches the "this chain's dependencies are proof-trusted" warning, one per
+	// chain. Round-loop state, touched only from the verification path, like the rest of this struct's
+	// unguarded fields.
+	provenTrustWarned map[eth.ChainID]bool
+
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, l1Heads map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
 	// cycleVerifyFn handles same-timestamp cycle verification.
@@ -455,6 +465,9 @@ func (i *Interop) progress() (time.Duration, error) {
 		}
 		fields = append(fields,
 			"lastVerifiedTimestamp", lastTS, "tipTimestamp", tipTS, "behindSeconds", behind)
+		if reason := i.notReady.Load(); reason != nil && *reason != nil {
+			fields = append(fields, "notReady", (*reason).Error())
+		}
 		i.log.Info("interop verification progress", fields...)
 	}
 	if !madeProgress {
@@ -507,12 +520,27 @@ func checkPreconditions(obs RoundObservation) *StepOutput {
 
 // decideVerifiedResult determines the next action from a completed verification
 // result. No side effects, no I/O.
+//
+// Invalidation is checked before readiness on purpose. Invalidating does not advance the
+// verified frontier — it rewinds the offending chain and the round runs again — so a chain that
+// is merely waiting is not carried forward on unverified data by that ordering, while the
+// reverse ordering would let one stalled chain indefinitely postpone acting on a real conflict
+// somewhere else at the same timestamp.
+//
+// A not-ready result waits and nothing is persisted: the frontier stays where it is and the
+// round is simply retried. That is what keeps a stalled dependency (a proof-carried chain whose
+// proof stream has fallen behind, or stopped altogether) from forking the chain that references
+// it — cross-safe progression stalls, which is recoverable, instead of the verifier declaring a
+// valid block invalid, which is not.
 func decideVerifiedResult(_ RoundObservation, verified Result) StepOutput {
 	if verified.IsEmpty() {
 		return StepOutput{Decision: DecisionWait}
 	}
 	if !verified.IsValid() {
 		return StepOutput{Decision: DecisionInvalidate, Result: verified}
+	}
+	if !verified.IsReady() {
+		return StepOutput{Decision: DecisionWait, Result: verified}
 	}
 	return StepOutput{Decision: DecisionAdvance, Result: verified}
 }
@@ -621,10 +649,17 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
 			obs.ChainsReady = false
+			// KEEP THE REASON. "Not ready" is the correct and expected state between batches, so it is
+			// not an error and must not be logged per round — but it is ALSO the shape of every
+			// permanent stall this activity can suffer, and it was previously discarded here. A round
+			// that waits forever and a round that waits correctly then advances are indistinguishable
+			// without knowing WHICH chain is not ready and why; the periodic progress line reports it.
+			i.notReady.Store(&err)
 			return obs, nil
 		}
 		return obs, err
 	}
+	i.notReady.Store(nil)
 	obs.ChainsReady = true
 	obs.BlocksAtTS = ready.blocks
 	obs.L1Heads = ready.l1Heads

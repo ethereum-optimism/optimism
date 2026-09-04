@@ -1,0 +1,15 @@
+{
+  "name": "pv-len-too-small",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "pv_len is 32 bytes smaller than the public values actually present, so proof_len is read from inside the ABI blob. A decoder that does not check the envelope is fully consumed can be walked off the rails here.",
+  "expectedError": "32 trailing bytes after proof",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 1056,
+    "totalLen": 1101
+  },
+  "envelopeKeccak": "0x8b5e44ee9cee26bfbf8278b30ce331968a9782216b856504f680de3b07c0c04e"
+}

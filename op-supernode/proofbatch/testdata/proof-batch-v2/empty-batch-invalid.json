@@ -1,0 +1,16 @@
+{
+  "name": "empty-batch-invalid",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Structurally well-formed envelope whose blocks[] is empty. The ABI type permits it; the object does not (decision D1) — a zero-length range can never advance the proven head. MUST be reject-and-log.",
+  "expectedError": "invalid proof batch: blocks[] is empty",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 288,
+    "proofLen": 0,
+    "totalLen": 301
+  },
+  "envelopeKeccak": "0x49bc62c5d216c05d6f181058d89ed11f544bc93acbb917d1f7ca9a0a37ebc8a1"
+}

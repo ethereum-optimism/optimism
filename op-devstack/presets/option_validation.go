@@ -37,6 +37,7 @@ const (
 	optionKindSupernodeVNSequencerForBootstrap
 	optionKindZKDisputeGame
 	optionKindZKProposer
+	optionKindSilhouetteChain
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -64,7 +65,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropAtGenesis |
 	optionKindSupernodeVNSequencerForBootstrap |
 	optionKindZKDisputeGame |
-	optionKindZKProposer
+	optionKindZKProposer |
+	optionKindSilhouetteChain
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -96,6 +98,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindSupernodeVNSequencerForBootstrap, label: "supernode VN sequencer for bootstrap"},
 	{kind: optionKindZKDisputeGame, label: "ZK dispute game"},
 	{kind: optionKindZKProposer, label: "ZK proposer options"},
+	{kind: optionKindSilhouetteChain, label: "silhouette chain"},
 }
 
 func (k optionKinds) String() string {
@@ -138,6 +141,12 @@ func validatePresetConfig(cfg sysgo.PresetConfig) error {
 	}
 	if len(cfg.ZKProposerOptions) > 0 && cfg.ZKDisputeGame == nil {
 		return fmt.Errorf("ZK proposer options require WithZK")
+	}
+	// A silhouette chain names a runtime chain by the same key MultiChainRuntime.Chains uses. A typo
+	// would otherwise be a silent no-op: the preset would come up as an ordinary two-L2 system and
+	// every silhouette assertion in the test would be about a chain that is not one.
+	if key := cfg.SilhouetteChain; key != "" && key != SilhouetteChainA && key != SilhouetteChainB {
+		return fmt.Errorf("WithSilhouetteChain(%q): want %q or %q", key, SilhouetteChainA, SilhouetteChainB)
 	}
 	return nil
 }
@@ -203,11 +212,12 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindInteropLogBackfill |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
-	optionKindSupernodeVNSequencerForBootstrap
+	optionKindSupernodeVNSequencerForBootstrap |
+	optionKindSilhouetteChain
 
 // twoL2SupernodeLightSequencerPresetSupportedOptionKinds additionally accepts
-// L2 CL options: the light-sequencer runtime is the only two-L2 supernode
-// variant that wires GlobalL2CLOptions (to the light sequencer CLs), so the
-// option is accepted here and nowhere else to avoid a silent no-op.
+// L2 CL and op-reth options: this runtime wires them to the light sequencer
+// CLs and their sequencing ELs.
 const twoL2SupernodeLightSequencerPresetSupportedOptionKinds = twoL2SupernodeInteropPresetSupportedOptionKinds |
-	optionKindGlobalL2CL
+	optionKindGlobalL2CL |
+	optionKindOpReth

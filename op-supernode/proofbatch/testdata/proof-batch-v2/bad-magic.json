@@ -1,0 +1,15 @@
+{
+  "name": "bad-magic",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Magic 'KCPX' instead of 'KCPB' — the only thing separating a proof batch from any other blob the submitter EOA might ever send.",
+  "expectedError": "bad magic [4b, 43, 50, 58], want [4b, 43, 50, 42]",
+  "envelope": {
+    "magicHex": "0x4b435058",
+    "magicAscii": "KCPX",
+    "version": 2,
+    "pvLen": 960,
+    "totalLen": 973
+  },
+  "envelopeKeccak": "0x3e1b3de26869a9a6d8d5d7a22633fc32a4fd66d462b2b20a2a30e7204770e7f5"
+}

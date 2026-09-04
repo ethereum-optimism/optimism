@@ -66,6 +66,7 @@ type BatcherService struct {
 
 	ChannelConfig ChannelConfigProvider
 	RollupConfig  *rollup.Config
+	ProofBatch    *ProofBatchConfig
 
 	driver *BatchSubmitter
 
@@ -108,6 +109,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
+	bs.ProofBatch = cfg.ProofBatch
 
 	bs.ThrottleParams = config.ThrottleParams{
 		LowerThreshold:      cfg.ThrottleConfig.LowerThreshold,
@@ -185,7 +187,9 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 	if err := bs.initPProf(cfg); err != nil {
 		return fmt.Errorf("failed to init profiling: %w", err)
 	}
-	bs.initDriver(opts...)
+	if err := bs.initDriver(opts...); err != nil {
+		return err
+	}
 	if err := bs.initRPCServer(cfg); err != nil {
 		return fmt.Errorf("failed to start RPC server: %w", err)
 	}
@@ -394,7 +398,7 @@ func (bs *BatcherService) initMetricsServer(cfg *CLIConfig) error {
 	return nil
 }
 
-func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
+func (bs *BatcherService) initDriver(opts ...DriverSetupOption) error {
 	ds := DriverSetup{
 		closeApp:         bs.closeApp,
 		Log:              bs.Log,
@@ -410,7 +414,13 @@ func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
 	for _, opt := range opts {
 		opt(&ds)
 	}
+	if bs.ProofBatch != nil {
+		if err := ConfigureProofBatches(&ds, *bs.ProofBatch); err != nil {
+			return fmt.Errorf("configure silhouette proof batches: %w", err)
+		}
+	}
 	bs.driver = NewBatchSubmitter(ds)
+	return nil
 }
 
 func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {

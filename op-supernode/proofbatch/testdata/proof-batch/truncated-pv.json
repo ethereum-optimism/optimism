@@ -1,0 +1,15 @@
+{
+  "name": "truncated-pv",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Envelope cut in half inside public_values, so pv_len declares more bytes than the blob holds.",
+  "expectedError": "pv_len declares 1088 bytes, only 544 available",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 1088,
+    "totalLen": 553
+  },
+  "envelopeKeccak": "0x145cc5fe7ff5e5f9dae34e242f0df170c931713481cbf7130ab65a0cad1d1004"
+}

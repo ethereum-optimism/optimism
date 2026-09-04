@@ -66,3 +66,14 @@ func TestResolveMixedL2ELOptsReadsEnv(t *testing.T) {
 	require.Equal(t, []string{"--extra.bind=127.0.0.1:0"}, cfg.ExtraArgs)
 	require.True(t, cfg.DisableProofsHistory)
 }
+
+func TestOpRethWithOtterscanAPI(t *testing.T) {
+	cfg := DefaultOpRethConfig()
+	require.False(t, cfg.EnableOtterscanAPI)
+	require.NotContains(t, opRethRPCModules(cfg), "ots")
+
+	OpRethWithOtterscanAPI().Apply(nil, ComponentTarget{}, cfg)
+
+	require.True(t, cfg.EnableOtterscanAPI)
+	require.Equal(t, "admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner,ots", opRethRPCModules(cfg))
+}

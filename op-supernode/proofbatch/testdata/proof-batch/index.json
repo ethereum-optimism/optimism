@@ -1,0 +1,412 @@
+{
+  "spec": "SPEC-WIRE-V3.md, proof-batch wire format v3 (consolidation edition)",
+  "magic": "KCPB",
+  "version": 3,
+  "retiredVersions": [
+    1,
+    2
+  ],
+  "retiredCorpus": "../proof-batch-v2/ — the complete frozen v2 fixture tree, kept as the pre-rotation record. The test that reads it to prove the backwards version gate against real v2 bytes is prover-side, on the shelf branch named in op-supernode/silhouette/README.md; on this branch the tree is the record, and the version gate is covered by the flipped-byte case here (retired-version-0x02).",
+  "exportPolicyLabel": "cove-export-v2:all-hashes",
+  "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+  "exportPolicyV2Label": "cove-export-v2:all-hashes",
+  "exportPolicyV2Hash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+  "exportPolicies": [
+    {
+      "name": "AllHashes",
+      "label": "cove-export-v2:all-hashes",
+      "hash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+      "includesPreimages": false,
+      "default": true
+    },
+    {
+      "name": "AllWithPreimages",
+      "label": "cove-export-v2:all-preimages",
+      "hash": "0xb55621569f452f4d6a2666a57a14756c425f3bf5f39d75c5fd65230a8c5fbd23",
+      "includesPreimages": true,
+      "default": false
+    }
+  ],
+  "publicValuesEncoding": "alloy SolValue::abi_encode(&ProofBatch) == Solidity abi.encode(batch); a dynamic struct, so the first word is the offset 0x20",
+  "publicValuesFields": [
+    "prevOutputRoot",
+    "newOutputRoot",
+    "l1Head",
+    "rollupConfigHash",
+    "depSetHash",
+    "exportPolicyHash",
+    "blocks"
+  ],
+  "blockExportFields": [
+    "blockNumber",
+    "timestamp",
+    "blockHash",
+    "stateRoot",
+    "messagePasserStorageRoot",
+    "logs",
+    "execMsgs"
+  ],
+  "logExportFields": [
+    "logIndex",
+    "logHash",
+    "preimage"
+  ],
+  "execMsgFields": [
+    "id",
+    "msgHash"
+  ],
+  "identifierFields": [
+    "origin",
+    "blockNumber",
+    "logIndex",
+    "timestamp",
+    "chainId"
+  ],
+  "identifierSolidityTypes": [
+    "address",
+    "uint64",
+    "uint32",
+    "uint64",
+    "uint256"
+  ],
+  "identifierNote": "field ORDER is verbatim the stock Solidity `Identifier`; WIDTHS are narrowed to the ones CrossL2Inbox.calculateChecksum itself downcasts to, which is lossless because that function reverts above 2^64 / 2^32 / 2^64 before validateMessage can emit. `ExecMsg` is a STATIC struct (6 words, 192 bytes), so `ExecMsg[]` is a length word followed by the elements packed inline — no per-element offset words.",
+  "execMsgOrdering": "execMsgs[] is a DEDUPLICATED SET, strictly increasing in the 192-byte canonical key (decision D17), enforced at decode. Dedup is on the FULL key, never on (chainId, blockNumber, logIndex): two entries sharing a coordinate but differing in origin, timestamp or msgHash are two contradictory assumptions and both must survive. See exec-msg-checksum-vectors.json for the key definition and an ordering vector.",
+  "outputRoot": "keccak256(bytes32(0) || stateRoot || messagePasserStorageRoot || blockHash); derived, not on the wire. See output-root-vectors.json.",
+  "sizePerItemBytes": {
+    "block": 320,
+    "exportedLog": 160,
+    "executingMessage": 192
+  },
+  "cases": [
+    {
+      "name": "single-block-no-logs",
+      "kind": "valid",
+      "bin": "single-block-no-logs.bin",
+      "json": "single-block-no-logs.json",
+      "bytes": 621,
+      "expectedError": null
+    },
+    {
+      "name": "single-block-multi-logs",
+      "kind": "valid",
+      "bin": "single-block-multi-logs.bin",
+      "json": "single-block-multi-logs.json",
+      "bytes": 1101,
+      "expectedError": null
+    },
+    {
+      "name": "multi-block-mixed-logs",
+      "kind": "valid",
+      "bin": "multi-block-mixed-logs.bin",
+      "json": "multi-block-mixed-logs.json",
+      "bytes": 2541,
+      "expectedError": null
+    },
+    {
+      "name": "curated-sparse-indices",
+      "kind": "valid",
+      "bin": "curated-sparse-indices.bin",
+      "json": "curated-sparse-indices.json",
+      "bytes": 1101,
+      "expectedError": null
+    },
+    {
+      "name": "preimage-bearing",
+      "kind": "valid",
+      "bin": "preimage-bearing.bin",
+      "json": "preimage-bearing.json",
+      "bytes": 1485,
+      "expectedError": null
+    },
+    {
+      "name": "empty-proof-slot",
+      "kind": "valid",
+      "bin": "empty-proof-slot.bin",
+      "json": "empty-proof-slot.json",
+      "bytes": 1101,
+      "expectedError": null
+    },
+    {
+      "name": "dummy-proof-nonempty",
+      "kind": "valid",
+      "bin": "dummy-proof-nonempty.bin",
+      "json": "dummy-proof-nonempty.json",
+      "bytes": 1457,
+      "expectedError": null
+    },
+    {
+      "name": "exec-msgs-empty",
+      "kind": "valid",
+      "bin": "exec-msgs-empty.bin",
+      "json": "exec-msgs-empty.json",
+      "bytes": 1101,
+      "expectedError": null
+    },
+    {
+      "name": "exec-msgs-single",
+      "kind": "valid",
+      "bin": "exec-msgs-single.bin",
+      "json": "exec-msgs-single.json",
+      "bytes": 813,
+      "expectedError": null
+    },
+    {
+      "name": "exec-msgs-multi",
+      "kind": "valid",
+      "bin": "exec-msgs-multi.bin",
+      "json": "exec-msgs-multi.json",
+      "bytes": 2029,
+      "expectedError": null
+    },
+    {
+      "name": "exec-msgs-dedup",
+      "kind": "valid",
+      "bin": "exec-msgs-dedup.bin",
+      "json": "exec-msgs-dedup.json",
+      "bytes": 1005,
+      "expectedError": null
+    },
+    {
+      "name": "exec-msgs-ordering",
+      "kind": "valid",
+      "bin": "exec-msgs-ordering.bin",
+      "json": "exec-msgs-ordering.json",
+      "bytes": 1389,
+      "expectedError": null
+    },
+    {
+      "name": "exec-msgs-max-widths",
+      "kind": "valid",
+      "bin": "exec-msgs-max-widths.bin",
+      "json": "exec-msgs-max-widths.json",
+      "bytes": 813,
+      "expectedError": null
+    },
+    {
+      "name": "exec-msgs-same-identifier-different-msghash",
+      "kind": "valid",
+      "bin": "exec-msgs-same-identifier-different-msghash.bin",
+      "json": "exec-msgs-same-identifier-different-msghash.json",
+      "bytes": 1005,
+      "expectedError": null
+    },
+    {
+      "name": "empty-batch-invalid",
+      "kind": "invalid",
+      "bin": "empty-batch-invalid.bin",
+      "json": "empty-batch-invalid.json",
+      "bytes": 301,
+      "expectedError": "invalid proof batch: blocks[] is empty"
+    },
+    {
+      "name": "bad-magic",
+      "kind": "invalid",
+      "bin": "bad-magic.bin",
+      "json": "bad-magic.json",
+      "bytes": 1101,
+      "expectedError": "bad magic [4b, 43, 50, 58], want [4b, 43, 50, 42]"
+    },
+    {
+      "name": "wrong-version-0x01",
+      "kind": "invalid",
+      "bin": "wrong-version-0x01.bin",
+      "json": "wrong-version-0x01.json",
+      "bytes": 1101,
+      "expectedError": "bad version 1, want 3 (v1 is retired: refuse, do not adapt)"
+    },
+    {
+      "name": "retired-version-0x02",
+      "kind": "invalid",
+      "bin": "retired-version-0x02.bin",
+      "json": "retired-version-0x02.json",
+      "bytes": 1101,
+      "expectedError": "bad version 2, want 3 (v2 is retired: refuse, do not adapt -- its BlockExport has six fields where v3 has seven)"
+    },
+    {
+      "name": "unknown-version-0x04",
+      "kind": "invalid",
+      "bin": "unknown-version-0x04.bin",
+      "json": "unknown-version-0x04.json",
+      "bytes": 1101,
+      "expectedError": "unknown version 4, want 3 (a higher version is refused, never best-effort decoded)"
+    },
+    {
+      "name": "bad-version",
+      "kind": "invalid",
+      "bin": "bad-version.bin",
+      "json": "bad-version.json",
+      "bytes": 1101,
+      "expectedError": "unknown version 255, want 3 (a higher version is refused, never best-effort decoded)"
+    },
+    {
+      "name": "truncated-pv",
+      "kind": "invalid",
+      "bin": "truncated-pv.bin",
+      "json": "truncated-pv.json",
+      "bytes": 553,
+      "expectedError": "pv_len declares 1088 bytes, only 544 available"
+    },
+    {
+      "name": "pv-len-too-large",
+      "kind": "invalid",
+      "bin": "pv-len-too-large.bin",
+      "json": "pv-len-too-large.json",
+      "bytes": 1101,
+      "expectedError": "pv_len declares 1120 bytes, only 1092 available"
+    },
+    {
+      "name": "pv-len-too-small",
+      "kind": "invalid",
+      "bin": "pv-len-too-small.bin",
+      "json": "pv-len-too-small.json",
+      "bytes": 1101,
+      "expectedError": "32 trailing bytes after proof"
+    },
+    {
+      "name": "trailing-bytes",
+      "kind": "invalid",
+      "bin": "trailing-bytes.bin",
+      "json": "trailing-bytes.json",
+      "bytes": 1102,
+      "expectedError": "1 trailing bytes after proof"
+    },
+    {
+      "name": "abi-garbage",
+      "kind": "invalid",
+      "bin": "abi-garbage.bin",
+      "json": "abi-garbage.json",
+      "bytes": 77,
+      "expectedError": "public_values is not a valid ProofBatch ABI encoding"
+    },
+    {
+      "name": "non-contiguous-blocks",
+      "kind": "invalid",
+      "bin": "non-contiguous-blocks.bin",
+      "json": "non-contiguous-blocks.json",
+      "bytes": 941,
+      "expectedError": "invalid proof batch: blocks[1] number 5000003, expected 5000002"
+    },
+    {
+      "name": "duplicate-block-number",
+      "kind": "invalid",
+      "bin": "duplicate-block-number.bin",
+      "json": "duplicate-block-number.json",
+      "bytes": 941,
+      "expectedError": "invalid proof batch: blocks[1] number 5000001, expected 5000002"
+    },
+    {
+      "name": "equal-timestamps",
+      "kind": "invalid",
+      "bin": "equal-timestamps.bin",
+      "json": "equal-timestamps.json",
+      "bytes": 941,
+      "expectedError": "invalid proof batch: blocks[1] timestamp 1800500000, must exceed 1800500000"
+    },
+    {
+      "name": "decreasing-timestamps",
+      "kind": "invalid",
+      "bin": "decreasing-timestamps.bin",
+      "json": "decreasing-timestamps.json",
+      "bytes": 941,
+      "expectedError": "invalid proof batch: blocks[1] timestamp 1800500002, must exceed 1800500004"
+    },
+    {
+      "name": "duplicate-log-index",
+      "kind": "invalid",
+      "bin": "duplicate-log-index.bin",
+      "json": "duplicate-log-index.json",
+      "bytes": 941,
+      "expectedError": "invalid proof batch: blocks[0].logs[1] logIndex 3, must exceed 3"
+    },
+    {
+      "name": "decreasing-log-index",
+      "kind": "invalid",
+      "bin": "decreasing-log-index.bin",
+      "json": "decreasing-log-index.json",
+      "bytes": 941,
+      "expectedError": "invalid proof batch: blocks[0].logs[1] logIndex 4, must exceed 5"
+    },
+    {
+      "name": "bad-preimage-hash",
+      "kind": "invalid",
+      "bin": "bad-preimage-hash.bin",
+      "json": "bad-preimage-hash.json",
+      "bytes": 941,
+      "expectedError": "invalid proof batch: blocks[0].logs[0] preimage hashes to 0x61d6138b161ac0a94e345e1f3c4a2f908630b8eb12d91c58fe670193f90cbe99, but logHash is 0xe862844726e267ebf46bcaee3a541b771a6c821808e87a497136d94f3cc5b09f"
+    },
+    {
+      "name": "short-preimage",
+      "kind": "invalid",
+      "bin": "short-preimage.bin",
+      "json": "short-preimage.json",
+      "bytes": 813,
+      "expectedError": "invalid proof batch: blocks[0].logs[0] preimage is 19 bytes, must be 0 (absent) or at least 20 (address-prefixed)"
+    },
+    {
+      "name": "exec-msgs-unsorted",
+      "kind": "invalid",
+      "bin": "exec-msgs-unsorted.bin",
+      "json": "exec-msgs-unsorted.json",
+      "bytes": 1005,
+      "expectedError": "invalid proof batch: blocks[0].execMsgs[1] sorts before its predecessor; execMsgs is a deduplicated set, strictly increasing in the canonical key"
+    },
+    {
+      "name": "exec-msgs-duplicate",
+      "kind": "invalid",
+      "bin": "exec-msgs-duplicate.bin",
+      "json": "exec-msgs-duplicate.json",
+      "bytes": 1005,
+      "expectedError": "invalid proof batch: blocks[0].execMsgs[1] duplicates its predecessor; execMsgs is a deduplicated set, strictly increasing in the canonical key"
+    }
+  ],
+  "generative": [
+    {
+      "name": "idle-300-blocks",
+      "kind": "valid",
+      "stored": false,
+      "description": "300 blocks — one 10-minute cadence at 2 s block time — exporting nothing and importing nothing. THE OPERATING POINT: chain P is private, so almost every block touches nothing cross-chain. This is the envelope the submitter actually sends.",
+      "recipe": {
+        "scalars": "keccak256(\"cove-fixture:idle-300-blocks:<field>\") for prevOutputRoot, l1Head, rollupConfigHash, depSetHash; exportPolicyHash is the v2 default; newOutputRoot is the derived output root of the LAST block (decision D11)",
+        "blocks": "for i in 0..300: blockNumber = 9500001 + i, timestamp = 1800900000 + 2*i, and blockHash / stateRoot / messagePasserStorageRoot = keccak256(\"cove-fixture:idle-300-blocks:<blockNumber>:<field>\"); logs and execMsgs both empty (present as zero-length arrays, never elided)",
+        "proof": "empty (attested)"
+      },
+      "blocks": 300,
+      "logs": 0,
+      "execMsgs": 0,
+      "bytes": 96301,
+      "blobLimit": 130044,
+      "blobsRequired": 1,
+      "blobHeadroomBytes": 33743,
+      "sizeNote": "320 bytes per block, nothing else. v2's equivalent was 77 101 bytes; the +19 200 is 300 blocks x 64, the offset word and length word of the new execMsgs array.",
+      "envelopeKeccak": "0x2e55fee5649cdcb7ea6caf31e261c327e86104d054f307379bc4142c0a486d56",
+      "publicValuesKeccak": "0x40953dbeaa69ebf5ca2b28d2d282e7f5b360a6d87ed5cf5d91d55110571bb5aa"
+    },
+    {
+      "name": "max-realistic-300-blocks",
+      "kind": "valid",
+      "stored": false,
+      "description": "300 blocks — exactly one 10-minute proof-batch cadence at 2 s block time — with 0/1/2 logs per block (300 logs total) and 0/1 imports per block (150 total), no preimages. The size case: this is what a production envelope looks like on wire v3. Not stored; build it from the recipe and check envelopeKeccak.",
+      "recipe": {
+        "scalars": "keccak256(\"cove-fixture:max-realistic-300-blocks:<field>\") for prevOutputRoot, l1Head, rollupConfigHash, depSetHash; exportPolicyHash is the v2 default (keccak256(\"cove-export-v2:all-hashes\"), unchanged by v3); newOutputRoot is NOT synthetic — it is the derived output root of the LAST block (decision D11)",
+        "blocks": "for i in 0..300: blockNumber = 9000001 + i, timestamp = 1800200000 + 2*i, and blockHash / stateRoot / messagePasserStorageRoot = keccak256(\"cove-fixture:max-realistic-300-blocks:<blockNumber>:<field>\")",
+        "logs": "for j in 0..(i % 3): logIndex = j, logHash = keccak256(\"cove-fixture:max-realistic-300-blocks:log:<i>:<j>\"), preimage empty",
+        "execMsgs": "for j in 0..(i % 2): chainId = 424246, blockNumber = 500000 + i, logIndex = j, timestamp = 1800199900 + 2*i, origin = keccak256(\"origin:max-realistic-300-blocks:424246:<blockNumber>:<logIndex>\")[12:], msgHash = keccak256(\"msgHash:max-realistic-300-blocks:424246:<blockNumber>:<logIndex>\"); then sorted by the canonical key and deduplicated (decision D17)",
+        "proof": "empty (attested)"
+      },
+      "blocks": 300,
+      "logs": 300,
+      "execMsgs": 150,
+      "bytes": 173101,
+      "blobLimit": 130044,
+      "blobsRequired": 2,
+      "blobHeadroomBytes": 86987,
+      "sizeNote": "v3 costs 320 bytes per block, 160 per exported log and 192 per distinct executing message (v2: 256 per block, 160 per log, no import cost). THE FINDING: this case needs TWO blobs where its v2 equivalent needed one. The arithmetic, for a submitter sizing its transactions: 300 blocks at 320 = 96 000; +300 logs at 160 = 144 301 total, which already exceeds one blob (130 044) before any imports; +150 imports at 192 = 173 101. Multi-blob transactions have always been permitted — blobs concatenate in sidecar index order before decoding — but a submitter that assumed one blob per envelope must now count. The operating point is the `idle-300-blocks` case above, at 96 301 bytes in one blob. Preimage-bearing policies add the preimage length per log, padded to 32.",
+      "envelopeKeccak": "0x731b5ff6eca73efb62bde5bbee8adf1ba9f9a7fa99685f9669856d7d997b7a27",
+      "publicValuesKeccak": "0x418945229c36f638624237e2bb6ec2c5d3c9db59a0e2243fcf32a1c426fa2f35"
+    }
+  ],
+  "configHashVectors": "config-hash-vectors.json",
+  "logHashVectors": "log-hash-vectors.json",
+  "outputRootVectors": "output-root-vectors.json",
+  "execMsgVectors": "exec-msg-checksum-vectors.json"
+}

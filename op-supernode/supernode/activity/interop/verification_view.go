@@ -5,6 +5,7 @@ import (
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -32,6 +33,26 @@ func (i *Interop) resolveFrontierVerificationView(blocksAtTS map[eth.ChainID]eth
 	for chainID, blockID := range blocksAtTS {
 		chain, ok := i.chains[chainID]
 		if !ok {
+			continue
+		}
+		if cc.IngestionSourceOf(chain) == cc.IngestionProven {
+			// A proof-carried chain has no receipts to build a frontier view from — and needs
+			// none. The frontier view exists because a DRIVEN chain's frontier block is not in its
+			// message database yet: it is sealed later, when the round advances. A proven chain's
+			// is sealed the moment the proof lands, which is always at or before the frontier, so
+			// leaving it out of the view routes every question about it to the message database
+			// instead — and that path yields the block's REAL wire hash and containment answered
+			// from its sealed logs.
+			//
+			// Its EXECUTING messages come from neither: not from receipts, and not from the message
+			// database (which keys them by log position, which the wire does not carry). They come
+			// from the chain container, in verifyInteropMessages — the G7 judge flip. Before G7 they
+			// were empty here and P's dependencies were proof-trusted; that posture is retired.
+			//
+			// One consequence is worth stating because it is load-bearing rather than incidental: a
+			// proven chain never appears in this view, so it never supplies the same-timestamp
+			// `contains` short-circuit. Nothing needs it to — its logs are already sealed — and its
+			// own imports are forbidden from being same-timestamp anyway (G7G D2).
 			continue
 		}
 		blockInfo, receipts, err := chain.FetchReceipts(i.ctx, blockID)

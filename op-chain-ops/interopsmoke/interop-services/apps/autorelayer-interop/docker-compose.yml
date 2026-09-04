@@ -1,0 +1,22 @@
+services:
+  relayer:
+    profiles:
+      - app
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+      target: autorelayer-interop
+      args:
+        - DOCKER_TARGET=autorelayer-interop
+    env_file: .env
+    environment:
+      - PONDER_INTEROP_API_URL=http://host.docker.internal:42069
+      - SPONSORED_ENDPOINT_URL=http://host.docker.internal:8460
+      - CHAIN_ENDPOINT_OVERRIDES=http://host.docker.internal:9545,http://host.docker.internal:9546
+      - GAS_TANK_ADDRESS=0x420beeF000000000000000000000000000000002
+    healthcheck:
+      test: curl http://0.0.0.0:7500/healthz
+    volumes:
+      - ../../certs/extra-ca-certificates.crt:/usr/local/share/ca-certificates/extra-ca-certificates.crt
+    ports:
+      - 8500:7500

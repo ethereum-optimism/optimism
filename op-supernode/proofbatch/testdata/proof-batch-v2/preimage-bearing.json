@@ -1,0 +1,80 @@
+{
+  "name": "preimage-bearing",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "Export policy cove-export-v2:all-preimages: every exported log carries its canonical preimage `address(20) || topics || data` (decision D9), and each one MUST re-hash to its logHash at decode. The second block carries none, so a decoder cannot special-case \"this batch has preimages\" — the field is per log.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 1344,
+    "proofLen": 0,
+    "totalLen": 1357
+  },
+  "publicValues": {
+    "prevOutputRoot": "0xc6bd15886330df92525c741600d312600fac70c0b769b5955f57169bd1165b6a",
+    "newOutputRoot": "0xa2613009eafb56c69e07c0f7d501a7e305f5859ad911f30328653793549a0a5a",
+    "l1Head": "0x4fd33678de0de7cc680de7548c9c04bde65e27b2cf46e65fc8cadebd756d1edd",
+    "rollupConfigHash": "0x583aaf7e78b97dec7f393ab7b7f4196a20252c1cad5c7369ad3408f35d5fda83",
+    "depSetHash": "0x3195b871ba05da049a2142635516eaf34aabb6c39ed366d3ccf38e93afdbb47b",
+    "exportPolicyHash": "0xb55621569f452f4d6a2666a57a14756c425f3bf5f39d75c5fd65230a8c5fbd23",
+    "blocks": [
+      {
+        "blockNumber": 3000001,
+        "timestamp": 1800700002,
+        "blockHash": "0x12fff6c1bf56478c0ea912baa4df9d184c4a75e6c7fce8aeddb1b438c63b2c73",
+        "stateRoot": "0x169d42edb3549a178ccfec1501efcd35facea84dfe517de69d18aeefeed8852a",
+        "messagePasserStorageRoot": "0xb26d647e0cc7f0354a0973cc6bc68b1ca3b95831a5cbf0b3a9ea4b42f3f19115",
+        "outputRoot": "0x8e79aa5c1d45c16ce15cee9af783c942201cfa910712f65daf71d41bf5456f7a",
+        "logs": [
+          {
+            "logIndex": 0,
+            "logHash": "0xce0760806fcedc5fc6bc81fc9e0b9b0d1466115447dd554de7672cb9f43beda5",
+            "preimage": "0x7f68deadaaec7677c1cfc0c159f090eecec99cc5ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef000000000000000000000000649cd365e03814e28f9c6c6b3332e8498399e831000000000000000000000000eb0d47bae4d727f787494434e201479795fef40362d65c2c78b2375a47297638d74e39e1fe2e875f12c516fc8547f47cadfc1745"
+          },
+          {
+            "logIndex": 1,
+            "logHash": "0x662224961bd367b14895c2cd0d6e18c6221e151bbaccc879e8a0de8b2e0df280",
+            "preimage": "0x82e3a1d06254948bcf05f73ce6eaa558936446126bf8be92fbeb9899622439ae42e03983edfc0ac7651f99dacc5badefbfe22203"
+          }
+        ]
+      },
+      {
+        "blockNumber": 3000002,
+        "timestamp": 1800700004,
+        "blockHash": "0xf81cdad882e9cb2e31b2e753e5ed23d40543518ddeda52fc60909547588fdb42",
+        "stateRoot": "0xb53bb50b57fd8e59bf81b30d84798553b1f02a491e7bf52a4e00cc345eb44d82",
+        "messagePasserStorageRoot": "0x4a745b276c1fffefd23fd210468c5cbdf90448e3dfe47b2b9e6bcc9f283ab246",
+        "outputRoot": "0xa2613009eafb56c69e07c0f7d501a7e305f5859ad911f30328653793549a0a5a",
+        "logs": []
+      }
+    ]
+  },
+  "publicValuesKeccak": "0x1501da0c03b4d4103f8c83ecdc08d4dc1995ae49374d2d90ba6219a23116907b",
+  "proofHex": "0x",
+  "envelopeKeccak": "0xb62e8aa351007cce2734cc93c1c175630f90239811368b694e5a43b3ff1d8749",
+  "sourceLogs": [
+    {
+      "blockNumber": 3000001,
+      "logIndex": 0,
+      "address": "0x7f68deadaaec7677c1cfc0c159f090eecec99cc5",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x000000000000000000000000649cd365e03814e28f9c6c6b3332e8498399e831",
+        "0x000000000000000000000000eb0d47bae4d727f787494434e201479795fef403"
+      ],
+      "data": "0x62d65c2c78b2375a47297638d74e39e1fe2e875f12c516fc8547f47cadfc1745",
+      "logHash": "0xce0760806fcedc5fc6bc81fc9e0b9b0d1466115447dd554de7672cb9f43beda5",
+      "preimage": "0x7f68deadaaec7677c1cfc0c159f090eecec99cc5ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef000000000000000000000000649cd365e03814e28f9c6c6b3332e8498399e831000000000000000000000000eb0d47bae4d727f787494434e201479795fef40362d65c2c78b2375a47297638d74e39e1fe2e875f12c516fc8547f47cadfc1745"
+    },
+    {
+      "blockNumber": 3000001,
+      "logIndex": 1,
+      "address": "0x82e3a1d06254948bcf05f73ce6eaa55893644612",
+      "topics": [],
+      "data": "0x6bf8be92fbeb9899622439ae42e03983edfc0ac7651f99dacc5badefbfe22203",
+      "logHash": "0x662224961bd367b14895c2cd0d6e18c6221e151bbaccc879e8a0de8b2e0df280",
+      "preimage": "0x82e3a1d06254948bcf05f73ce6eaa558936446126bf8be92fbeb9899622439ae42e03983edfc0ac7651f99dacc5badefbfe22203"
+    }
+  ]
+}

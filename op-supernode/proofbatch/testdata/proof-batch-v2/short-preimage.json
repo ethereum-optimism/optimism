@@ -1,0 +1,16 @@
+{
+  "name": "short-preimage",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "A 19-byte preimage: too short to even contain the 20-byte emitting address it must start with (decision D9). Empty means absent; 1..19 bytes is malformed.",
+  "expectedError": "invalid proof batch: blocks[0].logs[0] preimage is 19 bytes, must be 0 (absent) or at least 20 (address-prefixed)",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 736,
+    "proofLen": 0,
+    "totalLen": 749
+  },
+  "envelopeKeccak": "0xa6a59b5a9c649df71591818e4472dcc2f3324041a5ee2f728a74d306f650a1c9"
+}
