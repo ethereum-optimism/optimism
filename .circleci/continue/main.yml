@@ -1200,8 +1200,6 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - apt-install:
-          packages: "lcov"
       - run:
           name: Resolve L1 archive RPC URL
           command: |
