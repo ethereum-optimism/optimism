@@ -84,6 +84,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -319,7 +320,7 @@ func RenderBlock(b PrivateBlock, set EmitterSet) (*RenderedBlock, error) {
 	if b.Txs != nil && len(b.Receipts) != len(b.Txs) {
 		return nil, fmt.Errorf("%w: %d transactions but %d receipts", ErrInconsistentBlock, len(b.Txs), len(b.Receipts))
 	}
-	num := b.Header.Number.Uint64()
+	num := bigs.Uint64Strict(b.Header.Number)
 
 	// The block's full log sequence, in block order: receipts in transaction order, each receipt's
 	// logs in emission order. This is the sequence whose positions are private log indexes.
@@ -373,7 +374,7 @@ func (b PrivateBlock) privateRef() eth.L2BlockRef {
 	return eth.L2BlockRef{
 		Hash:       b.Header.Hash(),
 		ParentHash: b.Header.ParentHash,
-		Number:     b.Header.Number.Uint64(),
+		Number:     bigs.Uint64Strict(b.Header.Number),
 		Time:       b.Header.Time,
 	}
 }

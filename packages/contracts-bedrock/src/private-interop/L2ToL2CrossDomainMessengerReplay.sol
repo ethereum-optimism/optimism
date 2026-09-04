@@ -78,12 +78,9 @@ contract L2ToL2CrossDomainMessengerReplay is ISemver {
     ///         and no further bookkeeping is required here.
     ///
     ///         Replaying a message whose sender OR target is the `SuperchainETHBridge` predeploy is
-    ///         refused. The private chain is a custom gas token chain: its native unit is not ETH,
-    ///         and its `SuperchainETHBridge.sendETH` would burn that custom unit while asking a
-    ///         counterparty to mint real ETH. The protocol ETH bridge and liquidity implementation
-    ///         are absent from the private genesis, and ETH-denominated value enters only through
-    ///         the application-level lock-mint bridge, but this contract must not be the weak link
-    ///         that renders such a message into a public, relayable log.
+    ///         refused. Private native ETH bridging is unsupported: the projection does not prove
+    ///         a private burn or shared backing. Ordinary L1 ETH deposits remain available, but
+    ///         this contract must not render a native bridge request into a public, relayable log.
     ///         The two checks are deliberately symmetric: the receiving bridge's own
     ///         `InvalidCrossDomainSender` check already makes the target-side refusal redundant in
     ///         theory, but the point of a deny list is to hold without anyone having to reason

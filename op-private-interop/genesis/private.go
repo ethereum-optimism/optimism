@@ -12,11 +12,9 @@ import (
 )
 
 var (
-	// RequirePaidMessagesSlot matches the messenger's genesis-only policy slot.
-	RequirePaidMessagesSlot = crypto.Keccak256Hash([]byte("privateinterop.requirePaidMessages"))
-	policyMessengerCode     = mustBytecode("L2ToL2CrossDomainMessenger")
-	policyBridgeCode        = mustBytecode("SuperchainETHBridge")
-	// PolicyMessengerCodeHash pins the implementation that reads the private messaging policy.
+	policyMessengerCode = mustBytecode("L2ToL2CrossDomainMessenger")
+	policyBridgeCode    = mustBytecode("SuperchainETHBridge")
+	// PolicyMessengerCodeHash pins the messenger release used by this profile.
 	PolicyMessengerCodeHash = crypto.Keccak256Hash(policyMessengerCode)
 	// PolicyBridgeCodeHash pins the implementation that enforces the native ETH route permissions.
 	PolicyBridgeCodeHash = crypto.Keccak256Hash(policyBridgeCode)
@@ -24,7 +22,7 @@ var (
 )
 
 // ConfigurePrivateGenesis installs the ETH private-chain profile over a supported source genesis.
-// It preserves ordinary deposits and balances, enables paid-only messenger operations, and starts
+// It preserves ordinary deposits, balances and messenger operations, and starts
 // the native bridge with empty send/relay permissions. The existing L2 ProxyAdmin owner controls
 // those permissions. It does not configure or attest to the L1 backing pool.
 //
@@ -44,9 +42,6 @@ func ConfigurePrivateGenesis(source *core.Genesis, cfg *rollup.Config) (*core.Ge
 	if isCustomGasToken(source) {
 		return nil, nil, errors.New("private ETH profile requires an ETH source deployment, not CGT")
 	}
-	if source.Alloc[predeploys.L2toL2CrossDomainMessengerAddr].Storage[RequirePaidMessagesSlot] != (common.Hash{}) {
-		return nil, nil, errors.New("private messenger policy is already configured")
-	}
 	bridgeHash := implementationCodeHash(source.Alloc, predeploys.SuperchainETHBridgeAddr)
 	if bridgeHash != stockBridgeCodeHash && bridgeHash != PolicyBridgeCodeHash {
 		return nil, nil, fmt.Errorf("unsupported source SuperchainETHBridge code hash %s", bridgeHash)
@@ -59,9 +54,6 @@ func ConfigurePrivateGenesis(source *core.Genesis, cfg *rollup.Config) (*core.Ge
 	}
 	out := cloneGenesis(source)
 	activateProxy(out.Alloc, predeploys.L2toL2CrossDomainMessengerAddr, policyMessengerCode)
-	account := accountAt(out.Alloc, predeploys.L2toL2CrossDomainMessengerAddr)
-	account.Storage[RequirePaidMessagesSlot] = trueWord
-	out.Alloc[predeploys.L2toL2CrossDomainMessengerAddr] = account
 	activateProxy(out.Alloc, predeploys.SuperchainETHBridgeAddr, policyBridgeCode)
 	privateRollup := *cfg
 	privateRollup.Genesis.L2.Hash = out.ToBlock().Hash()

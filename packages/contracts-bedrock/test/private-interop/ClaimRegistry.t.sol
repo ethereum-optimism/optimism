@@ -10,7 +10,11 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { ClaimRegistry } from "src/private-interop/ClaimRegistry.sol";
 
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
 // Interfaces
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IClaimRegistry, RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 
 /// @title ClaimRegistry_TestInit
@@ -22,12 +26,17 @@ abstract contract ClaimRegistry_TestInit is Test {
     /// @notice ProxyAdmin that owns the proxy.
     ProxyAdmin internal proxyAdmin;
 
-    /// @notice Representative batcher address used by tests; the outer batch authenticates it.
+    /// @notice Current batcher address reported by L1 attributes.
     address internal operator;
 
     /// @notice Test setup.
     function setUp() public virtual {
         operator = makeAddr("operator");
+        vm.mockCall(
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            abi.encodeCall(IL1Block.batcherHash, ()),
+            abi.encode(bytes32(uint256(uint160(operator))))
+        );
 
         proxyAdmin = new ProxyAdmin(makeAddr("proxyAdminOwner"));
         registry = _freshRegistry();
@@ -66,6 +75,37 @@ abstract contract ClaimRegistry_TestInit is Test {
 /// @title ClaimRegistry_PostClaim_Test
 /// @notice Tests the `postClaim` function of the `ClaimRegistry` contract.
 contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
+    /// @notice An unrelated forced sender cannot poison the cursor and block subsequent claims.
+    function test_postClaim_notBatcher_reverts() external {
+        vm.expectRevert(IClaimRegistry.ClaimRegistry_NotBatcher.selector);
+        vm.prank(makeAddr("depositor"));
+        registry.postClaim(_claim(0, type(uint64).max));
+        assertEq(registry.rangeCount(), 0);
+        assertEq(registry.lastPostedLastBlock(), 0);
+        assertEq(registry.lastClaimHash(), bytes32(0));
+
+        vm.prank(operator);
+        registry.postClaim(_claim(100, 399));
+        assertEq(registry.lastPostedLastBlock(), 399);
+    }
+
+    /// @notice Batcher rotation takes effect through the normal L1 attributes, without a new setter.
+    function test_postClaim_rotatedBatcher_succeeds() external {
+        address nextOperator = makeAddr("nextOperator");
+        vm.mockCall(
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            abi.encodeCall(IL1Block.batcherHash, ()),
+            abi.encode(bytes32(uint256(uint160(nextOperator))))
+        );
+        vm.expectRevert(IClaimRegistry.ClaimRegistry_NotBatcher.selector);
+        vm.prank(operator);
+        registry.postClaim(_claim(100, 399));
+
+        vm.prank(nextOperator);
+        registry.postClaim(_claim(100, 399));
+        assertEq(registry.rangeCount(), 1);
+    }
+
     /// @notice Tests that the first post is accepted at any starting block and records the range.
     function testFuzz_postClaim_firstPost_succeeds(uint64 _firstBlock, uint64 _length) external {
         _firstBlock = uint64(bound(_firstBlock, 0, type(uint32).max));

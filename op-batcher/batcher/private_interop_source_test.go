@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -78,7 +79,7 @@ func headerChain(n int) []*types.Header {
 
 // refOf is the L1BlockRef a header stands for.
 func refOf(h *types.Header) eth.L1BlockRef {
-	return eth.L1BlockRef{Hash: h.Hash(), Number: h.Number.Uint64(), ParentHash: h.ParentHash, Time: h.Time}
+	return eth.L1BlockRef{Hash: h.Hash(), Number: bigs.Uint64Strict(h.Number), ParentHash: h.ParentHash, Time: h.Time}
 }
 
 func piSource(t *testing.T, follower *fakeFollower) *privateInteropRangeSource {
