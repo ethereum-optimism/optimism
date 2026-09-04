@@ -98,14 +98,14 @@ func (t *RPCUpdater) Run(ctx context.Context) {
 			t.jobs.Store(job.ID(), job)
 		case <-processTicker.C:
 			t.log.Trace("processing jobs")
-			t.processJobs()
+			t.processJobs(ctx)
 			t.log.Trace("processed jobs done")
 		}
 	}
 }
 
 // processJobs handles updating all jobs in the map
-func (t *RPCUpdater) processJobs() {
+func (t *RPCUpdater) processJobs(ctx context.Context) {
 	var toUpdate []*Job
 	var toExpire []JobID
 
@@ -126,7 +126,7 @@ func (t *RPCUpdater) processJobs() {
 
 	// Update jobs that need updating
 	for _, job := range toUpdate {
-		err := t.UpdateJob(job)
+		err := t.UpdateJob(ctx, job)
 		if err != nil {
 			t.log.Error("error updating job", "error", err, "job", job.String())
 		}
@@ -184,15 +184,15 @@ func (t *RPCUpdater) ShouldExpire(job *Job) bool {
 	return false
 }
 
-func (t *RPCUpdater) UpdateJob(job *Job) error {
-	t.UpdateJobStatus(job)
+func (t *RPCUpdater) UpdateJob(ctx context.Context, job *Job) error {
+	t.UpdateJobStatus(ctx, job)
 	job.UpdateLastEvaluated(time.Now())
 	t.log.Debug("updated job", "job", job.String())
 	return nil
 }
 
-func (t *RPCUpdater) UpdateJobStatus(job *Job) {
-	blockInfo, receipts, err := t.client.FetchReceiptsByNumber(context.Background(), job.initiating.BlockNumber)
+func (t *RPCUpdater) UpdateJobStatus(ctx context.Context, job *Job) {
+	blockInfo, receipts, err := t.client.FetchReceiptsByNumber(ctx, job.initiating.BlockNumber)
 	if err != nil {
 		t.log.Error("error getting block receipts", "error", err)
 		job.UpdateStatus(jobStatusUnknown)
