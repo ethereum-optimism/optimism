@@ -152,7 +152,8 @@ impl Discv5Driver {
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<Enr>(1024);
 
-        tokio::spawn(async move {
+        // `tokio::spawn` inherits no scope, so this loop needs its own.
+        tokio::spawn(kona_metrics::scoped(kona_metrics::chain_label(chain_id), async move {
             let remove = self.remove_interval.is_some();
             let remove_dur = self.remove_interval.unwrap_or(std::time::Duration::from_secs(600));
             let mut removal_interval = tokio::time::interval(remove_dur);
@@ -359,7 +360,7 @@ impl Discv5Driver {
                     }
                 }
             }
-        });
+        }));
 
         (Discv5Handler::new(chain_id, req_sender), enr_recv)
     }

@@ -14,8 +14,8 @@ pub use engine::{
 
 pub(crate) mod rpc;
 pub use rpc::{
-    JsonrpseeServerLauncher, QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor,
-    RpcActorError, RpcServerHandle, RpcServerLauncher,
+    ChainScope, JsonrpseeServerLauncher, QueuedEngineRpcClient, QueuedSequencerAdminAPIClient,
+    RpcActor, RpcActorError, RpcServerHandle, RpcServerLauncher,
 };
 
 mod derivation;

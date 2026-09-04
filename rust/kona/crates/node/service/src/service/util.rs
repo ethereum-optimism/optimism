@@ -11,13 +11,15 @@
 /// This macro also handles OS shutdown signals (SIGTERM, SIGINT) and triggers graceful shutdown
 /// when received.
 macro_rules! spawn_and_wait {
-    ($cancellation:expr, actors = [$($actor:expr),* $(,)?]) => {
+    ($cancellation:expr, chain = $chain:expr, actors = [$($actor:expr),* $(,)?]) => {
         let mut task_handles = tokio::task::JoinSet::new();
+        let chain = $chain;
 
         $(
             if let Some(mut actor) = $actor {
                 let cancellation = $cancellation.clone();
-                task_handles.spawn(async move {
+                // A task the actor spawns for itself does not inherit this scope.
+                task_handles.spawn(kona_metrics::scoped(chain.clone(), async move {
                     // This guard ensures that the cancellation token is cancelled when the actor
                     // task exits for any reason. This ensures peer actors observe shutdown on
                     // their next macro-level `select!`.
@@ -35,7 +37,7 @@ macro_rules! spawn_and_wait {
                             }
                         }
                     }
-                });
+                }));
             }
         )*
 
@@ -102,5 +104,52 @@ pub(crate) async fn shutdown_signal() {
         _ = terminate => {
             tracing::info!(target: "rollup_node", "Received SIGTERM");
         },
+    }
+}
+
+#[cfg(all(test, feature = "metrics"))]
+mod tests {
+    use crate::{NodeActor, test_metrics::chains_of};
+    use async_trait::async_trait;
+    use tokio_util::sync::CancellationToken;
+
+    const METRIC: &str = "kona_test_actor_steps";
+
+    /// Emits `METRIC` on its first step, then stops the supervision loop.
+    struct EmittingActor;
+
+    #[async_trait]
+    impl NodeActor for EmittingActor {
+        type Error = &'static str;
+
+        async fn step(&mut self) -> Result<(), Self::Error> {
+            // Await first, so the emit cannot have run on the spawning task.
+            tokio::task::yield_now().await;
+            metrics::counter!(METRIC).increment(1);
+            Err("done")
+        }
+    }
+
+    async fn run_actor(chain_id: u64) -> Result<(), String> {
+        let cancellation = CancellationToken::new();
+        crate::service::spawn_and_wait!(
+            cancellation,
+            chain = kona_metrics::chain_label(chain_id),
+            actors = [Some(EmittingActor)]
+        );
+        Ok(())
+    }
+
+    /// Actors are spawned, not awaited inline, so `spawn_and_wait!` is the one place that can
+    /// scope all seven of them.
+    #[tokio::test]
+    async fn actor_metrics_carry_the_chain_the_supervisor_was_given() {
+        // Installs the recorder before anything registers.
+        assert!(chains_of(METRIC).is_empty());
+
+        let error = run_actor(11155420).await.expect_err("the actor stops the loop");
+        assert_eq!(error, "\"done\"");
+
+        assert_eq!(chains_of(METRIC), vec![Some("11155420".to_string())]);
     }
 }

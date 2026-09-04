@@ -6782,20 +6782,23 @@ dependencies = [
 
 [[package]]
 name = "kona-cli"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
  "clap",
  "kona-genesis",
+ "kona-metrics",
  "kona-registry",
  "libc",
  "libp2p",
+ "metrics",
  "metrics-exporter-prometheus",
  "metrics-process",
  "rstest",
  "serde",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber 0.3.23",
@@ -6881,6 +6884,7 @@ dependencies = [
  "kona-cli",
  "kona-genesis",
  "kona-macros",
+ "kona-metrics",
  "kona-peers",
  "libp2p",
  "metrics",
@@ -7149,6 +7153,15 @@ name = "kona-macros"
 version = "0.1.2"
 
 [[package]]
+name = "kona-metrics"
+version = "0.1.0"
+dependencies = [
+ "metrics",
+ "metrics-util",
+ "tokio",
+]
+
+[[package]]
 name = "kona-mpt"
 version = "0.3.0"
 dependencies = [
@@ -7197,6 +7210,7 @@ dependencies = [
  "kona-genesis",
  "kona-gossip",
  "kona-interop",
+ "kona-metrics",
  "kona-node-service",
  "kona-peers",
  "kona-protocol",
@@ -7259,6 +7273,7 @@ dependencies = [
  "kona-gossip",
  "kona-interop",
  "kona-macros",
+ "kona-metrics",
  "kona-peers",
  "kona-protocol",
  "kona-providers-alloy",
@@ -7268,6 +7283,7 @@ dependencies = [
  "libp2p",
  "libp2p-stream",
  "metrics",
+ "metrics-util",
  "mockall",
  "op-alloy-consensus",
  "op-alloy-network",

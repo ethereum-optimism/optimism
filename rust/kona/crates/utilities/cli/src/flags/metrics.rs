@@ -39,12 +39,15 @@ impl Default for MetricsArgs {
 }
 
 impl MetricsArgs {
-    /// Initialize the tracing stack and Prometheus metrics recorder.
+    /// Installs the Prometheus metrics recorder and starts its HTTP endpoint.
     ///
     /// This function should be called at the beginning of the program.
-    pub fn init_metrics(&self) -> CliResult<()> {
+    ///
+    /// `chain_id` labels every metric of a single-chain process. A multi-chain process passes
+    /// `None` and scopes each chain's work with [`kona_metrics::scoped`] instead.
+    pub fn init_metrics(&self, chain_id: Option<u64>) -> CliResult<()> {
         if self.enabled {
-            init_prometheus_server(self.addr, self.port)?;
+            init_prometheus_server(self.addr, self.port, chain_id)?;
         }
 
         Ok(())

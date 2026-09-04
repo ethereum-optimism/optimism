@@ -16,7 +16,7 @@ pub use service::{
 
 mod actors;
 pub use actors::{
-    BlockStream, BuildRequest, Conductor, ConductorClient, ConductorError,
+    BlockStream, BuildRequest, ChainScope, Conductor, ConductorClient, ConductorError,
     DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationClientError, DerivationClientResult,
     DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
@@ -38,6 +38,9 @@ pub use actors::{
 
 mod metrics;
 pub use metrics::Metrics;
+
+#[cfg(all(test, feature = "metrics"))]
+mod test_metrics;
 
 #[cfg(test)]
 pub use actors::{
