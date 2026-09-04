@@ -18,14 +18,13 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title SuperPermissionedDisputeGame
 
-/// @custom:proxied
 /// @notice A simplified permissioned super-root dispute game. The proposer creates a super-root
 ///         proposal, and the proposal resolves in favor of the defender. Invalid proposals are
 ///         invalidated through the AnchorStateRegistry blacklist before finalization.
 contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice The timestamp at which the game was created.
     Timestamp public createdAt;
@@ -42,7 +41,9 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice Prevents re-initialization.
     bool internal initialized;
 
-    constructor() { }
+    constructor() {
+        initialized = true;
+    }
 
     /// @notice Initializes the contract.
     function initialize() external payable {

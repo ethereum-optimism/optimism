@@ -147,9 +147,9 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.2
+    /// @custom:semver 2.5.0
     function version() public pure virtual returns (string memory) {
-        return "2.4.2";
+        return "2.5.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -235,6 +235,7 @@ contract FaultDisputeGame is Clone, ISemver {
         SPLIT_DEPTH = _params.splitDepth;
         CLOCK_EXTENSION = _params.clockExtension;
         MAX_CLOCK_DURATION = _params.maxClockDuration;
+        initialized = true;
     }
 
     /// @notice Initializes the contract.

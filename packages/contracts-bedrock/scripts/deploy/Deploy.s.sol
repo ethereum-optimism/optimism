@@ -280,7 +280,13 @@ contract Deploy is Deployer {
         artifacts.save("OPContractsManagerV2", address(dio.opcmV2));
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
+        artifacts.save("FaultDisputeGameImpl", address(dio.faultDisputeGameImpl));
+        artifacts.save("PermissionedDisputeGameImpl", address(dio.permissionedDisputeGameImpl));
         artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameImpl));
+        if (address(dio.superFaultDisputeGameImpl) != address(0)) {
+            artifacts.save("SuperFaultDisputeGameImpl", address(dio.superFaultDisputeGameImpl));
+            artifacts.save("SuperPermissionedDisputeGameImpl", address(dio.superPermissionedDisputeGameImpl));
+        }
         if (address(dio.sp1PlonkAdapterSingleton) != address(0)) {
             artifacts.save("SP1PlonkAdapter", address(dio.sp1PlonkAdapterSingleton));
         }
