@@ -543,6 +543,11 @@
             "type": "address[]"
           },
           {
+            "internalType": "contract IDisputeGameFactory[]",
+            "name": "legacyDisputeGameFactories",
+            "type": "address[]"
+          },
+          {
             "internalType": "bytes32",
             "name": "cannonPrestate",
             "type": "bytes32"
@@ -591,6 +596,11 @@
           {
             "internalType": "contract ISystemConfig[]",
             "name": "chainSystemConfigs",
+            "type": "address[]"
+          },
+          {
+            "internalType": "contract IDisputeGameFactory[]",
+            "name": "legacyDisputeGameFactories",
             "type": "address[]"
           },
           {

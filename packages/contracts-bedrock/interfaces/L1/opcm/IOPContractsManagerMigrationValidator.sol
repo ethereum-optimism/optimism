@@ -13,6 +13,8 @@ interface IOPContractsManagerMigrationValidator {
     struct MigrationValidationInput {
         IDisputeGameFactory dgf;
         ISystemConfig[] chainSystemConfigs;
+        /// @notice Each chain's pre-migration DisputeGameFactory
+        IDisputeGameFactory[] legacyDisputeGameFactories;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
         address proposer;

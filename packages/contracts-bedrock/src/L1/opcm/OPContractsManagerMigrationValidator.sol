@@ -173,7 +173,7 @@ contract OPContractsManagerMigrationValidator {
         }
 
         // Per-chain invariants (portal points at shared ASR/lockbox, legacy game types cleared).
-        _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs);
+        _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs, _input.legacyDisputeGameFactories);
 
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("OPContractsManagerMigrationValidator: ", _errors));
@@ -454,7 +454,8 @@ contract OPContractsManagerMigrationValidator {
     /// @notice Validates per-chain migration state: portal ASR, per-chain DGF cleared, lockbox auth.
     function assertValidPerChainMigration(
         string memory _errors,
-        ISystemConfig[] memory _chainSystemConfigs
+        ISystemConfig[] memory _chainSystemConfigs,
+        IDisputeGameFactory[] memory _dgfs
     )
         internal
         view
@@ -464,11 +465,14 @@ contract OPContractsManagerMigrationValidator {
             return internalRequire(false, "MIG-CHAIN-EMPTY", _errors);
         }
 
+        if (_chainSystemConfigs.length != _dgfs.length) {
+            return internalRequire(false, "MIG-CHAIN-DGF-MISMATCH", _errors);
+        }
+
         // Derive shared ASR, DGF, and lockbox from first chain.
         IOptimismPortal2 firstPortal = IOptimismPortal2(payable(_chainSystemConfigs[0].optimismPortal()));
         address sharedASR = address(firstPortal.anchorStateRegistry());
         IETHLockbox sharedLockbox = firstPortal.ethLockbox();
-        IDisputeGameFactory sharedDGF = IDisputeGameFactory(_chainSystemConfigs[0].disputeGameFactory());
         address sharedWETH = _chainSystemConfigs[0].delayedWETH();
         ISuperchainConfig sharedSuperchainConfig = _chainSystemConfigs[0].superchainConfig();
 
@@ -486,39 +490,7 @@ contract OPContractsManagerMigrationValidator {
                 address(portal.anchorStateRegistry()) == sharedASR, string.concat("MIG-CHAIN-", idx, "-10"), _errors
             );
 
-            IDisputeGameFactory perChainDGF = IDisputeGameFactory(_chainSystemConfigs[i].disputeGameFactory());
-            if (address(perChainDGF) != address(sharedDGF)) {
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.CANNON)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-20"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-30"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.CANNON_KONA)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-40"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.SUPER_CANNON)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-50"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.SUPER_PERMISSIONED)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-60"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-70"),
-                    _errors
-                );
-            }
+            _errors = assertLegacyGamesCleared(_errors, _dgfs[i], idx);
 
             _errors = internalRequire(
                 sharedLockbox.authorizedPortals(portal), string.concat("MIG-CHAIN-", idx, "-80"), _errors
@@ -549,6 +521,57 @@ contract OPContractsManagerMigrationValidator {
             );
         }
 
+        return _errors;
+    }
+
+    /// @notice Asserts that every game type migrate() clears is zero in chain's
+    ///         pre-migration DisputeGameFactory.
+    /// @param _errors The accumulated error string.
+    /// @param _dgf The chain's pre-migration DisputeGameFactory.
+    /// @param _idx The chain's index, used to build the error codes.
+    /// @return The accumulated error string.
+    function assertLegacyGamesCleared(
+        string memory _errors,
+        IDisputeGameFactory _dgf,
+        string memory _idx
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errors = internalRequire(
+            address(_dgf.gameImpls(GameTypes.CANNON)) == address(0), string.concat("MIG-CHAIN-", _idx, "-20"), _errors
+        );
+        _errors = internalRequire(
+            address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0),
+            string.concat("MIG-CHAIN-", _idx, "-30"),
+            _errors
+        );
+        _errors = internalRequire(
+            address(_dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0),
+            string.concat("MIG-CHAIN-", _idx, "-40"),
+            _errors
+        );
+        _errors = internalRequire(
+            address(_dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0),
+            string.concat("MIG-CHAIN-", _idx, "-50"),
+            _errors
+        );
+        _errors = internalRequire(
+            address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) == address(0),
+            string.concat("MIG-CHAIN-", _idx, "-60"),
+            _errors
+        );
+        _errors = internalRequire(
+            address(_dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0),
+            string.concat("MIG-CHAIN-", _idx, "-70"),
+            _errors
+        );
+        _errors = internalRequire(
+            address(_dgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0),
+            string.concat("MIG-CHAIN-", _idx, "-140"),
+            _errors
+        );
         return _errors;
     }
 

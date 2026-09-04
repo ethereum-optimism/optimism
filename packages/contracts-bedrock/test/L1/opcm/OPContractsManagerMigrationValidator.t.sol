@@ -66,6 +66,9 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     /// @notice The shared lockbox created by migration (NOT ethLockbox from CommonTest).
     IETHLockbox sharedLockbox;
 
+    /// @notice Each chain's pre-migration DisputeGameFactory, in chainSystemConfigs order.
+    IDisputeGameFactory[] legacyDGFs;
+
     /// @notice The StandardValidator instance (used to read impl addresses for refs).
     IOPContractsManagerStandardValidator standardValidator;
 
@@ -92,6 +95,10 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         // Get validators from OPCM.
         standardValidator = opcmV2.opcmStandardValidator();
         migrationValidator = standardValidator.migrationValidator();
+
+        // Capture each chain's own factory before migration.
+        legacyDGFs.push(chainContracts1.disputeGameFactory);
+        legacyDGFs.push(chainContracts2.disputeGameFactory);
 
         // Set proposer before building migration input.
         proposer = makeAddr("superProposer");
@@ -289,10 +296,28 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         view
         returns (string memory)
     {
+        IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](_chains.length);
+        for (uint256 i = 0; i < _chains.length && i < legacyDGFs.length; i++) {
+            dgfs[i] = legacyDGFs[i];
+        }
+        return _validateMigrationCustomDGFs(_chains, dgfs, _allowFailure);
+    }
+
+    /// @notice Builds MigrationValidationInput.
+    function _validateMigrationCustomDGFs(
+        ISystemConfig[] memory _chains,
+        IDisputeGameFactory[] memory _dgfs,
+        bool _allowFailure
+    )
+        internal
+        view
+        returns (string memory)
+    {
         return migrationValidator.validateMigration(
             IOPContractsManagerMigrationValidator.MigrationValidationInput({
                 dgf: sharedDGF,
                 chainSystemConfigs: _chains,
+                legacyDisputeGameFactories: _dgfs,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
                 proposer: proposer
@@ -859,10 +884,14 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
         ISystemConfig[] memory chains = new ISystemConfig[](2);
         chains[0] = chainContracts1.systemConfig;
         chains[1] = chainContracts2.systemConfig;
+        IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](2);
+        dgfs[0] = legacyDGFs[0];
+        dgfs[1] = legacyDGFs[1];
         IOPContractsManagerMigrationValidator.MigrationValidationInput memory input =
         IOPContractsManagerMigrationValidator.MigrationValidationInput({
             dgf: sharedDGF,
             chainSystemConfigs: chains,
+            legacyDisputeGameFactories: dgfs,
             cannonPrestate: cannonPrestate.raw(),
             cannonKonaPrestate: cannonKonaPrestate.raw(),
             proposer: proposer
@@ -894,10 +923,14 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
         ISystemConfig[] memory chains = new ISystemConfig[](2);
         chains[0] = chainContracts1.systemConfig;
         chains[1] = chainContracts2.systemConfig;
+        IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](2);
+        dgfs[0] = legacyDGFs[0];
+        dgfs[1] = legacyDGFs[1];
         IOPContractsManagerMigrationValidator.MigrationValidationInput memory input =
         IOPContractsManagerMigrationValidator.MigrationValidationInput({
             dgf: sharedDGF,
             chainSystemConfigs: chains,
+            legacyDisputeGameFactories: dgfs,
             cannonPrestate: cannonPrestate.raw(),
             cannonKonaPrestate: cannonKonaPrestate.raw(),
             proposer: proposer
@@ -925,14 +958,20 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
     /// @notice Address used as a fake per-chain DGF distinct from the shared DGF.
     address fakeDGF = makeAddr("fakeDGF");
 
-    /// @notice Mocks chain 1's systemConfig.disputeGameFactory() to return the fake DGF,
-    ///         with all game types returning address(0) (cleared).
+    /// @notice Supplies a `fakeDGF` as chain 1's legacy factory with every game type cleared, so
+    ///         each test can set exactly one of them.
+    function _validateWithFakeDGF() internal view returns (string memory) {
+        ISystemConfig[] memory chains = new ISystemConfig[](2);
+        chains[0] = chainContracts1.systemConfig;
+        chains[1] = chainContracts2.systemConfig;
+        IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](2);
+        dgfs[0] = legacyDGFs[0];
+        dgfs[1] = IDisputeGameFactory(fakeDGF);
+        return _validateMigrationCustomDGFs(chains, dgfs, true);
+    }
+
+    /// @notice Mocks the fake per-chain DGF with all game types returning address(0) (cleared).
     function _mockPerChainDGF() internal {
-        vm.mockCall(
-            address(chainContracts2.systemConfig),
-            abi.encodeCall(ISystemConfig.disputeGameFactory, ()),
-            abi.encode(fakeDGF)
-        );
         // Default: all game types cleared (return address(0)).
         vm.mockCall(fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)), abi.encode(address(0)));
         vm.mockCall(
@@ -956,6 +995,9 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
             abi.encode(address(0))
         );
+        vm.mockCall(
+            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)), abi.encode(address(0))
+        );
     }
 
     /// @notice MIG-CHAIN-1-20: Per-chain DGF has CANNON still registered.
@@ -964,7 +1006,7 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
         vm.mockCall(
             fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)), abi.encode(address(0xdead))
         );
-        assertEq("MIG-CHAIN-1-20", _validateMigration(true));
+        assertEq("MIG-CHAIN-1-20", _validateWithFakeDGF());
     }
 
     /// @notice MIG-CHAIN-1-30: Per-chain DGF has PERMISSIONED_CANNON still registered.
@@ -975,7 +1017,7 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
             abi.encode(address(0xdead))
         );
-        assertEq("MIG-CHAIN-1-30", _validateMigration(true));
+        assertEq("MIG-CHAIN-1-30", _validateWithFakeDGF());
     }
 
     /// @notice MIG-CHAIN-1-40: Per-chain DGF has CANNON_KONA still registered.
@@ -984,7 +1026,7 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
         vm.mockCall(
             fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)), abi.encode(address(0xdead))
         );
-        assertEq("MIG-CHAIN-1-40", _validateMigration(true));
+        assertEq("MIG-CHAIN-1-40", _validateWithFakeDGF());
     }
 
     /// @notice MIG-CHAIN-1-50: Per-chain DGF has SUPER_CANNON still registered.
@@ -995,7 +1037,7 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
             abi.encode(address(0xdead))
         );
-        assertEq("MIG-CHAIN-1-50", _validateMigration(true));
+        assertEq("MIG-CHAIN-1-50", _validateWithFakeDGF());
     }
 
     /// @notice MIG-CHAIN-1-60: Per-chain DGF has SUPER_PERMISSIONED still registered.
@@ -1006,7 +1048,7 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(address(0xdead))
         );
-        assertEq("MIG-CHAIN-1-60", _validateMigration(true));
+        assertEq("MIG-CHAIN-1-60", _validateWithFakeDGF());
     }
 
     /// @notice MIG-CHAIN-1-70: Per-chain DGF has SUPER_CANNON_KONA still registered.
@@ -1017,6 +1059,19 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
             abi.encode(address(0xdead))
         );
-        assertEq("MIG-CHAIN-1-70", _validateMigration(true));
+        assertEq("MIG-CHAIN-1-70", _validateWithFakeDGF());
+    }
+
+    function test_validate_legacyDGFCannonNotCleared_succeeds() public {
+        IDisputeGameFactory legacyDGF = chainContracts2.disputeGameFactory;
+
+        // migrate() zeroes every game type on each chain's pre-migration factory.
+        assertEq(address(legacyDGF.gameImpls(GameTypes.CANNON)), address(0), "CANNON not cleared by migrate");
+
+        // Put one back, as a migration that failed to clear it would have left it.
+        vm.prank(legacyDGF.owner());
+        legacyDGF.setImplementation(GameTypes.CANNON, IDisputeGame(address(0xdead)), hex"");
+
+        assertEq("MIG-CHAIN-1-20", _validateMigration(true));
     }
 }

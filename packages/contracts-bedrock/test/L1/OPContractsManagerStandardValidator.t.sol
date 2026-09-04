@@ -2603,6 +2603,7 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
             IOPContractsManagerMigrationValidator.MigrationValidationInput({
                 dgf: sharedDGF,
                 chainSystemConfigs: chains,
+                legacyDisputeGameFactories: _legacyDGFs(),
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
                 proposer: proposer
@@ -2624,10 +2625,18 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         return IOPContractsManagerMigrationValidator.MigrationValidationInput({
             dgf: sharedDGF,
             chainSystemConfigs: chains,
+            legacyDisputeGameFactories: _legacyDGFs(),
             cannonPrestate: cannonPrestate.raw(),
             cannonKonaPrestate: cannonKonaPrestate.raw(),
             proposer: proposer
         });
+    }
+
+    /// @notice The two chains' pre-migration factories, in chainSystemConfigs order.
+    function _legacyDGFs() internal view returns (IDisputeGameFactory[] memory dgfs_) {
+        dgfs_ = new IDisputeGameFactory[](2);
+        dgfs_[0] = legacyDGFs[0];
+        dgfs_[1] = legacyDGFs[1];
     }
 
     /// @notice Tests that validateMigratedChainWithOverrides with l1PAOMultisig override succeeds
