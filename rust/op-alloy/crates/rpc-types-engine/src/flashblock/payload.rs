@@ -2,9 +2,10 @@
 
 use super::{OpFlashblockPayloadBase, OpFlashblockPayloadDelta};
 use crate::flashblock::metadata::OpFlashblockPayloadMetadata;
-use alloy_eips::{Decodable2718, eip2718::Eip2718Result};
+use alloy_eips::{Decodable2718, Encodable2718, eip2718::Eip2718Result};
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_engine::PayloadId;
+use op_alloy_consensus::decode_2718_canonical;
 
 /// Flashblock payload.
 ///
@@ -51,9 +52,9 @@ impl OpFlashblockPayload {
     /// This iterator will be empty if there are no transactions in this flashblock.
     pub fn decoded_transaction<T>(&self) -> impl Iterator<Item = Eip2718Result<T>> + '_
     where
-        T: Decodable2718,
+        T: Decodable2718 + Encodable2718,
     {
-        self.raw_transactions().iter().map(|tx| T::decode_2718_exact(tx))
+        self.raw_transactions().iter().map(|tx| decode_2718_canonical(tx))
     }
 
     /// Recovers transactions from flashblocks lazily.
@@ -69,10 +70,10 @@ impl OpFlashblockPayload {
         >,
     > + '_
     where
-        T: Decodable2718 + alloy_consensus::transaction::SignerRecoverable,
+        T: Decodable2718 + Encodable2718 + alloy_consensus::transaction::SignerRecoverable,
     {
         self.raw_transactions().iter().map(|raw| {
-            let tx = T::decode_2718_exact(raw)
+            let tx: T = decode_2718_canonical(raw)
                 .map_err(alloy_consensus::crypto::RecoveryError::from_source)?;
             tx.try_into_recovered().map(|tx| tx.into_encoded_with(raw.clone()))
         })
@@ -191,5 +192,38 @@ mod tests {
         assert_eq!(payload.base, None);
         assert_eq!(payload.diff, OpFlashblockPayloadDelta::default());
         assert_eq!(payload.metadata, OpFlashblockPayloadMetadata::default());
+    }
+
+    /// A transaction that decodes but does not re-encode to the same bytes (here: an EIP-1559
+    /// body with its type byte stripped) must be rejected, not silently canonicalised.
+    #[test]
+    fn decoded_transaction_rejects_non_canonical_encoding() {
+        use alloy_consensus::SignableTransaction;
+        use alloy_primitives::Address;
+        use op_alloy_consensus::OpTxEnvelope;
+        let typed = alloy_consensus::TxEip1559 {
+            chain_id: 10,
+            nonce: 1,
+            gas_limit: 21_000,
+            max_fee_per_gas: 2,
+            max_priority_fee_per_gas: 1,
+            to: Address::ZERO.into(),
+            value: Default::default(),
+            access_list: Default::default(),
+            input: Default::default(),
+        }
+        .into_signed(alloy_primitives::Signature::test_signature())
+        .encoded_2718();
+        assert_eq!(typed[0], 0x02);
+        let bare = Bytes::copy_from_slice(&typed[1..]);
+
+        let payload = OpFlashblockPayload {
+            diff: OpFlashblockPayloadDelta { transactions: vec![bare], ..Default::default() },
+            ..Default::default()
+        };
+        let err = payload.decoded_transaction::<OpTxEnvelope>().next().unwrap().unwrap_err();
+        assert!(err.to_string().contains("non-canonical"), "{err}");
+        #[cfg(feature = "k256")]
+        assert!(payload.recover_transactions::<OpTxEnvelope>().next().unwrap().is_err());
     }
 }

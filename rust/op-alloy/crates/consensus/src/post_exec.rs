@@ -278,6 +278,11 @@ impl TxPostExec {
         Address::ZERO
     }
 
+    /// Decodes the transaction from RLP bytes.
+    pub fn rlp_decode(data: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        Ok(Self::new(PostExecPayload::decode_checked(data)?))
+    }
+
     /// Encoded length of the transaction body.
     pub fn rlp_encoded_length(&self) -> usize {
         self.input.len()
@@ -416,11 +421,13 @@ impl Decodable2718 for TxPostExec {
         if ty != POST_EXEC_TX_TYPE_ID {
             return Err(Eip2718Error::UnexpectedType(ty));
         }
-        Ok(Self::new(PostExecPayload::decode_checked(data)?))
+        Ok(Self::rlp_decode(data)?)
     }
 
-    fn fallback_decode(data: &mut &[u8]) -> Eip2718Result<Self> {
-        Ok(Self::new(PostExecPayload::decode_checked(data)?))
+    fn fallback_decode(_data: &mut &[u8]) -> Eip2718Result<Self> {
+        // Post-exec transactions have no untyped form: reaching untyped dispatch means the 0x7D
+        // tag was absent, so reject rather than resurrect the type from the body.
+        Err(Eip2718Error::UnexpectedType(POST_EXEC_TX_TYPE_ID))
     }
 }
 
@@ -436,7 +443,7 @@ impl Encodable for TxPostExec {
 
 impl Decodable for TxPostExec {
     fn decode(data: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        Ok(Self::new(PostExecPayload::decode_checked(data)?))
+        Self::rlp_decode(data)
     }
 }
 

@@ -1,13 +1,14 @@
 //! Contains a utility method to check if attributes match a block.
 
-use alloy_eips::{Decodable2718, eip1559::BaseFeeParams};
+use alloy_eips::{Encodable2718, eip1559::BaseFeeParams};
 use alloy_network::TransactionResponse;
 use alloy_primitives::{Address, B256, Bytes};
 use alloy_rpc_types_eth::{Block, BlockTransactions, Withdrawals};
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_consensus::{
-    EIP1559ParamError, OpTxEnvelope, decode_holocene_extra_data, decode_jovian_extra_data,
+    EIP1559ParamError, OpTxEnvelope, decode_2718_canonical, decode_holocene_extra_data,
+    decode_jovian_extra_data,
 };
 use op_alloy_rpc_types::Transaction;
 
@@ -147,23 +148,22 @@ impl AttributesMatch {
                 block_tx_hash = %block_tx.tx_hash(),
                 "Checking attributes transaction against block transaction",
             );
-            // Let's try to deserialize the attributes transaction
-            let Ok(attr_tx) = OpTxEnvelope::decode_2718(&mut &attr_tx_bytes[..]) else {
-                error!(
-                    "Impossible to deserialize transaction from attributes. If we have stored these attributes it means the transactions where well formatted. This is a bug"
+            // Compare the raw bytes, as op-node does: bytes that merely decode to the same
+            // transaction are still a mismatch.
+            if attr_tx_bytes.as_ref() == block_tx.inner.inner.inner().encoded_2718().as_slice() {
+                continue;
+            }
+            let Ok(attr_tx) = decode_2718_canonical::<OpTxEnvelope>(attr_tx_bytes) else {
+                warn!(
+                    target: "engine",
+                    ?attr_tx_bytes,
+                    "Attributes transaction is not a canonically encoded transaction"
                 );
-
                 return AttributesMismatch::MalformedAttributesTransaction.into();
             };
-
-            if &attr_tx != block_tx.inner.inner.inner() {
-                warn!(target: "engine", ?attr_tx, ?block_tx, "Transaction mismatch in derived attributes");
-                return AttributesMismatch::TransactionContent(
-                    attr_tx.tx_hash(),
-                    block_tx.tx_hash(),
-                )
+            warn!(target: "engine", ?attr_tx, ?block_tx, "Transaction mismatch in derived attributes");
+            return AttributesMismatch::TransactionContent(attr_tx.tx_hash(), block_tx.tx_hash())
                 .into();
-            }
         }
 
         Self::Match
@@ -632,6 +632,28 @@ mod tests {
         let check = AttributesMatch::check(cfg, &attributes, &block);
         assert_eq!(check, expected);
         assert!(check.is_mismatch());
+    }
+
+    /// Attribute transaction bytes must equal the block transaction's encoding byte for byte, as
+    /// op-node compares. Bytes that merely decode to the same transaction (a typed body without
+    /// its type byte) are a mismatch.
+    #[test]
+    fn test_attributes_mismatch_non_canonical_transaction_encoding() {
+        let cfg = default_rollup_config();
+        // Retry until the random set contains a typed signed transaction to strip the tag from.
+        let (attributes, block, idx) = loop {
+            let (attributes, block) = test_transactions_match_helper();
+            let txs = attributes.attributes.transactions.as_ref().unwrap();
+            if let Some(idx) = txs.iter().position(|tx| matches!(tx[0], 0x01 | 0x02 | 0x04)) {
+                break (attributes, block, idx);
+            }
+        };
+        let mut attributes = attributes;
+        let txs = attributes.attributes.transactions.as_mut().unwrap();
+        txs[idx] = Bytes::copy_from_slice(&txs[idx][1..]);
+
+        let check = AttributesMatch::check(cfg, &attributes, &block);
+        assert_eq!(check, AttributesMismatch::MalformedAttributesTransaction.into());
     }
 
     /// Checks the edge case where the attributes array is empty.
