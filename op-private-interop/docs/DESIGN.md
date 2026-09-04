@@ -1,8 +1,11 @@
 # Private Interop — the design
 
-**Status:** RATIFIED (Karl, 2026-08-30 through 2026-09-01, in-conversation; written up by Fable).
+**Status:** Historical design (2026-08-30 through 2026-09-01). The current ETH funding, native
+bridge permissions, messenger deposit policy and NetChef artifact flow are specified in
+[ETH-PROFILE.md](ETH-PROFILE.md), following the September 4 design discussion. Those decisions
+supersede this document's CGT, disabled-deposit and custom native-mint assumptions.
 
-This is the project's ONLY design document (Karl, 2026-08-31). The separate proven-mode note and
+This was the consolidated design document on August 31. The separate proven-mode note and
 testing plan were folded in below; the work plan and the alt-DA option survey were deleted. Git
 history holds all four. Older docs, branches and package names say "Silhouette" — the project's
 former name; new code says private-interop.

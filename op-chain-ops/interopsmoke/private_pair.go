@@ -26,8 +26,8 @@ import (
 //   - THE PRIVATE CHAIN HAS NO JUDGE. Nothing outside it can replace its blocks; a validity failure
 //     pins the operator's trust frontier instead of reorging. Every check that waits for a block to
 //     be replaced has to wait on the public counterparty.
-//   - THE PRIVATE CHAIN IS CUSTOM-GAS-TOKEN. Its native unit is not ETH, and the ETH paths across
-//     the bridge are closed on it.
+//   - NATIVE ETH INTEROP IS DISABLED. The private ETH profile has empty bridge route allowlists;
+//     ETH funding uses L1 deposits, independently of generic application messaging.
 //
 // Nothing here is a silent skip. A test that cannot mean what it says against a pair either says so
 // where its result would go and passes the run on (smokeSkip), or refuses outright when it was
@@ -51,15 +51,9 @@ func (s *smokeSkip) Error() string {
 	return "skipped: " + s.reason
 }
 
-// errBridgeOnPrivatePair is the bridge test against a pair.
-//
-// The pair runs the STOCK SuperchainETHBridge on both halves. On the custom-gas-token private chain
-// that bridge moves the native asset against an ETHLiquidity the stock genesis funds with
-// uint128-max, so a transfer "works" without conserving anything across the pair. The smoke does
-// not exercise it: a pass would be read as a statement about supply conservation that the design
-// explicitly does not make.
+// Native bridge messages are unsupported by the private projection, including legacy CGT pairs.
 var errBridgeOnPrivatePair = &smokeSkip{
-	reason: "SuperchainETHBridge on a CGT private pair is unbacked stock liquidity; supply conservation is not guaranteed and not exercised here",
+	reason: "native ETH interop is disabled for private pairs; fund the private ETH chain through L1 deposits",
 }
 
 // errChainedInvalidOnPrivatePair refuses the transitive-invalidation test against a pair.
@@ -191,5 +185,5 @@ func printPrivatePairProfile(env *smokeEnv) {
 	fmt.Fprintf(env.stderr, "Chain B is the PRIVATE half of a private-interop pair.\n")
 	fmt.Fprintf(env.stderr, "  Its messages are named by their positions on its public rendering; this process resolves them.\n")
 	fmt.Fprintf(env.stderr, "  Its blocks are never replaced: it has no judge, so every reorg check runs on chain A.\n")
-	fmt.Fprintf(env.stderr, "  It is custom-gas-token: its native unit is not ETH, and the ETH bridge path is closed.\n\n")
+	fmt.Fprintf(env.stderr, "  Native ETH interop is disabled; the private ETH profile is funded through L1 deposits.\n\n")
 }

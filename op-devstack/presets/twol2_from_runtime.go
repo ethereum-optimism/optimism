@@ -163,6 +163,7 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 		timeTravel:            runtime.TimeTravel,
 	}
 	preset.FunderA = newFunderEOA(t, runtime.Keys, preset.L2ELA, preset.Wallet)
+	preset.FunderL1 = newFunderEOA(t, runtime.Keys, preset.L1EL, preset.Wallet)
 	preset.FunderB = newFunderEOA(t, runtime.Keys, preset.L2ELB, preset.Wallet)
 	return preset
 }

@@ -1,6 +1,7 @@
 //! Deterministic private-chain genesis to public-projection genesis transformation.
 //!
-//! The source is a STOCK op-deployer genesis with interop active at genesis. A custom-gas-token
+//! The source is a pinned op-deployer genesis or configured private ETH profile with interop
+//! active at genesis. A custom-gas-token
 //! source is supported and its CGT machinery is stripped; an ordinary ETH source is supported too,
 //! and then there is nothing to strip. WHICH chain is the private one is explicit runtime
 //! configuration, not something the validator can infer. This
@@ -54,6 +55,9 @@ const CLAIM_REGISTRY_CODE: &str =
     include_str!("../../../../../op-private-interop/genesis/bytecode/ClaimRegistry.hex");
 const EVENT_REPLAYER_CODE: &str =
     include_str!("../../../../../op-private-interop/genesis/bytecode/EventReplayer.hex");
+const POLICY_MESSENGER_CODE: &str = include_str!(
+    "../../../../../op-private-interop/genesis/bytecode/L2ToL2CrossDomainMessenger.hex"
+);
 
 /// A private-chain genesis cannot be projected safely.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -142,7 +146,10 @@ fn validate_private_chain_genesis(genesis: &Genesis) -> Result<(), GenesisProjec
     if !contains_flag(bitmap, OPTIMISM_PORTAL_INTEROP_FLAG) {
         return Err(GenesisProjectionError::InteropInactive);
     }
-    if implementation_code_hash(genesis, L2_TO_L2_MESSENGER) != STOCK_L2_TO_L2_MESSENGER_CODE_HASH {
+    let messenger_hash = implementation_code_hash(genesis, L2_TO_L2_MESSENGER);
+    if messenger_hash != STOCK_L2_TO_L2_MESSENGER_CODE_HASH &&
+        messenger_hash != keccak256(bytecode(POLICY_MESSENGER_CODE))
+    {
         return Err(GenesisProjectionError::MessengerNotStock);
     }
     for proxy in [CLAIM_REGISTRY, EVENT_REPLAYER] {
@@ -286,6 +293,46 @@ mod tests {
 
         assert_eq!(spec.genesis_header().state_root, PUBLIC_PROJECTION_STATE_ROOT);
         assert_eq!(spec.genesis_hash(), PUBLIC_PROJECTION_BLOCK_HASH);
+    }
+
+    #[test]
+    fn policy_profile_matches_the_cross_language_golden_vector() {
+        let mut private = private_chain_genesis();
+        delete_storage(&mut private, L1_BLOCK, CUSTOM_GAS_TOKEN_SLOT);
+        activate_proxy(&mut private, L1_BLOCK, bytecode(L1_BLOCK_CODE));
+        activate_proxy(
+            &mut private,
+            L2_TO_L1_MESSAGE_PASSER,
+            bytecode(L2_TO_L1_MESSAGE_PASSER_CODE),
+        );
+        deactivate_proxy(&mut private, NATIVE_ASSET_LIQUIDITY);
+        deactivate_proxy(&mut private, LIQUIDITY_CONTROLLER);
+        activate_proxy(&mut private, L2_TO_L2_MESSENGER, bytecode(POLICY_MESSENGER_CODE));
+        account_at(&mut private, L2_TO_L2_MESSENGER)
+            .storage
+            .as_mut()
+            .unwrap()
+            .insert(keccak256("privateinterop.requirePaidMessages"), TRUE_WORD);
+        activate_proxy(
+            &mut private,
+            SUPERCHAIN_ETH_BRIDGE,
+            bytecode(include_str!(
+                "../../../../../op-private-interop/genesis/bytecode/SuperchainETHBridge.hex"
+            )),
+        );
+        assert_eq!(
+            OpChainSpec::from_genesis(private.clone()).genesis_hash(),
+            b256!("bdd4b5a0b1d41a1467f4cede7fa52f4d0f56e59cc9556f95cd75b818fb73a374")
+        );
+        let spec = OpChainSpec::from_genesis(project_genesis_from(&private).unwrap());
+        assert_eq!(
+            spec.genesis_hash(),
+            b256!("a7f8b6152f13136eaac74fada0f2d43cfc84d62844bdf000d88ea36be3a53008")
+        );
+        assert_eq!(
+            spec.genesis_header().state_root,
+            b256!("abb2fb272931bef047ae2ff61312e2ad82e369573552e351e2e3e68bae5372f6")
+        );
     }
 
     #[test]

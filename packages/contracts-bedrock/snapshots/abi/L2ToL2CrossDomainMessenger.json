@@ -121,6 +121,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "requirePaidMessages",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "enabled_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -320,6 +333,11 @@
   {
     "inputs": [],
     "name": "InvalidMessage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L2ToL2CrossDomainMessenger_UnpaidMessage",
     "type": "error"
   },
   {

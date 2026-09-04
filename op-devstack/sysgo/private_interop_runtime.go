@@ -20,9 +20,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/filter"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	projectiongenesis "github.com/ethereum-optimism/optimism/op-private-interop/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/claimfollow"
 )
@@ -299,21 +301,26 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	require.NoError(err, "deriving the standard batcher key")
 	batcherAddr := crypto.PubkeyToAddress(batcherKey.PublicKey)
 
-	// The pair's intent stanza goes FIRST, so a test's own deployer options can still override any
-	// of it -- the same precedence buildTwoL2RuntimeWorld already gives the interop dev feature.
-	deployerOpts := append(
-		privateInteropDeployerOptions(privateID, batcherAddr),
-		cfg.DeployerOptions...,
-	)
 	// Interop at genesis, always: the projection is only defined over a Lagoon-at-genesis source,
 	// because an activation block on the rendering would run the stock network-upgrade bundle and
 	// replace the replay messenger. The supernode's activation override below follows suit.
 	require.Zero(delaySeconds, "a private interop pair activates interop at genesis; a delayed activation has no projection")
-	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, true, 0, cfg.LocalContractArtifactsPath, deployerOpts...)
+	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, true, 0, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 
-	// The second half. Nothing about the world changes; the rendering is rendered from it.
-	renderingGenesis, renderingRollup := projectPrivateInteropGenesis(t, wb, privateID)
-	renderingNet := privateInteropPublicProjectionNetwork(l2BNet, renderingGenesis, renderingRollup)
+	// Install the private policy on ordinary ETH artifacts before constructing either EL.
+	privateGenesis, privateRollup, err := projectiongenesis.ConfigurePrivateGenesis(l2BNet.genesis, l2BNet.rollupCfg)
+	require.NoError(err, "configuring the private ETH profile")
+	l2BNet.genesis, l2BNet.rollupCfg = privateGenesis, privateRollup
+	wb.outL2Genesis[privateID], wb.outL2RollupCfg[privateID] = privateGenesis, privateRollup
+
+	// Share the deployment and keys, but derive the projection's own genesis and rollup config.
+	renderingNet := ptr.New(*l2BNet)
+	renderingNet.name += "-public-projection"
+	renderingNet.genesis, err = projectiongenesis.ProjectGenesisFrom(privateGenesis)
+	require.NoError(err, "projecting the private-chain genesis")
+	renderingNet.rollupCfg, err = projectiongenesis.ProjectRollupConfigFrom(privateRollup, renderingNet.genesis)
+	require.NoError(err, "projecting the private-chain rollup config")
+	require.NotEqual(privateRollup.Genesis.L2.Hash, renderingNet.rollupCfg.Genesis.L2.Hash)
 
 	migration := newInteropMigrationState(wb)
 	jwtPath, jwtSecret := writeJWTSecret(t)

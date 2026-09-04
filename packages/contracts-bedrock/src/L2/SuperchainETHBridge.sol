@@ -10,6 +10,7 @@ import { SafeSend } from "src/universal/SafeSend.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000024
@@ -19,6 +20,21 @@ contract SuperchainETHBridge is ISemver {
     /// @notice Thrown when attempting to relay a message and the cross domain message sender is not
     /// SuperchainETHBridge.
     error InvalidCrossDomainSender();
+
+    /// @notice The destination is not approved for native ETH sends.
+    error SuperchainETHBridge_SendChainNotAllowed();
+
+    /// @notice The authenticated source is not approved for native ETH relays.
+    error SuperchainETHBridge_RelayChainNotAllowed();
+
+    /// @notice Native ETH destinations approved by the L2 ProxyAdmin owner.
+    mapping(uint256 => bool) public allowedSendChain;
+
+    /// @notice Native ETH sources approved by the L2 ProxyAdmin owner.
+    mapping(uint256 => bool) public allowedRelayChain;
+
+    /// @notice Emitted when the native ETH permissions for a chain change.
+    event ChainPermissionsUpdated(uint256 indexed chainId, bool allowSend, bool allowRelay);
 
     /// @notice Emitted when ETH is sent from one chain to another.
     /// @param from          Address of the sender.
@@ -35,8 +51,21 @@ contract SuperchainETHBridge is ISemver {
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
+
+    /// @notice Sets native ETH permissions. Governance must verify shared backing before enabling
+    ///         a route. Stop new sends and drain pending transfers before revoking relay permission.
+    ///
+    /// @param _chainId Chain whose permissions are being configured.
+    /// @param _allowSend Whether this chain may send native ETH to that chain.
+    /// @param _allowRelay Whether this chain may release native ETH for messages from that chain.
+    function setChainPermissions(uint256 _chainId, bool _allowSend, bool _allowRelay) external {
+        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) revert Unauthorized();
+        allowedSendChain[_chainId] = _allowSend;
+        allowedRelayChain[_chainId] = _allowRelay;
+        emit ChainPermissionsUpdated(_chainId, _allowSend, _allowRelay);
+    }
 
     /// @notice Sends ETH to some target address on another chain.
     /// @param _to       Address to send ETH to.
@@ -44,6 +73,7 @@ contract SuperchainETHBridge is ISemver {
     /// @return msgHash_ Hash of the message sent.
     function sendETH(address _to, uint256 _chainId) external payable returns (bytes32 msgHash_) {
         if (_to == address(0)) revert ZeroAddress();
+        if (!allowedSendChain[_chainId]) revert SuperchainETHBridge_SendChainNotAllowed();
 
         // NOTE: 'burn' will soon change to 'deposit'.
         IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: msg.value }();
@@ -68,6 +98,7 @@ contract SuperchainETHBridge is ISemver {
             IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).crossDomainMessageContext();
 
         if (crossDomainMessageSender != address(this)) revert InvalidCrossDomainSender();
+        if (!allowedRelayChain[source]) revert SuperchainETHBridge_RelayChainNotAllowed();
 
         // NOTE: 'mint' will soon change to 'withdraw'.
         IETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(_amount);

@@ -7,6 +7,14 @@ interface ISuperchainETHBridge is ISemver {
     error Unauthorized();
     error InvalidCrossDomainSender();
     error ZeroAddress();
+    error SuperchainETHBridge_SendChainNotAllowed();
+    error SuperchainETHBridge_RelayChainNotAllowed();
+
+    event ChainPermissionsUpdated(uint256 indexed chainId, bool allowSend, bool allowRelay);
+
+    function allowedSendChain(uint256) external view returns (bool);
+    function allowedRelayChain(uint256) external view returns (bool);
+    function setChainPermissions(uint256 _chainId, bool _allowSend, bool _allowRelay) external;
 
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
