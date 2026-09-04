@@ -1225,3 +1225,62 @@ func TestConfig_ActivateAtGenesis(t *testing.T) {
 		require.Zero(t, cfg)
 	})
 }
+
+func TestValidateAltDAConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		altDA     *AltDAConfig
+		expectErr string
+	}{
+		{
+			name:  "nil config is valid",
+			altDA: nil,
+		},
+		{
+			name: "keccak with challenge address",
+			altDA: &AltDAConfig{
+				CommitmentType:     altda.KeccakCommitmentString,
+				DAChallengeAddress: common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678"),
+			},
+		},
+		{
+			name: "keccak without challenge address",
+			altDA: &AltDAConfig{
+				CommitmentType: altda.KeccakCommitmentString,
+			},
+		},
+		{
+			name: "generic without challenge address",
+			altDA: &AltDAConfig{
+				CommitmentType: altda.GenericCommitmentString,
+			},
+		},
+		{
+			name: "generic with challenge address is invalid",
+			altDA: &AltDAConfig{
+				CommitmentType:     altda.GenericCommitmentString,
+				DAChallengeAddress: common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678"),
+			},
+			expectErr: "Must set empty da_challenge_contract_address for generic commitments",
+		},
+		{
+			name: "invalid commitment type",
+			altDA: &AltDAConfig{
+				CommitmentType: "InvalidType",
+			},
+			expectErr: "invalid commitment type: InvalidType",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{AltDAConfig: tt.altDA}
+			err := validateAltDAConfig(cfg)
+			if tt.expectErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.expectErr)
+			}
+		})
+	}
+}

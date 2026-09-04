@@ -445,3 +445,37 @@ func TestAdvanceChallengeOrigin(t *testing.T) {
 	_, has = state.GetChallenge(comm, 14)
 	require.False(t, has)
 }
+
+// TestFetchChallengeLogsNoChallengeContract verifies that when DAChallengeContractAddress is zero
+// (no on-chain challenge contract), fetchChallengeLogs skips receipt scanning entirely.
+// This supports Keccak256 commitments without a challenge contract (e.g., permissioned Validium with ZK proofs).
+func TestFetchChallengeLogsNoChallengeContract(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelWarn)
+	ctx := context.Background()
+
+	l1F := &mockL1Fetcher{}
+	defer l1F.AssertExpectations(t)
+
+	storage := NewMockDAClient(logger)
+
+	// Keccak256 commitment type with no challenge contract
+	pcfg := Config{
+		ChallengeWindow: 90,
+		ResolveWindow:   90,
+		CommitmentType:  Keccak256CommitmentType,
+	}
+
+	state := NewState(logger, &NoopMetrics{}, pcfg)
+	da := NewAltDAWithState(logger, pcfg, storage, &NoopMetrics{}, state)
+
+	bhash := common.HexToHash("0xd438144ffab918b1349e7cd06889c26800c26d8edc34d64f750e3e097166a09c")
+	bn := uint64(19)
+	id := eth.BlockID{Number: bn, Hash: bhash}
+
+	// No FetchReceipts expectation set — if fetchChallengeLogs tries to call it, the mock will fail.
+	err := da.AdvanceChallengeOrigin(ctx, l1F, id)
+	require.NoError(t, err)
+
+	// Verify the challenge origin was still advanced
+	require.Equal(t, bn, da.challengeOrigin.Number)
+}

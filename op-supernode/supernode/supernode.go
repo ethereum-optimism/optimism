@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,6 +24,7 @@ import (
 	supernodeactivity "github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/supernode"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/remote"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	rpc "github.com/ethereum/go-ethereum/rpc"
@@ -127,6 +129,10 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 		}
 		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
 		verifiedReader = interopActivity
+
+		if err := registerRemoteNodes(log, interopActivity, cfg); err != nil {
+			return nil, fmt.Errorf("failed to register remote interop nodes: %w", err)
+		}
 	}
 
 	// Order in this slice governs Start/Stop ordering; interop is appended
@@ -159,6 +165,39 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 		s.metrics = resources.NewMetricsService(log, cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort, s.metricsFanIn)
 	}
 	return s, nil
+}
+
+// registerRemoteNodes attaches the configured remote interop nodes to the interop
+// activity. A remote node is a chain the supernode does not drive: the supernode polls
+// the configured URL (the remote-node HTTP protocol) for that chain's finalized
+// initiating messages so driven chains can reference them. The wire protocol is the
+// plugin boundary — any node software that serves it can back a remote chain.
+func registerRemoteNodes(log gethlog.Logger, act *interop.Interop, cfg *config.CLIConfig) error {
+	for _, spec := range cfg.RemoteNodes {
+		chainID, rawURL, err := parseRemoteNodeSpec(spec)
+		if err != nil {
+			return err
+		}
+		if err := act.AddRemoteNode(remote.NewHTTPAdapter(chainID, rawURL, nil)); err != nil {
+			return fmt.Errorf("remote node %s: %w", chainID, err)
+		}
+		log.Info("attached remote node", "chain", chainID, "url", rawURL)
+	}
+	return nil
+}
+
+// parseRemoteNodeSpec parses a "<chainID>=<url>" spec. It splits on the first '=' so URLs
+// may themselves contain '=' (e.g. query parameters).
+func parseRemoteNodeSpec(spec string) (eth.ChainID, string, error) {
+	eq := strings.IndexByte(spec, '=')
+	if eq <= 0 || eq == len(spec)-1 {
+		return eth.ChainID{}, "", fmt.Errorf("invalid --interop.remote-nodes entry %q, want <chainID>=<url>", spec)
+	}
+	id, err := strconv.ParseUint(spec[:eq], 10, 64)
+	if err != nil {
+		return eth.ChainID{}, "", fmt.Errorf("invalid chain ID in --interop.remote-nodes entry %q: %w", spec, err)
+	}
+	return eth.ChainIDFromUInt64(id), spec[eq+1:], nil
 }
 
 func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*uint64, error) {

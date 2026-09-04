@@ -24,6 +24,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testDAChallengeContract is a non-zero DA challenge contract address. The challenge
+// contract is optional for keccak commitments (a zero address means "no challenge
+// contract", and the manager then skips challenge-log lookups entirely), so the tests
+// below that exercise the challenge flow must configure a real address.
+var testDAChallengeContract = common.HexToAddress("0x00000000000000000000000000000000000dead0")
+
 type MockFinalitySignal struct {
 	mock.Mock
 }
@@ -53,7 +59,9 @@ func TestAltDADataSource(t *testing.T) {
 	storage := altda.NewMockDAClient(logger)
 
 	pcfg := altda.Config{
-		ChallengeWindow: 90, ResolveWindow: 90,
+		DAChallengeContractAddress: testDAChallengeContract,
+		ChallengeWindow:            90,
+		ResolveWindow:              90,
 	}
 	metrics := &altda.NoopMetrics{}
 
@@ -296,7 +304,9 @@ func TestAltDADataSourceStall(t *testing.T) {
 	storage := altda.NewMockDAClient(logger)
 
 	pcfg := altda.Config{
-		ChallengeWindow: 90, ResolveWindow: 90,
+		DAChallengeContractAddress: testDAChallengeContract,
+		ChallengeWindow:            90,
+		ResolveWindow:              90,
 	}
 
 	metrics := &altda.NoopMetrics{}
@@ -426,7 +436,9 @@ func TestAltDADataSourceInvalidData(t *testing.T) {
 	storage := altda.NewMockDAClient(logger)
 
 	pcfg := altda.Config{
-		ChallengeWindow: 90, ResolveWindow: 90,
+		DAChallengeContractAddress: testDAChallengeContract,
+		ChallengeWindow:            90,
+		ResolveWindow:              90,
 	}
 
 	da := altda.NewAltDAWithStorage(logger, pcfg, storage, &altda.NoopMetrics{})

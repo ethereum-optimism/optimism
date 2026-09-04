@@ -74,6 +74,11 @@ var (
 		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
 		TakesFile: true,
 	}
+	RemoteNodes = &cli.StringSliceFlag{
+		Name:    "interop.remote-nodes",
+		Usage:   "Remote interop nodes as <chainID>=<url> pairs (repeatable or comma-separated). Each is a chain the supernode does not drive: it polls the URL for that chain's finalized initiating messages via the remote-node HTTP protocol, so driven chains can reference them as executing messages.",
+		EnvVars: prefixEnvVars("INTEROP_REMOTE_NODES"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -85,6 +90,7 @@ var optionalFlags = []cli.Flag{
 	L1HTTPPollInterval,
 	DisableP2P,
 	DependencySet,
+	RemoteNodes,
 }
 
 // activityFlags holds flags registered by activity packages via RegisterActivityFlags.
