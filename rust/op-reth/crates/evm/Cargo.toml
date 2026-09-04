@@ -43,9 +43,11 @@ revm.workspace = true
 op-revm.workspace = true
 
 # misc
+metrics = { workspace = true, optional = true }
 thiserror.workspace = true
 
 [dev-dependencies]
+metrics-util = { workspace = true, features = ["debugging"] }
 reth-evm = { workspace = true, features = ["test-utils"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
 alloy-genesis.workspace = true
@@ -56,6 +58,7 @@ reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] 
 [features]
 default = ["std"]
 std = [
+	"dep:metrics",
 	"reth-revm/std",
 	"alloy-consensus/std",
 	"alloy-eips/std",

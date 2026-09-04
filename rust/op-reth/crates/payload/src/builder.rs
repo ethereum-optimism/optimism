@@ -29,6 +29,7 @@ use reth_metrics::{
 };
 use reth_optimism_evm::{
     ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode, PreRefundGasUsed,
+    metrics::record_post_exec_validation_failure,
 };
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
@@ -899,7 +900,10 @@ where
             next_block_number,
             sdm_active,
         )
-        .map_err(PayloadBuilderError::other)
+        .map_err(|error| {
+            record_post_exec_validation_failure((&error).into());
+            PayloadBuilderError::other(error)
+        })
     }
 
     /// Decides this payload's SDM post-exec mode: *produce*, *verify*, or `Disabled`.
