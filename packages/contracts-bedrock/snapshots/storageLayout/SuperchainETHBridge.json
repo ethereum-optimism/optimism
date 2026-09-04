@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "bytes": "32",
+    "label": "pendingETHSends",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(bytes32 => struct SuperchainETHBridge.PendingETHSend)"
+  }
+]

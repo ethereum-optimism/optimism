@@ -54,6 +54,7 @@ type OptimismPortal2 struct {
 	SuperchainConfig           func() TypedCall[common.Address]                                                           `sol:"superchainConfig"`
 	SystemConfig               func() TypedCall[common.Address]                                                           `sol:"systemConfig"`
 	AnchorStateRegistry        func() TypedCall[common.Address]                                                           `sol:"anchorStateRegistry"`
+	EthLockbox                 func() TypedCall[common.Address]                                                           `sol:"ethLockbox"`
 	Version                    func() TypedCall[string]                                                                   `sol:"version"`
 
 	// Write functions

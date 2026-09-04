@@ -6,11 +6,13 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { MockHelper } from "test/utils/MockHelper.sol";
 
 // Libraries
+import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
 
 // Interfaces
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
+import { IMessageExpiryRelay } from "interfaces/L2/IMessageExpiryRelay.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
@@ -20,6 +22,8 @@ abstract contract SuperchainETHBridge_TestInit is CommonTest, MockHelper {
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
+
+    event RefundETH(address indexed from, uint256 amount, bytes32 indexed msgHash);
 
     address internal constant ZERO_ADDRESS = address(0);
 
@@ -32,7 +36,78 @@ abstract contract SuperchainETHBridge_TestInit is CommonTest, MockHelper {
             // TODO: Remove this block when L2Genesis includes this contract.
             vm.etch(address(superchainETHBridge), vm.getDeployedCode("SuperchainETHBridge.sol:SuperchainETHBridge"));
             vm.etch(address(ethLiquidity), vm.getDeployedCode("ETHLiquidity.sol:ETHLiquidity"));
+            vm.etch(Predeploys.MESSAGE_EXPIRY_RELAY, vm.getDeployedCode("MessageExpiryRelay.sol:MessageExpiryRelay"));
         }
+    }
+
+    /// @notice Computes the hash of the message that `sendETH` sends, and makes the messenger report
+    ///         it as sent at `_nonce` so that the `MessageExpiryRelay` accepts the recording.
+    /// @param _from    Address calling `sendETH`.
+    /// @param _to      Recipient of the ETH on the destination chain.
+    /// @param _amount  Amount of ETH sent.
+    /// @param _chainId Chain ID of the destination chain.
+    /// @param _nonce   Nonce the message is sent with.
+    /// @return msgHash_ Hash of the message.
+    function _mockSentMessage(
+        address _from,
+        address _to,
+        uint256 _amount,
+        uint256 _chainId,
+        uint256 _nonce
+    )
+        internal
+        returns (bytes32 msgHash_)
+    {
+        msgHash_ = Hashing.hashL2toL2CrossDomainMessage({
+            _destination: _chainId,
+            _source: block.chainid,
+            _nonce: _nonce,
+            _sender: address(superchainETHBridge),
+            _target: address(superchainETHBridge),
+            _message: abi.encodeCall(superchainETHBridge.relayETH, (_from, _to, _amount))
+        });
+        vm.mockCall(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.sentMessages, (_nonce)),
+            abi.encode(msgHash_)
+        );
+    }
+
+    /// @notice Performs a full `sendETH` against a mocked messenger that reports the real message
+    ///         hash, so that the resulting pending send is keyed by the same hash the
+    ///         `MessageExpiryRelay` recorded.
+    /// @param _from    Address calling `sendETH`.
+    /// @param _to      Recipient of the ETH on the destination chain.
+    /// @param _amount  Amount of ETH to send.
+    /// @param _chainId Chain ID of the destination chain.
+    /// @return msgHash_ Hash of the message.
+    function _sendETH(
+        address _from,
+        address _to,
+        uint256 _amount,
+        uint256 _chainId
+    )
+        internal
+        returns (bytes32 msgHash_)
+    {
+        uint256 nonce = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).messageNonce();
+        msgHash_ = _mockSentMessage(_from, _to, _amount, _chainId, nonce);
+        vm.mockCall(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeCall(
+                IL2ToL2CrossDomainMessenger.sendMessage,
+                (
+                    _chainId,
+                    address(superchainETHBridge),
+                    abi.encodeCall(superchainETHBridge.relayETH, (_from, _to, _amount))
+                )
+            ),
+            abi.encode(msgHash_)
+        );
+
+        vm.deal(_from, _from.balance + _amount);
+        vm.prank(_from);
+        superchainETHBridge.sendETH{ value: _amount }(_to, _chainId);
     }
 }
 
@@ -88,6 +163,11 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
             abi.encode(_msgHash)
         );
 
+        // Make the messenger report the message as sent so that the `MessageExpiryRelay` accepts
+        // the recording the bridge performs
+        uint256 _nonce = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).messageNonce();
+        _mockSentMessage(_sender, _to, _amount, _chainId, _nonce);
+
         // Call the `sendETH` function
         vm.prank(_sender);
         bytes32 _returnedMsgHash = superchainETHBridge.sendETH{ value: _amount }(_to, _chainId);
@@ -97,6 +177,71 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
 
         // Check the total supply and balance of `_sender` after the send were updated correctly
         assertEq(_sender.balance, _senderBalanceBefore - _amount);
+    }
+
+    /// @notice Tests the `sendETH` function records the pending send and registers the message with
+    ///         the `MessageExpiryRelay` so that it can be refunded if it expires undelivered.
+    function testFuzz_sendETH_recordsExpiryHandler_succeeds(
+        address _sender,
+        address _to,
+        uint256 _amount,
+        uint256 _chainId
+    )
+        external
+    {
+        // Assume
+        vm.assume(_sender != address(ethLiquidity));
+        vm.assume(_sender != ZERO_ADDRESS);
+        vm.assume(_to != ZERO_ADDRESS);
+        _amount = bound(_amount, 0, type(uint248).max - 1);
+
+        // Arrange
+        uint256 _nonce = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).messageNonce();
+        bytes memory _message = abi.encodeCall(superchainETHBridge.relayETH, (_sender, _to, _amount));
+
+        // Expect the bridge to record the message it just sent with the `MessageExpiryRelay`
+        vm.expectCall(
+            Predeploys.MESSAGE_EXPIRY_RELAY,
+            abi.encodeCall(
+                IMessageExpiryRelay.recordSentMessage, (_chainId, _nonce, address(superchainETHBridge), _message)
+            ),
+            1
+        );
+
+        // Act
+        bytes32 _msgHash = _sendETH(_sender, _to, _amount, _chainId);
+
+        // The pending send is stored under the message hash
+        (address _from, uint256 _pendingAmount) = superchainETHBridge.pendingETHSends(_msgHash);
+        assertEq(_from, _sender);
+        assertEq(_pendingAmount, _amount);
+
+        // And the relay recorded the bridge as the handler for that same message hash
+        (address _app,, uint256 _destination) =
+            IMessageExpiryRelay(Predeploys.MESSAGE_EXPIRY_RELAY).sentMessageRecords(_msgHash);
+        assertEq(_app, address(superchainETHBridge));
+        assertEq(_destination, _chainId);
+    }
+
+    /// @notice Tests that `sendETH` still succeeds and stores the pending send even when the
+    ///         `MessageExpiryRelay` predeploy has no code, e.g. on a chain not running the interop
+    ///         message-expiry feature or mid-migration. Recording is skipped rather than bricking
+    ///         the send; without the code-size guard, the high-level call to the codeless predeploy
+    ///         would revert on Solidity's existence check.
+    function test_sendETH_noRelayCode_skipsRecording_succeeds() public {
+        uint256 amount = 1 ether;
+        uint256 chainId = 902;
+
+        // Remove the relay predeploy's code so the bridge must skip recording.
+        vm.etch(Predeploys.MESSAGE_EXPIRY_RELAY, hex"");
+        assertEq(Predeploys.MESSAGE_EXPIRY_RELAY.code.length, 0);
+
+        bytes32 msgHash = _sendETH(alice, bob, amount, chainId);
+
+        // The send did not brick and the pending send is stored under the message hash.
+        (address from, uint256 pendingAmount) = superchainETHBridge.pendingETHSends(msgHash);
+        assertEq(from, alice);
+        assertEq(pendingAmount, amount);
     }
 }
 
@@ -175,5 +320,93 @@ contract SuperchainETHBridge_RelayETH_Test is SuperchainETHBridge_TestInit {
         superchainETHBridge.relayETH(_from, _to, _amount);
 
         assertEq(_to.balance, _toBalanceBefore + _amount);
+    }
+}
+
+/// @title SuperchainETHBridge_OnMessageExpired_Test
+/// @notice Tests the `onMessageExpired` function of the `SuperchainETHBridge` contract.
+contract SuperchainETHBridge_OnMessageExpired_Test is SuperchainETHBridge_TestInit {
+    /// @notice Chain ID of the destination chain used for the expired sends.
+    uint256 internal constant DESTINATION = 902;
+
+    /// @notice Amount of ETH used for the expired sends.
+    uint256 internal constant AMOUNT = 1 ether;
+
+    /// @notice Tests the `onMessageExpired` function reverts when the caller is not the
+    ///         `MessageExpiryRelay`.
+    function testFuzz_onMessageExpired_notRelay_reverts(address _caller, bytes32 _msgHash) public {
+        // Ensure the caller is not the relay
+        vm.assume(_caller != Predeploys.MESSAGE_EXPIRY_RELAY);
+
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(Unauthorized.selector);
+
+        vm.prank(_caller);
+        superchainETHBridge.onMessageExpired(_msgHash, DESTINATION, block.timestamp);
+    }
+
+    /// @notice Tests the `onMessageExpired` function reverts when there is no pending send for the
+    ///         given message hash.
+    function testFuzz_onMessageExpired_noPendingSend_reverts(bytes32 _msgHash) public {
+        // Expect the revert with `NoPendingSend` selector
+        vm.expectRevert(ISuperchainETHBridge.NoPendingSend.selector);
+
+        vm.prank(Predeploys.MESSAGE_EXPIRY_RELAY);
+        superchainETHBridge.onMessageExpired(_msgHash, DESTINATION, block.timestamp);
+    }
+
+    /// @notice Tests the `onMessageExpired` function refunds the original sender, clears the
+    ///         pending send and emits the `RefundETH` event.
+    function test_onMessageExpired_succeeds() public {
+        bytes32 _msgHash = _sendETH(alice, bob, AMOUNT, DESTINATION);
+        uint256 _aliceBalanceBefore = alice.balance;
+
+        // Expect the call to the `mint` function in the `ETHLiquidity` contract
+        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.mint, (AMOUNT)), 1);
+
+        // Look for the emit of the `RefundETH` event
+        vm.expectEmit(address(superchainETHBridge));
+        emit RefundETH(alice, AMOUNT, _msgHash);
+
+        vm.prank(Predeploys.MESSAGE_EXPIRY_RELAY);
+        superchainETHBridge.onMessageExpired(_msgHash, DESTINATION, block.timestamp);
+
+        // The refund is force sent back to the original sender
+        assertEq(alice.balance, _aliceBalanceBefore + AMOUNT);
+
+        // The pending send is consumed
+        (address _from, uint256 _amount) = superchainETHBridge.pendingETHSends(_msgHash);
+        assertEq(_from, ZERO_ADDRESS);
+        assertEq(_amount, 0);
+    }
+
+    /// @notice Tests the `onMessageExpired` function refunds the exact amount that was sent.
+    /// @param _amount Amount of ETH to send and then refund.
+    function testFuzz_onMessageExpired_succeeds(uint256 _amount) public {
+        _amount = bound(_amount, 0, type(uint248).max - 1);
+
+        bytes32 _msgHash = _sendETH(alice, bob, _amount, DESTINATION);
+        uint256 _aliceBalanceBefore = alice.balance;
+
+        vm.expectEmit(address(superchainETHBridge));
+        emit RefundETH(alice, _amount, _msgHash);
+
+        vm.prank(Predeploys.MESSAGE_EXPIRY_RELAY);
+        superchainETHBridge.onMessageExpired(_msgHash, DESTINATION, block.timestamp);
+
+        assertEq(alice.balance, _aliceBalanceBefore + _amount);
+    }
+
+    /// @notice Tests the `onMessageExpired` function reverts when the same message is expired
+    ///         twice, so a send can never be refunded more than once.
+    function test_onMessageExpired_alreadyRefunded_reverts() public {
+        bytes32 _msgHash = _sendETH(alice, bob, AMOUNT, DESTINATION);
+
+        vm.prank(Predeploys.MESSAGE_EXPIRY_RELAY);
+        superchainETHBridge.onMessageExpired(_msgHash, DESTINATION, block.timestamp);
+
+        vm.expectRevert(ISuperchainETHBridge.NoPendingSend.selector);
+        vm.prank(Predeploys.MESSAGE_EXPIRY_RELAY);
+        superchainETHBridge.onMessageExpired(_msgHash, DESTINATION, block.timestamp);
     }
 }
