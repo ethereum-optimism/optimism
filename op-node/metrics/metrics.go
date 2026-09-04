@@ -39,6 +39,8 @@ type Metricer interface {
 	RecordSuperAuthorityReorgSignal(reason string)
 	RecordSequencingError()
 	RecordPublishingError()
+	RecordPublishQueueLen(length int)
+	RecordDroppedPublish()
 	RecordDerivationError()
 	RecordEmittedEvent(eventName string, emitter string)
 	RecordProcessedEvent(eventName string, deriver string, duration time.Duration)
@@ -98,6 +100,8 @@ type Metrics struct {
 	DerivationErrors *metrics.Event
 	SequencingErrors *metrics.Event
 	PublishingErrors *metrics.Event
+	DroppedPublishes *metrics.Event
+	PublishQueueLen  prometheus.Gauge
 	SequencerActive  prometheus.Gauge
 
 	*event.EventMetricsTracker
@@ -216,6 +220,12 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
+		DroppedPublishes: metrics.NewEvent(factory, ns, "", "dropped_publishes", "sealed blocks dropped without being published to p2p"),
+		PublishQueueLen: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "publish_queue_len",
+			Help:      "Number of sealed blocks awaiting publication to p2p",
+		}),
 		SequencerActive: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "sequencer_active",
@@ -483,6 +493,14 @@ func (m *Metrics) RecordPublishingError() {
 	m.PublishingErrors.Record()
 }
 
+func (m *Metrics) RecordPublishQueueLen(length int) {
+	m.PublishQueueLen.Set(float64(length))
+}
+
+func (m *Metrics) RecordDroppedPublish() {
+	m.DroppedPublishes.Record()
+}
+
 func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
@@ -694,6 +712,12 @@ func (n *noopMetricer) RecordSequencingError() {
 }
 
 func (n *noopMetricer) RecordPublishingError() {
+}
+
+func (n *noopMetricer) RecordPublishQueueLen(length int) {
+}
+
+func (n *noopMetricer) RecordDroppedPublish() {
 }
 
 func (n *noopMetricer) RecordDerivationError() {
