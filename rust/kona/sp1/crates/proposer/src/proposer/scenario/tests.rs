@@ -1157,7 +1157,7 @@ async fn barrier_wait_fails_when_the_scripted_attempt_never_reaches_it() {
 
     assert!(matches!(
         error,
-        ScenarioError::BarrierWatchdog { barrier } if barrier.contains("attempt: 2")
+        ScenarioError::BarrierWatchdog { barrier } if barrier == "unreached second attempt"
     ));
     scenario.settle_scheduled(&result).await.unwrap();
 }
@@ -1213,10 +1213,14 @@ async fn proof_engine_rejects_inputs_for_a_different_game_address() {
     let error =
         world.proof_engine().prove(second_address, None, inputs, Vec::new()).await.unwrap_err();
 
-    assert_eq!(
-        error.to_string(),
-        format!("proof inputs do not match scenario game {second_address}")
+    let error = error.to_string();
+    assert!(
+        error.starts_with(&format!("proof inputs do not match scenario game {second_address}"))
     );
+    assert!(error.contains("expected GameProofInputs"));
+    assert!(error.contains("claim_ts: 2"));
+    assert!(error.contains("got GameProofInputs"));
+    assert!(error.contains("claim_ts: 1"));
     assert!(world.proof_record(&first.target(), 1).is_none());
 }
 
