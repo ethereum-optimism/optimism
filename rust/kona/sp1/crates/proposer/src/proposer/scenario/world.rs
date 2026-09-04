@@ -45,6 +45,7 @@ use crate::{
 
 const INITIAL_BLOCK: u64 = 10;
 const INITIAL_L1_TIME: u64 = 1_000;
+// Keep four one-second proposal slots open so the default world works across several ticks.
 const INITIAL_SUPER_ROOT_HORIZON: u64 = 4;
 const DEFAULT_PRESTATE_BYTE: u8 = 0x11;
 pub(super) const DEFAULT_MAX_DURATION: u64 = 3_600;
@@ -836,7 +837,10 @@ impl WorldData {
             prestate: candidate.absolute_prestate,
             prover: ScenarioWorld::proposer_address(),
         };
-        ensure!(&expected == game, "proof inputs do not match scenario game {address}");
+        ensure!(
+            &expected == game,
+            "proof inputs do not match scenario game {address}: expected {expected:?}, got {game:?}"
+        );
         Ok(candidate.target())
     }
 
@@ -1498,7 +1502,7 @@ impl ActionExecutor for FakeActionExecutor {
             )
             .await?;
         Ok(GameCreationReceipt {
-            game_address: result.created_address.expect("create action must reserve an address"),
+            game_address: result.created_address.expect("create action must produce an address"),
             transaction_hash: result.transaction_hash,
         })
     }
@@ -1665,11 +1669,12 @@ impl ScenarioHarness {
         task_id: TaskId,
         key: BarrierKey,
     ) -> Result<(), ScenarioError> {
-        let barrier_name = format!("{key:?}");
+        let barrier_key = format!("{key:?}");
         let barrier = self
             .world
             .barrier(&key)
-            .ok_or_else(|| ScenarioError::UnknownBarrier { barrier: barrier_name.clone() })?;
+            .ok_or(ScenarioError::UnknownBarrier { barrier: barrier_key })?;
+        let barrier_name = barrier.0.name.clone();
         let operation = self
             .proposer
             .tasks
