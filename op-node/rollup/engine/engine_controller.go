@@ -285,6 +285,15 @@ func (e *EngineController) resolveAnchorAsSafe(ts uint64) eth.L2BlockRef {
 		// Local safe hasn't reached the anchor block for the validator, so use local safe head.
 		return e.localSafeHead
 	}
+	// The anchor is a floor for a chain that has just crossed activation, not a
+	// license to regress: a process whose verifier state was lost (empty
+	// verifiedDB on restart) must not pull cross-safe below the last published
+	// cross-safe — the EL's safe label, seeded into the cache at initialization.
+	if cached, ok := e.crossSafeCache.Get(e.ctx, e.engine, e.localSafeHead); ok && br.Number < cached.Number {
+		e.log.Warn("super authority anchor below current cross-safe; holding previous",
+			"anchor", br, "cross_safe", cached)
+		return cached
+	}
 	e.crossSafeCache.Store(br)
 	return br
 }
@@ -609,7 +618,11 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		e.log.Info("Loaded initial local-unsafe block ref", "local_unsafe", ref)
 	}
 	var finalizedRef eth.L2BlockRef
-	if e.FinalizedHead() == (eth.L2BlockRef{}) {
+	// Check localFinalizedHead directly rather than FinalizedHead(): the latter
+	// consults the SuperAuthority, which on a fresh process with empty verifier
+	// state can resolve the activation anchor and both skip this label load and
+	// seed the finalized cache below the EL's own label.
+	if e.localFinalizedHead == (eth.L2BlockRef{}) {
 		var err error
 		finalizedRef, err = e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 		if err != nil {
@@ -626,6 +639,12 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 			}
 		} else {
 			e.SetFinalizedHead(finalizedRef)
+			// The EL's finalized label is the finalized head this node (or its
+			// previous process) last published. Seed the monotonic cache with it
+			// so a fresh process cannot be re-seeded down to the activation
+			// anchor by an empty verifier (overwrites anything an earlier
+			// pre-initialization FinalizedHead() call may have resolved).
+			e.superAuthorityFinalizedHead = finalizedRef
 			e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 		}
 	}
@@ -640,6 +659,7 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 				} else {
 					// If the engine doesn't have a safe head, then we can use the finalized head
 					e.SetLocalSafeHead(finalizedRef)
+					e.crossSafeCache.Store(finalizedRef)
 					e.log.Info("Loaded initial local-safe block from finalized", "local_safe", finalizedRef)
 				}
 			} else {
@@ -647,6 +667,10 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 			}
 		} else {
 			e.SetLocalSafeHead(ref)
+			// The EL's safe label is the cross-safe head last published; seed the
+			// cross-safe cache with it so anchor resolution and HoldPrevious
+			// fallbacks cannot regress below it on a fresh process.
+			e.crossSafeCache.Store(ref)
 			e.log.Info("Loaded initial local-safe block ref", "local_safe", ref)
 		}
 	}

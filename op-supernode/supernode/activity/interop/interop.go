@@ -1297,15 +1297,41 @@ func (i *Interop) activationCap() uint64 {
 	return i.activationTimestamp - 1
 }
 
+// emptyVerifiedDBCap decides what an accessor reports when the verifiedDB has
+// no committed entries at all. It returns the pre-activation anchor cap only
+// for a genuine activation bootstrap (cold start chose its verification origin
+// at activation). Otherwise it returns an ErrNotStarted-wrapped error so
+// callers hold their previous value:
+//   - cold-start init still running: the verified frontier is simply unknown;
+//   - cold start chose an origin past activation: the chain has history the
+//     verifier will never cover (e.g. a restart that lost the datadir), so
+//     reporting the activation anchor would regress consumers far past it.
+func (i *Interop) emptyVerifiedDBCap() (uint64, error) {
+	if !i.backfillCompleted.Load() {
+		return 0, fmt.Errorf("%w: cold start incomplete, verified frontier unknown", ErrNotStarted)
+	}
+	if i.verificationStartTimestamp > i.activationTimestamp {
+		return 0, fmt.Errorf("%w: nothing verified and verification origin %d is past activation %d, holding",
+			ErrNotStarted, i.verificationStartTimestamp, i.activationTimestamp)
+	}
+	return i.activationCap(), nil
+}
+
 // LatestVerifiedL2Block returns the latest verified L2 block for chainID.
 // (empty, capTimestamp, nil) means nothing verified — capTimestamp is the
 // pre-activation anchor (`activationTimestamp - 1`) for the caller to resolve.
-// A non-nil error means verifiedDB could not be read.
+// An empty verifiedDB outside a genuine activation bootstrap is an error
+// (hold-previous), not a cap — see emptyVerifiedDBCap.
+// A non-nil error otherwise means verifiedDB could not be read.
 func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64, error) {
 	emptyBlock := eth.BlockID{}
 	ts, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
-		return emptyBlock, i.activationCap(), nil
+		capTS, err := i.emptyVerifiedDBCap()
+		if err != nil {
+			return emptyBlock, 0, err
+		}
+		return emptyBlock, capTS, nil
 	}
 	res, err := i.verifiedDB.Get(ts)
 	if err != nil {
@@ -1324,15 +1350,27 @@ func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint6
 // VerifiedBlockAtL1 returns the latest verified L2 block for chainID whose
 // L1 inclusion is at or below l1Block. (empty, capTimestamp, nil) means no
 // match — capTimestamp is the pre-activation anchor for the caller to resolve.
-// A non-nil error means verifiedDB could not be read.
+// A zero l1Block returns an error: the caller's L1 finality view is unknown,
+// which must not be conflated with "nothing verified". An empty verifiedDB
+// outside a genuine activation bootstrap is likewise an error (hold-previous)
+// — see emptyVerifiedDBCap.
+// A non-nil error otherwise means verifiedDB could not be read.
 func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64, error) {
 	if l1Block == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, i.activationCap(), nil
+		// A zero L1 ref means the caller has no L1 finality view yet (e.g. a
+		// fresh virtual node before its first L1EpochPollInterval poll), NOT
+		// that nothing is verified. Surface it as an error so FinalizedL2Head
+		// holds the previous value instead of publishing the activation anchor.
+		return eth.BlockID{}, 0, fmt.Errorf("%w: L1 finalized block not yet known", ErrNotStarted)
 	}
 
 	lastTs, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
-		return eth.BlockID{}, i.activationCap(), nil
+		capTS, err := i.emptyVerifiedDBCap()
+		if err != nil {
+			return eth.BlockID{}, 0, err
+		}
+		return eth.BlockID{}, capTS, nil
 	}
 
 	// activationTimestamp is the floor: no verified results exist before activation.
