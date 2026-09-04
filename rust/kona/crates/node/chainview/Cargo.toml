@@ -1,0 +1,62 @@
+[package]
+name = "kona-chainview"
+version = "0.1.0"
+description = "An incrementally maintained chain view for kona-node, compiled from SQL by Feldera"
+
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+authors.workspace = true
+repository.workspace = true
+exclude.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+kona-protocol = { workspace = true, features = ["std"] }
+
+# Alloy
+alloy-primitives = { workspace = true, features = ["std"] }
+alloy-eips = { workspace = true, features = ["std"] }
+
+# Op Alloy
+op-alloy-consensus.workspace = true
+
+# Feldera runtime. Exact pins: the sql-to-dbsp JAR pinned in build.rs emits
+# code for exactly this crate version. Bump all of them together.
+dbsp.workspace = true
+feldera-sqllib.workspace = true
+feldera-types.workspace = true
+feldera-macros.workspace = true
+size-of.workspace = true
+arcstr.workspace = true
+serde = { workspace = true, features = ["derive", "std"] }
+serde_json = { workspace = true, features = ["std"] }
+# Named by the macros the generated code expands (declare_tuple!,
+# serialize_table_record!, define_inner_star_join!); versions follow the
+# compiler's own crate template, not the workspace pins.
+rkyv = { version = "0.7.45", default-features = false, features = ["std", "size_64"] }
+derive_more = { version = "1.0.0", features = ["add", "not", "from"] }
+seq-macro = "0.3.6"
+paste.workspace = true
+compare = "0.1.0"
+erased-serde = "0.3.31"
+
+# Misc
+tokio = { workspace = true, features = ["sync", "rt", "macros"] }
+thiserror.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+anyhow = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+sha2 = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+anyhow = { workspace = true, features = ["std"] }
+

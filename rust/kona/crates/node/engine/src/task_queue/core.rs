@@ -109,6 +109,10 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             }
         }
 
+        // Publish the post-reset labels: `drain` only publishes after tasks, and a reset runs
+        // its synchronize step directly.
+        self.state_sender.send_replace(self.state);
+
         kona_macros::inc!(counter, Metrics::ENGINE_RESET_COUNT);
 
         Ok(start.safe)

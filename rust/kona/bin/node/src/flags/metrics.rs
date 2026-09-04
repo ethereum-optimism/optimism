@@ -18,7 +18,6 @@ pub fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
         kona_node_service::Metrics::init();
         kona_derive::Metrics::init();
         kona_providers_alloy::Metrics::init();
-        kona_providers_local::Metrics::init();
         gauge!(
             "kona_node_info",
             &[

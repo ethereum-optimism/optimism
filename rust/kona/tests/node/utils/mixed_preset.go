@@ -3,6 +3,7 @@ package node_utils
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -121,6 +122,25 @@ func NewMixedOpKona(t devtest.T) *MixedOpKonaPreset {
 func NewMixedOpKonaForConfig(t devtest.T, l2NodeConfig L2NodeConfig) *MixedOpKonaPreset {
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: mixedOpKonaNodeSpecs(l2NodeConfig),
+	})
+	return NewMixedOpKonaFromRuntime(t, runtime)
+}
+
+// NewMixedOpKonaWithOpNodeSafeDB is NewMixedOpKona with every op-node running a SafeDB, so an
+// op-node can serve as the source of truth for `optimism_safeHeadAtL1Block` parity checks. At
+// least one op-node validator is always started, whatever the environment configures.
+func NewMixedOpKonaWithOpNodeSafeDB(t devtest.T) *MixedOpKonaPreset {
+	cfg := ParseL2NodeConfigFromEnv()
+	if cfg.OpNodesWithReth == 0 {
+		cfg.OpNodesWithReth = 1
+	}
+	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
+		NodeSpecs: mixedOpKonaNodeSpecs(cfg),
+		GlobalL2CLOptions: []sysgo.L2CLOption{
+			sysgo.L2CLOptionFn(func(t devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+				cfg.SafeDBPath = filepath.Join(t.TempDirWithPrefix("op-node-safe-db-"), "safe-head.db")
+			}),
+		},
 	})
 	return NewMixedOpKonaFromRuntime(t, runtime)
 }

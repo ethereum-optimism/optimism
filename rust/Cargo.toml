@@ -266,6 +266,18 @@ incremental = false
 # Shared OP Stack binary build/version metadata
 op-version = { path = "op-version" }
 
+# ==================== FELDERA (kona-chainview) ====================
+# Exact pins: Feldera releases every few days on a 0.x API, and the sql-to-dbsp
+# compiler JAR pinned in kona/crates/node/chainview/build.rs emits code for
+# exactly this crate version. Bump the JAR version, its sha256, and these four
+# pins together; build.rs refuses to build when they disagree.
+dbsp = { version = "=0.342.0" }
+feldera-sqllib = { version = "=0.342.0" }
+feldera-types = { version = "=0.342.0" }
+feldera-macros = { version = "=0.342.0" }
+size-of = { package = "feldera-size-of", version = "0.1.7" }
+arcstr = "1.2.0"
+
 # ==================== KONA INTERNAL CRATES ====================
 # Binaries
 kona-host = { path = "kona/bin/host", version = "1.0.2", default-features = false }
@@ -286,13 +298,13 @@ kona-peers = { path = "kona/crates/node/peers", version = "0.1.2", default-featu
 kona-engine = { path = "kona/crates/node/engine", version = "0.1.2", default-features = false }
 kona-sources = { path = "kona/crates/node/sources", version = "0.1.2", default-features = false }
 kona-node-service = { path = "kona/crates/node/service", version = "0.1.3", default-features = false }
+kona-chainview = { path = "kona/crates/node/chainview", version = "0.1.0", default-features = false }
 kona-disc = { path = "kona/crates/node/disc", version = "0.1.2", default-features = false }
 kona-gossip = { path = "kona/crates/node/gossip", version = "0.1.2", default-features = false }
 kona-safedb = { path = "kona/crates/node/safedb", version = "0.1.0", default-features = false }
 
 # Providers
 kona-providers-alloy = { path = "kona/crates/providers/providers-alloy", version = "0.3.3", default-features = false }
-kona-providers-local = { path = "kona/crates/providers/providers-local", version = "0.1.0", default-features = false }
 
 # Proof
 kona-driver = { path = "kona/crates/proof/driver", version = "0.4.0", default-features = false }

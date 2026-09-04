@@ -1,5 +1,5 @@
 mod actor;
-pub use actor::L1WatcherActor;
+pub use actor::{L1WatcherActor, L1Watches};
 
 mod chain;
 pub use chain::L1WatcherChain;

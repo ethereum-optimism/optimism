@@ -39,6 +39,11 @@ pub use actors::{
 mod metrics;
 pub use metrics::Metrics;
 
+pub use actors::{
+    ChainViewActor, ChainViewActorError, L1Fetcher, L1Watches, ProviderL1Fetcher,
+    UNSAFE_BLOCK_SIGNER_SLOT,
+};
+
 #[cfg(test)]
 pub use actors::{
     MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,

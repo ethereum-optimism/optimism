@@ -3,8 +3,8 @@
 //!
 //! [`NodeActor`]: crate::NodeActor
 
-mod block_sink;
-pub(crate) use block_sink::BufferImportedBlocks;
+mod l2_blocks;
+pub(crate) use l2_blocks::ChainViewL2Blocks;
 
 mod builder;
 pub use builder::{DerivationDelegateConfig, L1ConfigBuilder, RollupNodeBuilder};

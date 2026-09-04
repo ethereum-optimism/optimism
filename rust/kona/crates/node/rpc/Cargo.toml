@@ -21,6 +21,7 @@ kona-gossip.workspace = true
 kona-engine.workspace = true
 kona-macros.workspace = true
 kona-genesis = {workspace = true, features = ["serde", "std"]}
+kona-chainview.workspace = true
 
 # OP Alloy
 op-alloy-consensus.workspace = true

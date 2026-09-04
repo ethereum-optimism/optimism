@@ -16,7 +16,6 @@ workspace = true
 kona-gossip.workspace = true
 kona-disc.workspace = true
 kona-engine.workspace = true
-kona-providers-local.workspace = true
 op-alloy-consensus.workspace = true
 kona-sources.workspace = true
 kona-genesis.workspace = true
@@ -27,6 +26,7 @@ kona-providers-alloy.workspace = true
 kona-rpc = { workspace = true, features = ["client"] }
 kona-peers.workspace = true
 kona-macros.workspace = true
+kona-chainview.workspace = true
 
 # alloy
 alloy-chains.workspace = true
@@ -89,7 +89,6 @@ metrics = [
 	"kona-derive/metrics",
 	"kona-disc/metrics",
 	"kona-engine/metrics",
-	"kona-providers-local/metrics",
 	"kona-gossip/metrics",
 	"kona-providers-alloy/metrics",
 	"kona-rpc/metrics",

@@ -27,10 +27,15 @@ pub use derivation::{
     QueuedDerivationEngineClient,
 };
 
+mod chainview;
+pub use chainview::{
+    ChainViewActor, ChainViewActorError, L1Fetcher, ProviderL1Fetcher, UNSAFE_BLOCK_SIGNER_SLOT,
+};
+
 mod l1_watcher;
 pub use l1_watcher::{
     BlockStream, L1WatcherActor, L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient,
-    QueuedL1WatcherDerivationClient,
+    L1Watches, QueuedL1WatcherDerivationClient,
 };
 
 mod network;

@@ -22,7 +22,6 @@ kona-genesis.workspace = true
 kona-protocol.workspace = true
 kona-derive.workspace = true
 kona-interop.workspace = true
-kona-providers-local.workspace = true
 
 # Alloy
 alloy-serde.workspace = true
@@ -62,7 +61,7 @@ normal = ["tokio-tungstenite"]
 
 [features]
 default = []
-metrics = [ "dep:metrics", "kona-derive/metrics", "kona-providers-local/metrics" ]
+metrics = [ "dep:metrics", "kona-derive/metrics" ]
 
 [dev-dependencies]
 tokio.workspace = true

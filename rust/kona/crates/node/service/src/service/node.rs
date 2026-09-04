@@ -9,7 +9,7 @@ use crate::{
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
     RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
-    service::BufferImportedBlocks,
+    service::ChainViewL2Blocks,
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
@@ -25,7 +25,6 @@ use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
     OnlineBlobProvider, OnlinePipeline,
 };
-use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
     L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
@@ -37,13 +36,10 @@ use std::{ops::Not as _, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
+use crate::{ChainViewActor, L1Watches, ProviderL1Fetcher};
+use kona_chainview::ChainViewClient;
+
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
-/// How many recently imported blocks to keep for the local L2 lookups.
-///
-/// Every lookup served from here is for the block being built on top of, which the engine recorded
-/// one step earlier. The size absorbs what lands in between — gossiped unsafe blocks keep
-/// arriving, and on a sequencer the two builders ask about different heads.
-pub(super) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
@@ -82,9 +78,6 @@ pub struct RollupNode {
     pub(crate) sequencer_config: SequencerConfig,
     /// Optional derivation delegate provider.
     pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
-    /// Blocks the engine has imported, shared with the derivation providers so they can be read
-    /// locally instead of fetched back from the execution layer.
-    pub(crate) l2_block_buffer: BufferedL2Provider,
     /// The interop dependency set for this chain.
     /// Mirrors op-node's `--interop.dependency-set`.
     /// [`StatefulAttributesBuilder`] constructor panics otherwise.
@@ -171,6 +164,7 @@ impl RollupNode {
     /// Returns the sequencer builder for the node.
     fn create_attributes_builder(
         &self,
+        chainview: ChainViewClient,
     ) -> StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider> {
         let l1_derivation_provider = AlloyChainProvider::new_with_trust(
             self.l1_config.engine_provider.clone(),
@@ -178,7 +172,7 @@ impl RollupNode {
             self.l1_config.trust_rpc,
         );
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
+            Arc::new(ChainViewL2Blocks::new(chainview)),
             AlloyL2ChainProvider::new_with_trust(
                 self.l2_provider.clone(),
                 self.config.clone(),
@@ -196,7 +190,7 @@ impl RollupNode {
         )
     }
 
-    async fn create_pipeline(&self) -> OnlinePipeline {
+    async fn create_pipeline(&self, chainview: ChainViewClient) -> OnlinePipeline {
         // Create the caching L1/L2 EL providers for derivation.
         let l1_derivation_provider = AlloyChainProvider::new_with_trust(
             self.l1_config.engine_provider.clone(),
@@ -204,7 +198,7 @@ impl RollupNode {
             self.l1_config.trust_rpc,
         );
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
+            Arc::new(ChainViewL2Blocks::new(chainview)),
             AlloyL2ChainProvider::new_with_trust(
                 self.l2_provider.clone(),
                 self.config.clone(),
@@ -234,10 +228,12 @@ impl RollupNode {
         engine_rpc_request_rx: mpsc::Receiver<EngineRpcRequest>,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
-    ) -> (ConfiguredEngineActor, ConfiguredEngineRpcActor) {
-        // Engine-internal watches; not visible outside this helper.
+        chainview: ChainViewClient,
+    ) -> (ConfiguredEngineActor, ConfiguredEngineRpcActor, watch::Receiver<EngineState>) {
+        // Engine-internal watches; the state receiver is also handed to the chain view.
         let engine_state = EngineState::default();
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
+        let chainview_state_rx = engine_state_rx.clone();
         let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
         let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
 
@@ -253,7 +249,7 @@ impl RollupNode {
             engine,
             unsafe_head_tx_opt,
             engine_request_rx,
-            Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
+            Arc::new(ChainViewL2Blocks::new(chainview)),
         );
 
         let rpc_actor = EngineRpcActor::new(
@@ -264,7 +260,7 @@ impl RollupNode {
             engine_rpc_request_rx,
         );
 
-        (actor, rpc_actor)
+        (actor, rpc_actor, chainview_state_rx)
     }
 
     /// Selects between the standard and delegate derivation actor implementations and constructs
@@ -273,6 +269,7 @@ impl RollupNode {
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
+        chainview: ChainViewClient,
     ) -> ConfiguredDerivationActor {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
             // L1 Provider for sanity checking Derivation Delegation
@@ -290,12 +287,14 @@ impl RollupNode {
             ConfiguredDerivationActor::Normal(Box::new(DerivationActor::<_, OnlinePipeline>::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
-                self.create_pipeline().await,
+                self.create_pipeline(chainview.clone()).await,
+                chainview,
             )))
         }
     }
 
-    /// Builds the L1 watcher actor along with its head and finalized block streams.
+    /// Builds the L1 watcher actor along with its head, finalized and safe block streams, and
+    /// returns the watches on which it publishes them.
     ///
     /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
     /// type alias: the block-stream type produced by [`BlockStream::new_as_stream`] is
@@ -304,11 +303,11 @@ impl RollupNode {
     fn build_l1_watcher(
         &self,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
-        signer_tx: mpsc::Sender<Address>,
         l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
-        l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
-    ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
-    {
+    ) -> Result<
+        (impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, L1Watches),
+        String,
+    > {
         let head_stream = BlockStream::new_as_stream(
             self.l1_config.engine_provider.clone(),
             BlockNumberOrTag::Latest,
@@ -319,21 +318,19 @@ impl RollupNode {
             BlockNumberOrTag::Finalized,
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
         )?;
+        let safe_stream = BlockStream::new_as_stream(
+            self.l1_config.engine_provider.clone(),
+            BlockNumberOrTag::Safe,
+            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+        )?;
 
         let chain = L1WatcherChain::new(
             self.config.clone(),
             QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
-            signer_tx,
             l1_query_rx,
         );
 
-        Ok(L1WatcherActor::new(
-            self.l1_config.engine_provider.clone(),
-            l1_head_updates_tx,
-            head_stream,
-            finalized_stream,
-            vec![chain],
-        ))
+        Ok(L1WatcherActor::new(head_stream, finalized_stream, safe_stream, vec![chain]))
     }
 
     /// Builds the sequencer actor when the node is in sequencer mode; otherwise returns `None`.
@@ -344,6 +341,7 @@ impl RollupNode {
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
         sequencer_admin_api_rx: mpsc::Receiver<crate::SequencerAdminQuery>,
+        chainview: ChainViewClient,
     ) -> Option<ConfiguredSequencerActor> {
         if !self.mode().is_sequencer() {
             return None;
@@ -367,7 +365,7 @@ impl RollupNode {
 
         Some(SequencerActor::new(
             sequencer_admin_api_rx,
-            self.create_attributes_builder(),
+            self.create_attributes_builder(chainview),
             conductor,
             sequencer_engine_client,
             self.sequencer_config.sequencer_stopped.not(),
@@ -387,6 +385,7 @@ impl RollupNode {
         p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
         network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
+        chainview: ChainViewClient,
     ) -> Result<Option<ConfiguredRpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
@@ -408,7 +407,10 @@ impl RollupNode {
             network_admin_tx,
         )?;
         modules
-            .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
+            .merge(
+                RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx, chainview)
+                    .into_rpc(),
+            )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
         if config.dev_enabled() {
             modules
@@ -479,18 +481,40 @@ impl RollupNode {
             mpsc::channel::<OpExecutionPayloadEnvelope>(256);
         // watch channels
         let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
-        let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
+
+        // ─── chain view ─────────────────────────────────────────────────────────────────────
+        // After a reset the derived-from block can jump back by up to a sequencing window plus
+        // a channel timeout; rows older than the circuit's LATENESS would be dropped.
+        let rewind = self.config.seq_window_size +
+            self.config.channel_timeout.max(self.config.granite_channel_timeout);
+        if rewind >= kona_chainview::LATENESS {
+            return Err(format!(
+                "the chain view's LATENESS ({}) must exceed this chain's seq_window_size + channel_timeout ({rewind})",
+                kona_chainview::LATENESS
+            ));
+        }
+        // The circuit runs on its own thread; actors reach it through the client.
+        let chainview_handle = kona_chainview::spawn(kona_chainview::ChainViewConfig::default())
+            .map_err(|e| format!("Failed to start the chain view: {e}"))?;
+        let chainview_client = chainview_handle.client.clone();
+        let l1_fetcher =
+            ProviderL1Fetcher::new(self.l1_config.engine_provider.clone(), &self.config);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
-        let (engine_actor, engine_rpc_actor) = self.build_engine_actors(
+        let (engine_actor, engine_rpc_actor, engine_state_rx) = self.build_engine_actors(
             engine_actor_request_rx,
             engine_rpc_request_rx,
             derivation_actor_request_tx.clone(),
             unsafe_head_tx,
+            chainview_client.clone(),
         );
 
         let derivation = self
-            .build_derivation_actor(engine_actor_request_tx.clone(), derivation_actor_request_rx)
+            .build_derivation_actor(
+                engine_actor_request_tx.clone(),
+                derivation_actor_request_rx,
+                chainview_client.clone(),
+            )
             .await;
 
         // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
@@ -512,19 +536,26 @@ impl RollupNode {
             gossip_payload_rx,
         );
 
-        let l1_watcher = self.build_l1_watcher(
-            derivation_actor_request_tx,
+        let (l1_watcher, l1_watches) =
+            self.build_l1_watcher(derivation_actor_request_tx, l1_query_rx)?;
+
+        // The chain view mirrors the tags the watcher publishes and the engine's heads, reads
+        // the signer at each L1 head, and feeds the network actor the signer it derives.
+        let chainview_actor = ChainViewActor::new(
+            chainview_handle,
+            l1_fetcher,
+            l1_watches.clone(),
+            engine_state_rx,
             signer_tx,
-            l1_query_rx,
-            l1_head_updates_tx,
-        )?;
+        );
 
         let sequencer_actor = self.build_sequencer(
             engine_actor_request_tx,
             gossip_payload_tx,
             unsafe_head_rx,
-            l1_head_updates_rx,
+            l1_watches.head,
             sequencer_admin_api_rx,
+            chainview_client.clone(),
         );
         let sequencer_admin_client = sequencer_actor
             .is_some()
@@ -537,6 +568,7 @@ impl RollupNode {
                 p2p_rpc_tx,
                 network_admin_tx,
                 l1_query_tx,
+                chainview_client,
             )
             .await?;
 
@@ -550,6 +582,7 @@ impl RollupNode {
                 Some(derivation),
                 Some(engine_actor),
                 Some(engine_rpc_actor),
+                Some(chainview_actor),
             ]
         );
         Ok(())
