@@ -87,7 +87,7 @@ mod tests {
         holesky::{HOLESKY_BPO1_TIMESTAMP, HOLESKY_BPO2_TIMESTAMP},
         sepolia::{SEPOLIA_BPO1_TIMESTAMP, SEPOLIA_BPO2_TIMESTAMP},
     };
-    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
+    use alloy_op_hardforks::{ForkCondition, OpChainHardforks, OpHardfork, OpHardforks};
 
     #[test]
     fn test_hardcoded_rollup_configs() {
@@ -125,19 +125,76 @@ mod tests {
         assert_eq!(rollup_config_by_alloy_ident, rollup_config_by_id);
     }
 
+    /// Conformance guard: alloy-op-hardforks' OP Mainnet / OP Sepolia hardfork schedules (built
+    /// from the `OP_{CHAIN}_{FORK}_TIMESTAMP` constants) must match the superchain-registry
+    /// snapshot, in both directions:
+    ///
+    /// - every [`OpHardfork`] variant's scheduled activation must equal the registry's
+    ///   `<fork>_time` (both unscheduled for trailing forks, e.g. Lagoon today), so a stale or
+    ///   missing constant fails as soon as the registry snapshot schedules the fork;
+    /// - every activation time the registry schedules must be claimed by a known [`OpHardfork`]
+    ///   variant, so a fork the registry knows before the enum/constants do is also caught.
+    ///
+    /// The fork sets come from [`OpHardfork::VARIANTS`] and [`HardForkConfig::iter`]
+    /// (`kona_genesis::HardForkConfig`), so this test self-expands as forks are added or
+    /// scheduled — there is no per-fork list to maintain here.
     #[test]
-    fn test_jovian_timestamps() {
-        let op_mainnet_config_by_ident = scr_rollup_config_by_ident("mainnet/op").unwrap();
-        assert_eq!(
-            op_mainnet_config_by_ident.hardforks.jovian_time,
-            Some(OP_MAINNET_JOVIAN_TIMESTAMP)
-        );
+    fn test_op_hardfork_schedules_match_registry() {
+        use alloc::format;
 
-        let op_sepolia_config_by_ident = scr_rollup_config_by_ident("sepolia/op").unwrap();
-        assert_eq!(
-            op_sepolia_config_by_ident.hardforks.jovian_time,
-            Some(OP_SEPOLIA_JOVIAN_TIMESTAMP)
-        );
+        // Consensus-layer forks carried in the rollup config but not modeled by the
+        // execution-layer `OpHardfork`/`OpSpecId` enums, so no timestamp constants exist for
+        // them: Delta only changed batch derivation (span batches, gated by
+        // `RollupConfig::is_delta_active`), and the optional Pectra blob schedule fix only
+        // selects which L1 blob fee params apply (`is_pectra_blob_schedule_active`; set on OP
+        // Sepolia, unset on OP Mainnet). Their registry values are conformance-checked against
+        // the full config fixtures by `test_hardcoded_rollup_configs` above.
+        const NON_OP_FORK_TIMES: [&str; 2] = ["Delta", "Pectra Blob Schedule"];
+
+        for (ident, schedule) in [
+            ("mainnet/op", OpChainHardforks::op_mainnet()),
+            ("sepolia/op", OpChainHardforks::op_sepolia()),
+        ] {
+            let hardforks = scr_rollup_config_by_ident(ident).unwrap().hardforks;
+
+            // Direction 1: every fork the enum knows must resolve identically on both sides.
+            for fork in OpHardfork::VARIANTS.iter().copied() {
+                let scheduled = match schedule.op_fork_activation(fork) {
+                    // Genesis-active forks (activation timestamp 0, e.g. Regolith) predate the
+                    // registry's scheduling and have no `_time` entry there by design; block
+                    // activations (Bedrock) have no timestamp either, and unscheduled trailing
+                    // forks (`Never`) must be unscheduled in the registry too.
+                    ForkCondition::Timestamp(0) |
+                    ForkCondition::Block(_) |
+                    ForkCondition::Never => None,
+                    ForkCondition::Timestamp(t) => Some(t),
+                    cond => panic!("{ident} {fork:?}: unexpected activation condition {cond:?}"),
+                };
+                assert_eq!(
+                    hardforks.fork_time(fork),
+                    scheduled,
+                    "{ident} {fork:?}: superchain-registry snapshot disagrees with the \
+                     alloy-op-hardforks schedule (is an OP_..._TIMESTAMP constant missing or \
+                     stale?)"
+                );
+            }
+
+            // Direction 2: every time the registry schedules must be claimed by a known variant.
+            // Matching by name is sufficient: direction 1 above already verified the scheduled
+            // value of every known variant, so an entry only ends up unclaimed when no variant
+            // of that name exists at all.
+            for (name, time) in hardforks.iter() {
+                if time.is_none() || NON_OP_FORK_TIMES.contains(&name) {
+                    continue;
+                }
+                let claimed = OpHardfork::VARIANTS.iter().any(|fork| format!("{fork:?}") == name);
+                assert!(
+                    claimed,
+                    "{ident}: the registry schedules {name} at {time:?}, but no OpHardfork \
+                     variant claims it — add the fork and its constant to alloy-op-hardforks"
+                );
+            }
+        }
     }
 
     #[test]

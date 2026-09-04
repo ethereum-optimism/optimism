@@ -178,7 +178,7 @@ mod tests {
         EthereumHardforks, ForkCondition, OP_MAINNET_CANYON_TIMESTAMP,
         OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_FJORD_TIMESTAMP, OP_MAINNET_GRANITE_TIMESTAMP,
         OP_MAINNET_HOLOCENE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
-        OP_MAINNET_REGOLITH_TIMESTAMP, OpChainHardforks, OpHardfork,
+        OP_MAINNET_KARST_TIMESTAMP, OP_MAINNET_REGOLITH_TIMESTAMP, OpChainHardforks, OpHardfork,
     };
     use alloy_primitives::BlockTimestamp;
 
@@ -187,37 +187,116 @@ mod tests {
         cond: ForkCondition,
     }
 
-    macro_rules! fake_hardfork_constructors {
-        (timestamp: $($ts_name:ident => $ts_fork:ident),+ $(,)?; block: $($blk_name:ident => $blk_fork:ident),+ $(,)?) => {
+    /// Expands to the [`ForkCondition`] for a chronology row's activation kind.
+    macro_rules! fork_condition {
+        (block) => {
+            ForkCondition::Block(0)
+        };
+        (timestamp) => {
+            ForkCondition::Timestamp(0)
+        };
+    }
+
+    /// Single source of truth for the OP fork chronology, oldest first, driving every
+    /// fork-parameterized item in this module. Invokes the given callback macro with an optional
+    /// parenthesized argument group followed by one row per fork:
+    ///
+    /// `case_name => OpHardfork / OpSpecId @ activation, mainnet: TIMESTAMP;`
+    ///
+    /// - `case_name`: snake-case ident naming the `FakeHardfork` constructor and the generated test
+    ///   cases.
+    /// - `activation`: `block` or `timestamp` — how the fork activates on a chain.
+    /// - `mainnet:`: the OP mainnet activation timestamp constant, or `_` while the fork has no
+    ///   scheduled OP mainnet activation.
+    ///
+    /// Adding a fork row here automatically extends [`FORK_CHRONOLOGY`], the `FakeHardfork`
+    /// constructors, and every test generated with `fake_fork_cases!` / `mainnet_fork_cases!`,
+    /// so a new fork only needs to be added in this one place.
+    macro_rules! with_fork_chronology {
+        ($cb:ident) => {
+            with_fork_chronology!($cb());
+        };
+        ($cb:ident($($args:tt)*)) => {
+            $cb! {
+                ($($args)*)
+                bedrock => Bedrock / BEDROCK @ block, mainnet: _;
+                regolith => Regolith / REGOLITH @ timestamp, mainnet: OP_MAINNET_REGOLITH_TIMESTAMP;
+                canyon => Canyon / CANYON @ timestamp, mainnet: OP_MAINNET_CANYON_TIMESTAMP;
+                ecotone => Ecotone / ECOTONE @ timestamp, mainnet: OP_MAINNET_ECOTONE_TIMESTAMP;
+                fjord => Fjord / FJORD @ timestamp, mainnet: OP_MAINNET_FJORD_TIMESTAMP;
+                granite => Granite / GRANITE @ timestamp, mainnet: OP_MAINNET_GRANITE_TIMESTAMP;
+                holocene => Holocene / HOLOCENE @ timestamp, mainnet: OP_MAINNET_HOLOCENE_TIMESTAMP;
+                isthmus => Isthmus / ISTHMUS @ timestamp, mainnet: OP_MAINNET_ISTHMUS_TIMESTAMP;
+                jovian => Jovian / JOVIAN @ timestamp, mainnet: OP_MAINNET_JOVIAN_TIMESTAMP;
+                karst => Karst / KARST @ timestamp, mainnet: OP_MAINNET_KARST_TIMESTAMP;
+                lagoon => Lagoon / LAGOON @ timestamp, mainnet: _;
+            }
+        };
+    }
+
+    /// [`with_fork_chronology!`] consumer: defines [`FORK_CHRONOLOGY`] and the per-fork
+    /// `FakeHardfork` constructors from the chronology rows.
+    macro_rules! define_fork_fixtures {
+        (() $($name:ident => $hf:ident / $spec:ident @ $act:ident, mainnet: $ts:tt;)+) => {
+            /// The OP fork chronology, oldest first. `Lagoon` is the newest fork.
+            const FORK_CHRONOLOGY: [(OpHardfork, OpSpecId); [$(OpSpecId::$spec),+].len()] = [
+                $((OpHardfork::$hf, OpSpecId::$spec),)+
+            ];
+
             impl FakeHardfork {
                 $(
-                    fn $ts_name() -> Self {
-                        Self { fork: OpHardfork::$ts_fork, cond: ForkCondition::Timestamp(0) }
+                    fn $name() -> Self {
+                        Self { fork: OpHardfork::$hf, cond: fork_condition!($act) }
                     }
                 )+
+            }
+        };
+    }
+    with_fork_chronology!(define_fork_fixtures);
+
+    /// [`with_fork_chronology!`] consumer: generates one `#[test]` per fork in the chronology,
+    /// named `<module>::<case_name>` exactly like the `test_case` stacks this replaces, each
+    /// invoking `body(FakeHardfork::<case_name>(), OpSpecId::<spec>)`.
+    macro_rules! fake_fork_cases {
+        (($mod_name:ident, $body:expr) $($name:ident => $hf:ident / $spec:ident @ $act:ident, mainnet: $ts:tt;)+) => {
+            mod $mod_name {
+                use super::*;
+
                 $(
-                    fn $blk_name() -> Self {
-                        Self { fork: OpHardfork::$blk_fork, cond: ForkCondition::Block(0) }
+                    #[test]
+                    fn $name() {
+                        let body: fn(FakeHardfork, OpSpecId) = $body;
+                        body(FakeHardfork::$name(), OpSpecId::$spec);
                     }
                 )+
             }
         };
     }
 
-    fake_hardfork_constructors! {
-        timestamp:
-            karst => Karst,
-            lagoon => Lagoon,
-            jovian => Jovian,
-            isthmus => Isthmus,
-            holocene => Holocene,
-            granite => Granite,
-            fjord => Fjord,
-            ecotone => Ecotone,
-            canyon => Canyon,
-            regolith => Regolith;
-        block:
-            bedrock => Bedrock,
+    /// [`with_fork_chronology!`] consumer: like `fake_fork_cases!`, but only for forks with a
+    /// scheduled OP mainnet activation, each case invoking
+    /// `body(<mainnet timestamp>, OpSpecId::<spec>)`. Rows with `mainnet: _` are skipped, so
+    /// scheduling a fork's mainnet activation in the chronology automatically adds its case.
+    macro_rules! mainnet_fork_cases {
+        (($mod_name:ident, $body:expr) $($rows:tt)*) => {
+            mod $mod_name {
+                use super::*;
+
+                mainnet_fork_cases!(@case $body; $($rows)*);
+            }
+        };
+        (@case $body:expr;) => {};
+        (@case $body:expr; $name:ident => $hf:ident / $spec:ident @ $act:ident, mainnet: _; $($rest:tt)*) => {
+            mainnet_fork_cases!(@case $body; $($rest)*);
+        };
+        (@case $body:expr; $name:ident => $hf:ident / $spec:ident @ $act:ident, mainnet: $ts:ident; $($rest:tt)*) => {
+            #[test]
+            fn $name() {
+                let body: fn(BlockTimestamp, OpSpecId) = $body;
+                body($ts, OpSpecId::$spec);
+            }
+            mainnet_fork_cases!(@case $body; $($rest)*);
+        };
     }
 
     impl EthereumHardforks for FakeHardfork {
@@ -232,101 +311,76 @@ mod tests {
         }
     }
 
-    /// The `BLOBBASEFEE` opcode must always be 1 on the OP Stack from Ecotone onward. Post-Jovian
-    /// the header's `blobGasUsed` carries the block's DA footprint, which must not influence the
-    /// blob env. The footprint here is from op-mainnet block 152635937.
-    #[test_case::test_case(FakeHardfork::lagoon(); "Lagoon")]
-    #[test_case::test_case(FakeHardfork::karst(); "Karst")]
-    #[test_case::test_case(FakeHardfork::jovian(); "Jovian")]
-    #[test_case::test_case(FakeHardfork::isthmus(); "Isthmus")]
-    #[test_case::test_case(FakeHardfork::ecotone(); "Ecotone")]
-    fn evm_env_for_op_next_block_pins_blob_gasprice_to_one(fork: FakeHardfork) {
-        let parent_header = Header {
-            number: 100,
-            timestamp: 1_000_000,
-            gas_limit: 60_000_000,
-            base_fee_per_gas: Some(1_000_000_000),
-            blob_gas_used: Some(30_406_400),
-            excess_blob_gas: Some(0),
-            ..Default::default()
-        };
+    // The `BLOBBASEFEE` opcode must always be 1 on the OP Stack from Ecotone onward, and no blob
+    // env must be present before Ecotone. Post-Jovian the header's `blobGasUsed` carries the
+    // block's DA footprint, which must not influence the blob env. The footprint here is from
+    // op-mainnet block 152635937.
+    with_fork_chronology!(fake_fork_cases(
+        evm_env_for_op_next_block_pins_blob_gasprice_to_one,
+        |fork, op_spec| {
+            let parent_header = Header {
+                number: 100,
+                timestamp: 1_000_000,
+                gas_limit: 60_000_000,
+                base_fee_per_gas: Some(1_000_000_000),
+                blob_gas_used: Some(30_406_400),
+                excess_blob_gas: Some(0),
+                ..Default::default()
+            };
 
-        let evm_env = evm_env_for_op_next_block(
-            &parent_header,
-            NextEvmEnvAttributes {
-                timestamp: parent_header.timestamp + 2,
-                suggested_fee_recipient: Default::default(),
-                prev_randao: Default::default(),
-                gas_limit: parent_header.gas_limit,
-                slot_number: None,
-            },
-            1_000_000_000,
-            fork,
-            10,
-        );
+            let evm_env = evm_env_for_op_next_block(
+                &parent_header,
+                NextEvmEnvAttributes {
+                    timestamp: parent_header.timestamp + 2,
+                    suggested_fee_recipient: Default::default(),
+                    prev_randao: Default::default(),
+                    gas_limit: parent_header.gas_limit,
+                    slot_number: None,
+                },
+                1_000_000_000,
+                fork,
+                10,
+            );
 
-        let blob = evm_env
-            .block_env
-            .blob_excess_gas_and_price
-            .expect("blob env should be present from Ecotone onward");
-        assert_eq!(
-            blob.blob_gasprice, 1,
-            "BLOBBASEFEE must be pinned to 1 on the OP Stack regardless of the parent DA footprint"
-        );
-        assert_eq!(
-            blob.excess_blob_gas, 0,
-            "excess blob gas must be pinned to 0 regardless of the parent DA footprint"
-        );
-    }
+            let blob = evm_env.block_env.blob_excess_gas_and_price;
+            if op_spec < OpSpecId::ECOTONE {
+                assert!(blob.is_none(), "no blob env must be present before Ecotone");
+                return;
+            }
+            let blob = blob.expect("blob env should be present from Ecotone onward");
+            assert_eq!(
+                blob.blob_gasprice, 1,
+                "BLOBBASEFEE must be pinned to 1 on the OP Stack regardless of the parent DA footprint"
+            );
+            assert_eq!(
+                blob.excess_blob_gas, 0,
+                "excess blob gas must be pinned to 0 regardless of the parent DA footprint"
+            );
+        }
+    ));
 
-    #[test_case::test_case(FakeHardfork::karst(), OpSpecId::KARST; "Karst")]
-    #[test_case::test_case(FakeHardfork::lagoon(), OpSpecId::LAGOON; "Lagoon")]
-    #[test_case::test_case(FakeHardfork::jovian(), OpSpecId::JOVIAN; "Jovian")]
-    #[test_case::test_case(FakeHardfork::isthmus(), OpSpecId::ISTHMUS; "Isthmus")]
-    #[test_case::test_case(FakeHardfork::holocene(), OpSpecId::HOLOCENE; "Holocene")]
-    #[test_case::test_case(FakeHardfork::granite(), OpSpecId::GRANITE; "Granite")]
-    #[test_case::test_case(FakeHardfork::fjord(), OpSpecId::FJORD; "Fjord")]
-    #[test_case::test_case(FakeHardfork::ecotone(), OpSpecId::ECOTONE; "Ecotone")]
-    #[test_case::test_case(FakeHardfork::canyon(), OpSpecId::CANYON; "Canyon")]
-    #[test_case::test_case(FakeHardfork::regolith(), OpSpecId::REGOLITH; "Regolith")]
-    #[test_case::test_case(FakeHardfork::bedrock(), OpSpecId::BEDROCK; "Bedrock")]
-    fn test_spec_maps_hardfork_successfully(fork: impl OpHardforks, expected_spec: OpSpecId) {
-        let header = Header::default();
-        let actual_spec = spec(fork, &header);
+    // A chain whose newest active fork is the given one must resolve to the expected spec.
+    with_fork_chronology!(fake_fork_cases(
+        test_spec_maps_hardfork_successfully,
+        |fork, expected_spec| {
+            let header = Header::default();
+            let actual_spec = spec(fork, &header);
 
-        assert_eq!(actual_spec, expected_spec);
-    }
+            assert_eq!(actual_spec, expected_spec);
+        }
+    ));
 
-    #[test_case::test_case(OP_MAINNET_JOVIAN_TIMESTAMP, OpSpecId::JOVIAN; "Jovian")]
-    #[test_case::test_case(OP_MAINNET_ISTHMUS_TIMESTAMP, OpSpecId::ISTHMUS; "Isthmus")]
-    #[test_case::test_case(OP_MAINNET_HOLOCENE_TIMESTAMP, OpSpecId::HOLOCENE; "Holocene")]
-    #[test_case::test_case(OP_MAINNET_GRANITE_TIMESTAMP, OpSpecId::GRANITE; "Granite")]
-    #[test_case::test_case(OP_MAINNET_FJORD_TIMESTAMP, OpSpecId::FJORD; "Fjord")]
-    #[test_case::test_case(OP_MAINNET_ECOTONE_TIMESTAMP, OpSpecId::ECOTONE; "Ecotone")]
-    #[test_case::test_case(OP_MAINNET_CANYON_TIMESTAMP, OpSpecId::CANYON; "Canyon")]
-    #[test_case::test_case(OP_MAINNET_REGOLITH_TIMESTAMP, OpSpecId::REGOLITH; "Regolith")]
-    fn test_op_spec_maps_hardfork_successfully(timestamp: BlockTimestamp, expected_spec: OpSpecId) {
-        let fork = OpChainHardforks::op_mainnet();
-        let header = Header { timestamp, ..Default::default() };
-        let actual_spec = spec(&fork, &header);
+    // OP mainnet's scheduled activation timestamps must resolve to the matching spec.
+    with_fork_chronology!(mainnet_fork_cases(
+        test_op_spec_maps_hardfork_successfully,
+        |timestamp, expected_spec| {
+            let fork = OpChainHardforks::op_mainnet();
+            let header = Header { timestamp, ..Default::default() };
+            let actual_spec = spec(&fork, &header);
 
-        assert_eq!(actual_spec, expected_spec);
-    }
-
-    /// The OP fork chronology, oldest first. `Lagoon` is the newest fork.
-    const FORK_CHRONOLOGY: [(OpHardfork, OpSpecId); 11] = [
-        (OpHardfork::Bedrock, OpSpecId::BEDROCK),
-        (OpHardfork::Regolith, OpSpecId::REGOLITH),
-        (OpHardfork::Canyon, OpSpecId::CANYON),
-        (OpHardfork::Ecotone, OpSpecId::ECOTONE),
-        (OpHardfork::Fjord, OpSpecId::FJORD),
-        (OpHardfork::Granite, OpSpecId::GRANITE),
-        (OpHardfork::Holocene, OpSpecId::HOLOCENE),
-        (OpHardfork::Isthmus, OpSpecId::ISTHMUS),
-        (OpHardfork::Jovian, OpSpecId::JOVIAN),
-        (OpHardfork::Karst, OpSpecId::KARST),
-        (OpHardfork::Lagoon, OpSpecId::LAGOON),
-    ];
+            assert_eq!(actual_spec, expected_spec);
+        }
+    ));
 
     /// The revm [`SpecId`] equivalent of the given L1 hardfork, for the L1 forks that OP forks
     /// imply. The enums use different names for the merge fork (`Paris`/`MERGE`).
