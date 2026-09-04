@@ -44,12 +44,9 @@ func metricsResponse(payload string) *http.Response {
 
 func metricsPayload(spawned, failures int) string {
 	return fmt.Sprintf(
-		"# TYPE %s gauge\n%s %d\n# TYPE %s gauge\n%s %d\n# TYPE %s gauge\n%s %d\n",
+		"# TYPE %s gauge\n%s %d\n# TYPE %s gauge\n%s %d\n",
 		defenseTasksSpawnedMetric,
 		defenseTasksSpawnedMetric,
-		spawned,
-		peakConcurrentDefenseTasksMetric,
-		peakConcurrentDefenseTasksMetric,
 		spawned,
 		gameProvingFailuresMetric,
 		gameProvingFailuresMetric,
@@ -75,7 +72,6 @@ func TestVerifyStateMatchesExactValuesFromOneSnapshot(t *testing.T) {
 	err := proposer.verifyState(
 		context.Background(),
 		DefenseTasksSpawned(2),
-		PeakConcurrentDefenseTasks(2),
 		ProvingFailures(0),
 	)
 

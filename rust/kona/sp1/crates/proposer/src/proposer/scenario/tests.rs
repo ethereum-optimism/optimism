@@ -991,7 +991,6 @@ async fn tick_caps_defense_tasks_at_concurrency_limit() {
             .count(),
         2
     );
-    assert_eq!(proposer.peak_concurrent_defense_tasks.load(Ordering::Relaxed), 2);
     active.release();
     control.settle(&[active.task_id]).await.unwrap();
 }

@@ -697,7 +697,6 @@ pub struct Proposer {
     pub prestates: Arc<PrestateCache>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
-    peak_concurrent_defense_tasks: Arc<AtomicU64>,
     state: Arc<RwLock<ProposerState>>,
     /// Proposer identity for foreign-game filtering and hardfork safety.
     pub identity: ProposerIdentity,
@@ -824,7 +823,6 @@ impl Proposer {
             prestates,
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
-            peak_concurrent_defense_tasks: Arc::new(AtomicU64::new(0)),
             state: Arc::new(RwLock::new(ProposerState::default())),
             identity,
             last_successful_pinned_l1: Arc::new(RwLock::new(None)),
@@ -2756,37 +2754,6 @@ impl Proposer {
         planned: Vec<OperationSummary>,
     ) -> Vec<ScheduledOperation> {
         let mut scheduled = Vec::with_capacity(planned.len());
-        let planned_defense_tasks = planned
-            .iter()
-            .filter(|operation| {
-                matches!(
-                    operation,
-                    OperationSummary::ProveGame { purpose: ProvingPurpose::Defense, .. }
-                )
-            })
-            .count() as u64;
-        if planned_defense_tasks > 0 {
-            let active_defense_tasks = self
-                .tasks
-                .lock()
-                .await
-                .values()
-                .filter(|(handle, operation)| {
-                    !handle.is_finished() &&
-                        matches!(
-                            operation,
-                            OperationSummary::ProveGame { purpose: ProvingPurpose::Defense, .. }
-                        )
-                })
-                .count() as u64;
-            let admitted_defense_tasks = active_defense_tasks + planned_defense_tasks;
-            let previous_peak = self
-                .peak_concurrent_defense_tasks
-                .fetch_max(admitted_defense_tasks, Ordering::Relaxed);
-            if admitted_defense_tasks > previous_peak {
-                ProposerGauge::PeakConcurrentDefenseTasks.set(admitted_defense_tasks as f64);
-            }
-        }
 
         for operation in planned {
             let task_id = TaskId::allocate(&self.next_task_id);

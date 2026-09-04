@@ -156,11 +156,9 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 		"an invalid game must never be proven by the proposer")
 }
 
-// TestProposerDefendsMultipleChallengedGamesConcurrently verifies that two
-// foreign valid games are admitted for concurrent defense. Transaction
-// landing times are serialized by the signer lock and do not measure proving
-// concurrency.
-func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
+// TestProposerDefendsMultipleChallengedGames verifies that the proposer
+// detects and proves two foreign valid challenged games.
+func TestProposerDefendsMultipleChallengedGames(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// The honest challenger resolves games and claims credit on the
 	// proposer's behalf; disable it so proof submission is attributable to
@@ -188,7 +186,7 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	gameB.Challenge(challenger)
 	proposer := sys.StartZKProposer()
 	proposer.VerifyState(
-		zkproposer.PeakConcurrentDefenseTasks(2),
+		zkproposer.DefenseTasksSpawned(2),
 		zkproposer.ProvingFailures(0),
 	)
 

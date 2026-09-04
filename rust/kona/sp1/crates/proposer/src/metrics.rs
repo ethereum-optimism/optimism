@@ -132,12 +132,6 @@ pub enum ProposerGauge {
         message = "Total number of defense proving tasks spawned"
     )]
     GamesDefenseSpawned,
-    /// Highest number of defense proving tasks admitted for concurrent execution.
-    #[strum(
-        serialize = "kona_sp1_proposer_peak_concurrent_defense_tasks",
-        message = "Highest number of concurrently scheduled defense proving tasks"
-    )]
-    PeakConcurrentDefenseTasks,
     /// Total number of fast finality proving tasks spawned (games proven
     /// while still unchallenged; see `KONA_SP1_PROPOSER_FAST_FINALITY_MODE`).
     #[strum(
