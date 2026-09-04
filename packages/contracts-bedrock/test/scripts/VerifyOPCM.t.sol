@@ -98,8 +98,15 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _verifyAnchorStateRegistryDelays(_asr);
     }
 
-    function verifyStandardValidatorArgs(IOPContractsManagerV2 _opcm, address _validator) public returns (bool) {
-        return _verifyStandardValidatorArgs(_opcm, _validator);
+    function verifyStandardValidatorArgs(
+        IOPContractsManagerV2 _opcm,
+        address _validator,
+        bool _skipConstructorVerification
+    )
+        public
+        returns (bool)
+    {
+        return _verifyStandardValidatorArgs(_opcm, _validator, _skipConstructorVerification);
     }
 
     function setValidatorGetterCheck(string memory _getter, string memory _check) public {
