@@ -1,0 +1,1792 @@
+use std::{
+    collections::{BTreeMap, HashMap, VecDeque},
+    fs,
+    hash::Hash,
+    io::Write,
+    num::{NonZeroU64, NonZeroUsize},
+    path::Path,
+    sync::{Arc, Mutex as StdMutex},
+    time::Duration,
+};
+
+use alloy_eips::BlockId;
+use alloy_primitives::{Address, B256, U256};
+use alloy_transport_http::reqwest::Url;
+use anyhow::{Context, Result, bail, ensure};
+use async_trait::async_trait;
+use flate2::{Compression, write::GzEncoder};
+use kona_sp1_host_utils::metrics::MetricsListen;
+use kona_sp1_super_range_executor::{
+    BlockId as SuperBlockId, SuperRootAtTimestampResponse, SuperRootResponseData, SuperV1,
+};
+use tempfile::TempDir;
+use tokio::sync::Mutex as AsyncMutex;
+
+use super::{NamedBarrier, ScenarioControl, ScenarioError};
+use crate::{
+    TX_REVERTED_PREFIX, ZK_GAME_TYPE,
+    config::{
+        AGGREGATION_ARTIFACT_SUFFIX, ProofProviderConfig, ProofProviderKind, ProposalSafety,
+        ProposerConfig, RANGE_ARTIFACT_SUFFIX, RangeSplitCount,
+    },
+    contract::{GameStatus, ProposalStatus, ZKGameArgs},
+    ports::{
+        ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
+        GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
+        L1View, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
+        SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
+    },
+    proposer::{CycleResult, OperationSummary, PrestateCache, Proposer, TaskCompletion, TaskId},
+    prover::ProofKeys,
+    proving::GameProofInputs,
+    signer::NUM_CONFIRMATIONS,
+    superroot::SuperRootAt,
+};
+
+const INITIAL_BLOCK: u64 = 10;
+const INITIAL_L1_TIME: u64 = 1_000;
+// Keep four one-second proposal slots open so the default world works across several ticks.
+const INITIAL_SUPER_ROOT_HORIZON: u64 = 4;
+const DEFAULT_PRESTATE_BYTE: u8 = 0x11;
+pub(super) const DEFAULT_MAX_DURATION: u64 = 3_600;
+const SCENARIO_WATCHDOG: Duration = Duration::from_secs(10);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(super) struct GameTarget {
+    pub(super) factory_index: U256,
+    pub(super) address: Address,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(super) enum ActionTarget {
+    Create { sequence_number: u64, parent_game_index: u32 },
+    Prove(GameTarget),
+    Resolve(GameTarget),
+    ClaimCredit(GameTarget),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ActionOutcome {
+    Success,
+    PreSubmitFailure,
+    Revert,
+    Timeout,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ProofOutcome {
+    Success,
+    Failure,
+    Panic,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum ActionBarrierPoint {
+    BeforeSigner,
+    AfterSubmission,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum BarrierPoint {
+    BeforeSigner,
+    AfterSubmission,
+    Proof,
+}
+
+impl From<ActionBarrierPoint> for BarrierPoint {
+    fn from(point: ActionBarrierPoint) -> Self {
+        match point {
+            ActionBarrierPoint::BeforeSigner => Self::BeforeSigner,
+            ActionBarrierPoint::AfterSubmission => Self::AfterSubmission,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct BarrierKey {
+    point: BarrierPoint,
+    target: ScriptTarget,
+    attempt: u64,
+}
+
+impl BarrierKey {
+    fn matches(&self, operation: &OperationSummary) -> bool {
+        match (&self.target, operation) {
+            (
+                ScriptTarget::Action(ActionTarget::Create { sequence_number, parent_game_index }),
+                OperationSummary::ProposeGame {
+                    sequence_number: scheduled_sequence,
+                    parent_game_index: scheduled_parent,
+                },
+            ) => sequence_number == scheduled_sequence && parent_game_index == scheduled_parent,
+            (
+                ScriptTarget::Action(ActionTarget::Prove(target)),
+                OperationSummary::ProveGame { factory_index, address, .. },
+            ) |
+            (
+                ScriptTarget::Proof(target),
+                OperationSummary::ProveGame { factory_index, address, .. },
+            ) => target.factory_index == *factory_index && target.address == *address,
+            (ScriptTarget::Action(ActionTarget::Resolve(_)), OperationSummary::ResolutionSweep) |
+            (ScriptTarget::Action(ActionTarget::ClaimCredit(_)), OperationSummary::ClaimSweep) => {
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum ScriptTarget {
+    Action(ActionTarget),
+    Proof(GameTarget),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct AttemptKey<K> {
+    target: K,
+    attempt: u64,
+}
+
+impl<K> AttemptKey<K> {
+    const fn new(target: K, attempt: u64) -> Self {
+        Self { target, attempt }
+    }
+}
+
+#[derive(Clone)]
+struct ActionScript {
+    outcome: ActionOutcome,
+    before_signer: Option<NamedBarrier>,
+    after_submission: Option<NamedBarrier>,
+}
+
+impl ActionScript {
+    const fn immediate(outcome: ActionOutcome) -> Self {
+        Self { outcome, before_signer: None, after_submission: None }
+    }
+}
+
+#[derive(Clone)]
+struct ProofScript {
+    outcome: ProofOutcome,
+    barrier: Option<NamedBarrier>,
+}
+
+impl ProofScript {
+    const fn immediate(outcome: ProofOutcome) -> Self {
+        Self { outcome, barrier: None }
+    }
+}
+
+struct Scripts<K, V> {
+    exact: HashMap<AttemptKey<K>, V>,
+    queued: HashMap<K, VecDeque<V>>,
+    fallback: Option<V>,
+    attempts: HashMap<K, u64>,
+}
+
+impl<K, V> Default for Scripts<K, V> {
+    fn default() -> Self {
+        Self {
+            exact: HashMap::new(),
+            queued: HashMap::new(),
+            fallback: None,
+            attempts: HashMap::new(),
+        }
+    }
+}
+
+impl<K, V> Scripts<K, V>
+where
+    K: Clone + Eq + Hash,
+    V: Clone,
+{
+    fn script_exact(&mut self, key: K, attempt: u64, value: V) {
+        assert!(attempt > 0, "script attempts are one-based");
+        assert!(
+            self.exact.insert(AttemptKey::new(key, attempt), value).is_none(),
+            "duplicate exact script"
+        );
+    }
+
+    fn script_next(&mut self, key: K, value: V) {
+        self.queued.entry(key).or_default().push_back(value);
+    }
+
+    fn script_fallback(&mut self, value: V) {
+        assert!(self.fallback.replace(value).is_none(), "duplicate fallback script");
+    }
+
+    fn next(&mut self, key: &K) -> (u64, Option<V>) {
+        let attempt = self.attempts.entry(key.clone()).or_default();
+        *attempt += 1;
+        let current = *attempt;
+        let value = self
+            .exact
+            .remove(&AttemptKey::new(key.clone(), current))
+            .or_else(|| self.queued.get_mut(key).and_then(VecDeque::pop_front))
+            .or_else(|| self.fallback.clone());
+        (current, value)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ScenarioGame {
+    pub(super) factory_index: U256,
+    pub(super) address: Address,
+    pub(super) game_type: u32,
+    pub(super) parent_index: u32,
+    pub(super) sequence_number: u64,
+    pub(super) root_claim: B256,
+    pub(super) extra_data: Vec<u8>,
+    pub(super) proposal_status: ProposalStatus,
+    pub(super) status: GameStatus,
+    pub(super) deadline: u64,
+    pub(super) finalized: bool,
+    pub(super) was_respected: bool,
+    pub(super) absolute_prestate: B256,
+    pub(super) creator: Address,
+    pub(super) weth: Address,
+    pub(super) anchor_state_registry: Address,
+    pub(super) standing: GameStanding,
+    pub(super) bond: BondState,
+    pub(super) proof_inputs: ProofInputs,
+}
+
+impl ScenarioGame {
+    pub(super) fn new(index: u64, parent_index: u32, sequence_number: u64, prestate: B256) -> Self {
+        let address = deterministic_address(0x40, index);
+        let mut extra_data = parent_index.to_be_bytes().to_vec();
+        extra_data.push(0x01);
+        Self {
+            factory_index: U256::from(index),
+            address,
+            game_type: ZK_GAME_TYPE,
+            parent_index,
+            sequence_number,
+            root_claim: canonical_super_root(sequence_number),
+            extra_data,
+            proposal_status: ProposalStatus::Unchallenged,
+            status: GameStatus::InProgress,
+            deadline: INITIAL_L1_TIME + DEFAULT_MAX_DURATION,
+            finalized: false,
+            was_respected: true,
+            absolute_prestate: prestate,
+            creator: deterministic_address(0x50, index),
+            weth: deterministic_address(0x60, 1),
+            anchor_state_registry: deterministic_address(0x70, 1),
+            standing: GameStanding { blacklisted: false, retired: false },
+            bond: BondState {
+                credit: U256::ZERO,
+                withdrawal_amount: U256::ZERO,
+                withdrawal_timestamp: U256::ZERO,
+                delay: U256::from(10),
+            },
+            proof_inputs: ProofInputs {
+                l1_head: deterministic_hash(0x80, INITIAL_BLOCK),
+                l1_head_number: INITIAL_BLOCK,
+                starting_root: canonical_super_root(sequence_number.saturating_sub(1)),
+                starting_sequence_number: sequence_number.saturating_sub(1),
+                root_claim: canonical_super_root(sequence_number),
+                sequence_number,
+            },
+        }
+    }
+
+    pub(super) fn challenged(mut self) -> Self {
+        self.proposal_status = ProposalStatus::Challenged;
+        self
+    }
+
+    pub(super) fn provable_for_resolution(mut self) -> Self {
+        self.proposal_status = ProposalStatus::ChallengedAndValidProofProvided;
+        self
+    }
+
+    pub(super) fn claimable(mut self, credit: u64) -> Self {
+        self.status = GameStatus::DefenderWins;
+        self.proposal_status = ProposalStatus::Resolved;
+        self.finalized = true;
+        self.bond.credit = U256::from(credit);
+        self
+    }
+
+    fn bind_proof_inputs(&mut self, state: &L1State) {
+        self.proof_inputs.l1_head_number = state.block.number;
+        self.proof_inputs.l1_head = deterministic_hash(0x80, state.block.number);
+        if self.parent_index == u32::MAX {
+            self.proof_inputs.starting_root = state.anchor_root.root;
+            self.proof_inputs.starting_sequence_number =
+                state.anchor_root.sequence_number.to::<u64>();
+        } else if let Some(parent) = state.games.get(&U256::from(self.parent_index)) {
+            self.proof_inputs.starting_root = parent.root_claim;
+            self.proof_inputs.starting_sequence_number = parent.sequence_number;
+        }
+    }
+
+    pub(super) fn target(&self) -> GameTarget {
+        GameTarget { factory_index: self.factory_index, address: self.address }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ActionLifecycle {
+    PreSubmitFailed,
+    Submitted,
+    Confirmed,
+    Reverted,
+    TimedOut,
+    IncludedLate,
+    Dropped,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum CommittedEffect {
+    None,
+    Created { factory_index: U256, address: Address },
+    Proven { game: Address },
+    Resolved { game: Address },
+    ClaimUnlocked { game: Address, amount: U256 },
+    ClaimPaid { game: Address, amount: U256 },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum ActionInputs {
+    Create { root_claim: B256, parent_game_index: u32, sequence_number: u64 },
+    Prove { game: Address },
+    Resolve { game: Address },
+    ClaimCredit { game: Address, recipient: Address },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ActionRecord {
+    pub(super) target: ActionTarget,
+    pub(super) attempt: u64,
+    pub(super) inputs: ActionInputs,
+    pub(super) lifecycle: ActionLifecycle,
+    pub(super) transaction_hash: Option<B256>,
+    pub(super) effect: CommittedEffect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ProofLifecycle {
+    Parked,
+    Succeeded,
+    Failed,
+    Panicked,
+}
+
+const fn proof_lifecycle(outcome: ProofOutcome) -> ProofLifecycle {
+    match outcome {
+        ProofOutcome::Success => ProofLifecycle::Succeeded,
+        ProofOutcome::Failure => ProofLifecycle::Failed,
+        ProofOutcome::Panic => ProofLifecycle::Panicked,
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ProofRecord {
+    pub(super) target: GameTarget,
+    pub(super) attempt: u64,
+    pub(super) lifecycle: ProofLifecycle,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum InclusionDepth {
+    LatestOnly,
+    Confirmed,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TransactionInclusion {
+    Confirmed,
+    Reverted,
+    Late,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PendingTransactionObservation {
+    pub(super) target: ActionTarget,
+    pub(super) attempt: u64,
+    pub(super) nonce: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct WorldObservation {
+    pub(super) latest_l1: L1BlockRef,
+    pub(super) host_time: u64,
+    pub(super) safe_time: u64,
+    pub(super) finalized_time: u64,
+    pub(super) nonce: NonceState,
+    pub(super) games: Vec<ScenarioGame>,
+    pub(super) pending_transactions: Vec<PendingTransactionObservation>,
+}
+
+#[derive(Clone)]
+struct L1State {
+    block: L1BlockRef,
+    registered_args: ZKGameArgs,
+    anchor_root: AnchorRoot,
+    registered_anchor_game: Address,
+    respected_game_type: u32,
+    init_bond: U256,
+    latest_nonce: u64,
+    games: BTreeMap<U256, ScenarioGame>,
+}
+
+impl L1State {
+    fn game(&self, address: Address) -> Result<&ScenarioGame> {
+        self.games
+            .values()
+            .find(|game| game.address == address)
+            .with_context(|| format!("scenario game {address} missing"))
+    }
+}
+
+#[derive(Clone)]
+enum PendingEffect {
+    Create { root_claim: B256, extra_data: Vec<u8>, sequence_number: u64, parent_game_index: u32 },
+    Prove(Address),
+    Resolve(Address),
+    Claim(Address),
+}
+
+#[derive(Clone)]
+struct PendingTransaction {
+    nonce: u64,
+    effect: PendingEffect,
+}
+
+struct WorldData {
+    states: BTreeMap<u64, Arc<L1State>>,
+    latest_block: u64,
+    host_time: u64,
+    safe_time: u64,
+    finalized_time: u64,
+    sync_confirmations: Option<u64>,
+    pending_nonce: u64,
+    action_scripts: Scripts<ActionTarget, ActionScript>,
+    proof_scripts: Scripts<GameTarget, ProofScript>,
+    barriers: HashMap<BarrierKey, NamedBarrier>,
+    action_records: HashMap<AttemptKey<ActionTarget>, ActionRecord>,
+    proof_records: HashMap<AttemptKey<GameTarget>, ProofRecord>,
+    pending_transactions: HashMap<AttemptKey<ActionTarget>, PendingTransaction>,
+}
+
+#[derive(Clone)]
+pub(super) struct ScenarioWorld {
+    data: Arc<StdMutex<WorldData>>,
+    signer_gate: Arc<AsyncMutex<()>>,
+    artifacts: Arc<TempDir>,
+}
+
+impl ScenarioWorld {
+    pub(super) fn new() -> Self {
+        let artifacts = tempfile::tempdir().expect("create scenario artifact directory");
+        let prestate = Self::default_prestate();
+        publish_prestate_at(artifacts.path(), prestate);
+        let registry = deterministic_address(0x70, 1);
+        let weth = deterministic_address(0x60, 1);
+        let initial = L1State {
+            block: L1BlockRef {
+                hash: B256::left_padding_from(&INITIAL_BLOCK.to_be_bytes()),
+                number: INITIAL_BLOCK,
+                timestamp: INITIAL_L1_TIME,
+            },
+            registered_args: ZKGameArgs {
+                absolute_prestate: prestate,
+                verifier: deterministic_address(0x71, 1),
+                max_challenge_duration: DEFAULT_MAX_DURATION,
+                max_prove_duration: DEFAULT_MAX_DURATION,
+                challenger_bond: U256::ONE,
+                anchor_state_registry: registry,
+                weth,
+            },
+            anchor_root: AnchorRoot { root: canonical_super_root(0), sequence_number: U256::ZERO },
+            registered_anchor_game: Address::ZERO,
+            respected_game_type: ZK_GAME_TYPE,
+            init_bond: U256::ONE,
+            latest_nonce: 0,
+            games: BTreeMap::new(),
+        };
+        let mut states = BTreeMap::new();
+        states.insert(INITIAL_BLOCK, Arc::new(initial));
+        Self {
+            data: Arc::new(StdMutex::new(WorldData {
+                states,
+                latest_block: INITIAL_BLOCK,
+                host_time: INITIAL_L1_TIME,
+                safe_time: INITIAL_SUPER_ROOT_HORIZON,
+                finalized_time: INITIAL_SUPER_ROOT_HORIZON,
+                sync_confirmations: None,
+                pending_nonce: 0,
+                action_scripts: Scripts::default(),
+                proof_scripts: Scripts::default(),
+                barriers: HashMap::new(),
+                action_records: HashMap::new(),
+                proof_records: HashMap::new(),
+                pending_transactions: HashMap::new(),
+            })),
+            signer_gate: Arc::new(AsyncMutex::new(())),
+            artifacts: Arc::new(artifacts),
+        }
+    }
+
+    pub(super) const fn default_prestate() -> B256 {
+        B256::repeat_byte(DEFAULT_PRESTATE_BYTE)
+    }
+
+    pub(super) const fn proposer_address() -> Address {
+        Address::repeat_byte(0x22)
+    }
+
+    pub(super) fn prestates_url(&self) -> Url {
+        Url::from_directory_path(self.artifacts.path()).expect("artifact path must form a file URL")
+    }
+
+    pub(super) fn publish_prestate(&self, prestate: B256) {
+        publish_prestate_at(self.artifacts.path(), prestate);
+    }
+
+    pub(super) fn add_game(&self, mut game: ScenarioGame) -> L1BlockRef {
+        self.append_block(|state| {
+            game.bind_proof_inputs(state);
+            state.games.insert(game.factory_index, game);
+        })
+    }
+
+    pub(super) fn rotate_registered_prestate(
+        &self,
+        prestate: B256,
+        max_prove_duration: u64,
+    ) -> L1BlockRef {
+        self.append_block(|state| {
+            state.registered_args.absolute_prestate = prestate;
+            state.registered_args.max_prove_duration = max_prove_duration;
+        })
+    }
+
+    pub(super) fn clear_anchor_root(&self) -> L1BlockRef {
+        self.append_block(|state| state.anchor_root.root = B256::ZERO)
+    }
+
+    pub(super) fn set_latest_l1_time(&self, timestamp: u64) -> L1BlockRef {
+        self.append_block(|state| state.block.timestamp = timestamp)
+    }
+
+    pub(super) fn mine_block(&self) -> L1BlockRef {
+        self.append_block(|_| {})
+    }
+
+    pub(super) fn set_host_time(&self, timestamp: u64) {
+        self.lock().host_time = timestamp;
+    }
+
+    pub(super) fn set_horizons(&self, safe: u64, finalized: u64) {
+        let mut data = self.lock();
+        data.safe_time = safe;
+        data.finalized_time = finalized;
+    }
+
+    pub(super) fn set_safe_time(&self, safe: u64) {
+        self.lock().safe_time = safe;
+    }
+
+    pub(super) fn set_finalized_time(&self, finalized: u64) {
+        self.lock().finalized_time = finalized;
+    }
+
+    pub(super) fn configure_sync_confirmations(&self, confirmations: u64) -> Result<()> {
+        let mut data = self.lock();
+        if let Some(configured) = data.sync_confirmations {
+            ensure!(
+                configured == confirmations,
+                "scenario sync confirmations already configured as {configured}, cannot reconfigure as {confirmations}"
+            );
+        } else {
+            data.sync_confirmations = Some(confirmations);
+        }
+        Ok(())
+    }
+
+    pub(super) fn script_action(&self, target: ActionTarget, attempt: u64, outcome: ActionOutcome) {
+        self.lock().action_scripts.script_exact(target, attempt, ActionScript::immediate(outcome));
+    }
+
+    pub(super) fn script_action_fallback(&self, outcome: ActionOutcome) {
+        self.lock().action_scripts.script_fallback(ActionScript::immediate(outcome));
+    }
+
+    pub(super) fn block_action(
+        &self,
+        target: ActionTarget,
+        attempt: u64,
+        point: ActionBarrierPoint,
+        outcome: ActionOutcome,
+        name: &str,
+    ) {
+        assert!(
+            point != ActionBarrierPoint::AfterSubmission ||
+                outcome != ActionOutcome::PreSubmitFailure,
+            "a pre-submit failure cannot reach an after-submission barrier"
+        );
+        let barrier = NamedBarrier::new(name);
+        let script = match point {
+            ActionBarrierPoint::BeforeSigner => ActionScript {
+                outcome,
+                before_signer: Some(barrier.clone()),
+                after_submission: None,
+            },
+            ActionBarrierPoint::AfterSubmission => ActionScript {
+                outcome,
+                before_signer: None,
+                after_submission: Some(barrier.clone()),
+            },
+        };
+        let mut data = self.lock();
+        data.action_scripts.script_exact(target.clone(), attempt, script);
+        data.barriers.insert(
+            BarrierKey { point: point.into(), target: ScriptTarget::Action(target), attempt },
+            barrier,
+        );
+    }
+
+    pub(super) fn script_proof(&self, target: GameTarget, attempt: u64, outcome: ProofOutcome) {
+        self.lock().proof_scripts.script_exact(target, attempt, ProofScript::immediate(outcome));
+    }
+
+    pub(super) fn script_next_proof(&self, target: GameTarget, outcome: ProofOutcome) {
+        self.lock().proof_scripts.script_next(target, ProofScript::immediate(outcome));
+    }
+
+    pub(super) fn script_proof_fallback(&self, outcome: ProofOutcome) {
+        self.lock().proof_scripts.script_fallback(ProofScript::immediate(outcome));
+    }
+
+    pub(super) fn block_proof(
+        &self,
+        target: GameTarget,
+        attempt: u64,
+        outcome: ProofOutcome,
+        name: &str,
+    ) {
+        let barrier = NamedBarrier::new(name);
+        let mut data = self.lock();
+        data.proof_scripts.script_exact(
+            target.clone(),
+            attempt,
+            ProofScript { outcome, barrier: Some(barrier.clone()) },
+        );
+        data.barriers.insert(
+            BarrierKey { point: BarrierPoint::Proof, target: ScriptTarget::Proof(target), attempt },
+            barrier,
+        );
+    }
+
+    pub(super) fn action_record(
+        &self,
+        target: &ActionTarget,
+        attempt: u64,
+    ) -> Option<ActionRecord> {
+        self.lock().action_records.get(&AttemptKey::new(target.clone(), attempt)).cloned()
+    }
+
+    pub(super) fn proof_record(&self, target: &GameTarget, attempt: u64) -> Option<ProofRecord> {
+        self.lock().proof_records.get(&AttemptKey::new(target.clone(), attempt)).cloned()
+    }
+
+    pub(super) fn observation(&self) -> WorldObservation {
+        let data = self.lock();
+        let latest = data.latest_state();
+        let mut games = latest.games.values().cloned().collect::<Vec<_>>();
+        games.sort_unstable_by_key(|game| game.factory_index);
+        let mut pending_transactions = data
+            .pending_transactions
+            .iter()
+            .map(|(key, transaction)| PendingTransactionObservation {
+                target: key.target.clone(),
+                attempt: key.attempt,
+                nonce: transaction.nonce,
+            })
+            .collect::<Vec<_>>();
+        pending_transactions.sort_unstable_by(|left, right| {
+            left.target.cmp(&right.target).then_with(|| left.attempt.cmp(&right.attempt))
+        });
+        WorldObservation {
+            latest_l1: latest.block,
+            host_time: data.host_time,
+            safe_time: data.safe_time,
+            finalized_time: data.finalized_time,
+            nonce: NonceState { pending: data.pending_nonce, latest: latest.latest_nonce },
+            games,
+            pending_transactions,
+        }
+    }
+
+    fn include_transaction(
+        &self,
+        target: &ActionTarget,
+        attempt: u64,
+        depth: InclusionDepth,
+    ) -> Result<CommittedEffect> {
+        self.lock().include_transaction(target, attempt, depth, TransactionInclusion::Late)
+    }
+
+    fn drop_transaction(&self, target: &ActionTarget, attempt: u64) -> Result<()> {
+        let mut data = self.lock();
+        let key = AttemptKey::new(target.clone(), attempt);
+        data.pending_transactions
+            .remove(&key)
+            .with_context(|| format!("no pending transaction for {target:?} attempt {attempt}"))?;
+        data.recompute_pending_nonce();
+        let record = data
+            .action_records
+            .get_mut(&key)
+            .context("pending transaction has no action record")?;
+        record.lifecycle = ActionLifecycle::Dropped;
+        record.effect = CommittedEffect::None;
+        Ok(())
+    }
+
+    pub(super) fn l1_view(&self) -> Arc<dyn L1View> {
+        Arc::new(FakeL1View(self.clone()))
+    }
+
+    pub(super) fn superroot_source(&self) -> Arc<dyn SuperRootSource> {
+        Arc::new(FakeSuperRootSource(self.clone()))
+    }
+
+    pub(super) fn query_time(&self) -> Arc<dyn QueryTime> {
+        Arc::new(FakeQueryTime(self.clone()))
+    }
+
+    pub(super) fn proof_engine(&self) -> Arc<dyn ProofEngine> {
+        Arc::new(FakeProofEngine(self.clone()))
+    }
+
+    pub(super) fn action_executor(&self) -> Arc<dyn ActionExecutor> {
+        Arc::new(FakeActionExecutor(self.clone()))
+    }
+
+    fn append_block(&self, update: impl FnOnce(&mut L1State)) -> L1BlockRef {
+        self.lock().append_block(update)
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, WorldData> {
+        self.data.lock().expect("scenario world lock poisoned")
+    }
+
+    fn barrier(&self, key: &BarrierKey) -> Option<NamedBarrier> {
+        self.lock().barriers.get(key).cloned()
+    }
+}
+
+impl WorldData {
+    fn latest_state(&self) -> Arc<L1State> {
+        self.states.get(&self.latest_block).expect("latest world block must exist").clone()
+    }
+
+    fn state_at(&self, block: BlockId) -> Result<Arc<L1State>> {
+        if block.is_latest() {
+            return Ok(self.latest_state());
+        }
+        if let Some(number) = block.as_u64() {
+            return self
+                .states
+                .get(&number)
+                .cloned()
+                .with_context(|| format!("L1 block {number} unavailable"));
+        }
+        if let BlockId::Hash(hash) = block {
+            return self
+                .states
+                .values()
+                .find(|state| state.block.hash == hash.block_hash)
+                .cloned()
+                .with_context(|| format!("L1 block {} unavailable", hash.block_hash));
+        }
+        bail!("scenario only supports latest, numbered, or hashed L1 reads")
+    }
+
+    fn append_block(&mut self, update: impl FnOnce(&mut L1State)) -> L1BlockRef {
+        let mut next = self.latest_state().as_ref().clone();
+        next.block.number += 1;
+        next.block.hash = B256::left_padding_from(&next.block.number.to_be_bytes());
+        update(&mut next);
+        self.latest_block = next.block.number;
+        let block = next.block;
+        self.states.insert(block.number, Arc::new(next));
+        block
+    }
+
+    fn game_target(&self, address: Address) -> Result<GameTarget> {
+        Ok(self.latest_state().game(address)?.target())
+    }
+
+    fn proof_target(&self, address: Address, game: &GameProofInputs) -> Result<GameTarget> {
+        let state = self.latest_state();
+        let candidate = state.game(address)?;
+        let expected = GameProofInputs {
+            l1_head: candidate.proof_inputs.l1_head,
+            l1_head_number: candidate.proof_inputs.l1_head_number,
+            starting_root: candidate.proof_inputs.starting_root,
+            starting_ts: candidate.proof_inputs.starting_sequence_number,
+            root_claim: candidate.proof_inputs.root_claim,
+            claim_ts: candidate.proof_inputs.sequence_number,
+            prestate: candidate.absolute_prestate,
+            prover: ScenarioWorld::proposer_address(),
+        };
+        ensure!(
+            &expected == game,
+            "proof inputs do not match scenario game {address}: expected {expected:?}, got {game:?}"
+        );
+        Ok(candidate.target())
+    }
+
+    fn include_transaction(
+        &mut self,
+        target: &ActionTarget,
+        attempt: u64,
+        depth: InclusionDepth,
+        inclusion: TransactionInclusion,
+    ) -> Result<CommittedEffect> {
+        let selected = AttemptKey::new(target.clone(), attempt);
+        let selected_nonce = self
+            .pending_transactions
+            .get(&selected)
+            .with_context(|| format!("no pending transaction for {target:?} attempt {attempt}"))?
+            .nonce;
+        let latest_nonce = self.latest_state().latest_nonce;
+        let mut included = self
+            .pending_transactions
+            .iter()
+            .filter(|(_, transaction)| transaction.nonce <= selected_nonce)
+            .map(|(key, transaction)| (transaction.nonce, key.clone()))
+            .collect::<Vec<_>>();
+        included.sort_unstable_by_key(|(nonce, _)| *nonce);
+        let mut expected_nonce = latest_nonce;
+        for (nonce, key) in &included {
+            ensure!(
+                *nonce == expected_nonce,
+                "cannot include {key:?} at nonce {nonce} before nonce {expected_nonce}"
+            );
+            ensure!(
+                self.action_records.contains_key(key),
+                "pending transaction {key:?} has no action record"
+            );
+            expected_nonce += 1;
+        }
+        ensure!(
+            expected_nonce == selected_nonce + 1,
+            "cannot include nonce {selected_nonce} before nonce {expected_nonce}"
+        );
+
+        let mut selected_effect = None;
+        for (_, key) in included {
+            let transaction = self
+                .pending_transactions
+                .remove(&key)
+                .expect("validated pending transaction must exist");
+            let is_selected = key == selected;
+            let (transaction_applies, lifecycle) = if is_selected {
+                match inclusion {
+                    TransactionInclusion::Confirmed => (true, ActionLifecycle::Confirmed),
+                    TransactionInclusion::Reverted => (false, ActionLifecycle::Reverted),
+                    TransactionInclusion::Late => (true, ActionLifecycle::IncludedLate),
+                }
+            } else {
+                (true, ActionLifecycle::IncludedLate)
+            };
+            let effect = self.commit_transaction(
+                transaction.effect,
+                transaction.nonce,
+                transaction_applies,
+            )?;
+            let record = self
+                .action_records
+                .get_mut(&key)
+                .expect("validated pending transaction must have an action record");
+            record.lifecycle = lifecycle;
+            record.effect = effect.clone();
+            if is_selected {
+                selected_effect = Some(effect);
+            }
+        }
+        let confirmations = match depth {
+            InclusionDepth::LatestOnly => 1,
+            InclusionDepth::Confirmed => {
+                NUM_CONFIRMATIONS + self.sync_confirmations.unwrap_or_default()
+            }
+        };
+        for _ in 1..confirmations {
+            self.append_block(|_| {});
+        }
+        self.recompute_pending_nonce();
+        selected_effect.context("selected pending transaction was not included")
+    }
+
+    fn recompute_pending_nonce(&mut self) {
+        let mut nonce = self.latest_state().latest_nonce;
+        while self.pending_transactions.values().any(|transaction| transaction.nonce == nonce) {
+            nonce += 1;
+        }
+        self.pending_nonce = nonce;
+    }
+
+    fn commit_transaction(
+        &mut self,
+        plan: PendingEffect,
+        nonce: u64,
+        apply_effect: bool,
+    ) -> Result<CommittedEffect> {
+        let latest_nonce = self.latest_state().latest_nonce;
+        ensure!(nonce == latest_nonce, "cannot commit nonce {nonce} after nonce {latest_nonce}");
+        let mut committed = CommittedEffect::None;
+        self.append_block(|state| {
+            state.latest_nonce = nonce + 1;
+            if !apply_effect {
+                return;
+            }
+            committed = match plan {
+                PendingEffect::Create {
+                    root_claim,
+                    extra_data,
+                    sequence_number,
+                    parent_game_index,
+                } => {
+                    let index =
+                        state.games.keys().next_back().map_or(0, |index| index.to::<u64>() + 1);
+                    let index = U256::from(index);
+                    let address = deterministic_address(0x40, index.to::<u64>());
+                    let mut game = ScenarioGame::new(
+                        index.to::<u64>(),
+                        parent_game_index,
+                        sequence_number,
+                        state.registered_args.absolute_prestate,
+                    );
+                    game.address = address;
+                    game.root_claim = root_claim;
+                    game.extra_data = extra_data;
+                    game.creator = ScenarioWorld::proposer_address();
+                    game.weth = state.registered_args.weth;
+                    game.anchor_state_registry = state.registered_args.anchor_state_registry;
+                    game.deadline =
+                        state.block.timestamp + state.registered_args.max_challenge_duration;
+                    game.bind_proof_inputs(state);
+                    state.games.insert(index, game);
+                    CommittedEffect::Created { factory_index: index, address }
+                }
+                PendingEffect::Prove(address) => {
+                    let game = state
+                        .games
+                        .values_mut()
+                        .find(|game| game.address == address)
+                        .expect("proved scenario game must exist");
+                    game.proposal_status = match game.proposal_status {
+                        ProposalStatus::Unchallenged => {
+                            ProposalStatus::UnchallengedAndValidProofProvided
+                        }
+                        _ => ProposalStatus::ChallengedAndValidProofProvided,
+                    };
+                    CommittedEffect::Proven { game: address }
+                }
+                PendingEffect::Resolve(address) => {
+                    let game = state
+                        .games
+                        .values_mut()
+                        .find(|game| game.address == address)
+                        .expect("resolved scenario game must exist");
+                    game.status = GameStatus::DefenderWins;
+                    game.proposal_status = ProposalStatus::Resolved;
+                    game.finalized = true;
+                    CommittedEffect::Resolved { game: address }
+                }
+                PendingEffect::Claim(address) => {
+                    let game = state
+                        .games
+                        .values_mut()
+                        .find(|game| game.address == address)
+                        .expect("claimed scenario game must exist");
+                    if game.bond.credit == U256::ZERO {
+                        let amount = game.bond.withdrawal_amount;
+                        game.bond.withdrawal_amount = U256::ZERO;
+                        CommittedEffect::ClaimPaid { game: address, amount }
+                    } else {
+                        let amount = game.bond.credit;
+                        game.bond.credit = U256::ZERO;
+                        game.bond.withdrawal_amount = amount;
+                        game.bond.withdrawal_timestamp = U256::from(state.block.timestamp);
+                        CommittedEffect::ClaimUnlocked { game: address, amount }
+                    }
+                }
+            };
+        });
+        Ok(committed)
+    }
+}
+
+fn deterministic_address(tag: u8, value: u64) -> Address {
+    let mut bytes = [0u8; 20];
+    bytes[0] = tag;
+    bytes[12..].copy_from_slice(&value.to_be_bytes());
+    Address::from(bytes)
+}
+
+fn deterministic_hash(tag: u8, value: u64) -> B256 {
+    let mut bytes = [0u8; 32];
+    bytes[0] = tag;
+    bytes[24..].copy_from_slice(&value.to_be_bytes());
+    B256::from(bytes)
+}
+
+pub(super) fn canonical_super_root(timestamp: u64) -> B256 {
+    deterministic_hash(0x90, timestamp)
+}
+
+fn super_root_timestamp(root: B256) -> Result<u64> {
+    anyhow::ensure!(root[0] == 0x90, "unknown scenario super root {root}");
+    Ok(u64::from_be_bytes(root[24..].try_into().expect("eight-byte timestamp")))
+}
+
+fn publish_prestate_at(directory: &Path, prestate: B256) {
+    for suffix in [AGGREGATION_ARTIFACT_SUFFIX, RANGE_ARTIFACT_SUFFIX] {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(&[0x7f, b'E', b'L', b'F']).expect("compress scenario ELF");
+        let compressed = encoder.finish().expect("finish scenario ELF compression");
+        fs::write(directory.join(format!("{prestate}{suffix}")), compressed)
+            .expect("publish scenario prestate artifact");
+    }
+}
+
+#[derive(Clone)]
+struct FakeL1View(ScenarioWorld);
+
+impl FakeL1View {
+    fn state(&self, block: BlockId) -> Result<Arc<L1State>> {
+        self.0.lock().state_at(block)
+    }
+
+    fn latest_state(&self) -> Arc<L1State> {
+        self.0.lock().latest_state()
+    }
+}
+
+#[async_trait]
+impl L1View for FakeL1View {
+    async fn latest_head(&self) -> Result<Option<L1BlockRef>> {
+        Ok(Some(self.0.lock().latest_state().block))
+    }
+
+    async fn block_ref(&self, number: u64) -> Result<Option<L1BlockRef>> {
+        Ok(self.0.lock().states.get(&number).map(|state| state.block))
+    }
+
+    async fn registered_game_args(&self, block: BlockId) -> Result<ZKGameArgs> {
+        Ok(self.state(block)?.registered_args.clone())
+    }
+
+    async fn anchor_root(&self, _registry: Address, block: BlockId) -> Result<AnchorRoot> {
+        Ok(self.state(block)?.anchor_root)
+    }
+
+    async fn latest_game_index(&self, block: BlockId) -> Result<Option<U256>> {
+        Ok(self.state(block)?.games.keys().next_back().copied())
+    }
+
+    async fn registered_anchor_game(&self, block: BlockId) -> Result<Address> {
+        Ok(self.state(block)?.registered_anchor_game)
+    }
+
+    async fn factory_game(&self, index: U256, block: BlockId) -> Result<FactoryGame> {
+        let state = self.state(block)?;
+        let game = state.games.get(&index).context("factory game missing")?;
+        Ok(FactoryGame { address: game.address, game_type: game.game_type })
+    }
+
+    async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim> {
+        let state = self.state(block)?;
+        let game = state.game(game)?;
+        Ok(GameClaim {
+            status: game.proposal_status as u8,
+            deadline: game.deadline,
+            parent_index: game.parent_index,
+        })
+    }
+
+    async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity> {
+        let state = self.state(block)?;
+        let game = state.game(game)?;
+        Ok(GameIdentity {
+            anchor_state_registry: game.anchor_state_registry,
+            weth: game.weth,
+            creator: game.creator,
+            sequence_number: U256::from(game.sequence_number),
+        })
+    }
+
+    async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity> {
+        let state = self.state(block)?;
+        let game = state.game(game)?;
+        Ok(GameValidity {
+            root_claim: game.root_claim,
+            was_respected: game.was_respected,
+            status: game.status,
+            absolute_prestate: game.absolute_prestate,
+        })
+    }
+
+    async fn game_lifecycle(
+        &self,
+        game: Address,
+        _registry: Address,
+        block: BlockId,
+    ) -> Result<GameLifecycle> {
+        let state = self.state(block)?;
+        let game = state.game(game)?;
+        Ok(GameLifecycle {
+            proposal_status: game.proposal_status,
+            deadline: game.deadline,
+            parent_index: game.parent_index,
+            status: game.status,
+            is_finalized: game.finalized,
+        })
+    }
+
+    async fn parent_game_status(&self, parent_index: u32, block: BlockId) -> Result<u8> {
+        let state = self.state(block)?;
+        Ok(state.games.get(&U256::from(parent_index)).context("parent game missing")?.status as u8)
+    }
+
+    async fn bond_state(
+        &self,
+        game: Address,
+        _weth: Address,
+        _proposer: Address,
+        block: BlockId,
+    ) -> Result<BondState> {
+        let state = self.state(block)?;
+        Ok(state.game(game)?.bond)
+    }
+
+    async fn init_bond(&self) -> Result<U256> {
+        Ok(self.latest_state().init_bond)
+    }
+
+    async fn game_status(&self, game: Address) -> Result<u8> {
+        let state = self.latest_state();
+        Ok(state.game(game)?.status as u8)
+    }
+
+    async fn claim_preflight(
+        &self,
+        game: Address,
+        _weth: Address,
+        _proposer: Address,
+    ) -> ClaimPreflight {
+        let state = self.latest_state();
+        let credit = state.game(game).map(|game| game.bond.credit);
+        let withdrawal = state.game(game).map(|game| WithdrawalState {
+            amount: game.bond.withdrawal_amount,
+            timestamp: game.bond.withdrawal_timestamp,
+        });
+        ClaimPreflight { credit, withdrawal }
+    }
+
+    async fn weth_delay(&self, weth: Address) -> Result<U256> {
+        let state = self.latest_state();
+        Ok(state
+            .games
+            .values()
+            .find(|game| game.weth == weth)
+            .map_or_else(|| U256::from(10), |game| game.bond.delay))
+    }
+
+    async fn game_by_uuid(&self, root_claim: B256, extra_data: Vec<u8>) -> Result<Address> {
+        let state = self.latest_state();
+        Ok(state
+            .games
+            .values()
+            .find(|game| game.root_claim == root_claim && game.extra_data == extra_data)
+            .map_or(Address::ZERO, |game| game.address))
+    }
+
+    async fn game_creator(&self, game: Address) -> Result<Address> {
+        let state = self.latest_state();
+        Ok(state.game(game)?.creator)
+    }
+
+    async fn nonce_state(&self, _proposer: Address) -> Result<NonceState> {
+        let data = self.0.lock();
+        Ok(NonceState { pending: data.pending_nonce, latest: data.latest_state().latest_nonce })
+    }
+
+    async fn respected_game_type(&self, block: BlockId) -> Result<u32> {
+        Ok(self.state(block)?.respected_game_type)
+    }
+
+    async fn parent_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
+        let state = self.latest_state();
+        Ok(state.game(game)?.standing)
+    }
+
+    async fn game_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
+        let state = self.latest_state();
+        Ok(state.game(game)?.standing)
+    }
+
+    async fn proof_status(&self, game: Address) -> Result<u8> {
+        let state = self.latest_state();
+        Ok(state.game(game)?.proposal_status as u8)
+    }
+
+    async fn proof_inputs(&self, game: Address) -> Result<ProofInputs> {
+        let state = self.latest_state();
+        Ok(state.game(game)?.proof_inputs)
+    }
+
+    async fn anchor_state_registry(&self, game: Address) -> Result<Address> {
+        let state = self.latest_state();
+        Ok(state.game(game)?.anchor_state_registry)
+    }
+
+    async fn latest_l1_timestamp(&self) -> Result<u64> {
+        Ok(self.latest_state().block.timestamp)
+    }
+}
+
+#[derive(Clone)]
+struct FakeQueryTime(ScenarioWorld);
+
+impl QueryTime for FakeQueryTime {
+    fn unix_timestamp(&self) -> Result<u64> {
+        Ok(self.0.lock().host_time)
+    }
+}
+
+#[derive(Clone)]
+struct FakeSuperRootSource(ScenarioWorld);
+
+#[async_trait]
+impl SuperRootSource for FakeSuperRootSource {
+    async fn proposal_horizon(&self, _timestamp: u64) -> Result<ProposalHorizon> {
+        let data = self.0.lock();
+        Ok(ProposalHorizon {
+            safe_timestamp: data.safe_time,
+            finalized_timestamp: data.finalized_time,
+        })
+    }
+
+    async fn super_root_at_timestamp(&self, timestamp: u64) -> Result<SuperRootAtTimestamp> {
+        let data = self.0.lock();
+        let safe = data.safe_time;
+        let finalized = data.finalized_time;
+        if timestamp > safe {
+            let response = superroot_response(timestamp, safe, finalized, None);
+            return Ok(SuperRootAtTimestamp { response, root: None });
+        }
+
+        let root = canonical_super_root(timestamp);
+        let response = superroot_response(timestamp, safe, finalized, Some((1, root)));
+        Ok(SuperRootAtTimestamp {
+            response,
+            root: Some(SuperRootAt { proof_bytes: vec![0x01], super_root: root }),
+        })
+    }
+}
+
+fn superroot_response(
+    timestamp: u64,
+    safe: u64,
+    finalized: u64,
+    data: Option<(u64, B256)>,
+) -> SuperRootAtTimestampResponse {
+    SuperRootAtTimestampResponse {
+        current_l1: SuperBlockId { number: 2, ..Default::default() },
+        current_safe_timestamp: safe,
+        current_local_safe_timestamp: safe,
+        current_finalized_timestamp: finalized,
+        optimistic_at_timestamp: Default::default(),
+        chain_ids: Vec::new(),
+        data: data.map(|(required_l1, root)| SuperRootResponseData {
+            verified_required_l1: SuperBlockId { number: required_l1, ..Default::default() },
+            super_v1: SuperV1 { timestamp, chains: Vec::new() },
+            super_root: root,
+        }),
+    }
+}
+
+#[derive(Clone)]
+struct FakeProofEngine(ScenarioWorld);
+
+#[async_trait]
+impl ProofEngine for FakeProofEngine {
+    async fn prove(
+        &self,
+        game_address: Address,
+        _keys: Option<Arc<ProofKeys>>,
+        game: GameProofInputs,
+        _responses: Vec<SuperRootAtTimestampResponse>,
+    ) -> Result<Vec<u8>> {
+        let (target, attempt, script) = {
+            let mut data = self.0.lock();
+            let target = data.proof_target(game_address, &game)?;
+            let (attempt, script) = data.proof_scripts.next(&target);
+            let script = script.unwrap_or_else(|| ProofScript::immediate(ProofOutcome::Success));
+            data.proof_records.insert(
+                AttemptKey::new(target.clone(), attempt),
+                ProofRecord {
+                    target: target.clone(),
+                    attempt,
+                    lifecycle: if script.barrier.is_some() {
+                        ProofLifecycle::Parked
+                    } else {
+                        proof_lifecycle(script.outcome)
+                    },
+                },
+            );
+            (target, attempt, script)
+        };
+        if let Some(barrier) = script.barrier {
+            barrier.park_unassigned().await;
+        }
+        let lifecycle = proof_lifecycle(script.outcome);
+        self.0
+            .lock()
+            .proof_records
+            .get_mut(&AttemptKey::new(target.clone(), attempt))
+            .expect("proof record must exist")
+            .lifecycle = lifecycle;
+        match script.outcome {
+            ProofOutcome::Success => Ok(vec![0xa0, attempt as u8]),
+            ProofOutcome::Failure => {
+                bail!("scripted proof failure for {target:?} attempt {attempt}")
+            }
+            ProofOutcome::Panic => panic!("scripted proof panic for {target:?} attempt {attempt}"),
+        }
+    }
+
+    fn clear(&self, _game_address: Address) {}
+}
+
+#[derive(Clone)]
+struct FakeActionExecutor(ScenarioWorld);
+
+struct ActionResult {
+    transaction_hash: B256,
+    created_address: Option<Address>,
+}
+
+impl FakeActionExecutor {
+    async fn execute(
+        &self,
+        target: ActionTarget,
+        inputs: ActionInputs,
+        effect: PendingEffect,
+    ) -> Result<ActionResult> {
+        let (attempt, script) = {
+            let mut data = self.0.lock();
+            let (attempt, script) = data.action_scripts.next(&target);
+            (attempt, script.unwrap_or_else(|| ActionScript::immediate(ActionOutcome::Success)))
+        };
+        if let Some(barrier) = script.before_signer.clone() {
+            barrier.park_unassigned().await;
+        }
+
+        let _signer = self.0.signer_gate.lock().await;
+        if script.outcome == ActionOutcome::PreSubmitFailure {
+            self.0.lock().action_records.insert(
+                AttemptKey::new(target.clone(), attempt),
+                ActionRecord {
+                    target: target.clone(),
+                    attempt,
+                    inputs,
+                    lifecycle: ActionLifecycle::PreSubmitFailed,
+                    transaction_hash: None,
+                    effect: CommittedEffect::None,
+                },
+            );
+            bail!("scripted pre-submit failure for {target:?} attempt {attempt}")
+        }
+
+        let transaction_hash = {
+            let mut data = self.0.lock();
+            let nonce = data.pending_nonce;
+            assert!(
+                data.pending_transactions.values().all(|transaction| transaction.nonce != nonce),
+                "pending nonce {nonce} is already occupied"
+            );
+            let transaction_hash = deterministic_hash(0xa0, nonce);
+            data.pending_transactions.insert(
+                AttemptKey::new(target.clone(), attempt),
+                PendingTransaction { nonce, effect },
+            );
+            data.action_records.insert(
+                AttemptKey::new(target.clone(), attempt),
+                ActionRecord {
+                    target: target.clone(),
+                    attempt,
+                    inputs,
+                    lifecycle: ActionLifecycle::Submitted,
+                    transaction_hash: Some(transaction_hash),
+                    effect: CommittedEffect::None,
+                },
+            );
+            data.recompute_pending_nonce();
+            transaction_hash
+        };
+
+        if let Some(barrier) = script.after_submission {
+            barrier.park_unassigned().await;
+        }
+        match script.outcome {
+            ActionOutcome::Success => {
+                let effect = self.0.lock().include_transaction(
+                    &target,
+                    attempt,
+                    InclusionDepth::Confirmed,
+                    TransactionInclusion::Confirmed,
+                )?;
+                let created_address = match effect {
+                    CommittedEffect::Created { address, .. } => Some(address),
+                    _ => None,
+                };
+                Ok(ActionResult { transaction_hash, created_address })
+            }
+            ActionOutcome::Revert => {
+                self.0.lock().include_transaction(
+                    &target,
+                    attempt,
+                    InclusionDepth::Confirmed,
+                    TransactionInclusion::Reverted,
+                )?;
+                bail!("{TX_REVERTED_PREFIX} scripted receipt")
+            }
+            ActionOutcome::Timeout => {
+                self.0
+                    .lock()
+                    .action_records
+                    .get_mut(&AttemptKey::new(target.clone(), attempt))
+                    .expect("action record must exist")
+                    .lifecycle = ActionLifecycle::TimedOut;
+                bail!("scripted confirmation timeout for {target:?} attempt {attempt}")
+            }
+            ActionOutcome::PreSubmitFailure => unreachable!(),
+        }
+    }
+}
+
+#[async_trait]
+impl ActionExecutor for FakeActionExecutor {
+    async fn create_game(
+        &self,
+        root_claim: B256,
+        extra_data: Vec<u8>,
+        _init_bond: U256,
+    ) -> Result<GameCreationReceipt> {
+        let sequence_number = super_root_timestamp(root_claim)?;
+        let parent_game_index = u32::from_be_bytes(
+            extra_data.get(..4).context("create extra data lacks parent index")?.try_into()?,
+        );
+        let target = ActionTarget::Create { sequence_number, parent_game_index };
+        let result = self
+            .execute(
+                target,
+                ActionInputs::Create { root_claim, parent_game_index, sequence_number },
+                PendingEffect::Create {
+                    root_claim,
+                    extra_data,
+                    sequence_number,
+                    parent_game_index,
+                },
+            )
+            .await?;
+        Ok(GameCreationReceipt {
+            game_address: result.created_address.expect("create action must produce an address"),
+            transaction_hash: result.transaction_hash,
+        })
+    }
+
+    async fn prove_game(&self, game: Address, _proof: Vec<u8>) -> Result<B256> {
+        let target = self.0.lock().game_target(game)?;
+        Ok(self
+            .execute(
+                ActionTarget::Prove(target),
+                ActionInputs::Prove { game },
+                PendingEffect::Prove(game),
+            )
+            .await?
+            .transaction_hash)
+    }
+
+    async fn resolve_game(&self, game: Address) -> Result<B256> {
+        let target = self.0.lock().game_target(game)?;
+        Ok(self
+            .execute(
+                ActionTarget::Resolve(target),
+                ActionInputs::Resolve { game },
+                PendingEffect::Resolve(game),
+            )
+            .await?
+            .transaction_hash)
+    }
+
+    async fn claim_credit(&self, game: Address, recipient: Address) -> Result<B256> {
+        let target = self.0.lock().game_target(game)?;
+        Ok(self
+            .execute(
+                ActionTarget::ClaimCredit(target),
+                ActionInputs::ClaimCredit { game, recipient },
+                PendingEffect::Claim(game),
+            )
+            .await?
+            .transaction_hash)
+    }
+}
+
+pub(super) struct ScenarioHarness {
+    world: ScenarioWorld,
+    proposer: Arc<Proposer>,
+    control: ScenarioControl,
+}
+
+impl ScenarioHarness {
+    pub(super) async fn new(
+        world: ScenarioWorld,
+        config: ProposerConfig,
+    ) -> Result<Self, ScenarioError> {
+        let proposer = build_proposer(&world, &config)
+            .await
+            .map_err(|error| ScenarioError::Initialization(error.to_string()))?;
+        proposer
+            .validate_and_init()
+            .await
+            .map_err(|error| ScenarioError::Initialization(error.to_string()))?;
+        let control = ScenarioControl::new(proposer.clone(), SCENARIO_WATCHDOG);
+        Ok(Self { world, proposer, control })
+    }
+
+    pub(super) async fn tick(&mut self) -> Result<CycleResult, ScenarioError> {
+        self.control.tick().await
+    }
+
+    pub(super) async fn settle(
+        &mut self,
+        task_ids: &[TaskId],
+    ) -> Result<Vec<TaskCompletion>, ScenarioError> {
+        self.control.settle(task_ids).await
+    }
+
+    pub(super) async fn settle_scheduled(
+        &mut self,
+        result: &CycleResult,
+    ) -> Result<Vec<TaskCompletion>, ScenarioError> {
+        let task_ids = result.task_ids();
+        self.settle(&task_ids).await
+    }
+
+    #[allow(
+        clippy::needless_pass_by_ref_mut,
+        reason = "scenario controls require exclusive harness access"
+    )]
+    pub(super) fn include_transaction(
+        &mut self,
+        target: &ActionTarget,
+        attempt: u64,
+        depth: InclusionDepth,
+    ) -> Result<CommittedEffect> {
+        self.world.include_transaction(target, attempt, depth)
+    }
+
+    #[allow(
+        clippy::needless_pass_by_ref_mut,
+        reason = "scenario controls require exclusive harness access"
+    )]
+    pub(super) fn drop_transaction(&mut self, target: &ActionTarget, attempt: u64) -> Result<()> {
+        self.world.drop_transaction(target, attempt)
+    }
+
+    pub(super) fn max_prove_duration(&self) -> Option<u64> {
+        self.proposer.max_prove_duration.get().copied()
+    }
+
+    pub(super) async fn wait_for_action_barrier(
+        &mut self,
+        task_id: TaskId,
+        target: &ActionTarget,
+        attempt: u64,
+        point: ActionBarrierPoint,
+    ) -> Result<(), ScenarioError> {
+        let key = BarrierKey {
+            point: point.into(),
+            target: ScriptTarget::Action(target.clone()),
+            attempt,
+        };
+        self.bind_reached_barrier(task_id, key).await
+    }
+
+    pub(super) async fn wait_for_proof_barrier(
+        &mut self,
+        task_id: TaskId,
+        target: &GameTarget,
+        attempt: u64,
+    ) -> Result<(), ScenarioError> {
+        let key = BarrierKey {
+            point: BarrierPoint::Proof,
+            target: ScriptTarget::Proof(target.clone()),
+            attempt,
+        };
+        self.bind_reached_barrier(task_id, key).await
+    }
+
+    pub(super) fn release_action_barrier(
+        &mut self,
+        target: &ActionTarget,
+        attempt: u64,
+        point: ActionBarrierPoint,
+    ) -> Result<(), ScenarioError> {
+        self.release_barrier(BarrierKey {
+            point: point.into(),
+            target: ScriptTarget::Action(target.clone()),
+            attempt,
+        })
+    }
+
+    pub(super) fn release_proof_barrier(
+        &mut self,
+        target: &GameTarget,
+        attempt: u64,
+    ) -> Result<(), ScenarioError> {
+        self.release_barrier(BarrierKey {
+            point: BarrierPoint::Proof,
+            target: ScriptTarget::Proof(target.clone()),
+            attempt,
+        })
+    }
+
+    async fn bind_reached_barrier(
+        &mut self,
+        task_id: TaskId,
+        key: BarrierKey,
+    ) -> Result<(), ScenarioError> {
+        let barrier_key = format!("{key:?}");
+        let barrier = self
+            .world
+            .barrier(&key)
+            .ok_or(ScenarioError::UnknownBarrier { barrier: barrier_key })?;
+        let barrier_name = barrier.0.name.clone();
+        let operation = self
+            .proposer
+            .tasks
+            .lock()
+            .await
+            .get(&task_id)
+            .map(|(_, operation)| operation.clone())
+            .ok_or(ScenarioError::UnknownTask { task_id })?;
+        if !key.matches(&operation) {
+            return Err(ScenarioError::BarrierOperationMismatch { task_id, barrier: barrier_name });
+        }
+        tokio::time::timeout(SCENARIO_WATCHDOG, barrier.wait_until_reached())
+            .await
+            .map_err(|_| ScenarioError::BarrierWatchdog { barrier: barrier_name.clone() })?;
+        barrier.bind_task(task_id);
+        self.control.record_parked(task_id, &barrier).await
+    }
+
+    #[allow(
+        clippy::needless_pass_by_ref_mut,
+        reason = "scenario controls require exclusive harness access"
+    )]
+    fn release_barrier(&mut self, key: BarrierKey) -> Result<(), ScenarioError> {
+        let barrier = self
+            .world
+            .barrier(&key)
+            .ok_or_else(|| ScenarioError::UnknownBarrier { barrier: format!("{key:?}") })?;
+        barrier.release();
+        Ok(())
+    }
+}
+
+async fn build_proposer(world: &ScenarioWorld, config: &ProposerConfig) -> Result<Arc<Proposer>> {
+    let mut config = config.clone();
+    config.prestates_url = world.prestates_url();
+    world.configure_sync_confirmations(config.sync_l1_confirmations)?;
+    let prestates =
+        Arc::new(PrestateCache::with_retry_window(config.prestates_url.clone(), Duration::ZERO));
+    Ok(Arc::new(
+        Proposer::new_with_dependencies(
+            config,
+            ScenarioWorld::proposer_address(),
+            world.l1_view(),
+            world.query_time(),
+            world.superroot_source(),
+            world.proof_engine(),
+            world.action_executor(),
+            prestates,
+        )
+        .await?,
+    ))
+}
+
+pub(super) fn scenario_config() -> ProposerConfig {
+    ProposerConfig {
+        l1_rpc: "http://127.0.0.1:1".parse().unwrap(),
+        superroot_rpcs: vec!["http://127.0.0.1:1".parse().unwrap()],
+        factory_address: Address::ZERO,
+        prestates_url: "file:///replaced-by-scenario-world".parse().unwrap(),
+        proposal_interval_seconds: 1,
+        proposal_safety: ProposalSafety::Finalized,
+        fetch_interval: 86_400,
+        metrics_listen: MetricsListen::Disabled,
+        sync_l1_confirmations: 0,
+        tx_confirmation_timeout: 60,
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+        proof_provider: ProofProviderKind::Mock,
+        l1_beacon_rpc: "http://127.0.0.1:1".parse().unwrap(),
+        l2_rpcs: vec!["http://127.0.0.1:1".parse().unwrap()],
+        rollup_config_paths: None,
+        l1_config_path: None,
+        dependency_set_path: None,
+        range_split_count: RangeSplitCount::one(),
+        max_concurrent_range_proofs: NonZeroUsize::MIN,
+        max_concurrent_defense_tasks: NonZeroU64::new(2).unwrap(),
+        fast_finality_mode: false,
+        fast_finality_proving_limit: NonZeroU64::MIN,
+        proof_provider_config: ProofProviderConfig {
+            timeout: 14_400,
+            network_calls_timeout: 15,
+            auction_timeout: 60,
+            range_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
+            agg_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
+            range_cycle_limit: 1,
+            range_gas_limit: 1,
+            agg_cycle_limit: 1,
+            agg_gas_limit: 1,
+            max_price_per_pgu: Some(NonZeroU64::MIN),
+            min_auction_period: 1,
+        },
+    }
+}
+
+impl CycleResult {
+    pub(super) fn task_ids(&self) -> Vec<TaskId> {
+        self.scheduled.iter().map(|scheduled| scheduled.task_id).collect()
+    }
+
+    pub(super) fn task_ids_except(&self, excluded: TaskId) -> Vec<TaskId> {
+        self.scheduled
+            .iter()
+            .filter(|scheduled| scheduled.task_id != excluded)
+            .map(|scheduled| scheduled.task_id)
+            .collect()
+    }
+
+    pub(super) fn task_id_for(&self, predicate: impl Fn(&OperationSummary) -> bool) -> TaskId {
+        self.scheduled
+            .iter()
+            .find(|scheduled| predicate(&scheduled.operation))
+            .map(|scheduled| scheduled.task_id)
+            .expect("expected scheduled operation")
+    }
+}

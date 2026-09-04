@@ -52,6 +52,7 @@ jsonrpsee = { workspace = true, features = ["http-client"] }
 
 [dev-dependencies]
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
+tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 [[bin]]
