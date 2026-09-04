@@ -72,7 +72,6 @@ func twoL2PrivateInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntim
 	// registered and every stock chain's identifiers are minted exactly as they were before this
 	// existed. See private_interop_resolver.go.
 	resolver := &privateInteropResolver{
-		t:           t,
 		privateEL:   preset.L2ELB,
 		renderingEL: preset.L2BSupernodeEL,
 		renderingCL: preset.L2BSupernodeCL,

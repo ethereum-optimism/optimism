@@ -809,3 +809,55 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
     }
 }
+
+/// @notice Genesis-configured private messaging rejects deposit context through nested calls.
+contract L2ToL2CrossDomainMessenger_RequirePaidMessages_Test is L2ToL2CrossDomainMessenger_TestInit {
+    function _enablePolicy() internal {
+        vm.store(
+            address(l2ToL2CrossDomainMessenger), keccak256("privateinterop.requirePaidMessages"), bytes32(uint256(1))
+        );
+        assertTrue(l2ToL2CrossDomainMessenger.requirePaidMessages());
+    }
+
+    function test_sendMessage_unpaidNested_reverts() public {
+        _enablePolicy();
+        vm.txGasPrice(0);
+        vm.expectRevert(L2ToL2CrossDomainMessenger.L2ToL2CrossDomainMessenger_UnpaidMessage.selector);
+        this.sendNested();
+        assertEq(l2ToL2CrossDomainMessenger.messageNonce(), 0);
+    }
+
+    function sendNested() external returns (bytes32) {
+        return l2ToL2CrossDomainMessenger.sendMessage(block.chainid + 1, address(0xbeef), hex"1234");
+    }
+
+    function test_resendMessage_unpaid_reverts() public {
+        _enablePolicy();
+        vm.txGasPrice(1);
+        bytes32 sent = this.sendNested();
+        assertEq(l2ToL2CrossDomainMessenger.sentMessages(0), sent);
+        vm.txGasPrice(0);
+        vm.expectRevert(L2ToL2CrossDomainMessenger.L2ToL2CrossDomainMessenger_UnpaidMessage.selector);
+        l2ToL2CrossDomainMessenger.resendMessage(block.chainid + 1, 0, address(this), address(0xbeef), hex"1234");
+        vm.txGasPrice(1);
+        assertEq(
+            l2ToL2CrossDomainMessenger.resendMessage(block.chainid + 1, 0, address(this), address(0xbeef), hex"1234"),
+            sent
+        );
+    }
+
+    function test_relayMessage_unpaid_reverts() public {
+        _enablePolicy();
+        vm.txGasPrice(0);
+        Identifier memory id;
+        vm.expectRevert(L2ToL2CrossDomainMessenger.L2ToL2CrossDomainMessenger_UnpaidMessage.selector);
+        l2ToL2CrossDomainMessenger.relayMessage(id, hex"");
+    }
+
+    function test_sendMessage_defaultPolicy_succeeds() public {
+        assertFalse(l2ToL2CrossDomainMessenger.requirePaidMessages());
+        vm.txGasPrice(0);
+        this.sendNested();
+        assertEq(l2ToL2CrossDomainMessenger.messageNonce(), 1);
+    }
+}

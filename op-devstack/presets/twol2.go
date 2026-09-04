@@ -81,8 +81,9 @@ type TwoL2SupernodeInterop struct {
 	Wallet *dsl.HDWallet
 
 	// Prefunded funders for creating funded EOAs (one per chain)
-	FunderA *dsl.FunderEOA
-	FunderB *dsl.FunderEOA
+	FunderA  *dsl.FunderEOA
+	FunderB  *dsl.FunderEOA
+	FunderL1 *dsl.FunderEOA
 
 	// GenesisTime is the genesis timestamp of the L2 chains
 	GenesisTime uint64

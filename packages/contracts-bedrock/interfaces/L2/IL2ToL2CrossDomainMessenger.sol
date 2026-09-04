@@ -6,6 +6,10 @@ import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 /// @title IL2ToL2CrossDomainMessenger
 /// @notice Interface for the L2ToL2CrossDomainMessenger contract.
 interface IL2ToL2CrossDomainMessenger {
+    error L2ToL2CrossDomainMessenger_UnpaidMessage();
+
+    function requirePaidMessages() external view returns (bool enabled_);
+
     /// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
     error NotEntered();
 

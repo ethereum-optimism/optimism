@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -68,8 +67,6 @@ const privateInteropPositionPoll = 250 * time.Millisecond
 
 // privateInteropResolver answers where the private chain's logs appear on its rendering.
 type privateInteropResolver struct {
-	t devtest.T
-
 	// privateEL is where the receipt came from: the source of the block's COMPLETE log sequence,
 	// which is what the rendering transformation is defined over. A receipt's own logs are not
 	// enough -- the rendered index counts across the whole block.

@@ -39,6 +39,12 @@ error InvalidMessage();
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
 contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
+    /// @notice A private chain cannot create or execute messenger messages in a deposit context.
+    error L2ToL2CrossDomainMessenger_UnpaidMessage();
+
+    /// @notice Genesis policy slot. Zero preserves ordinary messaging; one requires paid messages.
+    bytes32 internal constant REQUIRE_PAID_MESSAGES_SLOT = keccak256("privateinterop.requirePaidMessages");
+
     /// @notice Storage slot for the sender of the current cross domain message.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
     bytes32 internal constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
@@ -58,8 +64,23 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.2
-    string public constant version = "1.3.2";
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
+
+    /// @notice Whether genesis requires positive gas price for messenger sends and relays.
+    ///         Deposits always have zero gas price, including calls nested through applications.
+    function requirePaidMessages() public view returns (bool enabled_) {
+        bytes32 slot = REQUIRE_PAID_MESSAGES_SLOT;
+        assembly {
+            enabled_ := iszero(iszero(sload(slot)))
+        }
+    }
+
+    /// @notice Enforces the genesis policy throughout the transaction's call tree.
+    modifier onlyAllowedMessage() {
+        if (requirePaidMessages() && tx.gasprice == 0) revert L2ToL2CrossDomainMessenger_UnpaidMessage();
+        _;
+    }
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -134,6 +155,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         bytes calldata _message
     )
         external
+        onlyAllowedMessage
         returns (bytes32 messageHash_)
     {
         if (_destination == block.chainid) revert MessageDestinationSameChain();
@@ -173,6 +195,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         bytes calldata _message
     )
         external
+        onlyAllowedMessage
         returns (bytes32 messageHash_)
     {
         messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
@@ -204,6 +227,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     )
         external
         payable
+        onlyAllowedMessage
         nonReentrant
         returns (bytes memory returnData_)
     {

@@ -1,12 +1,11 @@
 // Package genesis defines the deterministic genesis projection for private interop.
 //
-// The source of a projection is a STOCK op-deployer genesis with interop active at genesis. A
-// custom-gas-token source is supported and its CGT machinery is stripped; an ordinary ETH source is
+// The source is a supported op-deployer genesis or the configured private ETH profile, with interop
+// active at genesis. A custom-gas-token source is supported and its CGT machinery is stripped; an ordinary ETH source is
 // supported too, and then there is nothing to strip.
 //
-// No private marker, dev-feature bit, or bespoke predeploy identifies the source. WHICH chain is the
-// private one is therefore explicit runtime configuration (the chain-ID flags), not something the
-// validator can infer: an ETH private chain and its public counterparty have the same genesis shape.
+// Both legacy stock sources and policy-configured sources are supported. Which chain is private
+// remains explicit runtime configuration (the chain-ID flags), not inferred from genesis features.
 // What the validator still rejects is a genesis this projection is not defined over — interop
 // inactive, a messenger from another contract release, or a genesis already projected.
 package genesis
@@ -38,9 +37,8 @@ var (
 	// projection is only defined over a Lagoon-at-genesis source: an activation block on the
 	// projection would run the stock network-upgrade bundle and replace the replay messenger.
 	ErrInteropInactive = errors.New("genesis is not a private chain: interop is not active at genesis")
-	// ErrMessengerNotStock rejects a source whose L2ToL2CrossDomainMessenger implementation is not
-	// the stock one the projection was built against: a genesis from a different contract release,
-	// or a genesis that has already been projected.
+	// ErrMessengerNotStock rejects a source whose messenger is neither the pinned stock release
+	// nor the pinned policy-capable release, including a genesis that has already been projected.
 	ErrMessengerNotStock = errors.New("genesis is not a private chain: L2ToL2CrossDomainMessenger implementation is not the stock release")
 	// ErrAlreadyProjected rejects a public projection offered as a source.
 	ErrAlreadyProjected = errors.New("genesis is already a public projection: projection predeploys are active")
@@ -144,8 +142,6 @@ func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, publicProjection
 	}
 
 	out := *privateChainConfig
-	out.Genesis = privateChainConfig.Genesis
-	out.Genesis.SystemConfig = privateChainConfig.Genesis.SystemConfig
 	out.Genesis.L2.Hash = publicProjectionGenesis.ToBlock().Hash()
 	out.Genesis.SystemConfig.GasLimit = gethparams.MaxGasLimit
 	out.Genesis.SystemConfig.Scalar = eth.EncodeScalar(eth.EcotoneScalars{})
@@ -154,13 +150,12 @@ func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, publicProjection
 	return &out, nil
 }
 
-// validatePrivateChainGenesis accepts exactly the stock op-deployer shape the projection is
-// defined over, and names the first thing that is wrong otherwise.
 // isCustomGasToken reports whether the source runs the custom-gas-token execution path.
 func isCustomGasToken(g *core.Genesis) bool {
 	return g.Alloc[predeploys.L1BlockAddr].Storage[customGasTokenSlot] != (common.Hash{})
 }
 
+// validatePrivateChainGenesis accepts the pinned stock and policy-capable source releases.
 func validatePrivateChainGenesis(g *core.Genesis) error {
 	l1Block, ok := g.Alloc[predeploys.L1BlockAddr]
 	if !ok {
@@ -173,7 +168,8 @@ func validatePrivateChainGenesis(g *core.Genesis) error {
 	if !ok || !devfeatures.IsDevFeatureEnabled(featureFlags.Storage[devFeatureBitmapSlot], devfeatures.OptimismPortalInteropFlag) {
 		return ErrInteropInactive
 	}
-	if implementationCodeHash(g.Alloc, predeploys.L2toL2CrossDomainMessengerAddr) != StockL2ToL2CrossDomainMessengerCodeHash {
+	messengerHash := implementationCodeHash(g.Alloc, predeploys.L2toL2CrossDomainMessengerAddr)
+	if messengerHash != StockL2ToL2CrossDomainMessengerCodeHash && messengerHash != PolicyMessengerCodeHash {
 		return ErrMessengerNotStock
 	}
 	for _, proxy := range []common.Address{predeploys.ClaimRegistryAddr, predeploys.EventReplayerAddr} {
@@ -239,10 +235,6 @@ func activateProxy(alloc types.GenesisAlloc, proxy common.Address, code []byte) 
 	proxyAccount := accountAt(alloc, proxy)
 	proxyAccount.Storage[implementationSlot] = common.BytesToHash(codeNamespace(proxy).Bytes())
 	alloc[proxy] = proxyAccount
-	setImplementation(alloc, proxy, code)
-}
-
-func setImplementation(alloc types.GenesisAlloc, proxy common.Address, code []byte) {
 	alloc[codeNamespace(proxy)] = types.Account{
 		Code:    append([]byte(nil), code...),
 		Balance: new(big.Int),

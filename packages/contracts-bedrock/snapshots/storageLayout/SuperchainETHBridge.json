@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "bytes": "32",
+    "label": "allowedSendChain",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(uint256 => bool)"
+  },
+  {
+    "bytes": "32",
+    "label": "allowedRelayChain",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(uint256 => bool)"
+  }
+]
