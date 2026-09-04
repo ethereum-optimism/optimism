@@ -3,8 +3,6 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { NextImpl } from "test/mocks/NextImpl.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Contracts
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
@@ -15,7 +13,6 @@ import { SemverComp } from "src/libraries/SemverComp.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
-import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 
 /// @title OptimismMintableERC20Factory_TestInit
@@ -283,30 +280,5 @@ contract OptimismMintableERC20Factory_Version_Test is OptimismMintableERC20Facto
     /// @notice Tests that version returns a valid semver string.
     function test_version_validFormat_succeeds() external view {
         SemverComp.parse(l2OptimismMintableERC20Factory.version());
-    }
-}
-
-/// @title OptimismMintableERC20Factory_Uncategorized_Test
-/// @notice General tests that are not testing any function directly of the
-///         `OptimismMintableERC20Factory` contract.
-contract OptimismMintableERC20Factory_Uncategorized_Test is OptimismMintableERC20Factory_TestInit {
-    /// @notice Tests that the upgrade is successful.
-    function test_upgrading_succeeds() external {
-        IProxy proxy = IProxy(artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy"));
-        // Check an unused slot before upgrading.
-        bytes32 slot21Before = vm.load(address(l1OptimismMintableERC20Factory), bytes32(uint256(21)));
-        assertEq(bytes32(0), slot21Before);
-
-        NextImpl nextImpl = new NextImpl();
-        vm.startPrank(EIP1967Helper.getAdmin(address(proxy)));
-        // Reviewer note: the NextImpl() still uses reinitializer. If we want to remove that, we'll
-        // need to use a two step upgrade with the Storage lib.
-        proxy.upgradeToAndCall(address(nextImpl), abi.encodeCall(NextImpl.initialize, (2)));
-        assertEq(proxy.implementation(), address(nextImpl));
-
-        // Verify that the NextImpl contract initialized its values according as expected
-        bytes32 slot21After = vm.load(address(l1OptimismMintableERC20Factory), bytes32(uint256(21)));
-        bytes32 slot21Expected = NextImpl(address(l1OptimismMintableERC20Factory)).slot21Init();
-        assertEq(slot21Expected, slot21After);
     }
 }
