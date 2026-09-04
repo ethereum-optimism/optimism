@@ -1,40 +1,42 @@
 ---
-title: "SDM: Sequencer Defined Metering"
-description: "Technical guide for chain operators integrating or verifying Sequencer Defined Metering (SDM)."
+title: "Sequencer Defined Fees and Metering"
+description: "Technical guide for chain operators integrating or verifying SDF and SDM."
 diataxis: how-to
 hidden: true
 ---
 
 <Warning>
-SDM is not yet live. Stock public `op-reth` supports the SDM consensus and verification
-mechanism, but it does **not** implement a refund-producing policy. Enabling its operator gate does
-not cause it to issue refunds or append PostExec transactions.
+Sequencer Defined Fees (SDF) and Sequencer Defined Metering (SDM) are not yet live. Stock public
+`op-reth` supports their consensus and verification mechanisms and uses the legacy Jovian base fee
+as its producer policy. It does **not** implement a refund-producing policy.
 </Warning>
 
-**Sequencer Defined Metering (SDM)** lets a block producer define per-transaction gas rebates and
-commit them in a synthetic **PostExec transaction**. The public OP Stack implementation keeps the
-consensus format, validation, derivation, receipt settlement, and fault-proof support open while
-leaving policy selection to producers.
+**Sequencer Defined Fees (SDF)** lets a block producer select the block base fee.
+**Sequencer Defined Metering (SDM)** lets it define per-transaction gas rebates. Both are committed
+in a synthetic **PostExec transaction**. The public OP Stack implementation keeps the consensus
+format, validation, derivation, receipt settlement, and fault-proof support open while leaving
+production policy selection to producers.
 
-## How rebates are recorded
+## How fees and rebates are recorded
 
-When a producer issues rebates, it appends one PostExec transaction (type `0x7D`) as the last
-transaction in the block. The transaction is non-executable and carries an RLP-encoded payload of
-transaction indexes and gas refunds.
+Every Lagoon block has one PostExec transaction (type `0x7D`) as its last transaction. The
+transaction is non-executable and carries an RLP-encoded payload containing the selected base fee
+and a possibly empty list of transaction indexes and gas refunds.
 
 A rebated transaction receipt includes `opGasRefund`. Its `gasUsed` is the canonical amount charged;
 the pre-rebate amount is `gasUsed + opGasRefund`. Deposits and the PostExec transaction cannot
 receive refunds, and a refund cannot exceed the transaction's pre-refund EVM gas usage.
 
-Verifier nodes do not execute the producer's private policy. They validate the committed payload,
-apply its settlement effects, and reproduce the same receipts and state root. Consensus-layer
-clients derive the trailing PostExec transaction from L1 data like any other transaction.
+Verifier nodes do not execute the producer's private policies. They require the selected fee to
+match the block header, apply any refund settlement effects, and reproduce the same receipts and
+state root. Consensus-layer clients transport the trailing PostExec transaction from batch data
+like any other transaction.
 
 ## Protocol activation
 
-SDM is gated by the **Lagoon** hardfork. Before Lagoon, a PostExec transaction is invalid. At or
-after activation, an SDM-aware verifier accepts a structurally valid producer-supplied PostExec
-transaction and verifies its consensus effects.
+SDF and SDM activate together at the **Lagoon** hardfork, with no separate feature flag. Before
+Lagoon, a PostExec transaction is invalid and the parent-derived EIP-1559 base fee rules apply. At
+or after activation, a PostExec commitment is required in every block.
 
 Run SDM-capable versions of:
 
@@ -45,19 +47,18 @@ Verifier operators need no policy opt-in.
 
 ## Stock `op-reth` production behavior
 
-Released public `op-reth` uses a null refund policy. It never creates a non-empty refund payload and
-never appends a PostExec transaction, even when Lagoon is active and
-`admin_setOperatorSdmOptIn(true)` has been called. The admin surface remains available for protocol
-compatibility and downstream producer integrations; it is not a policy-selection interface in
-stock `op-reth`.
+Released public `op-reth` uses the legacy Jovian result as its base fee policy and a null refund
+policy. At Lagoon it appends the required PostExec commitment, including when the refund list is
+empty. Calling `admin_setOperatorSdmOptIn(true)` enables refund collection but does not by itself
+install a non-null refund policy. The admin surface is not a base fee policy-selection interface.
 
 The `op-reth-sdm-fixture` binary in the source tree is only a deterministic acceptance-test fixture.
 It is excluded from release packaging, images, and deployment manifests.
 Do not deploy it as a sequencer.
 
-If you use a third-party or proprietary SDM producer, follow that producer's policy and opt-in
-documentation. The producer must emit blocks that stock verifier nodes accept; no producer-specific
-policy code is required on verifiers.
+If you use a third-party or proprietary SDF or SDM producer, follow that producer's policy and
+opt-in documentation. The producer must emit blocks that stock verifier nodes accept; no
+producer-specific policy code is required on verifiers.
 
 ## Confirming producer output
 
@@ -68,8 +69,8 @@ cast receipt <TX_HASH> --rpc-url <RPC_URL> --json | jq '.opGasRefund'
 ```
 
 You can also fetch the containing block and check whether its last transaction has type `0x7D`.
-A block without rebates has no PostExec transaction, so absence alone does not indicate whether the
-protocol is active.
+Every Lagoon block has this transaction, including blocks without rebates. Its committed selected
+base fee must equal the block header's `baseFeePerGas`.
 
 ## Debug replay
 

@@ -2,7 +2,10 @@ use super::{
     CommittedTxGas, ExecutionInfo, OpPayloadBuilderCtx, PayloadTransactionsWithCommitHook,
     RethPayloadTransactions, build_post_exec_recovered_tx, try_include_post_exec_tx,
 };
-use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
+use crate::{
+    OpPayloadBuilderAttributes,
+    config::{BaseFeePolicy, BaseFeePolicyError, BaseFeePolicyInput, OpBuilderConfig},
+};
 use alloy_consensus::{
     Header, Sealable, SignableTransaction, Transaction, TxEip1559, Typed2718,
     transaction::{Recovered, TxHashRef},
@@ -36,7 +39,32 @@ use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
 use reth_transaction_pool::PoolTransaction;
-use std::{borrow::Cow, cell::Cell, sync::Arc};
+use std::{
+    borrow::Cow,
+    cell::Cell,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
+
+#[derive(Debug)]
+struct TestBaseFeePolicy(Result<u64, &'static str>);
+
+impl BaseFeePolicy for TestBaseFeePolicy {
+    fn select_base_fee(&self, _input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
+        self.0.map_err(BaseFeePolicyError::msg)
+    }
+}
+
+#[derive(Debug, Default)]
+struct IncrementingBaseFeePolicy(AtomicU64);
+
+impl BaseFeePolicy for IncrementingBaseFeePolicy {
+    fn select_base_fee(&self, _input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
+        Ok(700 + self.0.fetch_add(1, Ordering::Relaxed))
+    }
+}
 
 fn entries(specs: &[(u64, u64)]) -> Vec<SDMGasEntry> {
     specs.iter().map(|&(index, gas_refund)| SDMGasEntry { index, gas_refund }).collect()
@@ -49,7 +77,7 @@ fn post_exec_with_encoded(
     payload_entries: Vec<SDMGasEntry>,
 ) -> WithEncoded<OpTransactionSigned> {
     let tx =
-        OpTransactionSigned::from(build_post_exec_tx(block_number, payload_entries).seal_slow());
+        OpTransactionSigned::from(build_post_exec_tx(block_number, 1, payload_entries).seal_slow());
     let encoded = Bytes::from(tx.encoded_2718());
     WithEncoded::new(encoded, tx)
 }
@@ -110,12 +138,17 @@ fn interop_ctx(
     }
 }
 
-fn unwrap_post_exec(tx: Recovered<OpTransactionSigned>) -> (u8, u64, Vec<SDMGasEntry>) {
+fn unwrap_post_exec(tx: Recovered<OpTransactionSigned>) -> (u8, u64, u64, Vec<SDMGasEntry>) {
     let ty = tx.tx().ty();
     let OpTransactionSigned::PostExec(signed) = tx.into_inner() else {
         panic!("expected post-exec transaction");
     };
-    (ty, signed.inner().payload.block_number, signed.inner().payload.gas_refund_entries.clone())
+    (
+        ty,
+        signed.inner().payload.block_number,
+        signed.inner().payload.selected_base_fee_per_gas,
+        signed.inner().payload.gas_refund_entries.clone(),
+    )
 }
 
 fn payload_builder_ctx(
@@ -298,10 +331,10 @@ fn post_exec_mode_follows_chain_regardless_of_opt_in() {
         assert_eq!(payload.gas_refund_entries, entries(&[(0, 7)]));
     }
 
-    // Follow path with no embedded 0x7D: disabled even with the opt-in on (nothing to reproduce).
+    // Deterministic Lagoon builds without an embedded commitment synthesize one without refunds.
     assert!(matches!(
         interop_ctx(true, true, None).post_exec_mode().expect("mode resolves"),
-        PostExecMode::Disabled
+        PostExecMode::Commit
     ));
 
     // Local sequencing is the only path that consults the opt-in.
@@ -311,8 +344,63 @@ fn post_exec_mode_follows_chain_regardless_of_opt_in() {
     ));
     assert!(matches!(
         interop_ctx(false, false, None).post_exec_mode().expect("mode resolves"),
-        PostExecMode::Disabled
+        PostExecMode::Commit
     ));
+}
+
+#[test]
+fn base_fee_resolution_uses_policy_commitment_and_fallback_sources() {
+    let mut local = interop_ctx(false, false, None);
+    local.builder_config.base_fee_policy = Arc::new(TestBaseFeePolicy(Ok(777)));
+    let resolved = local.resolve_post_exec().expect("policy selects fee");
+    assert_eq!(resolved.selected_base_fee_per_gas, 777);
+    assert!(matches!(resolved.mode, PostExecMode::Commit));
+    assert!(resolved.append_post_exec);
+
+    let mut derived = interop_ctx(true, false, Some(Vec::new()));
+    derived.builder_config.base_fee_policy = Arc::new(TestBaseFeePolicy(Ok(777)));
+    let resolved = derived.resolve_post_exec().expect("embedded fee resolves");
+    assert_eq!(resolved.selected_base_fee_per_gas, 1);
+    assert!(matches!(resolved.mode, PostExecMode::Verify(_)));
+    assert!(!resolved.append_post_exec);
+
+    let mut fallback = interop_ctx(true, false, None);
+    fallback.builder_config.base_fee_policy = Arc::new(TestBaseFeePolicy(Ok(777)));
+    let resolved = fallback.resolve_post_exec().expect("parent-fee fallback resolves");
+    assert_eq!(resolved.selected_base_fee_per_gas, 0);
+    assert!(matches!(resolved.mode, PostExecMode::Commit));
+    assert!(resolved.append_post_exec);
+}
+
+#[test]
+fn base_fee_selection_is_immutable_across_payload_job_retries() {
+    let mut ctx = interop_ctx(false, false, None);
+    let policy = Arc::new(IncrementingBaseFeePolicy::default());
+    ctx.builder_config.base_fee_policy = policy.clone();
+
+    let first = ctx.resolve_post_exec().expect("first attempt resolves");
+    let retry = ctx.resolve_post_exec().expect("retry resolves");
+
+    assert_eq!(first.selected_base_fee_per_gas, 700);
+    assert_eq!(retry.selected_base_fee_per_gas, 700);
+    assert_eq!(policy.0.load(Ordering::Relaxed), 1, "policy must run once per payload id");
+}
+
+#[test]
+fn base_fee_policy_failure_aborts_local_sequencing() {
+    let mut ctx = interop_ctx(false, false, None);
+    ctx.builder_config.base_fee_policy = Arc::new(TestBaseFeePolicy(Err("quote unavailable")));
+    let err = ctx.resolve_post_exec().expect_err("policy failure must abort");
+    assert!(err.to_string().contains("quote unavailable"));
+}
+
+#[test]
+fn local_sequencing_rejects_embedded_post_exec() {
+    let ctx = interop_ctx(false, false, Some(Vec::new()));
+    let err = ctx.resolve_post_exec().expect_err("local attributes must reject PostExec");
+    assert!(
+        err.to_string().contains("locally sequenced payload attributes must not contain PostExec")
+    );
 }
 
 /// End-to-end regression test for the derived-attrs verify path: rebuilding a block whose
@@ -361,7 +449,7 @@ fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
         .with_bundle_update()
         .build();
     let mut builder = produce_ctx
-        .block_builder_with_mode(&mut db, PostExecMode::Produce)
+        .block_builder_with_mode(&mut db, PostExecMode::Produce, 1)
         .expect("block builder can be created");
     produce_ctx
         .execute_sequencer_transactions(&mut builder, None)
@@ -375,7 +463,7 @@ fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
         .with_bundle_update()
         .build();
     let mut builder = disabled_ctx
-        .block_builder_with_mode(&mut db, PostExecMode::Disabled)
+        .block_builder_with_mode(&mut db, PostExecMode::Disabled, 1)
         .expect("block builder can be created");
     let err = disabled_ctx
         .execute_sequencer_transactions(&mut builder, None)
@@ -415,6 +503,12 @@ fn is_tx_over_limits_enforces_max_uncompressed_block_size() {
 
     // One byte over the limit is rejected (100 + 51 > 150).
     assert!(info.is_tx_over_limits(0, u64::MAX, None, None, 0, None, 51, Some(150)));
+
+    // A Lagoon build reserves both the current PostExec encoding and worst-case growth for the
+    // candidate transaction before admitting it.
+    info.reserved_post_exec_bytes = 10;
+    assert!(!info.is_tx_over_limits(0, u64::MAX, None, None, 0, None, 15, Some(149)));
+    assert!(info.is_tx_over_limits(0, u64::MAX, None, None, 0, None, 16, Some(149)));
 }
 
 #[test]
@@ -632,6 +726,7 @@ fn on_commit_reports_canonical_and_pre_refund_gas_separately_under_sdm_refund() 
     let post_exec_payload = PostExecPayload {
         version: POST_EXEC_PAYLOAD_VERSION,
         block_number: 1,
+        selected_base_fee_per_gas: 1,
         gas_refund_entries: entries(&[(0, REFUND)]),
     };
 
@@ -640,7 +735,7 @@ fn on_commit_reports_canonical_and_pre_refund_gas_separately_under_sdm_refund() 
         .with_bundle_update()
         .build();
     let mut builder = ctx
-        .block_builder_with_mode(&mut db, PostExecMode::Verify(post_exec_payload))
+        .block_builder_with_mode(&mut db, PostExecMode::Verify(post_exec_payload), 1)
         .expect("block builder can be created");
     let mut info = ExecutionInfo::new();
 
@@ -695,35 +790,42 @@ fn execute_best_transactions_respects_gas_limit_cap() {
 fn build_post_exec_recovered_tx_wraps_entries_in_post_exec_tx() {
     let block_number = 42;
     let payload_entries = entries(&[(3, 17), (5, 23)]);
-    let recovered =
-        build_post_exec_recovered_tx::<OpTransactionSigned>(block_number, payload_entries.clone());
+    let recovered = build_post_exec_recovered_tx::<OpTransactionSigned>(
+        block_number,
+        1,
+        payload_entries.clone(),
+    );
 
     assert_eq!(recovered.signer(), Address::ZERO);
-    let (ty, decoded_block, decoded_entries) = unwrap_post_exec(recovered);
+    let (ty, decoded_block, decoded_base_fee, decoded_entries) = unwrap_post_exec(recovered);
     assert_eq!(ty, op_alloy_consensus::POST_EXEC_TX_TYPE_ID);
     assert_eq!(decoded_block, block_number);
+    assert_eq!(decoded_base_fee, 1);
     assert_eq!(decoded_entries, payload_entries);
 }
 
 #[test]
-fn try_include_post_exec_tx_skips_when_no_entries() {
+fn try_include_post_exec_tx_commits_when_no_refund_entries() {
     let called = Cell::new(false);
-    let result = try_include_post_exec_tx::<OpTransactionSigned, _>(1, Vec::new(), |_tx| {
+    let result = try_include_post_exec_tx::<OpTransactionSigned, _>(1, 1, Vec::new(), |_tx| {
         called.set(true);
         Ok::<_, BlockExecutionError>(0)
     });
-    assert!(matches!(result, Ok(false)));
-    assert!(!called.get(), "execute must not run when there are no entries");
+    assert!(matches!(result, Ok(true)));
+    assert!(called.get(), "Lagoon must commit the selected fee even without refunds");
 }
 
 #[test]
 fn try_include_post_exec_tx_executes_post_exec_tx_on_happy_path() {
+    type CapturedPostExec = (u8, u64, u64, Vec<SDMGasEntry>);
+
     let block_number = 99;
     let payload_entries = entries(&[(0, 7)]);
-    let captured: Cell<Option<(u8, u64, Vec<SDMGasEntry>)>> = Cell::new(None);
+    let captured: Cell<Option<CapturedPostExec>> = Cell::new(None);
 
     let result = try_include_post_exec_tx::<OpTransactionSigned, _>(
         block_number,
+        1,
         payload_entries.clone(),
         |tx| {
             captured.set(Some(unwrap_post_exec(tx)));
@@ -732,9 +834,11 @@ fn try_include_post_exec_tx_executes_post_exec_tx_on_happy_path() {
     );
 
     assert!(matches!(result, Ok(true)));
-    let (ty, decoded_block, decoded_entries) = captured.take().expect("execute closure ran");
+    let (ty, decoded_block, decoded_base_fee, decoded_entries) =
+        captured.take().expect("execute closure ran");
     assert_eq!(ty, op_alloy_consensus::POST_EXEC_TX_TYPE_ID);
     assert_eq!(decoded_block, block_number);
+    assert_eq!(decoded_base_fee, 1);
     assert_eq!(decoded_entries, payload_entries);
 }
 
@@ -745,10 +849,11 @@ fn try_include_post_exec_tx_executes_post_exec_tx_on_happy_path() {
 #[test]
 fn try_include_post_exec_tx_aborts_when_execution_fails() {
     let called = Cell::new(false);
-    let result = try_include_post_exec_tx::<OpTransactionSigned, _>(1, entries(&[(0, 7)]), |_tx| {
-        called.set(true);
-        Err::<u64, _>(BlockExecutionError::msg("forced post-exec tx failure"))
-    });
+    let result =
+        try_include_post_exec_tx::<OpTransactionSigned, _>(1, 1, entries(&[(0, 7)]), |_tx| {
+            called.set(true);
+            Err::<u64, _>(BlockExecutionError::msg("forced post-exec tx failure"))
+        });
 
     assert!(called.get(), "execute must be invoked so its error can propagate");
     match result {

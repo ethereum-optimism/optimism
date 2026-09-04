@@ -1,7 +1,9 @@
 //! Optimism payload builder implementation.
 use crate::{
-    OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
-    error::OpPayloadBuilderError, payload::OpBuiltPayload,
+    OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives,
+    config::{BaseFeePolicyError, BaseFeePolicyInput, OpBuilderConfig},
+    error::OpPayloadBuilderError,
+    payload::OpBuiltPayload,
 };
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_eips::eip2718::Encodable2718;
@@ -74,27 +76,34 @@ fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
     entries.iter().map(|entry| entry.gas_refund).sum()
 }
 
-fn build_post_exec_recovered_tx<Tx>(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<Tx>
+/// Conservative growth reserved for one possible maximum-width refund entry, including RLP list
+/// prefix growth. Only normal transactions can produce entries, but reserving for every included
+/// transaction keeps admission simple and safely bounds the final payload.
+const MAX_POST_EXEC_BYTES_PER_TRANSACTION: u64 = 24;
+
+fn build_post_exec_recovered_tx<Tx>(
+    block_number: u64,
+    selected_base_fee_per_gas: u64,
+    entries: Vec<SDMGasEntry>,
+) -> Recovered<Tx>
 where
     Tx: From<Sealed<TxPostExec>>,
 {
-    let sealed = build_post_exec_tx(block_number, entries).seal_slow();
+    let sealed = build_post_exec_tx(block_number, selected_base_fee_per_gas, entries).seal_slow();
     Recovered::new_unchecked(Tx::from(sealed), Address::ZERO)
 }
 
 /// Wraps refund entries in a post-exec transaction and executes it via `execute`.
 ///
-/// # Returns
-/// - `true` if a post-exec transaction was executed.
-/// - `false` if `entries` is empty.
-///
-/// The post-exec transaction MUST execute successfully: any error is surfaced as
+/// The post-exec transaction MUST execute successfully, including when `entries` is empty: any
+/// error is surfaced as
 /// `PayloadBuilderError::EvmExecutionError` so the payload build aborts. A verifier
 /// replaying this block will expect the post-exec tx to match the refunds it observes,
 /// so dropping the tx (or returning an empty block) on failure would produce a payload
 /// that no honest verifier can reproduce.
 fn try_include_post_exec_tx<Tx, Err>(
     block_number: u64,
+    selected_base_fee_per_gas: u64,
     entries: Vec<SDMGasEntry>,
     execute: impl FnOnce(Recovered<Tx>) -> Result<u64, Err>,
 ) -> Result<bool, PayloadBuilderError>
@@ -102,11 +111,8 @@ where
     Tx: From<Sealed<TxPostExec>>,
     Err: core::error::Error + Send + Sync + 'static,
 {
-    if entries.is_empty() {
-        return Ok(false);
-    }
-
-    let post_exec_recovered = build_post_exec_recovered_tx(block_number, entries);
+    let post_exec_recovered =
+        build_post_exec_recovered_tx(block_number, selected_base_fee_per_gas, entries);
 
     execute(post_exec_recovered).map_err(|err| {
         warn!(target: "payload_builder", %err, "post-exec tx execution failed, aborting payload");
@@ -472,15 +478,16 @@ impl<Txs> OpBuilder<'_, Txs> {
         // scalar.
         db.load_cache_account(L1_BLOCK_CONTRACT).map_err(BlockExecutionError::other)?;
 
-        // Snapshot the post-exec mode once for the whole build. The opt-in flag behind
-        // `sdm_production_enabled` is mutable at runtime (admin RPC); reading it again when
-        // deciding whether to append the `0x7D` below could disagree with the mode the EVM
-        // was built in, yielding a block whose refunded state has no matching post-exec tx
-        // (or vice versa).
-        let post_exec_mode = ctx.post_exec_mode()?;
-        let produce_post_exec = matches!(post_exec_mode, PostExecMode::Produce);
+        // Resolve the fee and post-exec behavior once for the whole payload job. Both the policy
+        // and the SDM opt-in may be backed by mutable runtime state, so re-reading either after EVM
+        // construction could produce a block that no verifier can reproduce.
+        let resolved = ctx.resolve_post_exec()?;
+        let append_post_exec = resolved.append_post_exec;
+        let produce_refunds = matches!(resolved.mode, PostExecMode::Produce);
+        let selected_base_fee_per_gas = resolved.selected_base_fee_per_gas;
 
-        let mut builder = ctx.block_builder_with_mode(&mut db, post_exec_mode)?;
+        let mut builder =
+            ctx.block_builder_with_mode(&mut db, resolved.mode, selected_base_fee_per_gas)?;
 
         // 1. apply pre-execution changes
         builder.apply_pre_execution_changes().map_err(|err| {
@@ -490,6 +497,10 @@ impl<Txs> OpBuilder<'_, Txs> {
 
         // 2. execute sequencer transactions
         let mut info = ctx.execute_sequencer_transactions(&mut builder, None)?;
+        if append_post_exec {
+            let block_number = builder.evm_mut().block().number().saturating_to();
+            info.reserve_post_exec(block_number, selected_base_fee_per_gas);
+        }
 
         // 3. if mem pool transactions are requested we execute them
         if !ctx.attributes().no_tx_pool() {
@@ -514,16 +525,35 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
-        // Only `Produce` mode appends a post-exec tx, and only locally-sequenced blocks reach it; a
-        // derived block (force_empty) is `Verify`/`Disabled` and already carries its own `0x7D`, so
-        // appending would duplicate it. See `post_exec_mode`.
-        let sdm_refund_gas = if produce_post_exec {
+        // Normal Lagoon sequencing and deterministic fallback builds append a commitment. Derived
+        // blocks with an embedded commitment run in `Verify` mode and must not append a duplicate.
+        let sdm_refund_gas = if append_post_exec {
             let block_number = builder.evm_mut().block().number().saturating_to();
-            let entries = builder.executor_mut().take_post_exec_entries();
+            let entries = if produce_refunds {
+                builder.executor_mut().take_post_exec_entries()
+            } else {
+                Vec::new()
+            };
             let refund_gas = self::sdm_refund_gas(&entries);
-            try_include_post_exec_tx(block_number, entries, |tx| {
+            let post_exec_size =
+                build_post_exec_tx(block_number, selected_base_fee_per_gas, entries.clone())
+                    .eip2718_encoded_length() as u64;
+            let total_uncompressed_bytes =
+                info.cumulative_uncompressed_bytes.saturating_add(post_exec_size);
+            if let Some(max) = ctx.builder_config.max_uncompressed_block_size &&
+                total_uncompressed_bytes > max
+            {
+                return Err(PayloadBuilderError::other(
+                    OpPayloadBuilderError::PostExecExceedsMaxBlockSize {
+                        size: total_uncompressed_bytes,
+                        max,
+                    },
+                ));
+            }
+            try_include_post_exec_tx(block_number, selected_base_fee_per_gas, entries, |tx| {
                 builder.execute_transaction(tx).map(|g| g.tx_gas_used())
             })?;
+            info.cumulative_uncompressed_bytes = total_uncompressed_bytes;
             refund_gas
         } else {
             0
@@ -729,6 +759,10 @@ pub struct ExecutionInfo {
     /// so far, in bytes. Bounds the block against the configured
     /// [`max_uncompressed_block_size`](crate::config::OpBuilderConfig::max_uncompressed_block_size).
     pub cumulative_uncompressed_bytes: u64,
+    /// Conservative space held for the mandatory trailing `PostExec` transaction.
+    pub reserved_post_exec_bytes: u64,
+    /// Number of transactions included before `PostExec`.
+    pub included_transactions: u64,
     /// Tracks fees from executed mempool transactions
     pub total_fees: U256,
 }
@@ -741,8 +775,20 @@ impl ExecutionInfo {
             cumulative_evm_gas_used: 0,
             cumulative_da_bytes_used: 0,
             cumulative_uncompressed_bytes: 0,
+            reserved_post_exec_bytes: 0,
+            included_transactions: 0,
             total_fees: U256::ZERO,
         }
+    }
+
+    /// Reserves conservative uncompressed block space for a mandatory trailing `PostExec`.
+    pub fn reserve_post_exec(&mut self, block_number: u64, selected_base_fee_per_gas: u64) {
+        let empty_post_exec_size =
+            build_post_exec_tx(block_number, selected_base_fee_per_gas, Vec::new())
+                .eip2718_encoded_length() as u64;
+        self.reserved_post_exec_bytes = empty_post_exec_size.saturating_add(
+            self.included_transactions.saturating_mul(MAX_POST_EXEC_BYTES_PER_TRANSACTION),
+        );
     }
 
     /// Adds a transaction's gas to both the canonical and pre-refund (real compute) counters,
@@ -787,8 +833,16 @@ impl ExecutionInfo {
         // exceed the configured maximum. This keeps the built payload within the size assumed by
         // consensus-layer clients.
         if let Some(max_uncompressed_block_size) = max_uncompressed_block_size {
-            let total_uncompressed_bytes =
-                self.cumulative_uncompressed_bytes.saturating_add(tx_uncompressed_size);
+            let post_exec_growth = if self.reserved_post_exec_bytes == 0 {
+                0
+            } else {
+                MAX_POST_EXEC_BYTES_PER_TRANSACTION
+            };
+            let total_uncompressed_bytes = self
+                .cumulative_uncompressed_bytes
+                .saturating_add(tx_uncompressed_size)
+                .saturating_add(self.reserved_post_exec_bytes)
+                .saturating_add(post_exec_growth);
             if total_uncompressed_bytes > max_uncompressed_block_size {
                 return true;
             }
@@ -809,6 +863,17 @@ impl ExecutionInfo {
         // block-gas-limit check; with SDM off the two are identical.
         self.cumulative_evm_gas_used.saturating_add(tx_gas_limit) > block_gas_limit
     }
+}
+
+/// Fee and post-exec behavior resolved once for a payload job.
+#[derive(Debug, Clone)]
+pub struct ResolvedPostExec {
+    /// Execution mode controlling SDM refund production or verification.
+    pub mode: PostExecMode,
+    /// Immutable base fee used to construct the EVM environment and commitment.
+    pub selected_base_fee_per_gas: u64,
+    /// Whether the builder must append a new trailing `PostExec` transaction.
+    pub append_post_exec: bool,
 }
 
 /// Container type that holds all necessities to build a new payload.
@@ -902,23 +967,87 @@ where
         .map_err(PayloadBuilderError::other)
     }
 
-    /// Decides this payload's SDM post-exec mode: *produce*, *verify*, or `Disabled`.
+    /// Resolves the base fee and post-exec behavior for this payload job.
     ///
-    /// The deciding factor is whether we're sequencing the block or rebuilding one
-    /// that CL already derived (`force_empty` / `no_tx_pool`):
+    /// Before Lagoon, the legacy parent-derived EIP-1559 fee remains in force and `PostExec` is
+    /// disabled. From Lagoon onward:
     ///
-    /// - **Local sequencing**: *produce* the post-exec tx when [`Self::sdm_production_enabled`],
-    ///   otherwise `Disabled`.
-    /// - **Rebuilding a derived block**: never produce — instead *verify* against the `0x7D`
-    ///   post-exec tx that CL embedded in the attributes, or `Disabled` if there is none. This
-    ///   holds regardless of the local opt-in, since the chain has already committed to it.
-    pub fn post_exec_mode(&self) -> Result<PostExecMode, PayloadBuilderError> {
-        if !self.force_empty() {
-            return Ok(self.sdm_production_enabled().into());
+    /// - normal local sequencing invokes the configured producer policy and appends `PostExec`;
+    /// - a deterministic build with an embedded `PostExec` uses and verifies its committed fee;
+    /// - a deterministic build without one carries forward the parent fee and synthesizes it.
+    pub fn resolve_post_exec(&self) -> Result<ResolvedPostExec, PayloadBuilderError> {
+        let timestamp = self.attributes().timestamp();
+        let lagoon_active =
+            reth_optimism_evm::is_sdm_active_at_timestamp(&self.chain_spec, timestamp);
+        let parsed = self.parse_embedded_post_exec()?;
+        let next_env_ctx = Evm::NextBlockEnvCtx::build_next_env(
+            self.attributes(),
+            self.parent(),
+            self.chain_spec.as_ref(),
+        )
+        .map_err(PayloadBuilderError::other)?;
+        let legacy_base_fee = self
+            .evm_config
+            .next_evm_env(self.parent(), &next_env_ctx)
+            .map_err(PayloadBuilderError::other)?
+            .block_env
+            .basefee();
+
+        if !lagoon_active {
+            return Ok(ResolvedPostExec {
+                mode: PostExecMode::Disabled,
+                selected_base_fee_per_gas: legacy_base_fee,
+                append_post_exec: false,
+            });
         }
 
-        let parsed = self.parse_embedded_post_exec()?;
-        Ok(parsed.map_or(PostExecMode::Disabled, |p| PostExecMode::Verify(p.payload)))
+        if self.force_empty() {
+            return Ok(match parsed {
+                Some(parsed) => ResolvedPostExec {
+                    selected_base_fee_per_gas: parsed.payload.selected_base_fee_per_gas,
+                    mode: PostExecMode::Verify(parsed.payload),
+                    append_post_exec: false,
+                },
+                None => ResolvedPostExec {
+                    mode: PostExecMode::Commit,
+                    selected_base_fee_per_gas: self.parent().base_fee_per_gas().unwrap_or_default(),
+                    append_post_exec: true,
+                },
+            });
+        }
+
+        if parsed.is_some() {
+            return Err(PayloadBuilderError::other(BaseFeePolicyError::msg(
+                "locally sequenced payload attributes must not contain PostExec",
+            )));
+        }
+
+        let selected_base_fee_per_gas = self
+            .builder_config
+            .base_fee_selection_cache
+            .resolve(self.payload_id(), || {
+                self.builder_config.base_fee_policy.select_base_fee(BaseFeePolicyInput {
+                    parent: self.parent().header(),
+                    next_timestamp: timestamp,
+                    legacy_base_fee,
+                })
+            })
+            .map_err(PayloadBuilderError::other)?;
+
+        Ok(ResolvedPostExec {
+            mode: if self.sdm_production_enabled() {
+                PostExecMode::Produce
+            } else {
+                PostExecMode::Commit
+            },
+            selected_base_fee_per_gas,
+            append_post_exec: true,
+        })
+    }
+
+    /// Decides this payload's post-exec execution mode.
+    pub fn post_exec_mode(&self) -> Result<PostExecMode, PayloadBuilderError> {
+        self.resolve_post_exec().map(|resolved| resolved.mode)
     }
 
     /// Returns the unique id for this payload job.
@@ -934,32 +1063,42 @@ where
     /// Prepares a [`BlockBuilder`] for the next block, resolving the post-exec mode from this
     /// payload's context.
     ///
-    /// Callers that also decide whether to append the trailing `0x7D` must instead resolve
-    /// [`Self::post_exec_mode`] once and pass it to [`Self::block_builder_with_mode`], so a
-    /// concurrent opt-in toggle cannot change the mode between EVM construction and the append.
+    /// Callers that also decide whether to append the trailing `0x7D` must instead call
+    /// [`Self::resolve_post_exec`] once and pass both the mode and fee to
+    /// [`Self::block_builder_with_mode`].
     pub fn block_builder<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
     ) -> Result<
         impl BlockBuilder<
             Primitives = Evm::Primitives,
-            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
+            Executor: PostExecExecutorExt
+                          + BlockExecutor<
+                Evm: AlloyEvm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
+            >,
         > + 'a,
         PayloadBuilderError,
     > {
-        self.block_builder_with_mode(db, self.post_exec_mode()?)
+        let resolved = self.resolve_post_exec()?;
+        self.block_builder_with_mode(db, resolved.mode, resolved.selected_base_fee_per_gas)
     }
 
-    /// Like [`Self::block_builder`] but builds against a caller-supplied [`PostExecMode`], so a
-    /// single snapshot drives both EVM construction and any later post-exec decision.
+    /// Like [`Self::block_builder`] but builds against a caller-supplied mode and selected fee, so
+    /// a single snapshot drives EVM construction and any later post-exec decision.
     pub fn block_builder_with_mode<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
         post_exec_mode: PostExecMode,
+        selected_base_fee_per_gas: u64,
     ) -> Result<
         impl BlockBuilder<
             Primitives = Evm::Primitives,
-            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
+            Executor: PostExecExecutorExt
+                          + BlockExecutor<
+                Evm: AlloyEvm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
+            >,
         > + 'a,
         PayloadBuilderError,
     > {
@@ -974,6 +1113,7 @@ where
                 )
                 .map_err(PayloadBuilderError::other)?,
                 post_exec_mode,
+                selected_base_fee_per_gas,
             )
             .map_err(PayloadBuilderError::other)
     }
@@ -1030,6 +1170,7 @@ where
             // Count the sequencer tx towards the block's uncompressed size so the pool-tx
             // uncompressed-size check starts from the right total.
             info.cumulative_uncompressed_bytes += sequencer_tx.encode_2718_len() as u64;
+            info.included_transactions = info.included_transactions.saturating_add(1);
 
             // Record the successfully committed transaction for callers that want per-call
             // visibility.
@@ -1190,6 +1331,12 @@ where
             info.accumulate_gas(tx_gas_used, evm_gas_used);
             info.cumulative_da_bytes_used += tx_da_size;
             info.cumulative_uncompressed_bytes += tx_uncompressed_size;
+            info.included_transactions = info.included_transactions.saturating_add(1);
+            if info.reserved_post_exec_bytes != 0 {
+                info.reserved_post_exec_bytes = info
+                    .reserved_post_exec_bytes
+                    .saturating_add(MAX_POST_EXEC_BYTES_PER_TRANSACTION);
+            }
 
             // update and add to total fees
             info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);

@@ -60,9 +60,16 @@ The [base fee](https://ethereum.org/en/developers/docs/gas/#base-fee) is the min
 Transactions must specify a maximum base fee higher than the block base fee to be included.
 The actual fee charged is the block base fee, even if the transaction specifies a higher maximum base fee.
 
-The OP Mainnet base fee behaves exactly like the Ethereum base fee, with a few small parameter changes to account for the much shorter block times on OP Mainnet.
-None of these parameters should significantly impact your application, but you can read more about each of these parameters on the [OP Mainnet differences](/op-stack/protocol/differences#eip-1559-parameters) page.
-Read more about the base fee in the [Ethereum.org documentation](https://ethereum.org/en/developers/docs/gas/#base-fee).
+Before Lagoon, the OP Mainnet base fee follows Ethereum's EIP-1559 update with a few parameter
+changes for shorter block times. At Lagoon, the sequencer selects the block base fee through its
+configured policy and commits it in the block's final PostExec transaction. Transaction validity,
+priority fees, the `BASEFEE` opcode, and Base Fee Vault accounting continue to use that selected
+block base fee.
+
+The Lagoon change does not affect L1 data fees or operator fees. Read more about the legacy
+parameters on the [OP Mainnet differences](/op-stack/protocol/differences#eip-1559-parameters) page
+and about base fee semantics in the
+[Ethereum.org documentation](https://ethereum.org/en/developers/docs/gas/#base-fee).
 
 ### Priority fee
 

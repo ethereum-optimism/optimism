@@ -25,7 +25,16 @@ fn append_post_exec_tx(
     block_number: u64,
     gas_refund_entries: Vec<SDMGasEntry>,
 ) {
-    let tx = build_post_exec_tx(block_number, gas_refund_entries);
+    append_post_exec_tx_with_base_fee(transactions, block_number, 1, gas_refund_entries);
+}
+
+fn append_post_exec_tx_with_base_fee(
+    transactions: &mut Vec<alloy_primitives::Bytes>,
+    block_number: u64,
+    selected_base_fee_per_gas: u64,
+    gas_refund_entries: Vec<SDMGasEntry>,
+) {
+    let tx = build_post_exec_tx(block_number, selected_base_fee_per_gas, gas_refund_entries);
     let mut encoded = Vec::with_capacity(tx.eip2718_encoded_length());
     tx.encode_2718(&mut encoded);
     transactions.push(encoded.into());
@@ -112,31 +121,68 @@ async fn post_exec_sdm_enabled_rejects_duplicate_post_exec_txs() {
 }
 
 #[tokio::test]
-async fn post_exec_valid_empty_payload_executes_without_state_or_gas_change() {
+async fn post_exec_missing_payload_synthesizes_parent_fee_commitment() {
     let baseline = execute_loaded_fixture(load_test_fixture(post_exec_fixture_path()).await, None)
         .expect("baseline fixture must execute");
+    let loaded = load_test_fixture(post_exec_fixture_path()).await;
+    let parent_base_fee = loaded.fixture.parent_header.base_fee_per_gas.unwrap_or_default();
+
+    let outcome = execute_loaded_fixture(loaded, Some(true)).expect("fallback fixture executes");
+    assert_eq!(outcome.header.base_fee_per_gas, Some(parent_base_fee));
+    assert_eq!(
+        outcome.execution_result.receipts.len(),
+        baseline.execution_result.receipts.len() + 1,
+    );
+    assert!(matches!(
+        outcome.execution_result.receipts.last(),
+        Some(OpReceiptEnvelope::PostExec(_))
+    ));
+    assert_eq!(outcome.header.state_root, baseline.header.state_root);
+    assert_ne!(outcome.header.transactions_root, baseline.header.transactions_root);
+}
+
+#[tokio::test]
+async fn post_exec_committed_fee_sets_block_base_fee() {
+    let mut loaded = load_test_fixture(post_exec_fixture_path()).await;
+    let block_number = fixture_block_number(&loaded.fixture.parent_header);
+    append_post_exec_tx_with_base_fee(
+        loaded.fixture.executing_payload.transactions.as_mut().unwrap(),
+        block_number,
+        777,
+        Vec::new(),
+    );
+
+    let outcome = execute_loaded_fixture(loaded, Some(true)).expect("committed fee executes");
+    assert_eq!(outcome.header.base_fee_per_gas, Some(777));
+}
+
+#[tokio::test]
+async fn post_exec_valid_empty_payload_matches_synthesized_commitment() {
+    let baseline =
+        execute_loaded_fixture(load_test_fixture(post_exec_fixture_path()).await, Some(true))
+            .expect("fallback fixture must execute");
 
     let mut loaded = load_test_fixture(post_exec_fixture_path()).await;
     let block_number = fixture_block_number(&loaded.fixture.parent_header);
-    append_post_exec_tx(
+    let parent_base_fee = loaded.fixture.parent_header.base_fee_per_gas.unwrap_or_default();
+    append_post_exec_tx_with_base_fee(
         loaded.fixture.executing_payload.transactions.as_mut().unwrap(),
         block_number,
+        parent_base_fee,
         Vec::new(),
     );
 
     let outcome = execute_loaded_fixture(loaded, Some(true)).expect("post-exec fixture executes");
-    assert_eq!(
-        outcome.execution_result.receipts.len(),
-        baseline.execution_result.receipts.len() + 1
-    );
     assert!(matches!(
         outcome.execution_result.receipts.last(),
         Some(OpReceiptEnvelope::PostExec(_))
     ));
     assert_eq!(outcome.execution_result.gas_used, baseline.execution_result.gas_used);
     assert_eq!(outcome.header.state_root, baseline.header.state_root);
-    assert_ne!(outcome.header.transactions_root, baseline.header.transactions_root);
-    assert_ne!(outcome.header.receipts_root, baseline.header.receipts_root);
+    assert_eq!(outcome.header.transactions_root, baseline.header.transactions_root);
+    assert_eq!(outcome.header.receipts_root, baseline.header.receipts_root);
+    assert_eq!(outcome.transactions, baseline.transactions);
+    assert_eq!(baseline.transactions.last().and_then(|tx| tx.first()), Some(&0x7d));
 }
 
 #[tokio::test]

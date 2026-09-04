@@ -129,5 +129,6 @@ pub struct PostExecReplayPayloadEntry {
 pub struct PostExecReplayPayload {
     pub version: u64,
     pub block_number: u64,
+    pub selected_base_fee_per_gas: u64,
     pub gas_refund_entries: Vec<PostExecReplayPayloadEntry>,
 }

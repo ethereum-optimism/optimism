@@ -534,6 +534,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
             args: BuildArgs {
                 base,
                 transactions,
+                post_exec_tx: last_flashblock.diff.post_exec_tx.clone(),
                 cached_state,
                 last_flashblock_index: last_flashblock.index,
                 last_flashblock_hash: last_flashblock.diff.block_hash,

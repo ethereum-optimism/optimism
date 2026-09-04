@@ -18,4 +18,6 @@ mod estimate_gas_7825;
 
 mod p2p_version;
 
+mod sequencer_defined_fees;
+
 const fn main() {}

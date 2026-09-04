@@ -1,19 +1,144 @@
 //! Additional configuration for the OP builder
 
+use alloy_consensus::BlockHeader;
+use alloy_rpc_types_engine::PayloadId;
+use reth_chainspec::EthChainSpec;
+use reth_optimism_forks::OpHardforks;
 use reth_optimism_txpool::interop::InteropFailsafe;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
+use std::{
+    collections::VecDeque,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
 };
 
-/// Settings for the OP builder.
+/// Inputs available to a producer's base-fee policy.
+#[derive(Clone, Copy)]
+pub struct BaseFeePolicyInput<'a> {
+    /// Parent block header.
+    pub parent: &'a dyn BlockHeader,
+    /// Timestamp of the block being built.
+    pub next_timestamp: u64,
+    /// Base fee selected by the legacy Jovian EIP-1559 algorithm.
+    pub legacy_base_fee: u64,
+}
+
+impl core::fmt::Debug for BaseFeePolicyInput<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BaseFeePolicyInput")
+            .field("parent_number", &self.parent.number())
+            .field("next_timestamp", &self.next_timestamp)
+            .field("legacy_base_fee", &self.legacy_base_fee)
+            .finish()
+    }
+}
+
+/// Error returned when a producer cannot select a base fee.
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("{message}")]
+pub struct BaseFeePolicyError {
+    message: String,
+}
+
+impl BaseFeePolicyError {
+    /// Creates a policy error from a displayable message.
+    pub fn msg(message: impl Into<String>) -> Self {
+        Self { message: message.into() }
+    }
+}
+
+/// Producer-only policy for selecting the base fee of a Lagoon block.
+///
+/// Verifiers never invoke this policy. They execute with the fee committed in the block's trailing
+/// `PostExec` transaction instead.
+pub trait BaseFeePolicy: core::fmt::Debug + Send + Sync + 'static {
+    /// Selects one immutable base fee for the payload job.
+    fn select_base_fee(&self, input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError>;
+
+    /// Returns a provisional fee for pending transaction classification and RPC suggestions.
+    ///
+    /// Policies with stateful selection may override this to avoid consuming or mutating a payload
+    /// decision while serving a quote.
+    fn quote_base_fee(&self, input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
+        self.select_base_fee(input)
+    }
+}
+
+/// Compatibility policy that preserves the legacy Jovian EIP-1559 result at Lagoon activation.
+#[derive(Debug, Default)]
+pub struct JovianBaseFeePolicy;
+
+impl BaseFeePolicy for JovianBaseFeePolicy {
+    fn select_base_fee(&self, input: BaseFeePolicyInput<'_>) -> Result<u64, BaseFeePolicyError> {
+        Ok(input.legacy_base_fee)
+    }
+}
+
+/// Quotes the next block's fee using legacy consensus rules before Lagoon and `policy` after it.
+pub fn quote_base_fee<ChainSpec, H>(
+    policy: &dyn BaseFeePolicy,
+    chain_spec: &ChainSpec,
+    parent: &H,
+    next_timestamp: u64,
+) -> Result<u64, BaseFeePolicyError>
+where
+    ChainSpec: EthChainSpec<Header = H> + OpHardforks,
+    H: BlockHeader,
+{
+    let legacy_base_fee = chain_spec
+        .next_block_base_fee(parent, next_timestamp)
+        .unwrap_or_else(|| parent.base_fee_per_gas().unwrap_or_default());
+    if !chain_spec.is_lagoon_active_at_timestamp(next_timestamp) {
+        return Ok(legacy_base_fee);
+    }
+
+    policy.quote_base_fee(BaseFeePolicyInput { parent, next_timestamp, legacy_base_fee })
+}
+
+type BaseFeeSelections = VecDeque<(PayloadId, Result<u64, BaseFeePolicyError>)>;
+
+/// Bounded cache that keeps a policy selection immutable across retries of one payload job.
 #[derive(Debug, Clone, Default)]
+pub struct BaseFeeSelectionCache {
+    inner: Arc<Mutex<BaseFeeSelections>>,
+}
+
+impl BaseFeeSelectionCache {
+    const CAPACITY: usize = 64;
+
+    /// Returns the selection already resolved for `payload_id`, or resolves and stores it once.
+    pub fn resolve(
+        &self,
+        payload_id: PayloadId,
+        select: impl FnOnce() -> Result<u64, BaseFeePolicyError>,
+    ) -> Result<u64, BaseFeePolicyError> {
+        let mut entries = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((_, selected)) = entries.iter().find(|(id, _)| *id == payload_id) {
+            return selected.clone();
+        }
+
+        let selected = select();
+        if entries.len() == Self::CAPACITY {
+            entries.pop_front();
+        }
+        entries.push_back((payload_id, selected.clone()));
+        selected
+    }
+}
+
+/// Settings for the OP builder.
+#[derive(Debug, Clone)]
 pub struct OpBuilderConfig {
     /// Data availability configuration for the OP builder.
     pub da_config: OpDAConfig,
     /// Gas limit configuration for the OP builder.
     pub gas_limit_config: OpGasLimitConfig,
-    /// Local SDM `PostExec` production operator opt-in. Shared with the admin RPC.
+    /// Producer-only policy used to select the base fee for normal Lagoon payloads.
+    pub base_fee_policy: Arc<dyn BaseFeePolicy>,
+    /// Selections shared by retries of the same payload job.
+    pub base_fee_selection_cache: BaseFeeSelectionCache,
+    /// Local SDM refund production operator opt-in. Shared with the admin RPC.
     pub operator_sdm_opt_in: OperatorSdmOptIn,
     /// Interop failsafe gate. Set by the interop filter client; read by the builder to exclude
     /// interop txs from blocks while it is enabled.
@@ -29,16 +154,38 @@ pub struct OpBuilderConfig {
     pub max_uncompressed_block_size: Option<u64>,
 }
 
+impl Default for OpBuilderConfig {
+    fn default() -> Self {
+        Self {
+            da_config: OpDAConfig::default(),
+            gas_limit_config: OpGasLimitConfig::default(),
+            base_fee_policy: Arc::new(JovianBaseFeePolicy),
+            base_fee_selection_cache: BaseFeeSelectionCache::default(),
+            operator_sdm_opt_in: OperatorSdmOptIn::default(),
+            interop_failsafe: InteropFailsafe::default(),
+            max_uncompressed_block_size: None,
+        }
+    }
+}
+
 impl OpBuilderConfig {
     /// Creates a new OP builder configuration with the given data availability configuration.
     pub fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
         Self {
             da_config,
             gas_limit_config,
+            base_fee_policy: Arc::new(JovianBaseFeePolicy),
+            base_fee_selection_cache: BaseFeeSelectionCache::default(),
             operator_sdm_opt_in: OperatorSdmOptIn::default(),
             interop_failsafe: InteropFailsafe::default(),
             max_uncompressed_block_size: None,
         }
+    }
+
+    /// Replaces the producer's base-fee policy.
+    pub fn with_base_fee_policy(mut self, policy: Arc<dyn BaseFeePolicy>) -> Self {
+        self.base_fee_policy = policy;
+        self
     }
 
     /// Returns the Data Availability configuration for the OP builder, if it has configured
@@ -168,6 +315,55 @@ impl OpGasLimitConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::Header;
+    use reth_optimism_chainspec::OpChainSpecBuilder;
+
+    #[derive(Debug)]
+    struct TestBaseFeePolicy;
+
+    impl BaseFeePolicy for TestBaseFeePolicy {
+        fn select_base_fee(
+            &self,
+            _input: BaseFeePolicyInput<'_>,
+        ) -> Result<u64, BaseFeePolicyError> {
+            Ok(999)
+        }
+
+        fn quote_base_fee(
+            &self,
+            _input: BaseFeePolicyInput<'_>,
+        ) -> Result<u64, BaseFeePolicyError> {
+            Ok(777)
+        }
+    }
+
+    #[test]
+    fn quote_base_fee_uses_policy_only_at_lagoon() {
+        let parent = Header {
+            timestamp: 1,
+            base_fee_per_gas: Some(100),
+            gas_limit: 30_000_000,
+            ..Default::default()
+        };
+        let pre_lagoon =
+            OpChainSpecBuilder::default().chain(10.into()).genesis(Default::default()).build();
+        let expected_legacy =
+            pre_lagoon.next_block_base_fee(&parent, parent.timestamp).unwrap_or_default();
+        assert_eq!(
+            quote_base_fee(&TestBaseFeePolicy, &pre_lagoon, &parent, parent.timestamp).unwrap(),
+            expected_legacy,
+        );
+
+        let lagoon = OpChainSpecBuilder::default()
+            .chain(10.into())
+            .genesis(Default::default())
+            .lagoon_activated()
+            .build();
+        assert_eq!(
+            quote_base_fee(&TestBaseFeePolicy, &lagoon, &parent, parent.timestamp).unwrap(),
+            777,
+        );
+    }
 
     #[test]
     fn test_da() {

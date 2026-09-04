@@ -342,7 +342,11 @@ where
             self.cursor.write().advance(origin, tip_cursor);
 
             // Update the latest safe head artifacts.
-            self.safe_head_artifacts = Some((outcome, attributes.transactions.unwrap_or_default()));
+            // The executor may synthesize validator data (currently Lagoon PostExec) that was not
+            // present in the derived attributes. Persist the exact transaction list committed by
+            // the returned header so interop trie preimages remain consistent.
+            let effective_transactions = outcome.transactions.clone();
+            self.safe_head_artifacts = Some((outcome, effective_transactions));
         }
     }
 }

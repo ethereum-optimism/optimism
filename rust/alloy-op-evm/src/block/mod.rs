@@ -72,9 +72,11 @@ pub enum PostExecMode {
     /// Execute with legacy gas accounting.
     #[default]
     Disabled,
+    /// Produce a canonical post-exec commitment without collecting SDM refunds.
+    Commit,
     /// Produce canonical post-exec refunds locally and append them to the block later.
     Produce,
-    /// Verify canonical gas accounting using an post-exec payload embedded in the block.
+    /// Verify canonical gas accounting using a post-exec payload embedded in the block.
     Verify(PostExecPayload),
 }
 
@@ -90,6 +92,8 @@ impl From<bool> for PostExecMode {
 pub enum PostExecState {
     /// Execute with legacy gas accounting.
     Disabled,
+    /// Produce a canonical post-exec commitment without collecting SDM refunds.
+    Committing,
     /// Produce canonical post-exec refunds locally and append them to the block later.
     Producing {
         /// Accumulated per-tx refunds for post-exec tx assembly.
@@ -116,6 +120,7 @@ impl PostExecState {
     fn new(mode: PostExecMode) -> Self {
         match mode {
             PostExecMode::Disabled => Self::Disabled,
+            PostExecMode::Commit => Self::Committing,
             PostExecMode::Produce => Self::Producing { entries: Vec::new() },
             PostExecMode::Verify(payload) => {
                 let mut remaining = BTreeMap::new();
@@ -220,7 +225,7 @@ impl PostExecState {
                 *saw_post_exec_tx = true;
                 Ok(())
             }
-            Self::Producing { .. } => Ok(()),
+            Self::Committing | Self::Producing { .. } => Ok(()),
             Self::Disabled => Err(format!(
                 "unexpected post-exec tx at index {tx_index}: SDM not active for this block"
             )),
@@ -898,6 +903,13 @@ where
                 })?;
             if let Err(reason) = self.post_exec.verify_post_exec_tx(tx_index, payload) {
                 return Err(Self::invalid_post_exec_payload(reason));
+            }
+            let block_base_fee = self.evm.block().basefee();
+            if payload.selected_base_fee_per_gas != block_base_fee {
+                return Err(Self::invalid_post_exec_payload(format!(
+                    "post-exec selected base fee {} does not match block base fee {block_base_fee}",
+                    payload.selected_base_fee_per_gas,
+                )));
             }
             // Validates that no Verify payload entry targets this tx index; refund is always 0.
             self.verifier_post_exec_refund_for_tx(tx_index, false, true, 0)?;
