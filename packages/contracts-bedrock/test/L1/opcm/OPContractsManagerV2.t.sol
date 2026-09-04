@@ -2966,6 +2966,31 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertTrue(newLockbox.authorizedLockboxes(oldLockbox1), "Old lockbox should be authorized on new lockbox");
     }
 
+    /// @notice Tests that the old per-chain AnchorStateRegistry and DelayedWETH follow the shared lockbox pause.
+    function test_migrate_oldContractsFollowSharedPause_succeeds() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+        _enableEthLockboxes();
+        IAnchorStateRegistry oldASR = portal2.anchorStateRegistry();
+        IDelayedWETH oldWETH = IDelayedWETH(payable(chainContracts2.systemConfig.delayedWETH()));
+        Proposal memory oldRoot = oldASR.getStartingAnchorRoot();
+
+        _doMigration(input);
+
+        IETHLockbox newLockbox = portal2.ethLockbox();
+        assertEq(address(oldASR.ethLockbox()), address(newLockbox), "Old ASR should point at shared lockbox");
+        assertEq(address(oldWETH.ethLockbox()), address(newLockbox), "Old DelayedWETH should point at shared lockbox");
+        assertEq(
+            oldASR.getStartingAnchorRoot().root.raw(), oldRoot.root.raw(), "Old ASR anchor root should be unchanged"
+        );
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(newLockbox));
+        assertTrue(oldASR.paused(), "Old ASR should be paused by shared lockbox");
+        assertTrue(oldWETH.ethLockbox().paused(), "Old DelayedWETH should be paused by shared lockbox");
+    }
+
     /// @notice Tests that migration respects a pause keyed to an existing per-chain lockbox.
     function test_migrate_oldLockboxPaused_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
