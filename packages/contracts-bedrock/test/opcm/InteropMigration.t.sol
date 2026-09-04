@@ -74,6 +74,16 @@ contract InteropMigrationInput_Test is Test {
         assertEq(storedInput, abi.encode(migrateInput));
     }
 
+    function test_setExtraInstructions_succeeds() public {
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](1);
+        extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({ key: "test", data: hex"deadbeef" });
+
+        input.set(input.extraInstructions.selector, extraInstructions);
+
+        assertEq(input.extraInstructions(), abi.encode(extraInstructions));
+    }
+
     function test_setAddress_withZeroAddress_reverts() public {
         vm.expectRevert("InteropMigrationInput: cannot set zero address");
         input.set(input.prank.selector, address(0));
@@ -90,13 +100,30 @@ contract InteropMigrationInput_Test is Test {
 
 contract MockOPCM {
     event MigrateV2Called(address indexed sysCfg, uint32 indexed gameType);
+    event MigrateWithInstructionsCalled(
+        address indexed sysCfg, uint32 indexed gameType, string instructionKey, bytes instructionData
+    );
 
     function version() public pure returns (string memory) {
-        return "7.0.0";
+        return "8.0.4";
     }
 
     function migrate(IOPContractsManagerMigrator.MigrateInput memory _input) public {
         emit MigrateV2Called(address(_input.chainSystemConfigs[0]), GameType.unwrap(_input.startingRespectedGameType));
+    }
+
+    function migrateWithInstructions(
+        IOPContractsManagerMigrator.MigrateInput memory _input,
+        IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions
+    )
+        public
+    {
+        emit MigrateWithInstructionsCalled(
+            address(_input.chainSystemConfigs[0]),
+            GameType.unwrap(_input.startingRespectedGameType),
+            _extraInstructions[0].key,
+            _extraInstructions[0].data
+        );
     }
 }
 
@@ -119,6 +146,9 @@ contract InteropMigrationV2_Test is Test {
     address prank;
 
     event MigrateV2Called(address indexed sysCfg, uint32 indexed gameType);
+    event MigrateWithInstructionsCalled(
+        address indexed sysCfg, uint32 indexed gameType, string instructionKey, bytes instructionData
+    );
 
     function setUp() public {
         mockOPCM = new MockOPCM();
@@ -173,6 +203,38 @@ contract InteropMigrationV2_Test is Test {
         migration.run(input, output);
 
         assertEq(address(output.disputeGameFactory()), dgf);
+    }
+
+    function test_migrateV2_withInstructions_succeeds() public {
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](1);
+        extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({ key: "test", data: hex"deadbeef" });
+        input.set(input.extraInstructions.selector, extraInstructions);
+
+        vm.expectEmit(address(prank));
+        emit MigrateWithInstructionsCalled(address(systemConfig), 0, "test", hex"deadbeef");
+
+        address portal = makeAddr("optimismPortal");
+        address dgf = makeAddr("disputeGameFactory");
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.optimismPortal, ()), abi.encode(portal));
+        vm.etch(dgf, hex"01");
+        vm.mockCall(portal, abi.encodeCall(IOptimismPortal.disputeGameFactory, ()), abi.encode(dgf));
+
+        InteropMigrationOutput output = new InteropMigrationOutput();
+        migration.run(input, output);
+
+        assertEq(address(output.disputeGameFactory()), dgf);
+    }
+
+    function test_migrateV2_withInstructionsBeforeV804_reverts() public {
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](1);
+        extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({ key: "test", data: hex"deadbeef" });
+        input.set(input.extraInstructions.selector, extraInstructions);
+        input.set(input.opcm.selector, address(new MockOPCMRevert()));
+
+        vm.expectRevert("InteropMigration: OPCM must be v8.0.4 or later when using extra instructions.");
+        migration.run(input, new InteropMigrationOutput());
     }
 
     function test_migrateV2_migrate_reverts() public {

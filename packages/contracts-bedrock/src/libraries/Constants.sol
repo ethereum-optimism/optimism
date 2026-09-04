@@ -50,6 +50,9 @@ library Constants {
     /// @notice Special constant key for the PermittedProxyDeployment instruction.
     string internal constant PERMITTED_PROXY_DEPLOYMENT_KEY = "PermittedProxyDeployment";
 
+    /// @notice One-off OPCM instruction key for withdrawal throttle configuration.
+    string internal constant WITHDRAWAL_THROTTLE_CONFIG_KEY = "WithdrawalThrottleConfig";
+
     /// @notice Special constant value for the PermittedProxyDeployment instruction to permit all
     ///         contracts to be deployed. Used for both initial deployments and migrations.
     bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");

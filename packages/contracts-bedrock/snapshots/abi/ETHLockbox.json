@@ -70,6 +70,26 @@
   },
   {
     "inputs": [],
+    "name": "availableWithdrawalCapacity",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "disableWithdrawalThrottle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "initVersion",
     "outputs": [
       {
@@ -167,6 +187,31 @@
   },
   {
     "inputs": [],
+    "name": "refreshWithdrawalThrottle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint16",
+        "name": "_maxBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_refillPeriod",
+        "type": "uint64"
+      }
+    ],
+    "name": "setWithdrawalThrottle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "superchainConfig",
     "outputs": [
       {
@@ -212,6 +257,56 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "withdrawalThrottle",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "capacity",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "available",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint64",
+            "name": "refillPeriod",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastUpdated",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "refillRemainder",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint16",
+            "name": "maxBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "bool",
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct ETHLockbox.WithdrawalThrottleConfig",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -333,6 +428,99 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "remaining",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawalThrottleCapacityConsumed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "WithdrawalThrottleCapacityExhausted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "maxBps",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "refillPeriod",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "stockSnapshot",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "capacity",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "available",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawalThrottleConfigured",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "WithdrawalThrottleDisabled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "stockSnapshot",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "capacity",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "available",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawalThrottleRefreshed",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "ETHLockbox_DifferentSuperchainConfig",
     "type": "error"
@@ -340,6 +528,16 @@
   {
     "inputs": [],
     "name": "ETHLockbox_InsufficientBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ETHLockbox_InvalidWithdrawalThrottleBps",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ETHLockbox_InvalidWithdrawalThrottlePeriod",
     "type": "error"
   },
   {
@@ -355,6 +553,32 @@
   {
     "inputs": [],
     "name": "ETHLockbox_Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ETHLockbox_WithdrawalThrottleNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "requestedAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "availableCapacity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalCapacity",
+        "type": "uint256"
+      }
+    ],
+    "name": "ETHLockbox_WithdrawalThrottled",
     "type": "error"
   },
   {
@@ -390,6 +614,11 @@
   {
     "inputs": [],
     "name": "ReinitializableBase_ZeroInitVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "WithdrawalThrottle_TimestampOverflow",
     "type": "error"
   }
 ]

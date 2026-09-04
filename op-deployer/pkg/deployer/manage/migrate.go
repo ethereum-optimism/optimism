@@ -11,18 +11,27 @@ import (
 )
 
 // ScriptInput represents the input struct that is actually passed to the script.
-// It contains the prank address, OPCM address, and ABI-encoded migrate input.
+// It contains the prank address, OPCM address, ABI-encoded migrate input, and optional
+// ABI-encoded extra instructions.
 type ScriptInput struct {
-	Prank        common.Address `evm:"prank"`
-	Opcm         common.Address `evm:"opcm"`
-	MigrateInput []byte         `evm:"migrateInput"`
+	Prank             common.Address `evm:"prank"`
+	Opcm              common.Address `evm:"opcm"`
+	MigrateInput      []byte         `evm:"migrateInput"`
+	ExtraInstructions []byte         `evm:"extraInstructions"`
 }
 
 // InteropMigrationInput represents the struct that is read from the config file.
 type InteropMigrationInput struct {
-	Prank          common.Address  `json:"prank"`
-	Opcm           common.Address  `json:"opcm"`
-	MigrateInputV2 *MigrateInputV2 `json:"migrateInputV2,omitempty"`
+	Prank             common.Address     `json:"prank"`
+	Opcm              common.Address     `json:"opcm"`
+	MigrateInputV2    *MigrateInputV2    `json:"migrateInputV2,omitempty"`
+	ExtraInstructions []ExtraInstruction `json:"extraInstructions,omitempty"`
+}
+
+// ExtraInstruction represents a one-off OPCM migration instruction.
+type ExtraInstruction struct {
+	Key  string `json:"key"`
+	Data []byte `json:"data"`
 }
 
 // MigrateInputV2 represents the migrate input format for OPCM v2 (>= 7.0.0).
@@ -59,6 +68,11 @@ var migrateInputV2Encoder = w3.MustNewFunc(
 	"",
 )
 
+var extraInstructionsEncoder = w3.MustNewFunc(
+	"dummy((string key,bytes data)[])",
+	"",
+)
+
 func (i *InteropMigrationInput) EncodedMigrateInputV2() ([]byte, error) {
 	if i.MigrateInputV2 == nil {
 		return nil, fmt.Errorf("MigrateInputV2 is nil")
@@ -76,6 +90,22 @@ func (i *InteropMigrationInput) EncodedMigrateInputV2() ([]byte, error) {
 	return data[4:], nil
 }
 
+func (i *InteropMigrationInput) EncodedExtraInstructions() ([]byte, error) {
+	if len(i.ExtraInstructions) == 0 {
+		return nil, nil
+	}
+
+	data, err := extraInstructionsEncoder.EncodeArgs(i.ExtraInstructions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode extra instructions: %w", err)
+	}
+	if len(data) < 4 {
+		return nil, fmt.Errorf("failed to encode extra instructions: data is too short")
+	}
+
+	return data[4:], nil
+}
+
 func (output *InteropMigrationOutput) CheckOutput(input common.Address) error {
 	return nil
 }
@@ -89,11 +119,16 @@ func Migrate(host *script.Host, input InteropMigrationInput) (InteropMigrationOu
 	if err != nil {
 		return InteropMigrationOutput{}, err
 	}
+	encodedExtraInstructions, err := input.EncodedExtraInstructions()
+	if err != nil {
+		return InteropMigrationOutput{}, err
+	}
 
 	scriptInput := ScriptInput{
-		Prank:        input.Prank,
-		Opcm:         input.Opcm,
-		MigrateInput: encodedMigrateInput,
+		Prank:             input.Prank,
+		Opcm:              input.Opcm,
+		MigrateInput:      encodedMigrateInput,
+		ExtraInstructions: encodedExtraInstructions,
 	}
 	return opcm.RunScriptSingle[ScriptInput, InteropMigrationOutput](host, scriptInput, "InteropMigration.s.sol", "InteropMigration")
 }

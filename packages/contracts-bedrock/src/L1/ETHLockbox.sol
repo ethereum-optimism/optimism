@@ -8,6 +8,7 @@ import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { WithdrawalThrottle } from "src/libraries/WithdrawalThrottle.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -21,6 +22,8 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 /// @notice Manages ETH liquidity locking and unlocking for authorized OptimismPortals, enabling unified ETH liquidity
 ///         management across chains in the superchain cluster.
 contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
+    using WithdrawalThrottle for WithdrawalThrottle.State;
+
     /// @notice Thrown when the lockbox is paused.
     error ETHLockbox_Paused();
 
@@ -35,6 +38,29 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
 
     /// @notice Thrown when any authorized portal has a different SuperchainConfig.
     error ETHLockbox_DifferentSuperchainConfig();
+
+    /// @notice Thrown when a withdrawal throttle basis point value is zero or exceeds 100%.
+    error ETHLockbox_InvalidWithdrawalThrottleBps();
+
+    /// @notice Thrown when a withdrawal throttle refill period is zero.
+    error ETHLockbox_InvalidWithdrawalThrottlePeriod();
+
+    /// @notice Thrown when the withdrawal throttle is not enabled.
+    error ETHLockbox_WithdrawalThrottleNotEnabled();
+
+    /// @notice Thrown when an ETH withdrawal exceeds the available withdrawal capacity.
+    error ETHLockbox_WithdrawalThrottled(uint256 requestedAmount, uint256 availableCapacity, uint256 totalCapacity);
+
+    /// @notice Logical withdrawal throttle state for ETH held by the lockbox.
+    struct WithdrawalThrottleConfig {
+        uint256 capacity;
+        uint256 available;
+        uint64 refillPeriod;
+        uint64 lastUpdated;
+        uint64 refillRemainder;
+        uint16 maxBps;
+        bool enabled;
+    }
 
     /// @notice Emitted when ETH is locked in the lockbox by an authorized portal.
     /// @param portal The address of the portal that locked the ETH.
@@ -63,6 +89,23 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @param amount The amount of ETH received.
     event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
 
+    /// @notice Emitted when the ETH withdrawal throttle is configured.
+    event WithdrawalThrottleConfigured(
+        uint16 maxBps, uint64 refillPeriod, uint256 stockSnapshot, uint256 capacity, uint256 available
+    );
+
+    /// @notice Emitted when the ETH withdrawal throttle stock snapshot is refreshed.
+    event WithdrawalThrottleRefreshed(uint256 stockSnapshot, uint256 capacity, uint256 available);
+
+    /// @notice Emitted when the ETH withdrawal throttle is disabled.
+    event WithdrawalThrottleDisabled();
+
+    /// @notice Emitted when ETH withdrawal capacity is consumed.
+    event WithdrawalThrottleCapacityConsumed(uint256 amount, uint256 remaining);
+
+    /// @notice Emitted when all currently available ETH withdrawal capacity is consumed.
+    event WithdrawalThrottleCapacityExhausted();
+
     /// @notice The address of the SystemConfig contract.
     ISystemConfig public systemConfig;
 
@@ -72,10 +115,13 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @notice Mapping of authorized lockboxes.
     mapping(IETHLockbox => bool) public authorizedLockboxes;
 
+    /// @notice Withdrawal throttle state for ETH held by the lockbox.
+    WithdrawalThrottle.State internal _withdrawalThrottle;
+
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1
+    /// @custom:semver 2.1.0
     function version() public view virtual returns (string memory) {
-        return "1.3.1";
+        return "2.1.0";
     }
 
     /// @notice Constructs the ETHLockbox contract.
@@ -116,6 +162,74 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function superchainConfig() public view returns (ISuperchainConfig) {
         return systemConfig.superchainConfig();
+    }
+
+    /// @notice Configures ETH withdrawal capacity as a percentage of the current lockbox balance.
+    ///         Reconfiguration preserves accrued whole-unit capacity, resets the fractional
+    ///         remainder, and clamps availability to the new maximum.
+    /// @param _maxBps       Maximum withdrawable stock in basis points.
+    /// @param _refillPeriod Time in seconds for the bucket to refill from empty to full.
+    function setWithdrawalThrottle(uint16 _maxBps, uint64 _refillPeriod) external {
+        _assertOnlyProxyAdminOwner();
+
+        if (_maxBps == 0 || _maxBps > WithdrawalThrottle.MAX_BPS) {
+            revert ETHLockbox_InvalidWithdrawalThrottleBps();
+        }
+        if (_refillPeriod == 0) revert ETHLockbox_InvalidWithdrawalThrottlePeriod();
+
+        WithdrawalThrottle.State storage throttle = _withdrawalThrottle;
+        uint256 stockSnapshot = address(this).balance;
+        (uint128 capacity, uint128 available) =
+            throttle.configure(stockSnapshot, _maxBps, _refillPeriod, block.timestamp);
+
+        emit WithdrawalThrottleConfigured(_maxBps, _refillPeriod, stockSnapshot, capacity, available);
+    }
+
+    /// @notice Recomputes ETH withdrawal capacity from the current lockbox balance without refilling it.
+    function refreshWithdrawalThrottle() external {
+        _assertOnlyProxyAdminOwner();
+
+        WithdrawalThrottle.State storage throttle = _withdrawalThrottle;
+        uint256 config_ = throttle.config;
+        if (!WithdrawalThrottle.enabled(config_)) revert ETHLockbox_WithdrawalThrottleNotEnabled();
+
+        uint256 stockSnapshot = address(this).balance;
+        (uint128 capacity, uint128 available) = throttle.refresh(config_, stockSnapshot, block.timestamp);
+
+        emit WithdrawalThrottleRefreshed(stockSnapshot, capacity, available);
+    }
+
+    /// @notice Disables the ETH withdrawal throttle.
+    function disableWithdrawalThrottle() external {
+        _assertOnlyProxyAdminOwner();
+
+        if (!WithdrawalThrottle.enabled(_withdrawalThrottle.config)) revert ETHLockbox_WithdrawalThrottleNotEnabled();
+        _withdrawalThrottle.disable();
+
+        emit WithdrawalThrottleDisabled();
+    }
+
+    /// @notice Returns the stored ETH withdrawal throttle state before pending refill is materialized.
+    /// @return Withdrawal throttle state.
+    function withdrawalThrottle() external view returns (WithdrawalThrottleConfig memory) {
+        WithdrawalThrottle.Snapshot memory throttle = _withdrawalThrottle.snapshot();
+        return WithdrawalThrottleConfig({
+            capacity: throttle.capacity,
+            available: throttle.available,
+            refillPeriod: throttle.refillPeriod,
+            lastUpdated: throttle.lastUpdated,
+            refillRemainder: throttle.refillRemainder,
+            maxBps: throttle.maxBps,
+            enabled: throttle.enabled
+        });
+    }
+
+    /// @notice Returns currently available ETH withdrawal capacity.
+    /// @return Available capacity, or the maximum uint256 value when throttling is disabled.
+    function availableWithdrawalCapacity() external view returns (uint256) {
+        uint256 config_ = _withdrawalThrottle.config;
+        if (!WithdrawalThrottle.enabled(config_)) return type(uint256).max;
+        return _withdrawalThrottle.availableCapacity(config_, address(this).balance, block.timestamp);
     }
 
     /// @notice Authorizes a portal to lock and unlock ETH.
@@ -168,6 +282,8 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
         if (sender.l2Sender() != Constants.DEFAULT_L2_SENDER) {
             revert ETHLockbox_NoWithdrawalTransactions();
         }
+
+        _consumeWithdrawalCapacity(_value);
 
         // Using donateETH to avoid triggering a deposit.
         sender.donateETH{ value: _value }();
@@ -228,5 +344,24 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
 
         // Emit the event.
         emit PortalAuthorized(_portal);
+    }
+
+    /// @notice Consumes available ETH withdrawal capacity when the throttle is enabled.
+    /// @param _amount Amount of ETH to withdraw.
+    function _consumeWithdrawalCapacity(uint256 _amount) internal {
+        WithdrawalThrottle.State storage throttle = _withdrawalThrottle;
+        uint256 config_ = throttle.config;
+        if (!WithdrawalThrottle.enabled(config_) || _amount == 0) return;
+
+        uint256 stockSnapshot = address(this).balance;
+        (uint128 capacity, uint128 available, uint128 remaining, bool capacityChanged) =
+            throttle.consume(config_, stockSnapshot, _amount, block.timestamp);
+        if (_amount > available) {
+            revert ETHLockbox_WithdrawalThrottled(_amount, available, capacity);
+        }
+
+        if (capacityChanged) emit WithdrawalThrottleRefreshed(stockSnapshot, capacity, available);
+        emit WithdrawalThrottleCapacityConsumed(_amount, remaining);
+        if (remaining == 0) emit WithdrawalThrottleCapacityExhausted();
     }
 }

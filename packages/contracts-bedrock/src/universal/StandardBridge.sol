@@ -289,6 +289,7 @@ abstract contract StandardBridge is Initializable {
 
             IOptimismMintableERC20(_localToken).mint(_to, _amount);
         } else {
+            _beforeFinalizeBridgeERC20(_localToken, _amount);
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] - _amount;
             IERC20(_localToken).safeTransfer(_to, _amount);
         }
@@ -297,6 +298,11 @@ abstract contract StandardBridge is Initializable {
         // contracts may override this function in order to emit legacy events as well.
         _emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
+
+    /// @notice Hook called before escrowed ERC20 tokens are released by a bridge finalization.
+    /// @param _localToken Address of the escrowed ERC20 on this chain.
+    /// @param _amount     Amount of the ERC20 to release.
+    function _beforeFinalizeBridgeERC20(address _localToken, uint256 _amount) internal virtual { }
 
     /// @notice Initiates a bridge of ETH through the CrossDomainMessenger.
     /// @param _from        Address of the sender.

@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
+import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Contracts
@@ -356,9 +357,180 @@ contract ETHLockbox_LockETH_Test is ETHLockbox_TestInit {
     }
 }
 
+/// @title ETHLockbox_WithdrawalThrottle_TestInit
+/// @notice Reusable initialization for ETHLockbox withdrawal throttle tests.
+abstract contract ETHLockbox_WithdrawalThrottle_TestInit is ETHLockbox_TestInit {
+    uint16 internal constant MAX_BPS = 1000;
+    uint64 internal constant REFILL_PERIOD = 100;
+    uint256 internal constant STOCK = 1000;
+    uint256 internal constant CAPACITY = 100;
+
+    /// @notice Sets a deterministic ETH stock for withdrawal throttle tests.
+    function setUp() public virtual override {
+        CommonTest.setUp();
+        if (address(ethLockbox) == address(0)) {
+            vm.skip(true, "Skipping test because ETHLockbox is not deployed");
+        }
+        vm.deal(address(ethLockbox), STOCK);
+    }
+
+    /// @notice Configures the lockbox withdrawal throttle.
+    function _configureWithdrawalThrottle() internal {
+        vm.prank(proxyAdminOwner);
+        ethLockbox.setWithdrawalThrottle(MAX_BPS, REFILL_PERIOD);
+    }
+}
+
+/// @title ETHLockbox_SetWithdrawalThrottle_Test
+/// @notice Tests the `setWithdrawalThrottle` function.
+contract ETHLockbox_SetWithdrawalThrottle_Test is ETHLockbox_WithdrawalThrottle_TestInit {
+    /// @notice Tests that configuration snapshots the shared ETH stock and starts full.
+    function test_setWithdrawalThrottle_succeeds() external {
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleConfigured(MAX_BPS, REFILL_PERIOD, STOCK, CAPACITY, CAPACITY);
+        _configureWithdrawalThrottle();
+
+        IETHLockbox.WithdrawalThrottleConfig memory throttle = ethLockbox.withdrawalThrottle();
+        assertEq(throttle.capacity, CAPACITY);
+        assertEq(throttle.available, CAPACITY);
+        assertEq(throttle.refillPeriod, REFILL_PERIOD);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
+        assertEq(throttle.maxBps, MAX_BPS);
+        assertTrue(throttle.enabled);
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can configure the throttle.
+    function testFuzz_setWithdrawalThrottle_notProxyAdminOwner_reverts(address _caller) external {
+        vm.assume(_caller != proxyAdminOwner);
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        ethLockbox.setWithdrawalThrottle(MAX_BPS, REFILL_PERIOD);
+    }
+
+    /// @notice Tests that zero basis points revert.
+    function test_setWithdrawalThrottle_zeroBps_reverts() external {
+        vm.expectRevert(IETHLockbox.ETHLockbox_InvalidWithdrawalThrottleBps.selector);
+        vm.prank(proxyAdminOwner);
+        ethLockbox.setWithdrawalThrottle(0, REFILL_PERIOD);
+    }
+
+    /// @notice Tests that basis points above 100% revert.
+    function test_setWithdrawalThrottle_bpsAboveMaximum_reverts() external {
+        vm.expectRevert(IETHLockbox.ETHLockbox_InvalidWithdrawalThrottleBps.selector);
+        vm.prank(proxyAdminOwner);
+        ethLockbox.setWithdrawalThrottle(10_001, REFILL_PERIOD);
+    }
+
+    /// @notice Tests that a zero refill period reverts.
+    function test_setWithdrawalThrottle_zeroRefillPeriod_reverts() external {
+        vm.expectRevert(IETHLockbox.ETHLockbox_InvalidWithdrawalThrottlePeriod.selector);
+        vm.prank(proxyAdminOwner);
+        ethLockbox.setWithdrawalThrottle(MAX_BPS, 0);
+    }
+}
+
+/// @title ETHLockbox_RefreshWithdrawalThrottle_Test
+/// @notice Tests the `refreshWithdrawalThrottle` function.
+contract ETHLockbox_RefreshWithdrawalThrottle_Test is ETHLockbox_WithdrawalThrottle_TestInit {
+    /// @notice Tests that refreshing increased stock preserves rather than refills availability.
+    function test_refreshWithdrawalThrottle_preservesAvailable_succeeds() external {
+        _configureWithdrawalThrottle();
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(60);
+        vm.deal(address(ethLockbox), 2000);
+
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleRefreshed(2000, 200, 40);
+        vm.prank(proxyAdminOwner);
+        ethLockbox.refreshWithdrawalThrottle();
+
+        IETHLockbox.WithdrawalThrottleConfig memory throttle = ethLockbox.withdrawalThrottle();
+        assertEq(throttle.capacity, 200);
+        assertEq(throttle.available, 40);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
+    }
+}
+
+/// @title ETHLockbox_DisableWithdrawalThrottle_Test
+/// @notice Tests the `disableWithdrawalThrottle` function.
+contract ETHLockbox_DisableWithdrawalThrottle_Test is ETHLockbox_WithdrawalThrottle_TestInit {
+    /// @notice Tests that disabling restores unrestricted ETH unlocks.
+    function test_disableWithdrawalThrottle_succeeds() external {
+        _configureWithdrawalThrottle();
+
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleDisabled();
+        vm.prank(proxyAdminOwner);
+        ethLockbox.disableWithdrawalThrottle();
+
+        assertEq(ethLockbox.availableWithdrawalCapacity(), type(uint256).max);
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(CAPACITY + 1);
+    }
+}
+
 /// @title ETHLockbox_UnlockETH_Test
 /// @notice Test contract for the unlockETH function.
-contract ETHLockbox_UnlockETH_Test is ETHLockbox_TestInit {
+contract ETHLockbox_UnlockETH_Test is ETHLockbox_WithdrawalThrottle_TestInit {
+    /// @notice Tests that consumption with unchanged stock writes only the mutable bucket slot.
+    function test_unlockETH_unchangedStockWritesOnlyBucketSlot_succeeds() external {
+        _configureWithdrawalThrottle();
+        vm.warp(block.timestamp + 1);
+        StorageSlot memory stateSlot = ForgeArtifacts.getSlot("ETHLockbox", "_withdrawalThrottle");
+        bytes32 configSlot = bytes32(stateSlot.slot);
+        bytes32 bucketSlot = bytes32(stateSlot.slot + 1);
+
+        vm.startStateDiffRecording();
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(40);
+        VmSafe.AccountAccess[] memory accountAccesses = vm.stopAndReturnStateDiff();
+
+        uint256 configWrites;
+        uint256 bucketWrites;
+        for (uint256 i; i < accountAccesses.length; i++) {
+            for (uint256 j; j < accountAccesses[i].storageAccesses.length; j++) {
+                VmSafe.StorageAccess memory access = accountAccesses[i].storageAccesses[j];
+                if (access.account == address(ethLockbox) && access.isWrite) {
+                    if (access.slot == configSlot) configWrites++;
+                    if (access.slot == bucketSlot) bucketWrites++;
+                }
+            }
+        }
+        assertEq(configWrites, 0);
+        assertEq(bucketWrites, 1);
+    }
+
+    /// @notice Tests that consumption after a stock change writes the config and mutable bucket slots.
+    function test_unlockETH_changedStockWritesBothThrottleSlots_succeeds() external {
+        _configureWithdrawalThrottle();
+        vm.deal(address(ethLockbox), STOCK * 2);
+        StorageSlot memory stateSlot = ForgeArtifacts.getSlot("ETHLockbox", "_withdrawalThrottle");
+        bytes32 configSlot = bytes32(stateSlot.slot);
+        bytes32 bucketSlot = bytes32(stateSlot.slot + 1);
+
+        vm.startStateDiffRecording();
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(40);
+        VmSafe.AccountAccess[] memory accountAccesses = vm.stopAndReturnStateDiff();
+
+        uint256 configWrites;
+        uint256 bucketWrites;
+        for (uint256 i; i < accountAccesses.length; i++) {
+            for (uint256 j; j < accountAccesses[i].storageAccesses.length; j++) {
+                VmSafe.StorageAccess memory access = accountAccesses[i].storageAccesses[j];
+                if (access.account == address(ethLockbox) && access.isWrite) {
+                    if (access.slot == configSlot) configWrites++;
+                    if (access.slot == bucketSlot) bucketWrites++;
+                }
+            }
+        }
+        assertEq(configWrites, 1);
+        assertEq(bucketWrites, 1);
+    }
+
     /// @notice Tests `unlockETH` reverts when the contract is paused.
     function testFuzz_unlockETH_paused_reverts(address _caller, uint256 _value) public {
         // Mock the superchain config to return true for the paused status
@@ -459,6 +631,9 @@ contract ETHLockbox_UnlockETH_Test is ETHLockbox_TestInit {
         vm.mockCall(
             address(_portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(superchainConfig)
         );
+        vm.mockCall(
+            address(_portal), abi.encodeCall(IOptimismPortal2.l2Sender, ()), abi.encode(Constants.DEFAULT_L2_SENDER)
+        );
 
         // Set the portal as an authorized portal if needed
         if (!ethLockbox.authorizedPortals(_portal)) {
@@ -471,24 +646,123 @@ contract ETHLockbox_UnlockETH_Test is ETHLockbox_TestInit {
 
         // Get the balance of the portal and lockbox before the unlock to compare later on the
         // assertions
-        uint256 portalBalanceBefore = address(optimismPortal2).balance;
+        uint256 portalBalanceBefore = address(_portal).balance;
         uint256 lockboxBalanceBefore = address(ethLockbox).balance;
 
         // Expect `donateETH` function to be called on Portal
-        vm.expectCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.donateETH, ()));
+        vm.expectCall(address(_portal), abi.encodeCall(IOptimismPortal2.donateETH, ()));
 
         // Look for the emit of the `ETHUnlocked` event
         vm.expectEmit(address(ethLockbox));
-        emit ETHUnlocked(optimismPortal2, _value);
+        emit ETHUnlocked(_portal, _value);
 
         // Call the `unlockETH` function with the portal
-        vm.prank(address(optimismPortal2));
+        vm.prank(address(_portal));
         ethLockbox.unlockETH(_value);
 
         // Assert the portal's balance increased and the lockbox's balance decreased by the amount
         // unlocked
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore + _value);
+        assertEq(address(_portal).balance, portalBalanceBefore + _value);
         assertEq(address(ethLockbox).balance, lockboxBalanceBefore - _value);
+    }
+
+    /// @notice Tests that authorized portals consume one shared withdrawal bucket.
+    function test_unlockETH_multiplePortalsConsumeSharedCapacity_succeeds() external {
+        IOptimismPortal2 portal = IOptimismPortal2(payable(address(0xBEEF)));
+        vm.mockCall(
+            address(portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
+        );
+        vm.mockCall(
+            address(portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(superchainConfig)
+        );
+        vm.mockCall(
+            address(portal), abi.encodeCall(IOptimismPortal2.l2Sender, ()), abi.encode(Constants.DEFAULT_L2_SENDER)
+        );
+        vm.prank(proxyAdminOwner);
+        ethLockbox.authorizePortal(portal);
+        _configureWithdrawalThrottle();
+
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(40);
+        vm.prank(address(portal));
+        ethLockbox.unlockETH(60);
+
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 0);
+    }
+
+    /// @notice Tests that consuming exact capacity succeeds and exhausts the shared bucket.
+    function test_unlockETH_exactWithdrawalCapacity_succeeds() external {
+        _configureWithdrawalThrottle();
+
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleCapacityConsumed(CAPACITY, 0);
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleCapacityExhausted();
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(CAPACITY);
+
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 0);
+    }
+
+    /// @notice Tests that an unlock reverts when the shared bucket lacks capacity.
+    function test_unlockETH_insufficientWithdrawalCapacity_reverts() external {
+        _configureWithdrawalThrottle();
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(CAPACITY);
+
+        vm.expectRevert(abi.encodeWithSelector(IETHLockbox.ETHLockbox_WithdrawalThrottled.selector, 1, 0, 90));
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(1);
+    }
+
+    /// @notice Tests that a withdrawal above uint128 max is throttled without narrowing the request.
+    function test_unlockETH_amountAboveUint128Max_reverts() external {
+        uint256 amount = uint256(type(uint128).max) + 1;
+        vm.deal(address(ethLockbox), amount * 10);
+        _configureWithdrawalThrottle();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IETHLockbox.ETHLockbox_WithdrawalThrottled.selector, amount, type(uint128).max, type(uint128).max
+            )
+        );
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(amount);
+    }
+
+    /// @notice Tests that increased stock raises the ceiling without immediately topping up availability.
+    function test_unlockETH_increasedStockLazilyRaisesCapacity_succeeds() external {
+        _configureWithdrawalThrottle();
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(CAPACITY);
+
+        vm.deal(address(ethLockbox), 1900);
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 0);
+
+        vm.warp(block.timestamp + REFILL_PERIOD / 2);
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 50);
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleRefreshed(1900, 190, 50);
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(50);
+
+        assertEq(ethLockbox.withdrawalThrottle().capacity, 190);
+        vm.warp(block.timestamp + REFILL_PERIOD / 2);
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 92);
+    }
+
+    /// @notice Tests that decreased stock immediately clamps effective availability.
+    function test_unlockETH_decreasedStockLazilyClampsCapacity_succeeds() external {
+        _configureWithdrawalThrottle();
+        vm.deal(address(ethLockbox), 500);
+
+        assertEq(ethLockbox.availableWithdrawalCapacity(), 50);
+        vm.expectEmit(address(ethLockbox));
+        emit WithdrawalThrottleRefreshed(500, 50, 50);
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(50);
+
+        assertEq(ethLockbox.withdrawalThrottle().capacity, 50);
     }
 }
 
@@ -644,5 +918,54 @@ contract ETHLockbox_Uncategorized_Test is ETHLockbox_TestInit {
     /// @notice Tests the proxy admin owner is correctly returned.
     function test_proxyProxyAdminOwner_succeeds() public view {
         assertEq(ethLockbox.proxyAdminOwner(), proxyAdminOwner);
+    }
+}
+
+/// @title ETHLockbox_Gas_TestInit
+/// @notice Common cold-slot gas measurement helpers for ETHLockbox withdrawals.
+abstract contract ETHLockbox_Gas_TestInit is ETHLockbox_WithdrawalThrottle_TestInit {
+    function _measureLockboxWithdrawal(string memory _snapshotName) internal {
+        address lockboxImplementation = EIP1967Helper.getImplementation(address(ethLockbox));
+        address portalImplementation = EIP1967Helper.getImplementation(address(optimismPortal2));
+        StorageSlot memory stateSlot = ForgeArtifacts.getSlot("ETHLockbox", "_withdrawalThrottle");
+        vm.cool(address(ethLockbox));
+        vm.coolSlot(address(ethLockbox), bytes32(stateSlot.slot));
+        vm.coolSlot(address(ethLockbox), bytes32(stateSlot.slot + 1));
+        vm.cool(lockboxImplementation);
+        vm.cool(address(optimismPortal2));
+        vm.cool(portalImplementation);
+        vm.cool(address(systemConfig));
+
+        vm.prank(address(optimismPortal2));
+        ethLockbox.unlockETH(40);
+        vm.snapshotGasLastCall("WithdrawalFinalizationGas", _snapshotName);
+    }
+}
+
+/// @title ETHLockbox_UnlockETH_GasDisabled_Test
+/// @notice Measures ETHLockbox withdrawal with committed unconfigured throttle storage.
+contract ETHLockbox_UnlockETH_GasDisabled_Test is ETHLockbox_Gas_TestInit {
+    function setUp() public override {
+        super.setUp();
+        vm.deal(address(ethLockbox), STOCK * 2);
+    }
+
+    function test_unlockETH_throttleDisabledGas_benchmark() external {
+        _measureLockboxWithdrawal("eth-lockbox-unthrottled");
+    }
+}
+
+/// @title ETHLockbox_UnlockETH_GasEnabled_Test
+/// @notice Measures the capacity-changing packed ETHLockbox throttle path from committed storage.
+contract ETHLockbox_UnlockETH_GasEnabled_Test is ETHLockbox_Gas_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _configureWithdrawalThrottle();
+        vm.deal(address(ethLockbox), STOCK * 2);
+        vm.warp(block.timestamp + 1);
+    }
+
+    function test_unlockETH_throttleEnabledGas_benchmark() external {
+        _measureLockboxWithdrawal("eth-lockbox-throttled");
     }
 }

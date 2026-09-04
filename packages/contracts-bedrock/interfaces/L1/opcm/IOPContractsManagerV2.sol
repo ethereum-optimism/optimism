@@ -82,6 +82,9 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
     error OPContractsManagerV2_DuplicateUpgradeInstruction(string _key);
+    error OPContractsManagerV2_InvalidWithdrawalThrottleConfig();
+    error OPContractsManagerV2_DuplicateWithdrawalThrottleToken(address _token);
+    error OPContractsManagerV2_WithdrawalThrottleConfigConflict(address _token);
     error OPContractsManagerV2_OnlyDelegateCall();
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
@@ -131,6 +134,13 @@ interface IOPContractsManagerV2 {
     /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
     function migrate(IOPContractsManagerMigrator.MigrateInput calldata _input) external;
+
+    /// @notice Migrates chains and applies permitted one-off migration instructions.
+    function migrateWithInstructions(
+        IOPContractsManagerMigrator.MigrateInput calldata _input,
+        IOPContractsManagerUtils.ExtraInstruction[] calldata _extraInstructions
+    )
+        external;
 
     /// @notice Returns whether a development feature is enabled.
     function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);

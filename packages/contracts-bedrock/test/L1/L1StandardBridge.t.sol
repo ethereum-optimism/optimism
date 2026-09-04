@@ -2,7 +2,9 @@
 pragma solidity 0.8.15;
 
 // Testing
+import { VmSafe } from "forge-std/Vm.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
+import { stdError } from "forge-std/StdError.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
@@ -964,5 +966,579 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
         vm.prank(alice);
         vm.expectRevert(IOptimismPortal2.OptimismPortal_NotAllowedOnCGTMode.selector);
         l1StandardBridge.bridgeETHTo{ value: _value }(_to, _minGasLimit, hex"dead");
+    }
+}
+
+/// @title L1StandardBridge_WithdrawalThrottle_TestInit
+/// @notice Reusable test initialization for L1StandardBridge withdrawal throttle tests.
+abstract contract L1StandardBridge_WithdrawalThrottle_TestInit is CommonTest {
+    using stdStorage for StdStorage;
+
+    uint16 internal constant MAX_BPS = 1000;
+    uint64 internal constant REFILL_PERIOD = 100;
+    uint256 internal constant STOCK = 1000;
+    uint256 internal constant CAPACITY = 100;
+
+    address internal bridgeMessenger;
+    address internal bridgeOwner;
+
+    /// @notice Sets up an escrowed token and an authenticated L2 bridge caller.
+    function setUp() public virtual override {
+        super.setUp();
+
+        bridgeMessenger = address(l1StandardBridge.messenger());
+        bridgeOwner = l1StandardBridge.proxyAdminOwner();
+        deal(address(L1Token), address(l1StandardBridge), STOCK, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK);
+        vm.mockCall(
+            bridgeMessenger,
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(address(l1StandardBridge.OTHER_BRIDGE()))
+        );
+    }
+
+    /// @notice Configures the default L1 token's withdrawal throttle.
+    function _configureThrottle() internal {
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), MAX_BPS, REFILL_PERIOD);
+    }
+
+    /// @notice Sets the escrow accounting for a local and remote token pair.
+    function _setDeposits(address _localToken, address _remoteToken, uint256 _amount) internal {
+        uint256 slot = stdstore.target(address(l1StandardBridge)).sig("deposits(address,address)").with_key(_localToken)
+            .with_key(_remoteToken).find();
+        vm.store(address(l1StandardBridge), bytes32(slot), bytes32(_amount));
+    }
+
+    /// @notice Finalizes an ERC20 withdrawal through the authenticated messenger.
+    function _withdraw(address _localToken, address _remoteToken, uint256 _amount) internal {
+        vm.prank(bridgeMessenger);
+        l1StandardBridge.finalizeBridgeERC20(_localToken, _remoteToken, alice, alice, _amount, hex"");
+    }
+
+    /// @notice Returns the config and mutable bucket slots for a token's withdrawal throttle.
+    function _withdrawalThrottleSlots(address _token) internal returns (bytes32 configSlot_, bytes32 bucketSlot_) {
+        StorageSlot memory mappingSlot = ForgeArtifacts.getSlot("L1StandardBridge", "_withdrawalThrottles");
+        configSlot_ = keccak256(abi.encode(_token, mappingSlot.slot));
+        bucketSlot_ = bytes32(uint256(configSlot_) + 1);
+    }
+
+    /// @notice Returns the L1 token balance slot for an account.
+    function _tokenBalanceSlot(address _account) internal returns (bytes32 slot_) {
+        slot_ = bytes32(stdstore.target(address(L1Token)).sig("balanceOf(address)").with_key(_account).find());
+    }
+}
+
+/// @title L1StandardBridge_SetWithdrawalThrottle_Test
+/// @notice Tests the `setWithdrawalThrottle` function of the `L1StandardBridge` contract.
+contract L1StandardBridge_SetWithdrawalThrottle_Test is L1StandardBridge_WithdrawalThrottle_TestInit {
+    /// @notice Tests that configuring a withdrawal throttle snapshots stock and starts full.
+    function test_setWithdrawalThrottle_succeeds() external {
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleConfigured(address(L1Token), MAX_BPS, REFILL_PERIOD, STOCK, CAPACITY, CAPACITY);
+
+        _configureThrottle();
+
+        IL1StandardBridge.WithdrawalThrottleConfig memory throttle =
+            l1StandardBridge.withdrawalThrottle(address(L1Token));
+        assertEq(throttle.capacity, CAPACITY);
+        assertEq(throttle.available, CAPACITY);
+        assertEq(throttle.refillPeriod, REFILL_PERIOD);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
+        assertEq(throttle.maxBps, MAX_BPS);
+        assertTrue(throttle.enabled);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), CAPACITY);
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can configure a withdrawal throttle.
+    function testFuzz_setWithdrawalThrottle_notProxyAdminOwner_reverts(address _caller) external {
+        vm.assume(_caller != bridgeOwner);
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), MAX_BPS, REFILL_PERIOD);
+    }
+
+    /// @notice Tests that configuring the zero token address reverts.
+    function test_setWithdrawalThrottle_zeroToken_reverts() external {
+        vm.expectRevert(IL1StandardBridge.L1StandardBridge_InvalidWithdrawalThrottleToken.selector);
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(0), MAX_BPS, REFILL_PERIOD);
+    }
+
+    /// @notice Tests that configuring a mintable local token reverts because it is not escrowed.
+    function test_setWithdrawalThrottle_mintableToken_reverts() external {
+        vm.expectRevert(IL1StandardBridge.L1StandardBridge_UnsupportedWithdrawalThrottleToken.selector);
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(BadL1Token), MAX_BPS, REFILL_PERIOD);
+    }
+
+    /// @notice Tests that a zero basis point value reverts.
+    function test_setWithdrawalThrottle_zeroBps_reverts() external {
+        vm.expectRevert(IL1StandardBridge.L1StandardBridge_InvalidWithdrawalThrottleBps.selector);
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), 0, REFILL_PERIOD);
+    }
+
+    /// @notice Tests that a basis point value above 100% reverts.
+    function test_setWithdrawalThrottle_bpsAboveMaximum_reverts() external {
+        vm.expectRevert(IL1StandardBridge.L1StandardBridge_InvalidWithdrawalThrottleBps.selector);
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), 10_001, REFILL_PERIOD);
+    }
+
+    /// @notice Tests that a zero refill period reverts.
+    function test_setWithdrawalThrottle_zeroRefillPeriod_reverts() external {
+        vm.expectRevert(IL1StandardBridge.L1StandardBridge_InvalidWithdrawalThrottlePeriod.selector);
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), MAX_BPS, 0);
+    }
+
+    /// @notice Tests that reconfiguration preserves and clamps accrued capacity under new parameters.
+    function test_setWithdrawalThrottle_reconfigurePreservesAvailable_succeeds() external {
+        _configureThrottle();
+        _withdraw(address(L1Token), address(L2Token), 60);
+        vm.warp(block.timestamp + REFILL_PERIOD / 2);
+
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), 500, REFILL_PERIOD * 2);
+
+        IL1StandardBridge.WithdrawalThrottleConfig memory throttle =
+            l1StandardBridge.withdrawalThrottle(address(L1Token));
+        assertEq(throttle.capacity, 47);
+        assertEq(throttle.available, 47);
+        assertEq(throttle.refillPeriod, REFILL_PERIOD * 2);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
+        assertEq(throttle.maxBps, 500);
+    }
+
+    /// @notice Tests that reconfiguration preserves non-full availability under a new refill period.
+    function test_setWithdrawalThrottle_reconfigurePeriodPreservesAvailable_succeeds() external {
+        _configureThrottle();
+        _withdraw(address(L1Token), address(L2Token), 80);
+        vm.warp(block.timestamp + 10);
+
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleConfigured(address(L1Token), 2000, 200, 920, 184, 29);
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), 2000, 200);
+
+        IL1StandardBridge.WithdrawalThrottleConfig memory throttle =
+            l1StandardBridge.withdrawalThrottle(address(L1Token));
+        assertEq(throttle.capacity, 184);
+        assertEq(throttle.available, 29);
+        assertEq(throttle.refillPeriod, 200);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
+        assertEq(throttle.maxBps, 2000);
+    }
+
+    /// @notice Tests that reconfiguration preserves whole units and resets fractional refill credit.
+    function test_setWithdrawalThrottle_reconfigureResetsFractionalRemainder_succeeds() external {
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), MAX_BPS, 3);
+        _withdraw(address(L1Token), address(L2Token), CAPACITY);
+        deal(address(L1Token), address(l1StandardBridge), STOCK, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK);
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), MAX_BPS, 3);
+
+        IL1StandardBridge.WithdrawalThrottleConfig memory throttle =
+            l1StandardBridge.withdrawalThrottle(address(L1Token));
+        assertEq(throttle.available, 33);
+        assertEq(throttle.refillRemainder, 0);
+    }
+}
+
+/// @title L1StandardBridge_RefreshWithdrawalThrottle_Test
+/// @notice Tests the `refreshWithdrawalThrottle` function of the `L1StandardBridge` contract.
+contract L1StandardBridge_RefreshWithdrawalThrottle_Test is L1StandardBridge_WithdrawalThrottle_TestInit {
+    /// @notice Tests that refreshing increased stock does not refill the bucket.
+    function test_refreshWithdrawalThrottle_increasedStockPreservesAvailable_succeeds() external {
+        _configureThrottle();
+        _withdraw(address(L1Token), address(L2Token), 60);
+        deal(address(L1Token), address(l1StandardBridge), 2000, true);
+
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleRefreshed(address(L1Token), 2000, 200, 40);
+        vm.prank(bridgeOwner);
+        l1StandardBridge.refreshWithdrawalThrottle(address(L1Token));
+
+        IL1StandardBridge.WithdrawalThrottleConfig memory throttle =
+            l1StandardBridge.withdrawalThrottle(address(L1Token));
+        assertEq(throttle.capacity, 200);
+        assertEq(throttle.available, 40);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
+    }
+
+    /// @notice Tests that refreshing decreased stock clamps available capacity.
+    function test_refreshWithdrawalThrottle_decreasedStockClampsAvailable_succeeds() external {
+        _configureThrottle();
+        deal(address(L1Token), address(l1StandardBridge), 50, true);
+
+        vm.prank(bridgeOwner);
+        l1StandardBridge.refreshWithdrawalThrottle(address(L1Token));
+
+        IL1StandardBridge.WithdrawalThrottleConfig memory throttle =
+            l1StandardBridge.withdrawalThrottle(address(L1Token));
+        assertEq(throttle.capacity, 5);
+        assertEq(throttle.available, 5);
+        assertEq(throttle.lastUpdated, block.timestamp);
+        assertEq(throttle.refillRemainder, 0);
+    }
+
+    /// @notice Tests that refreshing a disabled throttle reverts.
+    function test_refreshWithdrawalThrottle_notEnabled_reverts() external {
+        vm.expectRevert(IL1StandardBridge.L1StandardBridge_WithdrawalThrottleNotEnabled.selector);
+        vm.prank(bridgeOwner);
+        l1StandardBridge.refreshWithdrawalThrottle(address(L1Token));
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can refresh a withdrawal throttle.
+    function testFuzz_refreshWithdrawalThrottle_notProxyAdminOwner_reverts(address _caller) external {
+        _configureThrottle();
+        vm.assume(_caller != bridgeOwner);
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        l1StandardBridge.refreshWithdrawalThrottle(address(L1Token));
+    }
+}
+
+/// @title L1StandardBridge_DisableWithdrawalThrottle_Test
+/// @notice Tests the `disableWithdrawalThrottle` function of the `L1StandardBridge` contract.
+contract L1StandardBridge_DisableWithdrawalThrottle_Test is L1StandardBridge_WithdrawalThrottle_TestInit {
+    /// @notice Tests that disabling removes the throttle and restores unrestricted withdrawals.
+    function test_disableWithdrawalThrottle_succeeds() external {
+        _configureThrottle();
+
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleDisabled(address(L1Token));
+        vm.prank(bridgeOwner);
+        l1StandardBridge.disableWithdrawalThrottle(address(L1Token));
+
+        IL1StandardBridge.WithdrawalThrottleConfig memory throttle =
+            l1StandardBridge.withdrawalThrottle(address(L1Token));
+        assertFalse(throttle.enabled);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), type(uint256).max);
+
+        _withdraw(address(L1Token), address(L2Token), CAPACITY + 1);
+        assertEq(L1Token.balanceOf(alice), CAPACITY + 1);
+    }
+
+    /// @notice Tests that disabling an absent throttle reverts.
+    function test_disableWithdrawalThrottle_notEnabled_reverts() external {
+        vm.expectRevert(IL1StandardBridge.L1StandardBridge_WithdrawalThrottleNotEnabled.selector);
+        vm.prank(bridgeOwner);
+        l1StandardBridge.disableWithdrawalThrottle(address(L1Token));
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can disable a withdrawal throttle.
+    function testFuzz_disableWithdrawalThrottle_notProxyAdminOwner_reverts(address _caller) external {
+        _configureThrottle();
+        vm.assume(_caller != bridgeOwner);
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        l1StandardBridge.disableWithdrawalThrottle(address(L1Token));
+    }
+}
+
+/// @title L1StandardBridge_FinalizeBridgeERC20_Test
+/// @notice Tests withdrawal throttle behavior during ERC20 finalization.
+contract L1StandardBridge_FinalizeBridgeERC20_Test is L1StandardBridge_WithdrawalThrottle_TestInit {
+    /// @notice Asserts the exact config and mutable bucket writes in recorded account accesses.
+    function _assertThrottleWrites(
+        VmSafe.AccountAccess[] memory _accountAccesses,
+        bytes32 _configSlot,
+        bytes32 _bucketSlot,
+        uint256 _expectedConfigWrites,
+        uint256 _expectedBucketWrites
+    )
+        internal
+        view
+    {
+        uint256 configWrites;
+        uint256 bucketWrites;
+        for (uint256 i; i < _accountAccesses.length; i++) {
+            for (uint256 j; j < _accountAccesses[i].storageAccesses.length; j++) {
+                VmSafe.StorageAccess memory access = _accountAccesses[i].storageAccesses[j];
+                if (access.account == address(l1StandardBridge) && access.isWrite) {
+                    if (access.slot == _configSlot) configWrites++;
+                    if (access.slot == _bucketSlot) bucketWrites++;
+                }
+            }
+        }
+        assertEq(configWrites, _expectedConfigWrites);
+        assertEq(bucketWrites, _expectedBucketWrites);
+    }
+
+    /// @notice Tests that unchanged live stock writes only the mutable throttle bucket.
+    function test_finalizeBridgeERC20_unchangedStockWritesBucketOnly_succeeds() external {
+        _configureThrottle();
+        vm.warp(block.timestamp + 1);
+        (bytes32 configSlot, bytes32 bucketSlot) = _withdrawalThrottleSlots(address(L1Token));
+
+        vm.startStateDiffRecording();
+        _withdraw(address(L1Token), address(L2Token), 40);
+        VmSafe.AccountAccess[] memory accountAccesses = vm.stopAndReturnStateDiff();
+
+        _assertThrottleWrites(accountAccesses, configSlot, bucketSlot, 0, 1);
+    }
+
+    /// @notice Tests that changed live stock writes both the config and mutable throttle bucket.
+    function test_finalizeBridgeERC20_changedStockWritesConfigAndBucket_succeeds() external {
+        _configureThrottle();
+        deal(address(L1Token), address(l1StandardBridge), 2000, true);
+        _setDeposits(address(L1Token), address(L2Token), 2000);
+        (bytes32 configSlot, bytes32 bucketSlot) = _withdrawalThrottleSlots(address(L1Token));
+
+        vm.startStateDiffRecording();
+        _withdraw(address(L1Token), address(L2Token), 40);
+        VmSafe.AccountAccess[] memory accountAccesses = vm.stopAndReturnStateDiff();
+
+        _assertThrottleWrites(accountAccesses, configSlot, bucketSlot, 1, 1);
+    }
+
+    /// @notice Tests that an unconfigured token remains unrestricted.
+    function test_finalizeBridgeERC20_throttleDisabled_succeeds() external {
+        _withdraw(address(L1Token), address(L2Token), CAPACITY + 1);
+
+        assertEq(L1Token.balanceOf(alice), CAPACITY + 1);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), type(uint256).max);
+    }
+
+    /// @notice Tests that consuming exactly the bucket capacity succeeds and emits monitoring events.
+    function test_finalizeBridgeERC20_exactCapacity_succeeds() external {
+        _configureThrottle();
+
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleCapacityConsumed(address(L1Token), CAPACITY, 0);
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleCapacityExhausted(address(L1Token));
+        _withdraw(address(L1Token), address(L2Token), CAPACITY);
+
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 0);
+        assertEq(L1Token.balanceOf(alice), CAPACITY);
+    }
+
+    /// @notice Tests that a withdrawal reverts when its bucket does not have enough capacity.
+    function test_finalizeBridgeERC20_insufficientCapacity_reverts() external {
+        _configureThrottle();
+        _withdraw(address(L1Token), address(L2Token), CAPACITY);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IL1StandardBridge.L1StandardBridge_WithdrawalThrottled.selector, address(L1Token), 1, 0, 90
+            )
+        );
+        _withdraw(address(L1Token), address(L2Token), 1);
+
+        assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), STOCK - CAPACITY);
+        assertEq(L1Token.balanceOf(alice), CAPACITY);
+    }
+
+    /// @notice Tests that a withdrawal above uint128 is throttled without truncating its amount.
+    function test_finalizeBridgeERC20_amountAboveUint128_reverts() external {
+        uint256 amount = uint256(type(uint128).max) + 1;
+        uint256 stock = amount * 10;
+        deal(address(L1Token), address(l1StandardBridge), stock, true);
+        _setDeposits(address(L1Token), address(L2Token), stock);
+        _configureThrottle();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IL1StandardBridge.L1StandardBridge_WithdrawalThrottled.selector,
+                address(L1Token),
+                amount,
+                type(uint128).max,
+                type(uint128).max
+            )
+        );
+        _withdraw(address(L1Token), address(L2Token), amount);
+    }
+
+    /// @notice Tests that withdrawal capacity refills linearly over the configured period.
+    function test_finalizeBridgeERC20_refillsOverTime_succeeds() external {
+        _configureThrottle();
+        _withdraw(address(L1Token), address(L2Token), CAPACITY);
+
+        uint256 emptiedAt = block.timestamp;
+        vm.warp(emptiedAt + REFILL_PERIOD / 2);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 45);
+        _withdraw(address(L1Token), address(L2Token), 45);
+
+        vm.warp(block.timestamp + REFILL_PERIOD);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 85);
+    }
+
+    /// @notice Tests that increased stock raises the ceiling without immediately topping up availability.
+    function test_finalizeBridgeERC20_increasedStockLazilyRaisesCapacity_succeeds() external {
+        _configureThrottle();
+        _withdraw(address(L1Token), address(L2Token), CAPACITY);
+
+        deal(address(L1Token), address(l1StandardBridge), 1900, true);
+        _setDeposits(address(L1Token), address(L2Token), 1900);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 0);
+
+        vm.warp(block.timestamp + REFILL_PERIOD / 2);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 50);
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleRefreshed(address(L1Token), 1900, 190, 50);
+        _withdraw(address(L1Token), address(L2Token), 50);
+
+        assertEq(l1StandardBridge.withdrawalThrottle(address(L1Token)).capacity, 190);
+        vm.warp(block.timestamp + REFILL_PERIOD / 2);
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 92);
+    }
+
+    /// @notice Tests that decreased stock immediately clamps effective availability.
+    function test_finalizeBridgeERC20_decreasedStockLazilyClampsCapacity_succeeds() external {
+        _configureThrottle();
+        deal(address(L1Token), address(l1StandardBridge), 500, true);
+        _setDeposits(address(L1Token), address(L2Token), 500);
+
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 50);
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleRefreshed(address(L1Token), 500, 50, 50);
+        _withdraw(address(L1Token), address(L2Token), 50);
+
+        assertEq(l1StandardBridge.withdrawalThrottle(address(L1Token)).capacity, 50);
+    }
+
+    /// @notice Tests that staggered withdrawals preserve fractional refill capacity.
+    function test_finalizeBridgeERC20_fractionalRefillRemainder_succeeds() external {
+        vm.prank(bridgeOwner);
+        l1StandardBridge.setWithdrawalThrottle(address(L1Token), MAX_BPS, 3);
+        _withdraw(address(L1Token), address(L2Token), CAPACITY);
+        deal(address(L1Token), address(l1StandardBridge), STOCK, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK);
+
+        vm.warp(block.timestamp + 1);
+        _withdraw(address(L1Token), address(L2Token), 33);
+        deal(address(L1Token), address(l1StandardBridge), STOCK, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK);
+        vm.warp(block.timestamp + 1);
+
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 33);
+        _withdraw(address(L1Token), address(L2Token), 33);
+        deal(address(L1Token), address(l1StandardBridge), STOCK, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK);
+        vm.warp(block.timestamp + 1);
+
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 34);
+        _withdraw(address(L1Token), address(L2Token), 34);
+    }
+
+    /// @notice Tests the monitoring event emitted by a partial capacity consumption.
+    function test_finalizeBridgeERC20_partialCapacityEmitsRemaining_succeeds() external {
+        _configureThrottle();
+
+        vm.expectEmit(address(l1StandardBridge));
+        emit WithdrawalThrottleCapacityConsumed(address(L1Token), 40, 60);
+        _withdraw(address(L1Token), address(L2Token), 40);
+
+        assertEq(l1StandardBridge.availableWithdrawalCapacity(address(L1Token)), 60);
+    }
+
+    /// @notice Tests that all remote representations of an L1 token share one bucket.
+    function test_finalizeBridgeERC20_remoteRepresentationsShareBucket_reverts() external {
+        address alternateRemoteToken = makeAddr("alternateRemoteToken");
+        _setDeposits(address(L1Token), alternateRemoteToken, STOCK);
+        _configureThrottle();
+        _withdraw(address(L1Token), address(L2Token), 60);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IL1StandardBridge.L1StandardBridge_WithdrawalThrottled.selector, address(L1Token), 41, 40, 94
+            )
+        );
+        _withdraw(address(L1Token), alternateRemoteToken, 41);
+    }
+
+    /// @notice Tests that a configured token's bucket does not affect another L1 token.
+    function test_finalizeBridgeERC20_tokensHaveIndependentBuckets_succeeds() external {
+        ERC20 otherToken = new ERC20("Other Token", "OTHR");
+        address remoteOtherToken = makeAddr("remoteOtherToken");
+        deal(address(otherToken), address(l1StandardBridge), STOCK, true);
+        _setDeposits(address(otherToken), remoteOtherToken, STOCK);
+        _configureThrottle();
+        _withdraw(address(L1Token), address(L2Token), CAPACITY);
+
+        _withdraw(address(otherToken), remoteOtherToken, CAPACITY + 1);
+
+        assertEq(otherToken.balanceOf(alice), CAPACITY + 1);
+    }
+
+    /// @notice Tests that capacity consumption rolls back if escrow accounting later fails.
+    function test_finalizeBridgeERC20_laterFailureRollsBackConsumption_reverts() external {
+        _configureThrottle();
+        IL1StandardBridge.WithdrawalThrottleConfig memory beforeThrottle =
+            l1StandardBridge.withdrawalThrottle(address(L1Token));
+        _setDeposits(address(L1Token), address(L2Token), 10);
+
+        vm.expectRevert(stdError.arithmeticError);
+        _withdraw(address(L1Token), address(L2Token), CAPACITY / 2);
+
+        IL1StandardBridge.WithdrawalThrottleConfig memory afterThrottle =
+            l1StandardBridge.withdrawalThrottle(address(L1Token));
+        assertEq(afterThrottle.capacity, beforeThrottle.capacity);
+        assertEq(afterThrottle.available, beforeThrottle.available);
+        assertEq(afterThrottle.lastUpdated, beforeThrottle.lastUpdated);
+        assertEq(afterThrottle.refillRemainder, beforeThrottle.refillRemainder);
+    }
+}
+
+/// @title L1StandardBridge_Gas_TestInit
+/// @notice Common cold-slot gas measurement helpers for ERC20 withdrawal finalization.
+abstract contract L1StandardBridge_Gas_TestInit is L1StandardBridge_WithdrawalThrottle_TestInit {
+    function _measureBridgeWithdrawal(string memory _snapshotName) internal {
+        address implementation = EIP1967Helper.getImplementation(address(l1StandardBridge));
+        (bytes32 configSlot, bytes32 bucketSlot) = _withdrawalThrottleSlots(address(L1Token));
+        vm.cool(address(l1StandardBridge));
+        vm.coolSlot(address(l1StandardBridge), configSlot);
+        vm.coolSlot(address(l1StandardBridge), bucketSlot);
+        vm.cool(implementation);
+        vm.cool(address(L1Token));
+        vm.coolSlot(address(L1Token), _tokenBalanceSlot(address(l1StandardBridge)));
+        vm.cool(bridgeMessenger);
+
+        _withdraw(address(L1Token), address(L2Token), 40);
+        vm.snapshotGasLastCall("WithdrawalFinalizationGas", _snapshotName);
+    }
+}
+
+/// @title L1StandardBridge_FinalizeBridgeERC20_GasDisabled_Test
+/// @notice Measures ERC20 finalization with committed unconfigured throttle storage.
+contract L1StandardBridge_FinalizeBridgeERC20_GasDisabled_Test is L1StandardBridge_Gas_TestInit {
+    function setUp() public override {
+        super.setUp();
+        deal(address(L1Token), address(l1StandardBridge), STOCK * 2, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK * 2);
+    }
+
+    function test_finalizeBridgeERC20_throttleDisabledGas_benchmark() external {
+        _measureBridgeWithdrawal("l1-standard-bridge-unthrottled");
+    }
+}
+
+/// @title L1StandardBridge_FinalizeBridgeERC20_GasEnabled_Test
+/// @notice Measures the capacity-changing packed ERC20 throttle path from committed storage.
+contract L1StandardBridge_FinalizeBridgeERC20_GasEnabled_Test is L1StandardBridge_Gas_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _configureThrottle();
+        deal(address(L1Token), address(l1StandardBridge), STOCK * 2, true);
+        _setDeposits(address(L1Token), address(L2Token), STOCK * 2);
+        vm.warp(block.timestamp + 1);
+    }
+
+    function test_finalizeBridgeERC20_throttleEnabledGas_benchmark() external {
+        _measureBridgeWithdrawal("l1-standard-bridge-throttled");
     }
 }

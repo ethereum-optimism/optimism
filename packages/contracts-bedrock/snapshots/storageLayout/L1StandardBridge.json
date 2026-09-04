@@ -75,5 +75,12 @@
     "offset": 0,
     "slot": "52",
     "type": "contract ISystemConfig"
+  },
+  {
+    "bytes": "32",
+    "label": "_withdrawalThrottles",
+    "offset": 0,
+    "slot": "53",
+    "type": "mapping(address => struct WithdrawalThrottle.State)"
   }
 ]

@@ -131,6 +131,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when duplicate upgrade instruction keys are provided.
     error OPContractsManagerV2_DuplicateUpgradeInstruction(string _key);
 
+    /// @notice Thrown when a withdrawal throttle instruction contains no asset configurations.
+    error OPContractsManagerV2_InvalidWithdrawalThrottleConfig();
+
+    /// @notice Thrown when a withdrawal throttle instruction configures an asset more than once.
+    error OPContractsManagerV2_DuplicateWithdrawalThrottleToken(address _token);
+
+    /// @notice Thrown when an asset already has a different withdrawal throttle configuration.
+    error OPContractsManagerV2_WithdrawalThrottleConfigConflict(address _token);
+
     /// @notice Thrown when a function that must be delegatecalled is called directly.
     error OPContractsManagerV2_OnlyDelegateCall();
 
@@ -158,9 +167,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.3
+    /// @custom:semver 8.0.4
     function version() public pure returns (string memory) {
-        return "8.0.3";
+        return "8.0.4";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -265,7 +274,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         FullConfig memory cfg = _loadFullConfig(_inp, cts);
 
         // Execute the upgrade.
-        return _apply(cfg, cts, false);
+        cts = _apply(cfg, cts, false);
+
+        // Apply any one-off withdrawal throttle configuration after the implementations are live.
+        _configureWithdrawalThrottles(cts, _inp.extraInstructions);
+
+        return cts;
     }
 
     /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
@@ -289,6 +303,27 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Delegatecall to the migrator contract.
         (bool success, bytes memory result) =
             address(opcmMigrator).delegatecall(abi.encodeCall(IOPContractsManagerMigrator.migrate, (_input)));
+        if (!success) {
+            assembly {
+                revert(add(result, 0x20), mload(result))
+            }
+        }
+    }
+
+    /// @notice Migrates chains and applies permitted one-off migration instructions.
+    /// @param _input The input parameters for the migration.
+    /// @param _extraInstructions One-off migration instructions.
+    function migrateWithInstructions(
+        IOPContractsManagerMigrator.MigrateInput calldata _input,
+        IOPContractsManagerUtils.ExtraInstruction[] calldata _extraInstructions
+    )
+        public
+    {
+        _onlyDelegateCall();
+
+        (bool success, bytes memory result) = address(opcmMigrator).delegatecall(
+            abi.encodeCall(IOPContractsManagerMigrator.migrateWithInstructions, (_input, _extraInstructions))
+        );
         if (!success) {
             assembly {
                 revert(add(result, 0x20), mload(result))
@@ -346,6 +381,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
                 if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
             }
+
+            if (isDevFeatureEnabled(DevFeatures.WITHDRAWAL_THROTTLE)) {
+                if (_isMatchingInstructionByKey(_instruction, Constants.WITHDRAWAL_THROTTLE_CONFIG_KEY)) return true;
+            }
         }
 
         // Allow overriding the starting respected game type during upgrades. This is needed when
@@ -357,6 +396,66 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Always return false by default.
         return false;
+    }
+
+    /// @notice Applies the one-off withdrawal throttle instruction after a chain upgrade.
+    /// @param _cts The upgraded chain contracts.
+    /// @param _instructions The upgrade instructions supplied by the operator.
+    function _configureWithdrawalThrottles(
+        ChainContracts memory _cts,
+        IOPContractsManagerUtils.ExtraInstruction[] memory _instructions
+    )
+        internal
+    {
+        for (uint256 i = 0; i < _instructions.length; i++) {
+            if (!_isMatchingInstructionByKey(_instructions[i], Constants.WITHDRAWAL_THROTTLE_CONFIG_KEY)) continue;
+
+            IOPContractsManagerUtils.WithdrawalThrottleConfig[] memory configs =
+                abi.decode(_instructions[i].data, (IOPContractsManagerUtils.WithdrawalThrottleConfig[]));
+            if (configs.length == 0) revert OPContractsManagerV2_InvalidWithdrawalThrottleConfig();
+
+            for (uint256 j = 0; j < configs.length; j++) {
+                for (uint256 k = j + 1; k < configs.length; k++) {
+                    if (configs[j].token == configs[k].token) {
+                        revert OPContractsManagerV2_DuplicateWithdrawalThrottleToken(configs[j].token);
+                    }
+                }
+
+                IOPContractsManagerUtils.WithdrawalThrottleConfig memory config = configs[j];
+                if (config.token == address(0)) {
+                    if (_cts.systemConfig.isCustomGasToken()) {
+                        revert OPContractsManagerV2_InvalidWithdrawalThrottleConfig();
+                    }
+
+                    if (_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+                        IETHLockbox.WithdrawalThrottleConfig memory throttle = _cts.ethLockbox.withdrawalThrottle();
+                        if (!throttle.enabled) {
+                            _cts.ethLockbox.setWithdrawalThrottle(config.maxBps, config.refillPeriod);
+                        } else if (throttle.maxBps != config.maxBps || throttle.refillPeriod != config.refillPeriod) {
+                            revert OPContractsManagerV2_WithdrawalThrottleConfigConflict(config.token);
+                        }
+                    } else {
+                        IOptimismPortal.WithdrawalThrottleConfig memory throttle =
+                            _cts.optimismPortal.withdrawalThrottle();
+                        if (!throttle.enabled) {
+                            _cts.optimismPortal.setWithdrawalThrottle(config.maxBps, config.refillPeriod);
+                        } else if (throttle.maxBps != config.maxBps || throttle.refillPeriod != config.refillPeriod) {
+                            revert OPContractsManagerV2_WithdrawalThrottleConfigConflict(config.token);
+                        }
+                    }
+                } else {
+                    IL1StandardBridge.WithdrawalThrottleConfig memory throttle =
+                        _cts.l1StandardBridge.withdrawalThrottle(config.token);
+                    if (!throttle.enabled) {
+                        _cts.l1StandardBridge.setWithdrawalThrottle(config.token, config.maxBps, config.refillPeriod);
+                    } else if (throttle.maxBps != config.maxBps || throttle.refillPeriod != config.refillPeriod) {
+                        revert OPContractsManagerV2_WithdrawalThrottleConfigConflict(config.token);
+                    }
+                }
+            }
+
+            return;
+        }
     }
 
     /// @notice Loads (or builds) the chain contracts from whatever exists.

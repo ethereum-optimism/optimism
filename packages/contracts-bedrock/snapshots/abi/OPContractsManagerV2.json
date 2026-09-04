@@ -528,6 +528,92 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract ISystemConfig[]",
+            "name": "chainSystemConfigs",
+            "type": "address[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "enabled",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint256",
+                "name": "initBond",
+                "type": "uint256"
+              },
+              {
+                "internalType": "GameType",
+                "name": "gameType",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes",
+                "name": "gameArgs",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
+            "name": "disputeGameConfigs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Hash",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "l2SequenceNumber",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Proposal",
+            "name": "startingAnchorRoot",
+            "type": "tuple"
+          },
+          {
+            "internalType": "GameType",
+            "name": "startingRespectedGameType",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerMigrator.MigrateInput",
+        "name": "_input",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "key",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerUtils.ExtraInstruction[]",
+        "name": "_extraInstructions",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "migrateWithInstructions",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "opcmMigrator",
     "outputs": [
@@ -816,6 +902,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "OPContractsManagerV2_DuplicateWithdrawalThrottleToken",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "OPContractsManagerV2_InvalidEthLockbox",
     "type": "error"
@@ -859,12 +956,28 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerV2_InvalidWithdrawalThrottleConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerV2_OnlyDelegateCall",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OPContractsManagerV2_SuperchainConfigNeedsUpgrade",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "OPContractsManagerV2_WithdrawalThrottleConfigConflict",
     "type": "error"
   },
   {

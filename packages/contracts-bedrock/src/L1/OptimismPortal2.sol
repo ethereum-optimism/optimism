@@ -17,6 +17,7 @@ import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Claim, GameStatus, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
+import { WithdrawalThrottle } from "src/libraries/WithdrawalThrottle.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -35,12 +36,25 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase, ProxyAdminOwnedBase, ISemver {
+    using WithdrawalThrottle for WithdrawalThrottle.State;
+
     /// @notice Represents a proven withdrawal.
     /// @custom:field disputeGameProxy Game that the withdrawal was proven against.
     /// @custom:field timestamp        Timestamp at which the withdrawal was proven.
     struct ProvenWithdrawal {
         IDisputeGame disputeGameProxy;
         uint64 timestamp;
+    }
+
+    /// @notice Logical withdrawal throttle state for ETH held directly by the portal.
+    struct WithdrawalThrottleConfig {
+        uint256 capacity;
+        uint256 available;
+        uint64 refillPeriod;
+        uint64 lastUpdated;
+        uint64 refillRemainder;
+        uint16 maxBps;
+        bool enabled;
     }
 
     /// @notice The delay between when a withdrawal is proven and when it may be finalized.
@@ -130,6 +144,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:legacy
     /// @custom:spacer superRootsActive
     bool private spacer_63_20_1;
+
+    /// @notice Withdrawal throttle state for ETH held directly by the portal.
+    WithdrawalThrottle.State internal _withdrawalThrottle;
 
     /// @notice Emitted when the Portal is migrated.
     /// @param oldLockbox The lockbox before the migration
@@ -240,10 +257,42 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when the new lockbox has not authorized this portal.
     error OptimismPortal_LockboxNotAuthorizedForPortal();
 
+    /// @notice Thrown when a withdrawal throttle basis point value is zero or exceeds 100%.
+    error OptimismPortal_InvalidWithdrawalThrottleBps();
+
+    /// @notice Thrown when a withdrawal throttle refill period is zero.
+    error OptimismPortal_InvalidWithdrawalThrottlePeriod();
+
+    /// @notice Thrown when the withdrawal throttle is not enabled.
+    error OptimismPortal_WithdrawalThrottleNotEnabled();
+
+    /// @notice Thrown when the shared ETHLockbox must manage withdrawal throttling.
+    error OptimismPortal_WithdrawalThrottleManagedByLockbox();
+
+    /// @notice Thrown when an ETH withdrawal exceeds the available withdrawal capacity.
+    error OptimismPortal_WithdrawalThrottled(uint256 requestedAmount, uint256 availableCapacity, uint256 totalCapacity);
+
+    /// @notice Emitted when the ETH withdrawal throttle is configured.
+    event WithdrawalThrottleConfigured(
+        uint16 maxBps, uint64 refillPeriod, uint256 stockSnapshot, uint256 capacity, uint256 available
+    );
+
+    /// @notice Emitted when the portal ETH withdrawal throttle synchronizes to a new stock level.
+    event WithdrawalThrottleRefreshed(uint256 stockSnapshot, uint256 capacity, uint256 available);
+
+    /// @notice Emitted when the ETH withdrawal throttle is disabled.
+    event WithdrawalThrottleDisabled();
+
+    /// @notice Emitted when ETH withdrawal capacity is consumed.
+    event WithdrawalThrottleCapacityConsumed(uint256 amount, uint256 remaining);
+
+    /// @notice Emitted when all currently available ETH withdrawal capacity is consumed.
+    event WithdrawalThrottleCapacityExhausted();
+
     /// @notice Semantic version.
-    /// @custom:semver 5.8.0
+    /// @custom:semver 6.1.0
     function version() public pure virtual returns (string memory) {
-        return "5.8.0";
+        return "6.1.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -306,6 +355,64 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function superchainConfig() external view returns (ISuperchainConfig) {
         return systemConfig.superchainConfig();
+    }
+
+    /// @notice Configures ETH withdrawal capacity as a percentage of the current portal balance.
+    ///         Only applies when ETH is held directly by the portal. Reconfiguration preserves
+    ///         accrued whole-unit capacity, resets the fractional remainder, and clamps
+    ///         availability to the new maximum.
+    /// @param _maxBps       Maximum withdrawable stock in basis points.
+    /// @param _refillPeriod Time in seconds for the bucket to refill from empty to full.
+    function setWithdrawalThrottle(uint16 _maxBps, uint64 _refillPeriod) external {
+        _assertOnlyProxyAdminOwner();
+
+        if (_isUsingLockbox()) revert OptimismPortal_WithdrawalThrottleManagedByLockbox();
+        if (_maxBps == 0 || _maxBps > WithdrawalThrottle.MAX_BPS) {
+            revert OptimismPortal_InvalidWithdrawalThrottleBps();
+        }
+        if (_refillPeriod == 0) revert OptimismPortal_InvalidWithdrawalThrottlePeriod();
+
+        WithdrawalThrottle.State storage throttle = _withdrawalThrottle;
+        uint256 stockSnapshot = address(this).balance;
+        (uint128 capacity, uint128 available) =
+            throttle.configure(stockSnapshot, _maxBps, _refillPeriod, block.timestamp);
+
+        emit WithdrawalThrottleConfigured(_maxBps, _refillPeriod, stockSnapshot, capacity, available);
+    }
+
+    /// @notice Disables the portal's ETH withdrawal throttle.
+    function disableWithdrawalThrottle() external {
+        _assertOnlyProxyAdminOwner();
+
+        if (!WithdrawalThrottle.enabled(_withdrawalThrottle.config)) {
+            revert OptimismPortal_WithdrawalThrottleNotEnabled();
+        }
+        _withdrawalThrottle.disable();
+
+        emit WithdrawalThrottleDisabled();
+    }
+
+    /// @notice Returns the stored portal ETH withdrawal throttle state before pending refill is materialized.
+    /// @return Withdrawal throttle state.
+    function withdrawalThrottle() external view returns (WithdrawalThrottleConfig memory) {
+        WithdrawalThrottle.Snapshot memory throttle = _withdrawalThrottle.snapshot();
+        return WithdrawalThrottleConfig({
+            capacity: throttle.capacity,
+            available: throttle.available,
+            refillPeriod: throttle.refillPeriod,
+            lastUpdated: throttle.lastUpdated,
+            refillRemainder: throttle.refillRemainder,
+            maxBps: throttle.maxBps,
+            enabled: throttle.enabled
+        });
+    }
+
+    /// @notice Returns currently available portal ETH withdrawal capacity.
+    /// @return Available capacity, or the maximum uint256 value when throttling is disabled.
+    function availableWithdrawalCapacity() external view returns (uint256) {
+        uint256 config_ = _withdrawalThrottle.config;
+        if (!WithdrawalThrottle.enabled(config_)) return type(uint256).max;
+        return _withdrawalThrottle.availableCapacity(config_, address(this).balance, block.timestamp);
     }
 
     /// @custom:legacy
@@ -588,11 +695,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Check that the withdrawal can be finalized.
         checkWithdrawal(withdrawalHash, _proofSubmitter);
 
+        // Consume the portal's ETH withdrawal capacity when ETH is not held by a lockbox.
+        // Capacity measures finalized withdrawal attempts, including target calls that later fail.
+        bool usingLockbox = _isUsingLockbox();
+        if (!usingLockbox) _consumeWithdrawalCapacity(_tx.value);
+
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
 
         // If using ETHLockbox, unlock the ETH from the ETHLockbox.
-        if (_isUsingLockbox()) {
+        if (usingLockbox) {
             if (_tx.value > 0) ethLockbox.unlockETH(_tx.value);
         }
 
@@ -617,7 +729,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         // If using ETHLockbox, send ETH back to the Lockbox in the case of a failed transaction or
         // it'll get stuck here and would need to be moved back via admin action.
-        if (_isUsingLockbox()) {
+        if (usingLockbox) {
             if (!success && _tx.value > 0) {
                 ethLockbox.lockETH{ value: _tx.value }();
             }
@@ -748,6 +860,25 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return bool True if the ETHLockbox feature is enabled.
     function _isUsingLockbox() internal view returns (bool) {
         return systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) != address(0);
+    }
+
+    /// @notice Consumes available ETH withdrawal capacity when the throttle is enabled.
+    /// @param _amount Amount of ETH to withdraw.
+    function _consumeWithdrawalCapacity(uint256 _amount) internal {
+        WithdrawalThrottle.State storage throttle = _withdrawalThrottle;
+        uint256 config_ = throttle.config;
+        if (!WithdrawalThrottle.enabled(config_) || _amount == 0) return;
+
+        uint256 stockSnapshot = address(this).balance;
+        (uint128 capacity, uint128 available, uint128 remaining, bool capacityChanged) =
+            throttle.consume(config_, stockSnapshot, _amount, block.timestamp);
+        if (_amount > available) {
+            revert OptimismPortal_WithdrawalThrottled(_amount, available, capacity);
+        }
+
+        if (capacityChanged) emit WithdrawalThrottleRefreshed(stockSnapshot, capacity, available);
+        emit WithdrawalThrottleCapacityConsumed(_amount, remaining);
+        if (remaining == 0) emit WithdrawalThrottleCapacityExhausted();
     }
 
     /// @notice Checks if the Interop feature is enabled.
