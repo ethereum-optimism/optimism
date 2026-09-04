@@ -24,4 +24,5 @@ mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod util;
+pub(in crate::task_queue) use util::is_invalid_forkchoice_state;
 pub(super) use util::{BuildAndSealError, build_and_seal};

@@ -11,9 +11,17 @@ use crate::{
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use async_trait::async_trait;
 use derive_more::Display;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, time::Duration};
 use thiserror::Error;
-use tokio::task::yield_now;
+use tokio::{task::yield_now, time::sleep};
+
+/// The delay before the second attempt at a task that keeps failing temporarily. Each further
+/// attempt doubles it, up to [`MAX_RETRY_BACKOFF_SHIFT`] doublings.
+const RETRY_BACKOFF_BASE: Duration = Duration::from_millis(10);
+
+/// Caps the exponential backoff between retries of a temporarily failing task at
+/// `RETRY_BACKOFF_BASE * 2^MAX_RETRY_BACKOFF_SHIFT`.
+const MAX_RETRY_BACKOFF_SHIFT: u32 = 7;
 
 /// The severity of an engine task error.
 ///
@@ -125,9 +133,17 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
             Self::Seal(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
-            Self::Build(task) => {
-                task.execute(state).await?;
-            }
+            Self::Build(task) => match task.execute(state).await {
+                // The caller picked this parent from a snapshot of the unsafe head that has since
+                // been reorged out. It has been told to rebuild, so drop the job instead of
+                // retrying a forkchoice update the execution layer is guaranteed to reject.
+                // Without a channel there is nobody to rebuild, which is a bug: let the error out.
+                Err(BuildTaskError::UnsafeHeadChangedSinceBuild) if task.result_tx.is_some() => {
+                    warn!(target: "engine", "Dropping stale block build job");
+                }
+                Err(err) => return Err(err.into()),
+                Ok(_) => {}
+            },
         };
 
         Ok(())
@@ -212,6 +228,8 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
     type Error = EngineTaskErrors;
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), Self::Error> {
+        let mut temporary_failures = 0u32;
+
         // Retry the task until it succeeds or a critical error occurs.
         while let Err(e) = self.execute_inner(state).await {
             let severity = e.severity();
@@ -224,10 +242,20 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 
             match severity {
                 EngineTaskErrorSeverity::Temporary => {
-                    trace!(target: "engine", "{e}");
+                    trace!(target: "engine", temporary_failures, "{e}");
 
-                    // Yield the task to allow other tasks to execute to avoid starvation.
-                    yield_now().await;
+                    // Yield the task to allow other tasks to execute to avoid starvation. An
+                    // engine API call that keeps failing - an execution layer that is restarting,
+                    // say - would otherwise spin this loop as fast as the transport can answer,
+                    // so back off once the first retry has not cleared it.
+                    match temporary_failures {
+                        0 => yield_now().await,
+                        n => {
+                            sleep(RETRY_BACKOFF_BASE * 2u32.pow(n.min(MAX_RETRY_BACKOFF_SHIFT)))
+                                .await
+                        }
+                    }
+                    temporary_failures += 1;
                 }
                 EngineTaskErrorSeverity::Critical => {
                     error!(target: "engine", "{e}");
@@ -253,10 +281,19 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::MockEngineClient;
+    use crate::{
+        BuildSealCoupling, EngineState,
+        test_utils::{
+            MockEngineClient, TestAttributesBuilder, TestEngineStateBuilder, test_block_info,
+            test_engine_client_builder,
+        },
+    };
     use alloy_consensus::Block;
+    use alloy_json_rpc::ErrorPayload;
     use alloy_primitives::Bytes;
-    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
+    use alloy_rpc_types_engine::{
+        ExecutionPayloadV1, INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatus,
+    };
     use kona_genesis::RollupConfig;
     use op_alloy_consensus::OpTxEnvelope;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -349,5 +386,71 @@ mod tests {
             .await
             .expect("invalid unsafe payload task should not retry")
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn build_with_invalid_forkchoice_state_does_not_retry() {
+        // `-38002` means the engine considers the forkchoice state itself inconsistent: the safe
+        // or finalized block is not an ancestor of the head. Re-sending it can never succeed, so
+        // the queue must stop and ask for a reset rather than spin on the engine API.
+        let parent = test_block_info(7);
+        let client = Arc::new(
+            test_engine_client_builder()
+                .with_fork_choice_updated_error(ErrorPayload {
+                    code: INVALID_FORK_CHOICE_STATE_ERROR as i64,
+                    message: "invalid forkchoice state".into(),
+                    data: None,
+                })
+                .build(),
+        );
+        let attributes = TestAttributesBuilder::new()
+            .with_parent(parent)
+            .with_timestamp(parent.block_info.timestamp)
+            .build();
+        let task = EngineTask::Build(Box::new(BuildTask::new(
+            client,
+            Arc::new(RollupConfig::default()),
+            attributes,
+            BuildSealCoupling::Atomic,
+            None,
+        )));
+        let mut state = TestEngineStateBuilder::new().with_unsafe_head(parent).build();
+
+        let err = tokio::time::timeout(Duration::from_secs(1), task.execute(&mut state))
+            .await
+            .expect("an invalid forkchoice state must not be retried")
+            .expect_err("the task fails");
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Reset);
+    }
+
+    #[tokio::test]
+    async fn stale_build_completes_without_retry() {
+        // The build was requested against an unsafe head that has since been reorged out. The
+        // caller has been told to re-build, so the queue drops the job and moves on.
+        // Same height, different hash: exactly the shape a force-included derived block takes.
+        let stale_parent = test_block_info(42);
+        let unsafe_head = test_block_info(42);
+
+        // No forkchoice response is configured: the mock errors if the engine is called at all.
+        let client = Arc::new(test_engine_client_builder().build());
+        let attributes = TestAttributesBuilder::new()
+            .with_parent(stale_parent)
+            .with_timestamp(unsafe_head.block_info.timestamp)
+            .build();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let task = EngineTask::Build(Box::new(BuildTask::new(
+            client,
+            Arc::new(RollupConfig::default()),
+            attributes,
+            BuildSealCoupling::Detached,
+            Some(tx),
+        )));
+        let mut state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
+
+        tokio::time::timeout(Duration::from_secs(1), task.execute(&mut state))
+            .await
+            .expect("a stale build must not be retried")
+            .expect("the queue drops the stale job instead of failing");
+        assert!(matches!(rx.recv().await, Some(Err(BuildTaskError::UnsafeHeadChangedSinceBuild))));
     }
 }

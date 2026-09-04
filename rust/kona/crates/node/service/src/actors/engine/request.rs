@@ -44,7 +44,7 @@ pub struct BuildRequest {
     /// The [`OpAttributesWithParent`] from which the block build should be started.
     pub attributes: OpAttributesWithParent,
     /// The channel on which the result, successful or not, will be sent.
-    pub result_tx: mpsc::Sender<PayloadId>,
+    pub result_tx: mpsc::Sender<Result<PayloadId, BuildTaskError>>,
 }
 
 /// A request to reset the engine forkchoice.

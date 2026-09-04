@@ -2,9 +2,20 @@
 
 use super::{BuildSealCoupling, BuildTask, BuildTaskError, EngineTaskExt, SealTask, SealTaskError};
 use crate::{EngineClient, EngineState, ImportedBlockSink};
+use alloy_rpc_types_engine::INVALID_FORK_CHOICE_STATE_ERROR;
+use alloy_transport::{RpcError, TransportErrorKind};
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
 use std::sync::Arc;
+
+/// Whether the engine rejected a forkchoice update because the state itself is inconsistent, i.e.
+/// the safe or finalized block is not an ancestor of the head. Re-sending such an update can never
+/// succeed; the node has to reset.
+pub(in crate::task_queue) fn is_invalid_forkchoice_state(
+    err: &RpcError<TransportErrorKind>,
+) -> bool {
+    err.as_error_resp().is_some_and(|e| e.code == INVALID_FORK_CHOICE_STATE_ERROR as i64)
+}
 
 /// Error type for build and seal operations.
 #[derive(Debug, thiserror::Error)]
@@ -47,6 +58,7 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
         engine.clone(),
         cfg.clone(),
         attributes.clone(),
+        BuildSealCoupling::Atomic,
         None, // Build task doesn't send the payload yet
     )
     .execute(state)

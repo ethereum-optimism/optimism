@@ -20,7 +20,7 @@ use crate::{
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
-use kona_engine::{InsertTaskError, SealTaskError, SynchronizeTaskError};
+use kona_engine::{BuildTaskError, InsertTaskError, SealTaskError, SynchronizeTaskError};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -243,7 +243,31 @@ where
         let build_request_start = Instant::now();
 
         let payload_id =
-            self.engine_client.start_build_block(attributes_with_parent.clone()).await?;
+            match self.engine_client.start_build_block(attributes_with_parent.clone()).await {
+                Ok(payload_id) => payload_id,
+                // The engine moved on from the unsafe head these attributes were built against:
+                // it reorged onto a derived chain, or reset out from under the request and dropped
+                // it. Either way the attributes are stale; re-build on the new head next tick.
+                Err(EngineClientError::StartBuildError(err)) if !is_build_task_err_fatal(&err) => {
+                    warn!(
+                        target: "sequencer",
+                        ?err,
+                        parent = ?attributes_with_parent.parent(),
+                        "Engine rejected the block build. Re-attempting on next tick."
+                    );
+                    return Ok(None);
+                }
+                Err(err @ EngineClientError::ResponseError(_)) => {
+                    warn!(
+                        target: "sequencer",
+                        ?err,
+                        parent = ?attributes_with_parent.parent(),
+                        "Engine dropped the block build request. Re-attempting on next tick."
+                    );
+                    return Ok(None);
+                }
+                Err(err) => return Err(err.into()),
+            };
 
         update_block_build_duration_metrics(build_request_start.elapsed());
 
@@ -505,6 +529,16 @@ where
                 Ok(())
             }
         }
+    }
+}
+
+// Determines whether the provided [`BuildTaskError`] is fatal for the sequencer.
+//
+// NB: See `is_seal_task_err_fatal` for why this is an explicit match rather than `err.severity()`.
+const fn is_build_task_err_fatal(err: &BuildTaskError) -> bool {
+    match err {
+        BuildTaskError::UnsafeHeadChangedSinceBuild => false,
+        BuildTaskError::EngineBuildError(_) | BuildTaskError::MpscSend(_) => true,
     }
 }
 
