@@ -1,0 +1,94 @@
+# Per-package cost weights for partitioning the CI cargo-hack job.
+# Read by scripts/hack-partition.sh.
+#
+# Columns: <package> <weight> [<splits>]
+#
+# weight: approximate seconds the package's checks take in CI, summed across
+#   the lib step (--each-feature --no-dev-deps) and the test-targets step
+#   (--tests). Only relative magnitude matters. Derived from the per-run
+#   `Finished ... in Ns` lines in CI logs of the rust-cargo-hack job (build
+#   5489984, 2026-08-19), scaled per node to the step's wall time. Packages
+#   missing here get a default weight of 30; refresh stale entries the same
+#   way when the balance drifts.
+#
+# splits: shard the package's --each-feature runs across this many nodes via
+#   `cargo hack -p <package> --partition <i>/<splits>`. Only worth it for a
+#   package whose weight alone exceeds the mean per-node load: every extra
+#   shard re-checks the package's dependency tree once.
+
+alloy-op-evm 53
+alloy-op-hardforks 5
+example-discovery 4
+example-engine-api-access 64
+example-exex-hello-world 72
+example-gossip 5
+example-op-db-access 14
+execution-fixture 24
+kona-cli 10
+kona-client 12
+kona-derive 17
+kona-disc 10
+kona-driver 7
+kona-engine 20
+kona-executor 66
+kona-genesis 15
+kona-gossip 50
+kona-hardforks 20
+kona-host 62
+kona-interop 19
+kona-macros 1
+kona-mpt 9
+kona-node 70
+kona-node-service 39
+kona-peers 14
+kona-preimage 13
+kona-proof 14
+kona-proof-interop 9
+kona-protocol 17
+kona-providers-alloy 14
+kona-providers-local 11
+kona-registry 11
+kona-rpc 14
+kona-serde 5
+kona-sources 7
+kona-sp1-client-utils 7
+kona-sp1-elfs 1
+kona-sp1-ethereum-client-utils 1
+kona-sp1-ethereum-host-utils 48
+kona-sp1-host-utils 6
+kona-sp1-proposer 16
+kona-sp1-range-executor 3
+kona-sp1-super-range-executor 9
+kona-std-fpvm 2
+kona-std-fpvm-proc 3
+lokahi 3
+op-alloy 25
+op-alloy-consensus 24
+op-alloy-network 11
+op-alloy-provider 5
+op-alloy-rpc-jsonrpsee 6
+op-alloy-rpc-types 21
+op-alloy-rpc-types-engine 11
+op-reth 680 2
+op-reth-proof-bench 4
+op-reth-sdm-fixture 58
+op-reth-test-engine 33
+op-revm 33
+op-version 1
+reth-op 233
+reth-optimism-chainspec 84
+reth-optimism-cli 424 2
+reth-optimism-consensus 41
+reth-optimism-evm 62
+reth-optimism-exex 103
+reth-optimism-flashblocks 18
+reth-optimism-forks 14
+reth-optimism-node 263
+reth-optimism-payload-builder 16
+reth-optimism-post-exec-replay 15
+reth-optimism-primitives 37
+reth-optimism-rpc 69
+reth-optimism-storage 19
+reth-optimism-trie 72
+reth-optimism-txpool 36
+revm-ee-tests 11
