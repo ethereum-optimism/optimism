@@ -2505,8 +2505,11 @@ workflows:
           name: go-tests
           rule: "go-tests-ci"
           parallelism: 12
-          no_output_timeout: 39m
-          test_timeout: 40m
+          # no_output_timeout watches silence, not wall clock: keep it well
+          # above test_timeout so Go's deadline panic dumps goroutines before
+          # CircleCI's silent kill even after quiet compile/link time.
+          no_output_timeout: 50m
+          test_timeout: 35m
           notify: true
           mentions: "<!subteam^S09D13R3HJ7>" # @protocol-oncall
           requires:
