@@ -5,6 +5,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
@@ -37,12 +38,22 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		require.Zero(t, WithLocalContractSourcesAt("").optionKinds())
 		require.Zero(t, WithBatcherOption(nil).optionKinds())
 		require.Zero(t, WithGlobalL2CLOption(nil).optionKinds())
+		require.Zero(t, WithL2CLFactory(nil).optionKinds())
 		require.Zero(t, WithGlobalSyncTesterELOption(nil).optionKinds())
 		require.Zero(t, WithProposerOption(nil).optionKinds())
 		require.Zero(t, WithZKProposerOption(nil).optionKinds())
 		require.Zero(t, WithPreGenesisSuperGame().optionKinds())
 		require.Zero(t, AfterBuild(nil).optionKinds())
 	})
+}
+
+func TestWithL2CLFactory(t *testing.T) {
+	factory := sysgo.L2CLFactoryFn(func(devtest.T, sysgo.L2CLLaunchContext) (sysgo.L2CLNode, bool) {
+		return nil, false
+	})
+	cfg, combined := collectPresetConfig([]Option{WithL2CLFactory(factory)})
+	require.Equal(t, optionKindL2CLFactory, combined.optionKinds())
+	require.NotNil(t, cfg.L2CLFactory)
 }
 
 func TestWithLocalContractSourcesAt(t *testing.T) {
@@ -82,6 +93,9 @@ func TestWithZKProposerOption(t *testing.T) {
 }
 
 func TestUnsupportedPresetOptionKinds(t *testing.T) {
+	factory := sysgo.L2CLFactoryFn(func(devtest.T, sysgo.L2CLLaunchContext) (sysgo.L2CLNode, bool) {
+		return nil, false
+	})
 	tests := []struct {
 		name      string
 		supported optionKinds
@@ -114,6 +128,33 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			supported: minimalWithConductorsPresetSupportedOptionKinds,
 			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-superset")),
 			want:      0,
+		},
+		{
+			name:      "minimal allows external L2 CL factory",
+			supported: minimalPresetSupportedOptionKinds,
+			opts:      WithL2CLFactory(factory),
+			want:      0,
+		},
+		{
+			name:      "conductors reject external L2 CL factory",
+			supported: minimalWithConductorsPresetSupportedOptionKinds,
+			opts:      WithL2CLFactory(factory),
+			want:      optionKindL2CLFactory,
+		},
+		{
+			name:      "sync tester rejects external L2 CL factory",
+			supported: simpleWithSyncTesterPresetSupportedOptionKinds,
+			opts:      WithL2CLFactory(factory),
+			want:      optionKindL2CLFactory,
+		},
+		{
+			name:      "two L2 external CL allows factory and op-reth options",
+			supported: twoL2ExternalCLInteropPresetSupportedOptionKinds,
+			opts: Combine(
+				WithL2CLFactory(factory),
+				WithOpRethOption(sysgo.OpRethWithInteropURL("http://127.0.0.1:1")),
+			),
+			want: 0,
 		},
 		{
 			name:      "shared supernode proofs reject pre-genesis super game",

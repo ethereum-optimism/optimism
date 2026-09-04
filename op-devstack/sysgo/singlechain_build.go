@@ -1,7 +1,6 @@
 package sysgo
 
 import (
-	"context"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -10,9 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -27,29 +24,13 @@ import (
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	sequencerConfig "github.com/ethereum-optimism/optimism/op-test-sequencer/config"
-	testmetrics "github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/fakepos"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/standardbuilder"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/noopcommitter"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/standardcommitter"
-	workconfig "github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/config"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/publishers/nooppublisher"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/publishers/standardpublisher"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/sequencers/fullseq"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/localkey"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/noopsigner"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
 
 type testSequencer struct {
@@ -147,12 +128,18 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 	}
 }
 
-// startL2CLForKey starts an L2 CL node for the given key, respecting DEVSTACK_L2CL_KIND.
-// This is the env-aware dispatch point for preset runtimes that don't build explicit node
-// specs. Runtimes constructed from explicit MixedSingleChainNodeSpec.CLKind values (e.g.
-// NewMixedSingleChainRuntime) don't route through here; they resolve the env up front via
-// ResolveMixedL2CLKind instead.
-func startL2CLForKey(
+type l2CLStartResult struct {
+	Node           L2CLNode
+	FactoryHandled bool
+}
+
+// startL2CLForKeyWithKind is the explicit-fallback form used by mixed-client
+// runtimes. FactoryHandled lets callers avoid assuming that an external CL
+// implements op-node's devp2p admin RPCs while preserving ordinary peering
+// when the factory declines a slot. A non-nil factory receives fully resolved
+// L2CLOptions before it selects or declines the slot; only a nil-factory Kona
+// fallback retains Kona's historical behavior of ignoring those options.
+func startL2CLForKeyWithKind(
 	t devtest.T,
 	keys devkeys.Keys,
 	l1Net *L1Network,
@@ -164,21 +151,80 @@ func startL2CLForKey(
 	clKey, elKey string,
 	isSequencer bool,
 	followSource string,
+	depSet depset.DependencySet,
 	l2CLOpts []L2CLOption,
-) L2CLNode {
-	switch devstackL2CLKind() {
-	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
-	default: // op-node
-		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-			Key:            clKey,
-			IsSequencer:    isSequencer,
-			NoDiscovery:    true,
-			EnableReqResp:  true,
-			L2FollowSource: followSource,
-			L2CLOptions:    l2CLOpts,
-		})
+	factory L2CLFactory,
+	unsafeSourceEL L2ELNode,
+	fallbackSourceFactoryHandled bool,
+	fallbackKind MixedL2CLKind,
+) l2CLStartResult {
+	startCfg := l2CLNodeStartConfig{
+		Key:            clKey,
+		IsSequencer:    isSequencer,
+		NoDiscovery:    true,
+		EnableReqResp:  true,
+		L2FollowSource: followSource,
+		DependencySet:  depSet,
+		L2CLOptions:    l2CLOpts,
 	}
+	target := NewComponentTarget(clKey, l2Net.ChainID())
+	var resolvedCfg *L2CLConfig
+	if factory != nil {
+		resolvedCfg = resolveL2CLNodeConfig(t, target, startCfg)
+		role := L2CLRoleVerifier
+		if resolvedCfg.IsSequencer {
+			role = L2CLRoleSequencer
+		}
+		launchCtx := L2CLLaunchContext{
+			Target:        target,
+			Role:          role,
+			L1UserRPC:     l1EL.UserRPC(),
+			L1BeaconRPC:   l1CL.BeaconHTTPAddr(),
+			L2UserRPC:     l2EL.UserRPC(),
+			L2EngineRPC:   l2EL.EngineRPC(),
+			L2JWTPath:     l2EL.JWTPath(),
+			L1Genesis:     l1Net.Genesis(),
+			L2Genesis:     l2Net.genesis,
+			RollupConfig:  l2Net.RollupConfig(),
+			FollowSource:  resolvedCfg.FollowSource,
+			Config:        *resolvedCfg,
+			DependencySet: depSet,
+		}
+		if unsafeSourceEL != nil {
+			launchCtx.UnsafeSourceUserRPC = unsafeSourceEL.UserRPC()
+			launchCtx.UnsafeSourceEngineRPC = unsafeSourceEL.EngineRPC()
+			launchCtx.UnsafeSourceJWTPath = unsafeSourceEL.JWTPath()
+		}
+		node, handled := factory.CreateL2CL(t, launchCtx)
+		if handled {
+			t.Require().NotNil(node, "L2 CL factory handled %s but returned a nil node", target)
+			return l2CLStartResult{Node: node, FactoryHandled: true}
+		}
+		t.Require().Nil(node, "L2 CL factory declined %s but returned a node", target)
+		t.Require().NoError(validateDeclinedL2CLFallback(fallbackKind, fallbackSourceFactoryHandled, resolvedCfg.FollowSource),
+			"unsupported partial external L2 CL topology for %s", target)
+	}
+	switch fallbackKind {
+	case MixedL2CLKona:
+		return l2CLStartResult{Node: startMixedKonaNode(
+			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, depSet,
+		)}
+	default: // op-node
+		if resolvedCfg == nil {
+			resolvedCfg = resolveL2CLNodeConfig(t, target, startCfg)
+		}
+		startCfg.ResolvedConfig = resolvedCfg
+		return l2CLStartResult{Node: startL2CLNode(
+			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, startCfg,
+		)}
+	}
+}
+
+func validateDeclinedL2CLFallback(kind MixedL2CLKind, sourceFactoryHandled bool, followSource string) error {
+	if kind == MixedL2CLKona && sourceFactoryHandled {
+		return fmt.Errorf("Kona fallback cannot follow external source %q; handle the slot or select op-node", followSource)
+	}
+	return nil
 }
 
 func startSequencerEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
@@ -250,20 +296,6 @@ func connectL2CLPeers(t devtest.T, logger log.Logger, l2CL1, l2CL2 L2CLNode) {
 	require.True(ok2, "peer register invalid (cl2 missing cl1)")
 }
 
-func startSequencerCL(
-	t devtest.T,
-	keys devkeys.Keys,
-	l1Net *L1Network,
-	l2Net *L2Network,
-	l1EL L1ELNode,
-	l1CL *L1CLNode,
-	l2EL L2ELNode,
-	jwtSecret [32]byte,
-	l2CLOpts []L2CLOption,
-) L2CLNode {
-	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, "sequencer", "sequencer", true, "", l2CLOpts)
-}
-
 type l2CLNodeStartConfig struct {
 	Key            string
 	IsSequencer    bool
@@ -272,11 +304,34 @@ type l2CLNodeStartConfig struct {
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
+	// ResolvedConfig, when set, is used instead of resolving defaults and
+	// options again. This keeps side-effecting options at one application per
+	// slot across factory selection and stock fallback.
+	ResolvedConfig *L2CLConfig
 	// SyncMode overrides the sequencer and verifier sync modes; defaults to CLSync if unset.
 	SyncMode nodeSync.Mode
 	// SequencerStopped starts the sequencer in the stopped state (it must be
 	// activated later via the StartSequencer RPC). Only meaningful when IsSequencer.
 	SequencerStopped bool
+}
+
+func resolveL2CLNodeConfig(t devtest.T, target ComponentTarget, startCfg l2CLNodeStartConfig) *L2CLConfig {
+	cfg := DefaultL2CLConfig()
+	cfg.IsSequencer = startCfg.IsSequencer
+	cfg.NoDiscovery = startCfg.NoDiscovery
+	cfg.EnableReqRespSync = startCfg.EnableReqResp
+	cfg.FollowSource = startCfg.L2FollowSource
+	for _, opt := range startCfg.L2CLOptions {
+		if opt != nil {
+			opt.Apply(t, target, cfg)
+		}
+	}
+	if startCfg.SyncMode != 0 {
+		cfg.SequencerSyncMode = startCfg.SyncMode
+		cfg.VerifierSyncMode = startCfg.SyncMode
+	}
+	cfg.SequencerStopped = startCfg.SequencerStopped || cfg.SequencerStopped
+	return cfg
 }
 
 func startL2CLNode(
@@ -291,24 +346,9 @@ func startL2CLNode(
 	startCfg l2CLNodeStartConfig,
 ) *OpNode {
 	require := t.Require()
-	cfg := DefaultL2CLConfig()
-	cfg.IsSequencer = startCfg.IsSequencer
-	cfg.NoDiscovery = startCfg.NoDiscovery
-	cfg.EnableReqRespSync = startCfg.EnableReqResp
-	cfg.FollowSource = startCfg.L2FollowSource
-	if len(startCfg.L2CLOptions) > 0 {
-		l2CLTarget := NewComponentTarget(startCfg.Key, l2Net.ChainID())
-		for _, opt := range startCfg.L2CLOptions {
-			if opt == nil {
-				continue
-			}
-			opt.Apply(t, l2CLTarget, cfg)
-		}
-	}
-
-	if startCfg.SyncMode != 0 {
-		cfg.SequencerSyncMode = startCfg.SyncMode
-		cfg.VerifierSyncMode = startCfg.SyncMode
+	cfg := startCfg.ResolvedConfig
+	if cfg == nil {
+		cfg = resolveL2CLNodeConfig(t, NewComponentTarget(startCfg.Key, l2Net.ChainID()), startCfg)
 	}
 
 	syncMode := cfg.VerifierSyncMode
@@ -384,7 +424,7 @@ func startL2CLNode(
 		},
 		Driver: driver.Config{
 			SequencerEnabled:    cfg.IsSequencer,
-			SequencerStopped:    startCfg.SequencerStopped,
+			SequencerStopped:    cfg.SequencerStopped,
 			SequencerConfDepth:  2,
 			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
 		},
@@ -434,204 +474,6 @@ func startL2CLNode(
 	l2CL.Start()
 	t.Cleanup(l2CL.Stop)
 	return l2CL
-}
-
-func startTestSequencer(
-	t devtest.T,
-	keys devkeys.Keys,
-	jwtPath string,
-	jwtSecret [32]byte,
-	l1Net *L1Network,
-	l1EL *L1Geth,
-	l1CL *L1CLNode,
-	l2EL L2ELNode,
-	l2Net *L2Network,
-	l2CL *OpNode,
-) *testSequencer {
-	require := t.Require()
-	logger := t.Logger().New("component", "test-sequencer")
-
-	l1ELClient, err := ethclient.DialContext(t.Ctx(), l1EL.UserRPC())
-	require.NoError(err, "failed to dial L1 EL RPC for test-sequencer")
-	t.Cleanup(l1ELClient.Close)
-
-	engineCl, err := dialEngine(t.Ctx(), l1EL.AuthRPC(), jwtSecret)
-	require.NoError(err, "failed to dial L1 engine API for test-sequencer")
-	t.Cleanup(func() {
-		engineCl.inner.Close()
-	})
-
-	l1ChainID := l1Net.ChainID()
-	l2ChainID := l2Net.ChainID()
-
-	// L1 sequencer components: fakepos builder + noop signer/committer/publisher.
-	bidL1 := seqtypes.BuilderID("test-l1-builder")
-	cidL1 := seqtypes.CommitterID("test-noop-committer")
-	sidL1 := seqtypes.SignerID("test-noop-signer")
-	pidL1 := seqtypes.PublisherID("test-noop-publisher")
-	seqIDL1 := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l1ChainID))
-
-	ensemble := &workconfig.Ensemble{
-		Builders: map[seqtypes.BuilderID]*workconfig.BuilderEntry{
-			bidL1: {
-				L1: &fakepos.Config{
-					ChainConfig:       l1Net.genesis.Config,
-					EngineAPI:         engineCl,
-					Backend:           l1ELClient,
-					Beacon:            l1CL.beacon,
-					FinalizedDistance: 20,
-					SafeDistance:      10,
-					BlockTime:         6,
-				},
-			},
-		},
-		Signers: map[seqtypes.SignerID]*workconfig.SignerEntry{
-			sidL1: {
-				Noop: &noopsigner.Config{},
-			},
-		},
-		Committers: map[seqtypes.CommitterID]*workconfig.CommitterEntry{
-			cidL1: {
-				Noop: &noopcommitter.Config{},
-			},
-		},
-		Publishers: map[seqtypes.PublisherID]*workconfig.PublisherEntry{
-			pidL1: {
-				Noop: &nooppublisher.Config{},
-			},
-		},
-		Sequencers: map[seqtypes.SequencerID]*workconfig.SequencerEntry{
-			seqIDL1: {
-				Full: &fullseq.Config{
-					ChainID:   l1ChainID,
-					Builder:   bidL1,
-					Signer:    sidL1,
-					Committer: cidL1,
-					Publisher: pidL1,
-				},
-			},
-		},
-	}
-
-	// L2 sequencer components: standard builder/committer/publisher + local signer.
-	bidL2 := seqtypes.BuilderID("test-standard-builder")
-	cidL2 := seqtypes.CommitterID("test-standard-committer")
-	sidL2 := seqtypes.SignerID("test-local-signer")
-	pidL2 := seqtypes.PublisherID("test-standard-publisher")
-	seqIDL2 := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l2ChainID))
-
-	p2pKey, err := keys.Secret(devkeys.SequencerP2PRole.Key(l2ChainID.ToBig()))
-	require.NoError(err, "need p2p key for test sequencer")
-	rawKey := hexutil.Bytes(crypto.FromECDSA(p2pKey))
-
-	ensemble.Builders[bidL2] = &workconfig.BuilderEntry{
-		Standard: &standardbuilder.Config{
-			L1ChainConfig: l1Net.genesis.Config,
-			L1EL: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l1EL.UserRPC()),
-			},
-			L2EL: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l2EL.UserRPC()),
-			},
-			L2CL: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l2CL.UserRPC()),
-			},
-		},
-	}
-	ensemble.Signers[sidL2] = &workconfig.SignerEntry{
-		LocalKey: &localkey.Config{
-			RawKey:  &rawKey,
-			ChainID: l2ChainID,
-		},
-	}
-	ensemble.Committers[cidL2] = &workconfig.CommitterEntry{
-		Standard: &standardcommitter.Config{
-			RPC: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l2CL.UserRPC()),
-			},
-		},
-	}
-	ensemble.Publishers[pidL2] = &workconfig.PublisherEntry{
-		Standard: &standardpublisher.Config{
-			RPC: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l2CL.UserRPC()),
-			},
-		},
-	}
-	ensemble.Sequencers[seqIDL2] = &workconfig.SequencerEntry{
-		Full: &fullseq.Config{
-			ChainID:             l2ChainID,
-			Builder:             bidL2,
-			Signer:              sidL2,
-			Committer:           cidL2,
-			Publisher:           pidL2,
-			SequencerConfDepth:  2,
-			SequencerEnabled:    true,
-			SequencerStopped:    false,
-			SequencerMaxSafeLag: 0,
-		},
-	}
-
-	sequencerIDs := map[eth.ChainID]seqtypes.SequencerID{
-		l1ChainID: seqIDL1,
-		l2ChainID: seqIDL2,
-	}
-
-	jobs := work.NewJobRegistry()
-	startedEnsemble, err := ensemble.Start(t.Ctx(), &work.StartOpts{
-		Log:     logger,
-		Metrics: &testmetrics.NoopMetrics{},
-		Jobs:    jobs,
-	})
-	require.NoError(err, "failed to start test-sequencer ensemble")
-
-	cfg := &sequencerConfig.Config{
-		MetricsConfig: opmetrics.CLIConfig{
-			Enabled: false,
-		},
-		PprofConfig: oppprof.CLIConfig{
-			ListenEnabled: false,
-		},
-		LogConfig: oplog.CLIConfig{
-			Level:  log.LevelDebug,
-			Format: oplog.FormatText,
-		},
-		RPC: oprpc.CLIConfig{
-			ListenAddr:  "127.0.0.1",
-			ListenPort:  0,
-			EnableAdmin: true,
-		},
-		Ensemble:      startedEnsemble,
-		JWTSecretPath: jwtPath,
-		Version:       "dev",
-		MockRun:       false,
-	}
-
-	sq, err := sequencer.FromConfig(t.Ctx(), cfg, logger)
-	require.NoError(err, "failed to initialize test-sequencer service")
-	require.NoError(sq.Start(t.Ctx()), "failed to start test-sequencer service")
-
-	t.Cleanup(func() {
-		ctx, cancel := context.WithCancel(t.Ctx())
-		cancel()
-		logger.Info("Closing test-sequencer service")
-		closeErr := sq.Stop(ctx)
-		logger.Info("Closed test-sequencer service", "err", closeErr)
-	})
-
-	adminRPC := sq.RPC()
-	controlRPCs := make(map[eth.ChainID]string, len(sequencerIDs))
-	for chainID, seqID := range sequencerIDs {
-		controlRPCs[chainID] = adminRPC + "/sequencers/" + seqID.String()
-	}
-
-	return &testSequencer{
-		name:       "test-sequencer",
-		adminRPC:   adminRPC,
-		jwtSecret:  jwtSecret,
-		controlRPC: controlRPCs,
-		service:    sq,
-	}
 }
 
 func copyControlRPCMap(in map[eth.ChainID]string) map[eth.ChainID]string {

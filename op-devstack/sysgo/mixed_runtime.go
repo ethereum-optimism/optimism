@@ -185,7 +185,13 @@ type MixedSingleChainNodeSpec struct {
 }
 
 type MixedSingleChainPresetConfig struct {
-	NodeSpecs                  []MixedSingleChainNodeSpec
+	NodeSpecs []MixedSingleChainNodeSpec
+	// L2CLFactory optionally supplies an external consensus client for each
+	// mixed-EL slot. Supplying it opts into an all-EL-first launch phase and
+	// sequencer-first CL selection so verifier source endpoints are available
+	// independent of NodeSpecs order. A declined slot retains its explicit
+	// CLKind fallback, but not the factory-free interleaved start order.
+	L2CLFactory                L2CLFactory
 	WithTestSequencer          bool
 	TestSequencerName          string
 	LocalContractArtifactsPath string
@@ -199,9 +205,10 @@ type MixedSingleChainPresetConfig struct {
 }
 
 type mixedSingleChainNode struct {
-	spec MixedSingleChainNodeSpec
-	el   L2ELNode
-	cl   L2CLNode
+	spec             MixedSingleChainNodeSpec
+	el               L2ELNode
+	cl               L2CLNode
+	factoryHandledCL bool
 }
 
 type MixedSingleChainRuntime struct {
@@ -246,58 +253,104 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	metricsRegistrar := mixedNoopMetricsRegistrar{}
 
 	nodes := make([]mixedSingleChainNode, 0, len(cfg.NodeSpecs))
-	for _, spec := range cfg.NodeSpecs {
-		identity := NewELNodeIdentity(0)
+	if cfg.L2CLFactory == nil {
+		// Keep the ordinary mixed-runtime launch path interleaved exactly as it
+		// was before the optional factory seam.
+		for _, spec := range cfg.NodeSpecs {
+			identity := NewELNodeIdentity(0)
 
-		// Shared options first, then this node's per-spec options (so a per-node flag can
-		// override or extend the shared set without leaking to other nodes).
-		nodeOpRethOpts := append(append([]OpRethOption{}, cfg.OpRethOptions...), spec.OpRethOpts...)
+			// Shared options first, then this node's per-spec options (so a per-node flag can
+			// override or extend the shared set without leaking to other nodes).
+			nodeOpRethOpts := append(append([]OpRethOption{}, cfg.OpRethOptions...), spec.OpRethOpts...)
 
-		var el L2ELNode
-		switch spec.ELKind {
-		case MixedL2ELOpGeth:
-			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
-		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", nodeOpRethOpts...)
-		case MixedL2ELOpRethV2:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", nodeOpRethOpts...)
-		default:
-			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
-		}
+			var el L2ELNode
+			switch spec.ELKind {
+			case MixedL2ELOpGeth:
+				el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
+			case MixedL2ELOpReth:
+				el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", nodeOpRethOpts...)
+			case MixedL2ELOpRethV2:
+				el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", nodeOpRethOpts...)
+			default:
+				require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
+			}
 
-		var cl L2CLNode
-		switch spec.CLKind {
-		case MixedL2CLOpNode:
-			cl = startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, el, jwtSecret, l2CLNodeStartConfig{
-				Key:           spec.CLKey,
-				IsSequencer:   spec.IsSequencer,
-				NoDiscovery:   true,
-				EnableReqResp: true,
-				DependencySet: depSet,
+			var cl L2CLNode
+			switch spec.CLKind {
+			case MixedL2CLOpNode:
+				cl = startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, el, jwtSecret, l2CLNodeStartConfig{
+					Key:           spec.CLKey,
+					IsSequencer:   spec.IsSequencer,
+					NoDiscovery:   true,
+					EnableReqResp: true,
+					DependencySet: depSet,
+				})
+			case MixedL2CLKona:
+				cl = startMixedKonaNode(
+					t,
+					keys,
+					l1Net,
+					l2Net,
+					l1EL,
+					l1CL,
+					el,
+					spec.CLKey,
+					spec.ELKey,
+					spec.IsSequencer,
+					depSet,
+				)
+			default:
+				require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
+			}
+
+			nodes = append(nodes, mixedSingleChainNode{
+				spec: spec,
+				el:   el,
+				cl:   cl,
 			})
-		case MixedL2CLKona:
-			cl = startMixedKonaNode(
-				t,
-				keys,
-				l1Net,
-				l2Net,
-				l1EL,
-				l1CL,
-				el,
-				spec.CLKey,
-				spec.ELKey,
-				spec.IsSequencer,
-				depSet,
-			)
-		default:
-			require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
+		}
+	} else {
+		// Build every EL before consulting the factory so a verifier can identify
+		// its sequencer source regardless of NodeSpecs ordering.
+		for _, spec := range cfg.NodeSpecs {
+			switch spec.CLKind {
+			case MixedL2CLOpNode, MixedL2CLKona:
+			default:
+				require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
+			}
+			identity := NewELNodeIdentity(0)
+			nodeOpRethOpts := append(append([]OpRethOption{}, cfg.OpRethOptions...), spec.OpRethOpts...)
+			var el L2ELNode
+			switch spec.ELKind {
+			case MixedL2ELOpGeth:
+				el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
+			case MixedL2ELOpReth:
+				el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", nodeOpRethOpts...)
+			case MixedL2ELOpRethV2:
+				el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", nodeOpRethOpts...)
+			default:
+				require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
+			}
+			nodes = append(nodes, mixedSingleChainNode{spec: spec, el: el})
 		}
 
-		nodes = append(nodes, mixedSingleChainNode{
-			spec: spec,
-			el:   el,
-			cl:   cl,
-		})
+		for _, i := range mixedCLStartOrder(nodes) {
+			spec := nodes[i].spec
+			source := mixedUnsafeSourceNode(nodes, spec)
+			var unsafeSourceEL L2ELNode
+			if source != nil {
+				unsafeSourceEL = source.el
+			}
+			stockFollowSource := mixedNodeFollowSource(source)
+			result := startL2CLForKeyWithKind(
+				t, keys, l1Net, l2Net, l1EL, l1CL, nodes[i].el, jwtSecret,
+				spec.CLKey, spec.ELKey, spec.IsSequencer, stockFollowSource,
+				depSet, nil, cfg.L2CLFactory, unsafeSourceEL,
+				source != nil && source.factoryHandledCL, spec.CLKind,
+			)
+			nodes[i].cl = result.Node
+			nodes[i].factoryHandledCL = result.FactoryHandled
+		}
 	}
 
 	for i := range nodes {
@@ -307,7 +360,9 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 			if nodes[i].spec.IsolateFromL2P2P || nodes[j].spec.IsolateFromL2P2P {
 				continue
 			}
-			connectL2CLPeers(t, t.Logger(), nodes[i].cl, nodes[j].cl)
+			if shouldConnectMixedCLPeers(nodes[i], nodes[j]) {
+				connectL2CLPeers(t, t.Logger(), nodes[i].cl, nodes[j].cl)
+			}
 			connectL2ELPeers(t, t.Logger(), nodes[i].el.UserRPC(), nodes[j].el.UserRPC())
 		}
 	}
@@ -353,6 +408,49 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		L2Batcher:     l2Batcher,
 		TestSequencer: newTestSequencerRuntime(testSequencer, cfg.TestSequencerName),
 	}
+}
+
+func shouldConnectMixedCLPeers(a, b mixedSingleChainNode) bool {
+	return !a.factoryHandledCL && !b.factoryHandledCL
+}
+
+func mixedCLStartOrder(nodes []mixedSingleChainNode) []int {
+	order := make([]int, 0, len(nodes))
+	for i := range nodes {
+		if nodes[i].spec.IsSequencer {
+			order = append(order, i)
+		}
+	}
+	for i := range nodes {
+		if !nodes[i].spec.IsSequencer {
+			order = append(order, i)
+		}
+	}
+	return order
+}
+
+func mixedNodeFollowSource(source *mixedSingleChainNode) string {
+	if source == nil {
+		return ""
+	}
+	if source.factoryHandledCL {
+		// This stock fallback cannot form an op-node admin P2P edge with its
+		// external source, so follow the source's rollup RPC.
+		return source.cl.UserRPC()
+	}
+	return ""
+}
+
+func mixedUnsafeSourceNode(nodes []mixedSingleChainNode, spec MixedSingleChainNodeSpec) *mixedSingleChainNode {
+	if spec.IsSequencer || spec.IsolateFromL2P2P {
+		return nil
+	}
+	for i := range nodes {
+		if nodes[i].spec.IsSequencer && !nodes[i].spec.IsolateFromL2P2P {
+			return &nodes[i]
+		}
+	}
+	return nil
 }
 
 func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
