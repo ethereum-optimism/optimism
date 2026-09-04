@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "bytes": "20",
+    "label": "l1EventRegistry",
+    "offset": 0,
+    "slot": "0",
+    "type": "address"
+  },
+  {
+    "bytes": "32",
+    "label": "certifiedMessages",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(bytes32 => bool)"
+  }
+]

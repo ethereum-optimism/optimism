@@ -15,6 +15,10 @@
     "initCodeHash": "0x8754f400a5110749e26f9820e0532b86f0122a6b8ceb10028fd997d39b023ff7",
     "sourceCodeHash": "0xfd4d13c09f30072475e2286457a35abaa122223c26ae40398524ad77d5dbb9e1"
   },
+  "src/L1/L1EventRegistry.sol:L1EventRegistry": {
+    "initCodeHash": "0x6ba1835f5bb54c52dd485ec9829905dc97776fee49555da46e2a42e8f66cbbe4",
+    "sourceCodeHash": "0x416e00aa9139a5f3f9274a39d799947a66499500d8fc5b697513c248b23cb11f"
+  },
   "src/L1/L1StandardBridge.sol:L1StandardBridge": {
     "initCodeHash": "0x75b07cd638ef34349da3478aeab051472c1cba8c8074d3df48af3d7fbd97fd49",
     "sourceCodeHash": "0x0ef8461e8bc55314e61e60924465574db17bdf30bbbfe9739b52cac623bba2db"
@@ -48,8 +52,8 @@
     "sourceCodeHash": "0x7c83a95f65cfd963af0caf90579e8f8544e3f883a48bc803720ec251c72aeffe"
   },
   "src/L2/CrossL2Inbox.sol:CrossL2Inbox": {
-    "initCodeHash": "0x5f3a52829abafd34cae760e053927a44a1ec58f8f7e6380a9723632288d84d8c",
-    "sourceCodeHash": "0xb9ac578e4f6f2f9a528603d57242c49b32146b459113ccb3f50f4112d036cddb"
+    "initCodeHash": "0x257569d32b24f03015e611dbd10a5b66878895b9bee319962e49b2923c39181a",
+    "sourceCodeHash": "0x63d5ee495c3fbb22d3cd58ce37e538fe946d374cd3d33cb0f7799e5795a17697"
   },
   "src/L2/ETHLiquidity.sol:ETHLiquidity": {
     "initCodeHash": "0x3c32ddabff34450afd940aa8cf852783576c3ae2d453b66386c3ed3baa0d7a57",
