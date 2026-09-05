@@ -1,0 +1,49 @@
+[package]
+name = "kona-zkvm-canary"
+version = "0.1.0"
+description = "Continuous live-network SP1 execution canary for Kona super-root programs"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "kona-zkvm-canary"
+path = "src/main.rs"
+
+[dependencies]
+kona-sp1-client-utils.workspace = true
+kona-sp1-host-utils.workspace = true
+kona-sp1-super-range-executor.workspace = true
+kona-genesis = { workspace = true, features = ["serde", "std"] }
+kona-interop = { workspace = true, features = ["serde", "std"] }
+
+alloy-primitives.workspace = true
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+flate2.workspace = true
+jsonrpsee-core.workspace = true
+jsonrpsee-http-client.workspace = true
+metrics.workspace = true
+reqwest = { workspace = true, features = ["rustls"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["raw_value"] }
+sha2.workspace = true
+sp1-core-executor.workspace = true
+sp1-sdk = { workspace = true, features = ["profiling"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "signal", "sync", "time"] }
+tracing.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+httpmock.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "json"] }
+
+[lints]
+workspace = true
