@@ -5,7 +5,6 @@ use std::time::SystemTime;
 use metrics::{Counter, Gauge, counter, describe_counter, describe_gauge, gauge};
 
 use crate::{
-    artifact::ArtifactIdentity,
     execution::{ReportSummary, StageOutcome, StageResult},
     runner::{AttemptResult, RunOutcome, RunnerEvent},
 };
@@ -34,7 +33,6 @@ const REPORT_SYSCALLS: &str = "kona_zkvm_canary_report_syscalls";
 const REPORT_RECORD_BYTES: &str = "kona_zkvm_canary_report_record_bytes";
 const REPORT_TOUCHED_ADDRESSES: &str = "kona_zkvm_canary_report_touched_addresses";
 const REPORT_EXIT_CODE: &str = "kona_zkvm_canary_report_exit_code";
-const ARTIFACT_INFO: &str = "kona_zkvm_canary_artifact_info";
 
 const MODE_RANGE: &str = "range";
 const MODE_CONSOLIDATION: &str = "consolidation";
@@ -66,7 +64,6 @@ pub struct CanaryMetrics {
     target_lag: Gauge,
     range: ModeMetrics,
     consolidation: ModeMetrics,
-    artifact_info: Gauge,
     consecutive_failure_count: u64,
 }
 
@@ -80,11 +77,11 @@ impl std::fmt::Debug for CanaryMetrics {
 }
 
 impl CanaryMetrics {
-    /// Describes and registers the complete bounded metric family for one artifact release.
+    /// Describes and registers the complete bounded metric family.
     ///
     /// Call this only after the shared metrics recorder is installed. The returned observer is
     /// intended to be passed directly to [`crate::runner::Runner::run`].
-    pub fn register(identity: ArtifactIdentity) -> Self {
+    pub fn register() -> Self {
         describe_all();
         let metrics = Self {
             up: gauge!(UP),
@@ -105,13 +102,6 @@ impl CanaryMetrics {
             target_lag: gauge!(TARGET_LAG),
             range: ModeMetrics::register(MODE_RANGE),
             consolidation: ModeMetrics::register(MODE_CONSOLIDATION),
-            artifact_info: gauge!(
-                ARTIFACT_INFO,
-                "prestate" => identity.prestate.to_string(),
-                "range_vkey" => identity.range_vkey.to_string(),
-                "elf_sha256" => identity.elf_sha256.to_string(),
-                "sp1_version" => sp1_sdk::SP1_CIRCUIT_VERSION.trim(),
-            ),
             consecutive_failure_count: 0,
         };
         metrics.initialize();
@@ -148,7 +138,6 @@ impl CanaryMetrics {
         self.target_lag.set(0.0);
         self.range.initialize();
         self.consolidation.initialize();
-        self.artifact_info.set(1.0);
     }
 
     fn observe_at(&mut self, event: &RunnerEvent, now: u64) {
@@ -331,7 +320,6 @@ fn describe_all() {
     describe_gauge!(REPORT_RECORD_BYTES, "Latest SP1 execution-record bytes by mode.");
     describe_gauge!(REPORT_TOUCHED_ADDRESSES, "Latest distinct touched guest addresses by mode.");
     describe_gauge!(REPORT_EXIT_CODE, "Latest SP1 guest exit code by mode.");
-    describe_gauge!(ARTIFACT_INFO, "Validated canary artifact and SP1 release identity.");
 }
 
 #[cfg(test)]
@@ -354,14 +342,6 @@ mod tests {
     }
 
     type SampleKey = (String, Vec<(String, String)>);
-
-    fn identity() -> ArtifactIdentity {
-        ArtifactIdentity {
-            prestate: B256::repeat_byte(0x11),
-            range_vkey: B256::repeat_byte(0x22),
-            elf_sha256: B256::repeat_byte(0x33),
-        }
-    }
 
     fn attempt(
         outcome: RunOutcome,
@@ -466,7 +446,7 @@ mod tests {
         let recorder = DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
         metrics::with_local_recorder(&recorder, || {
-            let mut metrics = CanaryMetrics::register(identity());
+            let mut metrics = CanaryMetrics::register();
             for outcome in OUTCOMES {
                 metrics.observe_at(&RunnerEvent::Attempt(attempt(outcome, 100, None)), 200);
             }
@@ -489,8 +469,7 @@ mod tests {
         );
         assert_eq!(sample(&samples, CONSECUTIVE_FAILURES, &[]), &Sample::Gauge(5.0));
 
-        let allowed_labels =
-            ["elf_sha256", "mode", "outcome", "prestate", "range_vkey", "sp1_version"];
+        let allowed_labels = ["mode", "outcome"];
         for (_, labels) in samples.keys() {
             assert!(labels.iter().all(|(key, _)| allowed_labels.contains(&key.as_str())));
         }
@@ -501,7 +480,7 @@ mod tests {
         let recorder = DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
         metrics::with_local_recorder(&recorder, || {
-            let mut metrics = CanaryMetrics::register(identity());
+            let mut metrics = CanaryMetrics::register();
             let first = execution(
                 stage(
                     report(
@@ -589,7 +568,7 @@ mod tests {
         let recorder = DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
         metrics::with_local_recorder(&recorder, || {
-            let mut metrics = CanaryMetrics::register(identity());
+            let mut metrics = CanaryMetrics::register();
             let current = execution(
                 stage(report(ExecutionMode::Range, Some(10), 100, 3, &[]), 1.0, 2.0),
                 stage(report(ExecutionMode::Consolidation, Some(20), 200, 4, &[]), 3.0, 4.0),

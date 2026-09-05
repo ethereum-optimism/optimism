@@ -323,7 +323,7 @@ Concurrency interaction:
 ## Live execution canary (`kona-zkvm-canary`)
 
 `kona-zkvm-canary` checks that the published `super-range` guest agrees with a finalized,
-L1-pinned live-network view. One process owns one network and one authenticated artifact release.
+L1-pinned live-network view. One process owns one network and one artifact URL.
 It selects a consecutive finalized span, runs range mode and consolidation mode sequentially,
 and classifies their results. The L1 pin is the earlier of the supernode's fully processed block
 (`CurrentL1 - 1`) and L1's `finalized` block; a snapshot whose `required_l1` is above that chosen
@@ -341,25 +341,25 @@ canary exposes neither a mock mode nor a native-core switch.
 
 ### Artifact identity and startup
 
-`KONA_ZKVM_CANARY_PRESTATES_URL` and `KONA_ZKVM_CANARY_PRESTATE` resolve exactly one artifact:
-`<PRESTATES_URL>/<PRESTATE>.range.bin.gz`. Startup downloads and decompresses it in memory under
-the configured size and request limits, computes the decompressed ELF's SHA-256 digest, derives its
-SP1 verification-key hash, and requires both to match `KONA_ZKVM_CANARY_ELF_SHA256` and
-`KONA_ZKVM_CANARY_RANGE_VKEY`. The aggregation ELF is not downloaded. The authenticated bytes stay
-in memory for the process lifetime; rotating the prestate, vkey, digest, or artifact requires a
-restart. The service image contains only the host binary, not a locally generated guest ELF.
+`KONA_ZKVM_CANARY_PRESTATES_URL` is the direct URL of a gzip-compressed `super-range` ELF. Startup
+downloads and decompresses it in memory, computes the decompressed ELF's SHA-256 digest, and
+derives its SP1 verification-key hash. Each scheduler cycle refetches the same URL. Unchanged bytes
+reuse the existing SP1 identity; changed bytes derive a new identity and produce a new attempt
+fingerprint. The URL may therefore name either an immutable release or a moving artifact such as
+`develop.bin.gz`. The aggregation ELF is not downloaded. The service image contains only the host
+binary, not a locally generated guest ELF.
 
-Startup is fail-fast and ordered: parse and validate all configuration, authenticate the artifact,
-bind the host-utils metrics server, register canary metrics, then emit the structured
-`kona-zkvm-canary started` log. Configuration, artifact digest, or vkey failures return non-zero
+Startup is fail-fast and ordered: parse and validate all configuration, load the artifact and
+derive its identity, bind the host-utils metrics server, register canary metrics, then emit the
+structured `kona-zkvm-canary started` log. Configuration or artifact failures return non-zero
 before a metrics listener is bound. Host-utils serves `/health` unchanged. There is no `/ready`
-endpoint or ready gauge: a scrapeable process already holds a validated artifact.
+endpoint or ready gauge: a scrapeable process already holds a usable SP1 artifact.
 
 ### Configuration
 
 All canary-owned variables use the `KONA_ZKVM_CANARY_` prefix. RPC URLs must use HTTP or HTTPS and
 must not contain user information, query parameters, or fragments. Production artifact URLs must
-use HTTPS with the same restrictions and redirects disabled. A `file://` artifact directory is
+use HTTPS with the same restrictions and redirects disabled. A `file://` artifact URL is
 accepted only with `--once`. Numeric limits marked non-zero fail validation when set to zero.
 
 Required configuration:
@@ -370,10 +370,7 @@ Required configuration:
 | `KONA_ZKVM_CANARY_L1_RPC` | L1 execution JSON-RPC endpoint used to pin and canonicalize block identities |
 | `KONA_ZKVM_CANARY_L1_BEACON_RPC` | L1 beacon API endpoint used for blob sidecars during witness collection |
 | `KONA_ZKVM_CANARY_L2_RPCS` | Comma-separated `<chain-id>=<http(s)-url>` L2 execution endpoints; decimal and `0x` chain IDs are accepted and duplicates are rejected |
-| `KONA_ZKVM_CANARY_PRESTATES_URL` | Immutable published-prestates directory; `file://` is diagnostic and `--once` only |
-| `KONA_ZKVM_CANARY_PRESTATE` | Aggregation-prestate key naming the paired `.range.bin.gz` artifact |
-| `KONA_ZKVM_CANARY_RANGE_VKEY` | Expected SP1 verification-key hash for the decompressed range ELF |
-| `KONA_ZKVM_CANARY_ELF_SHA256` | Expected SHA-256 digest of the decompressed range ELF |
+| `KONA_ZKVM_CANARY_PRESTATES_URL` | Direct gzip-compressed `super-range` ELF URL; `file://` is diagnostic and `--once` only |
 | `KONA_ZKVM_CANARY_GUEST_CYCLE_LIMIT` | Non-zero maximum cycles for each range or consolidation guest execution; no default |
 
 Optional execution, scheduling, and input limits:
@@ -391,23 +388,18 @@ Optional execution, scheduling, and input limits:
 | `KONA_ZKVM_CANARY_ARTIFACT_REQUEST_TIMEOUT_SECONDS` | `60` | Non-zero whole-request artifact deadline |
 | `KONA_ZKVM_CANARY_MAX_PARENT_RESPONSE_BYTES` | `4194304` | Non-zero maximum parent JSON-RPC response body |
 | `KONA_ZKVM_CANARY_MAX_PARENT_RESPONSE_ENTRIES` | `256` | Non-zero maximum parent response entries and configured chains; maximum `256` |
-| `KONA_ZKVM_CANARY_MAX_ARTIFACT_COMPRESSED_BYTES` | `268435456` | Non-zero compressed artifact ceiling |
-| `KONA_ZKVM_CANARY_MAX_ARTIFACT_DECOMPRESSED_BYTES` | `1073741824` | Non-zero decompressed ELF ceiling |
 | `KONA_ZKVM_CANARY_MEMORY_LIMIT` | `25769803776` | SP1 emulator accounted-memory limit in bytes; not a process RSS ceiling |
 | `KONA_ZKVM_CANARY_METRICS_PORT` | disabled | `disabled`, empty, or any numeric zero disables metrics; `auto` binds an ephemeral port; a non-zero port binds that port on all interfaces |
 
-Optional structured logging and telemetry configuration is handled by host-utils:
+Optional structured logging configuration:
 
 | Variable | Default | Purpose |
 |---|---:|---|
-| `KONA_ZKVM_CANARY_LOGGER_NAME` | `kona-sp1` | OpenTelemetry service name |
-| `KONA_ZKVM_CANARY_OTLP_ENDPOINT` | `http://localhost:4317` | OpenTelemetry log-export endpoint |
-| `KONA_ZKVM_CANARY_OTLP_ENABLED` | `false` | Enable OpenTelemetry log export |
 | `KONA_ZKVM_CANARY_LOG_FORMAT` | `pretty` | `pretty` or structured `json` logs |
 
 The logger also observes `RUST_LOG` and `NO_COLOR`. TLS and HTTP clients may observe the standard
 certificate and proxy variables. `KONA_SP1_ELF_DIR` is not a canary input: the canary uses only its
-authenticated in-memory artifact. `TRACE_FILE` must be unset; startup rejects it because SP1's
+downloaded in-memory artifact. `TRACE_FILE` must be unset; startup rejects it because SP1's
 cycle-tracker feature can otherwise persist a profile, while the canary has a no-file-output
 contract.
 
@@ -422,14 +414,14 @@ The bounds serve different purposes:
   internal accounting. Allocator overhead and other process memory are outside that accounting, so
   this is not a hard RSS ceiling. The process metrics below expose observed resident and virtual
   memory; the orchestrator or cgroup remains the hard process-memory backstop.
-- `ATTEMPT_DEADLINE_SECONDS` covers cancellable selection and witness collection. It deliberately
-  does not wrap SP1 execution in a Tokio timeout: SP1 uses blocking work that Tokio cannot cancel,
-  so such a timeout would report completion while retaining the CPU and memory load.
+- `ATTEMPT_DEADLINE_SECONDS` covers artifact refresh, selection, and witness collection. It does
+  not interrupt SP1 setup or execution: SP1 uses blocking work that Tokio cannot cancel. A setup
+  that finishes after the deadline records `timeout` before snapshot selection begins.
 
 If the emulator wedges beyond the cycle and memory bounds, or the process is killed for memory,
 the orchestrator must restart it. `SIGINT` and `SIGTERM` stop all further scheduling and exit the
-process. A signal received during SP1 execution abandons that execution by terminating the process;
-the service does not claim to cancel the in-flight Tokio blocking task.
+process. A signal received during artifact refresh or SP1 execution abandons that work by terminating
+the process; the service does not claim to cancel the in-flight blocking task.
 
 ### Metrics
 
@@ -438,7 +430,7 @@ canary metric namespace is `kona_zkvm_canary`:
 
 | Metric | Meaning |
 |---|---|
-| `kona_zkvm_canary_up` | `1` after metrics registration with an authenticated artifact; `0` when one-shot operation completes normally |
+| `kona_zkvm_canary_up` | `1` after metrics registration with a loaded SP1 artifact; `0` when one-shot operation completes normally |
 | `kona_zkvm_canary_scheduler_heartbeat_timestamp_seconds` | Unix time of the latest selection cycle |
 | `kona_zkvm_canary_run_active` | Whether the one sequential attempt is active |
 | `kona_zkvm_canary_last_attempt_timestamp_seconds` / `kona_zkvm_canary_last_success_timestamp_seconds` | Completion time of the latest attempt / valid attempt; zero means unknown |
@@ -456,7 +448,6 @@ canary metric namespace is `kona_zkvm_canary`:
 | `kona_zkvm_canary_report_record_bytes{mode}` | Latest estimated SP1 execution-record size; not process memory |
 | `kona_zkvm_canary_report_touched_addresses{mode}` | Count of distinct touched guest addresses; not bytes or RSS |
 | `kona_zkvm_canary_report_exit_code{mode}` | Latest SP1 guest exit code |
-| `kona_zkvm_canary_artifact_info{prestate,range_vkey,elf_sha256,sp1_version}` | Constant `1` identifying the authenticated artifact and pinned SP1 release |
 
 Host-utils additionally exports unprefixed process samples including
 `process_resident_memory_bytes`, `process_virtual_memory_bytes`,
@@ -474,13 +465,10 @@ exported as Prometheus series.
 terminal outcome and both bounded range/consolidation report summaries as structured fields, then
 exits `0` for `valid`, `1` for `guest_rejected` or `output_mismatch`, and `2` for every other
 outcome. It accepts no result path and writes no artifact, witness, report, or result file. For a
-local authenticated artifact directory:
+local artifact:
 
 ```bash
-KONA_ZKVM_CANARY_PRESTATES_URL="file:///absolute/path/to/prestates/" \
-KONA_ZKVM_CANARY_PRESTATE="0x..." \
-KONA_ZKVM_CANARY_RANGE_VKEY="0x..." \
-KONA_ZKVM_CANARY_ELF_SHA256="0x..." \
+KONA_ZKVM_CANARY_PRESTATES_URL="file:///absolute/path/to/develop.bin.gz" \
 KONA_ZKVM_CANARY_GUEST_CYCLE_LIMIT="..." \
 KONA_ZKVM_CANARY_SUPERROOT_RPC="http://127.0.0.1:9545" \
 KONA_ZKVM_CANARY_L1_RPC="http://127.0.0.1:8545" \
@@ -489,7 +477,7 @@ KONA_ZKVM_CANARY_L2_RPCS="901=http://127.0.0.1:9546" \
 cargo run --locked --package kona-zkvm-canary --bin kona-zkvm-canary -- --once
 ```
 
-All snapshots, witnesses, authenticated ELF bytes, and report data remain in memory. The canary
+All snapshots, witnesses, ELF bytes, and report data remain in memory. The canary
 does not generate or persist a proof in either looping or one-shot operation.
 
 ## Building

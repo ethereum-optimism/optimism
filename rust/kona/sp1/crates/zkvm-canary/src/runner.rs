@@ -9,11 +9,11 @@ use std::{
 };
 
 use alloy_primitives::B256;
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use tokio::{sync::watch, time::Instant};
 
 use crate::{
-    artifact::ValidatedRangeArtifact,
+    artifact::{ArtifactConfig, ValidatedRangeArtifact, refresh_range_artifact},
     config::CanaryConfig,
     execution::{
         ExecutionActivity, ExecutionOutcome, ExecutionResult, StageOutcome, execute_snapshot,
@@ -192,6 +192,10 @@ impl SnapshotIdentity for ValidatedSnapshot {
 trait AttemptStages {
     type Snapshot: SnapshotIdentity;
 
+    async fn prepare(&mut self, _execution_activity: &ExecutionActivity) -> Result<()> {
+        Ok(())
+    }
+
     async fn select(&mut self, now: u64) -> Result<Self::Snapshot>;
     async fn execute(
         &mut self,
@@ -203,7 +207,9 @@ trait AttemptStages {
 
 struct InProcessStages {
     source: SnapshotSource,
+    artifact_config: ArtifactConfig,
     artifact: ValidatedRangeArtifact,
+    refresh_artifact: bool,
     cycle_limit: NonZeroU64,
     memory_limit: NonZeroU64,
 }
@@ -213,7 +219,9 @@ impl std::fmt::Debug for InProcessStages {
         formatter
             .debug_struct("InProcessStages")
             .field("source", &self.source)
+            .field("artifact_config", &self.artifact_config)
             .field("artifact", &self.artifact)
+            .field("refresh_artifact", &self.refresh_artifact)
             .field("cycle_limit", &self.cycle_limit)
             .field("memory_limit", &self.memory_limit)
             .finish()
@@ -223,8 +231,27 @@ impl std::fmt::Debug for InProcessStages {
 impl AttemptStages for InProcessStages {
     type Snapshot = ValidatedSnapshot;
 
+    async fn prepare(&mut self, execution_activity: &ExecutionActivity) -> Result<()> {
+        if self.refresh_artifact {
+            let _activity = execution_activity.enter();
+            let artifact = refresh_range_artifact(&self.artifact_config, &self.artifact)
+                .await
+                .context("failed to refresh range artifact")?;
+            if artifact.identity() != self.artifact.identity() {
+                tracing::info!(
+                    range_vkey = %artifact.identity().range_vkey,
+                    elf_sha256 = %artifact.identity().elf_sha256,
+                    "range artifact changed"
+                );
+            }
+            self.artifact = artifact;
+        }
+        self.refresh_artifact = true;
+        Ok(())
+    }
+
     async fn select(&mut self, now: u64) -> Result<Self::Snapshot> {
-        self.source.select_finalized(now).await
+        self.source.select_finalized(now, self.artifact.identity()).await
     }
 
     async fn execute(
@@ -233,6 +260,10 @@ impl AttemptStages for InProcessStages {
         deadline: Instant,
         execution_activity: &ExecutionActivity,
     ) -> Result<ExecutionResult> {
+        ensure!(
+            snapshot.artifact_identity() == self.artifact.identity(),
+            "selected snapshot does not match the loaded range artifact"
+        );
         let synthesized = snapshot.synthesize_execution()?;
         Ok(execute_snapshot(
             snapshot.host_inputs(),
@@ -277,17 +308,35 @@ where
                 "attempt deadline exceeds monotonic clock range",
             ))));
         };
+        if let Err(error) = self.stages.prepare(&self.execution_activity).await {
+            return Ok(Some(RunnerEvent::Attempt(selection_failure(
+                started,
+                RunOutcome::InputError,
+                error,
+            ))));
+        }
+        if Instant::now() >= deadline {
+            return Ok(Some(RunnerEvent::Attempt(selection_failure(
+                started,
+                RunOutcome::Timeout,
+                "attempt deadline elapsed during artifact refresh",
+            ))));
+        }
+        if shutdown_requested(shutdown) {
+            return Ok(None);
+        }
+        let selection_started = Instant::now();
         let now = match unix_now() {
             Ok(now) => now,
             Err(error) => {
-                return Ok(Some(RunnerEvent::Attempt(selection_failure(
+                return Ok(Some(RunnerEvent::Attempt(selection_failure_with_duration(
                     started,
+                    selection_started.elapsed(),
                     RunOutcome::InputError,
                     error,
                 ))));
             }
         };
-        let selection_started = Instant::now();
         let selection = tokio::select! {
             _ = wait_for_shutdown(shutdown) => return Ok(None),
             result = tokio::time::timeout_at(deadline, self.stages.select(now)) => result,
@@ -412,20 +461,18 @@ impl std::fmt::Debug for Runner {
 }
 
 impl Runner {
-    /// Builds the sequential lifecycle around the in-memory authenticated artifact.
+    /// Builds the sequential lifecycle around the initially loaded in-memory artifact.
     pub fn new(config: &CanaryConfig, artifact: &ValidatedRangeArtifact) -> Result<Self> {
         ensure!(!config.cadence.is_zero(), "runner cadence must be non-zero");
         ensure!(!config.attempt_deadline.is_zero(), "attempt deadline must be non-zero");
         ensure!(config.max_jitter <= config.cadence, "runner jitter must not exceed cadence");
-        ensure!(
-            artifact.identity() == config.artifact.identity,
-            "runner artifact does not match configured release identity"
-        );
         Ok(Self {
             scheduler: Scheduler {
                 stages: InProcessStages {
                     source: SnapshotSource::new(config)?,
+                    artifact_config: config.artifact.clone(),
                     artifact: artifact.clone(),
+                    refresh_artifact: false,
                     cycle_limit: config.guest_cycle_limit,
                     memory_limit: config.memory_limit,
                 },
@@ -449,7 +496,7 @@ impl Runner {
         Box::pin(self.scheduler.run_one(shutdown))
     }
 
-    /// Reports whether the runner is awaiting uncancellable SP1 emulator work.
+    /// Reports whether the runner is refreshing the artifact or awaiting SP1 emulator work.
     pub fn execution_activity(&self) -> watch::Receiver<bool> {
         self.scheduler.execution_activity()
     }

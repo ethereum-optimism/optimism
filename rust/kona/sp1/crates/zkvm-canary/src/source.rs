@@ -87,7 +87,7 @@ impl ValidatedSnapshot {
         &self.chain_ids
     }
 
-    /// Returns the release identity included in this attempt.
+    /// Returns the artifact identity included in this attempt.
     pub const fn artifact_identity(&self) -> ArtifactIdentity {
         self.artifact_identity
     }
@@ -116,7 +116,6 @@ pub struct SnapshotSource {
     span_length: u64,
     configured_chain_ids: Vec<u64>,
     max_entries: usize,
-    artifact_identity: ArtifactIdentity,
     host_inputs: HostInputs,
 }
 
@@ -127,7 +126,6 @@ impl std::fmt::Debug for SnapshotSource {
             .field("span_length", &self.span_length)
             .field("configured_chain_ids", &self.configured_chain_ids)
             .field("max_entries", &self.max_entries)
-            .field("artifact_identity", &self.artifact_identity)
             .finish_non_exhaustive()
     }
 }
@@ -150,13 +148,16 @@ impl SnapshotSource {
             span_length: u64::from(config.span_length.get()),
             configured_chain_ids: config.chain_ids().collect(),
             max_entries: config.max_parent_response_entries.get(),
-            artifact_identity: config.artifact.identity,
             host_inputs: config.host_inputs(),
         })
     }
 
     /// Selects the newest complete finalized span visible at `now`.
-    pub async fn select_finalized(&self, now: u64) -> Result<ValidatedSnapshot> {
+    pub async fn select_finalized(
+        &self,
+        now: u64,
+        artifact_identity: ArtifactIdentity,
+    ) -> Result<ValidatedSnapshot> {
         let discovery = self.fetch_superroot(now).await.map_err(FetchFailure::into_anyhow)?;
         validate_safety_horizons(now, "discovery", &discovery)
             .map_err(BuildFailure::into_anyhow)?;
@@ -174,9 +175,16 @@ impl SnapshotSource {
             self.resolve_pin(discovery.current_l1).await.map_err(BuildFailure::into_anyhow)?;
         let responses =
             self.fetch_responses(agreed, target).await.map_err(FetchFailure::into_anyhow)?;
-        self.validate_snapshot(span, pin, responses, pin_bounds, discovery.current_l1)
-            .await
-            .map_err(BuildFailure::into_anyhow)
+        self.validate_snapshot(
+            span,
+            pin,
+            responses,
+            pin_bounds,
+            discovery.current_l1,
+            artifact_identity,
+        )
+        .await
+        .map_err(BuildFailure::into_anyhow)
     }
 
     async fn fetch_responses(
@@ -308,6 +316,7 @@ impl SnapshotSource {
         responses: Vec<SuperRootAtTimestampResponse>,
         pin_bounds: PinBounds,
         discovery_current_l1: BlockId,
+        artifact_identity: ArtifactIdentity,
     ) -> std::result::Result<ValidatedSnapshot, BuildFailure> {
         let agreed = span.start - 1;
         let expected_count = usize::try_from(span.end - agreed + 1)
@@ -355,14 +364,14 @@ impl SnapshotSource {
         }
 
         let chain_ids = self.configured_chain_ids.clone();
-        let fingerprint = snapshot_fingerprint(self.artifact_identity, span, pin, &responses)
+        let fingerprint = snapshot_fingerprint(artifact_identity, span, pin, &responses)
             .map_err(BuildFailure::Invalid)?;
         Ok(ValidatedSnapshot {
             span,
             pinned_l1: CanonicalL1Block { block: pin },
             responses,
             chain_ids,
-            artifact_identity: self.artifact_identity,
+            artifact_identity,
             fingerprint,
             host_inputs: self.host_inputs.clone(),
         })
@@ -766,7 +775,6 @@ pub(crate) fn snapshot_fingerprint(
     );
     let mut digest = Sha256::new();
     digest.update(FINGERPRINT_DOMAIN);
-    digest.update(artifact.prestate.as_slice());
     digest.update(artifact.range_vkey.as_slice());
     digest.update(artifact.elf_sha256.as_slice());
     update_u64(&mut digest, span.start);
@@ -888,6 +896,28 @@ mod tests {
 
     fn block(number: u64) -> BlockId {
         BlockId { number, hash: B256::repeat_byte(number as u8) }
+    }
+
+    fn artifact_identity() -> ArtifactIdentity {
+        ArtifactIdentity {
+            range_vkey: B256::repeat_byte(0xa2),
+            elf_sha256: B256::repeat_byte(0xa3),
+        }
+    }
+
+    #[test]
+    fn artifact_identity_changes_snapshot_fingerprint() {
+        let responses = base_responses();
+        let span = TimestampSpan::new(11, TARGET).unwrap();
+        let first =
+            snapshot_fingerprint(artifact_identity(), span, block(100), &responses).unwrap();
+        let changed = ArtifactIdentity {
+            range_vkey: B256::repeat_byte(0xb2),
+            elf_sha256: B256::repeat_byte(0xb3),
+        };
+        let second = snapshot_fingerprint(changed, span, block(100), &responses).unwrap();
+
+        assert_ne!(first, second);
     }
 
     fn output(seed: u8, required_l1: BlockId) -> OutputWithRequiredL1 {
@@ -1012,14 +1042,7 @@ mod tests {
             attempt_deadline: Duration::from_secs(60),
             rpc_request_timeout: Duration::from_secs(2),
             artifact: ArtifactConfig {
-                base_url: Url::parse("https://artifacts.example").unwrap(),
-                identity: ArtifactIdentity {
-                    prestate: B256::repeat_byte(0xa1),
-                    range_vkey: B256::repeat_byte(0xa2),
-                    elf_sha256: B256::repeat_byte(0xa3),
-                },
-                max_compressed_bytes: 1024,
-                max_decompressed_bytes: 2048,
+                url: Url::parse("https://artifacts.example/develop.bin.gz").unwrap(),
                 fetch_timeout: Duration::from_secs(2),
                 allow_file: false,
             },
@@ -1143,7 +1166,7 @@ mod tests {
         mutate_blocks(&mut blocks);
         register_fixture(&server, &responses, &blocks);
         let source = SnapshotSource::new(&config(&server)).unwrap();
-        let error = source.select_finalized(NOW).await.unwrap_err();
+        let error = source.select_finalized(NOW, artifact_identity()).await.unwrap_err();
         assert!(
             format!("{error:#}").contains(expected),
             "expected {expected:?} in error, got {error:#}",
@@ -1156,7 +1179,7 @@ mod tests {
         register_fixture(&server, &base_responses(), &base_blocks());
         let source = SnapshotSource::new(&config(&server)).unwrap();
 
-        let snapshot = source.select_finalized(NOW).await.unwrap();
+        let snapshot = source.select_finalized(NOW, artifact_identity()).await.unwrap();
 
         assert_eq!(snapshot.span(), TimestampSpan::new(11, TARGET).unwrap());
         assert_eq!(snapshot.pinned_l1().block_id(), block(100));
@@ -1180,7 +1203,7 @@ mod tests {
         }
         let source = SnapshotSource::new(&config(&server)).unwrap();
 
-        let snapshot = source.select_finalized(NOW).await.unwrap();
+        let snapshot = source.select_finalized(NOW, artifact_identity()).await.unwrap();
 
         assert_eq!(snapshot.pinned_l1().block_id(), block(100));
     }
@@ -1198,7 +1221,7 @@ mod tests {
         }
         let source = SnapshotSource::new(&config(&server)).unwrap();
 
-        let error = source.select_finalized(NOW).await.unwrap_err();
+        let error = source.select_finalized(NOW, artifact_identity()).await.unwrap_err();
         let detail = format!("{error:#}");
         assert!(detail.contains("timestamp 10 chain 10 optimistic required L1 100"));
         assert!(detail.contains("exceeds pinned L1 99"));

@@ -1,6 +1,7 @@
 //! Binary entrypoint for the Kona zkVM canary.
 
 use std::{
+    env,
     future::Future,
     process::ExitCode,
     time::{SystemTime, UNIX_EPOCH},
@@ -8,7 +9,7 @@ use std::{
 
 use anyhow::{Context, Result, anyhow, bail};
 use clap::Parser;
-use kona_sp1_host_utils::{logger::setup_logger, metrics::init_metrics};
+use kona_sp1_host_utils::metrics::init_metrics;
 use kona_sp1_super_range_executor::{EXIT_INFRA, EXIT_INVALID, EXIT_VALID};
 use kona_zkvm_canary::{
     artifact::{ArtifactConfig, ValidatedRangeArtifact, load_range_artifact},
@@ -19,11 +20,16 @@ use kona_zkvm_canary::{
     runner::{AttemptResult, RunOutcome, Runner, RunnerEvent},
 };
 use tokio::sync::watch;
+use tracing_subscriber::{EnvFilter, fmt, util::SubscriberInitExt};
 
-const LOG_PREFIX: &str = "KONA_ZKVM_CANARY";
 const MAX_LOG_ERROR_BYTES: usize = 4096;
+const DEFAULT_LOG_FILTER: &str = "info,single_hint_handler=error,execute=error,sp1_prover=error,\
+boot_loader=error,client_executor=error,client=error,channel_assembler=error,\
+attributes_queue=error,batch_validator=error,batch_queue=error,client_derivation_driver=error,\
+block_builder=error,host_server=error,kona_protocol=error,sp1_core_executor=off,\
+sp1_core_machine=error";
 
-/// Runs the authenticated super-range ELF continuously or for one diagnostic attempt.
+/// Runs the published super-range ELF continuously or for one diagnostic attempt.
 #[derive(Debug, Parser)]
 #[command(name = "kona-zkvm-canary", version, about = env!("CARGO_PKG_DESCRIPTION"))]
 struct Cli {
@@ -35,7 +41,7 @@ struct Cli {
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
-    setup_logger(LOG_PREFIX);
+    setup_logger();
 
     match run_service(cli).await {
         Ok(code) => ExitCode::from(code),
@@ -52,7 +58,7 @@ async fn run_service(cli: Cli) -> Result<u8> {
     let config = CanaryConfig::from_env(mode).context("invalid canary configuration")?;
     let metrics_listen = config.metrics_listen;
     let (artifact, runner, metrics_addr) =
-        authenticate_before_metrics(&config.artifact, |artifact| async {
+        load_before_metrics(&config.artifact, |artifact| async {
             let runner =
                 Runner::new(&config, &artifact).context("failed to initialize canary runner")?;
             let metrics_addr =
@@ -61,12 +67,11 @@ async fn run_service(cli: Cli) -> Result<u8> {
         })
         .await?;
     let identity = artifact.identity();
-    let mut metrics = CanaryMetrics::register(identity);
+    let mut metrics = CanaryMetrics::register();
     let mut runner = runner;
 
     tracing::info!(
         service_version = env!("CARGO_PKG_VERSION"),
-        prestate = %identity.prestate,
         range_vkey = %identity.range_vkey,
         elf_sha256 = %identity.elf_sha256,
         sp1_version = sp1_sdk::SP1_CIRCUIT_VERSION.trim(),
@@ -82,17 +87,48 @@ async fn run_service(cli: Cli) -> Result<u8> {
     }
 }
 
-async fn authenticate_before_metrics<T, B, F>(
-    config: &ArtifactConfig,
-    after_authentication: B,
-) -> Result<T>
+async fn load_before_metrics<T, B, F>(config: &ArtifactConfig, after_load: B) -> Result<T>
 where
     B: FnOnce(ValidatedRangeArtifact) -> F,
     F: Future<Output = Result<T>>,
 {
-    let artifact =
-        load_range_artifact(config).await.context("failed to authenticate range artifact")?;
-    after_authentication(artifact).await
+    let artifact = load_range_artifact(config).await.context("failed to load range artifact")?;
+    after_load(artifact).await
+}
+
+fn setup_logger() {
+    let filter = build_env_filter();
+    let log_format = env::var("KONA_ZKVM_CANARY_LOG_FORMAT").unwrap_or_else(|_| "pretty".into());
+    if log_format.eq_ignore_ascii_case("json") {
+        fmt().json().with_env_filter(filter).finish().init();
+    } else {
+        let ansi = env::var("NO_COLOR").map_or(true, |value| value.is_empty());
+        fmt()
+            .with_env_filter(filter)
+            .with_target(false)
+            .with_thread_ids(false)
+            .with_thread_names(false)
+            .with_file(false)
+            .with_line_number(false)
+            .with_ansi(ansi)
+            .finish()
+            .init();
+    }
+}
+
+fn build_env_filter() -> EnvFilter {
+    let mut filter = EnvFilter::new(DEFAULT_LOG_FILTER);
+    if let Ok(directives) = env::var(EnvFilter::DEFAULT_ENV) {
+        for directive in directives.split(',') {
+            match directive.trim().parse() {
+                Ok(directive) => filter = filter.add_directive(directive),
+                Err(error) => {
+                    eprintln!("ignoring invalid RUST_LOG directive {directive:?}: {error}")
+                }
+            }
+        }
+    }
+    filter
 }
 
 async fn run_once(runner: &mut Runner, metrics: &mut CanaryMetrics) -> Result<u8> {
@@ -174,7 +210,7 @@ async fn termination_signal() -> Result<&'static str> {
 fn exit_on_signal(signal: &str, exit_code: u8) -> ! {
     tracing::info!(
         signal,
-        "termination signal received; exiting and abandoning any in-flight SP1 execution"
+        "termination signal received; exiting and abandoning any in-flight SP1 work"
     );
     std::process::exit(i32::from(exit_code));
 }
@@ -299,13 +335,9 @@ mod tests {
 
     use alloy_primitives::B256;
     use clap::error::ErrorKind;
-    use flate2::{Compression, write::GzEncoder};
-    use kona_zkvm_canary::{
-        artifact::ArtifactIdentity,
-        execution::{
-            CyclePhaseSummary, ExecutionMode, ExecutionOutcome, ExecutionResult, ReportSummary,
-            StageOutcome, StageResult,
-        },
+    use kona_zkvm_canary::execution::{
+        CyclePhaseSummary, ExecutionMode, ExecutionOutcome, ExecutionResult, ReportSummary,
+        StageOutcome, StageResult,
     };
     use tempfile::tempdir;
     use tracing_subscriber::fmt::MakeWriter;
@@ -338,38 +370,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn artifact_mismatch_exits_before_metrics_bind() {
+    async fn artifact_load_failure_exits_before_metrics_bind() {
         let directory = tempdir().unwrap();
-        let prestate = B256::repeat_byte(0x11);
-        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(b"not the configured ELF").unwrap();
-        std::fs::write(
-            directory.path().join(format!("{prestate}.range.bin.gz")),
-            encoder.finish().unwrap(),
-        )
-        .unwrap();
+        let path = directory.path().join("develop.bin.gz");
+        std::fs::write(&path, b"not gzip").unwrap();
         let config = ArtifactConfig {
-            base_url: Url::from_directory_path(directory.path()).unwrap(),
-            identity: ArtifactIdentity {
-                prestate,
-                range_vkey: B256::repeat_byte(0x22),
-                elf_sha256: B256::repeat_byte(0x33),
-            },
-            max_compressed_bytes: 1024,
-            max_decompressed_bytes: 1024,
+            url: Url::from_file_path(path).unwrap(),
             fetch_timeout: Duration::from_secs(1),
             allow_file: true,
         };
         let metrics_bound = Cell::new(false);
 
-        let error = authenticate_before_metrics(&config, |_| async {
+        let error = load_before_metrics(&config, |_| async {
             metrics_bound.set(true);
             Ok(())
         })
         .await
         .unwrap_err();
 
-        assert!(redacted_error(&error).contains("SHA-256 mismatch"));
+        assert!(redacted_error(&error).contains("valid gzip"));
         assert!(!metrics_bound.get());
     }
 

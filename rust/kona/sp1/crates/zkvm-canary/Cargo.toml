@@ -36,6 +36,7 @@ sp1-core-executor.workspace = true
 sp1-sdk = { workspace = true, features = ["profiling"] }
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "signal", "sync", "time"] }
 tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json"] }
 url.workspace = true
 
 [dev-dependencies]
@@ -43,7 +44,6 @@ httpmock.workspace = true
 metrics-util = { workspace = true, features = ["debugging"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
-tracing-subscriber = { workspace = true, features = ["fmt", "json"] }
 
 [lints]
 workspace = true

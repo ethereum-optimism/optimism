@@ -18,7 +18,7 @@ use kona_sp1_host_utils::metrics::MetricsListen;
 use kona_sp1_super_range_executor::HostInputs;
 use url::Url;
 
-use crate::artifact::{ArtifactConfig, ArtifactIdentity};
+use crate::artifact::ArtifactConfig;
 
 const ENV_PREFIX: &str = "KONA_ZKVM_CANARY_";
 const MAX_SPAN_LENGTH: u8 = 16;
@@ -32,8 +32,6 @@ const DEFAULT_RPC_REQUEST_TIMEOUT_SECONDS: u64 = 30;
 const DEFAULT_ARTIFACT_REQUEST_TIMEOUT_SECONDS: u64 = 60;
 const DEFAULT_PARENT_RESPONSE_BYTES: u32 = 4 * 1024 * 1024;
 const DEFAULT_PARENT_RESPONSE_ENTRIES: usize = 256;
-const DEFAULT_ARTIFACT_COMPRESSED_BYTES: usize = 256 * 1024 * 1024;
-const DEFAULT_ARTIFACT_DECOMPRESSED_BYTES: usize = 1024 * 1024 * 1024;
 const DEFAULT_MEMORY_LIMIT_BYTES: u64 = 24 * 1024 * 1024 * 1024;
 
 /// Service operation selected before environment validation.
@@ -54,7 +52,7 @@ pub struct L2Rpc {
     pub url: Url,
 }
 
-/// Validated runtime configuration for one network and artifact release.
+/// Validated runtime configuration for one network and artifact source.
 #[derive(Clone, Debug)]
 pub struct CanaryConfig {
     /// Supernode endpoint serving `superroot_atTimestamp`.
@@ -81,7 +79,7 @@ pub struct CanaryConfig {
     pub attempt_deadline: Duration,
     /// Deadline for each parent JSON-RPC request.
     pub rpc_request_timeout: Duration,
-    /// Expected release and bounds for the range ELF.
+    /// Published range ELF location and request deadline.
     pub artifact: ArtifactConfig,
     /// Prometheus listener selection.
     pub metrics_listen: MetricsListen,
@@ -170,26 +168,8 @@ impl CanaryConfig {
         )?;
 
         let artifact_url = parse_artifact_url(values, mode)?;
-        let artifact_identity = ArtifactIdentity {
-            prestate: parse_required(values, "PRESTATE")?,
-            range_vkey: parse_required(values, "RANGE_VKEY")?,
-            elf_sha256: parse_required(values, "ELF_SHA256")?,
-        };
-        let max_artifact_compressed_bytes = parse_nonzero_or(
-            values,
-            "MAX_ARTIFACT_COMPRESSED_BYTES",
-            DEFAULT_ARTIFACT_COMPRESSED_BYTES,
-        )?;
-        let max_artifact_decompressed_bytes = parse_nonzero_or(
-            values,
-            "MAX_ARTIFACT_DECOMPRESSED_BYTES",
-            DEFAULT_ARTIFACT_DECOMPRESSED_BYTES,
-        )?;
         let artifact = ArtifactConfig {
-            base_url: artifact_url,
-            identity: artifact_identity,
-            max_compressed_bytes: max_artifact_compressed_bytes.get(),
-            max_decompressed_bytes: max_artifact_decompressed_bytes.get(),
+            url: artifact_url,
             fetch_timeout: Duration::from_secs(artifact_request_timeout_seconds.get()),
             allow_file: mode == ServiceMode::Once,
         };
@@ -505,8 +485,6 @@ fn validate_dependency_set(
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::B256;
-
     use super::*;
 
     fn valid_values() -> BTreeMap<String, String> {
@@ -515,10 +493,7 @@ mod tests {
             ("L1_RPC".into(), "https://l1.example".into()),
             ("L1_BEACON_RPC".into(), "https://beacon.example".into()),
             ("L2_RPCS".into(), "10=https://op.example,8453=https://base.example".into()),
-            ("PRESTATES_URL".into(), "https://artifacts.example/releases/v1/".into()),
-            ("PRESTATE".into(), format!("{}", B256::repeat_byte(0x11))),
-            ("RANGE_VKEY".into(), format!("{}", B256::repeat_byte(0x22))),
-            ("ELF_SHA256".into(), format!("{}", B256::repeat_byte(0x33))),
+            ("PRESTATES_URL".into(), "https://artifacts.example/develop.bin.gz".into()),
             ("GUEST_CYCLE_LIMIT".into(), "1000000".into()),
         ])
     }
@@ -556,8 +531,6 @@ mod tests {
             ("ARTIFACT_REQUEST_TIMEOUT_SECONDS", "0", "non-zero"),
             ("MAX_PARENT_RESPONSE_BYTES", "0", "non-zero"),
             ("MAX_PARENT_RESPONSE_ENTRIES", "0", "non-zero"),
-            ("MAX_ARTIFACT_COMPRESSED_BYTES", "0", "non-zero"),
-            ("MAX_ARTIFACT_DECOMPRESSED_BYTES", "0", "non-zero"),
             ("GUEST_CYCLE_LIMIT", "0", "non-zero"),
             ("MEMORY_LIMIT", "0", "non-zero"),
             ("JITTER_SECONDS", "301", "must not exceed"),
@@ -573,9 +546,6 @@ mod tests {
             "L1_BEACON_RPC",
             "L2_RPCS",
             "PRESTATES_URL",
-            "PRESTATE",
-            "RANGE_VKEY",
-            "ELF_SHA256",
             "GUEST_CYCLE_LIMIT",
         ] {
             let mut values = valid_values();
@@ -603,7 +573,7 @@ mod tests {
         assert_rejected(&values, "duplicate chain ID 10");
 
         let mut values = valid_values();
-        values.insert("PRESTATES_URL".into(), "file:///tmp/prestates".into());
+        values.insert("PRESTATES_URL".into(), "file:///tmp/develop.bin.gz".into());
         assert_rejected(&values, "only with --once");
         let once = CanaryConfig::from_values(&values, ServiceMode::Once).unwrap();
         assert!(once.artifact.allow_file);
