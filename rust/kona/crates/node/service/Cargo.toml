@@ -76,6 +76,7 @@ rand.workspace = true
 anyhow.workspace = true
 backon.workspace = true
 mockall.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 alloy-primitives = { workspace = true, features = ["k256"] }
 alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }
 alloy-consensus = { workspace = true, features = ["arbitrary"] }
