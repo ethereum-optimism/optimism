@@ -1,4 +1,4 @@
-//! Canonical finalized snapshot selection and post-run revalidation.
+//! Canonical finalized snapshot selection.
 
 use std::collections::BTreeMap;
 
@@ -8,8 +8,8 @@ use jsonrpsee_core::{client::ClientT, rpc_params};
 use jsonrpsee_http_client::{HttpClient, HttpClientBuilder};
 use kona_sp1_client_utils::super_root::{TimestampSpan, hash_super_root_proof};
 use kona_sp1_super_range_executor::{
-    BlockId, ChainId, HostInputs, OutputV0, SuperRootAtTimestampResponse, SuperRootResponseData,
-    SynthesizedExecution, proof_from_super_v1, synthesize_execution,
+    BlockId, ChainId, HostInputs, OutputV0, SuperRootAtTimestampResponse, SynthesizedExecution,
+    proof_from_super_v1, synthesize_execution,
 };
 use serde::{Deserialize, de::IgnoredAny};
 use serde_json::{Value, value::RawValue};
@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{artifact::ArtifactIdentity, config::CanaryConfig};
 
-const MAX_REVALIDATION_DETAIL_BYTES: usize = 1024;
+const MAX_PARENT_DETAIL_BYTES: usize = 1024;
 const MAX_PARENT_REQUEST_BYTES: u32 = 64 * 1024;
 const FINGERPRINT_DOMAIN: &[u8] = b"kona-zkvm-canary-snapshot-v1";
 
@@ -43,14 +43,10 @@ struct PinBounds {
 /// A snapshot accepted by every parent-side trust and canonicality check.
 #[derive(Clone)]
 pub struct ValidatedSnapshot {
-    discovery_timestamp: u64,
     span: TimestampSpan,
     pinned_l1: CanonicalL1Block,
-    l1_finalized: CanonicalL1Block,
-    supernode_horizon: u64,
     responses: Vec<SuperRootAtTimestampResponse>,
     chain_ids: Vec<u64>,
-    canonical_l1: Vec<CanonicalL1Block>,
     artifact_identity: ArtifactIdentity,
     fingerprint: B256,
     host_inputs: HostInputs,
@@ -60,14 +56,10 @@ impl std::fmt::Debug for ValidatedSnapshot {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("ValidatedSnapshot")
-            .field("discovery_timestamp", &self.discovery_timestamp)
             .field("span", &self.span)
             .field("pinned_l1", &self.pinned_l1)
-            .field("l1_finalized", &self.l1_finalized)
-            .field("supernode_horizon", &self.supernode_horizon)
             .field("response_count", &self.responses.len())
             .field("chain_ids", &self.chain_ids)
-            .field("canonical_l1", &self.canonical_l1)
             .field("artifact_identity", &self.artifact_identity)
             .field("fingerprint", &self.fingerprint)
             .finish()
@@ -95,11 +87,6 @@ impl ValidatedSnapshot {
         &self.chain_ids
     }
 
-    /// Returns all L1 identities whose canonicality was established during selection.
-    pub fn canonical_l1(&self) -> &[CanonicalL1Block] {
-        &self.canonical_l1
-    }
-
     /// Returns the release identity included in this attempt.
     pub const fn artifact_identity(&self) -> ArtifactIdentity {
         self.artifact_identity
@@ -120,23 +107,6 @@ impl ValidatedSnapshot {
         let pin = self.pinned_l1.block_id();
         synthesize_execution(self.span, pin.hash, pin.number, &self.responses)
     }
-}
-
-/// Result of comparing a completed attempt with a fresh canonical refetch.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SnapshotRevalidation {
-    /// Every attempt identity is still current and canonical.
-    Current,
-    /// A commitment or canonical identity changed during execution.
-    Stale {
-        /// Bounded diagnostic detail for logs.
-        reason: String,
-    },
-    /// The parent could not obtain a trustworthy comparison fixture.
-    Unavailable {
-        /// Bounded diagnostic detail for logs.
-        error: String,
-    },
 }
 
 /// Bounded parent clients and trust policy for one configured deployment.
@@ -204,98 +174,9 @@ impl SnapshotSource {
             self.resolve_pin(discovery.current_l1).await.map_err(BuildFailure::into_anyhow)?;
         let responses =
             self.fetch_responses(agreed, target).await.map_err(FetchFailure::into_anyhow)?;
-        self.validate_snapshot(now, span, pin, responses, pin_bounds, Some(discovery.current_l1))
+        self.validate_snapshot(span, pin, responses, pin_bounds, discovery.current_l1)
             .await
             .map_err(BuildFailure::into_anyhow)
-    }
-
-    /// Re-fetches every claim and canonical L1 identity after execution.
-    pub async fn revalidate(&self, snapshot: &ValidatedSnapshot) -> SnapshotRevalidation {
-        for canonical in &snapshot.canonical_l1 {
-            let expected = canonical.block_id();
-            match self.fetch_l1_block(expected.number).await {
-                Ok(Some(actual)) if actual.hash == expected.hash => {}
-                Ok(Some(actual)) => {
-                    return stale(format!(
-                        "canonical L1 block {} changed from {} to {}",
-                        expected.number, expected.hash, actual.hash,
-                    ));
-                }
-                Ok(None) => {
-                    return stale(format!(
-                        "canonical L1 block {} is no longer available",
-                        expected.number
-                    ));
-                }
-                Err(error) => return unavailable(error.into_anyhow()),
-            }
-        }
-
-        let discovery = match self.fetch_superroot(snapshot.discovery_timestamp).await {
-            Ok(discovery) => discovery,
-            Err(error) => return unavailable(error.into_anyhow()),
-        };
-        if let Err(BuildFailure::Invalid(error)) =
-            validate_safety_horizons(snapshot.discovery_timestamp, "discovery", &discovery)
-        {
-            return stale(error);
-        }
-        let (refreshed_pin, refreshed_pin_bounds) =
-            match self.resolve_pin(discovery.current_l1).await {
-                Ok(resolved) => resolved,
-                Err(BuildFailure::Invalid(error)) => return stale(error),
-                Err(BuildFailure::Unavailable(error)) => return unavailable(error.into_anyhow()),
-            };
-        let selected_pin = snapshot.pinned_l1.block_id();
-        if refreshed_pin.number < selected_pin.number {
-            return stale(format!(
-                "canonical pin regressed below selected L1 {} to {} (L1 finalized head {}, supernode horizon {})",
-                selected_pin.number,
-                refreshed_pin.number,
-                refreshed_pin_bounds.l1_finalized.number,
-                refreshed_pin_bounds.supernode_horizon,
-            ));
-        }
-        if refreshed_pin.number == selected_pin.number && refreshed_pin.hash != selected_pin.hash {
-            return stale(format!(
-                "canonical pin {} changed from {} to {}",
-                selected_pin.number, selected_pin.hash, refreshed_pin.hash,
-            ));
-        }
-
-        let agreed = snapshot.span.start - 1;
-        let responses = match self.fetch_responses(agreed, snapshot.span.end).await {
-            Ok(responses) => responses,
-            Err(error) => return unavailable(error.into_anyhow()),
-        };
-        let original_claims = response_claims(agreed, &snapshot.responses);
-        let refreshed_claims = response_claims(agreed, &responses);
-        if original_claims != refreshed_claims {
-            return stale("super-root response claims changed during execution");
-        }
-
-        let refreshed = match self
-            .validate_snapshot(
-                snapshot.discovery_timestamp,
-                snapshot.span,
-                selected_pin,
-                responses,
-                refreshed_pin_bounds,
-                None,
-            )
-            .await
-        {
-            Ok(refreshed) => refreshed,
-            Err(BuildFailure::Invalid(error)) => return stale(error),
-            Err(BuildFailure::Unavailable(error)) => return unavailable(error.into_anyhow()),
-        };
-        if refreshed.pinned_l1 != snapshot.pinned_l1 {
-            return stale("pinned L1 identity changed during execution");
-        }
-        if refreshed.fingerprint != snapshot.fingerprint {
-            return stale("snapshot fingerprint changed during execution");
-        }
-        SnapshotRevalidation::Current
     }
 
     async fn fetch_responses(
@@ -422,12 +303,11 @@ impl SnapshotSource {
 
     async fn validate_snapshot(
         &self,
-        discovery_timestamp: u64,
         span: TimestampSpan,
         pin: BlockId,
         responses: Vec<SuperRootAtTimestampResponse>,
         pin_bounds: PinBounds,
-        discovery_current_l1: Option<BlockId>,
+        discovery_current_l1: BlockId,
     ) -> std::result::Result<ValidatedSnapshot, BuildFailure> {
         let agreed = span.start - 1;
         let expected_count = usize::try_from(span.end - agreed + 1)
@@ -444,9 +324,7 @@ impl SnapshotSource {
         let mut references = BTreeMap::new();
         insert_reference(&mut references, pin, "pinned L1")?;
         insert_reference(&mut references, pin_bounds.l1_finalized, "L1 finalized head")?;
-        if let Some(current_l1) = discovery_current_l1 {
-            insert_reference(&mut references, current_l1, "discovery CurrentL1")?;
-        }
+        insert_reference(&mut references, discovery_current_l1, "discovery CurrentL1")?;
         for (offset, response) in responses.iter().enumerate() {
             let timestamp = agreed + offset as u64;
             self.validate_response(
@@ -462,7 +340,6 @@ impl SnapshotSource {
         synthesize_execution(span, pin.hash, pin.number, &responses)
             .map_err(|error| BuildFailure::Invalid(error.context("snapshot synthesis failed")))?;
 
-        let mut canonical_l1 = Vec::with_capacity(references.len());
         for (number, expected) in references {
             let actual =
                 self.fetch_l1_block(number).await.map_err(BuildFailure::Unavailable)?.ok_or_else(
@@ -475,21 +352,16 @@ impl SnapshotSource {
                     expected.hash,
                 )));
             }
-            canonical_l1.push(CanonicalL1Block { block: actual });
         }
 
         let chain_ids = self.configured_chain_ids.clone();
         let fingerprint = snapshot_fingerprint(self.artifact_identity, span, pin, &responses)
             .map_err(BuildFailure::Invalid)?;
         Ok(ValidatedSnapshot {
-            discovery_timestamp,
             span,
             pinned_l1: CanonicalL1Block { block: pin },
-            l1_finalized: CanonicalL1Block { block: pin_bounds.l1_finalized },
-            supernode_horizon: pin_bounds.supernode_horizon,
             responses,
             chain_ids,
-            canonical_l1,
             artifact_identity: self.artifact_identity,
             fingerprint,
             host_inputs: self.host_inputs.clone(),
@@ -549,6 +421,7 @@ impl SnapshotSource {
                 data.super_root,
             )));
         }
+        // These horizons must describe one internally consistent supernode view.
         if response.current_l1.number <= data.verified_required_l1.number {
             return Err(BuildFailure::Invalid(anyhow!(
                 "timestamp {timestamp} CurrentL1 {} has not advanced beyond verified required L1 {}",
@@ -679,14 +552,6 @@ struct RpcBlock {
     number: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ResponseClaims {
-    requested_timestamp: u64,
-    chain_ids: Vec<ChainId>,
-    optimistic_at_timestamp: BTreeMap<ChainId, kona_sp1_super_range_executor::OutputWithRequiredL1>,
-    data: Option<SuperRootResponseData>,
-}
-
 #[derive(Deserialize)]
 struct SuperRootPreflight {
     #[serde(default)]
@@ -738,22 +603,6 @@ impl<'de> Deserialize<'de> for UniqueOptimisticKeys {
     }
 }
 
-fn response_claims(
-    first_timestamp: u64,
-    responses: &[SuperRootAtTimestampResponse],
-) -> Vec<ResponseClaims> {
-    responses
-        .iter()
-        .enumerate()
-        .map(|(offset, response)| ResponseClaims {
-            requested_timestamp: first_timestamp + offset as u64,
-            chain_ids: response.chain_ids.clone(),
-            optimistic_at_timestamp: response.optimistic_at_timestamp.clone(),
-            data: response.data.clone(),
-        })
-        .collect()
-}
-
 fn preflight_superroot_json(raw: &str, max_entries: usize) -> Result<()> {
     let preflight: SuperRootPreflight = serde_json::from_str(raw).map_err(|error| {
         anyhow!(
@@ -769,6 +618,7 @@ fn preflight_superroot_json(raw: &str, max_entries: usize) -> Result<()> {
     Ok(())
 }
 
+/// Rejects internally contradictory supernode safety labels before guest execution.
 fn validate_safety_horizons(
     timestamp: u64,
     label: &str,
@@ -997,19 +847,11 @@ where
     deserializer.deserialize_any(Visitor)
 }
 
-fn stale(reason: impl std::fmt::Display) -> SnapshotRevalidation {
-    SnapshotRevalidation::Stale { reason: bounded_detail(&reason.to_string()) }
-}
-
-fn unavailable(error: anyhow::Error) -> SnapshotRevalidation {
-    SnapshotRevalidation::Unavailable { error: bounded_detail(&format!("{error:#}")) }
-}
-
 fn bounded_detail(detail: &str) -> String {
-    if detail.len() <= MAX_REVALIDATION_DETAIL_BYTES {
+    if detail.len() <= MAX_PARENT_DETAIL_BYTES {
         return detail.to_string();
     }
-    let mut boundary = MAX_REVALIDATION_DETAIL_BYTES;
+    let mut boundary = MAX_PARENT_DETAIL_BYTES;
     while !detail.is_char_boundary(boundary) {
         boundary -= 1;
     }
@@ -1026,7 +868,9 @@ mod tests {
 
     use httpmock::{Mock, MockServer, prelude::POST};
     use kona_sp1_host_utils::metrics::MetricsListen;
-    use kona_sp1_super_range_executor::{ChainIdAndOutput, OutputWithRequiredL1, SuperV1};
+    use kona_sp1_super_range_executor::{
+        ChainIdAndOutput, OutputWithRequiredL1, SuperRootResponseData, SuperV1,
+    };
     use serde_json::json;
     use url::Url;
 
@@ -1316,14 +1160,8 @@ mod tests {
 
         assert_eq!(snapshot.span(), TimestampSpan::new(11, TARGET).unwrap());
         assert_eq!(snapshot.pinned_l1().block_id(), block(100));
-        assert_eq!(snapshot.l1_finalized.block_id(), block(101));
-        assert_eq!(snapshot.supernode_horizon, 100);
         assert_eq!(snapshot.responses().len(), 3);
         assert_eq!(snapshot.chain_ids(), &[CHAIN_ID]);
-        assert_eq!(
-            snapshot.canonical_l1().iter().map(|block| block.block_id().number).collect::<Vec<_>>(),
-            vec![99, 100, 101],
-        );
         assert_ne!(snapshot.fingerprint(), B256::ZERO);
         snapshot.synthesize_execution().unwrap();
 
@@ -1345,8 +1183,6 @@ mod tests {
         let snapshot = source.select_finalized(NOW).await.unwrap();
 
         assert_eq!(snapshot.pinned_l1().block_id(), block(100));
-        assert_eq!(snapshot.l1_finalized.block_id(), block(100));
-        assert_eq!(snapshot.supernode_horizon, 101);
     }
 
     #[tokio::test]
@@ -1366,57 +1202,6 @@ mod tests {
         let detail = format!("{error:#}");
         assert!(detail.contains("timestamp 10 chain 10 optimistic required L1 100"));
         assert!(detail.contains("exceeds pinned L1 99"));
-    }
-
-    #[tokio::test]
-    async fn pin_bound_regression_makes_snapshot_stale() {
-        let server = MockServer::start();
-        let _ = register_superroot(&server, NOW, &discovery());
-        let mut finalized = register_l1_finalized(&server, &block_json(block(101)));
-        for (timestamp, response) in (AGREED..=TARGET).zip(base_responses()) {
-            let _ = register_superroot(&server, timestamp, &response);
-        }
-        for (&number, result) in &base_blocks() {
-            let _ = register_l1(&server, number, result);
-        }
-        let source = SnapshotSource::new(&config(&server)).unwrap();
-        let snapshot = source.select_finalized(NOW).await.unwrap();
-
-        for mock in &mut finalized {
-            mock.delete();
-        }
-        let _ = register_l1_finalized(&server, &block_json(block(99)));
-        assert!(matches!(
-            source.revalidate(&snapshot).await,
-            SnapshotRevalidation::Stale { reason }
-                if reason.contains("canonical pin regressed") &&
-                    reason.contains("L1 finalized head 99")
-        ));
-
-        let server = MockServer::start();
-        let mut discovery_mocks = register_superroot(&server, NOW, &discovery());
-        let _ = register_l1_finalized(&server, &block_json(block(101)));
-        for (timestamp, response) in (AGREED..=TARGET).zip(base_responses()) {
-            let _ = register_superroot(&server, timestamp, &response);
-        }
-        for (&number, result) in &base_blocks() {
-            let _ = register_l1(&server, number, result);
-        }
-        let source = SnapshotSource::new(&config(&server)).unwrap();
-        let snapshot = source.select_finalized(NOW).await.unwrap();
-
-        for mock in &mut discovery_mocks {
-            mock.delete();
-        }
-        let mut regressed_discovery = discovery();
-        regressed_discovery.current_l1 = block(100);
-        let _ = register_superroot(&server, NOW, &regressed_discovery);
-        assert!(matches!(
-            source.revalidate(&snapshot).await,
-            SnapshotRevalidation::Stale { reason }
-                if reason.contains("canonical pin regressed") &&
-                    reason.contains("supernode horizon 99")
-        ));
     }
 
     #[tokio::test]
@@ -1505,80 +1290,5 @@ mod tests {
                 "unexpected error: {error:#}",
             );
         }
-    }
-
-    #[tokio::test]
-    async fn discards_result_when_snapshot_changes_during_execution() {
-        let server = MockServer::start();
-        let _ = register_superroot(&server, NOW, &discovery());
-        let _ = register_l1_finalized(&server, &block_json(block(101)));
-        let responses = base_responses();
-        let _ = register_superroot(&server, AGREED, &responses[0]);
-        let _ = register_superroot(&server, AGREED + 1, &responses[1]);
-        let mut target = register_superroot(&server, TARGET, &responses[2]);
-        for (&number, result) in &base_blocks() {
-            let _ = register_l1(&server, number, result);
-        }
-        let source = SnapshotSource::new(&config(&server)).unwrap();
-        let snapshot = source.select_finalized(NOW).await.unwrap();
-
-        for mock in &mut target {
-            mock.delete();
-        }
-        let mut changed = response(TARGET, CHAIN_ID);
-        let changed_output = output(0xee, block(100));
-        changed
-            .optimistic_at_timestamp
-            .insert(ChainId(U256::from(CHAIN_ID)), changed_output.clone());
-        let data = changed.data.as_mut().unwrap();
-        data.super_v1.chains[0].output = changed_output.output_root;
-        data.super_root =
-            hash_super_root_proof(&proof_from_super_v1(&data.super_v1).unwrap()).unwrap();
-        let mut changed_mocks = register_superroot(&server, TARGET, &changed);
-
-        assert!(matches!(source.revalidate(&snapshot).await, SnapshotRevalidation::Stale { .. }));
-
-        for mock in &mut changed_mocks {
-            mock.delete();
-        }
-        server.mock(|when, then| {
-            when.method(POST)
-                .body_includes("\"method\":\"superroot_atTimestamp\"")
-                .body_includes(format!("\"0x{TARGET:x}\""));
-            then.status(503);
-        });
-        assert!(matches!(
-            source.revalidate(&snapshot).await,
-            SnapshotRevalidation::Unavailable { .. }
-        ));
-    }
-
-    #[tokio::test]
-    async fn finalized_horizon_regression_makes_snapshot_stale() {
-        let server = MockServer::start();
-        let _ = register_superroot(&server, NOW, &discovery());
-        let _ = register_l1_finalized(&server, &block_json(block(101)));
-        let responses = base_responses();
-        let _ = register_superroot(&server, AGREED, &responses[0]);
-        let _ = register_superroot(&server, AGREED + 1, &responses[1]);
-        let mut target = register_superroot(&server, TARGET, &responses[2]);
-        for (&number, result) in &base_blocks() {
-            let _ = register_l1(&server, number, result);
-        }
-        let source = SnapshotSource::new(&config(&server)).unwrap();
-        let snapshot = source.select_finalized(NOW).await.unwrap();
-
-        for mock in &mut target {
-            mock.delete();
-        }
-        let mut regressed = responses[2].clone();
-        regressed.current_finalized_timestamp = TARGET - 1;
-        let _ = register_superroot(&server, TARGET, &regressed);
-
-        assert!(matches!(
-            source.revalidate(&snapshot).await,
-            SnapshotRevalidation::Stale { reason }
-                if reason.contains("finalized horizon")
-        ));
     }
 }

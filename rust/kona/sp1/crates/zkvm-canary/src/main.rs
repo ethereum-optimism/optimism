@@ -15,6 +15,7 @@ use kona_zkvm_canary::{
     config::{CanaryConfig, ServiceMode},
     execution::ReportSummary,
     metrics::CanaryMetrics,
+    redaction::redact_sensitive_detail,
     runner::{AttemptResult, RunOutcome, Runner, RunnerEvent},
 };
 use tokio::sync::watch;
@@ -26,7 +27,7 @@ const MAX_LOG_ERROR_BYTES: usize = 4096;
 #[derive(Debug, Parser)]
 #[command(name = "kona-zkvm-canary", version, about = env!("CARGO_PKG_DESCRIPTION"))]
 struct Cli {
-    /// Run one normal selection, execution, and revalidation attempt, then exit.
+    /// Run one normal selection and execution attempt, then exit.
     #[arg(long)]
     once: bool,
 }
@@ -95,12 +96,28 @@ where
 }
 
 async fn run_once(runner: &mut Runner, metrics: &mut CanaryMetrics) -> Result<u8> {
-    let (_shutdown_tx, mut shutdown) = watch::channel(false);
+    let (shutdown_tx, mut shutdown) = watch::channel(false);
+    let execution_active = runner.execution_activity();
     observe_and_log(metrics, &RunnerEvent::SchedulerHeartbeat { unix_time: unix_now() });
     observe_and_log(metrics, &RunnerEvent::RunActive { active: true });
+    let mut run = runner.run_one(&mut shutdown);
     let result = tokio::select! {
-        result = runner.run_one(&mut shutdown) => result,
-        signal = termination_signal() => exit_on_signal(signal?, signal_exit_code(true)),
+        result = &mut run => result,
+        signal = termination_signal() => {
+            let signal = signal?;
+            if *execution_active.borrow() {
+                exit_on_signal(signal, signal_exit_code(true));
+            }
+            tracing::info!(signal, "termination signal received; stopping scheduler");
+            let _ = shutdown_tx.send(true);
+            if let Some(event) = run.await? {
+                metrics.observe(&event);
+                log_runner_event(&event);
+            }
+            observe_and_log(metrics, &RunnerEvent::RunActive { active: false });
+            metrics.mark_down();
+            return Ok(signal_exit_code(true));
+        }
     };
     observe_and_log(metrics, &RunnerEvent::RunActive { active: false });
     let event =
@@ -112,16 +129,27 @@ async fn run_once(runner: &mut Runner, metrics: &mut CanaryMetrics) -> Result<u8
 }
 
 async fn run_loop(runner: &mut Runner, metrics: &mut CanaryMetrics) -> Result<u8> {
-    let (_shutdown_tx, shutdown) = watch::channel(false);
+    let (shutdown_tx, shutdown) = watch::channel(false);
+    let execution_active = runner.execution_activity();
+    let mut run = runner.run(shutdown, |event| {
+        metrics.observe(event);
+        log_runner_event(event);
+    });
     tokio::select! {
-        result = runner.run(shutdown, |event| {
-            metrics.observe(event);
-            log_runner_event(event);
-        }) => {
+        result = &mut run => {
             result?;
             Ok(EXIT_VALID)
         }
-        signal = termination_signal() => exit_on_signal(signal?, signal_exit_code(false)),
+        signal = termination_signal() => {
+            let signal = signal?;
+            if *execution_active.borrow() {
+                exit_on_signal(signal, signal_exit_code(false));
+            }
+            tracing::info!(signal, "termination signal received; stopping scheduler");
+            let _ = shutdown_tx.send(true);
+            run.await?;
+            Ok(signal_exit_code(false))
+        }
     }
 }
 
@@ -196,7 +224,7 @@ fn log_attempt(result: &AttemptResult) {
     let range_outcome = result.execution.as_ref().map(|execution| execution.range.outcome);
     let consolidation_outcome =
         result.execution.as_ref().map(|execution| execution.consolidation.outcome);
-    let detail = result.detail.as_deref().map(redacted_log_detail);
+    let detail = result.detail.as_deref().map(redact_sensitive_detail);
     tracing::info!(
         outcome = outcome_label(result.outcome),
         fingerprint = ?result.fingerprint,
@@ -233,10 +261,7 @@ const fn exit_code_for_outcome(outcome: RunOutcome) -> u8 {
     match outcome {
         RunOutcome::Valid => EXIT_VALID,
         RunOutcome::GuestRejected | RunOutcome::OutputMismatch => EXIT_INVALID,
-        RunOutcome::StaleSnapshot |
-        RunOutcome::InputError |
-        RunOutcome::CycleLimitExceeded |
-        RunOutcome::Timeout => EXIT_INFRA,
+        RunOutcome::InputError | RunOutcome::CycleLimitExceeded | RunOutcome::Timeout => EXIT_INFRA,
     }
 }
 
@@ -245,22 +270,16 @@ const fn outcome_label(outcome: RunOutcome) -> &'static str {
         RunOutcome::Valid => "valid",
         RunOutcome::GuestRejected => "guest_rejected",
         RunOutcome::OutputMismatch => "output_mismatch",
-        RunOutcome::StaleSnapshot => "stale_snapshot",
         RunOutcome::InputError => "input_error",
         RunOutcome::CycleLimitExceeded => "cycle_limit_exceeded",
         RunOutcome::Timeout => "timeout",
     }
 }
 
-fn redacted_log_detail(detail: &str) -> &str {
-    if detail.contains("://") { "[redacted URL-bearing detail]" } else { detail }
-}
-
 fn redacted_error(error: &anyhow::Error) -> String {
-    let rendered = format!("{error:#}");
-    let rendered = redacted_log_detail(&rendered);
+    let rendered = redact_sensitive_detail(&format!("{error:#}"));
     if rendered.len() <= MAX_LOG_ERROR_BYTES {
-        return rendered.to_string();
+        return rendered;
     }
     let mut boundary = MAX_LOG_ERROR_BYTES;
     while !rendered.is_char_boundary(boundary) {
@@ -284,8 +303,8 @@ mod tests {
     use kona_zkvm_canary::{
         artifact::ArtifactIdentity,
         execution::{
-            ExecutionMode, ExecutionOutcome, ExecutionResult, ReportSummary, StageOutcome,
-            StageResult,
+            CyclePhaseSummary, ExecutionMode, ExecutionOutcome, ExecutionResult, ReportSummary,
+            StageOutcome, StageResult,
         },
     };
     use tempfile::tempdir;
@@ -350,8 +369,21 @@ mod tests {
         .await
         .unwrap_err();
 
-        assert!(format!("{error:#}").contains("SHA-256 mismatch"));
+        assert!(redacted_error(&error).contains("SHA-256 mismatch"));
         assert!(!metrics_bound.get());
+    }
+
+    #[test]
+    fn startup_errors_redact_url_secrets_without_discarding_context() {
+        let error = anyhow!(
+            "artifact fetch failed at https://user:secret@example.test/release?token=hidden"
+        );
+        let detail = redacted_error(&error);
+
+        assert!(detail.contains("artifact fetch failed at https://example.test/release"));
+        for secret in ["user:secret", "token=hidden"] {
+            assert!(!detail.contains(secret));
+        }
     }
 
     #[test]
@@ -371,6 +403,8 @@ mod tests {
         let record: serde_json::Value = serde_json::from_str(rendered.trim()).unwrap();
         assert_eq!(record["fields"]["outcome"], "guest_rejected");
         assert!(record["fields"]["range_report"].as_str().unwrap().contains("Range"));
+        assert!(record["fields"]["range_report"].as_str().unwrap().contains("derive"));
+        assert!(record["fields"]["range_report"].as_str().unwrap().contains("cycles: 12"));
         assert!(
             record["fields"]["consolidation_report"].as_str().unwrap().contains("Consolidation")
         );
@@ -384,7 +418,6 @@ mod tests {
             (RunOutcome::Valid, EXIT_VALID),
             (RunOutcome::GuestRejected, EXIT_INVALID),
             (RunOutcome::OutputMismatch, EXIT_INVALID),
-            (RunOutcome::StaleSnapshot, EXIT_INFRA),
             (RunOutcome::InputError, EXIT_INFRA),
             (RunOutcome::CycleLimitExceeded, EXIT_INFRA),
             (RunOutcome::Timeout, EXIT_INFRA),
@@ -438,7 +471,11 @@ mod tests {
                 exit_code: 0,
                 opcode_details: Vec::new(),
                 syscall_details: Vec::new(),
-                cycle_phases: Vec::new(),
+                cycle_phases: vec![CyclePhaseSummary {
+                    phase: "derive".to_string(),
+                    cycles: 12,
+                    invocations: 2,
+                }],
             }),
             witness_seconds: 0.5,
             execute_seconds: Some(1.0),

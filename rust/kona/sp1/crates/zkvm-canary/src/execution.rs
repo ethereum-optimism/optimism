@@ -14,15 +14,46 @@ use kona_sp1_super_range_executor::{
 };
 use sp1_core_executor::{ExecutionError, SP1CoreOpts};
 use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient};
-use tokio::time::Instant;
+use tokio::{sync::watch, time::Instant};
 
-use crate::artifact::ValidatedRangeArtifact;
+use crate::{artifact::ValidatedRangeArtifact, redaction::redact_sensitive_detail};
 
 const MAX_REPORT_DETAILS: usize = 128;
 const MAX_CYCLE_PHASES: usize = 64;
 const MAX_DETAIL_NAME_BYTES: usize = 64;
 const MAX_ERROR_BYTES: usize = 4096;
 const OTHER_PHASE: &str = "other";
+
+#[derive(Clone, Debug)]
+pub(crate) struct ExecutionActivity {
+    active: watch::Sender<bool>,
+}
+
+impl ExecutionActivity {
+    pub(crate) fn new() -> Self {
+        let (active, _) = watch::channel(false);
+        Self { active }
+    }
+
+    pub(crate) fn subscribe(&self) -> watch::Receiver<bool> {
+        self.active.subscribe()
+    }
+
+    pub(crate) fn enter(&self) -> ExecutionActivityGuard {
+        self.active.send_replace(true);
+        ExecutionActivityGuard { active: self.active.clone() }
+    }
+}
+
+pub(crate) struct ExecutionActivityGuard {
+    active: watch::Sender<bool>,
+}
+
+impl Drop for ExecutionActivityGuard {
+    fn drop(&mut self) {
+        self.active.send_replace(false);
+    }
+}
 
 /// Guest mode represented by a completed stage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -224,7 +255,7 @@ pub enum ExecutionOutcome {
     InfrastructureFailure,
 }
 
-/// Complete in-process execution result before post-run snapshot validation.
+/// Complete in-process execution result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExecutionResult {
     /// Overall typed result.
@@ -236,13 +267,14 @@ pub struct ExecutionResult {
 }
 
 /// Executes range and consolidation against a synthesized canonical snapshot.
-pub async fn execute_snapshot(
+pub(crate) async fn execute_snapshot(
     host_inputs: &HostInputs,
     synthesized: &SynthesizedExecution,
     artifact: &ValidatedRangeArtifact,
     cycle_limit: NonZeroU64,
     memory_limit: NonZeroU64,
     deadline: Instant,
+    execution_activity: &ExecutionActivity,
 ) -> ExecutionResult {
     let range_witness_started = Instant::now();
     let range_host = match build_interop_host(
@@ -292,33 +324,42 @@ pub async fn execute_snapshot(
     let client = ProverClient::builder().cpu().with_opts(core_opts).build().await;
     let range_execute_started = Instant::now();
     let range = match build_super_range_stdin(&synthesized.range_inputs, range_witness) {
-        Ok(stdin) => match client
-            .execute(Elf::Dynamic(artifact.bytes()), stdin)
-            .cycle_limit(cycle_limit.get())
-            .await
-        {
-            Ok((mut public_values, report)) => {
-                let summary = ReportSummary::from_report(ExecutionMode::Range, &report);
-                let classified =
-                    decode_super_range_public_values(&mut public_values).and_then(|decoded| {
-                        classify_range_outputs(&native_range, &decoded, &synthesized.range_inputs)
-                    });
-                stage_from_classification(
+        Ok(stdin) => {
+            let execution = {
+                let _active = execution_activity.enter();
+                client
+                    .execute(Elf::Dynamic(artifact.bytes()), stdin)
+                    .cycle_limit(cycle_limit.get())
+                    .await
+            };
+            match execution {
+                Ok((mut public_values, report)) => {
+                    let summary = ReportSummary::from_report(ExecutionMode::Range, &report);
+                    let classified =
+                        decode_super_range_public_values(&mut public_values).and_then(|decoded| {
+                            classify_range_outputs(
+                                &native_range,
+                                &decoded,
+                                &synthesized.range_inputs,
+                            )
+                        });
+                    stage_from_classification(
+                        ExecutionMode::Range,
+                        classified,
+                        summary,
+                        range_witness_seconds,
+                        range_execute_started.elapsed().as_secs_f64(),
+                    )
+                }
+                Err(error) => stage_from_execution_error(
                     ExecutionMode::Range,
-                    classified,
-                    summary,
+                    &error,
+                    cycle_limit,
                     range_witness_seconds,
                     range_execute_started.elapsed().as_secs_f64(),
-                )
+                ),
             }
-            Err(error) => stage_from_execution_error(
-                ExecutionMode::Range,
-                &error,
-                cycle_limit,
-                range_witness_seconds,
-                range_execute_started.elapsed().as_secs_f64(),
-            ),
-        },
+        }
         Err(error) => StageResult {
             mode: ExecutionMode::Range,
             outcome: StageOutcome::InfrastructureFailure,
@@ -377,37 +418,42 @@ pub async fn execute_snapshot(
         &synthesized.consolidation_inputs,
         consolidation_witness,
     ) {
-        Ok(stdin) => match client
-            .execute(Elf::Dynamic(artifact.bytes()), stdin)
-            .cycle_limit(cycle_limit.get())
-            .await
-        {
-            Ok((mut public_values, report)) => {
-                let summary = ReportSummary::from_report(ExecutionMode::Consolidation, &report);
-                let classified = decode_super_consolidation_public_values(&mut public_values)
-                    .and_then(|decoded| {
-                        classify_consolidation_outputs(
-                            &native_consolidation,
-                            &decoded,
-                            &synthesized.consolidation_inputs,
-                        )
-                    });
-                stage_from_classification(
+        Ok(stdin) => {
+            let execution = {
+                let _active = execution_activity.enter();
+                client
+                    .execute(Elf::Dynamic(artifact.bytes()), stdin)
+                    .cycle_limit(cycle_limit.get())
+                    .await
+            };
+            match execution {
+                Ok((mut public_values, report)) => {
+                    let summary = ReportSummary::from_report(ExecutionMode::Consolidation, &report);
+                    let classified = decode_super_consolidation_public_values(&mut public_values)
+                        .and_then(|decoded| {
+                            classify_consolidation_outputs(
+                                &native_consolidation,
+                                &decoded,
+                                &synthesized.consolidation_inputs,
+                            )
+                        });
+                    stage_from_classification(
+                        ExecutionMode::Consolidation,
+                        classified,
+                        summary,
+                        consolidation_witness_seconds,
+                        consolidation_execute_started.elapsed().as_secs_f64(),
+                    )
+                }
+                Err(error) => stage_from_execution_error(
                     ExecutionMode::Consolidation,
-                    classified,
-                    summary,
+                    &error,
+                    cycle_limit,
                     consolidation_witness_seconds,
                     consolidation_execute_started.elapsed().as_secs_f64(),
-                )
+                ),
             }
-            Err(error) => stage_from_execution_error(
-                ExecutionMode::Consolidation,
-                &error,
-                cycle_limit,
-                consolidation_witness_seconds,
-                consolidation_execute_started.elapsed().as_secs_f64(),
-            ),
-        },
+        }
         Err(error) => StageResult {
             mode: ExecutionMode::Consolidation,
             outcome: StageOutcome::InfrastructureFailure,
@@ -625,21 +671,8 @@ fn finish(range: StageResult, consolidation: StageResult) -> ExecutionResult {
 }
 
 fn bounded_error(error: &impl std::fmt::Display) -> String {
-    let detail = error.to_string();
-    if contains_sensitive_locator(&detail) {
-        return "[redacted URL-bearing execution detail]".to_string();
-    }
+    let detail = redact_sensitive_detail(&error.to_string());
     bounded_text(&detail, MAX_ERROR_BYTES)
-}
-
-fn contains_sensitive_locator(detail: &str) -> bool {
-    let lower = detail.to_ascii_lowercase();
-    detail.contains("://") ||
-        detail.contains('?') ||
-        lower.contains("token=") ||
-        lower.contains("api_key=") ||
-        lower.contains("apikey=") ||
-        detail.split_ascii_whitespace().any(|part| part.starts_with('/'))
 }
 
 fn bounded_name(name: &str) -> String {
@@ -709,11 +742,9 @@ mod tests {
     #[test]
     fn cycle_limit_exhaustion_is_not_a_guest_rejection() {
         let limit = NonZeroU64::new(10).unwrap();
-        let flattened = ExecutionError::Other(ExecutionError::ExceededCycleLimit(10).to_string());
-        let task_error_flattened = ExecutionError::Other(format!(
-            "Execution: {}",
-            ExecutionError::ExceededCycleLimit(10),
-        ));
+        let flattened = ExecutionError::Other("exceeded cycle limit of 10".to_string());
+        let task_error_flattened =
+            ExecutionError::Other("Execution: exceeded cycle limit of 10".to_string());
         for error in [ExecutionError::ExceededCycleLimit(10), flattened, task_error_flattened] {
             let outcome = classify_execution_error(&error, limit);
             assert_eq!(outcome, StageOutcome::CycleLimitExceeded);
@@ -721,7 +752,7 @@ mod tests {
         }
         assert_eq!(
             classify_execution_error(
-                &ExecutionError::Other(ExecutionError::ExceededCycleLimit(11).to_string()),
+                &ExecutionError::Other("exceeded cycle limit of 11".to_string()),
                 limit,
             ),
             StageOutcome::GuestRejected,
@@ -800,12 +831,16 @@ mod tests {
     }
 
     #[test]
-    fn execution_errors_redact_url_credentials_paths_and_queries() {
+    fn execution_errors_redact_secrets_without_discarding_diagnostics() {
         let detail = bounded_error(&anyhow::anyhow!(
-            "beacon request failed for https://user:secret@beacon.example/api/token?key=hidden"
+            "assertion failed: a / b? beacon request failed for \
+             https://user:secret@beacon.example/api/token?key=hidden token=loose api_key=other"
         ));
-        assert_eq!(detail, "[redacted URL-bearing execution detail]");
-        for secret in ["user", "secret", "/api/token", "key=hidden"] {
+        assert!(detail.contains("assertion failed: a / b?"));
+        assert!(detail.contains("https://beacon.example/api/token"));
+        assert!(detail.contains("token=[redacted]"));
+        assert!(detail.contains("api_key=[redacted]"));
+        for secret in ["user:secret", "key=hidden", "token=loose", "api_key=other"] {
             assert!(!detail.contains(secret));
         }
     }

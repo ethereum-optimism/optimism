@@ -1,6 +1,6 @@
 //! Bounded Prometheus mapping for canary lifecycle and SP1 execution reports.
 
-use std::{collections::BTreeMap, time::SystemTime};
+use std::time::SystemTime;
 
 use metrics::{
     Counter, Gauge, Histogram, counter, describe_counter, describe_gauge, describe_histogram,
@@ -36,27 +36,21 @@ const REPORT_SYSCALLS: &str = "kona_zkvm_canary_report_syscalls";
 const REPORT_RECORD_BYTES: &str = "kona_zkvm_canary_report_record_bytes";
 const REPORT_TOUCHED_ADDRESSES: &str = "kona_zkvm_canary_report_touched_addresses";
 const REPORT_EXIT_CODE: &str = "kona_zkvm_canary_report_exit_code";
-const CYCLE_TRACKER_CYCLES: &str = "kona_zkvm_canary_cycle_tracker_cycles";
-const CYCLE_TRACKER_INVOCATIONS: &str = "kona_zkvm_canary_cycle_tracker_invocations";
 const ARTIFACT_INFO: &str = "kona_zkvm_canary_artifact_info";
 
 const MODE_RANGE: &str = "range";
 const MODE_CONSOLIDATION: &str = "consolidation";
-const OTHER_PHASE: &str = "other";
-const MAX_PHASE_SERIES_PER_MODE: usize = 64;
-const MAX_PHASE_LABEL_BYTES: usize = 64;
 
-const OUTCOMES: [RunOutcome; 7] = [
+const OUTCOMES: [RunOutcome; 6] = [
     RunOutcome::Valid,
     RunOutcome::GuestRejected,
     RunOutcome::OutputMismatch,
-    RunOutcome::StaleSnapshot,
     RunOutcome::InputError,
     RunOutcome::CycleLimitExceeded,
     RunOutcome::Timeout,
 ];
 
-/// Registered canary metric handles and bounded per-phase state.
+/// Registered canary metric handles.
 pub struct CanaryMetrics {
     up: Gauge,
     scheduler_heartbeat: Gauge,
@@ -201,9 +195,6 @@ impl CanaryMetrics {
         let Some(execution) = &result.execution else { return };
         self.range.observe_stage_durations(&execution.range);
         self.consolidation.observe_stage_durations(&execution.consolidation);
-        if result.outcome == RunOutcome::StaleSnapshot {
-            return;
-        }
         let target = result.target_timestamp.unwrap_or_default();
         self.range.observe_stage_report(&execution.range, target);
         self.consolidation.observe_stage_report(&execution.consolidation, target);
@@ -220,7 +211,6 @@ struct ModeMetrics {
     record_bytes: Gauge,
     touched_addresses: Gauge,
     exit_code: Gauge,
-    phases: PhaseMetrics,
 }
 
 impl ModeMetrics {
@@ -235,7 +225,6 @@ impl ModeMetrics {
             record_bytes: gauge!(REPORT_RECORD_BYTES, "mode" => mode),
             touched_addresses: gauge!(REPORT_TOUCHED_ADDRESSES, "mode" => mode),
             exit_code: gauge!(REPORT_EXIT_CODE, "mode" => mode),
-            phases: PhaseMetrics::register(mode),
         }
     }
 
@@ -247,7 +236,6 @@ impl ModeMetrics {
         self.record_bytes.set(0.0);
         self.touched_addresses.set(0.0);
         self.exit_code.set(0.0);
-        self.phases.initialize();
     }
 
     fn observe_stage_durations(&self, stage: &StageResult) {
@@ -259,12 +247,12 @@ impl ModeMetrics {
         }
     }
 
-    fn observe_stage_report(&mut self, stage: &StageResult, target: u64) {
+    fn observe_stage_report(&self, stage: &StageResult, target: u64) {
         let Some(report) = &stage.report else { return };
         self.observe_report(report, target);
     }
 
-    fn observe_report(&mut self, report: &ReportSummary, target: u64) {
+    fn observe_report(&self, report: &ReportSummary, target: u64) {
         self.report_target.set(target as f64);
         if let Some(pgu) = report.pgu {
             self.pgu.set(pgu as f64);
@@ -274,95 +262,7 @@ impl ModeMetrics {
         self.record_bytes.set(report.record_bytes as f64);
         self.touched_addresses.set(report.touched_addresses as f64);
         self.exit_code.set(report.exit_code as f64);
-        self.phases.observe(&report.cycle_phases);
     }
-}
-
-struct PhaseMetrics {
-    mode: &'static str,
-    known: BTreeMap<String, (Gauge, Gauge)>,
-    other_cycles: Gauge,
-    other_invocations: Gauge,
-}
-
-impl PhaseMetrics {
-    fn register(mode: &'static str) -> Self {
-        Self {
-            mode,
-            known: BTreeMap::new(),
-            other_cycles: gauge!(
-                CYCLE_TRACKER_CYCLES,
-                "mode" => mode,
-                "phase" => OTHER_PHASE,
-            ),
-            other_invocations: gauge!(
-                CYCLE_TRACKER_INVOCATIONS,
-                "mode" => mode,
-                "phase" => OTHER_PHASE,
-            ),
-        }
-    }
-
-    fn initialize(&self) {
-        self.other_cycles.set(0.0);
-        self.other_invocations.set(0.0);
-    }
-
-    fn observe(&mut self, phases: &[crate::execution::CyclePhaseSummary]) {
-        for (cycles, invocations) in self.known.values() {
-            cycles.set(0.0);
-            invocations.set(0.0);
-        }
-        self.other_cycles.set(0.0);
-        self.other_invocations.set(0.0);
-
-        let mut values = BTreeMap::<String, (u64, u64)>::new();
-        let mut other = (0u64, 0u64);
-        for phase in phases {
-            if phase.phase.is_empty() ||
-                phase.phase == OTHER_PHASE ||
-                phase.phase.len() > MAX_PHASE_LABEL_BYTES
-            {
-                add_phase(&mut other, phase.cycles, phase.invocations);
-                continue;
-            }
-            if !self.known.contains_key(&phase.phase) &&
-                self.known.len() >= MAX_PHASE_SERIES_PER_MODE - 1
-            {
-                add_phase(&mut other, phase.cycles, phase.invocations);
-                continue;
-            }
-            if !self.known.contains_key(&phase.phase) {
-                let cycles = gauge!(
-                    CYCLE_TRACKER_CYCLES,
-                    "mode" => self.mode,
-                    "phase" => phase.phase.clone(),
-                );
-                let invocations = gauge!(
-                    CYCLE_TRACKER_INVOCATIONS,
-                    "mode" => self.mode,
-                    "phase" => phase.phase.clone(),
-                );
-                cycles.set(0.0);
-                invocations.set(0.0);
-                self.known.insert(phase.phase.clone(), (cycles, invocations));
-            }
-            let value = values.entry(phase.phase.clone()).or_default();
-            add_phase(value, phase.cycles, phase.invocations);
-        }
-        for (phase, (cycles, invocations)) in values {
-            let handles = self.known.get(&phase).expect("phase handle registered");
-            handles.0.set(cycles as f64);
-            handles.1.set(invocations as f64);
-        }
-        self.other_cycles.set(other.0 as f64);
-        self.other_invocations.set(other.1 as f64);
-    }
-}
-
-const fn add_phase(value: &mut (u64, u64), cycles: u64, invocations: u64) {
-    value.0 = value.0.saturating_add(cycles);
-    value.1 = value.1.saturating_add(invocations);
 }
 
 const fn outcome_label(outcome: RunOutcome) -> &'static str {
@@ -370,7 +270,6 @@ const fn outcome_label(outcome: RunOutcome) -> &'static str {
         RunOutcome::Valid => "valid",
         RunOutcome::GuestRejected => "guest_rejected",
         RunOutcome::OutputMismatch => "output_mismatch",
-        RunOutcome::StaleSnapshot => "stale_snapshot",
         RunOutcome::InputError => "input_error",
         RunOutcome::CycleLimitExceeded => "cycle_limit_exceeded",
         RunOutcome::Timeout => "timeout",
@@ -382,10 +281,9 @@ const fn outcome_index(outcome: RunOutcome) -> usize {
         RunOutcome::Valid => 0,
         RunOutcome::GuestRejected => 1,
         RunOutcome::OutputMismatch => 2,
-        RunOutcome::StaleSnapshot => 3,
-        RunOutcome::InputError => 4,
-        RunOutcome::CycleLimitExceeded => 5,
-        RunOutcome::Timeout => 6,
+        RunOutcome::InputError => 3,
+        RunOutcome::CycleLimitExceeded => 4,
+        RunOutcome::Timeout => 5,
     }
 }
 
@@ -428,14 +326,6 @@ fn describe_all() {
     describe_gauge!(REPORT_RECORD_BYTES, "Latest SP1 execution-record bytes by mode.");
     describe_gauge!(REPORT_TOUCHED_ADDRESSES, "Latest distinct touched guest addresses by mode.");
     describe_gauge!(REPORT_EXIT_CODE, "Latest SP1 guest exit code by mode.");
-    describe_gauge!(
-        CYCLE_TRACKER_CYCLES,
-        "Latest SP1 cycle-tracker cycles by bounded phase and mode."
-    );
-    describe_gauge!(
-        CYCLE_TRACKER_INVOCATIONS,
-        "Latest SP1 cycle-tracker invocations by bounded phase and mode."
-    );
     describe_gauge!(ARTIFACT_INFO, "Validated canary artifact and SP1 release identity.");
 }
 
@@ -592,17 +482,17 @@ mod tests {
             outcome_index(RunOutcome::CycleLimitExceeded),
             outcome_index(RunOutcome::GuestRejected)
         );
-        assert_eq!(sample(&samples, CONSECUTIVE_FAILURES, &[]), &Sample::Gauge(6.0));
+        assert_eq!(sample(&samples, CONSECUTIVE_FAILURES, &[]), &Sample::Gauge(5.0));
 
         let allowed_labels =
-            ["elf_sha256", "mode", "outcome", "phase", "prestate", "range_vkey", "sp1_version"];
+            ["elf_sha256", "mode", "outcome", "prestate", "range_vkey", "sp1_version"];
         for (_, labels) in samples.keys() {
             assert!(labels.iter().all(|(key, _)| allowed_labels.contains(&key.as_str())));
         }
     }
 
     #[test]
-    fn report_metrics_preserve_pgu_cycles_and_modes() {
+    fn report_metrics_preserve_aggregate_counts_and_modes() {
         let recorder = DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
         metrics::with_local_recorder(&recorder, || {
@@ -663,22 +553,6 @@ mod tests {
             &Sample::Gauge(202.0),
         );
         assert_eq!(
-            sample(&samples, CYCLE_TRACKER_CYCLES, &[("mode", MODE_RANGE), ("phase", "range")],),
-            &Sample::Gauge(20.0),
-        );
-        assert_eq!(
-            sample(
-                &samples,
-                CYCLE_TRACKER_INVOCATIONS,
-                &[("mode", MODE_RANGE), ("phase", "range")],
-            ),
-            &Sample::Gauge(4.0),
-        );
-        assert_eq!(
-            sample(&samples, CYCLE_TRACKER_CYCLES, &[("mode", MODE_RANGE), ("phase", "old")],),
-            &Sample::Gauge(0.0),
-        );
-        assert_eq!(
             sample(&samples, REPORT_INSTRUCTIONS, &[("mode", MODE_RANGE)]),
             &Sample::Gauge(3_000.0),
         );
@@ -698,10 +572,13 @@ mod tests {
             sample(&samples, STAGE_EXECUTE_DURATION, &[("mode", MODE_CONSOLIDATION)]),
             &Sample::Histogram(vec![4.0, 8.0]),
         );
+        assert!(
+            samples.keys().all(|(name, _)| !name.starts_with("kona_zkvm_canary_cycle_tracker_"))
+        );
     }
 
     #[test]
-    fn stale_and_timeout_attempts_record_durations_without_replacing_reports() {
+    fn timeout_attempt_records_completed_report_and_durations() {
         let recorder = DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
         metrics::with_local_recorder(&recorder, || {
@@ -713,15 +590,6 @@ mod tests {
             metrics.observe_at(
                 &RunnerEvent::Attempt(attempt(RunOutcome::Valid, 100, Some(current))),
                 110,
-            );
-
-            let stale = execution(
-                stage(report(ExecutionMode::Range, Some(99), 999, 9, &[]), 5.0, 6.0),
-                stage(report(ExecutionMode::Consolidation, Some(99), 999, 9, &[]), 7.0, 8.0),
-            );
-            metrics.observe_at(
-                &RunnerEvent::Attempt(attempt(RunOutcome::StaleSnapshot, 200, Some(stale))),
-                210,
             );
 
             let timed_out = ExecutionResult {
@@ -745,7 +613,7 @@ mod tests {
         let samples = samples(snapshotter.snapshot());
         assert_eq!(
             sample(&samples, STAGE_WITNESS_DURATION, &[("mode", MODE_RANGE)]),
-            &Sample::Histogram(vec![1.0, 5.0, 9.0]),
+            &Sample::Histogram(vec![1.0, 9.0]),
         );
         assert_eq!(
             sample(&samples, REPORT_INSTRUCTIONS, &[("mode", MODE_RANGE)]),
@@ -757,7 +625,7 @@ mod tests {
         );
         assert_eq!(
             sample(&samples, STAGE_EXECUTE_DURATION, &[("mode", MODE_RANGE)]),
-            &Sample::Histogram(vec![2.0, 6.0, 10.0]),
+            &Sample::Histogram(vec![2.0, 10.0]),
         );
     }
 }

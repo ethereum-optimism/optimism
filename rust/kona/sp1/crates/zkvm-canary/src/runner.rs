@@ -15,8 +15,10 @@ use tokio::{sync::watch, time::Instant};
 use crate::{
     artifact::ValidatedRangeArtifact,
     config::CanaryConfig,
-    execution::{ExecutionOutcome, ExecutionResult, StageOutcome, execute_snapshot},
-    source::{SnapshotRevalidation, SnapshotSource, ValidatedSnapshot},
+    execution::{
+        ExecutionActivity, ExecutionOutcome, ExecutionResult, StageOutcome, execute_snapshot,
+    },
+    source::{SnapshotSource, ValidatedSnapshot},
 };
 
 const MAX_RUN_DETAIL_BYTES: usize = 4096;
@@ -31,8 +33,6 @@ pub enum RunOutcome {
     GuestRejected,
     /// At least one guest output differed from the canonical expected output.
     OutputMismatch,
-    /// The selected snapshot changed during execution.
-    StaleSnapshot,
     /// Canonical input, witness, or RPC data was unavailable.
     InputError,
     /// Guest execution reached its configured cycle ceiling.
@@ -66,7 +66,7 @@ pub struct AttemptResult {
     pub execution: Option<ExecutionResult>,
     /// Time spent selecting canonical input.
     pub input_selection_seconds: f64,
-    /// Total monotonic attempt duration, including post-run revalidation.
+    /// Total monotonic attempt duration.
     pub total_seconds: f64,
     /// Bounded diagnostic detail; never suitable for a metric label.
     pub detail: Option<String>,
@@ -81,7 +81,7 @@ pub enum RunnerEvent {
         /// Best-effort Unix timestamp; zero means the wall clock was unavailable.
         unix_time: u64,
     },
-    /// The full selection/execution/revalidation attempt became active or inactive.
+    /// The full selection/execution attempt became active or inactive.
     RunActive {
         /// Whether an attempt is currently active.
         active: bool,
@@ -197,8 +197,8 @@ trait AttemptStages {
         &mut self,
         snapshot: &Self::Snapshot,
         deadline: Instant,
+        execution_activity: &ExecutionActivity,
     ) -> Result<ExecutionResult>;
-    async fn revalidate(&mut self, snapshot: &Self::Snapshot) -> SnapshotRevalidation;
 }
 
 struct InProcessStages {
@@ -231,6 +231,7 @@ impl AttemptStages for InProcessStages {
         &mut self,
         snapshot: &Self::Snapshot,
         deadline: Instant,
+        execution_activity: &ExecutionActivity,
     ) -> Result<ExecutionResult> {
         let synthesized = snapshot.synthesize_execution()?;
         Ok(execute_snapshot(
@@ -240,12 +241,9 @@ impl AttemptStages for InProcessStages {
             self.cycle_limit,
             self.memory_limit,
             deadline,
+            execution_activity,
         )
         .await)
-    }
-
-    async fn revalidate(&mut self, snapshot: &Self::Snapshot) -> SnapshotRevalidation {
-        self.source.revalidate(snapshot).await
     }
 }
 
@@ -253,12 +251,17 @@ struct Scheduler<S> {
     stages: S,
     settings: RunnerSettings,
     state: SchedulerState,
+    execution_activity: ExecutionActivity,
 }
 
 impl<S> Scheduler<S>
 where
     S: AttemptStages,
 {
+    fn execution_activity(&self) -> watch::Receiver<bool> {
+        self.execution_activity.subscribe()
+    }
+
     async fn run_one(
         &mut self,
         shutdown: &mut watch::Receiver<bool>,
@@ -326,9 +329,17 @@ where
         };
         let base = AttemptBase::new(&snapshot, confirmation, selection_duration);
 
-        // SP1 execution is deliberately awaited without a Tokio timeout: its blocking work cannot
-        // be cancelled. The execution unit applies the deadline only to witness collection.
-        let execution = match self.stages.execute(&snapshot, deadline).await {
+        // The binary sends shutdown only outside the activity guard around uncancellable SP1 work.
+        // The execution unit applies the deadline only to witness collection.
+        if shutdown_requested(shutdown) {
+            return Ok(None);
+        }
+        let execution = tokio::select! {
+            biased;
+            _ = wait_for_shutdown(shutdown) => return Ok(None),
+            result = self.stages.execute(&snapshot, deadline, &self.execution_activity) => result,
+        };
+        let execution = match execution {
             Ok(execution) => execution,
             Err(error) => {
                 let result = base.finish(
@@ -353,29 +364,9 @@ where
             return Ok(Some(RunnerEvent::Attempt(result)));
         }
 
-        let revalidation = tokio::select! {
-            _ = wait_for_shutdown(shutdown) => return Ok(None),
-            result = tokio::time::timeout_at(deadline, self.stages.revalidate(&snapshot)) => result,
-        };
-        let result = match revalidation {
-            Err(_) => base.finish(
-                started,
-                RunOutcome::Timeout,
-                Some(execution),
-                Some("attempt deadline elapsed during snapshot revalidation"),
-            ),
-            Ok(SnapshotRevalidation::Stale { reason }) => {
-                base.finish(started, RunOutcome::StaleSnapshot, Some(execution), Some(reason))
-            }
-            Ok(SnapshotRevalidation::Unavailable { error }) => {
-                base.finish(started, RunOutcome::InputError, Some(execution), Some(error))
-            }
-            Ok(SnapshotRevalidation::Current) => {
-                let outcome = run_outcome(execution.outcome);
-                let detail = execution_detail(&execution);
-                base.finish(started, outcome, Some(execution), detail)
-            }
-        };
+        let outcome = run_outcome(execution.outcome);
+        let detail = execution_detail(&execution);
+        let result = base.finish(started, outcome, Some(execution), detail);
         self.state.record(fingerprint, result.outcome);
         Ok(Some(RunnerEvent::Attempt(result)))
     }
@@ -444,6 +435,7 @@ impl Runner {
                     attempt_deadline: config.attempt_deadline,
                 },
                 state: SchedulerState::default(),
+                execution_activity: ExecutionActivity::new(),
             },
         })
     }
@@ -455,6 +447,11 @@ impl Runner {
         shutdown: &'a mut watch::Receiver<bool>,
     ) -> Pin<Box<dyn Future<Output = Result<Option<RunnerEvent>>> + 'a>> {
         Box::pin(self.scheduler.run_one(shutdown))
+    }
+
+    /// Reports whether the runner is awaiting uncancellable SP1 emulator work.
+    pub fn execution_activity(&self) -> watch::Receiver<bool> {
+        self.scheduler.execution_activity()
     }
 
     /// Runs immediately, then waits one completion-anchored cadence before each next iteration.
@@ -664,6 +661,7 @@ mod tests {
         completions: Arc<AtomicUsize>,
         snapshots: VecDeque<FakeSnapshot>,
         executions: VecDeque<ExecutionResult>,
+        shutdown_after_selection: Option<watch::Sender<bool>>,
         shutdown_after_execution: Option<(usize, watch::Sender<bool>)>,
     }
 
@@ -679,6 +677,7 @@ mod tests {
                 completions: Arc::new(AtomicUsize::new(0)),
                 snapshots: VecDeque::new(),
                 executions: VecDeque::new(),
+                shutdown_after_selection: None,
                 shutdown_after_execution: None,
             }
         }
@@ -690,6 +689,9 @@ mod tests {
         async fn select(&mut self, _now: u64) -> Result<Self::Snapshot> {
             tokio::time::sleep(self.selection_delay).await;
             let selected = self.selections.fetch_add(1, Ordering::SeqCst) + 1;
+            if let Some(shutdown) = &self.shutdown_after_selection {
+                let _ = shutdown.send(true);
+            }
             Ok(self.snapshots.pop_front().unwrap_or_else(|| FakeSnapshot {
                 fingerprint: B256::with_last_byte(selected as u8),
                 target: selected as u64,
@@ -700,7 +702,9 @@ mod tests {
             &mut self,
             _snapshot: &Self::Snapshot,
             _deadline: Instant,
+            execution_activity: &ExecutionActivity,
         ) -> Result<ExecutionResult> {
+            let _execution_active = execution_activity.enter();
             let active = self.active.fetch_add(1, Ordering::SeqCst) + 1;
             self.max_active.fetch_max(active, Ordering::SeqCst);
             let delay = self.execution_delays.pop_front().unwrap_or(self.execution_delay);
@@ -713,10 +717,6 @@ mod tests {
                 let _ = shutdown.send(true);
             }
             Ok(self.executions.pop_front().unwrap_or_else(valid_execution))
-        }
-
-        async fn revalidate(&mut self, _snapshot: &Self::Snapshot) -> SnapshotRevalidation {
-            SnapshotRevalidation::Current
         }
     }
 
@@ -780,6 +780,7 @@ mod tests {
                 attempt_deadline: deadline,
             },
             state: SchedulerState::default(),
+            execution_activity: ExecutionActivity::new(),
         }
     }
 
@@ -964,5 +965,37 @@ mod tests {
 
         assert_eq!(selections.load(Ordering::SeqCst), 1);
         assert_eq!(completions.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn shutdown_after_selection_never_starts_execution() {
+        let (shutdown_tx, mut shutdown) = watch::channel(false);
+        let mut stages = FakeStages::immediate();
+        stages.shutdown_after_selection = Some(shutdown_tx);
+        let completions = stages.completions.clone();
+        let mut scheduler = scheduler(stages, Duration::from_secs(60));
+
+        assert!(scheduler.run_one(&mut shutdown).await.unwrap().is_none());
+        assert_eq!(completions.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn execution_activity_covers_only_the_uncancellable_stage() {
+        let (_shutdown_tx, mut shutdown) = watch::channel(false);
+        let mut stages = FakeStages::immediate();
+        stages.execution_delay = Duration::from_secs(10);
+        let mut scheduler = scheduler(stages, Duration::from_secs(60));
+        let mut execution_active = scheduler.execution_activity();
+        let mut run = Box::pin(scheduler.run_one(&mut shutdown));
+
+        tokio::select! {
+            changed = execution_active.changed() => changed.unwrap(),
+            result = &mut run => panic!("attempt completed before execution: {result:?}"),
+        }
+        assert!(*execution_active.borrow());
+
+        tokio::time::advance(Duration::from_secs(10)).await;
+        assert!(run.await.unwrap().is_some());
+        assert!(!*execution_active.borrow());
     }
 }

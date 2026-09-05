@@ -77,7 +77,7 @@ pub struct CanaryConfig {
     pub cadence: Duration,
     /// Maximum random addition to the cadence.
     pub max_jitter: Duration,
-    /// Monotonic deadline covering the whole attempt.
+    /// Monotonic deadline covering cancellable attempt stages.
     pub attempt_deadline: Duration,
     /// Deadline for each parent JSON-RPC request.
     pub rpc_request_timeout: Duration,

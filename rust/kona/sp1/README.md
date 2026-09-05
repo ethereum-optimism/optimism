@@ -325,11 +325,12 @@ Concurrency interaction:
 `kona-zkvm-canary` checks that the published `super-range` guest agrees with a finalized,
 L1-pinned live-network view. One process owns one network and one authenticated artifact release.
 It selects a consecutive finalized span, runs range mode and consolidation mode sequentially,
-then re-fetches the snapshot before classifying the result. The L1 pin is the earlier of the
-supernode's fully processed block (`CurrentL1 - 1`) and L1's `finalized` block; a snapshot whose
-`required_l1` is above that chosen pin is an input error. An identical successful fingerprint is
-not re-executed; a correctness failure receives one confirmation attempt. The next selection is
-scheduled only after the prior attempt and its cadence plus bounded jitter have completed.
+and classifies their results. The L1 pin is the earlier of the supernode's fully processed block
+(`CurrentL1 - 1`) and L1's `finalized` block; a snapshot whose `required_l1` is above that chosen
+pin is an input error. Finalized supernode responses are assumed immutable for a timestamp. An
+identical successful fingerprint is not re-executed; a correctness failure receives one
+confirmation attempt. The next selection is scheduled only after the prior attempt and its
+cadence plus bounded jitter have completed.
 
 The canary always uses SP1 CPU `execute` mode. This runs the real RISC-V ELF and returns an
 `ExecutionReport`, but it never invokes a proving API, submits work to the Succinct Prover Network,
@@ -366,7 +367,7 @@ Required configuration:
 | Variable | Purpose |
 |---|---|
 | `KONA_ZKVM_CANARY_SUPERROOT_RPC` | op-supernode endpoint serving `superroot_atTimestamp` |
-| `KONA_ZKVM_CANARY_L1_RPC` | L1 execution JSON-RPC endpoint used to pin and revalidate block identities |
+| `KONA_ZKVM_CANARY_L1_RPC` | L1 execution JSON-RPC endpoint used to pin and canonicalize block identities |
 | `KONA_ZKVM_CANARY_L1_BEACON_RPC` | L1 beacon API endpoint used for blob sidecars during witness collection |
 | `KONA_ZKVM_CANARY_L2_RPCS` | Comma-separated `<chain-id>=<http(s)-url>` L2 execution endpoints; decimal and `0x` chain IDs are accepted and duplicates are rejected |
 | `KONA_ZKVM_CANARY_PRESTATES_URL` | Immutable published-prestates directory; `file://` is diagnostic and `--once` only |
@@ -421,10 +422,9 @@ The bounds serve different purposes:
   internal accounting. Allocator overhead and other process memory are outside that accounting, so
   this is not a hard RSS ceiling. The process metrics below expose observed resident and virtual
   memory; the orchestrator or cgroup remains the hard process-memory backstop.
-- `ATTEMPT_DEADLINE_SECONDS` covers cancellable selection, witness collection, and post-execution
-  revalidation. It deliberately does not wrap SP1 execution in a Tokio timeout: SP1 uses blocking
-  work that Tokio cannot cancel, so such a timeout would report completion while retaining the CPU
-  and memory load.
+- `ATTEMPT_DEADLINE_SECONDS` covers cancellable selection and witness collection. It deliberately
+  does not wrap SP1 execution in a Tokio timeout: SP1 uses blocking work that Tokio cannot cancel,
+  so such a timeout would report completion while retaining the CPU and memory load.
 
 If the emulator wedges beyond the cycle and memory bounds, or the process is killed for memory,
 the orchestrator must restart it. `SIGINT` and `SIGTERM` stop all further scheduling and exit the
@@ -444,8 +444,8 @@ canary metric namespace is `kona_zkvm_canary`:
 | `kona_zkvm_canary_last_attempt_timestamp_seconds` / `kona_zkvm_canary_last_success_timestamp_seconds` | Completion time of the latest attempt / valid attempt; zero means unknown |
 | `kona_zkvm_canary_last_attempted_target_timestamp` / `kona_zkvm_canary_last_successful_target_timestamp` | Latest attempted / valid finalized target; zero means unknown |
 | `kona_zkvm_canary_consecutive_failures` | Consecutive non-valid terminal outcomes |
-| `kona_zkvm_canary_runs_total{outcome}` | Attempt count by `valid`, `guest_rejected`, `output_mismatch`, `stale_snapshot`, `input_error`, `cycle_limit_exceeded`, or `timeout` |
-| `kona_zkvm_canary_run_duration_seconds` | Total attempt duration, including revalidation |
+| `kona_zkvm_canary_runs_total{outcome}` | Attempt count by `valid`, `guest_rejected`, `output_mismatch`, `input_error`, `cycle_limit_exceeded`, or `timeout` |
+| `kona_zkvm_canary_run_duration_seconds` | Total attempt duration |
 | `kona_zkvm_canary_input_selection_duration_seconds` | Canonical snapshot selection duration |
 | `kona_zkvm_canary_stage_witness_duration_seconds{mode}` / `kona_zkvm_canary_stage_execute_duration_seconds{mode}` | Witness and SP1 execution duration for `range` or `consolidation` |
 | `kona_zkvm_canary_selected_span_length` / `kona_zkvm_canary_selected_chain_count` | Timestamp and chain counts in the latest selected input |
@@ -456,7 +456,6 @@ canary metric namespace is `kona_zkvm_canary`:
 | `kona_zkvm_canary_report_record_bytes{mode}` | Latest estimated SP1 execution-record size; not process memory |
 | `kona_zkvm_canary_report_touched_addresses{mode}` | Count of distinct touched guest addresses; not bytes or RSS |
 | `kona_zkvm_canary_report_exit_code{mode}` | Latest SP1 guest exit code |
-| `kona_zkvm_canary_cycle_tracker_cycles{mode,phase}` / `kona_zkvm_canary_cycle_tracker_invocations{mode,phase}` | Latest bounded guest cycle-phase totals; excess or invalid phase names aggregate under `other` |
 | `kona_zkvm_canary_artifact_info{prestate,range_vkey,elf_sha256,sp1_version}` | Constant `1` identifying the authenticated artifact and pinned SP1 release |
 
 Host-utils additionally exports unprefixed process samples including
@@ -465,15 +464,17 @@ Host-utils additionally exports unprefixed process samples including
 count, and process start time where the platform supports them. Because both guest modes run in
 the service process, resident-memory samples include SP1 execution rather than a child process.
 Metric labels never contain RPC URLs, run IDs, roots, chain IDs, error strings, opcode names, or
-syscall names.
+syscall names. Per-phase cycle and invocation totals remain available in the bounded
+`range_report` and `consolidation_report` fields of each structured attempt log; they are not
+exported as Prometheus series.
 
 ### One-shot diagnostics
 
-`--once` calls the same `Runner::run_one` selection, execution, and post-run revalidation path as
-the loop. It emits the terminal outcome and both bounded range/consolidation report summaries as
-structured fields, then exits `0` for `valid`, `1` for `guest_rejected` or `output_mismatch`, and
-`2` for every other outcome. It accepts no result path and writes no artifact, witness, report, or
-result file. For a local authenticated artifact directory:
+`--once` calls the same `Runner::run_one` selection and execution path as the loop. It emits the
+terminal outcome and both bounded range/consolidation report summaries as structured fields, then
+exits `0` for `valid`, `1` for `guest_rejected` or `output_mismatch`, and `2` for every other
+outcome. It accepts no result path and writes no artifact, witness, report, or result file. For a
+local authenticated artifact directory:
 
 ```bash
 KONA_ZKVM_CANARY_PRESTATES_URL="file:///absolute/path/to/prestates/" \
