@@ -57,7 +57,7 @@ type rpcPublicProjectionFollower struct {
 var _ PublicProjectionFollower = (*rpcPublicProjectionFollower)(nil)
 
 // NewRPCPublicProjectionFollower dials the public projection's execution client.
-func NewRPCPublicProjectionFollower(ctx context.Context, lgr log.Logger, url string, timeout time.Duration) (PublicProjectionFollower, error) {
+func NewRPCPublicProjectionFollower(ctx context.Context, lgr log.Logger, url string, timeout time.Duration) (*rpcPublicProjectionFollower, error) {
 	cl, err := dial.DialRPCClientWithTimeout(ctx, lgr, url)
 	if err != nil {
 		return nil, fmt.Errorf("dialling the public-projection node at %s: %w", url, err)
@@ -77,14 +77,22 @@ type rpcBlock struct {
 }
 
 func (f *rpcPublicProjectionFollower) BlockByNumber(ctx context.Context, number uint64) (*PublicProjectionBlock, error) {
+	return f.blockByNumber(ctx, hexutil.Uint64(number))
+}
+
+func (f *rpcPublicProjectionFollower) LatestBlock(ctx context.Context) (*PublicProjectionBlock, error) {
+	return f.blockByNumber(ctx, "latest")
+}
+
+func (f *rpcPublicProjectionFollower) blockByNumber(ctx context.Context, number any) (*PublicProjectionBlock, error) {
 	ctx, cancel := context.WithTimeout(ctx, f.timeout)
 	defer cancel()
 	var out *rpcBlock
-	if err := f.rpc.CallContext(ctx, &out, "eth_getBlockByNumber", hexutil.Uint64(number), false); err != nil {
+	if err := f.rpc.CallContext(ctx, &out, "eth_getBlockByNumber", number, false); err != nil {
 		return nil, err
 	}
 	if out == nil {
-		return nil, fmt.Errorf("the public projection has no block %d yet", number)
+		return nil, fmt.Errorf("the public projection has no block %v yet", number)
 	}
 	return &PublicProjectionBlock{Hash: out.Hash, Number: uint64(out.Number)}, nil
 }

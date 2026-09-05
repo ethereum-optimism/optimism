@@ -125,8 +125,8 @@ func (r *privateInteropResolver) ResolvePositions(ctx context.Context, rec *type
 			continue
 		}
 		if int(k) >= len(publicLogs) {
-			return nil, fmt.Errorf("log %d of block %d renders at public index %d, but the rendering's block carries %d logs: "+
-				"the rendering's log sequence must equal render.RenderedLogs of the private block exactly",
+			return nil, fmt.Errorf("log %d of block %d has no published event at public index %d (block has %d logs): "+
+				"its publication window may have expired; resend after sequencer publication resumes",
 				l.Index, includedIn.Number, k, len(publicLogs))
 		}
 		public := publicLogs[k]

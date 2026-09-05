@@ -549,6 +549,11 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		return err
 	}
 	bs.privateInterop = enc
+	bs.EndpointProvider = &privateInteropEndpoints{
+		L2EndpointProvider: bs.EndpointProvider,
+		projection:         follower,
+		rollup:             bs.RollupConfig,
+	}
 	bs.Log.Warn("PRIVATE INTEROP MODE: this batcher loads private blocks and posts their public projection",
 		"public_projection_chain_id", publicProjectionRollup.L2ChainID, "batcher", batcherAddr,
 		"cadence_blocks", settings.MaxBlocksPerRange, "max_range_bytes", settings.MaxRangeBytes,

@@ -25,7 +25,14 @@ When the private sequencer is offline, normal sequencing-window expiry lets publ
 produce blocks without sequencer transactions or interop events. Those blocks still include
 required system/deposit transactions. The production sequencing window remains unchanged.
 
-Once the private chain resumes, anyone with the original message parameters can call the existing
+The batcher uses the projection EL's latest derived block to skip expired fallback blocks through
+its stock pruning path. This endpoint must follow L1 derivation only, with sequencing and unsafe
+P2P input disabled. The EL `safe` label can lag fallback while cross-chain safety catches up,
+causing batches to repeatedly miss their inclusion window. This is a publication cursor only; it does not mark private execution safe. Wait for
+new range claims to be published before resending, since a restarting sequencer can still be
+catching up through blocks whose publication windows have expired.
+
+Once publication resumes, anyone with the original message parameters can call the existing
 `resendMessage`. It checks the private messenger's stored hash and emits the same message again.
 The new event has a new block position and timestamp; consumers use that newly published identifier.
 The message hash and nonce are unchanged, so destination-side replay protection still applies.

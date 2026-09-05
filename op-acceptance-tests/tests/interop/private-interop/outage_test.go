@@ -100,6 +100,12 @@ func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
 	sys.L2BatcherB.Start()
 	privateReceipt := sys.L2ELB.WaitForReceipt(missed.TxHash)
 	require.Len(privateReceipt.Logs, 1, "the forced send must exist in private state after recovery")
+	// Starting the processes is not enough: wait for a fresh published claim, so the resend
+	// does not land in another block whose publication window has already expired.
+	require.Eventually(func() bool {
+		status, err := sys.L2BCL.Escape().RollupAPI().SyncStatus(t.Ctx())
+		return err == nil && status.LocalSafeL2.Number > lastPrivate.Number
+	}, 3*time.Minute, time.Second, "private publication must resume beyond the pre-outage head")
 	resent := resendPrivateMessage(t, resender, privateReceipt)
 	relayPrivateMessage(t, receiver, sys.L2ELB, sys.L2ASupernodeCL, resent)
 }
