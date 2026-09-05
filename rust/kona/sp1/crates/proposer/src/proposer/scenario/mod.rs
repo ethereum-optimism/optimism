@@ -16,6 +16,7 @@ pub(super) enum ScenarioError {
     Initialization(String),
     Cycle(String),
     RunningTask { task_id: TaskId },
+    UnsettledTask { task_id: TaskId },
     UnknownTask { task_id: TaskId },
     AlreadyFinalized { task_id: TaskId },
     BarrierNotReached { task_id: TaskId, barrier: String },

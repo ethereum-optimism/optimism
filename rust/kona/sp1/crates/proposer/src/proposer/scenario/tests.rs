@@ -271,7 +271,7 @@ impl SuperRootSource for FixedSuperRootSource {
         let root = B256::left_padding_from(&timestamp.to_be_bytes());
         Ok(SuperRootAtTimestamp {
             response: SuperRootAtTimestampResponse {
-                current_l1: SuperBlockId::default(),
+                current_l1: SuperBlockId { number: 1, ..Default::default() },
                 current_safe_timestamp: timestamp,
                 current_local_safe_timestamp: timestamp,
                 current_finalized_timestamp: timestamp,
@@ -1576,6 +1576,51 @@ async fn failed_create_before_submission_allows_a_later_create_without_consuming
 }
 
 #[tokio::test]
+async fn untrusted_creation_root_pauses_bonding_until_the_response_is_trusted() {
+    let world = ScenarioWorld::new();
+    world.set_horizons(1, 1);
+    world.script_superroot(
+        1,
+        1,
+        SuperRootOutcome::Root { root: canonical_super_root(1), current_l1: 1, required_l1: 1 },
+    );
+    let target = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let paused = scenario.tick().await.unwrap();
+    let completions = scenario.settle_scheduled(&paused).await.unwrap();
+    assert!(completions.iter().any(|completion| matches!(
+        &completion.outcome,
+        TaskCompletionOutcome::Failed(TaskFailureClass::ReturnedError(message))
+            if message.contains("is not trusted yet")
+    )));
+    assert!(world.action_record(&target, 1).is_none());
+    assert!(world.observation().games.is_empty());
+
+    let retried = scenario.tick().await.unwrap();
+    assert!(retried.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 1, parent_game_index: u32::MAX }
+    )));
+    scenario.settle_scheduled(&retried).await.unwrap();
+    assert_eq!(world.action_record(&target, 1).unwrap().lifecycle, ActionLifecycle::Confirmed);
+    assert_eq!(
+        world
+            .superroot_journal()
+            .iter()
+            .filter(|record| {
+                record.kind == SuperRootQueryKind::AtTimestamp && record.requested_timestamp == 1
+            })
+            .map(|record| record.outcome.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            SuperRootQueryOutcome::Untrusted(canonical_super_root(1)),
+            SuperRootQueryOutcome::Trusted(canonical_super_root(1)),
+        ]
+    );
+}
+
+#[tokio::test]
 async fn reverted_create_consumes_a_nonce_without_creating_a_game() {
     let world = ScenarioWorld::new();
     world.set_horizons(1, 1);
@@ -2065,7 +2110,7 @@ async fn rejected_foreign_topology_never_becomes_a_create_parent() {
 }
 
 #[tokio::test]
-async fn own_claim_mismatch_stays_pending_while_foreign_mismatch_is_terminal() {
+async fn claim_mismatch_outcome_depends_on_trust_not_creator() {
     let world = ScenarioWorld::new();
     let mut own = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
     own.creator = ScenarioWorld::proposer_address();
@@ -2077,6 +2122,12 @@ async fn own_claim_mismatch_stays_pending_while_foreign_mismatch_is_terminal() {
     world.add_game(own);
     world.add_game(foreign);
     world.set_horizons(1, 1);
+    let canonical = canonical_super_root(1);
+    world.script_superroot(
+        1,
+        2,
+        SuperRootOutcome::Root { root: canonical, current_l1: 1, required_l1: 1 },
+    );
     let mut config = scenario_config();
     config.proposal_interval_seconds = 100;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
@@ -2093,18 +2144,18 @@ async fn own_claim_mismatch_stays_pending_while_foreign_mismatch_is_terminal() {
 
     world.mine_block();
     let retried = scenario.tick().await.unwrap();
-    assert_eq!(retried.snapshot.pending_games.len(), 1);
-    assert_eq!(retried.snapshot.pending_games[0].address, own_target.address);
+    assert!(retried.snapshot.pending_games.is_empty());
+    assert_eq!(retried.snapshot.canonical_head_index, None);
     scenario.settle_scheduled(&retried).await.unwrap();
-    assert!(
+    assert_eq!(
         world
             .superroot_journal()
             .iter()
             .filter(|record| {
                 record.kind == SuperRootQueryKind::AtTimestamp && record.requested_timestamp == 1
             })
-            .count() >=
-            3
+            .count(),
+        3
     );
 }
 
@@ -2345,7 +2396,7 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
 }
 
 #[tokio::test]
-async fn own_creation_guard_survives_an_unchanged_head_without_confirmations() {
+async fn pending_trusted_mismatch_releases_the_address_matched_creation_guard() {
     let world = ScenarioWorld::new();
     world.add_game(ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()));
     world.set_horizons(2, 2);
@@ -2361,6 +2412,10 @@ async fn own_creation_guard_survives_an_unchanged_head_without_confirmations() {
 
     let created_game = world.observation().games.last().unwrap().target();
     world.update_game(&created_game, |game| game.root_claim = B256::repeat_byte(0xe3));
+    world.script_next_superroot(
+        2,
+        SuperRootOutcome::Root { root: canonical_super_root(2), current_l1: 2, required_l1: 2 },
+    );
     let learned = scenario.tick().await.unwrap();
     assert_eq!(learned.snapshot.canonical_head_index, Some(U256::ZERO));
     assert!(learned.snapshot.pending_games.iter().any(|game| game.address == created_game.address));
@@ -2378,6 +2433,16 @@ async fn own_creation_guard_survives_an_unchanged_head_without_confirmations() {
     )));
     scenario.settle_scheduled(&unchanged).await.unwrap();
     assert!(world.action_record(&create, 2).is_none());
+
+    world.mine_block();
+    let terminal = scenario.tick().await.unwrap();
+    assert!(terminal.snapshot.pending_games.is_empty());
+    assert!(terminal.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 2, parent_game_index: 0 }
+    )));
+    scenario.settle_scheduled(&terminal).await.unwrap();
+    assert_eq!(world.action_record(&create, 2).unwrap().lifecycle, ActionLifecycle::Confirmed);
 }
 
 #[tokio::test]
@@ -2858,92 +2923,94 @@ async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
 }
 
 #[tokio::test]
-async fn policy_uses_pinned_latest_host_and_safety_times_independently() {
-    let resolution_world = ScenarioWorld::new();
+async fn resolution_eligibility_uses_the_pinned_l1_timestamp() {
+    let world = ScenarioWorld::new();
     let mut elapsed = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
     elapsed.deadline = 1_500;
     let elapsed_target = elapsed.target();
-    resolution_world.add_game(elapsed);
-    resolution_world.set_latest_l1_time(2_000);
-    resolution_world.set_horizons(1, 1);
-    let mut resolution_config = scenario_config();
-    resolution_config.proposal_interval_seconds = 100;
-    resolution_config.sync_l1_confirmations = 1;
-    let mut resolution =
-        ScenarioHarness::new(resolution_world.clone(), resolution_config).await.unwrap();
+    world.add_game(elapsed);
+    world.set_latest_l1_time(2_000);
+    world.set_horizons(1, 1);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    config.sync_l1_confirmations = 1;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
-    let pinned_old = resolution.tick().await.unwrap();
-    resolution.settle_scheduled(&pinned_old).await.unwrap();
-    assert!(
-        resolution_world.action_record(&ActionTarget::Resolve(elapsed_target.clone()), 1).is_none()
-    );
-    resolution_world.mine_block();
-    let pinned_new = resolution.tick().await.unwrap();
-    resolution.settle_scheduled(&pinned_new).await.unwrap();
-    assert!(resolution_world.action_record(&ActionTarget::Resolve(elapsed_target), 1).is_some());
+    let pinned_old = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&pinned_old).await.unwrap();
+    assert!(world.action_record(&ActionTarget::Resolve(elapsed_target.clone()), 1).is_none());
+    world.mine_block();
+    let pinned_new = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&pinned_new).await.unwrap();
+    assert!(world.action_record(&ActionTarget::Resolve(elapsed_target), 1).is_some());
+}
 
-    let proof_world = ScenarioWorld::new();
+#[tokio::test]
+async fn proof_deadlines_use_latest_l1_time_independently_of_host_time() {
+    let world = ScenarioWorld::new();
     let mut challenged =
         ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).challenged();
     challenged.deadline = 1_500;
     let challenged_target = challenged.target();
-    proof_world.add_game(challenged);
-    proof_world.set_latest_l1_time(2_000);
-    proof_world.set_host_time(1_000);
-    proof_world.set_horizons(1, 1);
-    proof_world.block_proof(challenged_target.clone(), 1, ProofOutcome::Success, "host deadline");
-    let mut proof_config = scenario_config();
-    proof_config.proposal_interval_seconds = 100;
-    let mut proof = ScenarioHarness::new(proof_world.clone(), proof_config).await.unwrap();
-    let before_host_deadline = proof.tick().await.unwrap();
-    assert!(before_host_deadline.scheduled.iter().any(|scheduled| matches!(
+    world.add_game(challenged);
+    world.set_host_time(2_000);
+    world.set_horizons(1, 1);
+    world.block_proof(challenged_target.clone(), 1, ProofOutcome::Success, "chain deadline");
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let before_chain_deadline = scenario.tick().await.unwrap();
+    assert!(before_chain_deadline.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
         OperationSummary::ProveGame { address, .. } if address == challenged_target.address
     )));
-    let proof_id = before_host_deadline.task_id_for(|operation| {
+    let proof_id = before_chain_deadline.task_id_for(|operation| {
         matches!(operation, OperationSummary::ProveGame { address, .. } if *address == challenged_target.address)
     });
-    proof.wait_for_proof_barrier(proof_id, &challenged_target, 1).await.unwrap();
-    proof.settle(&before_host_deadline.task_ids_except(proof_id)).await.unwrap();
-    proof_world.set_host_time(1_501);
-    proof.release_proof_barrier(&challenged_target, 1).unwrap();
-    proof.settle(&[proof_id]).await.unwrap();
+    scenario.wait_for_proof_barrier(proof_id, &challenged_target, 1).await.unwrap();
+    scenario.settle(&before_chain_deadline.task_ids_except(proof_id)).await.unwrap();
+    world.set_latest_l1_time(1_501);
+    scenario.release_proof_barrier(&challenged_target, 1).unwrap();
+    scenario.settle(&[proof_id]).await.unwrap();
     assert_eq!(
-        proof_world.proof_record(&challenged_target, 1).unwrap().lifecycle,
+        world.proof_record(&challenged_target, 1).unwrap().lifecycle,
         ProofLifecycle::Succeeded
     );
-    assert!(
-        proof_world.action_record(&ActionTarget::Prove(challenged_target.clone()), 1).is_none()
-    );
-    let after_host_deadline = proof.tick().await.unwrap();
-    assert!(!after_host_deadline.scheduled.iter().any(|scheduled| matches!(
+    assert!(world.action_record(&ActionTarget::Prove(challenged_target.clone()), 1).is_none());
+
+    let after_chain_deadline = scenario.tick().await.unwrap();
+    assert!(!after_chain_deadline.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
         OperationSummary::ProveGame { address, .. } if address == challenged_target.address
     )));
-    proof.settle_scheduled(&after_host_deadline).await.unwrap();
+    scenario.settle_scheduled(&after_chain_deadline).await.unwrap();
+}
 
-    let horizon_world = ScenarioWorld::new();
+#[tokio::test]
+async fn proposal_safety_horizon_uses_host_time_without_conflating_safe_and_finalized() {
+    let world = ScenarioWorld::new();
     let head = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
-    horizon_world.add_game(head);
-    horizon_world.set_host_time(9_000);
-    horizon_world.set_horizons(2, 1);
-    let mut horizon = ScenarioHarness::new(horizon_world.clone(), scenario_config()).await.unwrap();
-    let finalized_bound = horizon.tick().await.unwrap();
+    world.add_game(head);
+    world.set_host_time(9_000);
+    world.set_horizons(2, 1);
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+    let finalized_bound = scenario.tick().await.unwrap();
     assert!(
         !finalized_bound
             .scheduled
             .iter()
             .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProposeGame { .. }))
     );
-    horizon.settle_scheduled(&finalized_bound).await.unwrap();
-    horizon_world.set_finalized_time(2);
-    let advanced_bound = horizon.tick().await.unwrap();
+    scenario.settle_scheduled(&finalized_bound).await.unwrap();
+    world.set_finalized_time(2);
+    let advanced_bound = scenario.tick().await.unwrap();
     assert!(advanced_bound.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
         OperationSummary::ProposeGame { sequence_number: 2, .. }
     )));
-    horizon.settle_scheduled(&advanced_bound).await.unwrap();
-    assert!(horizon_world.superroot_journal().iter().any(|record| {
+    scenario.settle_scheduled(&advanced_bound).await.unwrap();
+    assert!(world.superroot_journal().iter().any(|record| {
         record.kind == SuperRootQueryKind::ProposalHorizon &&
             record.requested_timestamp == 9_000 &&
             record.safe_timestamp == 2 &&
@@ -2971,6 +3038,11 @@ async fn restart_reconstructs_world_state_but_resets_all_proposer_local_memory()
 
     let before_restart = scenario.tick().await.unwrap();
     let old_max_task = before_restart.task_ids().into_iter().max().unwrap();
+    let first_unsettled = before_restart.task_ids().into_iter().min().unwrap();
+    assert_eq!(
+        scenario.restart().await.unwrap_err(),
+        ScenarioError::UnsettledTask { task_id: first_unsettled }
+    );
     let completions = scenario.settle_scheduled(&before_restart).await.unwrap();
     assert!(
         completions

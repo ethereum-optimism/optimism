@@ -555,6 +555,7 @@ struct WorldData {
     l1_read_scripts: Scripts<(L1ReadBoundary, L1ReadTarget), L1ReadScript>,
     l1_read_records: Vec<L1ReadRecord>,
     superroot_scripts: Scripts<u64, SuperRootOutcome>,
+    proposal_horizon_attempts: HashMap<u64, u64>,
     superroot_records: Vec<SuperRootQueryRecord>,
     action_scripts: Scripts<ActionTarget, ActionScript>,
     proof_scripts: Scripts<GameTarget, ProofScript>,
@@ -614,6 +615,7 @@ impl ScenarioWorld {
                 l1_read_scripts: Scripts::default(),
                 l1_read_records: Vec::new(),
                 superroot_scripts: Scripts::default(),
+                proposal_horizon_attempts: HashMap::new(),
                 superroot_records: Vec::new(),
                 action_scripts: Scripts::default(),
                 proof_scripts: Scripts::default(),
@@ -1395,14 +1397,14 @@ impl L1View for FakeL1View {
     async fn game_lifecycle(
         &self,
         game: Address,
-        _registry: Address,
+        registry: Address,
         block: BlockId,
     ) -> Result<GameLifecycle> {
         let (state, _) = self.state_for_game(L1ReadBoundary::GameLifecycle, game, block)?;
         let game = state.game(game)?;
         ensure!(
-            game.anchor_state_registry == _registry,
-            "game lifecycle used registry {_registry}, expected {}",
+            game.anchor_state_registry == registry,
+            "game lifecycle used registry {registry}, expected {}",
             game.anchor_state_registry
         );
         Ok(GameLifecycle {
@@ -1426,16 +1428,16 @@ impl L1View for FakeL1View {
     async fn bond_state(
         &self,
         game: Address,
-        _weth: Address,
-        _proposer: Address,
+        weth: Address,
+        proposer: Address,
         block: BlockId,
     ) -> Result<BondState> {
         let (state, _) = self.state_for_game(L1ReadBoundary::BondState, game, block)?;
         let game = state.game(game)?;
-        ensure!(game.weth == _weth, "bond state used WETH {_weth}, expected {}", game.weth);
+        ensure!(game.weth == weth, "bond state used WETH {weth}, expected {}", game.weth);
         ensure!(
-            _proposer == ScenarioWorld::proposer_address(),
-            "bond state used unexpected proposer {_proposer}"
+            proposer == ScenarioWorld::proposer_address(),
+            "bond state used unexpected proposer {proposer}"
         );
         Ok(game.bond)
     }
@@ -1452,8 +1454,8 @@ impl L1View for FakeL1View {
     async fn claim_preflight(
         &self,
         game: Address,
-        _weth: Address,
-        _proposer: Address,
+        weth: Address,
+        proposer: Address,
     ) -> ClaimPreflight {
         let mut data = self.0.lock();
         let state = data.latest_state();
@@ -1469,7 +1471,7 @@ impl L1View for FakeL1View {
         };
         let game_state = state.game(game).expect("game was just resolved");
         let arguments_valid =
-            game_state.weth == _weth && _proposer == ScenarioWorld::proposer_address();
+            game_state.weth == weth && proposer == ScenarioWorld::proposer_address();
         let credit = if arguments_valid {
             data.record_l1_read(L1ReadBoundary::ClaimCredit, L1ReadTarget::Game(target.clone()))
                 .map(|_| game_state.bond.credit)
@@ -1522,23 +1524,23 @@ impl L1View for FakeL1View {
         Ok(self.state(block)?.respected_game_type)
     }
 
-    async fn parent_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
+    async fn parent_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
         let (state, _) = self.latest_state_for_game(L1ReadBoundary::ParentStanding, game)?;
         let game = state.game(game)?;
         let registered = state.registered_args.anchor_state_registry;
         ensure!(
-            _registry == registered,
-            "parent standing used registry {_registry}, expected {registered}"
+            registry == registered,
+            "parent standing used registry {registry}, expected {registered}"
         );
         Ok(game.standing)
     }
 
-    async fn game_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
+    async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
         let (state, _) = self.latest_state_for_game(L1ReadBoundary::GameStanding, game)?;
         let game = state.game(game)?;
         ensure!(
-            _registry == game.anchor_state_registry,
-            "game standing used registry {_registry}, expected {}",
+            registry == game.anchor_state_registry,
+            "game standing used registry {registry}, expected {}",
             game.anchor_state_registry
         );
         Ok(game.standing)
@@ -1585,15 +1587,9 @@ impl SuperRootSource for FakeSuperRootSource {
         let mut data = self.0.lock();
         let safe = data.safe_time;
         let finalized = data.finalized_time;
-        let attempt = data
-            .superroot_records
-            .iter()
-            .filter(|record| {
-                record.kind == SuperRootQueryKind::ProposalHorizon &&
-                    record.requested_timestamp == timestamp
-            })
-            .count() as u64 +
-            1;
+        let attempt = data.proposal_horizon_attempts.entry(timestamp).or_default();
+        *attempt += 1;
+        let attempt = *attempt;
         data.superroot_records.push(SuperRootQueryRecord {
             kind: SuperRootQueryKind::ProposalHorizon,
             requested_timestamp: timestamp,
@@ -1955,7 +1951,7 @@ impl ScenarioHarness {
     pub(super) async fn restart(&mut self) -> Result<(), ScenarioError> {
         let tasks = self.proposer.tasks.lock().await;
         if let Some(task_id) = tasks.keys().min().copied() {
-            return Err(ScenarioError::RunningTask { task_id });
+            return Err(ScenarioError::UnsettledTask { task_id });
         }
         drop(tasks);
 
