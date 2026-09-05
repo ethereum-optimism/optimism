@@ -33,6 +33,15 @@ const REPORT_INSTRUCTIONS: &str = "kona_zkvm_canary_report_instructions";
 const REPORT_SYSCALLS: &str = "kona_zkvm_canary_report_syscalls";
 const REPORT_RECORD_BYTES: &str = "kona_zkvm_canary_report_record_bytes";
 const REPORT_EXIT_CODE: &str = "kona_zkvm_canary_report_exit_code";
+const RANGE_PAYLOAD_DERIVATION_CYCLES: &str = "kona_zkvm_canary_range_payload_derivation_cycles";
+const RANGE_BLOCK_EXECUTION_CYCLES: &str = "kona_zkvm_canary_range_block_execution_cycles";
+const RANGE_BLOB_VERIFICATION_CYCLES: &str = "kona_zkvm_canary_range_blob_verification_cycles";
+const RANGE_ORACLE_VERIFICATION_CYCLES: &str = "kona_zkvm_canary_range_oracle_verification_cycles";
+
+const PHASE_PAYLOAD_DERIVATION: &str = "payload-derivation";
+const PHASE_BLOCK_EXECUTION: &str = "block-execution";
+const PHASE_BLOB_VERIFICATION: &str = "blob-verification";
+const PHASE_ORACLE_VERIFICATION: &str = "oracle-verify";
 
 const MODE_RANGE: &str = "range";
 const MODE_CONSOLIDATION: &str = "consolidation";
@@ -63,6 +72,10 @@ pub struct CanaryMetrics {
     selected_chain_count: Gauge,
     executed_l2_gas: Gauge,
     target_lag: Gauge,
+    range_payload_derivation_cycles: Gauge,
+    range_block_execution_cycles: Gauge,
+    range_blob_verification_cycles: Gauge,
+    range_oracle_verification_cycles: Gauge,
     range: ModeMetrics,
     consolidation: ModeMetrics,
     consecutive_failure_count: u64,
@@ -102,6 +115,10 @@ impl CanaryMetrics {
             selected_chain_count: gauge!(SELECTED_CHAIN_COUNT),
             executed_l2_gas: gauge!(EXECUTED_L2_GAS),
             target_lag: gauge!(TARGET_LAG),
+            range_payload_derivation_cycles: gauge!(RANGE_PAYLOAD_DERIVATION_CYCLES),
+            range_block_execution_cycles: gauge!(RANGE_BLOCK_EXECUTION_CYCLES),
+            range_blob_verification_cycles: gauge!(RANGE_BLOB_VERIFICATION_CYCLES),
+            range_oracle_verification_cycles: gauge!(RANGE_ORACLE_VERIFICATION_CYCLES),
             range: ModeMetrics::register(MODE_RANGE),
             consolidation: ModeMetrics::register(MODE_CONSOLIDATION),
             consecutive_failure_count: 0,
@@ -139,6 +156,10 @@ impl CanaryMetrics {
         self.selected_chain_count.set(0.0);
         self.executed_l2_gas.set(0.0);
         self.target_lag.set(0.0);
+        self.range_payload_derivation_cycles.set(0.0);
+        self.range_block_execution_cycles.set(0.0);
+        self.range_blob_verification_cycles.set(0.0);
+        self.range_oracle_verification_cycles.set(0.0);
         self.range.initialize();
         self.consolidation.initialize();
     }
@@ -188,12 +209,44 @@ impl CanaryMetrics {
         self.consolidation.observe_stage_durations(&execution.consolidation);
         let target = result.target_timestamp.unwrap_or_default();
         self.range.observe_stage_report(&execution.range, target);
-        if execution.range.report.as_ref().is_some_and(|report| report.pgu.is_some())
-            && let Some(executed_l2_gas) = result.executed_l2_gas
+        if let Some(report) = &execution.range.report {
+            self.observe_range_cycles(report);
+        }
+        if execution.range.report.as_ref().is_some_and(|report| report.pgu.is_some()) &&
+            let Some(executed_l2_gas) = result.executed_l2_gas
         {
             self.executed_l2_gas.set(executed_l2_gas as f64);
         }
         self.consolidation.observe_stage_report(&execution.consolidation, target);
+    }
+
+    fn observe_range_cycles(&self, report: &ReportSummary) {
+        let cycles = |phase_name| {
+            report
+                .cycle_phases
+                .iter()
+                .find(|phase| phase.phase == phase_name)
+                .map(|phase| phase.cycles)
+        };
+        let (
+            Some(payload_derivation),
+            Some(block_execution),
+            Some(blob_verification),
+            Some(oracle_verification),
+        ) = (
+            cycles(PHASE_PAYLOAD_DERIVATION),
+            cycles(PHASE_BLOCK_EXECUTION),
+            cycles(PHASE_BLOB_VERIFICATION),
+            cycles(PHASE_ORACLE_VERIFICATION),
+        )
+        else {
+            return;
+        };
+
+        self.range_payload_derivation_cycles.set(payload_derivation as f64);
+        self.range_block_execution_cycles.set(block_execution as f64);
+        self.range_blob_verification_cycles.set(blob_verification as f64);
+        self.range_oracle_verification_cycles.set(oracle_verification as f64);
     }
 }
 
@@ -326,6 +379,22 @@ fn describe_all() {
     describe_gauge!(REPORT_SYSCALLS, "Latest SP1 syscall count by mode.");
     describe_gauge!(REPORT_RECORD_BYTES, "Latest SP1 execution-record bytes by mode.");
     describe_gauge!(REPORT_EXIT_CODE, "Latest SP1 guest exit code by mode.");
+    describe_gauge!(
+        RANGE_PAYLOAD_DERIVATION_CYCLES,
+        "Latest total payload-derivation guest cycles in a complete SP1 range report."
+    );
+    describe_gauge!(
+        RANGE_BLOCK_EXECUTION_CYCLES,
+        "Latest total block-execution guest cycles in a complete SP1 range report."
+    );
+    describe_gauge!(
+        RANGE_BLOB_VERIFICATION_CYCLES,
+        "Latest total blob-verification guest cycles in a complete SP1 range report."
+    );
+    describe_gauge!(
+        RANGE_ORACLE_VERIFICATION_CYCLES,
+        "Latest total oracle-verification guest cycles in a complete SP1 range report."
+    );
 }
 
 #[cfg(test)]
@@ -563,6 +632,77 @@ mod tests {
         );
         assert!(
             samples.keys().all(|(name, _)| name != "kona_zkvm_canary_report_touched_addresses")
+        );
+    }
+
+    #[test]
+    fn range_cycle_metrics_update_as_one_complete_snapshot() {
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            let mut metrics = CanaryMetrics::register();
+            let complete = execution(
+                stage(
+                    report(
+                        ExecutionMode::Range,
+                        Some(10),
+                        100,
+                        &[
+                            ("payload-derivation", 11, 1),
+                            ("block-execution", 12, 1),
+                            ("blob-verification", 13, 1),
+                            ("oracle-verify", 14, 1),
+                        ],
+                    ),
+                    1.0,
+                    2.0,
+                ),
+                stage(report(ExecutionMode::Consolidation, Some(20), 200, &[]), 3.0, 4.0),
+            );
+            metrics.observe_at(
+                &RunnerEvent::Attempt(attempt(RunOutcome::Valid, 100, Some(complete))),
+                110,
+            );
+
+            let incomplete = execution(
+                stage(
+                    report(
+                        ExecutionMode::Range,
+                        Some(30),
+                        300,
+                        &[
+                            ("payload-derivation", 101, 1),
+                            ("block-execution", 102, 1),
+                            ("blob-verification", 103, 1),
+                        ],
+                    ),
+                    5.0,
+                    6.0,
+                ),
+                stage(report(ExecutionMode::Consolidation, Some(40), 400, &[]), 7.0, 8.0),
+            );
+            metrics.observe_at(
+                &RunnerEvent::Attempt(attempt(RunOutcome::Valid, 200, Some(incomplete))),
+                210,
+            );
+        });
+
+        let samples = samples(snapshotter.snapshot());
+        assert_eq!(
+            sample(&samples, "kona_zkvm_canary_range_payload_derivation_cycles", &[]),
+            &Sample::Gauge(11.0),
+        );
+        assert_eq!(
+            sample(&samples, "kona_zkvm_canary_range_block_execution_cycles", &[]),
+            &Sample::Gauge(12.0),
+        );
+        assert_eq!(
+            sample(&samples, "kona_zkvm_canary_range_blob_verification_cycles", &[]),
+            &Sample::Gauge(13.0),
+        );
+        assert_eq!(
+            sample(&samples, "kona_zkvm_canary_range_oracle_verification_cycles", &[]),
+            &Sample::Gauge(14.0),
         );
     }
 
