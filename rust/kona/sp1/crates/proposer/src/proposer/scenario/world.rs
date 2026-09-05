@@ -57,6 +57,92 @@ pub(super) struct GameTarget {
     pub(super) address: Address,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum L1ReadBoundary {
+    LatestGameIndex,
+    FactoryGame,
+    GameClaim,
+    GameIdentity,
+    GameValidity,
+    GameLifecycle,
+    ParentGameStatus,
+    BondState,
+    GameStatus,
+    ClaimCredit,
+    ClaimWithdrawal,
+    WethDelay,
+    ParentStanding,
+    GameStanding,
+    ProofStatus,
+    ProofInputs,
+    AnchorStateRegistry,
+    LatestL1Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) enum L1ReadTarget {
+    Factory,
+    Global,
+    Game(GameTarget),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum L1ReadScript {
+    Failure,
+    Status(u8),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum L1ReadOutcome {
+    Success,
+    Failure,
+    Status(u8),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct L1ReadRecord {
+    pub(super) boundary: L1ReadBoundary,
+    pub(super) target: L1ReadTarget,
+    pub(super) attempt: u64,
+    pub(super) outcome: L1ReadOutcome,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum SuperRootOutcome {
+    Root { root: B256, current_l1: u64, required_l1: u64 },
+    Unavailable,
+    TransportFailure,
+    Malformed,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SuperRootQueryKind {
+    ProposalHorizon,
+    AtTimestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum SuperRootQueryOutcome {
+    Horizon,
+    Trusted(B256),
+    Untrusted(B256),
+    Unavailable,
+    TransportFailure,
+    Malformed,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct SuperRootQueryRecord {
+    pub(super) kind: SuperRootQueryKind,
+    pub(super) requested_timestamp: u64,
+    pub(super) attempt: u64,
+    pub(super) safe_timestamp: u64,
+    pub(super) finalized_timestamp: u64,
+    pub(super) current_l1: Option<u64>,
+    pub(super) required_l1: Option<u64>,
+    pub(super) outcome: SuperRootQueryOutcome,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(super) enum ActionTarget {
     Create { sequence_number: u64, parent_game_index: u32 },
@@ -466,6 +552,11 @@ struct WorldData {
     finalized_time: u64,
     sync_confirmations: Option<u64>,
     pending_nonce: u64,
+    l1_read_scripts: Scripts<(L1ReadBoundary, L1ReadTarget), L1ReadScript>,
+    l1_read_records: Vec<L1ReadRecord>,
+    superroot_scripts: Scripts<u64, SuperRootOutcome>,
+    proposal_horizon_attempts: HashMap<u64, u64>,
+    superroot_records: Vec<SuperRootQueryRecord>,
     action_scripts: Scripts<ActionTarget, ActionScript>,
     proof_scripts: Scripts<GameTarget, ProofScript>,
     barriers: HashMap<BarrierKey, NamedBarrier>,
@@ -521,6 +612,11 @@ impl ScenarioWorld {
                 finalized_time: INITIAL_SUPER_ROOT_HORIZON,
                 sync_confirmations: None,
                 pending_nonce: 0,
+                l1_read_scripts: Scripts::default(),
+                l1_read_records: Vec::new(),
+                superroot_scripts: Scripts::default(),
+                proposal_horizon_attempts: HashMap::new(),
+                superroot_records: Vec::new(),
                 action_scripts: Scripts::default(),
                 proof_scripts: Scripts::default(),
                 barriers: HashMap::new(),
@@ -554,6 +650,54 @@ impl ScenarioWorld {
             game.bind_proof_inputs(state);
             state.games.insert(game.factory_index, game);
         })
+    }
+
+    pub(super) fn update_game(
+        &self,
+        target: &GameTarget,
+        update: impl FnOnce(&mut ScenarioGame),
+    ) -> L1BlockRef {
+        self.append_block(|state| {
+            let game = state.games.get_mut(&target.factory_index).expect("scenario game missing");
+            assert_eq!(game.address, target.address, "scenario game target address changed");
+            update(game);
+        })
+    }
+
+    pub(super) fn set_anchor_game(&self, target: &GameTarget) -> L1BlockRef {
+        self.append_block(|state| {
+            let game =
+                state.games.get(&target.factory_index).expect("scenario anchor game missing");
+            assert_eq!(game.address, target.address, "scenario anchor target address changed");
+            state.registered_anchor_game = game.address;
+            state.anchor_root = AnchorRoot {
+                root: game.root_claim,
+                sequence_number: U256::from(game.sequence_number),
+            };
+        })
+    }
+
+    pub(super) fn clear_factory(&self) -> L1BlockRef {
+        self.append_block(|state| {
+            state.games.clear();
+            state.registered_anchor_game = Address::ZERO;
+        })
+    }
+
+    pub(super) fn replace_factory(&self, mut games: Vec<ScenarioGame>) -> L1BlockRef {
+        self.append_block(|state| {
+            state.games.clear();
+            state.registered_anchor_game = Address::ZERO;
+            games.sort_unstable_by_key(|game| game.factory_index);
+            for mut game in games {
+                game.bind_proof_inputs(state);
+                state.games.insert(game.factory_index, game);
+            }
+        })
+    }
+
+    pub(super) fn set_respected_game_type(&self, game_type: u32) -> L1BlockRef {
+        self.append_block(|state| state.respected_game_type = game_type)
     }
 
     pub(super) fn rotate_registered_prestate(
@@ -608,6 +752,54 @@ impl ScenarioWorld {
             data.sync_confirmations = Some(confirmations);
         }
         Ok(())
+    }
+
+    pub(super) fn script_l1_fault(
+        &self,
+        boundary: L1ReadBoundary,
+        target: L1ReadTarget,
+        attempt: u64,
+    ) {
+        self.lock().l1_read_scripts.script_exact(
+            (boundary, target),
+            attempt,
+            L1ReadScript::Failure,
+        );
+    }
+
+    pub(super) fn script_game_status(&self, target: GameTarget, attempt: u64, status: u8) {
+        self.lock().l1_read_scripts.script_exact(
+            (L1ReadBoundary::GameStatus, L1ReadTarget::Game(target)),
+            attempt,
+            L1ReadScript::Status(status),
+        );
+    }
+
+    pub(super) fn l1_read_record(
+        &self,
+        boundary: L1ReadBoundary,
+        target: &L1ReadTarget,
+        attempt: u64,
+    ) -> Option<L1ReadRecord> {
+        self.lock()
+            .l1_read_records
+            .iter()
+            .find(|record| {
+                record.boundary == boundary && record.target == *target && record.attempt == attempt
+            })
+            .cloned()
+    }
+
+    pub(super) fn script_superroot(&self, timestamp: u64, attempt: u64, outcome: SuperRootOutcome) {
+        self.lock().superroot_scripts.script_exact(timestamp, attempt, outcome);
+    }
+
+    pub(super) fn script_next_superroot(&self, timestamp: u64, outcome: SuperRootOutcome) {
+        self.lock().superroot_scripts.script_next(timestamp, outcome);
+    }
+
+    pub(super) fn superroot_journal(&self) -> Vec<SuperRootQueryRecord> {
+        self.lock().superroot_records.clone()
     }
 
     pub(super) fn script_action(&self, target: ActionTarget, attempt: u64, outcome: ActionOutcome) {
@@ -690,6 +882,14 @@ impl ScenarioWorld {
         attempt: u64,
     ) -> Option<ActionRecord> {
         self.lock().action_records.get(&AttemptKey::new(target.clone(), attempt)).cloned()
+    }
+
+    pub(super) fn action_records(&self) -> Vec<ActionRecord> {
+        let mut records = self.lock().action_records.values().cloned().collect::<Vec<_>>();
+        records.sort_unstable_by(|left, right| {
+            left.target.cmp(&right.target).then_with(|| left.attempt.cmp(&right.attempt))
+        });
+        records
     }
 
     pub(super) fn proof_record(&self, target: &GameTarget, attempt: u64) -> Option<ProofRecord> {
@@ -822,6 +1022,33 @@ impl WorldData {
 
     fn game_target(&self, address: Address) -> Result<GameTarget> {
         Ok(self.latest_state().game(address)?.target())
+    }
+
+    fn record_l1_read(
+        &mut self,
+        boundary: L1ReadBoundary,
+        target: L1ReadTarget,
+    ) -> Result<Option<u8>> {
+        let key = (boundary, target.clone());
+        let (attempt, script) = self.l1_read_scripts.next(&key);
+        let outcome = match script {
+            None => L1ReadOutcome::Success,
+            Some(L1ReadScript::Failure) => L1ReadOutcome::Failure,
+            Some(L1ReadScript::Status(status)) => L1ReadOutcome::Status(status),
+        };
+        self.l1_read_records.push(L1ReadRecord {
+            boundary,
+            target: target.clone(),
+            attempt,
+            outcome,
+        });
+        match script {
+            None => Ok(None),
+            Some(L1ReadScript::Failure) => {
+                bail!("scripted {boundary:?} failure for {target:?} attempt {attempt}")
+            }
+            Some(L1ReadScript::Status(status)) => Ok(Some(status)),
+        }
     }
 
     fn proof_target(&self, address: Address, game: &GameProofInputs) -> Result<GameTarget> {
@@ -1070,6 +1297,31 @@ impl FakeL1View {
     fn latest_state(&self) -> Arc<L1State> {
         self.0.lock().latest_state()
     }
+
+    fn state_for_game(
+        &self,
+        boundary: L1ReadBoundary,
+        game: Address,
+        block: BlockId,
+    ) -> Result<(Arc<L1State>, Option<u8>)> {
+        let mut data = self.0.lock();
+        let state = data.state_at(block)?;
+        let target = state.game(game)?.target();
+        let scripted = data.record_l1_read(boundary, L1ReadTarget::Game(target))?;
+        Ok((state, scripted))
+    }
+
+    fn latest_state_for_game(
+        &self,
+        boundary: L1ReadBoundary,
+        game: Address,
+    ) -> Result<(Arc<L1State>, Option<u8>)> {
+        let mut data = self.0.lock();
+        let state = data.latest_state();
+        let target = state.game(game)?.target();
+        let scripted = data.record_l1_read(boundary, L1ReadTarget::Game(target))?;
+        Ok((state, scripted))
+    }
 }
 
 #[async_trait]
@@ -1091,7 +1343,10 @@ impl L1View for FakeL1View {
     }
 
     async fn latest_game_index(&self, block: BlockId) -> Result<Option<U256>> {
-        Ok(self.state(block)?.games.keys().next_back().copied())
+        let mut data = self.0.lock();
+        let state = data.state_at(block)?;
+        data.record_l1_read(L1ReadBoundary::LatestGameIndex, L1ReadTarget::Factory)?;
+        Ok(state.games.keys().next_back().copied())
     }
 
     async fn registered_anchor_game(&self, block: BlockId) -> Result<Address> {
@@ -1099,13 +1354,16 @@ impl L1View for FakeL1View {
     }
 
     async fn factory_game(&self, index: U256, block: BlockId) -> Result<FactoryGame> {
-        let state = self.state(block)?;
+        let mut data = self.0.lock();
+        let state = data.state_at(block)?;
         let game = state.games.get(&index).context("factory game missing")?;
+        let target = game.target();
+        data.record_l1_read(L1ReadBoundary::FactoryGame, L1ReadTarget::Game(target))?;
         Ok(FactoryGame { address: game.address, game_type: game.game_type })
     }
 
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim> {
-        let state = self.state(block)?;
+        let (state, _) = self.state_for_game(L1ReadBoundary::GameClaim, game, block)?;
         let game = state.game(game)?;
         Ok(GameClaim {
             status: game.proposal_status as u8,
@@ -1115,7 +1373,7 @@ impl L1View for FakeL1View {
     }
 
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity> {
-        let state = self.state(block)?;
+        let (state, _) = self.state_for_game(L1ReadBoundary::GameIdentity, game, block)?;
         let game = state.game(game)?;
         Ok(GameIdentity {
             anchor_state_registry: game.anchor_state_registry,
@@ -1126,7 +1384,7 @@ impl L1View for FakeL1View {
     }
 
     async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity> {
-        let state = self.state(block)?;
+        let (state, _) = self.state_for_game(L1ReadBoundary::GameValidity, game, block)?;
         let game = state.game(game)?;
         Ok(GameValidity {
             root_claim: game.root_claim,
@@ -1139,11 +1397,16 @@ impl L1View for FakeL1View {
     async fn game_lifecycle(
         &self,
         game: Address,
-        _registry: Address,
+        registry: Address,
         block: BlockId,
     ) -> Result<GameLifecycle> {
-        let state = self.state(block)?;
+        let (state, _) = self.state_for_game(L1ReadBoundary::GameLifecycle, game, block)?;
         let game = state.game(game)?;
+        ensure!(
+            game.anchor_state_registry == registry,
+            "game lifecycle used registry {registry}, expected {}",
+            game.anchor_state_registry
+        );
         Ok(GameLifecycle {
             proposal_status: game.proposal_status,
             deadline: game.deadline,
@@ -1154,19 +1417,29 @@ impl L1View for FakeL1View {
     }
 
     async fn parent_game_status(&self, parent_index: u32, block: BlockId) -> Result<u8> {
-        let state = self.state(block)?;
-        Ok(state.games.get(&U256::from(parent_index)).context("parent game missing")?.status as u8)
+        let mut data = self.0.lock();
+        let state = data.state_at(block)?;
+        let game = state.games.get(&U256::from(parent_index)).context("parent game missing")?;
+        let target = game.target();
+        data.record_l1_read(L1ReadBoundary::ParentGameStatus, L1ReadTarget::Game(target))?;
+        Ok(game.status as u8)
     }
 
     async fn bond_state(
         &self,
         game: Address,
-        _weth: Address,
-        _proposer: Address,
+        weth: Address,
+        proposer: Address,
         block: BlockId,
     ) -> Result<BondState> {
-        let state = self.state(block)?;
-        Ok(state.game(game)?.bond)
+        let (state, _) = self.state_for_game(L1ReadBoundary::BondState, game, block)?;
+        let game = state.game(game)?;
+        ensure!(game.weth == weth, "bond state used WETH {weth}, expected {}", game.weth);
+        ensure!(
+            proposer == ScenarioWorld::proposer_address(),
+            "bond state used unexpected proposer {proposer}"
+        );
+        Ok(game.bond)
     }
 
     async fn init_bond(&self) -> Result<U256> {
@@ -1174,32 +1447,58 @@ impl L1View for FakeL1View {
     }
 
     async fn game_status(&self, game: Address) -> Result<u8> {
-        let state = self.latest_state();
-        Ok(state.game(game)?.status as u8)
+        let (state, scripted) = self.latest_state_for_game(L1ReadBoundary::GameStatus, game)?;
+        Ok(scripted.unwrap_or(state.game(game)?.status as u8))
     }
 
     async fn claim_preflight(
         &self,
         game: Address,
-        _weth: Address,
-        _proposer: Address,
+        weth: Address,
+        proposer: Address,
     ) -> ClaimPreflight {
-        let state = self.latest_state();
-        let credit = state.game(game).map(|game| game.bond.credit);
-        let withdrawal = state.game(game).map(|game| WithdrawalState {
-            amount: game.bond.withdrawal_amount,
-            timestamp: game.bond.withdrawal_timestamp,
-        });
+        let mut data = self.0.lock();
+        let state = data.latest_state();
+        let target = match state.game(game) {
+            Ok(game) => game.target(),
+            Err(error) => {
+                let message = error.to_string();
+                return ClaimPreflight {
+                    credit: Err(anyhow::anyhow!(message.clone())),
+                    withdrawal: Err(anyhow::anyhow!(message)),
+                };
+            }
+        };
+        let game_state = state.game(game).expect("game was just resolved");
+        let arguments_valid =
+            game_state.weth == weth && proposer == ScenarioWorld::proposer_address();
+        let credit = if arguments_valid {
+            data.record_l1_read(L1ReadBoundary::ClaimCredit, L1ReadTarget::Game(target.clone()))
+                .map(|_| game_state.bond.credit)
+        } else {
+            Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
+        };
+        let withdrawal = if arguments_valid {
+            data.record_l1_read(L1ReadBoundary::ClaimWithdrawal, L1ReadTarget::Game(target)).map(
+                |_| WithdrawalState {
+                    amount: game_state.bond.withdrawal_amount,
+                    timestamp: game_state.bond.withdrawal_timestamp,
+                },
+            )
+        } else {
+            Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
+        };
         ClaimPreflight { credit, withdrawal }
     }
 
     async fn weth_delay(&self, weth: Address) -> Result<U256> {
-        let state = self.latest_state();
-        Ok(state
-            .games
-            .values()
-            .find(|game| game.weth == weth)
-            .map_or_else(|| U256::from(10), |game| game.bond.delay))
+        let mut data = self.0.lock();
+        let state = data.latest_state();
+        let game = state.games.values().find(|game| game.weth == weth);
+        let target =
+            game.map(|game| L1ReadTarget::Game(game.target())).unwrap_or(L1ReadTarget::Global);
+        data.record_l1_read(L1ReadBoundary::WethDelay, target)?;
+        Ok(game.map_or_else(|| U256::from(10), |game| game.bond.delay))
     }
 
     async fn game_by_uuid(&self, root_claim: B256, extra_data: Vec<u8>) -> Result<Address> {
@@ -1225,33 +1524,48 @@ impl L1View for FakeL1View {
         Ok(self.state(block)?.respected_game_type)
     }
 
-    async fn parent_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
-        let state = self.latest_state();
-        Ok(state.game(game)?.standing)
+    async fn parent_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
+        let (state, _) = self.latest_state_for_game(L1ReadBoundary::ParentStanding, game)?;
+        let game = state.game(game)?;
+        let registered = state.registered_args.anchor_state_registry;
+        ensure!(
+            registry == registered,
+            "parent standing used registry {registry}, expected {registered}"
+        );
+        Ok(game.standing)
     }
 
-    async fn game_standing(&self, game: Address, _registry: Address) -> Result<GameStanding> {
-        let state = self.latest_state();
-        Ok(state.game(game)?.standing)
+    async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
+        let (state, _) = self.latest_state_for_game(L1ReadBoundary::GameStanding, game)?;
+        let game = state.game(game)?;
+        ensure!(
+            registry == game.anchor_state_registry,
+            "game standing used registry {registry}, expected {}",
+            game.anchor_state_registry
+        );
+        Ok(game.standing)
     }
 
     async fn proof_status(&self, game: Address) -> Result<u8> {
-        let state = self.latest_state();
+        let (state, _) = self.latest_state_for_game(L1ReadBoundary::ProofStatus, game)?;
         Ok(state.game(game)?.proposal_status as u8)
     }
 
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs> {
-        let state = self.latest_state();
+        let (state, _) = self.latest_state_for_game(L1ReadBoundary::ProofInputs, game)?;
         Ok(state.game(game)?.proof_inputs)
     }
 
     async fn anchor_state_registry(&self, game: Address) -> Result<Address> {
-        let state = self.latest_state();
+        let (state, _) = self.latest_state_for_game(L1ReadBoundary::AnchorStateRegistry, game)?;
         Ok(state.game(game)?.anchor_state_registry)
     }
 
     async fn latest_l1_timestamp(&self) -> Result<u64> {
-        Ok(self.latest_state().block.timestamp)
+        let mut data = self.0.lock();
+        let state = data.latest_state();
+        data.record_l1_read(L1ReadBoundary::LatestL1Timestamp, L1ReadTarget::Global)?;
+        Ok(state.block.timestamp)
     }
 }
 
@@ -1269,29 +1583,95 @@ struct FakeSuperRootSource(ScenarioWorld);
 
 #[async_trait]
 impl SuperRootSource for FakeSuperRootSource {
-    async fn proposal_horizon(&self, _timestamp: u64) -> Result<ProposalHorizon> {
-        let data = self.0.lock();
-        Ok(ProposalHorizon {
-            safe_timestamp: data.safe_time,
-            finalized_timestamp: data.finalized_time,
-        })
+    async fn proposal_horizon(&self, timestamp: u64) -> Result<ProposalHorizon> {
+        let mut data = self.0.lock();
+        let safe = data.safe_time;
+        let finalized = data.finalized_time;
+        let attempt = data.proposal_horizon_attempts.entry(timestamp).or_default();
+        *attempt += 1;
+        let attempt = *attempt;
+        data.superroot_records.push(SuperRootQueryRecord {
+            kind: SuperRootQueryKind::ProposalHorizon,
+            requested_timestamp: timestamp,
+            attempt,
+            safe_timestamp: safe,
+            finalized_timestamp: finalized,
+            current_l1: None,
+            required_l1: None,
+            outcome: SuperRootQueryOutcome::Horizon,
+        });
+        Ok(ProposalHorizon { safe_timestamp: safe, finalized_timestamp: finalized })
     }
 
     async fn super_root_at_timestamp(&self, timestamp: u64) -> Result<SuperRootAtTimestamp> {
-        let data = self.0.lock();
+        let mut data = self.0.lock();
         let safe = data.safe_time;
         let finalized = data.finalized_time;
-        if timestamp > safe {
-            let response = superroot_response(timestamp, safe, finalized, None);
-            return Ok(SuperRootAtTimestamp { response, root: None });
-        }
+        let (attempt, scripted) = data.superroot_scripts.next(&timestamp);
+        let outcome = scripted.unwrap_or_else(|| {
+            if timestamp > safe {
+                SuperRootOutcome::Unavailable
+            } else {
+                SuperRootOutcome::Root {
+                    root: canonical_super_root(timestamp),
+                    current_l1: 2,
+                    required_l1: 1,
+                }
+            }
+        });
+        let (current_l1, required_l1, journal_outcome) = match outcome {
+            SuperRootOutcome::Root { root, current_l1, required_l1 } => (
+                Some(current_l1),
+                Some(required_l1),
+                if current_l1 > required_l1 {
+                    SuperRootQueryOutcome::Trusted(root)
+                } else {
+                    SuperRootQueryOutcome::Untrusted(root)
+                },
+            ),
+            SuperRootOutcome::Unavailable => (Some(2), None, SuperRootQueryOutcome::Unavailable),
+            SuperRootOutcome::TransportFailure => {
+                (None, None, SuperRootQueryOutcome::TransportFailure)
+            }
+            SuperRootOutcome::Malformed => (None, None, SuperRootQueryOutcome::Malformed),
+        };
+        data.superroot_records.push(SuperRootQueryRecord {
+            kind: SuperRootQueryKind::AtTimestamp,
+            requested_timestamp: timestamp,
+            attempt,
+            safe_timestamp: safe,
+            finalized_timestamp: finalized,
+            current_l1,
+            required_l1,
+            outcome: journal_outcome,
+        });
+        drop(data);
 
-        let root = canonical_super_root(timestamp);
-        let response = superroot_response(timestamp, safe, finalized, Some((1, root)));
-        Ok(SuperRootAtTimestamp {
-            response,
-            root: Some(SuperRootAt { proof_bytes: vec![0x01], super_root: root }),
-        })
+        match outcome {
+            SuperRootOutcome::Root { root, current_l1, required_l1 } => {
+                let response = superroot_response(
+                    timestamp,
+                    safe,
+                    finalized,
+                    current_l1,
+                    Some((required_l1, root)),
+                );
+                Ok(SuperRootAtTimestamp {
+                    response,
+                    root: Some(SuperRootAt { proof_bytes: vec![0x01], super_root: root }),
+                })
+            }
+            SuperRootOutcome::Unavailable => Ok(SuperRootAtTimestamp {
+                response: superroot_response(timestamp, safe, finalized, 2, None),
+                root: None,
+            }),
+            SuperRootOutcome::TransportFailure => {
+                bail!("scripted superroot transport failure at timestamp {timestamp}")
+            }
+            SuperRootOutcome::Malformed => {
+                bail!("scripted malformed superroot response at timestamp {timestamp}")
+            }
+        }
     }
 }
 
@@ -1299,10 +1679,11 @@ fn superroot_response(
     timestamp: u64,
     safe: u64,
     finalized: u64,
+    current_l1: u64,
     data: Option<(u64, B256)>,
 ) -> SuperRootAtTimestampResponse {
     SuperRootAtTimestampResponse {
-        current_l1: SuperBlockId { number: 2, ..Default::default() },
+        current_l1: SuperBlockId { number: current_l1, ..Default::default() },
         current_safe_timestamp: safe,
         current_local_safe_timestamp: safe,
         current_finalized_timestamp: finalized,
@@ -1548,6 +1929,7 @@ pub(super) struct ScenarioHarness {
     world: ScenarioWorld,
     proposer: Arc<Proposer>,
     control: ScenarioControl,
+    config: ProposerConfig,
 }
 
 impl ScenarioHarness {
@@ -1563,7 +1945,19 @@ impl ScenarioHarness {
             .await
             .map_err(|error| ScenarioError::Initialization(error.to_string()))?;
         let control = ScenarioControl::new(proposer.clone(), SCENARIO_WATCHDOG);
-        Ok(Self { world, proposer, control })
+        Ok(Self { world, proposer, control, config })
+    }
+
+    pub(super) async fn restart(&mut self) -> Result<(), ScenarioError> {
+        let tasks = self.proposer.tasks.lock().await;
+        if let Some(task_id) = tasks.keys().min().copied() {
+            return Err(ScenarioError::UnsettledTask { task_id });
+        }
+        drop(tasks);
+
+        let replacement = Self::new(self.world.clone(), self.config.clone()).await?;
+        *self = replacement;
+        Ok(())
     }
 
     pub(super) async fn tick(&mut self) -> Result<CycleResult, ScenarioError> {
