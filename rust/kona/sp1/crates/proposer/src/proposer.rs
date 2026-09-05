@@ -1998,13 +1998,14 @@ impl Proposer {
                 });
             }
             Some(super_root) if super_root.super_root != claim => {
-                if !response_trusted(&super_root_at.response) {
+                if creator == self.proposer_address || !response_trusted(&super_root_at.response) {
                     tracing::warn!(
                         game_index = %index,
                         ?game_address,
+                        own_game = creator == self.proposer_address,
                         ?claim,
                         canonical_super_root = ?super_root.super_root,
-                        "Root mismatch from untrusted supernode response; deferring validation"
+                        "Root mismatch is not terminal for this observation; deferring validation"
                     );
                     return Ok(GameFetchResult::Pending {
                         index,
@@ -2994,10 +2995,9 @@ impl Proposer {
         }
 
         let now = self
-            .l1_view
-            .latest_l1_timestamp()
-            .await
-            .context("failed to fetch latest L1 block for game deadline")?;
+            .query_time
+            .unix_timestamp()
+            .context("failed to read host time for game deadline")?;
         let max_duration = if is_defense {
             *self.max_prove_duration.get().context("max_prove_duration must be set via try_init")?
         } else {
@@ -3202,10 +3202,9 @@ impl Proposer {
         }
 
         let now = self
-            .l1_view
-            .latest_l1_timestamp()
-            .await
-            .context("failed to fetch latest L1 block for game deadline")?;
+            .query_time
+            .unix_timestamp()
+            .context("failed to read host time for game deadline")?;
         if now > claim.deadline {
             tracing::warn!(
                 ?game_address,
@@ -4422,15 +4421,8 @@ mod tests {
         proposer
     }
 
-    fn push_claim_error_and_default_head(asserter: &Asserter) {
-        push_claim_error_and_head(asserter, 1_000);
-    }
-
-    fn push_claim_error_and_head(asserter: &Asserter, timestamp: u64) {
+    fn push_claim_error(asserter: &Asserter) {
         asserter.push_failure_msg("claimData unavailable");
-        let mut block = Block::<alloy_rpc_types_eth::Transaction>::default();
-        block.header.timestamp = timestamp;
-        asserter.push_success(&block);
     }
 
     async fn insert_task(proposer: &Proposer, operation: OperationSummary) {
@@ -5975,7 +5967,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn should_skip_proving_uses_l1_time_and_strict_expiry() {
+        async fn should_skip_proving_uses_host_time_and_strict_expiry() {
             let asserter = Asserter::new();
             let provider = ProviderBuilder::default().connect_mocked_client(asserter.clone());
             let mut proposer = test_proposer_with_provider(provider).await;
@@ -5984,20 +5976,23 @@ mod tests {
             proposer.max_prove_duration.set(7200).unwrap();
             let game = Address::left_padding_from(&[0xdd]);
 
-            push_claim_error_and_head(&asserter, 1_000);
+            push_claim_error(&asserter);
+            proposer.query_time = Arc::new(TestQueryTime(1_000));
             assert!(
                 !proposer.should_skip_proving(game, 1_000, true).await.unwrap(),
                 "deadline equality is not expired"
             );
 
-            push_claim_error_and_head(&asserter, 1_001);
+            push_claim_error(&asserter);
+            proposer.query_time = Arc::new(TestQueryTime(1_001));
             assert!(
                 proposer.should_skip_proving(game, 1_000, true).await.unwrap(),
-                "L1 timestamp past the deadline must skip"
+                "host timestamp past the deadline must skip"
             );
             assert_eq!(*proof_engine.cleared.lock().unwrap(), vec![game]);
 
-            push_claim_error_and_head(&asserter, 1_000);
+            push_claim_error(&asserter);
+            proposer.query_time = Arc::new(TestQueryTime(1_000));
             assert!(
                 !proposer.should_skip_proving(game, 100_000, true).await.unwrap(),
                 "distant deadline must proceed"
@@ -6073,7 +6068,7 @@ mod tests {
             game.absolute_prestate = prestate;
             proposer.state.write().await.games.insert(game.index, game);
 
-            push_claim_error_and_default_head(&asserter);
+            push_claim_error(&asserter);
             let yes: Bytes = true.abi_encode().into();
             let no: Bytes = false.abi_encode().into();
             asserter.push_success(&yes);
@@ -6268,7 +6263,7 @@ mod tests {
 
             let no: Bytes = false.abi_encode().into();
             for _ in 0..3 {
-                push_claim_error_and_default_head(&asserter);
+                push_claim_error(&asserter);
                 asserter.push_success(&no);
                 asserter.push_success(&no);
             }
@@ -6309,7 +6304,7 @@ mod tests {
             game.creator = Address::left_padding_from(&[0xff]);
             proposer.state.write().await.games.insert(game.index, game);
 
-            push_claim_error_and_default_head(&asserter);
+            push_claim_error(&asserter);
             let (_, planned) = plan_creation(&proposer).await;
             assert!(planned.is_empty());
         }
@@ -6329,7 +6324,7 @@ mod tests {
             game.creator = proposer.proposer_address;
             proposer.state.write().await.games.insert(game.index, game);
 
-            push_claim_error_and_default_head(&asserter);
+            push_claim_error(&asserter);
             let yes: Bytes = true.abi_encode().into();
             let no: Bytes = false.abi_encode().into();
             asserter.push_success(&yes);
@@ -6383,7 +6378,7 @@ mod tests {
             )
             .await;
 
-            push_claim_error_and_default_head(&asserter);
+            push_claim_error(&asserter);
             let no: Bytes = false.abi_encode().into();
             asserter.push_success(&no);
             asserter.push_success(&no);
@@ -6417,9 +6412,9 @@ mod tests {
             // error on its missing cell, proving the selection wiring.
             proposer.max_challenge_duration.set(7200).unwrap();
             let game = Address::left_padding_from(&[0xab]);
-            push_claim_error_and_default_head(&asserter);
+            push_claim_error(&asserter);
             assert!(!proposer.should_skip_proving(game, 100_000, false).await.unwrap());
-            push_claim_error_and_default_head(&asserter);
+            push_claim_error(&asserter);
             assert!(proposer.should_skip_proving(game, 100_000, true).await.is_err());
         }
 
