@@ -6935,7 +6935,7 @@ dependencies = [
  "kona-protocol",
  "kona-registry",
  "metrics",
- "metrics-exporter-prometheus",
+ "metrics-util",
  "op-alloy-consensus",
  "op-alloy-network",
  "op-alloy-provider",
