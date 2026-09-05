@@ -83,7 +83,7 @@ where
     ensure!(!config.fetch_timeout.is_zero(), "artifact fetch timeout must be non-zero");
     let compressed = fetch(&config.url, config.fetch_timeout, config.allow_file).await?;
     let bytes = decompress(&compressed)
-        .with_context(|| format!("failed to decode artifact from {}", redacted_url(&config.url)))?;
+        .with_context(|| format!("failed to decode artifact from {}", config.url))?;
     derive_identity_with(bytes, current, derive_vkey).await
 }
 
@@ -136,12 +136,11 @@ fn validate_artifact_url(url: &Url, allow_file: bool) -> Result<()> {
 async fn fetch(url: &Url, timeout: Duration, allow_file: bool) -> Result<Vec<u8>> {
     match url.scheme() {
         "file" if allow_file => {
-            let path = url
-                .to_file_path()
-                .map_err(|()| anyhow!("invalid file artifact URL {}", redacted_url(url)))?;
+            let path =
+                url.to_file_path().map_err(|()| anyhow!("invalid file artifact URL {url}"))?;
             tokio::fs::read(&path)
                 .await
-                .with_context(|| format!("failed to read artifact at {}", redacted_url(url)))
+                .with_context(|| format!("failed to read artifact at {url}"))
         }
         "https" => {
             let client = reqwest::Client::builder()
@@ -153,15 +152,15 @@ async fn fetch(url: &Url, timeout: Duration, allow_file: bool) -> Result<Vec<u8>
                 .get(url.clone())
                 .send()
                 .await
-                .with_context(|| format!("failed to fetch artifact from {}", redacted_url(url)))?
+                .with_context(|| format!("failed to fetch artifact from {url}"))?
                 .error_for_status()
-                .with_context(|| format!("artifact fetch failed for {}", redacted_url(url)))?
+                .with_context(|| format!("artifact fetch failed for {url}"))?
                 .bytes()
                 .await
-                .with_context(|| format!("failed to read artifact body from {}", redacted_url(url)))
+                .with_context(|| format!("failed to read artifact body from {url}"))
                 .map(|bytes| bytes.to_vec())
         }
-        _ => bail!("unsupported artifact source {}", redacted_url(url)),
+        _ => bail!("unsupported artifact source {url}"),
     }
 }
 
@@ -171,16 +170,6 @@ fn decompress(compressed: &[u8]) -> Result<Vec<u8>> {
     decoder.read_to_end(&mut bytes).context("artifact is not valid gzip")?;
     ensure!(!bytes.is_empty(), "decompressed artifact is empty");
     Ok(bytes)
-}
-
-/// Renders a URL without credentials, query values, or fragments.
-pub fn redacted_url(url: &Url) -> String {
-    let mut redacted = url.clone();
-    let _ = redacted.set_username("");
-    let _ = redacted.set_password(None);
-    redacted.set_query(None);
-    redacted.set_fragment(None);
-    redacted.to_string()
 }
 
 #[cfg(test)]
@@ -277,15 +266,5 @@ mod tests {
         assert_eq!(&*refreshed.bytes(), replacement);
         assert_eq!(refreshed.identity().range_vkey, B256::repeat_byte(0x44));
         assert_ne!(refreshed.identity().elf_sha256, current.identity().elf_sha256);
-    }
-
-    #[test]
-    fn artifact_errors_redact_credentials() {
-        let url =
-            Url::parse("https://user:secret@example.com/prestates?token=hidden#fragment").unwrap();
-        let rendered = redacted_url(&url);
-        assert_eq!(rendered, "https://example.com/prestates");
-        assert!(!rendered.contains("secret"));
-        assert!(!rendered.contains("hidden"));
     }
 }

@@ -16,7 +16,6 @@ use kona_zkvm_canary::{
     config::{CanaryConfig, ServiceMode},
     execution::ReportSummary,
     metrics::CanaryMetrics,
-    redaction::redact_sensitive_detail,
     runner::{AttemptResult, RunOutcome, Runner, RunnerEvent},
 };
 use tokio::sync::watch;
@@ -46,7 +45,7 @@ async fn main() -> ExitCode {
     match run_service(cli).await {
         Ok(code) => ExitCode::from(code),
         Err(error) => {
-            let error = redacted_error(&error);
+            let error = bounded_error(&error);
             tracing::error!(error = %error, "kona-zkvm-canary exited with an infrastructure error");
             ExitCode::from(EXIT_INFRA)
         }
@@ -260,7 +259,7 @@ fn log_attempt(result: &AttemptResult) {
     let range_outcome = result.execution.as_ref().map(|execution| execution.range.outcome);
     let consolidation_outcome =
         result.execution.as_ref().map(|execution| execution.consolidation.outcome);
-    let detail = result.detail.as_deref().map(redact_sensitive_detail);
+    let detail = result.detail.as_deref();
     tracing::info!(
         outcome = outcome_label(result.outcome),
         fingerprint = ?result.fingerprint,
@@ -312,8 +311,8 @@ const fn outcome_label(outcome: RunOutcome) -> &'static str {
     }
 }
 
-fn redacted_error(error: &anyhow::Error) -> String {
-    let rendered = redact_sensitive_detail(&format!("{error:#}"));
+fn bounded_error(error: &anyhow::Error) -> String {
+    let rendered = format!("{error:#}");
     if rendered.len() <= MAX_LOG_ERROR_BYTES {
         return rendered;
     }
@@ -388,21 +387,8 @@ mod tests {
         .await
         .unwrap_err();
 
-        assert!(redacted_error(&error).contains("valid gzip"));
+        assert!(bounded_error(&error).contains("valid gzip"));
         assert!(!metrics_bound.get());
-    }
-
-    #[test]
-    fn startup_errors_redact_url_secrets_without_discarding_context() {
-        let error = anyhow!(
-            "artifact fetch failed at https://user:secret@example.test/release?token=hidden"
-        );
-        let detail = redacted_error(&error);
-
-        assert!(detail.contains("artifact fetch failed at https://example.test/release"));
-        for secret in ["user:secret", "token=hidden"] {
-            assert!(!detail.contains(secret));
-        }
     }
 
     #[test]

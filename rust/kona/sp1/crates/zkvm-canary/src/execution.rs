@@ -16,7 +16,7 @@ use sp1_core_executor::{ExecutionError, SP1CoreOpts};
 use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient};
 use tokio::{sync::watch, time::Instant};
 
-use crate::{artifact::ValidatedRangeArtifact, redaction::redact_sensitive_detail};
+use crate::artifact::ValidatedRangeArtifact;
 
 const MAX_REPORT_DETAILS: usize = 128;
 const MAX_CYCLE_PHASES: usize = 64;
@@ -671,8 +671,7 @@ fn finish(range: StageResult, consolidation: StageResult) -> ExecutionResult {
 }
 
 fn bounded_error(error: &impl std::fmt::Display) -> String {
-    let detail = redact_sensitive_detail(&error.to_string());
-    bounded_text(&detail, MAX_ERROR_BYTES)
+    bounded_text(&error.to_string(), MAX_ERROR_BYTES)
 }
 
 fn bounded_name(name: &str) -> String {
@@ -828,21 +827,6 @@ mod tests {
             stage(ExecutionMode::Consolidation, StageOutcome::CycleLimitExceeded),
         );
         assert_eq!(rejection.outcome, ExecutionOutcome::GuestRejected);
-    }
-
-    #[test]
-    fn execution_errors_redact_secrets_without_discarding_diagnostics() {
-        let detail = bounded_error(&anyhow::anyhow!(
-            "assertion failed: a / b? beacon request failed for \
-             https://user:secret@beacon.example/api/token?key=hidden token=loose api_key=other"
-        ));
-        assert!(detail.contains("assertion failed: a / b?"));
-        assert!(detail.contains("https://beacon.example/api/token"));
-        assert!(detail.contains("token=[redacted]"));
-        assert!(detail.contains("api_key=[redacted]"));
-        for secret in ["user:secret", "key=hidden", "token=loose", "api_key=other"] {
-            assert!(!detail.contains(secret));
-        }
     }
 
     fn range_fixture() -> (SuperRangeInputs, SuperRangeOutputs) {

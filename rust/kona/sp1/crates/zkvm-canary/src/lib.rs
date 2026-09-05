@@ -4,6 +4,5 @@ pub mod artifact;
 pub mod config;
 pub mod execution;
 pub mod metrics;
-pub mod redaction;
 pub mod runner;
 pub mod source;
