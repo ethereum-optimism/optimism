@@ -48,6 +48,24 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "_withdrawalHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "_proofSubmitter",
+        "type": "address"
+      }
+    ],
+    "name": "deleteProvenWithdrawal",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "_to",
         "type": "address"
@@ -782,6 +800,25 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "proofSubmitter",
+        "type": "address"
+      }
+    ],
+    "name": "WithdrawalProofDeleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "withdrawalHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "from",
         "type": "address"
       },
@@ -852,6 +889,11 @@
   {
     "inputs": [],
     "name": "OptimismPortal_CalldataTooLarge",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_DisputeGameNotInvalidated",
     "type": "error"
   },
   {

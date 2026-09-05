@@ -2363,6 +2363,166 @@ contract OptimismPortal2_CheckWithdrawal_Test is OptimismPortal2_TestInit {
     }
 }
 
+/// @title OptimismPortal2_DeleteProvenWithdrawal_Test
+/// @notice Test contract for OptimismPortal2 `deleteProvenWithdrawal` function.
+contract OptimismPortal2_DeleteProvenWithdrawal_Test is OptimismPortal2_TestInit {
+    function setUp() public virtual override {
+        super.setUp();
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that `deleteProvenWithdrawal` succeeds when the dispute game resolved in
+    ///         favor of the challenger.
+    function test_deleteProvenWithdrawal_challengerWins_succeeds() external {
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
+
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProofDeleted(_withdrawalHash, address(this));
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+
+        (IDisputeGame disputeGameProxy, uint64 timestamp) =
+            optimismPortal2.provenWithdrawals(_withdrawalHash, address(this));
+        assertEq(address(disputeGameProxy), address(0));
+        assertEq(timestamp, 0);
+    }
+
+    /// @notice Tests that `deleteProvenWithdrawal` succeeds when the dispute game is blacklisted.
+    function test_deleteProvenWithdrawal_blacklistedGame_succeeds() external {
+        vm.prank(optimismPortal2.guardian());
+        anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(game)));
+
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProofDeleted(_withdrawalHash, address(this));
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+
+        (, uint64 timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash, address(this));
+        assertEq(timestamp, 0);
+    }
+
+    /// @notice Tests that `deleteProvenWithdrawal` can be called by any address.
+    function testFuzz_deleteProvenWithdrawal_anyCaller_succeeds(address _caller) external {
+        assumeNotForgeAddress(_caller);
+        vm.assume(_caller != EIP1967Helper.getAdmin(address(optimismPortal2)));
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
+
+        vm.prank(_caller);
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+
+        (, uint64 timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash, address(this));
+        assertEq(timestamp, 0);
+    }
+
+    /// @notice Tests that `deleteProvenWithdrawal` reverts if the withdrawal has not been proven
+    ///         by the given proof submitter.
+    function test_deleteProvenWithdrawal_ifUnproven_reverts() external {
+        vm.expectRevert(IOptimismPortal.OptimismPortal_Unproven.selector);
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(0xb0b));
+    }
+
+    /// @notice Tests that `deleteProvenWithdrawal` reverts if the dispute game is still in
+    ///         progress.
+    function test_deleteProvenWithdrawal_ifGameInProgress_reverts() external {
+        vm.expectRevert(IOptimismPortal.OptimismPortal_DisputeGameNotInvalidated.selector);
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+    }
+
+    /// @notice Tests that `deleteProvenWithdrawal` reverts if the dispute game resolved in favor
+    ///         of the defender.
+    function test_deleteProvenWithdrawal_ifDefenderWins_reverts() external {
+        game.resolveClaim(0, 0);
+        game.resolve();
+        assertEq(uint256(game.status()), uint256(GameStatus.DEFENDER_WINS));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_DisputeGameNotInvalidated.selector);
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+    }
+
+    /// @notice Tests that a deleted withdrawal proof can no longer be used to finalize.
+    function test_deleteProvenWithdrawal_thenFinalize_reverts() external {
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_Unproven.selector);
+        optimismPortal2.checkWithdrawal(_withdrawalHash, address(this));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_Unproven.selector);
+        optimismPortal2.finalizeWithdrawalTransactionExternalProof(_defaultTx, address(this));
+    }
+
+    /// @notice Tests that a withdrawal cannot be re-proven against the same game after the proof
+    ///         was deleted because the game resolved in favor of the challenger. Deletion is only
+    ///         safe to make permissionless because `proveWithdrawalTransaction` rejects that game.
+    function test_deleteProvenWithdrawal_thenReproveChallengerWinsGame_reverts() external {
+        _resolveGameAgainstDefender();
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidDisputeGame.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        (, uint64 timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash, address(this));
+        assertEq(timestamp, 0);
+    }
+
+    /// @notice Tests that a withdrawal cannot be re-proven against the same game after the proof
+    ///         was deleted because the game was blacklisted. Deletion is only safe to make
+    ///         permissionless because `proveWithdrawalTransaction` rejects that game.
+    function test_deleteProvenWithdrawal_thenReproveBlacklistedGame_reverts() external {
+        vm.prank(optimismPortal2.guardian());
+        anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(game)));
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ImproperDisputeGame.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        (, uint64 timestamp) = optimismPortal2.provenWithdrawals(_withdrawalHash, address(this));
+        assertEq(timestamp, 0);
+    }
+
+    /// @notice Stores a CHALLENGER_WINS status in the dispute game. The status lives in slot 0 at
+    ///         offset 16. A real stored status is used instead of `vm.mockCall` so that a revert
+    ///         on re-prove cannot be an artefact of the mock.
+    function _resolveGameAgainstDefender() internal {
+        uint256 offset = 16 << 3;
+        uint256 slot = uint256(vm.load(address(game), bytes32(0)));
+        slot = (slot & ~(0xFF << offset)) | (uint256(GameStatus.CHALLENGER_WINS) << offset);
+        vm.store(address(game), bytes32(0), bytes32(slot));
+
+        assertEq(uint256(game.status()), uint256(GameStatus.CHALLENGER_WINS));
+    }
+
+    /// @notice Tests that `deleteProvenWithdrawal` does not clear the replay protection applied to
+    ///         a finalized withdrawal.
+    function test_deleteProvenWithdrawal_finalizedWithdrawal_succeeds() external {
+        game.resolveClaim(0, 0);
+        game.resolve();
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        vm.prank(optimismPortal2.guardian());
+        anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(game)));
+        optimismPortal2.deleteProvenWithdrawal(_withdrawalHash, address(this));
+
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+}
+
 /// @title OptimismPortal2_DepositTransaction_Test
 /// @notice Test contract for OptimismPortal2 `depositTransaction` function.
 contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
