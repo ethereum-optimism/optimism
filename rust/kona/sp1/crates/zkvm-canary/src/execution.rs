@@ -107,8 +107,6 @@ pub struct ReportSummary {
     pub syscalls: u64,
     /// Estimated execution-record bytes.
     pub record_bytes: u64,
-    /// Number of distinct touched guest addresses.
-    pub touched_addresses: u64,
     /// Guest exit code.
     pub exit_code: u64,
     /// Non-zero opcode counts, bounded for logs.
@@ -180,7 +178,6 @@ impl ReportSummary {
             instructions: report.total_instruction_count(),
             syscalls: report.total_syscall_count(),
             record_bytes: report.total_record_size(),
-            touched_addresses: report.touched_memory_addresses,
             exit_code: report.exit_code,
             opcode_details,
             syscall_details,
@@ -711,7 +708,6 @@ mod tests {
         *syscall = json!(3);
         value["cycle_tracker"] = json!({"derive": 99});
         value["invocation_tracker"] = json!({"derive": 2});
-        value["touched_memory_addresses"] = json!(42);
         serde_json::from_value(value).unwrap()
     }
 
@@ -724,7 +720,6 @@ mod tests {
             assert_eq!(summary.pgu, Some(100));
             assert_eq!(summary.instructions, 7);
             assert_eq!(summary.syscalls, 3);
-            assert_eq!(summary.touched_addresses, 42);
             assert_eq!(summary.cycle_phases[0].cycles, 99);
             assert_eq!(summary.cycle_phases[0].invocations, 2);
         }

@@ -21,7 +21,7 @@ use url::Url;
 use crate::artifact::ArtifactConfig;
 
 const ENV_PREFIX: &str = "KONA_ZKVM_CANARY_";
-const MAX_SPAN_LENGTH: u8 = 16;
+pub(crate) const MAX_SPAN_LENGTH: u8 = 128;
 const MAX_CONFIGURED_CHAINS: usize = 256;
 const MAX_CONFIG_FILE_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -524,7 +524,7 @@ mod tests {
 
         for (name, value, needle) in [
             ("FINALIZED_SPAN", "0", "non-zero"),
-            ("FINALIZED_SPAN", "17", "1..=16"),
+            ("FINALIZED_SPAN", "129", "1..=128"),
             ("CADENCE_SECONDS", "0", "non-zero"),
             ("ATTEMPT_DEADLINE_SECONDS", "0", "non-zero"),
             ("RPC_REQUEST_TIMEOUT_SECONDS", "0", "non-zero"),

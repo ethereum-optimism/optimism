@@ -25,13 +25,13 @@ const LAST_STAGE_WITNESS_DURATION: &str = "kona_zkvm_canary_last_stage_witness_d
 const LAST_STAGE_EXECUTE_DURATION: &str = "kona_zkvm_canary_last_stage_execute_duration_seconds";
 const SELECTED_SPAN_LENGTH: &str = "kona_zkvm_canary_selected_span_length";
 const SELECTED_CHAIN_COUNT: &str = "kona_zkvm_canary_selected_chain_count";
+const EXECUTED_L2_GAS: &str = "kona_zkvm_canary_executed_l2_gas";
 const TARGET_LAG: &str = "kona_zkvm_canary_finalized_target_lag_seconds";
 const REPORT_TARGET: &str = "kona_zkvm_canary_report_target_timestamp";
 const REPORT_PGU: &str = "kona_zkvm_canary_report_pgu";
 const REPORT_INSTRUCTIONS: &str = "kona_zkvm_canary_report_instructions";
 const REPORT_SYSCALLS: &str = "kona_zkvm_canary_report_syscalls";
 const REPORT_RECORD_BYTES: &str = "kona_zkvm_canary_report_record_bytes";
-const REPORT_TOUCHED_ADDRESSES: &str = "kona_zkvm_canary_report_touched_addresses";
 const REPORT_EXIT_CODE: &str = "kona_zkvm_canary_report_exit_code";
 
 const MODE_RANGE: &str = "range";
@@ -61,6 +61,7 @@ pub struct CanaryMetrics {
     last_input_selection_duration: Gauge,
     selected_span_length: Gauge,
     selected_chain_count: Gauge,
+    executed_l2_gas: Gauge,
     target_lag: Gauge,
     range: ModeMetrics,
     consolidation: ModeMetrics,
@@ -99,6 +100,7 @@ impl CanaryMetrics {
             last_input_selection_duration: gauge!(LAST_INPUT_SELECTION_DURATION),
             selected_span_length: gauge!(SELECTED_SPAN_LENGTH),
             selected_chain_count: gauge!(SELECTED_CHAIN_COUNT),
+            executed_l2_gas: gauge!(EXECUTED_L2_GAS),
             target_lag: gauge!(TARGET_LAG),
             range: ModeMetrics::register(MODE_RANGE),
             consolidation: ModeMetrics::register(MODE_CONSOLIDATION),
@@ -135,6 +137,7 @@ impl CanaryMetrics {
         }
         self.selected_span_length.set(0.0);
         self.selected_chain_count.set(0.0);
+        self.executed_l2_gas.set(0.0);
         self.target_lag.set(0.0);
         self.range.initialize();
         self.consolidation.initialize();
@@ -168,7 +171,6 @@ impl CanaryMetrics {
         if let Some(chain_count) = result.chain_count {
             self.selected_chain_count.set(chain_count as f64);
         }
-
         if result.outcome == RunOutcome::Valid {
             self.consecutive_failure_count = 0;
             self.consecutive_failures.set(0.0);
@@ -186,6 +188,11 @@ impl CanaryMetrics {
         self.consolidation.observe_stage_durations(&execution.consolidation);
         let target = result.target_timestamp.unwrap_or_default();
         self.range.observe_stage_report(&execution.range, target);
+        if execution.range.report.as_ref().is_some_and(|report| report.pgu.is_some())
+            && let Some(executed_l2_gas) = result.executed_l2_gas
+        {
+            self.executed_l2_gas.set(executed_l2_gas as f64);
+        }
         self.consolidation.observe_stage_report(&execution.consolidation, target);
     }
 }
@@ -198,7 +205,6 @@ struct ModeMetrics {
     instructions: Gauge,
     syscalls: Gauge,
     record_bytes: Gauge,
-    touched_addresses: Gauge,
     exit_code: Gauge,
 }
 
@@ -212,7 +218,6 @@ impl ModeMetrics {
             instructions: gauge!(REPORT_INSTRUCTIONS, "mode" => mode),
             syscalls: gauge!(REPORT_SYSCALLS, "mode" => mode),
             record_bytes: gauge!(REPORT_RECORD_BYTES, "mode" => mode),
-            touched_addresses: gauge!(REPORT_TOUCHED_ADDRESSES, "mode" => mode),
             exit_code: gauge!(REPORT_EXIT_CODE, "mode" => mode),
         }
     }
@@ -225,7 +230,6 @@ impl ModeMetrics {
         self.instructions.set(0.0);
         self.syscalls.set(0.0);
         self.record_bytes.set(0.0);
-        self.touched_addresses.set(0.0);
         self.exit_code.set(0.0);
     }
 
@@ -251,7 +255,6 @@ impl ModeMetrics {
         self.instructions.set(report.instructions as f64);
         self.syscalls.set(report.syscalls as f64);
         self.record_bytes.set(report.record_bytes as f64);
-        self.touched_addresses.set(report.touched_addresses as f64);
         self.exit_code.set(report.exit_code as f64);
     }
 }
@@ -312,13 +315,16 @@ fn describe_all() {
     );
     describe_gauge!(SELECTED_SPAN_LENGTH, "Timestamp count in the latest selected span.");
     describe_gauge!(SELECTED_CHAIN_COUNT, "Chain count in the latest selected snapshot.");
+    describe_gauge!(
+        EXECUTED_L2_GAS,
+        "Total gas used by L2 blocks in the latest selected span with a range PGU."
+    );
     describe_gauge!(TARGET_LAG, "Latest attempted finalized-target lag in seconds.");
     describe_gauge!(REPORT_TARGET, "Target timestamp associated with the latest mode report.");
     describe_gauge!(REPORT_PGU, "Latest normalized SP1 proving gas units by mode.");
     describe_gauge!(REPORT_INSTRUCTIONS, "Latest SP1 instruction count by mode.");
     describe_gauge!(REPORT_SYSCALLS, "Latest SP1 syscall count by mode.");
     describe_gauge!(REPORT_RECORD_BYTES, "Latest SP1 execution-record bytes by mode.");
-    describe_gauge!(REPORT_TOUCHED_ADDRESSES, "Latest distinct touched guest addresses by mode.");
     describe_gauge!(REPORT_EXIT_CODE, "Latest SP1 guest exit code by mode.");
 }
 
@@ -353,6 +359,7 @@ mod tests {
             target_timestamp: Some(target_timestamp),
             span_length: Some(2),
             chain_count: Some(3),
+            executed_l2_gas: Some(456),
             confirmation: false,
             outcome,
             execution,
@@ -366,7 +373,6 @@ mod tests {
         mode: ExecutionMode,
         pgu: Option<u64>,
         instructions: u64,
-        touched_addresses: u64,
         phases: &[(&str, u64, u64)],
     ) -> ReportSummary {
         ReportSummary {
@@ -375,7 +381,6 @@ mod tests {
             instructions,
             syscalls: instructions / 10,
             record_bytes: instructions * 2,
-            touched_addresses,
             exit_code: 0,
             opcode_details: Vec::<ReportDetail>::new(),
             syscall_details: Vec::<ReportDetail>::new(),
@@ -487,7 +492,6 @@ mod tests {
                         ExecutionMode::Range,
                         Some(101),
                         1_000,
-                        7,
                         &[("range", 10, 1), ("old", 3, 1)],
                     ),
                     1.0,
@@ -498,7 +502,6 @@ mod tests {
                         ExecutionMode::Consolidation,
                         Some(201),
                         2_000,
-                        8,
                         &[("consolidation", 30, 2)],
                     ),
                     3.0,
@@ -511,13 +514,12 @@ mod tests {
             );
 
             let second = execution(
-                stage(report(ExecutionMode::Range, None, 3_000, 9, &[("range", 20, 4)]), 5.0, 6.0),
+                stage(report(ExecutionMode::Range, None, 3_000, &[("range", 20, 4)]), 5.0, 6.0),
                 stage(
                     report(
                         ExecutionMode::Consolidation,
                         Some(202),
                         4_000,
-                        10,
                         &[("consolidation", 40, 5)],
                     ),
                     7.0,
@@ -525,6 +527,7 @@ mod tests {
                 ),
             );
             let mut second_attempt = attempt(RunOutcome::Valid, 200, Some(second));
+            second_attempt.executed_l2_gas = Some(654);
             second_attempt.input_selection_seconds = 0.75;
             second_attempt.total_seconds = 12.0;
             metrics.observe_at(&RunnerEvent::Attempt(second_attempt), 210);
@@ -542,10 +545,7 @@ mod tests {
             sample(&samples, REPORT_INSTRUCTIONS, &[("mode", MODE_RANGE)]),
             &Sample::Gauge(3_000.0),
         );
-        assert_eq!(
-            sample(&samples, REPORT_TOUCHED_ADDRESSES, &[("mode", MODE_RANGE)]),
-            &Sample::Gauge(9.0),
-        );
+        assert_eq!(sample(&samples, EXECUTED_L2_GAS, &[]), &Sample::Gauge(456.0),);
         assert_eq!(
             sample(&samples, REPORT_TARGET, &[("mode", MODE_CONSOLIDATION)]),
             &Sample::Gauge(200.0),
@@ -561,6 +561,9 @@ mod tests {
         assert!(
             samples.keys().all(|(name, _)| !name.starts_with("kona_zkvm_canary_cycle_tracker_"))
         );
+        assert!(
+            samples.keys().all(|(name, _)| name != "kona_zkvm_canary_report_touched_addresses")
+        );
     }
 
     #[test]
@@ -570,8 +573,8 @@ mod tests {
         metrics::with_local_recorder(&recorder, || {
             let mut metrics = CanaryMetrics::register();
             let current = execution(
-                stage(report(ExecutionMode::Range, Some(10), 100, 3, &[]), 1.0, 2.0),
-                stage(report(ExecutionMode::Consolidation, Some(20), 200, 4, &[]), 3.0, 4.0),
+                stage(report(ExecutionMode::Range, Some(10), 100, &[]), 1.0, 2.0),
+                stage(report(ExecutionMode::Consolidation, Some(20), 200, &[]), 3.0, 4.0),
             );
             metrics.observe_at(
                 &RunnerEvent::Attempt(attempt(RunOutcome::Valid, 100, Some(current))),
@@ -580,7 +583,7 @@ mod tests {
 
             let timed_out = ExecutionResult {
                 outcome: ExecutionOutcome::TimedOut,
-                range: stage(report(ExecutionMode::Range, Some(30), 300, 5, &[]), 9.0, 10.0),
+                range: stage(report(ExecutionMode::Range, Some(30), 300, &[]), 9.0, 10.0),
                 consolidation: StageResult {
                     mode: ExecutionMode::Consolidation,
                     outcome: StageOutcome::TimedOut,

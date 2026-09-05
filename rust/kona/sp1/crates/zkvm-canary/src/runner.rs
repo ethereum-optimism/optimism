@@ -58,6 +58,8 @@ pub struct AttemptResult {
     pub span_length: Option<u64>,
     /// Number of configured chains in the selected snapshot.
     pub chain_count: Option<usize>,
+    /// Gas used by all L2 blocks advanced through the selected span.
+    pub executed_l2_gas: Option<u64>,
     /// Whether this was the one confirmation execution for an identical correctness failure.
     pub confirmation: bool,
     /// Exhaustive terminal classification.
@@ -168,6 +170,7 @@ trait SnapshotIdentity {
     fn target_timestamp(&self) -> u64;
     fn span_length(&self) -> u64;
     fn chain_count(&self) -> usize;
+    fn executed_l2_gas(&self) -> u64;
 }
 
 impl SnapshotIdentity for ValidatedSnapshot {
@@ -186,6 +189,10 @@ impl SnapshotIdentity for ValidatedSnapshot {
 
     fn chain_count(&self) -> usize {
         self.chain_ids().len()
+    }
+
+    fn executed_l2_gas(&self) -> u64 {
+        self.executed_l2_gas()
     }
 }
 
@@ -519,6 +526,7 @@ struct AttemptBase {
     target_timestamp: u64,
     span_length: u64,
     chain_count: usize,
+    executed_l2_gas: u64,
     confirmation: bool,
     input_selection_seconds: f64,
 }
@@ -534,6 +542,7 @@ impl AttemptBase {
             target_timestamp: snapshot.target_timestamp(),
             span_length: snapshot.span_length(),
             chain_count: snapshot.chain_count(),
+            executed_l2_gas: snapshot.executed_l2_gas(),
             confirmation,
             input_selection_seconds: selection_duration.as_secs_f64(),
         }
@@ -551,6 +560,7 @@ impl AttemptBase {
             target_timestamp: Some(self.target_timestamp),
             span_length: Some(self.span_length),
             chain_count: Some(self.chain_count),
+            executed_l2_gas: Some(self.executed_l2_gas),
             confirmation: self.confirmation,
             outcome,
             execution,
@@ -607,6 +617,7 @@ fn selection_failure_with_duration(
         target_timestamp: None,
         span_length: None,
         chain_count: None,
+        executed_l2_gas: None,
         confirmation: false,
         outcome,
         execution: None,
@@ -695,6 +706,10 @@ mod tests {
 
         fn chain_count(&self) -> usize {
             1
+        }
+
+        fn executed_l2_gas(&self) -> u64 {
+            123
         }
     }
 

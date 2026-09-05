@@ -15,7 +15,10 @@ use serde::{Deserialize, de::IgnoredAny};
 use serde_json::{Value, value::RawValue};
 use sha2::{Digest, Sha256};
 
-use crate::{artifact::ArtifactIdentity, config::CanaryConfig};
+use crate::{
+    artifact::ArtifactIdentity,
+    config::{CanaryConfig, MAX_SPAN_LENGTH},
+};
 
 const MAX_PARENT_DETAIL_BYTES: usize = 1024;
 const MAX_PARENT_REQUEST_BYTES: u32 = 64 * 1024;
@@ -47,6 +50,7 @@ pub struct ValidatedSnapshot {
     pinned_l1: CanonicalL1Block,
     responses: Vec<SuperRootAtTimestampResponse>,
     chain_ids: Vec<u64>,
+    executed_l2_gas: u64,
     artifact_identity: ArtifactIdentity,
     fingerprint: B256,
     host_inputs: HostInputs,
@@ -60,6 +64,7 @@ impl std::fmt::Debug for ValidatedSnapshot {
             .field("pinned_l1", &self.pinned_l1)
             .field("response_count", &self.responses.len())
             .field("chain_ids", &self.chain_ids)
+            .field("executed_l2_gas", &self.executed_l2_gas)
             .field("artifact_identity", &self.artifact_identity)
             .field("fingerprint", &self.fingerprint)
             .finish()
@@ -85,6 +90,11 @@ impl ValidatedSnapshot {
     /// Returns the sorted chain universe covered by every response.
     pub fn chain_ids(&self) -> &[u64] {
         &self.chain_ids
+    }
+
+    /// Returns the gas used by all L2 blocks advanced through the selected span.
+    pub const fn executed_l2_gas(&self) -> u64 {
+        self.executed_l2_gas
     }
 
     /// Returns the artifact identity included in this attempt.
@@ -113,6 +123,7 @@ impl ValidatedSnapshot {
 pub struct SnapshotSource {
     superroot_client: HttpClient,
     l1_client: HttpClient,
+    l2_clients: BTreeMap<u64, HttpClient>,
     span_length: u64,
     configured_chain_ids: Vec<u64>,
     max_entries: usize,
@@ -142,9 +153,14 @@ impl SnapshotSource {
                 .build(endpoint)
                 .map_err(|_| anyhow!("failed to build {label} client"))
         };
+        let mut l2_clients = BTreeMap::new();
+        for rpc in &config.l2_rpcs {
+            l2_clients.insert(rpc.chain_id, client(rpc.url.as_str(), "L2")?);
+        }
         Ok(Self {
             superroot_client: client(config.superroot_rpc.as_str(), "super-root")?,
             l1_client: client(config.l1_rpc.as_str(), "L1")?,
+            l2_clients,
             span_length: u64::from(config.span_length.get()),
             configured_chain_ids: config.chain_ids().collect(),
             max_entries: config.max_parent_response_entries.get(),
@@ -196,9 +212,11 @@ impl SnapshotSource {
             .checked_sub(first)
             .and_then(|distance| distance.checked_add(1))
             .ok_or_else(|| FetchFailure(anyhow!("invalid response range {first}..={last}")))?;
-        if count > 17 {
+        let max_count = u64::from(MAX_SPAN_LENGTH) + 1;
+        if count > max_count {
             return Err(FetchFailure(anyhow!(
-                "agreed-through-target response count {count} exceeds the protocol maximum"
+                "agreed-through-target response count {count} exceeds the canary maximum of \
+                 {max_count}"
             )));
         }
         let mut responses = Vec::with_capacity(count as usize);
@@ -363,6 +381,7 @@ impl SnapshotSource {
             }
         }
 
+        let executed_l2_gas = self.sum_executed_l2_gas(span, &responses).await?;
         let chain_ids = self.configured_chain_ids.clone();
         let fingerprint = snapshot_fingerprint(artifact_identity, span, pin, &responses)
             .map_err(BuildFailure::Invalid)?;
@@ -371,6 +390,7 @@ impl SnapshotSource {
             pinned_l1: CanonicalL1Block { block: pin },
             responses,
             chain_ids,
+            executed_l2_gas,
             artifact_identity,
             fingerprint,
             host_inputs: self.host_inputs.clone(),
@@ -522,6 +542,66 @@ impl SnapshotSource {
         }
         Ok(CanonicalL1Block { block: actual })
     }
+
+    async fn sum_executed_l2_gas(
+        &self,
+        span: TimestampSpan,
+        responses: &[SuperRootAtTimestampResponse],
+    ) -> std::result::Result<u64, BuildFailure> {
+        let agreed = span.start - 1;
+        let mut total = 0u64;
+        for &chain_id in &self.configured_chain_ids {
+            let mut previous_hash = optimistic_block_hash(&responses[0], chain_id, agreed)?;
+            for (offset, response) in responses[1..].iter().enumerate() {
+                let timestamp = span.start + offset as u64;
+                let current_hash = optimistic_block_hash(response, chain_id, timestamp)?;
+                if current_hash == previous_hash {
+                    continue;
+                }
+                let block = self
+                    .fetch_l2_block(chain_id, current_hash)
+                    .await
+                    .map_err(BuildFailure::Unavailable)?;
+                total = total
+                    .checked_add(block.gas_used)
+                    .ok_or_else(|| BuildFailure::Invalid(anyhow!("executed L2 gas exceeds u64")))?;
+                previous_hash = current_hash;
+            }
+        }
+        Ok(total)
+    }
+
+    async fn fetch_l2_block(
+        &self,
+        chain_id: u64,
+        hash: B256,
+    ) -> std::result::Result<RpcL2Block, FetchFailure> {
+        let client = self
+            .l2_clients
+            .get(&chain_id)
+            .ok_or_else(|| FetchFailure(anyhow!("no configured L2 client for chain {chain_id}")))?;
+        let value: Value = client
+            .request("eth_getBlockByHash", rpc_params![format!("{hash}"), false])
+            .await
+            .map_err(|_| {
+                FetchFailure(anyhow!("chain {chain_id} eth_getBlockByHash({hash}) request failed"))
+            })?;
+        let block: Option<RpcL2Block> = serde_json::from_value(value).map_err(|error| {
+            FetchFailure(anyhow!(
+                "chain {chain_id} eth_getBlockByHash({hash}) returned invalid JSON: {}",
+                bounded_detail(&error.to_string()),
+            ))
+        })?;
+        let block = block
+            .ok_or_else(|| FetchFailure(anyhow!("chain {chain_id} L2 block {hash} not found")))?;
+        if block.hash != hash {
+            return Err(FetchFailure(anyhow!(
+                "chain {chain_id} L2 block lookup returned hash {}, expected {hash}",
+                block.hash,
+            )));
+        }
+        Ok(block)
+    }
 }
 
 #[derive(Debug)]
@@ -559,6 +639,13 @@ struct RpcBlock {
     hash: B256,
     #[serde(deserialize_with = "deserialize_u64_or_hex")]
     number: u64,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+struct RpcL2Block {
+    hash: B256,
+    #[serde(rename = "gasUsed", deserialize_with = "deserialize_u64_or_hex")]
+    gas_used: u64,
 }
 
 #[derive(Deserialize)]
@@ -733,8 +820,8 @@ fn insert_reference(
     block: BlockId,
     label: &str,
 ) -> std::result::Result<(), BuildFailure> {
-    if let Some(existing) = references.insert(block.number, block) &&
-        existing.hash != block.hash
+    if let Some(existing) = references.insert(block.number, block)
+        && existing.hash != block.hash
     {
         return Err(BuildFailure::Invalid(anyhow!(
             "{label} conflicts at L1 block {}: {} != {}",
@@ -744,6 +831,23 @@ fn insert_reference(
         )));
     }
     Ok(())
+}
+
+fn optimistic_block_hash(
+    response: &SuperRootAtTimestampResponse,
+    chain_id: u64,
+    timestamp: u64,
+) -> std::result::Result<B256, BuildFailure> {
+    response
+        .optimistic_at_timestamp
+        .get(&ChainId(U256::from(chain_id)))
+        .and_then(|entry| entry.output.as_ref())
+        .map(|output| output.block_hash)
+        .ok_or_else(|| {
+            BuildFailure::Invalid(anyhow!(
+                "timestamp {timestamp} chain {chain_id} has no optimistic L2 block"
+            ))
+        })
 }
 
 fn output_v0_root(output: &OutputV0) -> B256 {
@@ -977,6 +1081,10 @@ mod tests {
         json!({"hash": block.hash, "number": block.number})
     }
 
+    fn l2_block_json(hash: B256, gas_used: u64) -> Value {
+        json!({"hash": hash, "gasUsed": gas_used})
+    }
+
     fn response_json(response: &SuperRootAtTimestampResponse) -> Value {
         let optimistic = response
             .optimistic_at_timestamp
@@ -1027,12 +1135,9 @@ mod tests {
         let rpc = Url::parse(&server.base_url()).unwrap();
         CanaryConfig {
             superroot_rpc: rpc.clone(),
-            l1_rpc: rpc,
+            l1_rpc: rpc.clone(),
             l1_beacon_rpc: Url::parse("https://beacon.example").unwrap(),
-            l2_rpcs: vec![L2Rpc {
-                chain_id: CHAIN_ID,
-                url: Url::parse("https://l2.example").unwrap(),
-            }],
+            l2_rpcs: vec![L2Rpc { chain_id: CHAIN_ID, url: rpc }],
             rollup_config_paths: None,
             l1_config_path: None,
             dependency_set_path: None,
@@ -1139,6 +1244,41 @@ mod tests {
             .collect()
     }
 
+    fn register_l2<'a>(server: &'a MockServer, hash: B256, result: &Value) -> Vec<Mock<'a>> {
+        MOCK_REQUEST_IDS
+            .map(|id| {
+                let body = json!({"jsonrpc": "2.0", "id": id, "result": result}).to_string();
+                server.mock(move |when, then| {
+                    when.method(POST).json_body_includes(
+                        json!({
+                            "id": id,
+                            "method": "eth_getBlockByHash",
+                            "params": [format!("{hash}"), false],
+                        })
+                        .to_string(),
+                    );
+                    then.status(200).header("content-type", "application/json").body(body);
+                })
+            })
+            .collect()
+    }
+
+    fn register_l2_span(server: &MockServer, responses: &[SuperRootAtTimestampResponse]) {
+        let mut previous = BTreeMap::<u64, B256>::new();
+        for (offset, response) in responses.iter().enumerate() {
+            let timestamp = AGREED + offset as u64;
+            for &chain_id in &response.chain_ids {
+                let chain_id = chain_id_u64(chain_id).unwrap();
+                let hash = optimistic_block_hash(response, chain_id, timestamp).unwrap();
+                if previous.get(&chain_id) == Some(&hash) {
+                    continue;
+                }
+                let _ = register_l2(server, hash, &l2_block_json(hash, timestamp * 10));
+                previous.insert(chain_id, hash);
+            }
+        }
+    }
+
     fn register_fixture(
         server: &MockServer,
         responses: &[SuperRootAtTimestampResponse],
@@ -1152,6 +1292,7 @@ mod tests {
         for (&number, result) in blocks {
             let _ = register_l1(server, number, result);
         }
+        register_l2_span(server, responses);
     }
 
     async fn assert_selection_rejected(
@@ -1185,6 +1326,7 @@ mod tests {
         assert_eq!(snapshot.pinned_l1().block_id(), block(100));
         assert_eq!(snapshot.responses().len(), 3);
         assert_eq!(snapshot.chain_ids(), &[CHAIN_ID]);
+        assert_eq!(snapshot.executed_l2_gas(), 230);
         assert_ne!(snapshot.fingerprint(), B256::ZERO);
         snapshot.synthesize_execution().unwrap();
 
@@ -1193,14 +1335,16 @@ mod tests {
         current.current_l1 = block(102);
         let _ = register_superroot(&server, NOW, &current);
         let _ = register_l1_finalized(&server, &block_json(block(100)));
-        for (timestamp, response) in (AGREED..=TARGET).zip(base_responses()) {
-            let _ = register_superroot(&server, timestamp, &response);
+        let responses = base_responses();
+        for (timestamp, response) in (AGREED..=TARGET).zip(&responses) {
+            let _ = register_superroot(&server, timestamp, response);
         }
         let mut blocks = base_blocks();
         blocks.insert(102, block_json(block(102)));
         for (&number, result) in &blocks {
             let _ = register_l1(&server, number, result);
         }
+        register_l2_span(&server, &responses);
         let source = SnapshotSource::new(&config(&server)).unwrap();
 
         let snapshot = source.select_finalized(NOW, artifact_identity()).await.unwrap();

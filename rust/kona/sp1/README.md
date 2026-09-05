@@ -380,7 +380,7 @@ Optional execution, scheduling, and input limits:
 | `KONA_ZKVM_CANARY_ROLLUP_CONFIG_PATHS` | registry | Comma-separated rollup-config JSON files with exact L2 endpoint coverage |
 | `KONA_ZKVM_CANARY_L1_CONFIG_PATH` | registry | L1 chain-config JSON override |
 | `KONA_ZKVM_CANARY_DEPENDENCY_SET_PATH` | registry | Dependency-set JSON override with exact L2 endpoint coverage |
-| `KONA_ZKVM_CANARY_FINALIZED_SPAN` | `1` | Consecutive finalized timestamps per attempt; range `1..=16` |
+| `KONA_ZKVM_CANARY_FINALIZED_SPAN` | `1` | Consecutive finalized timestamps per attempt; range `1..=128` |
 | `KONA_ZKVM_CANARY_CADENCE_SECONDS` | `300` | Non-zero wait after an attempt completes |
 | `KONA_ZKVM_CANARY_JITTER_SECONDS` | `min(30, cadence)` | Maximum additional wait; zero is allowed and the value cannot exceed cadence |
 | `KONA_ZKVM_CANARY_ATTEMPT_DEADLINE_SECONDS` | `10800` | Non-zero deadline for cancellable attempt stages |
@@ -441,12 +441,12 @@ canary metric namespace is `kona_zkvm_canary`:
 | `kona_zkvm_canary_last_input_selection_duration_seconds` | Canonical snapshot selection duration of the latest attempt |
 | `kona_zkvm_canary_last_stage_witness_duration_seconds{mode}` / `kona_zkvm_canary_last_stage_execute_duration_seconds{mode}` | Latest witness and SP1 execution duration for `range` or `consolidation` |
 | `kona_zkvm_canary_selected_span_length` / `kona_zkvm_canary_selected_chain_count` | Timestamp and chain counts in the latest selected input |
+| `kona_zkvm_canary_executed_l2_gas` | Total gas used by L2 blocks in the latest selected span with a range PGU, summed across chains; an absent PGU leaves the prior gauge unchanged |
 | `kona_zkvm_canary_finalized_target_lag_seconds` | Wall-clock lag of the latest attempted finalized target |
 | `kona_zkvm_canary_report_target_timestamp{mode}` | Target associated with the latest completed SP1 report for the mode |
 | `kona_zkvm_canary_report_pgu{mode}` | Latest normalized SP1 proving-gas-unit estimate; an absent SP1 value leaves the prior gauge unchanged |
 | `kona_zkvm_canary_report_instructions{mode}` / `kona_zkvm_canary_report_syscalls{mode}` | Latest instruction and syscall totals |
 | `kona_zkvm_canary_report_record_bytes{mode}` | Latest estimated SP1 execution-record size; not process memory |
-| `kona_zkvm_canary_report_touched_addresses{mode}` | Count of distinct touched guest addresses; not bytes or RSS |
 | `kona_zkvm_canary_report_exit_code{mode}` | Latest SP1 guest exit code |
 
 Host-utils additionally exports unprefixed process samples including
