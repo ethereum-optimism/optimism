@@ -2,10 +2,7 @@
 
 use std::time::SystemTime;
 
-use metrics::{
-    Counter, Gauge, Histogram, counter, describe_counter, describe_gauge, describe_histogram,
-    gauge, histogram,
-};
+use metrics::{Counter, Gauge, counter, describe_counter, describe_gauge, gauge};
 
 use crate::{
     artifact::ArtifactIdentity,
@@ -22,10 +19,11 @@ const LAST_ATTEMPTED_TARGET: &str = "kona_zkvm_canary_last_attempted_target_time
 const LAST_SUCCESSFUL_TARGET: &str = "kona_zkvm_canary_last_successful_target_timestamp";
 const CONSECUTIVE_FAILURES: &str = "kona_zkvm_canary_consecutive_failures";
 const RUNS: &str = "kona_zkvm_canary_runs_total";
-const RUN_DURATION: &str = "kona_zkvm_canary_run_duration_seconds";
-const INPUT_SELECTION_DURATION: &str = "kona_zkvm_canary_input_selection_duration_seconds";
-const STAGE_WITNESS_DURATION: &str = "kona_zkvm_canary_stage_witness_duration_seconds";
-const STAGE_EXECUTE_DURATION: &str = "kona_zkvm_canary_stage_execute_duration_seconds";
+const LAST_RUN_DURATION: &str = "kona_zkvm_canary_last_run_duration_seconds";
+const LAST_INPUT_SELECTION_DURATION: &str =
+    "kona_zkvm_canary_last_input_selection_duration_seconds";
+const LAST_STAGE_WITNESS_DURATION: &str = "kona_zkvm_canary_last_stage_witness_duration_seconds";
+const LAST_STAGE_EXECUTE_DURATION: &str = "kona_zkvm_canary_last_stage_execute_duration_seconds";
 const SELECTED_SPAN_LENGTH: &str = "kona_zkvm_canary_selected_span_length";
 const SELECTED_CHAIN_COUNT: &str = "kona_zkvm_canary_selected_chain_count";
 const TARGET_LAG: &str = "kona_zkvm_canary_finalized_target_lag_seconds";
@@ -61,8 +59,8 @@ pub struct CanaryMetrics {
     last_successful_target: Gauge,
     consecutive_failures: Gauge,
     runs: [Counter; OUTCOMES.len()],
-    run_duration: Histogram,
-    input_selection_duration: Histogram,
+    last_run_duration: Gauge,
+    last_input_selection_duration: Gauge,
     selected_span_length: Gauge,
     selected_chain_count: Gauge,
     target_lag: Gauge,
@@ -100,8 +98,8 @@ impl CanaryMetrics {
             runs: std::array::from_fn(
                 |index| counter!(RUNS, "outcome" => outcome_label(OUTCOMES[index])),
             ),
-            run_duration: histogram!(RUN_DURATION),
-            input_selection_duration: histogram!(INPUT_SELECTION_DURATION),
+            last_run_duration: gauge!(LAST_RUN_DURATION),
+            last_input_selection_duration: gauge!(LAST_INPUT_SELECTION_DURATION),
             selected_span_length: gauge!(SELECTED_SPAN_LENGTH),
             selected_chain_count: gauge!(SELECTED_CHAIN_COUNT),
             target_lag: gauge!(TARGET_LAG),
@@ -140,6 +138,8 @@ impl CanaryMetrics {
         self.last_attempted_target.set(0.0);
         self.last_successful_target.set(0.0);
         self.consecutive_failures.set(0.0);
+        self.last_run_duration.set(0.0);
+        self.last_input_selection_duration.set(0.0);
         for counter in &self.runs {
             counter.absolute(0);
         }
@@ -167,8 +167,8 @@ impl CanaryMetrics {
     fn observe_attempt(&mut self, result: &AttemptResult, now: u64) {
         self.last_attempt.set(now as f64);
         self.runs[outcome_index(result.outcome)].increment(1);
-        self.run_duration.record(result.total_seconds);
-        self.input_selection_duration.record(result.input_selection_seconds);
+        self.last_run_duration.set(result.total_seconds);
+        self.last_input_selection_duration.set(result.input_selection_seconds);
         if let Some(target) = result.target_timestamp {
             self.last_attempted_target.set(target as f64);
             self.target_lag.set(now.saturating_sub(target) as f64);
@@ -202,8 +202,8 @@ impl CanaryMetrics {
 }
 
 struct ModeMetrics {
-    witness_duration: Histogram,
-    execute_duration: Histogram,
+    last_witness_duration: Gauge,
+    last_execute_duration: Gauge,
     report_target: Gauge,
     pgu: Gauge,
     instructions: Gauge,
@@ -216,8 +216,8 @@ struct ModeMetrics {
 impl ModeMetrics {
     fn register(mode: &'static str) -> Self {
         Self {
-            witness_duration: histogram!(STAGE_WITNESS_DURATION, "mode" => mode),
-            execute_duration: histogram!(STAGE_EXECUTE_DURATION, "mode" => mode),
+            last_witness_duration: gauge!(LAST_STAGE_WITNESS_DURATION, "mode" => mode),
+            last_execute_duration: gauge!(LAST_STAGE_EXECUTE_DURATION, "mode" => mode),
             report_target: gauge!(REPORT_TARGET, "mode" => mode),
             pgu: gauge!(REPORT_PGU, "mode" => mode),
             instructions: gauge!(REPORT_INSTRUCTIONS, "mode" => mode),
@@ -229,6 +229,8 @@ impl ModeMetrics {
     }
 
     fn initialize(&self) {
+        self.last_witness_duration.set(0.0);
+        self.last_execute_duration.set(0.0);
         self.report_target.set(0.0);
         self.pgu.set(0.0);
         self.instructions.set(0.0);
@@ -240,9 +242,9 @@ impl ModeMetrics {
 
     fn observe_stage_durations(&self, stage: &StageResult) {
         if stage.outcome != StageOutcome::NotRun {
-            self.witness_duration.record(stage.witness_seconds);
+            self.last_witness_duration.set(stage.witness_seconds);
             if let Some(execute_seconds) = stage.execute_seconds {
-                self.execute_duration.record(execute_seconds);
+                self.last_execute_duration.set(execute_seconds);
             }
         }
     }
@@ -303,18 +305,21 @@ fn describe_all() {
     describe_gauge!(LAST_SUCCESSFUL_TARGET, "Finalized target of the latest valid run.");
     describe_gauge!(CONSECUTIVE_FAILURES, "Consecutive non-valid run outcomes.");
     describe_counter!(RUNS, "Completed canary runs by bounded terminal outcome.");
-    describe_histogram!(RUN_DURATION, "Total monotonic canary attempt duration in seconds.");
-    describe_histogram!(
-        INPUT_SELECTION_DURATION,
-        "Canonical snapshot selection duration in seconds."
+    describe_gauge!(
+        LAST_RUN_DURATION,
+        "Total monotonic duration in seconds of the latest canary attempt."
     );
-    describe_histogram!(
-        STAGE_WITNESS_DURATION,
-        "SP1 witness collection duration in seconds by guest mode."
+    describe_gauge!(
+        LAST_INPUT_SELECTION_DURATION,
+        "Canonical snapshot selection duration in seconds of the latest canary attempt."
     );
-    describe_histogram!(
-        STAGE_EXECUTE_DURATION,
-        "SP1 CPU execution duration in seconds by guest mode."
+    describe_gauge!(
+        LAST_STAGE_WITNESS_DURATION,
+        "Latest SP1 witness collection duration in seconds by guest mode."
+    );
+    describe_gauge!(
+        LAST_STAGE_EXECUTE_DURATION,
+        "Latest SP1 CPU execution duration in seconds by guest mode."
     );
     describe_gauge!(SELECTED_SPAN_LENGTH, "Timestamp count in the latest selected span.");
     describe_gauge!(SELECTED_CHAIN_COUNT, "Chain count in the latest selected snapshot.");
@@ -540,13 +545,15 @@ mod tests {
                     8.0,
                 ),
             );
-            metrics.observe_at(
-                &RunnerEvent::Attempt(attempt(RunOutcome::Valid, 200, Some(second))),
-                210,
-            );
+            let mut second_attempt = attempt(RunOutcome::Valid, 200, Some(second));
+            second_attempt.input_selection_seconds = 0.75;
+            second_attempt.total_seconds = 12.0;
+            metrics.observe_at(&RunnerEvent::Attempt(second_attempt), 210);
         });
 
         let samples = samples(snapshotter.snapshot());
+        assert_eq!(sample(&samples, LAST_RUN_DURATION, &[]), &Sample::Gauge(12.0));
+        assert_eq!(sample(&samples, LAST_INPUT_SELECTION_DURATION, &[]), &Sample::Gauge(0.75));
         assert_eq!(sample(&samples, REPORT_PGU, &[("mode", MODE_RANGE)]), &Sample::Gauge(101.0));
         assert_eq!(
             sample(&samples, REPORT_PGU, &[("mode", MODE_CONSOLIDATION)]),
@@ -565,12 +572,12 @@ mod tests {
             &Sample::Gauge(200.0),
         );
         assert_eq!(
-            sample(&samples, STAGE_WITNESS_DURATION, &[("mode", MODE_RANGE)]),
-            &Sample::Histogram(vec![1.0, 5.0]),
+            sample(&samples, LAST_STAGE_WITNESS_DURATION, &[("mode", MODE_RANGE)]),
+            &Sample::Gauge(5.0),
         );
         assert_eq!(
-            sample(&samples, STAGE_EXECUTE_DURATION, &[("mode", MODE_CONSOLIDATION)]),
-            &Sample::Histogram(vec![4.0, 8.0]),
+            sample(&samples, LAST_STAGE_EXECUTE_DURATION, &[("mode", MODE_CONSOLIDATION)]),
+            &Sample::Gauge(8.0),
         );
         assert!(
             samples.keys().all(|(name, _)| !name.starts_with("kona_zkvm_canary_cycle_tracker_"))
@@ -612,8 +619,8 @@ mod tests {
 
         let samples = samples(snapshotter.snapshot());
         assert_eq!(
-            sample(&samples, STAGE_WITNESS_DURATION, &[("mode", MODE_RANGE)]),
-            &Sample::Histogram(vec![1.0, 9.0]),
+            sample(&samples, LAST_STAGE_WITNESS_DURATION, &[("mode", MODE_RANGE)]),
+            &Sample::Gauge(9.0),
         );
         assert_eq!(
             sample(&samples, REPORT_INSTRUCTIONS, &[("mode", MODE_RANGE)]),
@@ -624,8 +631,16 @@ mod tests {
             &Sample::Gauge(100.0),
         );
         assert_eq!(
-            sample(&samples, STAGE_EXECUTE_DURATION, &[("mode", MODE_RANGE)]),
-            &Sample::Histogram(vec![2.0, 10.0]),
+            sample(&samples, LAST_STAGE_EXECUTE_DURATION, &[("mode", MODE_RANGE)]),
+            &Sample::Gauge(10.0),
+        );
+        assert_eq!(
+            sample(&samples, LAST_STAGE_WITNESS_DURATION, &[("mode", MODE_CONSOLIDATION)]),
+            &Sample::Gauge(11.0),
+        );
+        assert_eq!(
+            sample(&samples, LAST_STAGE_EXECUTE_DURATION, &[("mode", MODE_CONSOLIDATION)]),
+            &Sample::Gauge(4.0),
         );
     }
 }

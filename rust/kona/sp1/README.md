@@ -445,9 +445,9 @@ canary metric namespace is `kona_zkvm_canary`:
 | `kona_zkvm_canary_last_attempted_target_timestamp` / `kona_zkvm_canary_last_successful_target_timestamp` | Latest attempted / valid finalized target; zero means unknown |
 | `kona_zkvm_canary_consecutive_failures` | Consecutive non-valid terminal outcomes |
 | `kona_zkvm_canary_runs_total{outcome}` | Attempt count by `valid`, `guest_rejected`, `output_mismatch`, `input_error`, `cycle_limit_exceeded`, or `timeout` |
-| `kona_zkvm_canary_run_duration_seconds` | Total attempt duration |
-| `kona_zkvm_canary_input_selection_duration_seconds` | Canonical snapshot selection duration |
-| `kona_zkvm_canary_stage_witness_duration_seconds{mode}` / `kona_zkvm_canary_stage_execute_duration_seconds{mode}` | Witness and SP1 execution duration for `range` or `consolidation` |
+| `kona_zkvm_canary_last_run_duration_seconds` | Total duration of the latest attempt |
+| `kona_zkvm_canary_last_input_selection_duration_seconds` | Canonical snapshot selection duration of the latest attempt |
+| `kona_zkvm_canary_last_stage_witness_duration_seconds{mode}` / `kona_zkvm_canary_last_stage_execute_duration_seconds{mode}` | Latest witness and SP1 execution duration for `range` or `consolidation` |
 | `kona_zkvm_canary_selected_span_length` / `kona_zkvm_canary_selected_chain_count` | Timestamp and chain counts in the latest selected input |
 | `kona_zkvm_canary_finalized_target_lag_seconds` | Wall-clock lag of the latest attempted finalized target |
 | `kona_zkvm_canary_report_target_timestamp{mode}` | Target associated with the latest completed SP1 report for the mode |
