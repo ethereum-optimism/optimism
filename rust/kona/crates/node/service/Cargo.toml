@@ -62,7 +62,7 @@ strum = { workspace = true, features = ["derive"] }
 backon.workspace = true
 derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tower.workspace = true
 http-body-util.workspace = true
 
@@ -81,6 +81,9 @@ alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }
 alloy-consensus = { workspace = true, features = ["arbitrary"] }
 op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
 kona-derive = {workspace = true, features = ["test-utils"]}
+serde_json.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
+tokio = { workspace = true, features = ["test-util"] }
 
 [features]
 default = []
