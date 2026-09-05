@@ -604,7 +604,7 @@ contract DeployImplementations is Script {
 
         IStandardValidatorUtils standardValidatorUtils = IStandardValidatorUtils(
             DeployUtils.createDeterministic({
-                _name: "StandardValidatorUtils.sol:StandardValidatorUtils",
+                _name: "StandardValidatorUtils",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IStandardValidatorUtils.__constructor__, ())),
                 _salt: _salt
             })

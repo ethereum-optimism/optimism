@@ -98,8 +98,15 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _verifyAnchorStateRegistryDelays(_asr);
     }
 
-    function verifyStandardValidatorArgs(IOPContractsManagerV2 _opcm, address _validator) public returns (bool) {
-        return _verifyStandardValidatorArgs(_opcm, _validator);
+    function verifyStandardValidatorArgs(
+        IOPContractsManagerV2 _opcm,
+        address _validator,
+        bool _skipConstructorVerification
+    )
+        public
+        returns (bool)
+    {
+        return _verifyStandardValidatorArgs(_opcm, _validator, _skipConstructorVerification);
     }
 
     function setValidatorGetterCheck(string memory _getter, string memory _check) public {
@@ -183,6 +190,27 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Run the script.
         harness.run(address(opcm), true);
+    }
+
+    function test_run_corruptedValidatorDependencies_reverts() public {
+        skipIfCoverage();
+
+        IOPContractsManagerStandardValidator validator =
+            IOPContractsManagerStandardValidator(opcm.opcmStandardValidator());
+        address[2] memory targets =
+            [address(validator.standardValidatorUtils()), address(validator.migrationValidator())];
+
+        harness.run(address(opcm), true);
+
+        for (uint256 i; i < targets.length; i++) {
+            bytes memory originalCode = targets[i].code;
+            vm.etch(targets[i], hex"00");
+
+            vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
+            harness.run(address(opcm), true);
+
+            vm.etch(targets[i], originalCode);
+        }
     }
 
     /// @notice Tests that the runSingle script succeeds when run against production contracts.
