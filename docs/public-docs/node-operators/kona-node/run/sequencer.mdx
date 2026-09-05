@@ -46,7 +46,7 @@ Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
 | `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | `false` | Start sequencer in stopped state |
-| `--sequencer.max-safe-lag` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | `0` | Max L2 blocks between safe and unsafe heads |
+| `--sequencer.max-safe-lag` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | `0` | Reserved for op-node compatibility; Kona exits at startup if set above `0` |
 | `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | `false` | Force recovery mode operation |
 | `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor service RPC endpoint |
@@ -84,12 +84,20 @@ kona-node node \
 kona-node node \
   --mode=Sequencer \
   --sequencer.recover=true \
-  --sequencer.max-safe-lag=100 \
   --l1-eth-rpc=http://localhost:8545 \
   --l1-beacon=http://localhost:5052 \
   --l2-engine-rpc=http://localhost:8551 \
   --chain=42161
 ```
+
+<Warning>
+Kona does not currently implement `--sequencer.max-safe-lag`. Only `0` (disabled) is supported;
+no safe-lag limit is enforced.
+
+When upgrading from a version that silently ignored this flag, any nonzero value supplied through
+the flag or `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` now prevents startup. Remove the setting or change it
+to `0` to continue operating without a safe-lag limit.
+</Warning>
 
 ## Key Considerations
 

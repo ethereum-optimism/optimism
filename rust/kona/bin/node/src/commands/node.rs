@@ -278,6 +278,7 @@ impl NodeCommand {
 
     /// Run the Node subcommand.
     pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
+        let sequencer_config = self.sequencer_flags.config()?;
         let cfg = self.get_l2_config(args)?;
 
         info!(
@@ -328,7 +329,7 @@ impl NodeCommand {
             p2p_config,
             rpc_config,
         )
-        .with_sequencer_config(self.sequencer_flags.config())
+        .with_sequencer_config(sequencer_config)
         .with_derivation_delegate_config(self.derivation_delegate_args.config())
         .with_dependency_set(dependency_set)
         .build()

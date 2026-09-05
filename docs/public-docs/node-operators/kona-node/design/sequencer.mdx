@@ -56,6 +56,8 @@ pub struct SequencerConfig {
     pub sequencer_recovery_mode: bool,
     /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
     pub conductor_rpc_url: Option<Url>,
+    /// The timeout applied to each conductor RPC request.
+    pub conductor_rpc_timeout: Duration,
     /// The confirmation delay for the sequencer.
     pub l1_conf_delay: u64,
 }
@@ -69,6 +71,7 @@ To configure a Kona node programmatically for sequencer mode, set `NodeMode::Seq
 
 ```rust
 use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
+use std::time::Duration;
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
@@ -77,6 +80,7 @@ let sequencer_config = SequencerConfig {
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()
     ),
+    conductor_rpc_timeout: Duration::from_secs(1),
     l1_conf_delay: 4,                   // L1 origin confirmation delay
 };
 
@@ -103,6 +107,7 @@ RollupNodeBuilder::new(
 | `sequencer_stopped` | Start sequencer in stopped state | `false` |
 | `sequencer_recovery_mode` | Enable recovery mode for catch-up | `false` |
 | `conductor_rpc_url` | Conductor service endpoint for leader election | `None` |
+| `conductor_rpc_timeout` | Timeout applied to each conductor RPC request | `1s` |
 | `l1_conf_delay` | Confirmation delay for L1 origin selection | `0` |
 
 ## Next Steps
