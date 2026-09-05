@@ -1443,13 +1443,11 @@ impl Proposer {
                             state.games.get(idx).is_some_and(|game| game.address == guarded_addr)
                         });
                         if guard_in_subtree {
-                            self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
-                            *self.last_created_game_address.lock().await = Address::ZERO;
-                            tracing::info!(
-                                ?guarded_addr,
-                                root_index = %index,
-                                "Reset creation guard: tracked game removed by ChallengerWins"
-                            );
+                            self.reset_creation_guard(
+                                Some(guarded_addr),
+                                "tracked game removed by ChallengerWins",
+                            )
+                            .await;
                         }
                     }
                     progress_addresses_to_clear.extend(state.invalidate_subtree(index));
@@ -2587,13 +2585,11 @@ impl Proposer {
                         .iter()
                         .any(|idx| state.games.get(idx).is_some_and(|g| g.address == guarded_addr));
                     if guard_in_subtree {
-                        self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
-                        *self.last_created_game_address.lock().await = Address::ZERO;
-                        tracing::info!(
-                            ?guarded_addr,
-                            root_index = parent_game_index,
-                            "Reset creation guard: tracked game removed with a retired/blacklisted ancestor"
-                        );
+                        self.reset_creation_guard(
+                            Some(guarded_addr),
+                            "tracked game removed with a retired/blacklisted ancestor",
+                        )
+                        .await;
                     }
                 }
                 let removed_addresses = state.invalidate_subtree(root_index);
@@ -3049,13 +3045,11 @@ impl Proposer {
                             state.games.get(index).is_some_and(|game| game.address == guarded_addr)
                         })
                     {
-                        self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
-                        *self.last_created_game_address.lock().await = Address::ZERO;
-                        tracing::info!(
-                            ?guarded_addr,
-                            root_index = %game_index,
-                            "Reset creation guard: tracked game removed with unprovable subtree"
-                        );
+                        self.reset_creation_guard(
+                            Some(guarded_addr),
+                            "tracked game removed with unprovable subtree",
+                        )
+                        .await;
                     }
                     state.invalidate_subtree(game_index)
                 } else {

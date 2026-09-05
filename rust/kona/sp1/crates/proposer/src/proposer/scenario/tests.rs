@@ -2123,6 +2123,7 @@ async fn claim_mismatch_outcome_depends_on_trust_not_creator() {
     world.add_game(foreign);
     world.set_horizons(1, 1);
     let canonical = canonical_super_root(1);
+    // Reverse discovery visits foreign index 1 first, so attempt 2 belongs to own index 0.
     world.script_superroot(
         1,
         2,
