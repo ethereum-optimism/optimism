@@ -19,8 +19,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
-// defaultInitBond matches Deploy.s.sol DEFAULT_INIT_BOND (0.08 ether).
-var defaultInitBond = big.NewInt(8e16)
+var (
+	// defaultInitBond matches Deploy.s.sol DEFAULT_INIT_BOND (0.08 ether).
+	defaultInitBond = big.NewInt(8e16)
+	// defaultZKChallengerBond is independent from the bond required to create a ZK game.
+	defaultZKChallengerBond = big.NewInt(5e17)
+)
 
 // upgradeToSuperRoots calls OPCMv2.upgrade on each chain in the migration state
 // to enable all three super-root game types with the supplied starting anchor.
@@ -154,7 +158,7 @@ func buildZKUpgradeGameConfigs(
 				AbsolutePrestate:     programVKey,
 				MaxChallengeDuration: uint64(cfg.MaxChallengeDuration / time.Second),
 				MaxProveDuration:     uint64(cfg.MaxProveDuration / time.Second),
-				ChallengerBond:       new(big.Int).Set(defaultInitBond),
+				ChallengerBond:       new(big.Int).Set(defaultZKChallengerBond),
 			},
 		},
 	}

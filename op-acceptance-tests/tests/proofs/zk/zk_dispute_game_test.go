@@ -199,7 +199,8 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	)
 	factory := sys.DisputeGameFactory()
 	proposerAddr := zkProposerAddress(t, sys)
-	creator, challenger := fundedActors(sys)
+	creator := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	challenger := sys.FunderL1.NewFundedEOA(eth.Ether(2))
 
 	// Create two foreign valid root games at distinct safe timestamps.
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
