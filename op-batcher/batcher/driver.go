@@ -95,6 +95,9 @@ type DriverSetup struct {
 	ChannelConfig     ChannelConfigProvider
 	AltDA             *altda.DAClient
 	ChannelOutFactory ChannelOutFactory
+	// BlockEnricher lets an alternate terminal encoding fetch, per loaded block, side data that an
+	// execution payload does not carry. The default batcher leaves it nil. See private_interop.go.
+	BlockEnricher BlockEnricher
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -333,6 +336,15 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
 	payload := envelope.ExecutionPayload
+
+	// An alternate terminal encoding may need per-block side data that the payload does not carry.
+	// It is fetched here, in the loading stage, so that a failure fails the load — which the
+	// batcher already retries — rather than surfacing under the channel-manager mutex.
+	if l.BlockEnricher != nil {
+		if err := l.BlockEnricher.PrepareBlock(cCtx, payload); err != nil {
+			return nil, fmt.Errorf("preparing the alternate batch encoding: %w", err)
+		}
+	}
 
 	l.channelMgrMutex.Lock()
 	defer l.channelMgrMutex.Unlock()

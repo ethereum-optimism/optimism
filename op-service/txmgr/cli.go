@@ -483,15 +483,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		return nil, fmt.Errorf("could not fetch L1 chain ID: %w", err)
 	}
 
-	// Allow backwards compatible ways of specifying the HD path
-	hdPath := cfg.HDPath
-	if hdPath == "" && cfg.SequencerHDPath != "" {
-		hdPath = cfg.SequencerHDPath
-	} else if hdPath == "" && cfg.L2OutputHDPath != "" {
-		hdPath = cfg.L2OutputHDPath
-	}
-
-	signerFactory, from, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
+	signerFactory, from, err := SignerFactoryFromCLIConfig(l, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("could not init signer: %w", err)
 	}
@@ -573,6 +565,20 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
 
 	return &res, nil
+}
+
+// SignerFactoryFromCLIConfig resolves the standard transaction-manager signer without binding it
+// to a chain ID. Services that need the same account to sign deterministic transactions for a
+// second chain can instantiate the returned factory with that chain's ID.
+func SignerFactoryFromCLIConfig(l log.Logger, cfg CLIConfig) (opcrypto.SignerFactory, common.Address, error) {
+	// Allow backwards compatible ways of specifying the HD path.
+	hdPath := cfg.HDPath
+	if hdPath == "" && cfg.SequencerHDPath != "" {
+		hdPath = cfg.SequencerHDPath
+	} else if hdPath == "" && cfg.L2OutputHDPath != "" {
+		hdPath = cfg.L2OutputHDPath
+	}
+	return opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
 }
 
 func fallbackToOsakaCellProofTimeIfKnown(chainID *big.Int, cellProofTime uint64) uint64 {

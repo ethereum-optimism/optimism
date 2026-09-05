@@ -1,0 +1,22 @@
+{
+  "name": "version-02",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "invalid",
+  "description": "Version 2: the next version, which does not exist yet. Forwards-leniency is how a future field addition gets silently misread out of the wrong offsets by something that reports success, so an unrecognised successor is refused as firmly as anything else.",
+  "bin": "version-02.bin",
+  "bytes": 384,
+  "keccak": "0x13a46533de37bde4c731819333d6c289bd977a3ac9b4d06d9fc3514022815312",
+  "proofHex": "0x",
+  "body": {
+    "version": 2,
+    "firstBlock": 1,
+    "lastBlock": 300,
+    "privateTerminalBlockHash": "0x13d6b95aec806391cc246e887f42b3f70265956437cffff1087e6db43a221132",
+    "privateTerminalParentHash": "0x6d3b33cf89e5e8755345dcb48ab45044b959f9b0959158f44982c1bf6f797d4b",
+    "l1Head": "0x5569bb24d2fcd1ee7469b9a90b0dabbb94c8dfecd17e5d2b8f0267bb2f11d59e",
+    "rollupConfigHash": "0x068944b39422a8e7bbfc192215881a5beb689599689b8a586b076ccd34c3b72d",
+    "depSetHash": "0x0a876740af346b13616f1ffad031d10763890b326ec77b8bec44bc2a65cb61a2",
+    "privateDataHash": "0x3ca528b645114dbcd02efdc0224708c852e23f8bc344322639b4b4e6be6586e3"
+  },
+  "refusal": "bad-version"
+}

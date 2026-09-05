@@ -1,0 +1,21 @@
+{
+  "name": "proven-slot",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "valid-proven",
+  "description": "Well-formed bytes carrying a 65-byte proof slot (the bytes 0x00..0x40, a placeholder for a real proof; 65 is deliberately not a multiple of 32, so this also pins the ABI tail padding). ModeProven decodes it; ModeAttested REFUSES it, which is the standing v1 rule: a verifier with no proof system must not accept a claim whose central claim it is not equipped to evaluate.",
+  "bin": "proven-slot.bin",
+  "bytes": 480,
+  "keccak": "0x9b4a1eb9aa3b54567b1815dd4ec1d07f8ebc0c7cec935fef9d7555da552c1042",
+  "proofHex": "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40",
+  "body": {
+    "version": 1,
+    "firstBlock": 9000301,
+    "lastBlock": 9000600,
+    "privateTerminalBlockHash": "0x399e655256d530754ad4570a2b1f4bb2e3d85a743ea3040bece3303148ffd2e3",
+    "privateTerminalParentHash": "0x58eed8e9ae200acbda220cda73e4cae58ff9465296b8235e68d58aed86cc3857",
+    "l1Head": "0x786d5c24bf516c19a68e7b61c3ce87a7778b118f63d590516041ea839eaab1e1",
+    "rollupConfigHash": "0xfc626387f02ef8dc1b8df723102303433071b8e56886ca6482f0096c39e32920",
+    "depSetHash": "0xba595dcba084a024686c73460874f3d16a748fb019e4d94732216949ab5ccb55",
+    "privateDataHash": "0x324165eb77acec207664d3d90449a7191bf36bb25bd9f5d15b0f5b9b8310a4c2"
+  }
+}

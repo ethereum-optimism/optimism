@@ -35,7 +35,7 @@ use reth_node_builder::{
 };
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
-use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
+use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
@@ -1117,7 +1117,7 @@ where
         OpEvmConfig<<Node::Types as NodeTypes>::ChainSpec, <Node::Types as NodeTypes>::Primitives>;
 
     async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
-        Ok(OpEvmConfig::new(ctx.chain_spec(), OpRethReceiptBuilder::default()))
+        Ok(OpEvmConfig::optimism(ctx.chain_spec()))
     }
 }
 

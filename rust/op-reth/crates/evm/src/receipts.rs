@@ -9,7 +9,17 @@ use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
 /// [`OpReceipt`].
 #[derive(Debug, Default, Clone, Copy)]
 #[non_exhaustive]
-pub struct OpRethReceiptBuilder;
+pub struct OpRethReceiptBuilder {
+    suppress_deposit_logs: bool,
+}
+
+impl OpRethReceiptBuilder {
+    /// Projection deposits retain execution and accounting, but cannot publish events. Only
+    /// sequencer-published replay transactions contribute to the public message history.
+    pub const fn for_public_projection() -> Self {
+        Self { suppress_deposit_logs: true }
+    }
+}
 
 impl OpReceiptBuilder for OpRethReceiptBuilder {
     type Transaction = OpTransactionSigned;
@@ -42,7 +52,10 @@ impl OpReceiptBuilder for OpRethReceiptBuilder {
         }
     }
 
-    fn build_deposit_receipt(&self, inner: OpDepositReceipt) -> Self::Receipt {
+    fn build_deposit_receipt(&self, mut inner: OpDepositReceipt) -> Self::Receipt {
+        if self.suppress_deposit_logs {
+            inner.inner.logs.clear();
+        }
         OpReceipt::Deposit(inner)
     }
 
@@ -50,5 +63,39 @@ impl OpReceiptBuilder for OpRethReceiptBuilder {
         if let OpReceipt::Deposit(d) = receipt {
             d.deposit_nonce = None;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+    use alloy_primitives::{Address, Log};
+
+    #[test]
+    fn projection_deposits_keep_accounting_without_publishing_logs() {
+        let deposit = OpDepositReceipt {
+            inner: Receipt {
+                status: Eip658Value::Eip658(true),
+                cumulative_gas_used: 42_000,
+                logs: vec![Log::new_unchecked(Address::ZERO, vec![], vec![1, 2].into())],
+            },
+            deposit_nonce: Some(7),
+            deposit_receipt_version: Some(1),
+        };
+        assert_eq!(
+            OpRethReceiptBuilder::default().build_deposit_receipt(deposit.clone()),
+            OpReceipt::Deposit(deposit.clone())
+        );
+        let OpReceipt::Deposit(projected) =
+            OpRethReceiptBuilder::for_public_projection().build_deposit_receipt(deposit.clone())
+        else {
+            panic!("deposit receipt must retain its type");
+        };
+        assert!(projected.inner.logs.is_empty());
+        assert_eq!(projected.inner.status, deposit.inner.status);
+        assert_eq!(projected.inner.cumulative_gas_used, deposit.inner.cumulative_gas_used);
+        assert_eq!(projected.deposit_nonce, deposit.deposit_nonce);
+        assert_eq!(projected.deposit_receipt_version, deposit.deposit_receipt_version);
     }
 }

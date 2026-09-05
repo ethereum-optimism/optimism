@@ -26,7 +26,7 @@ use op_alloy_consensus::{
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
 use reth_evm::{ConfigureEvm, EvmEnv, eth::NextEvmEnvAttributes, precompiles::PrecompilesMap};
-use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_chainspec::{OpChainSpec, is_public_projection_genesis};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
@@ -110,7 +110,12 @@ impl<ChainSpec, N: NodePrimitives, R: Clone, EvmFactory: Clone> Clone
 impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks> OpEvmConfig<ChainSpec> {
     /// Creates a new [`OpEvmConfig`] with the given chain spec for OP chains.
     pub fn optimism(chain_spec: Arc<ChainSpec>) -> Self {
-        Self::new(chain_spec, OpRethReceiptBuilder::default())
+        let receipts = if is_public_projection_genesis(chain_spec.genesis()) {
+            OpRethReceiptBuilder::for_public_projection()
+        } else {
+            OpRethReceiptBuilder::default()
+        };
+        Self::new(chain_spec, receipts)
     }
 }
 

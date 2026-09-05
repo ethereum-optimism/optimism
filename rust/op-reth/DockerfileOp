@@ -44,6 +44,12 @@ COPY . .
 # context; the git-free build.rs resolves it at /superchain-registry.
 COPY --from=superchain-registry superchain /superchain-registry/superchain
 
+# reth-optimism-chainspec embeds the private-interop projection bytecode with
+# include_str!("../../../../../op-private-interop/genesis/bytecode/*.hex"),
+# which from /app/op-reth/crates/chainspec/src resolves to
+# /op-private-interop/genesis/bytecode. Provide it from the bake named context.
+COPY --from=op-private-interop genesis/bytecode /op-private-interop/genesis/bytecode
+
 RUN cargo auditable build --profile $BUILD_PROFILE --locked --bin op-reth --manifest-path /app/op-reth/bin/Cargo.toml
 
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth

@@ -1,0 +1,22 @@
+{
+  "name": "version-ff",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "invalid",
+  "description": "Version 255: the top of the field. Refused like any other unrecognised version; present so the gate is pinned at both ends of uint8 rather than only near 1.",
+  "bin": "version-ff.bin",
+  "bytes": 384,
+  "keccak": "0xe4520520915c78c1c401dbae95d82810c0b8a9b48cbf14842c1f9168fe025213",
+  "proofHex": "0x",
+  "body": {
+    "version": 255,
+    "firstBlock": 1,
+    "lastBlock": 300,
+    "privateTerminalBlockHash": "0x13d6b95aec806391cc246e887f42b3f70265956437cffff1087e6db43a221132",
+    "privateTerminalParentHash": "0x6d3b33cf89e5e8755345dcb48ab45044b959f9b0959158f44982c1bf6f797d4b",
+    "l1Head": "0x5569bb24d2fcd1ee7469b9a90b0dabbb94c8dfecd17e5d2b8f0267bb2f11d59e",
+    "rollupConfigHash": "0x068944b39422a8e7bbfc192215881a5beb689599689b8a586b076ccd34c3b72d",
+    "depSetHash": "0x0a876740af346b13616f1ffad031d10763890b326ec77b8bec44bc2a65cb61a2",
+    "privateDataHash": "0x3ca528b645114dbcd02efdc0224708c852e23f8bc344322639b4b4e6be6586e3"
+  },
+  "refusal": "bad-version"
+}
