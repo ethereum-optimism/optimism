@@ -24,6 +24,8 @@ type ChainConfig struct {
 	Interop           *Interop        `toml:"interop,omitempty"`
 	Optimism          *OptimismConfig `toml:"optimism,omitempty"`
 
+	// AltDA is retained only to decode existing superchain-registry entries. Runtime clients
+	// reject chains whose DataAvailabilityType is not "eth-da" or whose AltDA is set.
 	AltDA *AltDAConfig `toml:"alt_da,omitempty"`
 
 	Genesis GenesisConfig `toml:"genesis"`
@@ -64,6 +66,7 @@ type OptimismConfig struct {
 	EIP1559DenominatorCanyon *uint64 `toml:"eip1559_denominator_canyon"`
 }
 
+// AltDAConfig is compatibility-only metadata for existing superchain-registry entries.
 type AltDAConfig struct {
 	DaChallengeContractAddress common.Address `toml:"da_challenge_contract_address"`
 	DaChallengeWindow          uint64         `toml:"da_challenge_window"`
@@ -120,5 +123,4 @@ type AddressesConfig struct {
 	MIPS                              *common.Address `toml:"MIPS,omitempty" json:"MIPS,omitempty"`
 	PermissionedDisputeGame           *common.Address `toml:"PermissionedDisputeGame,omitempty" json:"PermissionedDisputeGame,omitempty"`
 	PreimageOracle                    *common.Address `toml:"PreimageOracle,omitempty" json:"PreimageOracle,omitempty"`
-	DAChallengeAddress                *common.Address `toml:"DAChallengeAddress,omitempty" json:"DAChallengeAddress,omitempty"`
 }

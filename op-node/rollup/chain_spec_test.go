@@ -54,7 +54,6 @@ var testConfig = Config{
 	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
 	DepositContractAddress: common.HexToAddress("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"),
 	L1SystemConfigAddress:  common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
-	AltDAConfig:            nil,
 }
 
 func TestChainSpec_CanyonForkActivation(t *testing.T) {

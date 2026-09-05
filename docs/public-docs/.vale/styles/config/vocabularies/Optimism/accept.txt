@@ -284,7 +284,6 @@ allocs
 allowlist
 alphanet
 alphanets
-altda
 architected
 archiver
 arg
@@ -350,10 +349,6 @@ cpu
 crosschain
 crypto
 cryptocurrencies
-da_challenge_address
-da_challenge_window
-da_resolve_window
-daserver
 datacap
 datadir
 delegatecall
@@ -616,7 +611,6 @@ unsubmitted
 upgradeability
 url
 usb
-use_plasma
 useInterop
 validator
 validators

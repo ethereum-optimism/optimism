@@ -71,14 +71,6 @@
       "target": "op-conductor",
       "paths": ["op-conductor/**", "op-node/**"]
     },
-    "da-server": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "da-server",
-      "paths": ["op-alt-da/**"]
-    },
     "op-supernode": {
       "type": "go",
       "check": "go",

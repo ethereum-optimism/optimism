@@ -68,7 +68,7 @@ impl GossipDriverBuilder {
 
     /// Sets the [`RollupConfig`] for the network.
     /// This is used to determine the topic to publish to.
-    pub fn with_rollup_config(mut self, rollup_config: RollupConfig) -> Self {
+    pub const fn with_rollup_config(mut self, rollup_config: RollupConfig) -> Self {
         self.rollup_config = rollup_config;
         self
     }

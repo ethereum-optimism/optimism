@@ -37,8 +37,7 @@ const finalityDelay = 64
 // Config contains runtime configuration for the finalizer.
 type Config struct {
 	// FinalityLookback specifies the number of L1 blocks to look back for finality verification.
-	// When nil, uses the default finality lookback calculation (which considers both
-	// the default lookback and alt-DA challenge/resolve windows if applicable).
+	// When nil, uses the default finality lookback.
 	FinalityLookback *uint64
 
 	// FinalityDelay specifies the number of L1 blocks to traverse before trying to finalize L2 blocks again.
@@ -46,23 +45,13 @@ type Config struct {
 	FinalityDelay *uint64
 }
 
-// calcFinalityLookback calculates the default finality lookback based on DA challenge window if altDA
-// mode is activated or L1 finality lookback.
-func calcFinalityLookback(cfg *rollup.Config, finalizerCfg *Config) uint64 {
+// calcFinalityLookback returns the configured finality lookback or the default.
+func calcFinalityLookback(finalizerCfg *Config) uint64 {
 	// If a custom finality lookback is configured, use it as an override
 	if finalizerCfg != nil && finalizerCfg.FinalityLookback != nil {
 		return *finalizerCfg.FinalityLookback
 	}
 
-	// in alt-da mode the longest finality lookback is a commitment is challenged on the last block of
-	// the challenge window in which case it will be both challenge + resolve window.
-	if cfg.AltDAEnabled() {
-		lkb := cfg.AltDAConfig.DAChallengeWindow + cfg.AltDAConfig.DAResolveWindow + 1
-		// in the case only if the altDA windows are longer than the default finality lookback
-		if lkb > defaultFinalityLookback {
-			return lkb
-		}
-	}
 	return defaultFinalityLookback
 }
 
@@ -103,8 +92,6 @@ type Finalizer struct {
 
 	ctx context.Context
 
-	cfg *rollup.Config
-
 	emitter event.Emitter
 
 	engineController EngineController
@@ -134,12 +121,11 @@ type Finalizer struct {
 // NewFinalizer creates a new Finalizer instance.
 // The finalizerCfg parameter is optional and may be nil to use default finality behavior.
 // When non-nil, any non-nil fields in finalizerCfg will override the defaults.
-func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, finalizerCfg *Config, l1Fetcher FinalizerL1Interface, ec EngineController) *Finalizer {
-	lookback := calcFinalityLookback(cfg, finalizerCfg)
+func NewFinalizer(ctx context.Context, log log.Logger, finalizerCfg *Config, l1Fetcher FinalizerL1Interface, ec EngineController) *Finalizer {
+	lookback := calcFinalityLookback(finalizerCfg)
 	delay := calcFinalityDelay(finalizerCfg)
 	return &Finalizer{
 		ctx:              ctx,
-		cfg:              cfg,
 		log:              log,
 		finalizedL1:      eth.L1BlockRef{},
 		engineController: ec,

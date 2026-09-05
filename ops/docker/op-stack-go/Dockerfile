@@ -162,10 +162,6 @@ ARG OP_CONDUCTOR_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   cd op-conductor && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_CONDUCTOR_VERSION" just op-conductor
 
-FROM --platform=$BUILDPLATFORM builder AS da-server-builder
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  cd op-alt-da && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE just da-server
-
 FROM --platform=$BUILDPLATFORM builder AS op-supernode-builder
 ARG OP_SUPERNODE_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
@@ -339,11 +335,6 @@ FROM $TARGET_BASE_IMAGE AS op-conductor-target
 USER 0
 COPY --from=op-conductor-builder /app/op-conductor/bin/op-conductor /usr/local/bin/
 CMD ["op-conductor"]
-
-FROM $TARGET_BASE_IMAGE AS da-server-target
-USER 0
-COPY --from=da-server-builder /app/op-alt-da/bin/da-server /usr/local/bin/
-CMD ["da-server"]
 
 FROM $TARGET_BASE_IMAGE AS op-supernode-target
 USER 0

@@ -168,18 +168,6 @@ target "op-conductor" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-conductor:${tag}"]
 }
 
-target "da-server" {
-  dockerfile = "ops/docker/op-stack-go/Dockerfile"
-  context = "."
-  args = {
-    GIT_COMMIT = "${GIT_COMMIT}"
-    GIT_DATE = "${GIT_DATE}"
-  }
-  target = "da-server-target"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/da-server:${tag}"]
-}
-
 target "op-supernode" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."

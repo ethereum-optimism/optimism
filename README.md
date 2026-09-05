@@ -67,7 +67,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
 │   └── <a href="./docs/public-docs">public-docs</a>: Public developer documentation for <a href="https://docs.optimism.io">docs.optimism.io</a>
 ├── <a href="./op-acceptance-tests">op-acceptance-tests</a>: Acceptance tests and configuration for OP Stack
-├── <a href="./op-alt-da">op-alt-da</a>: Alternative Data Availability mode (beta)
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent

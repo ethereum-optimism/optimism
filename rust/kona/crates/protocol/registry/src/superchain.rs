@@ -13,7 +13,7 @@ pub struct Registry {
     pub chain_list: ChainList,
     /// Map of chain IDs to their chain configuration.
     pub op_chains: HashMap<u64, ChainConfig>,
-    /// Map of chain IDs to their rollup configurations.
+    /// Map of supported Ethereum-DA chain IDs to their rollup configurations.
     pub rollup_configs: HashMap<u64, RollupConfig>,
     /// Map of l1 chain IDs to their l1 configurations.
     pub l1_configs: HashMap<u64, L1ChainConfig>,
@@ -45,9 +45,10 @@ impl Registry {
                 if let Some(a) = &mut chain_config.addresses {
                     a.zero_proof_addresses();
                 }
-                let mut rollup = chain_config.as_rollup_config();
-                rollup.superchain_config_address = superchain.config.superchain_config_addr;
-                rollup_configs.insert(chain_config.chain_id, rollup);
+                if let Some(mut rollup) = chain_config.as_rollup_config() {
+                    rollup.superchain_config_address = superchain.config.superchain_config_addr;
+                    rollup_configs.insert(chain_config.chain_id, rollup);
+                }
                 op_chains.insert(chain_config.chain_id, chain_config);
             }
         }
@@ -87,6 +88,17 @@ mod tests {
             *superchains.rollup_configs.get(&10).unwrap(),
             crate::test_utils::OP_MAINNET_CONFIG
         );
+    }
+
+    #[test]
+    fn test_unsupported_da_chain_has_no_rollup_config() {
+        const FRAXTAL_CHAIN_ID: u64 = 252;
+
+        let registry = Registry::from_chain_list();
+        let chain = registry.op_chains.get(&FRAXTAL_CHAIN_ID).unwrap();
+        assert_eq!(chain.data_availability_type, "alt-da");
+        assert!(chain.as_rollup_config().is_none());
+        assert!(!registry.rollup_configs.contains_key(&FRAXTAL_CHAIN_ID));
     }
 
     #[test]

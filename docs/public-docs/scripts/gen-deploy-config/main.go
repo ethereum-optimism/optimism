@@ -68,7 +68,6 @@ var groupTitles = map[string]string{
 	"UpgradeScheduleDeployConfig": "Network upgrade (hardfork) activations",
 	"L2CoreDeployConfig":          "Core protocol parameters",
 	"FeeMarketConfig":             "Fee market limits",
-	"AltDADeployConfig":           "Alt-DA mode",
 	"DevL1DeployConfig":           "Development L1 genesis",
 	"DeployConfig":                "L1 starting block",
 	"SuperchainL1DeployConfig":    "Superchain configuration",

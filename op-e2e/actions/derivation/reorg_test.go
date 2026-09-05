@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/stretchr/testify/require"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -597,7 +596,7 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	engRpc := &rpcWrapper{seqEng.RPCClient()}
 	l2Cl, err := sources.NewEngineClient(engRpc, log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
-	sequencer := actionsHelpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
+	sequencer := actionsHelpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), l2Cl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
 
 	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
@@ -685,7 +684,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.NoError(t, err)
 	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
-	altSequencer := actionsHelpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), altda.Disabled, altSeqEngCl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
+	altSequencer := actionsHelpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), altSeqEngCl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
 	altBatcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		altSequencer.RollupClient(), miner.EthClient(), altSeqEng.EthClient(), altSeqEng.EngineClient(t, sd.RollupCfg))
 

@@ -394,7 +394,7 @@ function testTransferSucceeds() external { }          // No underscores
 
 - `CommonTest` base class deploys the full OP Stack (L1 + L2).
 - Pre-configured actors: alice and bob with 10,000 ETH each.
-- Feature flags for testing variants: altDA, interop, revenue sharing, custom gas token.
+- Feature flags for testing variants: interop, revenue sharing, custom gas token.
 - Fork test support: automatic detection via the `FORK_TEST` env var.
 - Invariant tests in `test/invariants/` with guided and unguided fuzz modes.
 - Kontrol formal verification in `test/kontrol/`.

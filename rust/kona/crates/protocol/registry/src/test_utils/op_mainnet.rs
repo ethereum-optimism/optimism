@@ -51,7 +51,6 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
     l1_chain_id: 1_u64,
     l2_chain_id: Chain::optimism_mainnet(),
     chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
-    alt_da_config: None,
     hardforks: HardForkConfig {
         regolith_time: None,
         canyon_time: Some(OP_MAINNET_CANYON_TIMESTAMP),
@@ -71,6 +70,6 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
     deposit_contract_address: address!("beb5fc579115071764c7423a4f12edde41f106ed"),
     l1_system_config_address: address!("229047fed2591dbec1ef1118d64f7af3db9eb290"),
     superchain_config_address: Some(address!("95703e0982140D16f8ebA6d158FccEde42f04a4C")),
-    da_challenge_address: None,
     blobs_enabled_l1_timestamp: None,
+    unsupported_alt_da: (),
 };

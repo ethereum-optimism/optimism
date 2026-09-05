@@ -4,7 +4,7 @@ The `op-batcher` is responsible for ensuring data availability. See the [specs](
 
 ## Interactions & Dependencies
 
-The `op-batcher` works together with the [sequencer](../op-node/) (which it reads unsafe blocks from), the data availability layer (e.g. Layer 1 or an [Alt DA](../op-alt-da/) layer, which it posts data to), and the [derivation pipeline](../op-node/) (which reads the data from the DA layer and progresses the safe chain).
+The `op-batcher` works together with the [sequencer](../op-node/) (which it reads unsafe blocks from), Layer 1 (where it posts data), and the [derivation pipeline](../op-node/) (which reads the data from Layer 1 and progresses the safe chain).
 
 It depends directly on some code shared with the derivation pipeline, namely the [`ChannelOut`](../op-node/rollup/derive/channel_out.go) implementation(s). It also depends directly on the shared [txmgr](../op-service/txmgr/) module.
 

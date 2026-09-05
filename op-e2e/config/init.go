@@ -49,7 +49,6 @@ const (
 type AllocType string
 
 const (
-	AllocTypeAltDA        AllocType = "alt-da"
 	AllocTypeMTCannon     AllocType = "mt-cannon"
 	AllocTypeMTCannonNext AllocType = "mt-cannon-next"
 	AllocTypeFastGame     AllocType = "fast-game"
@@ -64,7 +63,7 @@ func (a AllocType) Check() error {
 	return nil
 }
 
-var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeFastGame}
+var allocTypes = []AllocType{AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeFastGame}
 
 var (
 	// All of the following variables are set in the init function
@@ -283,16 +282,6 @@ func initAllocType(root string, allocType AllocType) {
 			defer wg.Done()
 
 			intent := defaultIntent(root, loc, deployerAddr, allocType)
-			if allocType == AllocTypeAltDA {
-				intent.Chains[0].DangerousAltDAConfig = genesis.AltDADeployConfig{
-					UseAltDA:                   true,
-					DACommitmentType:           "KeccakCommitment",
-					DAChallengeWindow:          16,
-					DAResolveWindow:            16,
-					DABondSize:                 1000000,
-					DAResolverRefundPercentage: 0,
-				}
-			}
 			if allocType == AllocTypeFastGame {
 				intent.GlobalDeployOverrides["preimageOracleChallengePeriod"] = 1
 				for _, chain := range intent.Chains {

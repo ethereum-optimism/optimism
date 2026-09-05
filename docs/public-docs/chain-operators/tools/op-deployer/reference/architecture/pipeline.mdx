@@ -13,10 +13,9 @@ The steps of the pipeline are:
 2.  Shared Contracts Deployment
 3.  Implementations Deployment
 4.  OP Chain Deployment
-5.  Alt-DA Deployment
-6.  Dispute Game Deployment
-7.  L2 Genesis Generation
-8.  Setting Start Block
+5.  Dispute Game Deployment
+6.  L2 Genesis Generation
+7.  Setting Start Block
 
 State is written to disk after each state. This allows the pipeline to be restarted from any point in the event of a
 recoverable error.
@@ -44,8 +43,8 @@ intent. The deployment works by calling into the OPCM, which will emit an event 
 
 ## Customizations Deployment
 
-The next two steps (Alt-DA and Dispute Game) deploy customizations. As their names imply, they deploy Alt-DA and
-additional dispute game contracts. Typically, these steps will be skipped as they are mostly useful in testing.
+The next step deploys additional dispute game contracts. Typically, this step
+will be skipped because it is mostly useful in testing.
 
 ## L2 Genesis Generation
 

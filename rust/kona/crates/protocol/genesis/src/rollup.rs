@@ -1,6 +1,6 @@
 //! Rollup Config Types
 
-use crate::{AltDAConfig, BaseFeeConfig, ChainGenesis, HardForkConfig, OP_MAINNET_BASE_FEE_CONFIG};
+use crate::{BaseFeeConfig, ChainGenesis, HardForkConfig, OP_MAINNET_BASE_FEE_CONFIG};
 use alloy_chains::Chain;
 use alloy_hardforks::{EthereumHardfork, EthereumHardforks, ForkCondition};
 use alloy_op_hardforks::{OpHardfork, OpHardforks};
@@ -21,6 +21,18 @@ pub const GRANITE_CHANNEL_TIMEOUT: u64 = 50;
 #[cfg(feature = "serde")]
 const fn default_granite_channel_timeout() -> u64 {
     GRANITE_CHANNEL_TIMEOUT
+}
+
+#[cfg(feature = "serde")]
+fn reject_unsupported_alt_da<'de, D>(deserializer: D) -> Result<(), D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = <Option<serde::de::IgnoredAny> as serde::Deserialize>::deserialize(deserializer)?;
+    if value.is_some() {
+        return Err(serde::de::Error::custom("Alt-DA is no longer supported"));
+    }
+    Ok(())
 }
 
 /// The max sequencer drift needs to be changes for some chains, e.g. those that build only on
@@ -81,13 +93,22 @@ pub struct RollupConfig {
         serde(rename = "blobs_data", skip_serializing_if = "Option::is_none")
     )]
     pub blobs_enabled_l1_timestamp: Option<u64>,
-    /// `da_challenge_address` is the L1 address that the data availability challenge contract is
-    /// stored at.
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub da_challenge_address: Option<Address>,
-    /// `alt_da_config` is the chain-specific DA config for the rollup.
-    #[cfg_attr(feature = "serde", serde(rename = "alt_da"))]
-    pub alt_da_config: Option<AltDAConfig>,
+    /// Decode-only tombstone for removed Alt-DA rollup configuration.
+    ///
+    /// This field rejects non-null legacy Alt-DA configuration instead of silently running the
+    /// chain as Ethereum-DA. It is never serialized.
+    #[doc(hidden)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            rename = "alt_da",
+            alias = "da_challenge_address",
+            default,
+            skip_serializing,
+            deserialize_with = "reject_unsupported_alt_da"
+        )
+    )]
+    pub unsupported_alt_da: (),
     /// `chain_op_config` is the chain-specific EIP1559 config for the rollup.
     #[cfg_attr(feature = "serde", serde(default = "BaseFeeConfig::optimism"))]
     pub chain_op_config: BaseFeeConfig,
@@ -122,9 +143,8 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             l1_system_config_address: Address::arbitrary(u)?,
             superchain_config_address: Option::<Address>::arbitrary(u)?,
             blobs_enabled_l1_timestamp: Option::<u64>::arbitrary(u)?,
-            da_challenge_address: Option::<Address>::arbitrary(u)?,
+            unsupported_alt_da: (),
             chain_op_config,
-            alt_da_config: Option::<AltDAConfig>::arbitrary(u)?,
         })
     }
 }
@@ -149,8 +169,7 @@ impl Default for RollupConfig {
             l1_system_config_address: Address::ZERO,
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
-            da_challenge_address: None,
-            alt_da_config: None,
+            unsupported_alt_da: (),
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
         }
     }
@@ -328,12 +347,6 @@ impl RollupConfig {
     pub fn is_first_interop_block(&self, timestamp: u64) -> bool {
         self.is_interop_active(timestamp) &&
             !self.is_interop_active(timestamp.saturating_sub(self.block_time))
-    }
-
-    /// Returns true if a DA Challenge proxy Address is provided in the rollup config and the
-    /// address is not zero.
-    pub fn is_alt_da_enabled(&self) -> bool {
-        self.da_challenge_address.is_some_and(|addr| !addr.is_zero())
     }
 
     /// Returns the max sequencer drift for the given timestamp.
@@ -844,16 +857,6 @@ mod tests {
     }
 
     #[test]
-    fn test_alt_da_enabled() {
-        let mut config = RollupConfig::default();
-        assert!(!config.is_alt_da_enabled());
-        config.da_challenge_address = Some(Address::ZERO);
-        assert!(!config.is_alt_da_enabled());
-        config.da_challenge_address = Some(address!("0000000000000000000000000000000000000001"));
-        assert!(config.is_alt_da_enabled());
-    }
-
-    #[test]
     fn test_granite_channel_timeout() {
         let mut config = RollupConfig {
             channel_timeout: 100,
@@ -925,9 +928,8 @@ mod tests {
             l1_system_config_address: address!("94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710"),
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
-            da_challenge_address: None,
+            unsupported_alt_da: (),
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
-            alt_da_config: None,
         }
     }
 
@@ -987,6 +989,33 @@ mod tests {
         let expected = expected_rollup_config();
         let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
         assert_eq!(deserialized, expected);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_rejects_removed_alt_da_config() {
+        let config = serde_json::to_value(expected_rollup_config()).unwrap();
+
+        for (key, value) in [
+            ("alt_da", serde_json::json!({ "da_commitment_type": "KeccakCommitment" })),
+            (
+                "da_challenge_address",
+                serde_json::json!("0x0000000000000000000000000000000000000001"),
+            ),
+        ] {
+            let mut config = config.clone();
+            config.as_object_mut().unwrap().insert(key.to_string(), value);
+            let err = serde_json::from_value::<RollupConfig>(config).unwrap_err();
+            assert!(err.to_string().contains("Alt-DA is no longer supported"));
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_does_not_serialize_removed_alt_da_config() {
+        let serialized = serde_json::to_value(expected_rollup_config()).unwrap();
+        assert!(serialized.get("alt_da").is_none());
+        assert!(serialized.get("da_challenge_address").is_none());
     }
 
     #[test]

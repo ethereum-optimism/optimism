@@ -5,11 +5,28 @@ import (
 	"testing"
 
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
+	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAvailableNetworksExcludeUnsupportedDA(t *testing.T) {
+	available := AvailableNetworks()
+	for _, chain := range registry.Chains {
+		cfg, err := chain.Config()
+		require.NoError(t, err)
+		name := chain.Name + "-" + chain.Network
+		if cfg.DataAvailabilityType == "eth-da" && cfg.AltDA == nil {
+			require.Contains(t, available, name)
+			require.NotNil(t, ChainByName(name))
+		} else {
+			require.NotContains(t, available, name)
+			require.Nil(t, ChainByName(name))
+		}
+	}
+}
 
 // TestGetRollupConfig tests that the configs sourced from the superchain-registry match
 // the configs that were embedded in the op-node manually before the superchain-registry was utilized.

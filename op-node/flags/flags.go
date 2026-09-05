@@ -6,7 +6,6 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
@@ -30,9 +29,8 @@ const (
 	SequencerCategory  = "3. SEQUENCER"
 	OperationsCategory = "4. LOGGING, METRICS, DEBUGGING, AND API"
 	P2PCategory        = "5. PEER-TO-PEER"
-	AltDACategory      = "6. ALT-DA (EXPERIMENTAL)"
-	MiscCategory       = "7. MISC"
-	InteropCategory    = "8. INTEROP (SUPER EXPERIMENTAL)"
+	MiscCategory       = "6. MISC"
+	InteropCategory    = "7. INTEROP (SUPER EXPERIMENTAL)"
 )
 
 func init() {
@@ -300,7 +298,7 @@ var (
 	}
 	FinalityLookbackFlag = &cli.Uint64Flag{
 		Name:     "finality.lookback",
-		Usage:    "Number of L1 blocks to look back for finality verification. Uses default calculation if 0 (considers alt-DA challenge/resolve windows if applicable).",
+		Usage:    "Number of L1 blocks to look back for finality verification. Uses the default if 0.",
 		EnvVars:  prefixEnvVars("FINALITY_LOOKBACK"),
 		Category: RollupCategory,
 	}
@@ -523,7 +521,6 @@ func init() {
 	optionalFlags = append(optionalFlags, oprpc.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory, rpcDefaults)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, RollupCategory)...)
-	optionalFlags = append(optionalFlags, altda.CLIFlags(EnvVarPrefix, AltDACategory)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 

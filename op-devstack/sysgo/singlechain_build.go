@@ -9,7 +9,6 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -418,7 +417,6 @@ func startL2CLNode(
 		ConductorEnabled:                false,
 		ConductorRpc:                    nil,
 		ConductorRpcTimeout:             0,
-		AltDA:                           altda.CLIConfig{},
 		IgnoreMissingPectraBlobSchedule: false,
 		ExperimentalOPStackAPI:          true,
 	}

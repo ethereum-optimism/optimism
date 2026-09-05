@@ -70,6 +70,58 @@ func TestCombineDeployConfig(t *testing.T) {
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisLagoonTimeOffset, hexutil.Uint64(7))
 }
 
+func TestCombineDeployConfig_RejectsAltDAOverrides(t *testing.T) {
+	t.Run("global override", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		intent.GlobalDeployOverrides = map[string]any{"USEALTDA": false}
+
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.ErrorIs(t, err, ErrAltDANoLongerSupported)
+	})
+
+	t.Run("detached chain override", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		intent.Chains = []*ChainIntent{{ID: common.HexToHash("0x456")}}
+		chainIntent.DeployOverrides = map[string]any{"DaChAlLeNgEpRoXy": common.Address{}}
+
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.ErrorIs(t, err, ErrAltDANoLongerSupported)
+	})
+}
+
+func TestCombineDeployConfig_RejectsLegacyAltDAInputsWithoutMutation(t *testing.T) {
+	t.Run("detached chain config", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		legacy := &legacyAltDAConfig{UseAltDA: true}
+		chainIntent.LegacyDangerousAltDAConfig = legacy
+
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.ErrorIs(t, err, ErrAltDANoLongerSupported)
+		require.Same(t, legacy, chainIntent.LegacyDangerousAltDAConfig)
+	})
+
+	t.Run("detached chain state address", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		legacyAddress := common.HexToAddress("0x1234")
+		legacyAddressPtr := &legacyAddress
+		chainState.LegacyAltDAChallengeProxy = legacyAddressPtr
+
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.ErrorIs(t, err, ErrAltDANoLongerSupported)
+		require.Same(t, legacyAddressPtr, chainState.LegacyAltDAChallengeProxy)
+	})
+
+	t.Run("state snapshot config", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		legacy := &legacyAltDAConfig{DAChallengeWindow: 1}
+		state.AppliedIntent = &Intent{Chains: []*ChainIntent{{LegacyDangerousAltDAConfig: legacy}}}
+
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.ErrorIs(t, err, ErrAltDANoLongerSupported)
+		require.Same(t, legacy, state.AppliedIntent.Chains[0].LegacyDangerousAltDAConfig)
+	})
+}
+
 func TestCombineDeployConfig_GenesisTime(t *testing.T) {
 	t.Run("unset leaves the deploy config timestamp nil", func(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()

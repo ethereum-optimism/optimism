@@ -21,7 +21,6 @@
 !/op-interop-filter
 !/op-test-sequencer
 !/op-wheel
-!/op-alt-da
 !/op-faucet
 !/op-interop-mon
 # op-stack-go services embed op-core/superchain/superchain-configs.zip, regenerated

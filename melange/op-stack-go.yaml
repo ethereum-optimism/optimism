@@ -210,17 +210,3 @@ subpackages:
           prefix: usr/local
           ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
-
-  - name: da-server
-    description: da-server — OP Stack alt-DA server
-    pipeline:
-      - uses: go/build
-        with:
-          modroot: .
-          packages: ./op-alt-da/cmd/daserver
-          output: da-server
-          go-package: go-1.26
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
-      - uses: strip

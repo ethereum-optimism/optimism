@@ -78,8 +78,8 @@ published:
    (`git diff <tag> HEAD -- <paths>`): the component's `flags/` package (and,
    for op-challenger, its `config/` defaults) plus the op-service flag
    families it appends (`op-service/rpc`, `op-service/log`,
-   `op-service/metrics`, `op-service/oppprof`, `op-service/txmgr`,
-   `op-service/flags`, `op-alt-da`, as applicable per component).
+   `op-service/metrics`, `op-service/oppprof`, `op-service/txmgr`, and
+   `op-service/flags`, as applicable per component).
 2. Update the component's `tag` in `manifest.json` to the new release tag.
 3. Run the generator, restricted to that component:
    `go run ./docs/public-docs/scripts/gen-flags -only <component>`

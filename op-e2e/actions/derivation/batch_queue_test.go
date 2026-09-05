@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
@@ -95,7 +94,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	// This is the same situation as if op-node restarted at this point.
 	l2Cl, err := sources.NewEngineClient(seqEngine.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(gt, err)
-	verifier := helpers.NewL2Verifier(t, logger, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled,
+	verifier := helpers.NewL2Verifier(t, logger, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(),
 		l2Cl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, &sync.Config{}, safedb.Disabled)
 	verifier.ActL2PipelineFull(t) // Should not get stuck in a reset loop forever
 	require.EqualValues(gt, l2BlockNum, bigs.Uint64Strict(seqEngine.L2Chain().CurrentSafeBlock().Number))

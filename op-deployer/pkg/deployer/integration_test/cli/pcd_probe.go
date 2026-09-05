@@ -424,8 +424,6 @@ func pcdPredictedContractAddresses(prepared *state.PreparedDeployment) []pcdName
 			{prefix + "SuperPermissionedDisputeGameImpl", chain.SuperPermissionedDisputeGameImpl, false},
 			{prefix + "DelayedWethPermissionedGameProxy", chain.DelayedWethPermissionedGameProxy, true},
 			{prefix + "DelayedWethPermissionlessGameProxy", chain.DelayedWethPermissionlessGameProxy, true},
-			{prefix + "AltDAChallengeProxy", chain.AltDAChallengeProxy, true},
-			{prefix + "AltDAChallengeImpl", chain.AltDAChallengeImpl, false},
 			{prefix + "L2OutputOracleProxy", chain.L2OutputOracleProxy, true},
 		}
 		for _, contract := range contracts {

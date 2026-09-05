@@ -362,11 +362,6 @@ func ApplyPipeline(
 				return pipeline.DeployOPChain(pEnv, intent, st, chainID)
 			},
 		}, pipelineStage{
-			fmt.Sprintf("deploy-alt-da-%s", chainID.Hex()),
-			func() error {
-				return pipeline.DeployAltDA(pEnv, intent, st, chainID)
-			},
-		}, pipelineStage{
 			fmt.Sprintf("deploy-additional-dispute-games-%s", chainID.Hex()),
 			func() error {
 				return pipeline.DeployAdditionalDisputeGames(pEnv, intent, st, chainID)

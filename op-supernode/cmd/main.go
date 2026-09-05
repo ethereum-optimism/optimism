@@ -54,6 +54,10 @@ func main() {
 
 	// Lifecycle Action for the app
 	app.Action = cliapp.LifecycleCmd(func(cliCtx *cli.Context, close context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+		if err := rejectRemovedAltDAEnvVars(chains); err != nil {
+			return nil, fmt.Errorf("Alt-DA configuration is no longer supported: %w", err)
+		}
+
 		// Confirm top level supernode flags are set
 		if err := flags.CheckRequired(cliCtx); err != nil {
 			return nil, err
@@ -106,6 +110,19 @@ func main() {
 	if err := app.RunContext(ctx, os.Args); err != nil {
 		log.Crit("Application failed", "message", err)
 	}
+}
+
+func rejectRemovedAltDAEnvVars(chains []uint64) error {
+	return opservice.RejectEnvVarPrefixes(removedAltDAEnvVarPrefixes(chains)...)
+}
+
+func removedAltDAEnvVarPrefixes(chains []uint64) []string {
+	prefixes := make([]string, 1, len(chains)+1)
+	prefixes[0] = flags.EnvVarPrefix + "_VN_ALL_ALTDA_"
+	for _, chainID := range chains {
+		prefixes = append(prefixes, fmt.Sprintf("%s_VN_%d_ALTDA_", flags.EnvVarPrefix, chainID))
+	}
+	return prefixes
 }
 
 func createVirtualNodeConfigs(cliCtx *cli.Context, cfg *config.CLIConfig, l log.Logger) (map[eth.ChainID]*opnodecfg.Config, error) {

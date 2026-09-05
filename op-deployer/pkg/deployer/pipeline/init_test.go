@@ -46,6 +46,21 @@ func TestValidateInputsRejectsSP1VerifierWithPredeployedOPCM(t *testing.T) {
 	require.ErrorContains(t, err, "sp1Verifier must not be specified when using a predeployed OPCM")
 }
 
+func TestValidateInputsRejectsLegacyAltDAState(t *testing.T) {
+	_, _, dk := shared.DefaultPrivkey(t)
+	loc := artifacts.MustNewLocatorFromURL("file:///test-artifacts")
+	intent, st := shared.NewIntent(t, big.NewInt(900), dk, uint256.NewInt(1), loc, loc, standard.GasLimit)
+	legacyAddress := common.HexToAddress("0x1234")
+	st.Chains = []*state.ChainState{{
+		ID:                        common.HexToHash("0x01"),
+		LegacyAltDAChallengeProxy: &legacyAddress,
+	}}
+
+	err := ValidateInputs(intent, st)
+	require.ErrorIs(t, err, state.ErrAltDANoLongerSupported)
+	require.Equal(t, legacyAddress, *st.Chains[0].LegacyAltDAChallengeProxy)
+}
+
 func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Parallel()
 

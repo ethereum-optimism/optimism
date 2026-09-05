@@ -1,9 +1,12 @@
-//! Contains the `AltDA` config type.
+//! Compatibility schema for Alt-DA metadata in the superchain registry.
 
 use alloc::string::String;
 use alloy_primitives::Address;
 
-/// `AltDA` configuration.
+/// Alt-DA metadata retained solely to decode current superchain-registry entries.
+///
+/// Kona does not propagate this metadata into [`crate::RollupConfig`] and does not support
+/// running these chains.
 ///
 /// See: <https://github.com/ethereum-optimism/superchain-registry/blob/8ff62ada16e14dd59d0fb94ffb47761c7fa96e01/ops/internal/config/chain.go#L133-L138>
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq)]
@@ -11,18 +14,15 @@ use alloy_primitives::Address;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AltDAConfig {
-    /// `AltDA` challenge address
+    /// Alt-DA challenge address.
     #[cfg_attr(feature = "serde", serde(alias = "da_challenge_contract_address"))]
     pub da_challenge_address: Option<Address>,
-    /// `AltDA` challenge window time (in seconds)
+    /// Alt-DA challenge window time (in seconds).
     pub da_challenge_window: Option<u64>,
-    /// `AltDA` resolution window time (in seconds)
+    /// Alt-DA resolution window time (in seconds).
     pub da_resolve_window: Option<u64>,
-    /// `AltDA` commitment type
+    /// Alt-DA commitment type.
     pub da_commitment_type: Option<String>,
-    /// Maximum input size for Keccak commitments.
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub da_max_input_size: Option<u64>,
 }
 
 #[cfg(test)]
@@ -39,8 +39,7 @@ mod tests {
             "da_challenge_address": "0x12c6a7db25b20347ca6f5d47e56d5e8219871c6d",
             "da_challenge_window": 1,
             "da_resolve_window": 1,
-            "da_commitment_type": "KeccakCommitment",
-            "da_max_input_size": 1000000
+            "da_commitment_type": "KeccakCommitment"
         }
         "#;
 
@@ -49,7 +48,6 @@ mod tests {
             da_challenge_window: Some(1),
             da_resolve_window: Some(1),
             da_commitment_type: Some("KeccakCommitment".to_string()),
-            da_max_input_size: Some(1_000_000),
         };
 
         let deserialized: AltDAConfig = serde_json::from_str(raw).unwrap();
@@ -70,11 +68,5 @@ mod tests {
 
         let err = serde_json::from_str::<AltDAConfig>(raw).unwrap_err();
         assert_eq!(err.classify(), serde_json::error::Category::Data);
-    }
-
-    #[test]
-    fn test_altda_serialize_omits_unset_max_input_size() {
-        let serialized = serde_json::to_value(AltDAConfig::default()).unwrap();
-        assert!(serialized.get("da_max_input_size").is_none());
     }
 }

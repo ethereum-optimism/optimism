@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
@@ -45,10 +44,6 @@ type L1TxAPI interface {
 	BlobBaseFee(ctx context.Context) (*big.Int, error)
 }
 
-type AltDAInputSetter interface {
-	SetInput(ctx context.Context, img []byte) (altda.CommitmentData, error)
-}
-
 type BatcherCfg struct {
 	// Limit the size of txs
 	MinL1TxSize uint64
@@ -60,10 +55,8 @@ type BatcherCfg struct {
 
 	ForceSubmitSingularBatch bool
 	ForceSubmitSpanBatch     bool
-	UseAltDA                 bool
 
 	DataAvailabilityType batcherFlags.DataAvailabilityType
-	AltDA                AltDAInputSetter
 
 	EnableCellProofs bool
 }
@@ -75,17 +68,6 @@ func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
 		EnableCellProofs:     false, // TODO change to true when Osaka activates on L1
-	}
-}
-
-func AltDABatcherCfg(dp *e2eutils.DeployParams, altDA AltDAInputSetter) *BatcherCfg {
-	return &BatcherCfg{
-		MinL1TxSize:          0,
-		MaxL1TxSize:          128_000,
-		BatcherKey:           dp.Secrets.Batcher,
-		DataAvailabilityType: batcherFlags.CalldataType,
-		AltDA:                altDA,
-		UseAltDA:             true,
 	}
 }
 
@@ -347,12 +329,6 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 }
 
 func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...func(tx *types.DynamicFeeTx)) {
-	if s.l2BatcherCfg.UseAltDA {
-		comm, err := s.l2BatcherCfg.AltDA.SetInput(t.Ctx(), payload)
-		require.NoError(t, err, "failed to set input for altda")
-		payload = comm.TxData()
-	}
-
 	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.BatcherAddr)
 	require.NoError(t, err, "need batcher nonce")
 

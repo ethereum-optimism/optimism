@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opcoreparams "github.com/ethereum-optimism/optimism/op-core/params"
@@ -743,43 +742,6 @@ func (d *L2CoreDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
-// AltDADeployConfig configures optional AltDA functionality.
-type AltDADeployConfig struct {
-	// UseAltDA is a flag that indicates if the system is using op-alt-da
-	UseAltDA bool `json:"useAltDA" toml:"useAltDA"`
-	// DACommitmentType specifies the allowed commitment
-	DACommitmentType string `json:"daCommitmentType" toml:"daCommitmentType"`
-	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
-	DAChallengeWindow uint64 `json:"daChallengeWindow" toml:"daChallengeWindow"`
-	// DAResolveWindow represents the block interval during which a data availability challenge can be resolved.
-	DAResolveWindow uint64 `json:"daResolveWindow" toml:"daResolveWindow"`
-	// DABondSize represents the required bond size to initiate a data availability challenge.
-	DABondSize uint64 `json:"daBondSize" toml:"daBondSize"`
-	// DAResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver
-	// such as 100 means 100% refund.
-	DAResolverRefundPercentage uint64 `json:"daResolverRefundPercentage" toml:"daResolverRefundPercentage"`
-}
-
-var _ ConfigChecker = (*AltDADeployConfig)(nil)
-
-func (d *AltDADeployConfig) Check(log log.Logger) error {
-	if d.UseAltDA {
-		if !(d.DACommitmentType == altda.KeccakCommitmentString || d.DACommitmentType == altda.GenericCommitmentString) {
-			return fmt.Errorf("%w: DACommitmentType must be either KeccakCommitment or GenericCommitment", ErrInvalidDeployConfig)
-		}
-		// only enforce challenge and resolve window if using alt-da mode with Keccak Commitments
-		if d.DACommitmentType != altda.GenericCommitmentString {
-			if d.DAChallengeWindow == 0 {
-				return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using alt-da mode with Keccak Commitments", ErrInvalidDeployConfig)
-			}
-			if d.DAResolveWindow == 0 {
-				return fmt.Errorf("%w: DAResolveWindow cannot be 0 when using alt-da mode with Keccak Commitments", ErrInvalidDeployConfig)
-			}
-		}
-	}
-	return nil
-}
-
 type FeeMarketConfig struct {
 	// MinBaseFee is the minimum base applied to each block.
 	MinBaseFee uint64 `json:"minBaseFee"`
@@ -807,7 +769,6 @@ type L2InitializationConfig struct {
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
 	FeeMarketConfig
-	AltDADeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
@@ -960,19 +921,9 @@ type L1DependenciesConfig struct {
 	// OptimismPortalProxy represents the address of the OptimismPortalProxy on L1 and is used
 	// as part of the derivation pipeline.
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
-
-	// DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract.
-	DAChallengeProxy common.Address `json:"daChallengeProxy"`
 }
 
-// DependencyContext is the contextual configuration needed to verify the L1 dependencies,
-// used by DeployConfig.CheckAddresses.
-type DependencyContext struct {
-	UseAltDA         bool
-	DACommitmentType string
-}
-
-func (d *L1DependenciesConfig) CheckAddresses(dependencyContext DependencyContext) error {
+func (d *L1DependenciesConfig) CheckAddresses() error {
 	if d.L1StandardBridgeProxy == (common.Address{}) {
 		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
@@ -987,12 +938,6 @@ func (d *L1DependenciesConfig) CheckAddresses(dependencyContext DependencyContex
 	}
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-
-	if dependencyContext.UseAltDA && dependencyContext.DACommitmentType == altda.KeccakCommitmentString && d.DAChallengeProxy == (common.Address{}) {
-		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using alt-da mode", ErrInvalidDeployConfig)
-	} else if dependencyContext.UseAltDA && dependencyContext.DACommitmentType == altda.GenericCommitmentString && d.DAChallengeProxy != (common.Address{}) {
-		return fmt.Errorf("%w: DAChallengeContract must be address(0) when using generic commitments in alt-da mode", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -1084,10 +1029,7 @@ func (d *DeployConfig) Check(log log.Logger) error {
 // even though the deploy config is required to deploy the contracts on L1. This creates a
 // circular dependency that should be resolved in the future.
 func (d *DeployConfig) CheckAddresses() error {
-	return d.L1DependenciesConfig.CheckAddresses(DependencyContext{
-		UseAltDA:         d.UseAltDA,
-		DACommitmentType: d.DACommitmentType,
-	})
+	return d.L1DependenciesConfig.CheckAddresses()
 }
 
 // SetDeployments will merge a Deployments into a DeployConfig.
@@ -1097,7 +1039,6 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
 	d.SystemConfigProxy = deployments.SystemConfigProxy
 	d.OptimismPortalProxy = deployments.OptimismPortalProxy
-	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
 }
 
 func (d *DeployConfig) SetContracts(contracts *addresses.L1Contracts) {
@@ -1106,7 +1047,6 @@ func (d *DeployConfig) SetContracts(contracts *addresses.L1Contracts) {
 	d.L1ERC721BridgeProxy = contracts.L1Erc721BridgeProxy
 	d.SystemConfigProxy = contracts.SystemConfigProxy
 	d.OptimismPortalProxy = contracts.OptimismPortalProxy
-	d.DAChallengeProxy = contracts.AltDAChallengeProxy
 }
 
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
@@ -1123,16 +1063,6 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		EIP1559Elasticity:        d.EIP1559Elasticity,
 		EIP1559Denominator:       d.EIP1559Denominator,
 		EIP1559DenominatorCanyon: &d.EIP1559DenominatorCanyon,
-	}
-
-	var altDA *rollup.AltDAConfig
-	if d.UseAltDA {
-		altDA = &rollup.AltDAConfig{
-			CommitmentType:     d.DACommitmentType,
-			DAChallengeAddress: d.DAChallengeProxy,
-			DAChallengeWindow:  d.DAChallengeWindow,
-			DAResolveWindow:    d.DAResolveWindow,
-		}
 	}
 
 	l2GenesisTime, err := d.L2GenesisTime(l1StartBlock.Time)
@@ -1175,7 +1105,6 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		KarstTime:              d.KarstTime(l2GenesisTime),
 		LagoonTime:             d.LagoonTime(l2GenesisTime),
 		KeepKarstUpgradeGas:    d.KeepKarstUpgradeGas,
-		AltDAConfig:            altDA,
 		ChainOpConfig:          chainOpConfig,
 	}, nil
 }
@@ -1245,8 +1174,6 @@ type L1Deployments struct {
 	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
 	SystemConfig                      common.Address `json:"SystemConfig"`
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
-	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
-	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
 }
 
 func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deployments {
@@ -1270,8 +1197,6 @@ func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deplo
 		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
 		SystemConfig:                      contracts.SystemConfigImpl,
 		SystemConfigProxy:                 contracts.SystemConfigProxy,
-		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
-		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,
 	}
 }
 
@@ -1306,12 +1231,6 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 			(name == "OptimismPortal" || name == "L2OutputOracle" || name == "L2OutputOracleProxy") {
 			continue
 		}
-		if !deployConfig.UseAltDA &&
-			(name == "DataAvailabilityChallenge" ||
-				name == "DataAvailabilityChallengeProxy") {
-			continue
-		}
-
 		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
 			return fmt.Errorf("%s is not set", name)
 		}

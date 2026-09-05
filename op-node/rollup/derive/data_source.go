@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -27,70 +26,46 @@ type L1BlobsFetcher interface {
 	GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error)
 }
 
-type AltDAInputFetcher interface {
-	// GetInput fetches the input for the given commitment at the given block number from the DA storage service.
-	GetInput(ctx context.Context, l1 altda.L1Fetcher, c altda.CommitmentData, blockId eth.L1BlockRef) (eth.Data, error)
-	// AdvanceL1Origin advances the L1 origin to the given block number, syncing the DA challenge events.
-	AdvanceL1Origin(ctx context.Context, l1 altda.L1Fetcher, blockId eth.BlockID) error
-	// Reset the challenge origin in case of L1 reorg
-	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
-}
-
 // DataSourceFactory reads raw transactions from a given block & then filters for
 // batch submitter transactions.
 // This is not a stage in the pipeline, but a wrapper for another stage in the pipeline
 type DataSourceFactory struct {
-	log               log.Logger
-	dsCfg             DataSourceConfig
-	fetcher           L1Fetcher
-	blobsFetcher      L1BlobsFetcher
-	altDAFetcher      AltDAInputFetcher
-	altDAMaxInputSize uint64
-	ecotoneTime       *uint64
+	log          log.Logger
+	dsCfg        DataSourceConfig
+	fetcher      L1Fetcher
+	blobsFetcher L1BlobsFetcher
+	ecotoneTime  *uint64
 }
 
-func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher, blobsFetcher L1BlobsFetcher, altDAFetcher AltDAInputFetcher) *DataSourceFactory {
+func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher, blobsFetcher L1BlobsFetcher) *DataSourceFactory {
 	config := DataSourceConfig{
 		l1Signer:          cfg.L1Signer(),
 		batchInboxAddress: cfg.BatchInboxAddress,
-		altDAEnabled:      cfg.AltDAEnabled(),
 	}
 	return &DataSourceFactory{
-		log:               log,
-		dsCfg:             config,
-		fetcher:           fetcher,
-		blobsFetcher:      blobsFetcher,
-		altDAFetcher:      altDAFetcher,
-		altDAMaxInputSize: cfg.AltDAConfig.MaxInputSizeOrDefault(),
-		ecotoneTime:       cfg.EcotoneTime,
+		log:          log,
+		dsCfg:        config,
+		fetcher:      fetcher,
+		blobsFetcher: blobsFetcher,
+		ecotoneTime:  cfg.EcotoneTime,
 	}
 }
 
 // OpenData returns the appropriate data source for the L1 block `ref`.
 func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, batcherAddr common.Address) (DataIter, error) {
-	// Creates a data iterator from blob or calldata source so we can forward it to the altDA source
-	// if enabled as it still requires an L1 data source for fetching input commmitments.
-	var src DataIter
 	if ds.ecotoneTime != nil && ref.Time >= *ds.ecotoneTime {
 		if ds.blobsFetcher == nil {
 			return nil, NewCriticalError(fmt.Errorf("ecotone upgrade active but beacon endpoint not configured"))
 		}
-		src = NewBlobDataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ds.blobsFetcher, ref, batcherAddr)
-	} else {
-		src = NewCalldataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ref, batcherAddr)
+		return NewBlobDataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ds.blobsFetcher, ref, batcherAddr), nil
 	}
-	if ds.dsCfg.altDAEnabled {
-		// altDA([calldata | blobdata](l1Ref)) -> data
-		return NewAltDADataSource(ds.log, src, ds.fetcher, ds.altDAFetcher, ds.altDAMaxInputSize, ref), nil
-	}
-	return src, nil
+	return NewCalldataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ref, batcherAddr), nil
 }
 
 // DataSourceConfig regroups the mandatory rollup.Config fields needed for DataFromEVMTransactions.
 type DataSourceConfig struct {
 	l1Signer          types.Signer
 	batchInboxAddress common.Address
-	altDAEnabled      bool
 }
 
 // isValidBatchTx returns true if:

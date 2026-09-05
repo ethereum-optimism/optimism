@@ -34,7 +34,6 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IDataAvailabilityChallenge } from "interfaces/L1/IDataAvailabilityChallenge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
@@ -127,7 +126,6 @@ abstract contract Setup is FeatureFlags {
     IL1ERC721Bridge l1ERC721Bridge;
     IOptimismMintableERC20Factory l1OptimismMintableERC20Factory;
     ISuperchainConfig superchainConfig;
-    IDataAvailabilityChallenge dataAvailabilityChallenge;
     IOPContractsManagerV2 opcmV2;
     IBigStepper mips;
 
@@ -397,11 +395,6 @@ abstract contract Setup is FeatureFlags {
         superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
         superchainProxyAdminOwner = superchainProxyAdmin.owner();
         mips = IBigStepper(artifacts.mustGetAddress("MipsSingleton"));
-
-        if (deploy.cfg().useAltDA()) {
-            dataAvailabilityChallenge =
-                IDataAvailabilityChallenge(artifacts.mustGetAddress("DataAvailabilityChallengeProxy"));
-        }
 
         console.log("Setup: registered L1 deployments");
 

@@ -226,20 +226,6 @@
       ],
       "smoke_test": "op-test-sequencer --version"
     },
-    "da-server": {
-      "type": "go",
-      "verify_version": true,
-      "needs_melange": [
-        "op-stack-go"
-      ],
-      "paths": [
-        "op-alt-da/**"
-      ],
-      "nexus_paths": [
-        "apko/da-server.yaml"
-      ],
-      "smoke_test": "da-server --version"
-    },
     "op-challenger": {
       "type": "go",
       "verify_version": true,

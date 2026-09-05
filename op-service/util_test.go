@@ -33,6 +33,29 @@ func TestValidateEnvVars(t *testing.T) {
 	require.ElementsMatch(t, invalids, []string{"OP_BATCHER_FAKE=false"})
 }
 
+func TestEnvVarsWithPrefixes(t *testing.T) {
+	provided := []string{
+		"OP_NODE_ALTDA_ENABLED=true",
+		"OP_BATCHER_ALTDA_DA_SERVER=https://example.com",
+		"OP_NODE_L1_ETH_RPC=https://example.com",
+		"OP_NODE_ALTDA_VERIFY_ON_READ=",
+	}
+
+	require.Equal(t, []string{
+		"OP_BATCHER_ALTDA_DA_SERVER",
+		"OP_NODE_ALTDA_ENABLED",
+		"OP_NODE_ALTDA_VERIFY_ON_READ",
+	}, envVarsWithPrefixes(provided, "OP_NODE_ALTDA_", "OP_BATCHER_ALTDA_"))
+	require.Empty(t, envVarsWithPrefixes(provided, ""))
+}
+
+func TestRejectEnvVarPrefixes(t *testing.T) {
+	t.Setenv("OPTIMISM_TEST_REMOVED_ALTDA_ENABLED", "false")
+
+	err := RejectEnvVarPrefixes("OPTIMISM_TEST_REMOVED_ALTDA_")
+	require.EqualError(t, err, "unsupported environment variables are set: OPTIMISM_TEST_REMOVED_ALTDA_ENABLED")
+}
+
 func TestParse256BitChainID(t *testing.T) {
 	tests := []struct {
 		name     string

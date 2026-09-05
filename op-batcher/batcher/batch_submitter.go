@@ -16,6 +16,10 @@ import (
 // This method returns a cliapp.LifecycleAction, to create an op-service CLI-lifecycle-managed batch-submitter with.
 func Main(version string) cliapp.LifecycleAction {
 	return func(cliCtx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+		if err := opservice.RejectEnvVarPrefixes(flags.EnvVarPrefix + "_ALTDA_"); err != nil {
+			return nil, fmt.Errorf("Alt-DA configuration is no longer supported: %w", err)
+		}
+
 		if err := flags.CheckRequired(cliCtx); err != nil {
 			return nil, err
 		}

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -165,7 +164,6 @@ func bootPCDFromArtifacts(t *testing.T, cfg pcdBootConfig) pcdBootResult {
 		L1EpochPollInterval:    2 * time.Second,
 		ConfigPersistence:      config.DisabledConfigPersistence{},
 		Sync:                   nodesync.Config{SyncMode: nodesync.CLSync},
-		AltDA:                  altda.CLIConfig{},
 		ExperimentalOPStackAPI: true,
 	}
 	require.NoError(t, nodeConfig.Check(), "committed artifacts must produce a valid op-node configuration")

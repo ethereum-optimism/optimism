@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -76,29 +75,34 @@ func TestConfigJSON(t *testing.T) {
 	assert.Equal(t, &roundTripped, config)
 }
 
-func TestAltDAConfigMaxInputSize(t *testing.T) {
-	custom := uint64(1_000_000)
-
-	require.Equal(t, uint64(altda.MaxInputSize), (*AltDAConfig)(nil).MaxInputSizeOrDefault())
-	require.Equal(t, uint64(altda.MaxInputSize), (&AltDAConfig{}).MaxInputSizeOrDefault())
-	require.Equal(t, custom, (&AltDAConfig{MaxInputSize: &custom}).MaxInputSizeOrDefault())
-
-	cfg := randConfig()
-	cfg.AltDAConfig = &AltDAConfig{
-		DAChallengeAddress: common.Address{1},
-		CommitmentType:     altda.KeccakCommitmentString,
-		MaxInputSize:       ptr.Zero64,
+func TestConfigRejectsLegacyAltDA(t *testing.T) {
+	rejected := []string{
+		`{"alt_da":{"da_commitment_type":"KeccakCommitment"}}`,
+		`{"plasma_config":{}}`,
+		`{"use_plasma":true}`,
+		`{"da_challenge_address":"0x0000000000000000000000000000000000000001"}`,
+		`{"da_challenge_contract_address":"0x0000000000000000000000000000000000000001"}`,
 	}
-	require.EqualError(t, cfg.Check(), "altDA max input size must be greater than zero")
-
-	cfg.AltDAConfig = &AltDAConfig{
-		CommitmentType: altda.GenericCommitmentString,
-		MaxInputSize:   &custom,
+	for _, input := range rejected {
+		cfg := randConfig()
+		require.ErrorIs(t, json.Unmarshal([]byte(input), cfg), errAltDANoLongerSupported, input)
 	}
-	require.EqualError(t, cfg.Check(), "altDA max input size must be omitted for generic commitments")
 
-	cfg.AltDAConfig.MaxInputSize = nil
-	require.NoError(t, cfg.Check())
+	accepted := []string{
+		`{"alt_da":null}`,
+		`{"plasma_config":null}`,
+		`{"use_plasma":false}`,
+		`{"da_challenge_address":"0x0000000000000000000000000000000000000000"}`,
+		`{"da_challenge_contract_address":"0x0000000000000000000000000000000000000000"}`,
+		`{"da_challenge_window":0}`,
+		`{"da_resolve_window":0}`,
+		`{"use_plasma":false,"da_challenge_window":160,"da_resolve_window":160}`,
+	}
+	for _, input := range accepted {
+		cfg := randConfig()
+		require.NoError(t, json.Unmarshal([]byte(input), cfg), input)
+		require.NoError(t, cfg.Check(), input)
+	}
 }
 
 // TestConfigChainOpConfigJSONWireFormat pins the on-the-wire serialization of the
