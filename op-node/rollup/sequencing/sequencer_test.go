@@ -136,8 +136,15 @@ func (c *FakeConductor) Close() {
 
 type FakeAsyncGossip struct {
 	payload *eth.ExecutionPayloadEnvelope
-	started bool
-	stopped bool
+	// discarded records the blocks the sequencer asked to drop from the publish
+	// queue, so tests can tell "the block was inserted, keep publishing it" from
+	// "the block was rejected, do not publish it".
+	discarded []common.Hash
+	// discardedAll counts bulk purges, for when the sequencer abandons the chain
+	// the queued blocks extend.
+	discardedAll int
+	started      bool
+	stopped      bool
 }
 
 func (f *FakeAsyncGossip) Gossip(payload *eth.ExecutionPayloadEnvelope) {
@@ -149,6 +156,18 @@ func (f *FakeAsyncGossip) Get() *eth.ExecutionPayloadEnvelope {
 }
 
 func (f *FakeAsyncGossip) Clear() {
+	f.payload = nil
+}
+
+func (f *FakeAsyncGossip) Discard(hash common.Hash) {
+	f.discarded = append(f.discarded, hash)
+	if f.payload != nil && f.payload.ExecutionPayload.BlockHash == hash {
+		f.payload = nil
+	}
+}
+
+func (f *FakeAsyncGossip) DiscardAll() {
+	f.discardedAll++
 	f.payload = nil
 }
 
@@ -936,6 +955,8 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 
 			if tc.dropped {
 				require.Nil(t, s.deps.asyncGossip.payload, "rejected payload is dropped from gossip")
+				require.Equal(t, []common.Hash{ref.Hash}, s.deps.asyncGossip.discarded,
+					"a rejected block must be discarded by hash, so a queued copy is not published later")
 				require.Equal(t, BuildingState{}, s.seq.building)
 				next, ok := s.seq.NextAction()
 				require.True(t, ok, "restart building after backoff")
@@ -944,6 +965,8 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 			}
 
 			require.Equal(t, envelope, s.deps.asyncGossip.payload, "payload stays in gossip for retry")
+			require.Empty(t, s.deps.asyncGossip.discarded,
+				"a temporary error is not a rejection: the block must still reach peers")
 			require.Equal(t, ref, s.seq.building.Ref, "building state is kept")
 			_, ok := s.seq.NextAction()
 			require.False(t, ok, "paused until the engine's temporary-error event re-arms the schedule")
@@ -966,6 +989,8 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 			s.seq.RunAction()
 			require.Equal(t, envelope, retried, "gossiped payload was retried")
 			require.Nil(t, s.deps.asyncGossip.payload, "gossip cleared after successful retry")
+			require.Empty(t, s.deps.asyncGossip.discarded,
+				"the block was inserted: cleared for reuse, never discarded from the publish queue")
 			require.Equal(t, BuildingState{}, s.seq.building)
 			require.Equal(t, ref, s.seq.unsafeHead, "head updated directly after successful insert")
 			_, ok = s.seq.NextAction()
@@ -1301,9 +1326,12 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 func TestSequencerStaysParkedUntilResetConfirmed(t *testing.T) {
 	s := newSeqSetup(t)
 
+	purgesBefore := s.deps.asyncGossip.discardedAll
 	deliver(s.seq, rollup.ResetEvent{Err: errors.New("mock reset")})
 	_, ok := s.seq.NextAction()
 	require.False(t, ok, "reset parks the sequencer")
+	require.Equal(t, purgesBefore+1, s.deps.asyncGossip.discardedAll,
+		"a reset rewinds the chain the queued blocks extend: none of them may still be published")
 
 	rewound := s.head
 	rewound.Hash = common.Hash{0x33}

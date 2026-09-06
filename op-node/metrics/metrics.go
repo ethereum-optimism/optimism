@@ -220,7 +220,7 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
-		DroppedPublishes: metrics.NewEvent(factory, ns, "", "dropped_publishes", "sealed blocks dropped without being published to p2p"),
+		DroppedPublishes: metrics.NewEvent(factory, ns, "", "dropped_publishes", "sealed blocks dropped because the p2p publish queue overflowed"),
 		PublishQueueLen: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "publish_queue_len",

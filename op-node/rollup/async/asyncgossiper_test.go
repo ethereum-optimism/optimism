@@ -182,6 +182,11 @@ type blockingNetwork struct {
 	finished    chan *eth.ExecutionPayloadEnvelope
 	release     chan struct{}
 	releaseOnce sync.Once
+
+	mu sync.Mutex
+	// failuresLeft counts, per block hash, how many further publish attempts
+	// must fail before one is allowed to succeed. See failNext.
+	failuresLeft map[common.Hash]int
 }
 
 func newBlockingNetwork() *blockingNetwork {
@@ -203,6 +208,13 @@ func (b *blockingNetwork) SignAndPublishL2Payload(ctx context.Context, payload *
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+	b.mu.Lock()
+	if left := b.failuresLeft[payload.ExecutionPayload.BlockHash]; left > 0 {
+		b.failuresLeft[payload.ExecutionPayload.BlockHash] = left - 1
+		b.mu.Unlock()
+		return errors.New("scripted publish failure")
+	}
+	b.mu.Unlock()
 	b.finished <- payload
 	return nil
 }
@@ -394,4 +406,239 @@ func TestAsyncGossiperConcurrentHandoff(t *testing.T) {
 		}, 10*time.Second, time.Millisecond, "round %d: the last payload was never published", round)
 		p.Stop()
 	}
+}
+
+// failNext scripts the next n publish attempts of a hash to fail, so a test can
+// exercise a signer that rejects or times out on a block.
+func (b *blockingNetwork) failNext(hash common.Hash, n int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.failuresLeft == nil {
+		b.failuresLeft = make(map[common.Hash]int)
+	}
+	b.failuresLeft[hash] = n
+}
+
+// TestAsyncGossiperDedupesResealedBlock covers the sequencer retrying a block
+// whose insertion failed temporarily. Get() does not wait for the in-flight
+// publish, so the sequencer re-seals the same build job and hands the identical
+// block over again, once per retry. Those duplicates must not queue up behind
+// the publish that is already sending that very block, and must not invalidate
+// it for reuse - that would leave the sequencer re-sealing indefinitely, and
+// fill the queue with copies of one block.
+func TestAsyncGossiperDedupesResealedBlock(t *testing.T) {
+	m := newBlockingNetwork()
+	metrics := &mockMetrics{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), metrics)
+	p.Start()
+	defer p.Stop()
+	defer m.Release()
+
+	envelope := testEnvelope(1)
+	p.Gossip(envelope)
+	require.Equal(t, envelope, requirePayload(t, m.started, "publish never started"))
+
+	for i := 0; i < 5; i++ {
+		require.Nil(t, p.Get(), "the publish is still in flight, so there is nothing to reuse yet")
+		// a re-seal of the same build job: an equal block, a distinct value
+		p.Gossip(testEnvelope(1))
+	}
+	_, queueLen, maxLen := metrics.counts()
+	require.Zero(t, queueLen, "a block already being published must not be queued again")
+	require.Equal(t, 1, maxLen, "only the original block was ever queued, none of the duplicates")
+
+	m.Release()
+	require.Equal(t, envelope, requirePayload(t, m.finished, "publish never finished"))
+
+	require.Eventually(t, func() bool {
+		return p.Get() != nil
+	}, 10*time.Second, 10*time.Millisecond,
+		"the published block must be offered for reuse: the duplicates must not have invalidated it")
+
+	require.Never(t, func() bool {
+		select {
+		case <-m.started:
+			return true
+		default:
+			return false
+		}
+	}, 200*time.Millisecond, 20*time.Millisecond, "the block must be published only once")
+}
+
+// TestAsyncGossiperRetriesFailedPublish covers a publish that fails - a signer
+// blip, or the new publish timeout. Dropping that block and carrying on with its
+// descendants would leave peers a gap they cannot follow the chain past, which
+// is the same reason blocks are published in seal order rather than skipping to
+// the tip. So the failed block is retried ahead of the blocks behind it.
+func TestAsyncGossiperRetriesFailedPublish(t *testing.T) {
+	m := newBlockingNetwork()
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
+	p.Start()
+	defer p.Stop()
+	defer m.Release()
+
+	first, second, third := testEnvelope(1), testEnvelope(2), testEnvelope(3)
+	m.failNext(first.ExecutionPayload.BlockHash, 1)
+
+	p.Gossip(first)
+	require.Equal(t, first, requirePayload(t, m.started, "first publish never started"))
+	// queue the descendants behind the publish that is about to fail
+	p.Gossip(second)
+	p.Gossip(third)
+
+	m.Release()
+	require.Equal(t, first, requirePayload(t, m.started, "the failed block was never retried"))
+	require.Equal(t, first, requirePayload(t, m.finished, "the retry never succeeded"))
+	require.Equal(t, second, requirePayload(t, m.started, "second never started"))
+	require.Equal(t, third, requirePayload(t, m.started, "third never started"))
+}
+
+// TestAsyncGossiperGivesUpOnFailedPublish bounds the retry: a signer that is
+// down fails every attempt, and holding the head forever would stop every later
+// block from being published too.
+func TestAsyncGossiperGivesUpOnFailedPublish(t *testing.T) {
+	m := newBlockingNetwork()
+	metrics := &mockMetrics{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), metrics)
+	p.Start()
+	defer p.Stop()
+	defer m.Release()
+
+	first, second := testEnvelope(1), testEnvelope(2)
+	m.failNext(first.ExecutionPayload.BlockHash, maxPublishAttempts)
+
+	p.Gossip(first)
+	require.Equal(t, first, requirePayload(t, m.started, "first publish never started"))
+	p.Gossip(second)
+
+	m.Release()
+	for i := 1; i < maxPublishAttempts; i++ {
+		require.Equal(t, first, requirePayload(t, m.started, "the failed block was never retried"))
+	}
+	require.Equal(t, second, requirePayload(t, m.started, "a block behind an unpublishable one must still go out"))
+	require.Equal(t, second, requirePayload(t, m.finished, "second never finished"))
+
+	dropped, _, _ := metrics.counts()
+	require.Zero(t, dropped, "a block that failed to publish is a publishing error, not a queue-overflow drop")
+}
+
+// TestAsyncGossiperDiscardDropsQueuedBlock covers the sequencer rejecting a
+// block it had already handed over - invalid, denied, or stale against a chain
+// that moved on. Clear cannot express that: it is also what the sequencer calls
+// when a block is successfully inserted, when the queue must keep publishing. So
+// a rejected block is Discarded by hash, and only that block goes.
+func TestAsyncGossiperDiscardDropsQueuedBlock(t *testing.T) {
+	m := newBlockingNetwork()
+	metrics := &mockMetrics{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), metrics)
+	p.Start()
+	defer p.Stop()
+	defer m.Release()
+
+	first, rejected, third := testEnvelope(1), testEnvelope(2), testEnvelope(3)
+	p.Gossip(first)
+	require.Equal(t, first, requirePayload(t, m.started, "first publish never started"))
+	p.Gossip(rejected)
+	p.Gossip(third)
+
+	p.Discard(rejected.ExecutionPayload.BlockHash)
+	_, queueLen, _ := metrics.counts()
+	require.Equal(t, 1, queueLen, "only the rejected block leaves the queue")
+
+	m.Release()
+	require.Equal(t, first, requirePayload(t, m.finished, "first publish never finished"))
+	require.Equal(t, third, requirePayload(t, m.started,
+		"the rejected block must be skipped, and the good block behind it still published"))
+	require.Equal(t, third, requirePayload(t, m.finished, "third never finished"))
+}
+
+// TestAsyncGossiperClearKeepsQueue is the other half: Clear means the block was
+// inserted, so the blocks queued behind it are good blocks that peers still need.
+func TestAsyncGossiperClearKeepsQueue(t *testing.T) {
+	m := newBlockingNetwork()
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
+	p.Start()
+	defer p.Stop()
+	defer m.Release()
+
+	first, second := testEnvelope(1), testEnvelope(2)
+	p.Gossip(first)
+	require.Equal(t, first, requirePayload(t, m.started, "first publish never started"))
+	p.Gossip(second)
+	p.Clear()
+
+	m.Release()
+	require.Equal(t, first, requirePayload(t, m.finished, "first publish never finished"))
+	require.Equal(t, second, requirePayload(t, m.started, "a queued block must survive Clear"))
+	require.Equal(t, second, requirePayload(t, m.finished, "second never finished"))
+}
+
+// TestAsyncGossiperDiscardInFlightBlock covers a block rejected while its publish
+// is already in flight. That send cannot be recalled, but it must not be retried
+// when it fails, and must not come back as a payload to reuse when it succeeds.
+func TestAsyncGossiperDiscardInFlightBlock(t *testing.T) {
+	m := newBlockingNetwork()
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
+	p.Start()
+	defer p.Stop()
+	defer m.Release()
+
+	envelope, next := testEnvelope(1), testEnvelope(2)
+	m.failNext(envelope.ExecutionPayload.BlockHash, 1)
+	p.Gossip(envelope)
+	require.Equal(t, envelope, requirePayload(t, m.started, "publish never started"))
+
+	p.Discard(envelope.ExecutionPayload.BlockHash)
+	p.Gossip(next)
+
+	m.Release()
+	require.Equal(t, next, requirePayload(t, m.started,
+		"a discarded block must not be retried ahead of the blocks behind it"))
+	require.Equal(t, next, requirePayload(t, m.finished, "next never finished"))
+	require.Never(t, func() bool {
+		reusable := p.Get()
+		return reusable != nil &&
+			reusable.ExecutionPayload.BlockHash == envelope.ExecutionPayload.BlockHash
+	}, 200*time.Millisecond, 20*time.Millisecond,
+		"a discarded block must never be offered back for reuse")
+}
+
+// TestAsyncGossiperDiscardAll covers the sequencer abandoning the chain the
+// queued blocks extend - a derivation reset, or a start from an unknown
+// pre-state. Those blocks belong to a chain that has been rewound, so none of
+// them may still go out, and an in-flight publish must not come back as a
+// payload to reuse on the chain the sequencer moves to.
+func TestAsyncGossiperDiscardAll(t *testing.T) {
+	m := newBlockingNetwork()
+	metrics := &mockMetrics{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), metrics)
+	p.Start()
+	defer p.Stop()
+	defer m.Release()
+
+	inFlight := testEnvelope(1)
+	p.Gossip(inFlight)
+	require.Equal(t, inFlight, requirePayload(t, m.started, "first publish never started"))
+	for i := 2; i <= 5; i++ {
+		p.Gossip(testEnvelope(uint64(i)))
+	}
+	_, queueLen, _ := metrics.counts()
+	require.Equal(t, 4, queueLen, "the blocks behind the in-flight publish are queued")
+
+	p.DiscardAll()
+	_, queueLen, _ = metrics.counts()
+	require.Zero(t, queueLen, "a rewound chain leaves nothing worth publishing")
+
+	m.Release()
+	require.Equal(t, inFlight, requirePayload(t, m.finished,
+		"the in-flight publish cannot be recalled, and still completes"))
+	require.Never(t, func() bool {
+		select {
+		case <-m.started:
+			return true
+		default:
+			return p.Get() != nil
+		}
+	}, 300*time.Millisecond, 20*time.Millisecond,
+		"no queued block may be published after the chain was abandoned, nor offered for reuse")
 }
