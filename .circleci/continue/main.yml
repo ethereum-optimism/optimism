@@ -2203,7 +2203,7 @@ jobs:
   kontrol-tests:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge+.gen2
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
