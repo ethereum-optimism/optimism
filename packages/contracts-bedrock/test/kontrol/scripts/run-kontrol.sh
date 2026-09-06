@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 
 export FOUNDRY_PROFILE=kprove
 
@@ -94,7 +94,8 @@ get_log_results() {
 
 # Define the function to run on failure
 on_failure() {
-  get_log_results
+  trap - ERR INT TERM
+  get_log_results || true
 
   if [ "$LOCAL" = false ]; then
     clean_docker
@@ -156,7 +157,11 @@ done
 max_depth=10000
 max_iterations=10000
 smt_timeout=100000
-max_workers=16 # Set to 16 since there are 16 proofs to run
+max_workers=${KONTROL_WORKERS:-16}
+if ! [[ "$max_workers" =~ ^[1-9][0-9]*$ ]]; then
+  echo "KONTROL_WORKERS must be a positive integer" >&2
+  exit 1
+fi
 # workers is the minimum between max_workers and the length of test_list unless
 # no test arguments are provided, in which case we default to max_workers
 if [ "$CUSTOM_TESTS" == 0 ] && [ "$SCRIPT_TESTS" == false ]; then
