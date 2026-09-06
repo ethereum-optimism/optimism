@@ -2279,7 +2279,27 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Publish artifacts
-          command: bash scripts/ops/publish-artifacts.sh
+          environment:
+            PUBLISH_CONTRACT_ARTIFACTS_REF: << pipeline.parameters.c-publish_contract_artifacts_ref >>
+          command: |
+            set -euo pipefail
+            if [ -z "$PUBLISH_CONTRACT_ARTIFACTS_REF" ]; then
+              bash scripts/ops/publish-artifacts.sh
+              exit 0
+            fi
+
+            # Explicit refs publish only their versioned bundle, preserving shared latest.
+            checksum=$(bash scripts/ops/calculate-checksum.sh)
+            archive_name="artifacts-v1-$checksum.tar.zst"
+            if curl --fail --silent --head "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name" >/dev/null; then
+              echo "Versioned artifacts already published: $archive_name"
+              exit 0
+            fi
+            cd ../../op-deployer
+            just build-contracts
+            just copy-contract-artifacts
+            gcloud storage cp ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst \
+              "gs://oplabs-contract-artifacts/$archive_name" --if-generation-match=0
           working_directory: packages/contracts-bedrock
 
   go-release:
