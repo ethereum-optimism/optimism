@@ -479,6 +479,12 @@ func (s *Sequencer) RunAction() {
 				// error. That block lost too: keep it out of the publish queue.
 				if gossiped := s.building.Ref.Hash; gossiped != (common.Hash{}) {
 					s.asyncGossip.Discard(gossiped)
+					// That block will now never become the head, so reconcile the
+					// sealed marker too: Stop waits for the head to catch up to
+					// it, and would otherwise wait for a block nobody is going to
+					// insert. On a first seal there is no such block and the
+					// marker is already zero.
+					s.lastSealed = s.unsafeHead
 				}
 				s.building = BuildingState{}
 				return

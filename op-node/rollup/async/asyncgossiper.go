@@ -31,13 +31,14 @@ const (
 	// of blocks at a 2s block time.
 	maxPublishQueue = 32
 
-	// maxPublishAttempts bounds how often a single block is offered to the
-	// network before it is given up on. A block that fails to publish is retried
-	// ahead of the blocks behind it, because a peer cannot follow the chain past
-	// a block it never received - the same reason blocks go out in seal order
-	// rather than skipping to the tip. The bound keeps a signer that is simply
-	// down from holding the head, and every block behind it, forever.
-	maxPublishAttempts = 2
+	// retryInterval paces retries of a failed publish. It is a spin guard, not a
+	// policy: how long a block is worth retrying is decided by queue pressure,
+	// above. A publish can fail in about a millisecond without touching the
+	// network, because op-node runs its own block validator inline on the
+	// publishing node - and a block retried past the gossip timestamp threshold
+	// fails exactly that way, every time, forever. Unpaced, those retries would
+	// spin this goroutine rather than wait for anything.
+	retryInterval = time.Second
 )
 
 type AsyncGossiper interface {
@@ -92,6 +93,10 @@ type SimpleAsyncGossiper struct {
 	// was being published, so the attempt is not retried or reused on return.
 	publishDiscarded bool
 
+	// retryInterval is the pacing between retries of a failed publish, defaulted
+	// from the constant of the same name. It is a field so tests can shorten it.
+	retryInterval time.Duration
+
 	ctx     context.Context
 	net     Network
 	log     log.Logger
@@ -103,7 +108,9 @@ type queuedPayload struct {
 	payload *eth.ExecutionPayloadEnvelope
 	hash    common.Hash
 	// attempts counts how often this block has been handed to the network,
-	// including the attempt in flight. See maxPublishAttempts.
+	// including the attempt in flight. Queue pressure is what normally bounds the
+	// retry; this is the backstop for when production has stopped and no eviction
+	// is coming. See finishPublish.
 	attempts int
 }
 
@@ -125,6 +132,8 @@ func NewAsyncGossiper(ctx context.Context, net Network, log log.Logger, metrics 
 	return &SimpleAsyncGossiper{
 		wake: make(chan struct{}, 1),
 		stop: make(chan struct{}),
+
+		retryInterval: retryInterval,
 
 		net:     net,
 		ctx:     ctx,
@@ -295,6 +304,11 @@ func (p *SimpleAsyncGossiper) DiscardAll() {
 
 // Stop is a synchronous function to stop the async routine
 // it blocks until the async routine accepts the signal
+//
+// That means it waits for a publish in flight, and for up to retryInterval if a
+// retry is being paced. In practice neither bites at shutdown: Driver.Close
+// cancels the context this gossiper was built with before calling Stop, which
+// both aborts the publish and skips the pacing.
 func (p *SimpleAsyncGossiper) Stop() {
 	// if the gossiping isn't running, nothing to do
 	if !p.running.Load() {
@@ -324,15 +338,15 @@ func (p *SimpleAsyncGossiper) Start() {
 	}()
 }
 
-// dequeue takes the oldest queued payload and marks it in flight, along with the
-// number of entries left behind. It returns nil when the queue is empty. Like
-// enqueue, it updates the gauge under the same lock as the queue mutation.
-func (p *SimpleAsyncGossiper) dequeue() (*queuedPayload, int) {
+// dequeue takes the oldest queued payload and marks it in flight. It returns nil
+// when the queue is empty. Like enqueue, it updates the gauge under the same lock
+// as the queue mutation.
+func (p *SimpleAsyncGossiper) dequeue() *queuedPayload {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if len(p.queue) == 0 {
 		p.publishInFlight = false
-		return nil, 0
+		return nil
 	}
 	next := p.queue[0]
 	p.queue[0] = nil // do not keep the envelope alive through the backing array
@@ -342,32 +356,53 @@ func (p *SimpleAsyncGossiper) dequeue() (*queuedPayload, int) {
 	p.publishInFlight = true
 	p.publishDiscarded = false
 	p.metrics.RecordPublishQueueLen(len(p.queue))
-	return next, len(p.queue)
+	return next
 }
 
 // publish publishes the next queued payload. It runs on the publisher goroutine
 // and holds no lock across the network call.
+//
+// The wake-up for the rest of the queue happens at the end rather than up front,
+// so that a retry cannot be picked up by a signal queued before the attempt that
+// failed - which would skip the pacing exactly when it is needed.
 func (p *SimpleAsyncGossiper) publish() {
-	next, remaining := p.dequeue()
+	next := p.dequeue()
 	if next == nil {
 		return // an earlier signal already drained the queue
-	}
-	if remaining > 0 {
-		// Come back for the rest, via the select, so a stop is still honored
-		// between publishes.
-		p.signal()
 	}
 
 	ctx, cancel := context.WithTimeout(p.ctx, publishTimeout)
 	defer cancel()
 	err := p.net.SignAndPublishL2Payload(ctx, next.payload)
-	p.finishPublish(next, err)
+
+	if p.finishPublish(next, err) {
+		// The block went back to the front of the queue. Wait before offering it
+		// again - see retryInterval.
+		select {
+		case <-time.After(p.retryInterval):
+		case <-p.ctx.Done():
+			return
+		}
+	}
+	p.signalIfPending()
+}
+
+// signalIfPending wakes the publisher again if the queue is not empty, so it
+// comes back through the select and a stop is still honored between publishes.
+func (p *SimpleAsyncGossiper) signalIfPending() {
+	p.mu.Lock()
+	pending := len(p.queue) > 0
+	p.mu.Unlock()
+	if pending {
+		p.signal()
+	}
 }
 
 // finishPublish records the outcome of a publish attempt: on success the payload
 // becomes available for reuse if the sequencer still wants it, and on failure the
-// block is retried ahead of the blocks behind it, within maxPublishAttempts.
-func (p *SimpleAsyncGossiper) finishPublish(next *queuedPayload, err error) {
+// block is put back at the front of the queue if there is room for it. It reports
+// whether it requeued, so the caller can pace the retry.
+func (p *SimpleAsyncGossiper) finishPublish(next *queuedPayload, err error) (requeued bool) {
 	p.mu.Lock()
 	p.publishInFlight = false
 	discarded := p.publishDiscarded
@@ -381,12 +416,22 @@ func (p *SimpleAsyncGossiper) finishPublish(next *queuedPayload, err error) {
 			p.currentPayload = next.payload
 		}
 		p.mu.Unlock()
-		return
+		return false
 	}
 
-	// Retrying at the front keeps the chain gap-free for peers, but never at the
-	// cost of unbounded growth or of a block the sequencer has already rejected.
-	retry := !discarded && next.attempts < maxPublishAttempts && len(p.queue) < maxPublishQueue
+	// Retrying at the front keeps the chain gap-free for peers. Queue pressure is
+	// what bounds it: the retried block sits at the head, and enqueue evicts the
+	// head when the queue overflows, so a block is retried exactly as long as
+	// production leaves room for it. A block the sequencer has already rejected
+	// is not retried at all.
+	//
+	// The attempt bound is the same number, for the case where that eviction can
+	// never come: if block production has stopped, nothing is ever enqueued, so
+	// nothing evicts the head and an unpublishable block would be offered - and
+	// logged, and counted - once per retryInterval until the process exits. A
+	// block that has been tried more times than the queue could hold has already
+	// outlived every block that would have displaced it.
+	retry := !discarded && len(p.queue) < maxPublishQueue && next.attempts < maxPublishQueue
 	if retry {
 		p.queue = append([]*queuedPayload{next}, p.queue...)
 		p.metrics.RecordPublishQueueLen(len(p.queue))
@@ -400,9 +445,7 @@ func (p *SimpleAsyncGossiper) finishPublish(next *queuedPayload, err error) {
 		"attempts", next.attempts,
 		"retrying", retry,
 		"err", err)
-	if retry {
-		p.signal()
-	}
+	return retry
 }
 
 // NoOpGossiper is a no-op implementation of AsyncGossiper

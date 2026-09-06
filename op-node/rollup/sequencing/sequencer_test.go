@@ -1616,3 +1616,47 @@ func TestSequencerResetClearsGossipAndBuilding(t *testing.T) {
 	require.Nil(t, s.deps.asyncGossip.payload,
 		"no payload from the rewound chain may be offered back for reuse")
 }
+
+// TestSequencerStopAfterStaleReSealDropsSealed covers the seal-time ErrStaleBuild
+// path on a re-seal. Because Get() no longer waits for an in-flight publish, the
+// sequencer re-seals its build job after a temporary insert error - and that
+// re-seal can be the point at which a competing block is found to have landed.
+// The block we already sealed and gossiped is dropped there, so the sealed marker
+// must be reconciled: Stop waits for the head to catch up to it, and would
+// otherwise wait for a block nobody is going to insert.
+func TestSequencerStopAfterStaleReSealDropsSealed(t *testing.T) {
+	s := newSeqSetup(t)
+	info := s.startBuild(t)
+	envelope, ref := s.sealedPayload()
+	s.deps.eng.sealBuildFn = func(ctx context.Context, gotInfo eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, info, gotInfo)
+		return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
+	}
+	// Sealed and gossiped, but the local insert failed temporarily, so the block
+	// is outstanding and the building job is kept for a retry.
+	s.deps.eng.processPayloadFn = func(context.Context, *eth.ExecutionPayloadEnvelope, eth.L2BlockRef, time.Time) error {
+		return errors.New("mock temporary insert failure")
+	}
+	s.seq.RunAction()
+	require.Equal(t, ref, s.seq.lastSealed, "our gossiped block is outstanding")
+
+	// The retry finds nothing to reuse (the publish is still in flight) and
+	// re-seals - but the chain has moved past the job in the meantime.
+	s.deps.asyncGossip.withholdGet = true
+	s.deps.eng.sealBuildFn = func(ctx context.Context, gotInfo eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		return nil, engine.ErrStaleBuild
+	}
+	deliver(s.seq, rollup.EngineTemporaryErrorEvent{Err: errors.New("mock temporary insert failure")})
+	s.seq.RunAction()
+
+	require.Equal(t, BuildingState{}, s.seq.building, "the stale job is dropped")
+	require.Equal(t, []common.Hash{ref.Hash}, s.deps.asyncGossip.discarded,
+		"the sibling that lost must not still be published")
+	require.NotEqual(t, ref.Hash, s.seq.unsafeHead.Hash, "the sealed block is not the head")
+
+	// Stop must not wait for a block that will never become the head.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := s.seq.Stop(ctx)
+	require.NoError(t, err, "Stop must not block on the dropped block")
+}

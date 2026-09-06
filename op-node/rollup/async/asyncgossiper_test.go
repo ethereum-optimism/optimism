@@ -473,6 +473,7 @@ func TestAsyncGossiperDedupesResealedBlock(t *testing.T) {
 func TestAsyncGossiperRetriesFailedPublish(t *testing.T) {
 	m := newBlockingNetwork()
 	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
+	p.retryInterval = time.Millisecond
 	p.Start()
 	defer p.Stop()
 	defer m.Release()
@@ -493,32 +494,43 @@ func TestAsyncGossiperRetriesFailedPublish(t *testing.T) {
 	require.Equal(t, third, requirePayload(t, m.started, "third never started"))
 }
 
-// TestAsyncGossiperGivesUpOnFailedPublish bounds the retry: a signer that is
-// down fails every attempt, and holding the head forever would stop every later
-// block from being published too.
-func TestAsyncGossiperGivesUpOnFailedPublish(t *testing.T) {
+// TestAsyncGossiperRetriesUntilQueueIsFull pins what bounds the retry. There is
+// no attempt count: a failed block is retried at the front for exactly as long as
+// production leaves room for it, because enqueue evicts the head on overflow. Once
+// the queue is full there is nowhere to put it back, so an unpublishable block
+// stops holding up the blocks behind it.
+func TestAsyncGossiperRetriesUntilQueueIsFull(t *testing.T) {
 	m := newBlockingNetwork()
 	metrics := &mockMetrics{}
-	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), metrics)
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelCrit), metrics)
+	p.retryInterval = time.Millisecond
 	p.Start()
 	defer p.Stop()
 	defer m.Release()
 
-	first, second := testEnvelope(1), testEnvelope(2)
-	m.failNext(first.ExecutionPayload.BlockHash, maxPublishAttempts)
+	// A block that can never be published: a bad hash, say, which op-node's own
+	// validator rejects inline on this node, the same way on every attempt.
+	first := testEnvelope(0)
+	m.failNext(first.ExecutionPayload.BlockHash, 1<<30)
 
 	p.Gossip(first)
 	require.Equal(t, first, requirePayload(t, m.started, "first publish never started"))
-	p.Gossip(second)
+
+	// Fill the queue behind it. The in-flight block is not itself in the queue,
+	// so this leaves exactly maxPublishQueue entries and evicts nothing.
+	for i := 1; i <= maxPublishQueue; i++ {
+		p.Gossip(testEnvelope(uint64(i)))
+	}
+	dropped, queueLen, _ := metrics.counts()
+	require.Equal(t, maxPublishQueue, queueLen, "the queue is full behind the stuck block")
+	require.Zero(t, dropped, "nothing has overflowed yet")
 
 	m.Release()
-	for i := 1; i < maxPublishAttempts; i++ {
-		require.Equal(t, first, requirePayload(t, m.started, "the failed block was never retried"))
-	}
-	require.Equal(t, second, requirePayload(t, m.started, "a block behind an unpublishable one must still go out"))
-	require.Equal(t, second, requirePayload(t, m.finished, "second never finished"))
+	next := requirePayload(t, m.started, "a block behind an unpublishable one must still go out")
+	require.Equal(t, hexutil.Uint64(1), next.ExecutionPayload.BlockNumber,
+		"with no room to requeue it, the retry stops and publishing resumes in order")
 
-	dropped, _, _ := metrics.counts()
+	dropped, _, _ = metrics.counts()
 	require.Zero(t, dropped, "a block that failed to publish is a publishing error, not a queue-overflow drop")
 }
 
@@ -641,4 +653,83 @@ func TestAsyncGossiperDiscardAll(t *testing.T) {
 		}
 	}, 300*time.Millisecond, 20*time.Millisecond,
 		"no queued block may be published after the chain was abandoned, nor offered for reuse")
+}
+
+// instantFailNetwork fails every publish immediately, with no I/O at all. This
+// is not contrived: op-node runs its own block validator inline on the
+// publishing node, so a bad block hash, an oversized block, a fork-shape
+// mismatch - or a block that has aged past the gossip timestamp threshold -
+// fails in about a millisecond, deterministically, every time.
+type instantFailNetwork struct {
+	mu       sync.Mutex
+	attempts int
+}
+
+func (f *instantFailNetwork) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.attempts++
+	return errors.New("validation failed")
+}
+
+func (f *instantFailNetwork) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.attempts
+}
+
+// TestAsyncGossiperPacesRetries is the spin guard. Retries are bounded by queue
+// pressure rather than by an attempt count, so a block that fails instantly and
+// deterministically would otherwise be retried as fast as the goroutine can loop
+// - thousands of times a second - for as long as the queue has room, and forever
+// if block production has stopped and nothing is left to evict it.
+func TestAsyncGossiperPacesRetries(t *testing.T) {
+	m := &instantFailNetwork{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelCrit), &mockMetrics{})
+	p.retryInterval = 50 * time.Millisecond
+	p.Start()
+	defer p.Stop()
+
+	p.Gossip(testEnvelope(1))
+
+	const window = 500 * time.Millisecond
+	time.Sleep(window)
+
+	attempts := m.count()
+	require.Positive(t, attempts, "the block must be retried at all")
+	// Pacing means attempts track wall-clock, not loop speed. Generously bounded
+	// so this cannot flake on a slow machine, while still failing by orders of
+	// magnitude if the retry is unpaced.
+	maxExpected := int(window/p.retryInterval) + 5
+	require.LessOrEqual(t, attempts, maxExpected,
+		"retries must be paced by wall-clock, not spun as fast as the publisher can loop")
+}
+
+// TestAsyncGossiperStopsRetryingWhenIdle covers the case queue pressure cannot
+// reach: an unpublishable block with no block production behind it. Nothing is
+// ever enqueued, so nothing evicts it, and without a backstop it would be
+// offered - logged and counted each time - once per retryInterval until the
+// process exits. That is a plausible shape during an incident: the sequencer is
+// stopped or has failed over while a block it cannot publish is still queued.
+func TestAsyncGossiperStopsRetryingWhenIdle(t *testing.T) {
+	m := &instantFailNetwork{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelCrit), &mockMetrics{})
+	p.retryInterval = time.Millisecond
+	p.Start()
+	defer p.Stop()
+
+	p.Gossip(testEnvelope(1))
+
+	// It gives up rather than retrying forever, and then stays quiet.
+	require.Eventually(t, func() bool {
+		return m.count() >= maxPublishQueue
+	}, 10*time.Second, 5*time.Millisecond, "the block should be retried while it can be")
+
+	settled := m.count()
+	require.LessOrEqual(t, settled, maxPublishQueue+1,
+		"a block cannot be retried more times than the queue could ever have held")
+	require.Never(t, func() bool {
+		return m.count() > settled
+	}, 200*time.Millisecond, 20*time.Millisecond,
+		"with nothing arriving to evict it, the retry must stop rather than run until the process exits")
 }
