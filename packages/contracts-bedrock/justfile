@@ -175,6 +175,10 @@ test-rerun: build-go-ffi
 test-dev-rerun: build-go-ffi
   FOUNDRY_PROFILE=lite forge test --rerun -vvv
 
+# Compile the Kontrol proof graph without deployment-script cache warming.
+build-kontrol *ARGS:
+  FOUNDRY_PROFILE=kprove forge build {{ARGS}}
+
 # Run Kontrol tests and build all dependencies.
 test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
 

@@ -137,6 +137,8 @@ if [ "$SCRIPT_TESTS" == true ]; then
     "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused9"
     "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused10"
     "OptimismPortal2Kontrol.prove_finalizeWithdrawalTransaction_paused"
+    "WithdrawalAuthorizationKontrol.prove_checkWithdrawal_equivalence"
+    "WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_preservesOtherRecord"
     "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused"
     "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused"
     "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused"
