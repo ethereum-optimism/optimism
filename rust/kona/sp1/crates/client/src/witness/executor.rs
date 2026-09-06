@@ -88,25 +88,26 @@ pub trait WitnessExecutor {
         l2_provider: Self::L2,
     ) -> Result<OraclePipeline<Self::O, Self::L1, Self::L2, Self::DA>>;
 
-    /// Runs the witness executor using the given derivation pipeline,
+    /// Validates ordered, contiguous claims for one chain using a single derivation driver.
     async fn run<O, DP, P>(
         &self,
-        boot: BootInfo,
+        boots: &[BootInfo],
         pipeline: DP,
         cursor: Arc<RwLock<PipelineCursor>>,
         l2_provider: OracleL2ChainProvider<O>,
-    ) -> Result<BootInfo>
+    ) -> Result<()>
     where
         O: CommsClient + FlushableCache + Send + Sync + Debug,
         DP: DriverPipeline<P> + Send + Sync + Debug,
         P: Pipeline + SignalReceiver + Send + Sync + Debug,
     {
+        let Some(boot) = boots.first() else {
+            return Ok(());
+        };
         // Install custom crypto provider for KZG point evaluation precompile
         revm::precompile::install_crypto(CustomCrypto::default());
 
-        let boot_clone = boot.clone();
-
-        let rollup_config = Arc::new(boot.rollup_config);
+        let rollup_config = Arc::new(boot.rollup_config.clone());
 
         let evm_factory = PostExecEvmFactoryAdapter::new(ZkvmOpEvmFactory);
         let executor = KonaExecutor::new(
@@ -118,52 +119,44 @@ pub trait WitnessExecutor {
             None,
         );
         let mut driver = Driver::new(cursor, executor, pipeline);
-        // Run the derivation pipeline until we are able to produce the output root of the claimed
-        // L2 block.
+        for boot in boots {
+            #[cfg(target_os = "zkvm")]
+            println!("cycle-tracker-report-start: block-execution-and-derivation");
+            let (safe_head, output_root) = driver
+                .advance_to_target_with_metrics(
+                    rollup_config.as_ref(),
+                    Some(boot.claimed_l2_block_number),
+                    &CycleTrackerDriverMetrics,
+                )
+                .await?;
+            #[cfg(target_os = "zkvm")]
+            println!("cycle-tracker-report-end: block-execution-and-derivation");
 
-        // Derive to the claimed L2 block using kona-driver's shared derivation loop, feeding the
-        // SP1 cycle-tracker collector so the per-phase (derivation / execution) cost breakdown is
-        // reported to the host.
-        #[cfg(target_os = "zkvm")]
-        println!("cycle-tracker-report-start: block-execution-and-derivation");
-        let (safe_head, output_root) = driver
-            .advance_to_target_with_metrics(
-                rollup_config.as_ref(),
-                Some(boot.claimed_l2_block_number),
-                &CycleTrackerDriverMetrics,
-            )
-            .await?;
-        #[cfg(target_os = "zkvm")]
-        println!("cycle-tracker-report-end: block-execution-and-derivation");
+            if output_root != boot.claimed_l2_output_root {
+                return Err(anyhow!(
+                    "Failed to validate L2 block #{number} with claimed output root {claimed_output_root}. Got {output_root} instead",
+                    number = safe_head.block_info.number,
+                    output_root = output_root,
+                    claimed_output_root = boot.claimed_l2_output_root,
+                ));
+            }
 
-        ////////////////////////////////////////////////////////////////
-        //                          EPILOGUE                          //
-        ////////////////////////////////////////////////////////////////
+            // Bind the committed l2BlockNumber to the actual derived safe-head number. Without this
+            // check, a non-interop EndOfSource that triggers the silent target downgrade in
+            // advance_to_target can let an adversarial witness commit (l2PostRoot, l2BlockNumber)
+            // pairs that refer to different L2 blocks. See GHSA-5jh4-3p33-85xc.
+            ensure_derived_block_matches_claim(
+                safe_head.block_info.number,
+                boot.claimed_l2_block_number,
+            )?;
 
-        if output_root != boot.claimed_l2_output_root {
-            return Err(anyhow!(
-                "Failed to validate L2 block #{number} with claimed output root {claimed_output_root}. Got {output_root} instead",
+            info!(
+                target: "client",
+                "Successfully validated L2 block #{number} with output root {output_root}",
                 number = safe_head.block_info.number,
-                output_root = output_root,
-                claimed_output_root = boot.claimed_l2_output_root,
-            ));
+                output_root = output_root
+            );
         }
-
-        // Bind the committed l2BlockNumber to the actual derived safe-head number. Without this
-        // check, a non-interop EndOfSource that triggers the silent target downgrade in
-        // advance_to_target can let an adversarial witness commit (l2PostRoot, l2BlockNumber)
-        // pairs that refer to different L2 blocks. See GHSA-5jh4-3p33-85xc.
-        ensure_derived_block_matches_claim(
-            safe_head.block_info.number,
-            boot.claimed_l2_block_number,
-        )?;
-
-        info!(
-            target: "client",
-            "Successfully validated L2 block #{number} with output root {output_root}",
-            number = safe_head.block_info.number,
-            output_root = output_root
-        );
 
         #[cfg(target_os = "zkvm")]
         {
@@ -171,7 +164,7 @@ pub trait WitnessExecutor {
             std::mem::forget(rollup_config);
         }
 
-        Ok(boot_clone)
+        Ok(())
     }
 }
 
@@ -198,17 +191,164 @@ fn ensure_derived_block_matches_claim(
 mod tests {
     use std::sync::Arc;
 
-    use alloy_consensus::Header;
+    use alloy_consensus::{Header, Sealed};
     use alloy_primitives::{B256, keccak256};
     use alloy_rlp::Encodable;
+    use kona_derive::{
+        EthereumDataSource, OriginProvider, PipelineError, PipelineErrorKind, Signal, StepResult,
+    };
+    use kona_driver::TipCursor;
+    use kona_genesis::SystemConfig;
     use kona_preimage::{
         L1_HEAD_KEY, L2_CHAIN_ID_KEY, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY, L2_OUTPUT_ROOT_KEY,
         PreimageKey,
     };
     use kona_proof::block_on;
+    use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 
-    use super::get_inputs_for_pipeline;
-    use crate::witness::preimage_store::PreimageStore;
+    use super::*;
+    use crate::{BlobStore, witness::preimage_store::PreimageStore};
+
+    struct TestWitnessExecutor;
+
+    #[async_trait]
+    impl WitnessExecutor for TestWitnessExecutor {
+        type O = PreimageStore;
+        type B = BlobStore;
+        type L1 = OracleL1ChainProvider<PreimageStore>;
+        type L2 = OracleL2ChainProvider<PreimageStore>;
+        type DA = EthereumDataSource<Self::L1, Self::B>;
+
+        async fn create_pipeline(
+            &self,
+            _rollup_config: Arc<RollupConfig>,
+            _l1_config: Arc<L1ChainConfig>,
+            _cursor: Arc<RwLock<PipelineCursor>>,
+            _oracle: Arc<Self::O>,
+            _beacon: Self::B,
+            _l1_provider: Self::L1,
+            _l2_provider: Self::L2,
+        ) -> Result<OraclePipeline<Self::O, Self::L1, Self::L2, Self::DA>> {
+            unreachable!("validation tests supply their pipeline directly")
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct ExhaustedPipeline {
+        config: RollupConfig,
+    }
+
+    impl Iterator for ExhaustedPipeline {
+        type Item = OpAttributesWithParent;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            None
+        }
+    }
+
+    impl OriginProvider for ExhaustedPipeline {
+        fn origin(&self) -> Option<BlockInfo> {
+            None
+        }
+    }
+
+    #[async_trait]
+    impl SignalReceiver for ExhaustedPipeline {
+        async fn signal(&mut self, _signal: Signal) -> Result<(), PipelineErrorKind> {
+            unreachable!("exhaustion does not reset the pipeline")
+        }
+    }
+
+    #[async_trait]
+    impl Pipeline for ExhaustedPipeline {
+        fn peek(&self) -> Option<&OpAttributesWithParent> {
+            None
+        }
+
+        async fn step(&mut self, _cursor: L2BlockInfo) -> StepResult {
+            StepResult::StepFailed(PipelineError::EndOfSource.crit())
+        }
+
+        fn rollup_config(&self) -> &RollupConfig {
+            &self.config
+        }
+
+        async fn system_config_by_l2_hash(
+            &mut self,
+            _hash: B256,
+        ) -> Result<SystemConfig, PipelineErrorKind> {
+            unreachable!("exhaustion does not load system config")
+        }
+    }
+
+    impl DriverPipeline<Self> for ExhaustedPipeline {
+        fn flush(&mut self) {
+            unreachable!("exhaustion does not flush the pipeline")
+        }
+    }
+
+    fn run_claims(boots: &[BootInfo]) -> Result<()> {
+        let header = Header { number: 3, ..Default::default() };
+        let head = L2BlockInfo {
+            block_info: BlockInfo { number: 3, ..Default::default() },
+            ..Default::default()
+        };
+        let mut cursor = PipelineCursor::new(1, BlockInfo::default());
+        cursor.advance(BlockInfo::default(), TipCursor::new(head, Sealed::new(header), b256(1)));
+        let provider = OracleL2ChainProvider::new(
+            B256::ZERO,
+            Arc::new(RollupConfig::default()),
+            Arc::new(PreimageStore::default()),
+        );
+        block_on(TestWitnessExecutor.run(
+            boots,
+            ExhaustedPipeline::default(),
+            Arc::new(RwLock::new(cursor)),
+            provider,
+        ))
+    }
+
+    fn claim(block_number: u64, output_root: B256) -> BootInfo {
+        BootInfo {
+            l1_head: B256::ZERO,
+            agreed_l2_output_root: b256(1),
+            claimed_l2_output_root: output_root,
+            claimed_l2_block_number: block_number,
+            chain_id: 10,
+            rollup_config: RollupConfig::default(),
+            l1_config: L1ChainConfig::default(),
+        }
+    }
+
+    #[test]
+    fn executor_rejects_incorrect_output_root() {
+        for index in 0..3 {
+            let mut boots = vec![claim(3, b256(1)); 3];
+            boots[index].claimed_l2_output_root = b256(2);
+            let err = run_claims(&boots).unwrap_err();
+            assert!(err.to_string().contains("Failed to validate L2 block #3"), "{err}");
+        }
+    }
+
+    #[test]
+    fn executor_rejects_exhausted_pipeline_below_claimed_block() {
+        for index in 0..3 {
+            let mut boots = vec![claim(3, b256(1)); 3];
+            boots[index].claimed_l2_block_number = 4;
+            let err = run_claims(&boots).unwrap_err();
+            assert!(
+                err.to_string().contains(
+                    "Derived safe head L2 block #3 does not match claimed L2 block number #4"
+                ),
+                "{err}"
+            );
+        }
+    }
+
+    #[test]
+    fn executor_accepts_matching_claims() {
+        run_claims(&vec![claim(3, b256(1)); 3]).unwrap();
+    }
 
     #[test]
     fn derived_block_must_match_claimed_block() {

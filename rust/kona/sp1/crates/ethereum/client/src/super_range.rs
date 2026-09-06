@@ -57,11 +57,10 @@ where
     let rollup_configs = load_rollup_configs(&inputs.chain_ids, oracle.as_ref()).await?;
     let l1_config = load_l1_config(&rollup_configs, oracle.as_ref()).await?;
 
-    let mut transitions = Vec::with_capacity(inputs.claimed_transitions.len());
-    for transition in &inputs.claimed_transitions {
-        let boot_info = run_super_range_transition(
+    for segment in range_segments(&inputs)? {
+        let boot_infos = run_super_range_segment(
             &inputs,
-            transition,
+            &segment,
             oracle.clone(),
             beacon.clone(),
             dependency_set.clone(),
@@ -69,16 +68,37 @@ where
             &l1_config,
         )
         .await?;
-        validate_range_transition_output(transition, oracle.as_ref(), &boot_info).await?;
-        transitions.push(*transition);
+        for (transition, boot_info) in segment.into_iter().zip(boot_infos) {
+            validate_range_transition_output(transition, oracle.as_ref(), &boot_info).await?;
+        }
     }
 
     Ok(SuperRangeOutputs {
         span: inputs.span,
         l1_head: inputs.l1_head,
         previous_super_roots,
-        transitions,
+        transitions: inputs.claimed_transitions,
     })
+}
+
+fn range_segments(inputs: &SuperRangeInputs) -> anyhow::Result<Vec<Vec<&SuperRangeTransition>>> {
+    let mut segments: Vec<Vec<&SuperRangeTransition>> = Vec::new();
+    let mut last_segment_by_chain = BTreeMap::<U256, usize>::new();
+    for transition in &inputs.claimed_transitions {
+        let chain_id = transition.optimistic_block.chain_id;
+        let agreed_root = previous_output_root(inputs, transition)?;
+        if let Some(&index) = last_segment_by_chain.get(&chain_id) &&
+            segments[index]
+                .last()
+                .is_some_and(|previous| previous.optimistic_block.output_root == agreed_root)
+        {
+            segments[index].push(transition);
+            continue;
+        }
+        last_segment_by_chain.insert(chain_id, segments.len());
+        segments.push(vec![transition]);
+    }
+    Ok(segments)
 }
 
 /// Loads the dependency set for the supplied range chain IDs.
@@ -254,45 +274,57 @@ enum RangeTransitionBoot {
     Progress { boot: BootInfo, safe_head_hash: B256, safe_head: Header },
 }
 
-async fn run_super_range_transition<O, B>(
+async fn run_super_range_segment<O, B>(
     inputs: &SuperRangeInputs,
-    transition: &SuperRangeTransition,
+    transitions: &[&SuperRangeTransition],
     oracle: Arc<O>,
     beacon: B,
     dependency_set: Arc<DependencySet>,
     rollup_configs: &BTreeMap<u64, RollupConfig>,
     l1_config: &L1ChainConfig,
-) -> anyhow::Result<BootInfoStruct>
+) -> anyhow::Result<Vec<BootInfoStruct>>
 where
     O: CommsClient + FlushableCache + Send + Sync + Debug + 'static,
     B: BlobProvider + Send + Sync + Debug + Clone + 'static,
 {
-    let transition_boot = build_super_range_transition_boot(
-        inputs,
-        transition,
-        oracle.as_ref(),
-        rollup_configs,
-        l1_config,
-    )
-    .await?;
-
-    let (boot, safe_head_hash, safe_head) = match transition_boot {
-        RangeTransitionBoot::NoOp { boot } => return Ok(BootInfoStruct::from(boot)),
-        RangeTransitionBoot::Progress { boot, safe_head_hash, safe_head } => {
-            (boot, safe_head_hash, safe_head)
+    let mut boots = Vec::new();
+    let mut boot_infos = Vec::with_capacity(transitions.len());
+    let mut initial_safe_head = None;
+    for transition in transitions {
+        let transition_boot = build_super_range_transition_boot(
+            inputs,
+            transition,
+            oracle.as_ref(),
+            rollup_configs,
+            l1_config,
+        )
+        .await?;
+        match transition_boot {
+            RangeTransitionBoot::NoOp { boot } => boot_infos.push(BootInfoStruct::from(boot)),
+            RangeTransitionBoot::Progress { boot, safe_head_hash, safe_head } => {
+                initial_safe_head
+                    .get_or_insert_with(|| Sealed::new_unchecked(safe_head, safe_head_hash));
+                boot_infos.push(BootInfoStruct::from(boot.clone()));
+                boots.push(boot);
+            }
         }
+    }
+
+    let Some(safe_head) = initial_safe_head else {
+        return Ok(boot_infos);
     };
+    let boot = &boots[0];
 
     let rollup_config = Arc::new(boot.rollup_config.clone());
     let l1_config = Arc::new(boot.l1_config.clone());
     let mut l1_provider = OracleL1ChainProvider::new(boot.l1_head, oracle.clone());
     let mut l2_provider =
-        OracleL2ChainProvider::new(safe_head_hash, rollup_config.clone(), oracle.clone());
+        OracleL2ChainProvider::new(safe_head.hash(), rollup_config.clone(), oracle.clone());
     l2_provider.set_chain_id(Some(boot.chain_id));
 
     let cursor = new_oracle_pipeline_cursor(
         rollup_config.as_ref(),
-        Sealed::new_unchecked(safe_head, safe_head_hash),
+        safe_head,
         boot.agreed_l2_output_root,
         &mut l1_provider,
         &mut l2_provider,
@@ -312,9 +344,9 @@ where
             l2_provider.clone(),
         )
         .await?;
-    let boot = executor.run(boot, pipeline, cursor, l2_provider).await?;
+    executor.run(&boots, pipeline, cursor, l2_provider).await?;
 
-    Ok(BootInfoStruct::from(boot))
+    Ok(boot_infos)
 }
 
 async fn build_super_range_transition_boot<O>(
@@ -631,6 +663,170 @@ mod tests {
             )],
             claimed_transitions: vec![],
         }
+    }
+
+    fn contiguous_range_inputs(chain_roots: &[&[u8]]) -> SuperRangeInputs {
+        let steps = chain_roots[0].len() - 1;
+        let chain_ids = (1..=chain_roots.len()).map(|i| U256::from(i * 10)).collect();
+        let mut previous_super_root_proofs = Vec::new();
+        let mut claimed_transitions = Vec::new();
+        for step in 0..steps {
+            let mut output_roots = Vec::new();
+            for (chain, roots) in chain_roots.iter().enumerate() {
+                let chain_id = (chain as u64 + 1) * 10;
+                output_roots.push(SuperOutputRoot { chain_id, output_root: b256(roots[step]) });
+                claimed_transitions.push(SuperRangeTransition {
+                    timestamp: 101 + step as u64,
+                    optimistic_block: SuperOptimisticBlock {
+                        chain_id: U256::from(chain_id),
+                        block_hash: b256(roots[step + 1]),
+                        output_root: b256(roots[step + 1]),
+                    },
+                });
+            }
+            previous_super_root_proofs.push(SuperRootProof::new(100 + step as u64, output_roots));
+        }
+        SuperRangeInputs {
+            span: TimestampSpan::new(101, 100 + steps as u64).unwrap(),
+            l1_head: b256(0x11),
+            chain_ids,
+            previous_super_root_proofs,
+            claimed_transitions,
+        }
+    }
+
+    #[test]
+    fn contiguous_transitions_share_one_pipeline_segment() {
+        let inputs = contiguous_range_inputs(&[&[1, 2, 3, 4, 5]]);
+        inputs.validate().unwrap();
+
+        let segments = range_segments(&inputs).unwrap();
+
+        assert_eq!(segments.len(), 1, "contiguous claims must construct only one pipeline");
+        assert_eq!(segments[0], inputs.claimed_transitions.iter().collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn changed_agreed_root_starts_a_new_pipeline_segment() {
+        let mut inputs = contiguous_range_inputs(&[&[1, 2, 3, 4, 5]]);
+        inputs.previous_super_root_proofs[2].super_root.output_roots[0].output_root = b256(9);
+
+        let segments = range_segments(&inputs).unwrap();
+
+        assert_eq!(segments.len(), 2);
+        assert_eq!(segments[0], inputs.claimed_transitions[..2].iter().collect::<Vec<_>>());
+        assert_eq!(segments[1], inputs.claimed_transitions[2..].iter().collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn noop_transitions_preserve_pipeline_segments() {
+        let inputs = contiguous_range_inputs(&[&[1, 1, 2, 2, 3, 3]]);
+
+        let segments = range_segments(&inputs).unwrap();
+
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].len(), 5);
+    }
+
+    #[test]
+    fn discontinuity_at_noop_starts_a_new_pipeline_segment() {
+        let mut inputs = contiguous_range_inputs(&[&[1, 2, 9, 10]]);
+        inputs.previous_super_root_proofs[1].super_root.output_roots[0].output_root = b256(9);
+
+        let segments = range_segments(&inputs).unwrap();
+
+        assert_eq!(segments.len(), 2);
+        assert_eq!(segments[0], vec![&inputs.claimed_transitions[0]]);
+        assert_eq!(segments[1], inputs.claimed_transitions[1..].iter().collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn pipeline_segments_are_chain_local() {
+        let inputs = contiguous_range_inputs(&[&[1, 2, 3], &[1, 2, 3]]);
+        inputs.validate().unwrap();
+
+        let segments = range_segments(&inputs).unwrap();
+
+        assert_eq!(segments.len(), 2);
+        assert_eq!(
+            segments[0],
+            vec![&inputs.claimed_transitions[0], &inputs.claimed_transitions[2]]
+        );
+        assert_eq!(
+            segments[1],
+            vec![&inputs.claimed_transitions[1], &inputs.claimed_transitions[3]]
+        );
+    }
+
+    #[test]
+    fn range_outputs_keep_timestamp_major_order_without_advancing_noops() {
+        let chain_ids = [u64::MAX - 1, u64::MAX];
+        let mut oracle = PreimageStore::default();
+        let mut configs = rollup_configs(&chain_ids);
+        for config in configs.values_mut() {
+            config.block_time = 10;
+        }
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(DEPENDENCY_SET_KEY.to()),
+                serde_json::to_vec(&dependency_set(&chain_ids, None)).unwrap(),
+            )
+            .unwrap();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()),
+                serde_json::to_vec(&configs).unwrap(),
+            )
+            .unwrap();
+        let mut output_roots = Vec::new();
+        let mut optimistic_blocks = Vec::new();
+        for (i, chain_id) in chain_ids.into_iter().enumerate() {
+            let header = Header { number: 3 + i as u64, timestamp: 100, ..Default::default() };
+            let block_hash = save_header(&mut oracle, &header);
+            let output_root = save_output_root(&mut oracle, block_hash);
+            output_roots.push(SuperOutputRoot { chain_id, output_root });
+            optimistic_blocks.push(SuperOptimisticBlock {
+                chain_id: U256::from(chain_id),
+                block_hash,
+                output_root,
+            });
+        }
+        let inputs = SuperRangeInputs {
+            span: TimestampSpan::new(101, 103).unwrap(),
+            l1_head: b256(0x11),
+            chain_ids: chain_ids.into_iter().map(U256::from).collect(),
+            previous_super_root_proofs: (100..103)
+                .map(|timestamp| SuperRootProof::new(timestamp, output_roots.clone()))
+                .collect(),
+            claimed_transitions: (101..=103)
+                .flat_map(|timestamp| {
+                    optimistic_blocks.iter().copied().map(move |optimistic_block| {
+                        SuperRangeTransition { timestamp, optimistic_block }
+                    })
+                })
+                .collect(),
+        };
+        let expected = SuperRangeOutputs {
+            span: inputs.span,
+            l1_head: inputs.l1_head,
+            previous_super_roots: inputs
+                .previous_super_root_proofs
+                .iter()
+                .map(hash_super_root_proof)
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
+            transitions: inputs.claimed_transitions.clone(),
+        };
+
+        // No L1 witness is supplied, so creating a pipeline for a no-op would fail.
+        let actual = block_on(build_range_outputs(
+            inputs,
+            Arc::new(oracle),
+            kona_sp1_client_utils::BlobStore::default(),
+        ))
+        .unwrap();
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
