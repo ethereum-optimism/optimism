@@ -143,8 +143,11 @@ type FakeAsyncGossip struct {
 	// discardedAll counts bulk purges, for when the sequencer abandons the chain
 	// the queued blocks extend.
 	discardedAll int
-	started      bool
-	stopped      bool
+	// withholdGet makes Get return nil even though a payload was gossiped, as the
+	// real gossiper does while a publish is still in flight.
+	withholdGet bool
+	started     bool
+	stopped     bool
 }
 
 func (f *FakeAsyncGossip) Gossip(payload *eth.ExecutionPayloadEnvelope) {
@@ -152,6 +155,11 @@ func (f *FakeAsyncGossip) Gossip(payload *eth.ExecutionPayloadEnvelope) {
 }
 
 func (f *FakeAsyncGossip) Get() *eth.ExecutionPayloadEnvelope {
+	if f.withholdGet {
+		// The real gossiper returns nil while a publish is still in flight: it
+		// does not wait for the network. See TestSequencerProgressesWhilePublishInFlight.
+		return nil
+	}
 	return f.payload
 }
 
@@ -1515,4 +1523,96 @@ func TestSequencerStopAfterResetDropsSealed(t *testing.T) {
 	hash, err := s.seq.Stop(ctx)
 	require.NoError(t, err, "Stop must not wait for a block the reset discarded")
 	require.Equal(t, s.seq.unsafeHead.Hash, hash)
+}
+
+// TestSequencerProgressesWhilePublishInFlight is a regression test for the shape
+// of PM-44 (Mainnet Unsafe Head Stall, 2024-02-15): the async-gossip buffer and
+// the sequencer's building state disagreed, the sequencer took a code path that
+// depended on the state that had been cleared, and it looped emitting errors
+// without ever producing a block. ~49 minutes of stalled mainnet.
+//
+// This PR reopens that surface from the other side. Get() no longer waits for an
+// in-flight publish, so it returns nil while building state IS set - the same
+// disagreement, opposite polarity. The sequencer must fall through to re-sealing
+// its build job and make progress, not spin.
+func TestSequencerProgressesWhilePublishInFlight(t *testing.T) {
+	s := newSeqSetup(t)
+	s.startBuild(t)
+	envelope, ref := s.sealedPayload()
+
+	seals := 0
+	s.deps.eng.sealBuildFn = func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		seals++
+		// Re-sealing the same build job yields the same block, which is what
+		// makes re-sealing safe rather than equivocation.
+		return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
+	}
+	s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		return errors.New("mock temp engine error")
+	}
+
+	// The publish is slow, so the payload is gossiped but not yet reusable.
+	s.deps.asyncGossip.withholdGet = true
+
+	s.seq.RunAction()
+	require.Equal(t, 1, seals)
+	require.Equal(t, envelope, s.deps.asyncGossip.payload, "the block was handed to the gossiper")
+	require.Equal(t, ref, s.seq.building.Ref, "building state is kept for the retry")
+	require.Empty(t, s.deps.asyncGossip.discarded,
+		"a temporary error is not a rejection: the block must still reach peers")
+
+	// The temporary-error event re-arms the schedule, and the retry finds Get()
+	// still empty. It must re-seal rather than stall: the same block, so peers
+	// are never offered two blocks at this height.
+	deliver(s.seq, rollup.EngineTemporaryErrorEvent{Err: errors.New("mock temp engine error")})
+	s.seq.RunAction()
+	require.Equal(t, 2, seals, "the sequencer re-seals instead of waiting on the publish")
+	require.Equal(t, ref, s.seq.building.Ref, "still the same block, at the same height")
+
+	// Once the engine recovers, the block is inserted and the head advances.
+	// The stall in PM-44 was that this never happened.
+	deliver(s.seq, rollup.EngineTemporaryErrorEvent{Err: errors.New("mock temp engine error")})
+	s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		return nil
+	}
+	s.seq.RunAction()
+	require.Equal(t, ref, s.seq.unsafeHead, "the sequencer made progress")
+	require.Equal(t, BuildingState{}, s.seq.building)
+	require.Empty(t, s.deps.asyncGossip.discarded,
+		"the block was inserted: cleared for reuse, never discarded from the publish queue")
+	_, ok := s.seq.NextAction()
+	require.True(t, ok, "ready to build the next block")
+}
+
+// TestSequencerResetClearsGossipAndBuilding pins the invariant PM-44 turned on:
+// the async-gossip state and the sequencer's building state are cleared together.
+// Before this PR onReset cleared building but left the gossip buffer alone, so a
+// payload from the pre-reset chain could survive and be picked up by the next
+// action. With a publish queue that would be up to maxPublishQueue blocks of an
+// abandoned chain, not one.
+func TestSequencerResetClearsGossipAndBuilding(t *testing.T) {
+	s := newSeqSetup(t)
+	s.startBuild(t)
+	envelope, ref := s.sealedPayload()
+	s.deps.eng.sealBuildFn = func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
+	}
+	s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		return errors.New("mock temp engine error")
+	}
+	s.seq.RunAction()
+	require.NotNil(t, s.deps.asyncGossip.payload, "a block is held by the gossiper")
+	require.NotEqual(t, BuildingState{}, s.seq.building)
+
+	purgesBefore := s.deps.asyncGossip.discardedAll
+	em := &testutils.MockEmitter{}
+	em.ExpectOnceType("engine.BuildCancelEvent") // the reset cancels the in-flight job
+	s.seq.AttachEmitter(em)
+	deliver(s.seq, rollup.ResetEvent{Err: errors.New("mock reset")})
+
+	require.Equal(t, BuildingState{}, s.seq.building, "building state is cleared by the reset")
+	require.Equal(t, purgesBefore+1, s.deps.asyncGossip.discardedAll,
+		"and so is everything the gossiper holds: neither may outlive the other")
+	require.Nil(t, s.deps.asyncGossip.payload,
+		"no payload from the rewound chain may be offered back for reuse")
 }
