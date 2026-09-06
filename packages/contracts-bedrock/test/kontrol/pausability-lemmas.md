@@ -177,7 +177,7 @@ The summary lemma is as follows, with commentary inlined:
     rule [copy-memory-to-memory-summary]:
       <k> #execute ... </k>
       <useGas> false </useGas>
-      <schedule> SHANGHAI </schedule>
+      <schedule> CANCUN </schedule>
       <jumpDests> JUMPDESTS </jumpDests>
       // The program and program counter are symbolic, focusing on the part we will be executing (CP)
       <program> PROGRAM </program>

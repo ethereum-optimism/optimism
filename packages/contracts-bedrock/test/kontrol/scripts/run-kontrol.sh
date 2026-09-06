@@ -41,6 +41,7 @@ kontrol_prove() {
     --kore-rpc-command 'kore-rpc-booster --no-post-exec-simplify --equation-max-recursion 100 --equation-max-iterations 1000' \
     --xml-test-report \
     --maintenance-rate 16 \
+    --symbolic-caller \
     --assume-defined \
     --no-log-rewrites \
     --smt-timeout 16000 \
