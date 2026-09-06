@@ -2213,13 +2213,22 @@ jobs:
           no_go_deps: "true"
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/OptimismPortal2\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
       - restore-go-mod-cache
-      - setup_remote_docker:
-          docker_layer_caching: true
+      - setup_remote_docker
       - run:
           name: Run Kontrol Tests
           command: timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-full test-kontrol-no-build
           working_directory: ./packages/contracts-bedrock
           no_output_timeout: 185m
+      - run:
+          name: Remove duplicate proof archives
+          when: always
+          command: |
+            logs=packages/contracts-bedrock/test/kontrol/logs
+            for archive in "$logs"/results-*.tar.gz; do
+              if cmp -s "$archive" "$logs/kontrol-results_latest.tar.gz"; then
+                rm -- "$archive"
+              fi
+            done
       - store_test_results:
           path: packages/contracts-bedrock/test/kontrol/logs
       - store_artifacts:
