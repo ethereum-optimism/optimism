@@ -98,6 +98,8 @@ type DriverSetup struct {
 	// BlockEnricher lets an alternate terminal encoding fetch, per loaded block, side data that an
 	// execution payload does not carry. The default batcher leaves it nil. See private_interop.go.
 	BlockEnricher BlockEnricher
+	// PublicProjection supplies a batching cursor for private interop only.
+	PublicProjection PublicProjectionFollower
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -117,6 +119,7 @@ type BatchSubmitter struct {
 
 	channelMgrMutex sync.Mutex // guards channelMgr and prevCurrentL1
 	channelMgr      *channelManager
+	projectionHead  eth.BlockID    // last observed safe projection; guarded by channelMgrMutex
 	prevCurrentL1   eth.L1BlockRef // cached CurrentL1 from the last syncStatus
 
 	throttleController *throttler.ThrottleController
@@ -467,12 +470,30 @@ func (l *BatchSubmitter) setTxPoolState(txPoolState TxPoolState, txPoolBlockedBl
 
 // syncAndPrune computes actions to take based on the current sync status, prunes the channel manager state
 // and returns blocks to load.
-func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBlockRange {
+func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus, cursor eth.L2BlockRef, projection PublicProjectionBlock, reset bool) *inclusiveBlockRange {
 	l.channelMgrMutex.Lock()
 	defer l.channelMgrMutex.Unlock()
 
-	// Decide appropriate actions
-	syncActions, outOfSync := computeSyncActions(*syncStatus, l.prevCurrentL1, l.channelMgr.blocks, l.channelMgr.channelQueue, l.Log)
+	if l.PublicProjection != nil {
+		// A range's claim is in its first block. If fallback consumed only a
+		// prefix, rebuild the remainder with a new claim and projection parent.
+		for _, ch := range l.channelMgr.channelQueue {
+			if ch.OldestL2().Number <= cursor.Number && ch.LatestL2().Number > cursor.Number {
+				reset = true
+				break
+			}
+		}
+	}
+	// A projection reorg invalidates the publication cursor and all pending ranges.
+	if reset {
+		l.clearChannelState(cursor.L1Origin)
+	}
+	publicationL1 := syncStatus.CurrentL1
+	if l.PublicProjection != nil {
+		publicationL1 = projection.CurrentL1
+	}
+	// Decide appropriate actions without changing the private node's safety refs.
+	syncActions, outOfSync := computeSyncActionsWithCursor(*syncStatus, cursor, publicationL1, l.prevCurrentL1, l.channelMgr.blocks, l.channelMgr.channelQueue, l.Log)
 
 	if outOfSync {
 		// If the sequencer is out of sync
@@ -483,11 +504,13 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 	}
 
 	l.prevCurrentL1 = syncStatus.CurrentL1
+	l.projectionHead = eth.BlockID{Hash: projection.Hash, Number: projection.Number}
 
 	// Manage existing state / garbage collection
 	if syncActions.clearState != nil {
-		l.channelMgr.Clear(*syncActions.clearState)
+		l.clearChannelState(*syncActions.clearState)
 	} else {
+		l.forgetPreparedBlocks(l.channelMgr.blocks[:syncActions.blocksToPrune])
 		l.channelMgr.PruneSafeBlocks(syncActions.blocksToPrune)
 		l.channelMgr.PruneChannels(syncActions.channelsToPrune)
 	}
@@ -550,7 +573,12 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 				continue
 			}
 
-			blocksToLoad := l.syncAndPrune(syncStatus)
+			cursor, projection, reset, err := l.publicationCursor(ctx, syncStatus)
+			if err != nil {
+				l.Log.Warn("could not resolve publication cursor, retrying on next tick", "err", err)
+				continue
+			}
+			blocksToLoad := l.syncAndPrune(syncStatus, cursor, projection, reset)
 
 			if blocksToLoad != nil {
 				// Get fresh unsafe blocks
@@ -834,7 +862,8 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 			l.Log.Info("Clearing state with safe L1 origin", "origin", l1SafeOrigin)
 			l.channelMgrMutex.Lock()
 			defer l.channelMgrMutex.Unlock()
-			l.channelMgr.Clear(l1SafeOrigin)
+			l.clearChannelState(l1SafeOrigin)
+			l.projectionHead = eth.BlockID{}
 			return true
 		}
 	}
@@ -857,7 +886,8 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 			l.Log.Warn("Clearing state cancelled")
 			l.channelMgrMutex.Lock()
 			defer l.channelMgrMutex.Unlock()
-			l.channelMgr.Clear(eth.BlockID{})
+			l.clearChannelState(eth.BlockID{})
+			l.projectionHead = eth.BlockID{}
 			return
 		}
 	}

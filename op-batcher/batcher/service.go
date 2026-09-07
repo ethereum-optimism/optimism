@@ -78,7 +78,8 @@ type BatcherService struct {
 	RollupConfig  *rollup.Config
 
 	// privateInterop is the terminal seam, non-nil only when the rollup config declares private interop.
-	privateInterop *PrivateInteropEncoder
+	privateInterop    *PrivateInteropEncoder
+	privateProjection PublicProjectionFollower
 
 	driver *BatchSubmitter
 
@@ -423,6 +424,7 @@ func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
 		AltDA:            bs.AltDA,
 	}
 	if bs.privateInterop != nil {
+		ds.PublicProjection = bs.privateProjection
 		ds.BlockEnricher = bs.privateInterop
 		ds.ChannelOutFactory = bs.privateInterop.ChannelOut
 	}
@@ -489,10 +491,11 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	bs.Log.Info("private interop claim commitments", "rollup_config_hash", rollupConfigHash, "dep_set_hash", depSetHash,
 		"rollup_config_hash_pinned", settings.RollupConfigHash != (common.Hash{}), "dep_set_hash_pinned", settings.DepSetHash != (common.Hash{}))
 
-	follower, err := NewRPCPublicProjectionFollower(ctx, bs.Log, settings.PublicProjectionRPC, bs.NetworkTimeout)
+	follower, err := NewRPCPublicProjectionFollower(ctx, bs.Log, settings.PublicProjectionRPC, settings.PublicProjectionRollupRPC, bs.NetworkTimeout)
 	if err != nil {
 		return err
 	}
+	bs.privateProjection = follower
 	batcherAddr := bs.TxManager.From()
 	ranges, err := NewPrivateInteropRangeSource(PrivateInteropRangeSourceConfig{
 		Log:                    bs.Log,
@@ -659,6 +662,9 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 		}
 	}
 
+	if bs.privateProjection != nil {
+		bs.privateProjection.Close()
+	}
 	if bs.L1Client != nil {
 		bs.L1Client.Close()
 	}

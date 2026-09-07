@@ -277,6 +277,8 @@ type l2CLNodeStartConfig struct {
 	// SequencerStopped starts the sequencer in the stopped state (it must be
 	// activated later via the StartSequencer RPC). Only meaningful when IsSequencer.
 	SequencerStopped bool
+	// SequencerConfDepth overrides the default two-block L1 origin delay.
+	SequencerConfDepth *uint64
 }
 
 func startL2CLNode(
@@ -345,7 +347,7 @@ func startL2CLNode(
 		require.NoError(err, "need p2p key for sequencer")
 		p2pKeyHex := hex.EncodeToString(crypto.FromECDSA(p2pKey))
 		require.NoError(fs.Set(opNodeFlags.SequencerP2PKeyName, p2pKeyHex))
-		p2pSignerSetup, err = p2pcli.LoadSignerSetup(cliCtx, logger)
+		p2pSignerSetup, err = newDevstackSignerSetup(p2pKeyHex)
 		require.NoError(err, "failed to load p2p signer")
 	}
 	p2pConfig, err := p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
@@ -360,6 +362,10 @@ func startL2CLNode(
 	// multichain devstack (see newDevstackP2PConfig) by loosening to 1 hour.
 	p2pConfig.GossipTimestampThreshold = time.Hour
 
+	sequencerConfDepth := uint64(2)
+	if startCfg.SequencerConfDepth != nil {
+		sequencerConfDepth = *startCfg.SequencerConfDepth
+	}
 	nodeCfg := &config.Config{
 		L1: &config.L1EndpointConfig{
 			L1NodeAddr:       l1EL.UserRPC(),
@@ -385,7 +391,7 @@ func startL2CLNode(
 		Driver: driver.Config{
 			SequencerEnabled:    cfg.IsSequencer,
 			SequencerStopped:    startCfg.SequencerStopped,
-			SequencerConfDepth:  2,
+			SequencerConfDepth:  sequencerConfDepth,
 			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
 		},
 		Rollup:        *l2Net.rollupCfg,

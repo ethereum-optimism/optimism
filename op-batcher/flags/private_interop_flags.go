@@ -41,6 +41,11 @@ var (
 			"come from it, and none of them can be computed.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_PUBLIC_PROJECTION_RPC"),
 	}
+	PrivateInteropPublicProjectionRollupRPCFlag = &cli.StringFlag{
+		Name:    "private-interop.public-projection-rollup-rpc",
+		Usage:   "Rollup RPC of the public projection, used to skip already derived positions after an outage.",
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_PUBLIC_PROJECTION_ROLLUP_RPC"),
+	}
 	PrivateInteropMaxBlocksPerRangeFlag = &cli.Uint64Flag{
 		Name: "private-interop.max-blocks-per-range",
 		Usage: "Maximum cadence: how many private blocks one range covers. A range may close sooner " +
@@ -108,6 +113,7 @@ var (
 var PrivateInteropFlags = []cli.Flag{
 	PrivateInteropGenesisFlag,
 	PrivateInteropPublicProjectionRPCFlag,
+	PrivateInteropPublicProjectionRollupRPCFlag,
 	PrivateInteropMaxBlocksPerRangeFlag,
 	PrivateInteropMaxRangeBytesFlag,
 	PrivateInteropExtraEmittersFlag,

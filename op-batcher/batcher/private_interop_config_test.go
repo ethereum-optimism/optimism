@@ -20,16 +20,17 @@ const (
 
 func validPrivateInteropCLIConfig() PrivateInteropCLIConfig {
 	return PrivateInteropCLIConfig{
-		PrivateChainGenesisPath: "/etc/private-chain-genesis.json",
-		PublicProjectionRPC:     "http://public-projection:8545",
-		MaxBlocksPerRange:       300,
-		MaxRangeBytes:           512 * 1024,
-		RollupConfigHash:        piTestHashA,
-		DepSetHash:              piTestHashB,
-		GasLimitExport:          500_000,
-		GasLimitImport:          500_000,
-		GasLimitEvent:           500_000,
-		GasLimitClaim:           500_000,
+		PrivateChainGenesisPath:   "/etc/private-chain-genesis.json",
+		PublicProjectionRPC:       "http://public-projection:8545",
+		PublicProjectionRollupRPC: "http://public-projection:9545",
+		MaxBlocksPerRange:         300,
+		MaxRangeBytes:             512 * 1024,
+		RollupConfigHash:          piTestHashA,
+		DepSetHash:                piTestHashB,
+		GasLimitExport:            500_000,
+		GasLimitImport:            500_000,
+		GasLimitEvent:             500_000,
+		GasLimitClaim:             500_000,
 	}
 }
 
@@ -44,6 +45,7 @@ func TestPrivateInteropConfigCheck(t *testing.T) {
 	}{
 		{"valid", func(*PrivateInteropCLIConfig) {}, ""},
 		{"no private genesis", func(c *PrivateInteropCLIConfig) { c.PrivateChainGenesisPath = "" }, "private-interop.genesis"},
+		{"no public projection rollup rpc", func(c *PrivateInteropCLIConfig) { c.PublicProjectionRollupRPC = "" }, "public-projection-rollup-rpc"},
 		{"no public projection rpc", func(c *PrivateInteropCLIConfig) { c.PublicProjectionRPC = "" }, "public-projection-rpc"},
 		{"zero cadence", func(c *PrivateInteropCLIConfig) { c.MaxBlocksPerRange = 0 }, "max-blocks-per-range"},
 		{"zero range bytes", func(c *PrivateInteropCLIConfig) { c.MaxRangeBytes = 0 }, "max-range-bytes"},
@@ -119,6 +121,7 @@ func TestPrivateInteropFlagsParse(t *testing.T) {
 		"--rollup-rpc=http://private-node:9545",
 		"--private-interop.genesis=/etc/private-chain-genesis.json",
 		"--private-interop.public-projection-rpc=http://public-projection-el:8545",
+		"--private-interop.public-projection-rollup-rpc=http://public-projection-node:9545",
 		"--private-interop.max-blocks-per-range=300",
 		"--private-interop.rollup-config-hash=" + piTestHashA,
 		"--private-interop.dep-set-hash=" + piTestHashB,
@@ -128,6 +131,7 @@ func TestPrivateInteropFlagsParse(t *testing.T) {
 	pi := got.PrivateInterop
 	require.Equal(t, "/etc/private-chain-genesis.json", pi.PrivateChainGenesisPath)
 	require.Equal(t, "http://public-projection-el:8545", pi.PublicProjectionRPC)
+	require.Equal(t, "http://public-projection-node:9545", pi.PublicProjectionRollupRPC)
 	require.Equal(t, uint64(300), pi.MaxBlocksPerRange)
 	require.NoError(t, pi.Check())
 

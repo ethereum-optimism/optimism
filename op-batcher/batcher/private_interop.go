@@ -23,20 +23,11 @@ import (
 
 // Private Interop's terminal seam.
 //
-// The batcher's whole lifecycle is reused unchanged: unsafe-head polling, reorg detection against
-// the PRIVATE chain, channel retry, the txmgr, blob submission, throttling. What changes is only
-// the last stage — the blocks it loaded are private, and the bytes it posts describe the RENDERING.
-//
-// The seam is the ChannelOutFactory hook that already exists in channelManager, plus one small
-// addition to the block-loading path (BlockEnricher) so that receipts, which an execution payload
-// does not carry and which the transformation needs, are fetched alongside each block. That shape
-// is HARVESTED from an earlier lane's batcher work, whose terminal encoding is otherwise retired:
-// only the lifecycle seam carries over.
-//
-// Private Interop posts nothing foreign: the frames this file emits are stock frames with a
-// deterministic channel ID, and op-batcher's own txData.Blobs() puts the 0x00 derivation version
-// byte in front exactly as it does for any chain. Stock op-batcher files are therefore untouched
-// apart from the enricher hook.
+// Private payload loading, channel encoding, and the standard L1 transport are reused.
+// The publication cursor skips positions already derived by the public projection,
+// including fallback blocks after an outage, without promoting private safety.
+// BlockEnricher fetches the receipts and net writes needed by the terminal encoder.
+// ChannelOutFactory renders those blocks into ordinary sequencer batches and frames.
 
 // BlockEnricher fetches, for each loaded L2 block, the side data an alternate terminal encoding
 // needs and that an execution payload does not carry.

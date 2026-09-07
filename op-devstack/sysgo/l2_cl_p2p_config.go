@@ -1,8 +1,11 @@
 package sysgo
 
 import (
+	"context"
+	"crypto/ecdsa"
 	"encoding/hex"
 	"flag"
+	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -14,7 +17,26 @@ import (
 	opNodeFlags "github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
+	"github.com/ethereum-optimism/optimism/op-service/signer"
 )
+
+// Each node instance owns its signer and closes it on shutdown. Preserve the dev
+// identity across restarts without returning an already-closed signer instance.
+type devstackSignerSetup struct {
+	key *ecdsa.PrivateKey
+}
+
+func newDevstackSignerSetup(keyHex string) (p2p.SignerSetup, error) {
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(keyHex, "0x"))
+	if err != nil {
+		return nil, err
+	}
+	return &devstackSignerSetup{key: key}, nil
+}
+
+func (s *devstackSignerSetup) SetupSigner(context.Context) (p2p.Signer, error) {
+	return signer.NewLocalSigner(s.key), nil
+}
 
 func newDevstackP2PConfig(
 	p devtest.CommonT,
@@ -61,7 +83,7 @@ func newDevstackP2PConfig(
 	var p2pSignerSetup p2p.SignerSetup
 	if sequencerP2PKeyHex != "" {
 		require.NoError(fs.Set(opNodeFlags.SequencerP2PKeyName, sequencerP2PKeyHex))
-		p2pSignerSetup, err = p2pcli.LoadSignerSetup(cliCtx, logger)
+		p2pSignerSetup, err = newDevstackSignerSetup(sequencerP2PKeyHex)
 		require.NoError(err, "failed to load p2p signer")
 		logger.Info("Sequencer key acquired")
 	}

@@ -59,6 +59,22 @@ func computeSyncActions[T channelStatuser](
 	l log.Logger,
 ) (syncActions, bool) {
 
+	return computeSyncActionsWithCursor(newSyncStatus, newSyncStatus.LocalSafeL2, newSyncStatus.CurrentL1, prevCurrentL1, blocks, channels, l)
+}
+
+// computeSyncActionsWithCursor uses a batching-only cursor. For private interop,
+// projection fallback blocks may already occupy positions beyond the private safe
+// head. Skipping those positions must not promote the private chain's safety.
+func computeSyncActionsWithCursor[T channelStatuser](
+	newSyncStatus eth.SyncStatus,
+	safeL2 eth.L2BlockRef,
+	publicationL1 eth.L1BlockRef,
+	prevCurrentL1 eth.L1BlockRef,
+	blocks queue.Queue[SizedBlock],
+	channels []T,
+	l log.Logger,
+) (syncActions, bool) {
+
 	m := l.With(
 		"syncStatus.headL1", newSyncStatus.HeadL1.TerminalString(),
 		"syncStatus.currentL1", newSyncStatus.CurrentL1.TerminalString(),
@@ -69,7 +85,7 @@ func computeSyncActions[T channelStatuser](
 
 	// We do _not_ want to use the SafeL2 (aka Cross Safe) field,
 	// since that introduces extra dependencies post interop.
-	safeL2 := newSyncStatus.LocalSafeL2
+	// The caller supplies LocalSafeL2 for ordinary chains.
 
 	// PART 1: Initial checks on the sync status (on fields which should never be empty)
 	if isZero(safeL2) ||
@@ -150,7 +166,7 @@ func computeSyncActions[T channelStatuser](
 	for _, ch := range channels {
 		if ch.isFullySubmitted() &&
 			!ch.isTimedOut() &&
-			newSyncStatus.CurrentL1.Number > ch.MaxInclusionBlock() &&
+			publicationL1.Number > ch.MaxInclusionBlock() &&
 			safeL2.Number < ch.LatestL2().Number {
 			// Safe head did not make the expected progress
 			// for a fully submitted channel. This indicates

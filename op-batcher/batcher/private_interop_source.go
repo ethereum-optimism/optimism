@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // The production RangeSource.
@@ -25,8 +26,8 @@ import (
 // Every failure is a plain error. The batcher's stock retry path re-runs the range; a range built
 // on a guess is a range every verifier drops.
 
-// PublicProjectionBlock is the part of a public-projection block the range source reads: its
-// identity, and nothing else.
+// PublicProjectionBlock carries the projection block identity. SafeBlock also
+// supplies the projection L1 processing position for submission-progress checks.
 //
 // The block's transactions are deliberately NOT here. They used to be, for a decoder that read the
 // L1 origin and sequence number out of the block's attributes deposit — machinery origin-copy
@@ -36,10 +37,15 @@ import (
 type PublicProjectionBlock struct {
 	Hash   common.Hash
 	Number uint64
+	// CurrentL1 is set only by SafeBlock, from the same projection sync snapshot.
+	CurrentL1 eth.L1BlockRef
 }
 
 // PublicProjectionFollower is the node following the public projection.
 type PublicProjectionFollower interface {
+	Close()
+	// SafeBlock returns the locally derived projection head, including fallback blocks.
+	SafeBlock(ctx context.Context) (*PublicProjectionBlock, error)
 	// BlockByNumber returns the public projection's block at number. It fails while the projection has not
 	// derived that far, which is the wait the range source exists to perform.
 	BlockByNumber(ctx context.Context, number uint64) (*PublicProjectionBlock, error)
@@ -47,22 +53,33 @@ type PublicProjectionFollower interface {
 	NonceAt(ctx context.Context, account common.Address, number uint64) (uint64, error)
 }
 
-// rpcPublicProjectionFollower is a PublicProjectionFollower over JSON-RPC.
-// execution client: eth_getBlockByNumber and eth_getTransactionCount, nothing more.
+// rpcPublicProjectionFollower reads projection block identities and account
+// nonces from the EL, and the span-complete local-safe head from the rollup RPC.
 type rpcPublicProjectionFollower struct {
-	rpc     *rpc.Client
-	timeout time.Duration
+	rpc       *rpc.Client
+	rollupRPC *rpc.Client
+	timeout   time.Duration
 }
 
 var _ PublicProjectionFollower = (*rpcPublicProjectionFollower)(nil)
 
 // NewRPCPublicProjectionFollower dials the public projection's execution client.
-func NewRPCPublicProjectionFollower(ctx context.Context, lgr log.Logger, url string, timeout time.Duration) (PublicProjectionFollower, error) {
+func NewRPCPublicProjectionFollower(ctx context.Context, lgr log.Logger, url, rollupURL string, timeout time.Duration) (PublicProjectionFollower, error) {
 	cl, err := dial.DialRPCClientWithTimeout(ctx, lgr, url)
 	if err != nil {
 		return nil, fmt.Errorf("dialling the public-projection node at %s: %w", url, err)
 	}
-	return &rpcPublicProjectionFollower{rpc: cl, timeout: timeout}, nil
+	rollupCL, err := dial.DialRPCClientWithTimeout(ctx, lgr, rollupURL)
+	if err != nil {
+		cl.Close()
+		return nil, fmt.Errorf("dialling the public-projection rollup node: %w", err)
+	}
+	return &rpcPublicProjectionFollower{rpc: cl, rollupRPC: rollupCL, timeout: timeout}, nil
+}
+
+func (f *rpcPublicProjectionFollower) Close() {
+	f.rpc.Close()
+	f.rollupRPC.Close()
 }
 
 // rpcBlock is the subset of eth_getBlockByNumber's result the follower needs.
@@ -77,14 +94,30 @@ type rpcBlock struct {
 }
 
 func (f *rpcPublicProjectionFollower) BlockByNumber(ctx context.Context, number uint64) (*PublicProjectionBlock, error) {
+	return f.block(ctx, hexutil.EncodeUint64(number))
+}
+
+func (f *rpcPublicProjectionFollower) SafeBlock(ctx context.Context) (*PublicProjectionBlock, error) {
+	// LocalSafeL2 advances at span boundaries. EL "safe" is cross-safe under
+	// interop: it can split an accepted span and must not be used as this cursor.
+	ctx, cancel := context.WithTimeout(ctx, f.timeout)
+	defer cancel()
+	var status eth.SyncStatus
+	if err := f.rollupRPC.CallContext(ctx, &status, "optimism_syncStatus"); err != nil {
+		return nil, err
+	}
+	return &PublicProjectionBlock{Hash: status.LocalSafeL2.Hash, Number: status.LocalSafeL2.Number, CurrentL1: status.CurrentL1}, nil
+}
+
+func (f *rpcPublicProjectionFollower) block(ctx context.Context, number string) (*PublicProjectionBlock, error) {
 	ctx, cancel := context.WithTimeout(ctx, f.timeout)
 	defer cancel()
 	var out *rpcBlock
-	if err := f.rpc.CallContext(ctx, &out, "eth_getBlockByNumber", hexutil.Uint64(number), false); err != nil {
+	if err := f.rpc.CallContext(ctx, &out, "eth_getBlockByNumber", number, false); err != nil {
 		return nil, err
 	}
 	if out == nil {
-		return nil, fmt.Errorf("the public projection has no block %d yet", number)
+		return nil, fmt.Errorf("the public projection has no block %s yet", number)
 	}
 	return &PublicProjectionBlock{Hash: out.Hash, Number: uint64(out.Number)}, nil
 }
