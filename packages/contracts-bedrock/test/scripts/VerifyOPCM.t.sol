@@ -204,6 +204,14 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         for (uint256 i; i < targets.length; i++) {
             bytes memory originalCode = targets[i].code;
+            bytes memory corruptedCode = abi.encodePacked(originalCode);
+            corruptedCode[0] = bytes1(uint8(corruptedCode[0]) ^ 0x01);
+
+            vm.etch(targets[i], corruptedCode);
+
+            vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
+            harness.run(address(opcm), true);
+
             vm.etch(targets[i], hex"00");
 
             vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);

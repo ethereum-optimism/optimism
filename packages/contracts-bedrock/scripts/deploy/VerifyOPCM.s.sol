@@ -230,6 +230,7 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
+        // BYTECODE checks are valid only while these contracts have no constructor args or immutables.
         validatorGetterChecks["standardValidatorUtils"] = "BYTECODE:StandardValidatorUtils";
         validatorGetterChecks["migrationValidator"] = "BYTECODE:OPContractsManagerMigrationValidator";
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
