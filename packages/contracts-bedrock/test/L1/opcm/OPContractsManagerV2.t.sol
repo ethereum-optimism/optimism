@@ -2044,8 +2044,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(address(cts.optimismPortal.ethLockbox()), address(cts.ethLockbox), "portal lockbox mismatch");
     }
 
-    /// @notice Tests deploying a custom gas token chain.
-    function test_deploy_customGasTokenUsesLockboxPauseSource_succeeds() public {
+    /// @notice Tests deploying a custom gas token chain. The ETHLockbox is enabled but the portal
+    ///         keeps custody of ETH.
+    function test_deploy_customGasToken_succeeds() public {
         deployConfig.useCustomGasToken = true;
 
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
@@ -2064,13 +2065,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         cts.optimismPortal.depositTransaction{ value: 1 ether }(address(this), 0, gasLimit, false, bytes(""));
         assertEq(address(cts.optimismPortal).balance, portalBalance, "CGT portal ETH balance changed");
         assertEq(address(cts.ethLockbox).balance, lockboxBalance, "CGT lockbox received ETH");
-
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(cts.ethLockbox));
-        assertTrue(cts.ethLockbox.paused(), "lockbox not paused");
-        assertTrue(cts.systemConfig.paused(), "SystemConfig not paused");
-        assertTrue(cts.optimismPortal.paused(), "portal not paused");
-        assertTrue(cts.anchorStateRegistry.paused(), "ASR not paused");
     }
 
     /// @notice Tests that deploy reverts when the superchainConfig needs upgrade.

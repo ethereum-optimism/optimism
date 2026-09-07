@@ -546,7 +546,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
                 revert SystemConfig_InvalidFeatureState();
             }
 
-            // Do not change the pause key while the legacy key is paused.
+            // Enabling ETH_LOCKBOX switches paused() from the OptimismPortal identifier to the
+            // ETHLockbox identifier. Refuse while the OptimismPortal identifier is paused so the
+            // chain cannot become unpaused unexpectedly.
             if (superchainConfig.paused(optimismPortal())) {
                 revert SystemConfig_InvalidFeatureState();
             }

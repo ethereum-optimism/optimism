@@ -872,7 +872,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             )
         );
 
-        // CGT chains use ETHLockbox only as a pause source.
+        // Custom gas token chains keep custody in the portal and do not migrate ETH.
         if (!wasEthLockboxEnabled && !_cfg.useCustomGasToken) {
             _cts.optimismPortal.migrateLiquidity();
         }

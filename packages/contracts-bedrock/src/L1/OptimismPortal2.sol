@@ -493,8 +493,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
     }
 
-    /// @notice Migrates the total ETH balance of this contract to the ETHLockbox.
-    ///         Custom gas token chains use the lockbox only as a pause source and cannot migrate ETH.
+    /// @notice Migrates the total ETH balance of this contract to the ETHLockbox. Custom gas
+    ///         token chains keep custody in the portal and cannot migrate ETH.
     function migrateLiquidity() public {
         if (!_isUsingLockbox()) revert OptimismPortal_NotUsingLockbox();
         // Liquidity migration can only be triggered by the ProxyAdmin owner.

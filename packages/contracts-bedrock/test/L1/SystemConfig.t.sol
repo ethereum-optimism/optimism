@@ -646,19 +646,27 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
         assertTrue(systemConfig.paused());
     }
 
-    /// @notice Tests that `paused()` ignores the legacy OptimismPortal pause identifier now that
-    ///         every chain uses the ETHLockbox.
+    /// @notice Tests that `paused()` returns true when OptimismPortal identifier is paused and
+    ///         the ETH_LOCKBOX feature is disabled.
     function test_paused_optimismPortalIdentifier_succeeds() external {
+        skipIfSysFeatureEnabled(Features.ETH_LOCKBOX);
+
+        // Initially not paused
         assertFalse(systemConfig.paused());
 
+        // Pause the system with OptimismPortal identifier
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(optimismPortal2));
 
-        assertFalse(systemConfig.paused());
+        // Verify paused state
+        assertTrue(systemConfig.paused());
     }
 
-    /// @notice Tests that `paused()` returns true when the ETHLockbox identifier is paused.
+    /// @notice Tests that `paused()` returns true when ETHLockbox identifier is paused and
+    ///         ETH_LOCKBOX feature is enabled.
     function test_paused_ethLockboxIdentifier_succeeds() external {
+        skipIfSysFeatureDisabled(Features.ETH_LOCKBOX);
+
         // Initially not paused
         assertFalse(systemConfig.paused());
 
@@ -674,10 +682,10 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
     function test_paused_bothPausesActive_succeeds() external {
         assertFalse(systemConfig.paused());
 
-        // Pause globally and by lockbox.
+        // Pause both globally and with identifier
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(0));
-        superchainConfig.pause(address(ethLockbox));
+        superchainConfig.pause(address(optimismPortal2));
         vm.stopPrank();
 
         // Verify paused state
