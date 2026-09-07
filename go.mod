@@ -43,7 +43,7 @@ require (
 	github.com/multiformats/go-multiaddr v0.16.0
 	github.com/multiformats/go-multiaddr-dns v0.4.1
 	github.com/prometheus/client_golang v1.22.0
-	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus/client_model v0.6.3
 	github.com/protolambda/ctxlock v0.1.0
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v2 v2.27.6
@@ -237,7 +237,7 @@ require (
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/tools v0.49.0
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
