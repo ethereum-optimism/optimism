@@ -11,7 +11,7 @@ diataxis: tutorial
 
 Learn to relay transactions directly by sending the correct transaction.
 
-<Expandable title="About this tutorial">
+<Accordion title="About this tutorial">
 
   **Prerequisite technical knowledge**
 
@@ -30,7 +30,7 @@ Learn to relay transactions directly by sending the correct transaction.
   * Git for version control  
   * Supersim environment configured and running  
   * Foundry tools installed (forge, cast, anvil)
-</Expandable>
+</Accordion>
 
 ### What you'll build
 
@@ -186,13 +186,13 @@ These steps are necessary to run the tutorial, regardless of whether you are usi
     console.log(`Greeting after the relay transaction: ${greeting3}`)
     ```
 
-    <Expandable title="Explanation">
+    <Accordion title="Explanation">
 
       ```javascript
       import { supersimL2A, supersimL2B } from '@eth-optimism/viem/chains' 
       import { walletActionsL2, publicActionsL2 } from '@eth-optimism/viem'
       ```
-    </Expandable>
+    </Accordion>
 
     Run JavaScript program:
 
@@ -261,7 +261,7 @@ Here is the detailed explanation:
     Whenever `L2ToL2CrossDomainMessenger` sends a message to a different blockchain, it emits a [`SendMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol#L83-L91) event.
     Extract only the latest `SendMessage` event from the logs.
 
-    <Expandable title="Example `log-entry`">
+    <Accordion title="Example `log-entry`">
 
       ```yaml
       - address: 0x4200000000000000000000000000000000000023
@@ -279,7 +279,7 @@ Here is the detailed explanation:
         transactionHash: 0x1d6f2e5e2c8f3eb055e95741380ca36492f784b9782848b66b66c65c5937ff3a
         transactionIndex: 0
       ```
-    </Expandable>
+    </Accordion>
 
 4.  Manipulate the log entry to obtain information
 
