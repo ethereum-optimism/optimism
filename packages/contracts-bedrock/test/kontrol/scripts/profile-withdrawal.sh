@@ -29,19 +29,15 @@ docker cp test/kontrol/scripts/profile-withdrawal.py "$container:/tmp/profile-wi
 docker exec "$container" mkdir -p /tmp/withdrawal-profile/profiles
 docker exec "$container" tar -xzf /tmp/input.tar.gz -C /tmp/withdrawal-profile
 
-# Each replay has its own log directory and budget; neither can starve the other.
-docker exec "$container" timeout --signal=TERM --kill-after=15s 20m \
-  python3 /tmp/profile-withdrawal.py /tmp/withdrawal-profile/kout-proofs 23 \
-  > "$logs/segment-23.log" 2>&1 &
-first=$!
-docker exec "$container" timeout --signal=TERM --kill-after=15s 20m \
-  python3 /tmp/profile-withdrawal.py /tmp/withdrawal-profile/kout-proofs 30 \
-  > "$logs/segment-30.log" 2>&1 &
-second=$!
+# Run sequentially with compact logs to avoid competing for memory or CPU.
 first_status=0
 second_status=0
-wait "$first" || first_status=$?
-wait "$second" || second_status=$?
+docker exec "$container" timeout --signal=TERM --kill-after=15s 20m \
+  python3 /tmp/profile-withdrawal.py /tmp/withdrawal-profile/kout-proofs 23 \
+  > "$logs/segment-23.log" 2>&1 || first_status=$?
+docker exec "$container" timeout --signal=TERM --kill-after=15s 20m \
+  python3 /tmp/profile-withdrawal.py /tmp/withdrawal-profile/kout-proofs 30 \
+  > "$logs/segment-30.log" 2>&1 || second_status=$?
 printf 'Diagnostic replay only: node 23 exit=%s; node 30 exit=%s\n' "$first_status" "$second_status" \
   | tee "$logs/segment-status.txt"
 [[ "$first_status" == 0 && "$second_status" == 0 ]]

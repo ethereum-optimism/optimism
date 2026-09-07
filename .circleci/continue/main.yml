@@ -2216,9 +2216,9 @@ jobs:
       - setup_remote_docker
       - run:
           name: Run Kontrol Tests
-          command: timeout --signal=TERM --kill-after=60s 30m bash test/kontrol/scripts/profile-withdrawal.sh
+          command: timeout --signal=TERM --kill-after=60s 45m bash test/kontrol/scripts/profile-withdrawal.sh
           working_directory: ./packages/contracts-bedrock
-          no_output_timeout: 35m
+          no_output_timeout: 50m
       - run:
           name: Remove duplicate proof archives
           when: always

@@ -9,6 +9,8 @@ from pathlib import Path
 
 from kevm_pyk.kevm import KEVM
 from kevm_pyk.utils import legacy_explore
+from kontrol.foundry import KontrolSemantics
+from kontrol.options import ProveOptions
 from pyk.cterm import CTerm
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -25,6 +27,11 @@ source = CTerm.from_dict(json.loads(node_file.read_text())["cterm"])
 expected = CTerm.from_dict(json.loads((proof_dir / f"kcfg/nodes/{target}.json").read_text())["cterm"])
 output = args.root.parent / "profiles" / f"node-{args.node}"
 output.mkdir(parents=True, exist_ok=True)
+options = ProveOptions({})
+cut_points = KontrolSemantics.cut_point_rules(
+    options.break_on_jumpi, options.break_on_jump, options.break_on_calls,
+    options.break_on_storage, options.break_on_basic_blocks, options.break_on_load_program,
+)
 manifest = dict(
     diagnostic_only=True,
     source_pipeline=133962,
@@ -32,6 +39,8 @@ manifest = dict(
     node=args.node,
     target=target,
     depth=depth,
+    request_depth=10000,
+    cut_point_rules=cut_points,
     input_sha256=hashlib.sha256(node_file.read_bytes()).hexdigest(),
 )
 (output / "input.json").write_text(json.dumps(manifest, indent=2))
@@ -44,7 +53,7 @@ kevm = KEVM(args.root / "kompiled")
 command = [
     "kore-rpc-booster", "--no-post-exec-simplify",
     "--equation-max-recursion", "100", "--equation-max-iterations", "1000",
-    "--log-level", "TimeProfile", "--log-timestamps", "--log-format", "json",
+    "--log-level", "Timing", "--log-timestamps", "--log-format", "json",
     "--solver-transcript", str(output / "smt.log"),
 ]
 started = time.monotonic()
@@ -56,10 +65,13 @@ with legacy_explore(
     smt_retry_limit=0,
     log_succ_rewrites=False,
     log_fail_rewrites=False,
-    haskell_log_dir=output / "requests",
 ) as explorer:
     # Use the saved constraints unchanged: no assume-defined, gas, or stack-setting override.
-    result = explorer.cterm_symbolic.execute(source, depth=depth, terminal_rules=["EVM.halt"])
+    # Match the original prover request through its symbolic branch, not just the saved edge.
+    result = explorer.cterm_symbolic.execute(
+        source, depth=10000, cut_point_rules=cut_points,
+        terminal_rules=["EVM.halt"], haskell_logging=False,
+    )
     manifest.update(
         replay_seconds=time.monotonic() - started,
         actual_depth=result.depth,
@@ -69,6 +81,7 @@ with legacy_explore(
     )
     (output / "result.json").write_text(json.dumps(manifest, indent=2))
     (output / "state.json").write_text(json.dumps(result.state.to_dict()))
+    (output / "next-states.json").write_text(json.dumps([n.state.to_dict() for n in result.next_states]))
     print(json.dumps(manifest), flush=True)
-    assert result.depth == depth and not result.vacuous and not result.next_states
+    assert result.depth == depth and not result.vacuous and len(result.next_states) == 2
     assert result.state == expected, "Replay endpoint differs; inspect before drawing performance conclusions"
