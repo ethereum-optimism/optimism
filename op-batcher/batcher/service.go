@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	projectiongenesis "github.com/ethereum-optimism/optimism/op-private-interop/genesis"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
+	"github.com/ethereum-optimism/optimism/op-private-interop/writes"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -544,6 +545,7 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		RollupConfigHash:  rollupConfigHash,
 		DepSetHash:        depSetHash,
 		Receipts:          receipts,
+		Writes:            writes.Source{RPC: privateRPC},
 		Ranges:            ranges,
 		Txs:               txs,
 	})

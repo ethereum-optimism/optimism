@@ -1,3 +1,7 @@
+> **Current wire update:** [Write publication](WRITES.md) defines claim format version 2,
+> which appends public write records while retaining operator-attested verification.
+> Historical references below to “v2 proven mode” describe a future proof mode, not this wire version.
+
 # Private Interop — the design
 
 **Status:** Historical design (2026-08-30 through 2026-09-01). The current ETH funding, native

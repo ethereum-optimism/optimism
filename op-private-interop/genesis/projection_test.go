@@ -28,8 +28,8 @@ import (
 // was hand-written; regenerate it with a stock op-deployer when the contract release moves and
 // update StockL2ToL2CrossDomainMessengerCodeHash alongside it.
 const (
-	goldenPublicProjectionStateRoot = "0x19fd47675c5ac5e23d8001f34b38ecde60d1afe4169456c681823836755fc025"
-	goldenPublicProjectionBlockHash = "0x3ef5ff231bb4260905c2fe4f5f613598464ad7393e2c4a5f727b327609bb4947"
+	goldenPublicProjectionStateRoot = "0x2ac4cb670f0c21a367460999e8056d22b95719b2c1451813c31e8a2305931177"
+	goldenPublicProjectionBlockHash = "0x833a13a05a2af97ca25fd376b0da01b71a2632bcddc4ecad08128edf67c49a01"
 )
 
 func TestProjectGenesisFromIsPureAndDeterministic(t *testing.T) {

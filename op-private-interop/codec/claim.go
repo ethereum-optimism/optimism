@@ -1,101 +1,8 @@
-// Package codec implements the one wire format Private Interop needs: the RANGE CLAIM, which the
-// operator publishes as an ordinary L2 transaction on the public chain.
-//
-// The architecture is op-private-interop/docs/DESIGN.md. This package owns nothing but the bytes.
-// It holds no chain state, reads no config, and has no opinion
-// about whether a well-formed claim is a TRUE one — which is what makes it safe for the batching
-// service, the claim-follower, an auditor's tool and a future proof program to share.
-//
-// # Where the claim lives
-//
-// A range's claim is the LEADING transaction of that range, and it describes ITS OWN range. Range
-// N opens by announcing what range N is going to be; there is no lag, no off-by-one, and no
-// special case at the start of the chain — range 0 opens with range 0's claim, exactly like every
-// range after it.
-//
-// The thing that makes announcing your own range possible rather than circular is
-// privateTerminalBlockHash: it names the PRIVATE chain's block at lastBlock, and the private chain
-// is always ahead of its public rendering. When the operator builds range N's leading block, the
-// private blocks that range N will render have already been produced, so their terminal hash is a
-// past fact being published — not a prediction, and not a value that depends on the transaction
-// carrying it. The public terminal hash could not do this job: it is a function of a range that
-// includes the claim transaction itself.
-//
-// There is deliberately no parent-claim hash. The public chain's own block linkage plus the
-// registry's contiguity check provide the ordering, and a hash-linked list over the same ranges the
-// chain already links would be a second, weaker copy of something the chain establishes for free.
-//
-// # The wire
-//
-// Pure ABI. There is no magic, no length prefix and no hand-rolled framing: the claim is the
-// argument of a contract call, so the ABI is already the framing and a second one on top would only
-// be a second thing to disagree about.
-//
-//	struct RangeClaim {
-//	    uint8   version;                  // exactly 1
-//	    uint64  firstBlock;               // the range this claim describes, inclusive
-//	    uint64  lastBlock;
-//	    bytes32 privateTerminalBlockHash;  // the PRIVATE chain's block hash at lastBlock
-//	    bytes32 privateTerminalParentHash; // and that block's parent hash
-//	    bytes32 l1Head;
-//	    bytes32 rollupConfigHash;
-//	    bytes32 depSetHash;
-//	    bytes32 privateDataHash;          // content address of the range's full private input
-//	    bytes   proof;                    // EMPTY in attested mode
-//	}
-//
-// The struct has a dynamic member, so abi.encode(claim) is the leading offset word 0x20, then the
-// tuple: ten head words (nine statics and the offset to `proof`), then the proof's length word
-// and its padded bytes. An empty-proof claim is therefore 384 bytes, whatever the range's size —
-// v1 carries no per-block data at all.
-//
-// # What this package does NOT own
-//
-// The registry binding. The claim reaches the chain as a single tuple argument —
-//
-//	postClaim(RangeClaim calldata claim)
-//
-// — where the call's calldata is a 4-byte selector followed by exactly what Encode produces. This
-// package owns the STRUCT VALUE; the selector, the function name, and the registry's storage layout
-// belong with the binding, which is where a change to any of them is a change to a contract ABI
-// rather than to a wire format.
-//
-// THE REGISTRY EMITS NO EVENT, by ratified design. A claim leads its range, so a rendering-only log
-// at the front of a range-opening block would shift every message index in that block — the public
-// chain's whole point is that its receipts are ordinary, and a log that exists solely to announce
-// the rendering would make range-opening blocks differ in shape from every other block. The durable
-// record is therefore the CALLDATA itself, plus a storage hash-chain the registry exposes through a
-// getter. A reader scans transactions addressed to the registry and reads the chain via that
-// getter; it does not filter logs.
-//
-// That makes the strict decoder load-bearing rather than a courtesy. Calldata is whatever the
-// caller put there — nothing re-encodes it on the way in — so "these bytes are the canonical
-// encoding of exactly one claim" is a property a reader must CHECK, not one it may assume. It is
-// the reason DecodeMode insists on canonical form: without it, two readers of the same transaction
-// could decode the same value from different bytes, and the hash chain would agree with only one of
-// them. TestSolidityProducesTheSameBytes pins this package's idea of that canonical form against
-// solc's real output, so the encoder that fills the calldata and the decoder that reads it back
-// cannot drift apart.
-//
-// Two acceptance rules are also NOT here, and it is worth naming where they live:
-//
-//   - CONTIGUITY — that a range starts where the previous one ended, and that no range is
-//     registered twice — is REGISTRY policy, enforced on chain against the registry's own record of
-//     the last range. A codec has no notion of "previous".
-//   - PRIVATE-TERMINAL-HASH TRUTH — that privateTerminalBlockHash really is the private chain's
-//     block hash at lastBlock — is off-chain VERIFIER and TOOLING policy, and it could not be
-//     anything else: the public chain's EVM cannot see the private chain at all, and even for a
-//     public hash the 256-block blockhash lookback would not reach a cadence boundary.
-//
-// # The attested-mode rule
-//
-// The proof slot is unconditional on the wire and empty in v1, where a claim's authority is the
-// operator's signature on the L2 transaction carrying it. A verifier configured for attested mode
-// MUST REFUSE a non-empty proof slot rather than ignore it — a verifier that accepts what it cannot
-// check has a hole exactly the size of the thing it skipped, and "there is a proof here" is
-// precisely the assertion an attested verifier is not equipped to evaluate. This is the standing v1
-// rule inherited from the proof-batch wire, and ModeAttested is the ZERO VALUE of Mode so that a
-// caller who thinks about none of this gets the strict decoder.
+// Package codec defines the version-2 private range claim. Its canonical ABI
+// encoding binds private block identity, derivation inputs, proof bytes, and the
+// publicly available opaque write records. Attested mode requires an empty proof.
+// Old version-1 encodings are deliberately rejected; activation requires a new
+// projection genesis and matching producer/readers.
 package codec
 
 import (
@@ -103,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-private-interop/writes"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -114,14 +22,14 @@ const (
 	// It is a field of the ABI struct rather than a byte in front of it, so a consumer that got
 	// hold of the value without its framing — out of a log, out of a trace, out of a proof's
 	// public inputs — still knows what it is holding.
-	ClaimVersion uint8 = 1
+	ClaimVersion uint8 = 2
 
-	// EncodedSizeEmptyProof is the length of an attested (empty-proof) claim encoding: the
-	// outer offset word, the head words, and the proof's length word.
+	// EncodedSizeEmptyProof is the minimum encoding with empty proof and writes:
+	// the outer offset, eleven head words, and two dynamic length words.
 	//
 	// It is also the minimum length of ANY valid encoding, which is why it is the first thing
 	// Decode checks.
-	EncodedSizeEmptyProof = (headWords + 2) * 32
+	EncodedSizeEmptyProof = (headWords + 3) * 32
 
 	// MaxProofSize caps the proof slot at 64 KiB, enforced by BOTH Encode and Decode.
 	//
@@ -136,15 +44,14 @@ const (
 	// possible time.
 	MaxProofSize = 65536
 
-	// MaxEncodedSize is the largest a valid encoding can be: an empty-proof claim plus a
-	// maximum proof, padded up to a whole number of words. It lets Decode reject an absurd input
-	// on its length alone, before any decoding allocates anything.
-	MaxEncodedSize = EncodedSizeEmptyProof + MaxProofSize
+	// MaxEncodedSize bounds both dynamic payloads, allowing their ABI padding.
+	// Decode checks it before allocating from untrusted offsets.
+	MaxEncodedSize = EncodedSizeEmptyProof + MaxProofSize + writes.MaxEncodedSize + 32
 
-	// headWords is the tuple's head: nine static fields plus one offset word for `proof`.
-	headWords = 10
+	// headWords counts nine static fields and the offsets to proof and writes.
+	headWords = 11
 	// proofOffset is the byte offset of the proof's length word, measured from the start of the
-	// TUPLE (that is, from the word after the outer offset) — the value the ninth head word must
+	// TUPLE (that is, from the word after the outer offset) — the value the proof offset word must
 	// carry in a canonical encoding.
 	proofOffset = headWords * 32
 )
@@ -193,8 +100,8 @@ type RangeClaim struct {
 	//
 	// It is a deliberate disclosure: this publishes exactly one commitment to private chain state
 	// per range. One 32-byte hash per cadence, of a block whose contents stay private, was judged
-	// the right price for a chain of claims that means anything. Nothing else about the private
-	// chain's blocks reaches the public record.
+	// the right price for a chain of claims that means anything. Writes additionally publishes
+	// opaque changed-state identifiers and value commitments.
 	//
 	// Note this is NOT the span-batch parent check. That check is the previous PUBLIC block's hash,
 	// truncated to 20 bytes, and the batching service reads it from the public chain it is building
@@ -228,17 +135,19 @@ type RangeClaim struct {
 	// the public record — which is what makes the claim the read-side authority for every object:
 	// there is no second commitment anywhere that a reader could resolve instead.
 	PrivateDataHash common.Hash
-	// Proof fills the proof slot. It is EMPTY under attested mode (v1), where a non-empty slot is
+	// Proof fills the proof slot. It is EMPTY under attested mode (v2), where a non-empty slot is
 	// refused outright rather than carried. The slot itself is unconditional and is the upgrade
 	// path: a proving system fills it, and nothing else about the wire changes.
 	Proof []byte
+	// Writes is a canonical sorted set of opaque writes, including their last-write block.
+	Writes []writes.Record
 }
 
 // Mode is the proof posture a decoder is configured for. Its zero value is the strict one.
 type Mode uint8
 
 const (
-	// ModeAttested is the v1 posture: the claim's authority is the operator's signature on the
+	// ModeAttested is the v2 posture: the claim's authority is the operator's signature on the
 	// carrying transaction, there is no proof system, and a non-empty proof slot is therefore a
 	// claim this verifier cannot evaluate. It refuses it. See the package comment.
 	ModeAttested Mode = iota
@@ -294,6 +203,7 @@ func mustClaimType() abi.Type {
 		{Name: "depSetHash", Type: "bytes32"},
 		{Name: "privateDataHash", Type: "bytes32"},
 		{Name: "proof", Type: "bytes"},
+		{Name: "writes", Type: "bytes"},
 	})
 	if err != nil {
 		panic(fmt.Errorf("range claim v%d ABI type: %w", ClaimVersion, err))
@@ -314,6 +224,7 @@ type abiRangeClaim struct {
 	DepSetHash                common.Hash
 	PrivateDataHash           common.Hash
 	Proof                     []byte
+	Writes                    []byte
 }
 
 // Encode ABI-encodes a claim at the current version.
@@ -339,6 +250,10 @@ func encodeAtVersion(e *RangeClaim, version uint8) ([]byte, error) {
 	if proof == nil {
 		proof = []byte{}
 	}
+	writeData, err := writes.Encode(e.Writes)
+	if err != nil {
+		return nil, err
+	}
 	out, err := claimArgs.Pack(abiRangeClaim{
 		Version:                   version,
 		FirstBlock:                e.FirstBlock,
@@ -350,6 +265,7 @@ func encodeAtVersion(e *RangeClaim, version uint8) ([]byte, error) {
 		DepSetHash:                e.DepSetHash,
 		PrivateDataHash:           e.PrivateDataHash,
 		Proof:                     proof,
+		Writes:                    writeData,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("pack range claim: %w", err)
@@ -357,8 +273,8 @@ func encodeAtVersion(e *RangeClaim, version uint8) ([]byte, error) {
 	return out, nil
 }
 
-// Decode parses a claim in attested mode: exactly version 1, a non-inverted range, canonical
-// ABI form, and an empty proof slot. It is the decoder a v1 verifier wants, and it is what the
+// Decode parses a claim in attested mode: exactly version 2, a non-inverted range, canonical
+// ABI form, and an empty proof slot. It is the decoder a v2 verifier wants, and it is what the
 // zero value of Mode selects.
 func Decode(data []byte) (*RangeClaim, error) { return DecodeMode(data, ModeAttested) }
 
@@ -402,6 +318,10 @@ func DecodeMode(data []byte, mode Mode) (*RangeClaim, error) {
 	if len(proof) == 0 {
 		proof = nil
 	}
+	records, err := writes.Decode(d.Writes)
+	if err != nil {
+		return nil, err
+	}
 	e := &RangeClaim{
 		FirstBlock:                d.FirstBlock,
 		LastBlock:                 d.LastBlock,
@@ -412,14 +332,12 @@ func DecodeMode(data []byte, mode Mode) (*RangeClaim, error) {
 		DepSetHash:                d.DepSetHash,
 		PrivateDataHash:           d.PrivateDataHash,
 		Proof:                     proof,
+		Writes:                    records,
 	}
 	if err := e.CheckStructure(); err != nil {
 		return nil, err
 	}
-	// The length guard above rejects any encoding long enough to CARRY an over-cap proof, so this
-	// is unreachable through a canonical encoding. It stays because it is the rule — the guard is
-	// an optimisation over it, not a replacement for it — and because it is what a caller
-	// constructing a value by hand and re-encoding it will hit.
+	// The combined allocation bound does not replace the individual proof-size bound.
 	if len(e.Proof) > MaxProofSize {
 		return nil, fmt.Errorf("%w: proof is %d bytes, the maximum is %d", ErrProofTooLarge, len(e.Proof), MaxProofSize)
 	}
@@ -437,8 +355,8 @@ func DecodeMode(data []byte, mode Mode) (*RangeClaim, error) {
 	return e, nil
 }
 
-// CheckStructure enforces the one invariant a claim must satisfy on its own, with no reference
-// to any consumer's state: the covered range must be non-empty and non-inverted.
+// CheckStructure validates the range and its canonical write records, including
+// that every record version lies inside the range.
 //
 // It is exported, and it is called by BOTH Encode and Decode, so there is no way to produce or
 // accept a range that reads backwards. Everything else is deliberately absent, and each absent
@@ -455,6 +373,14 @@ func DecodeMode(data []byte, mode Mode) (*RangeClaim, error) {
 //
 // A codec that guessed at any of these would be inventing an acceptance policy nobody configured.
 func (e *RangeClaim) CheckStructure() error {
+	if _, err := writes.Encode(e.Writes); err != nil {
+		return err
+	}
+	for _, r := range e.Writes {
+		if r.BlockNumber < e.FirstBlock || r.BlockNumber > e.LastBlock {
+			return fmt.Errorf("%w: write outside range", writes.ErrInvalid)
+		}
+	}
 	if e.LastBlock < e.FirstBlock {
 		return fmt.Errorf("%w: firstBlock %d, lastBlock %d", ErrInvertedRange, e.FirstBlock, e.LastBlock)
 	}

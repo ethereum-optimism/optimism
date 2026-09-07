@@ -1,0 +1,21 @@
+{
+  "name": "max-widths",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "valid",
+  "description": "Every field at its maximum: 0xff.. hashes, and a block range at the top of uint64. Pins the ABI field WIDTHS — a decoder that read firstBlock as uint32, or that sign-extended it, disagrees here and nowhere else.",
+  "bin": "max-widths.bin",
+  "bytes": 448,
+  "keccak": "0x1df2e6f72deae55a51809a35ddb8b09849ffe352c297a477fda0e95f13fb2f93",
+  "proofHex": "0x",
+  "body": {
+    "version": 2,
+    "firstBlock": 18446744073709551614,
+    "lastBlock": 18446744073709551615,
+    "privateTerminalBlockHash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "privateTerminalParentHash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "l1Head": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "rollupConfigHash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "depSetHash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "privateDataHash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  }
+}

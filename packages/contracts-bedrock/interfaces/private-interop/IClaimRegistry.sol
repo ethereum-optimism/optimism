@@ -13,7 +13,7 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 ///         and the rest of the reference is already derivable from public data; the parent hash was
 ///         the one remaining piece that was not, so it is published rather than derived.
 ///
-/// @custom:field version                   Claim format version. Must be 1 for this registry.
+/// @custom:field version                   Claim format version. Must be 2 for this registry.
 /// @custom:field firstBlock                First public block covered by the range.
 /// @custom:field lastBlock                 Last public block covered by the range.
 /// @custom:field privateTerminalBlockHash  The private chain's block hash at `lastBlock`.
@@ -22,7 +22,8 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 /// @custom:field rollupConfigHash          Hash of the rollup config the range was derived under.
 /// @custom:field depSetHash                Hash of the dependency set the range was derived under.
 /// @custom:field privateDataHash           Content hash of the full private derivation input.
-/// @custom:field proof                     Proof slot. Must be empty in v1.
+/// @custom:field proof                     Proof slot. Must be empty in attested mode.
+/// @custom:field writes                    Canonical packed public write records.
 struct RangeClaim {
     uint8 version;
     uint64 firstBlock;
@@ -34,11 +35,14 @@ struct RangeClaim {
     bytes32 depSetHash;
     bytes32 privateDataHash;
     bytes proof;
+    /// @notice Sorted packed (tag, valueCommitment, uint64 blockNumber) records, 72 bytes each.
+    bytes writes;
 }
 
 /// @title IClaimRegistry
 /// @notice Interface for the ClaimRegistry contract.
 interface IClaimRegistry is ISemver, IProxyAdminOwnedBase {
+    error ClaimRegistry_InvalidWrites();
     error ClaimRegistry_NotBatcher();
     error ClaimRegistry_UnsupportedClaimVersion();
     error ClaimRegistry_ProofNotSupported();
@@ -46,6 +50,7 @@ interface IClaimRegistry is ISemver, IProxyAdminOwnedBase {
     error ClaimRegistry_OverlappingRange();
 
     function CLAIM_VERSION() external view returns (uint8);
+    function MAX_WRITES_LENGTH() external view returns (uint256);
     function MAX_PROOF_LENGTH() external view returns (uint256);
     function rangeCount() external view returns (uint64);
     function lastPostedLastBlock() external view returns (uint64);

@@ -18,7 +18,8 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         the operator's commitment for one contiguous range of rendered blocks: the range it
 ///         covers, the private chain's own block hash and parent hash at the range's last block,
 ///         the L1 head and config hashes the range was derived under, the content hash of the full
-///         private derivation input held in the operator's object store, and a proof slot.
+///         private derivation input held in the operator's object store, a proof slot, and opaque
+///         write records. Their completeness is operator-attested in v2.
 ///
 ///         The two terminal hashes are what let the public supernode serve the private chain's
 ///         complete follow references with no private access at all. Everything else in such a
@@ -38,7 +39,7 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         is the caller, the claim version,
 ///         that each range starts strictly after the last posted range ended,
 ///         and that the proof slot is empty. It does NOT check that the range's contents match the
-///         private chain — in v1 that is the operator's attestation, unproven by design. Claim N's
+///         private chain — in v2 that is the operator's attestation, unproven by design. Claim N's
 ///         stored hash folds into claim N+1's, so the posted sequence is a hash chain an auditor
 ///         can walk from `lastClaimHash`.
 ///
@@ -60,18 +61,24 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         to this address and decode the argument. The hash chain and the range cursor are
 ///         readable from the getters.
 ///
-///         v1 REFUSES A NON-EMPTY PROOF SLOT. A proof-accepting registry is a future upgrade with
+///         v2 REFUSES A NON-EMPTY PROOF SLOT. A proof-accepting registry is a future upgrade with
 ///         a verifier behind it; until then, accepting proof bytes here would let an operator
 ///         publish something that merely looks proven. The empty-slot rule is what makes "this
 ///         range is attested, not proven" unambiguous on-chain.
 contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
+    /// @notice Write records are malformed, unordered, duplicated, or outside the claimed range.
+    error ClaimRegistry_InvalidWrites();
+
+    /// @notice Allocation bound on the published record payload. Producers apply a smaller transaction budget.
+    uint256 public constant MAX_WRITES_LENGTH = 4 * 1024 * 1024;
+
     /// @notice Thrown when someone other than the current batcher tries to post a claim.
     error ClaimRegistry_NotBatcher();
 
     /// @notice Thrown when the claim version is not the version this registry accepts.
     error ClaimRegistry_UnsupportedClaimVersion();
 
-    /// @notice Thrown when the claim carries proof bytes. v1 is attested, never proven.
+    /// @notice Thrown when the claim carries proof bytes. v2 is attested, never proven.
     error ClaimRegistry_ProofNotSupported();
 
     /// @notice Thrown when the claim's range is empty or inverted.
@@ -83,16 +90,16 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     error ClaimRegistry_OverlappingRange();
 
     /// @notice Claim version this registry accepts.
-    uint8 public constant CLAIM_VERSION = 1;
+    uint8 public constant CLAIM_VERSION = 2;
 
     /// @notice Upper bound a future proof-accepting registry will place on the proof slot. Named
-    ///         here so the upgrade inherits a bound that was decided before it was needed; v1
+    ///         here so the upgrade inherits a bound that was decided before it was needed; v2
     ///         itself only ever accepts a zero-length proof, so nothing enforces it yet.
     uint256 public constant MAX_PROOF_LENGTH = 65_536;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.1
-    string public constant version = "2.0.1";
+    /// @custom:semver 3.0.0
+    string public constant version = "3.0.0";
 
     /// @notice Number of claims posted so far. Zero means no range has been posted, which is the
     ///         only state in which an arbitrary `firstBlock` is accepted.
@@ -131,11 +138,24 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
         }
         if (_claim.version != CLAIM_VERSION) revert ClaimRegistry_UnsupportedClaimVersion();
 
-        // v1 is attested, never proven: the slot must be empty. A proof-accepting registry is a
+        // v2 is attested, never proven: the slot must be empty. A proof-accepting registry is a
         // future upgrade, and it is the one that will enforce `MAX_PROOF_LENGTH`.
         if (_claim.proof.length != 0) revert ClaimRegistry_ProofNotSupported();
 
         if (_claim.lastBlock < _claim.firstBlock) revert ClaimRegistry_InvalidRange();
+
+        if (_claim.writes.length > MAX_WRITES_LENGTH || _claim.writes.length % 72 != 0) {
+            revert ClaimRegistry_InvalidWrites();
+        }
+        bytes32 previous;
+        for (uint256 i; i < _claim.writes.length; i += 72) {
+            bytes32 tag = bytes32(_claim.writes[i:i + 32]);
+            uint64 writtenAt = uint64(bytes8(_claim.writes[i + 64:i + 72]));
+            if ((i != 0 && tag <= previous) || writtenAt < _claim.firstBlock || writtenAt > _claim.lastBlock) {
+                revert ClaimRegistry_InvalidWrites();
+            }
+            previous = tag;
+        }
 
         uint64 index = rangeCount;
         if (index != 0 && _claim.firstBlock <= lastPostedLastBlock) {
