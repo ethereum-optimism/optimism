@@ -175,7 +175,6 @@ Classify the result from its evidence:
 - Report a specification gap only when two consensus outcomes remain plausible.
 
 Do not demand a specification sentence that says an implementation must not panic.
-Protocol authors can add such guidance later if they want an explicit totality requirement.
 
 ## Derivation dismissal checks
 
