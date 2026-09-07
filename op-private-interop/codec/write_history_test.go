@@ -16,13 +16,33 @@ import (
 func TestWriteHistoryRequiresCoverage(t *testing.T) {
 	tag := common.Hash{1}
 	a := &RangeClaim{FirstBlock: 11, LastBlock: 20}
-	b := &RangeClaim{FirstBlock: 21, LastBlock: 30, Writes: []writes.Record{{Tag: tag, ValueCommitment: common.Hash{2}, BlockNumber: 25}}}
+	b := &RangeClaim{FirstBlock: 21, LastBlock: 30, Writes: writes.Publish(21, 30, []writes.Record{{Tag: tag, ValueCommitment: common.Hash{2}, BlockNumber: 25}})}
 	require.NoError(t, CheckUnchanged(10, 30, []common.Hash{{3}}, []*RangeClaim{a, b}))
 	require.ErrorIs(t, CheckUnchanged(10, 30, []common.Hash{tag}, []*RangeClaim{a, b}), ErrStateChanged)
 	require.ErrorIs(t, CheckUnchanged(10, 30, nil, []*RangeClaim{b}), ErrWriteHistoryGap)
 	require.ErrorIs(t, CheckUnchanged(10, 30, nil, []*RangeClaim{a}), ErrWriteHistoryGap)
 	b.FirstBlock = 22
 	require.ErrorIs(t, CheckUnchanged(10, 30, nil, []*RangeClaim{a, b}), ErrWriteHistoryGap)
+}
+
+func TestWriteHistoryFindsDependenciesInEachRange(t *testing.T) {
+	tag := common.Hash{1}
+	first := &RangeClaim{FirstBlock: 11, LastBlock: 20, Writes: writes.Publish(11, 20, []writes.Record{{Tag: tag, BlockNumber: 15}})}
+	last := &RangeClaim{FirstBlock: 21, LastBlock: 30, Writes: writes.Publish(21, 30, []writes.Record{{Tag: tag, BlockNumber: 25}})}
+	require.NotEqual(t, first.Writes[0].Tag, last.Writes[0].Tag)
+	require.ErrorIs(t, CheckUnchanged(10, 20, []common.Hash{tag}, []*RangeClaim{first}), ErrStateChanged)
+	require.ErrorIs(t, CheckUnchanged(20, 30, []common.Hash{tag}, []*RangeClaim{last}), ErrStateChanged)
+	require.NoError(t, CheckUnchanged(10, 30, []common.Hash{{2}}, []*RangeClaim{first, last}))
+}
+
+func TestRetiredStableWriteClaimRejected(t *testing.T) {
+	claim := &RangeClaim{FirstBlock: 11, LastBlock: 20, Writes: []writes.Record{{Tag: common.Hash{1}, BlockNumber: 15}}}
+	old, err := encodeAtVersion(claim, 2)
+	require.NoError(t, err)
+	for _, mode := range []Mode{ModeAttested, ModeProven} {
+		_, err := DecodeMode(old, mode)
+		require.ErrorIs(t, err, ErrBadVersion, "stable-tag claims must not enter range-scoped freshness checking")
+	}
 }
 
 func TestWriteClaimRoundTripAndBounds(t *testing.T) {
@@ -49,6 +69,13 @@ func TestSharedSolidityWriteClaim(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, claim.Writes, 1)
 	require.Equal(t, uint64(42), claim.Writes[0].BlockNumber)
+	privateData, err := os.ReadFile("../writes/testdata/storage-write.json")
+	require.NoError(t, err)
+	var private struct {
+		Record writes.Record `json:"record"`
+	}
+	require.NoError(t, json.Unmarshal(privateData, &private))
+	require.Equal(t, writes.Publish(claim.FirstBlock, claim.LastBlock, []writes.Record{private.Record}), claim.Writes)
 	hashType, err := abi.NewType("bytes32", "", nil)
 	require.NoError(t, err)
 	bytesType, err := abi.NewType("bytes", "", nil)

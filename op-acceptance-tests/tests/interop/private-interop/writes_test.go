@@ -20,5 +20,11 @@ func TestPrivateWritesArePublishedInBatches(gt *testing.T) {
 	probe := dsl.NewPrivateWriteProbe(sender, sys.L2ELB, sys.L2BSupernodeEL)
 	probe.Write(7)
 	probe.RevertWrite(9)
+	first := probe.VerifyPublished()
+	probe.Write(9)
 	probe.VerifyPublished()
+	probe.Write(7)
+	last := probe.VerifyPublished()
+	t.Require().NotEqual(first.Tag, last.Tag, "the same slot must have different tags in later ranges")
+	t.Require().NotEqual(first.ValueCommitment, last.ValueCommitment, "restoring the same value must not reveal a stable commitment")
 }

@@ -53,12 +53,12 @@ abstract contract ClaimRegistry_TestInit is Test {
         registry_ = IClaimRegistry(address(proxy));
     }
 
-    /// @notice Builds a well-formed v1 claim covering the given range. Every field gets a distinct
+    /// @notice Builds a well-formed current claim covering the given range. Every field gets a distinct
     ///         value derived from the range, so a test comparing commitments cannot pass by
     ///         accident on two fields that happen to hold the same value.
     function _claim(uint64 _firstBlock, uint64 _lastBlock) internal pure returns (RangeClaim memory claim_) {
         claim_ = RangeClaim({
-            version: 2,
+            version: 3,
             firstBlock: _firstBlock,
             lastBlock: _lastBlock,
             privateTerminalBlockHash: keccak256(abi.encode("privateTerminal", _lastBlock)),
@@ -79,14 +79,14 @@ contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
     /// @notice Pins the nonempty Go claim vector, including dynamic ABI padding and record version.
     function test_postClaim_sharedWriteHash_succeeds() external {
         RangeClaim memory claim;
-        claim.version = 2;
+        claim.version = 3;
         claim.firstBlock = 1;
         claim.lastBlock = 300;
         claim.writes =
-            hex"553edd4740eaea36a2cf849bcc22965a478b512a0d367a953922e75550100d8849421ad7da62422768a157a5ac729ae6970e507a9fe100a989ccd0bf53dfd1ce000000000000002a";
+            hex"9a01a194e8be2d562be5f1bfaa700dc860230733782caffa82ddcab6f1a5729cf384b59a1b48a663aabb1471e89a99ff9c2cd77aa1b816159bbce382202c00f9000000000000002a";
         vm.prank(operator);
         registry.postClaim(claim);
-        assertEq(registry.lastClaimHash(), bytes32(0x21b1a788003f7fdee4125b0c8e92f5c318fbf73374423d3a77bd984d2774c93e));
+        assertEq(registry.lastClaimHash(), bytes32(0x490ab297baf2e52b518573f4ee26bc4f4270f12dbefec73b4b281defbda626c8));
     }
 
     function test_postClaim_writesAreCommitted_succeeds() external {
@@ -280,7 +280,7 @@ contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
 
     /// @notice Tests that a claim of an unsupported version is refused.
     function testFuzz_postClaim_unsupportedVersion_reverts(uint8 _version) external {
-        vm.assume(_version != 2);
+        vm.assume(_version != 3);
 
         RangeClaim memory claim = _claim(100, 399);
         claim.version = _version;

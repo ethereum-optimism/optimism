@@ -37,6 +37,39 @@ func TestCanonicalRecordsAndLastWrite(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalid)
 }
 
+func TestPublicationDoesNotExposeStableIdentifiers(t *testing.T) {
+	input := []Record{
+		{Tag: common.Hash{1}, ValueCommitment: common.Hash{2}, BlockNumber: 25},
+		{Tag: common.Hash{3}, ValueCommitment: common.Hash{4}, BlockNumber: 26},
+	}
+	original := append([]Record(nil), input...)
+	first := Publish(21, 30, input)
+	next := Publish(31, 40, input)
+	require.Equal(t, original, input, "publication must not change the private aggregation keys")
+	require.Equal(t, first, Publish(21, 30, input), "publication must be deterministic")
+	_, err := Encode(first)
+	require.NoError(t, err, "public tags must be sorted again after scoping")
+	for _, private := range input {
+		lookup := RangeTag(21, 30, private.Tag)
+		var found *Record
+		for i := range first {
+			if first[i].Tag == lookup {
+				found = &first[i]
+			}
+			require.NotEqual(t, private.Tag, first[i].Tag)
+			require.NotEqual(t, private.ValueCommitment, first[i].ValueCommitment)
+		}
+		require.NotNil(t, found, "a key holder can still find their write")
+		require.Equal(t, private.BlockNumber, found.BlockNumber)
+		for _, other := range next {
+			require.NotEqual(t, found.Tag, other.Tag)
+			require.NotEqual(t, found.ValueCommitment, other.ValueCommitment, "even equal values must not link ranges")
+		}
+		require.NotEqual(t, lookup, RangeTag(20, 30, private.Tag))
+		require.NotEqual(t, lookup, RangeTag(21, 31, private.Tag))
+	}
+}
+
 type unavailableRPC struct{}
 
 func (unavailableRPC) CallContext(context.Context, any, string, ...any) error {

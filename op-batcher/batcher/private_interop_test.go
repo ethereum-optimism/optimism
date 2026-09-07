@@ -588,7 +588,7 @@ func TestPrivateWriteOverflowPreservesNextBlock(t *testing.T) {
 	require.ErrorIs(t, err, derive.ErrCompressorFull)
 	require.Equal(t, before, out.InputBytes())
 	require.NoError(t, out.Close())
-	require.Equal(t, fixture[p1.BlockHash], out.(*renderChannelOut).built.Claim.Writes)
+	require.Equal(t, writes.Publish(uint64(p1.BlockNumber), uint64(p1.BlockNumber), fixture[p1.BlockHash]), out.(*renderChannelOut).built.Claim.Writes)
 	_, ok := enc.take(p2.BlockHash)
 	require.True(t, ok, "overflow block remains prepared")
 	next, err := enc.ChannelOut(cfg, enc.cfg.Rollup)
@@ -596,5 +596,5 @@ func TestPrivateWriteOverflowPreservesNextBlock(t *testing.T) {
 	_, err = next.AddBlock(enc.cfg.Rollup, p2)
 	require.NoError(t, err)
 	require.NoError(t, next.Close())
-	require.Equal(t, fixture[p2.BlockHash], next.(*renderChannelOut).built.Claim.Writes)
+	require.Equal(t, writes.Publish(uint64(p2.BlockNumber), uint64(p2.BlockNumber), fixture[p2.BlockHash]), next.(*renderChannelOut).built.Claim.Writes)
 }

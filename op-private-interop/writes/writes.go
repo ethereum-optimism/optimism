@@ -49,6 +49,39 @@ func Commit(tag, value common.Hash) common.Hash {
 	return crypto.Keccak256Hash([]byte("optimism.private-interop.write-value.v1"), tag[:], value[:])
 }
 
+func rangeHash(domain string, first, last uint64, input common.Hash) common.Hash {
+	var bounds [16]byte
+	binary.BigEndian.PutUint64(bounds[:8], first)
+	binary.BigEndian.PutUint64(bounds[8:], last)
+	return crypto.Keccak256Hash([]byte(domain), bounds[:], input[:])
+}
+
+// RangeTag derives the public lookup tag from a private RPC tag. A new range
+// changes the tag even for the same key. Guessable keys remain guessable.
+func RangeTag(first, last uint64, tag common.Hash) common.Hash {
+	return rangeHash("optimism.private-interop.range-key.v1", first, last, tag)
+}
+
+// Publish scopes both identifiers and value commitments to the claimed range,
+// then sorts the new tags. Stable RPC records must never be published directly:
+// either a stable tag or a stable value commitment would link repeated writes.
+// The input is already aggregated by stable key and is not modified.
+func Publish(first, last uint64, records []Record) []Record {
+	if len(records) == 0 {
+		return nil
+	}
+	out := make([]Record, len(records))
+	for i, r := range records {
+		out[i] = Record{
+			Tag:             RangeTag(first, last, r.Tag),
+			ValueCommitment: rangeHash("optimism.private-interop.range-value.v1", first, last, r.ValueCommitment),
+			BlockNumber:     r.BlockNumber,
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return bytes.Compare(out[i].Tag[:], out[j].Tag[:]) < 0 })
+	return out
+}
+
 // Encode requires strictly sorted, unique tags. Empty is an explicit no-change record.
 func Encode(records []Record) ([]byte, error) {
 	if len(records) > MaxEncodedSize/RecordSize {

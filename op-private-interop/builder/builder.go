@@ -190,7 +190,8 @@ type ClaimInput struct {
 	PrivateDataHash common.Hash
 	// Proof is empty in attested mode, where the registry refuses a non-empty slot. In proven mode it attests
 	// the claim series that follows it in the same block.
-	Proof  []byte
+	Proof []byte
+	// Writes contains stable private RPC records; Build scopes them to the public range.
 	Writes []writes.Record
 }
 
@@ -262,7 +263,7 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 		DepSetHash:       r.Claim.DepSetHash,
 		PrivateDataHash:  r.Claim.PrivateDataHash,
 		Proof:            r.Claim.Proof,
-		Writes:           r.Claim.Writes,
+		Writes:           writes.Publish(first.Number, last.Number, r.Claim.Writes),
 	}
 	if claim.PrivateTerminalBlockHash == (common.Hash{}) {
 		// A zero hash means the range's blocks were built without their private identity, which

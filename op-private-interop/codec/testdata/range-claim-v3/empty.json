@@ -1,0 +1,11 @@
+{
+  "name": "empty",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "invalid",
+  "description": "Zero bytes. The degenerate input, present because an empty calldata argument and an absent one are easy to conflate at the call site.",
+  "bin": "empty.bin",
+  "bytes": 0,
+  "keccak": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+  "proofHex": "0x",
+  "refusal": "truncated"
+}

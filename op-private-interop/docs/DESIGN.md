@@ -1,4 +1,4 @@
-> **Current wire update:** [Write publication](WRITES.md) defines claim format version 2,
+> **Current wire update:** [Write publication](WRITES.md) defines claim format version 3,
 > which appends public write records while retaining operator-attested verification.
 > Historical references below to “v2 proven mode” describe a future proof mode, not this wire version.
 

@@ -85,7 +85,7 @@ func (p *PrivateWriteProbe) RevertWrite(value uint64) {
 }
 
 // VerifyPublished checks the accepted projection claim, not merely the operator's RPC output.
-func (p *PrivateWriteProbe) VerifyPublished() {
+func (p *PrivateWriteProbe) VerifyPublished() writes.Record {
 	p.log.Info("Waiting for public claim to publish private storage write", "block", p.expected.BlockNumber, "tag", p.expected.Tag)
 	cursor := uint64(1)
 	var found *codec.RangeClaim
@@ -125,6 +125,12 @@ func (p *PrivateWriteProbe) VerifyPublished() {
 	p.require.NotNil(found)
 	p.require.NotNil(settled)
 	p.require.Equal(types.ReceiptStatusSuccessful, settled.Status, "write claim must be accepted by the registry")
-	p.require.Contains(found.Writes, p.expected, "batch claim must retain the exact storage value commitment and version")
+	expected := writes.Publish(found.FirstBlock, found.LastBlock, []writes.Record{p.expected})[0]
+	p.require.Contains(found.Writes, expected, "batch claim must publish the range-scoped storage commitment and version")
+	for _, r := range found.Writes {
+		p.require.NotEqual(p.expected.Tag, r.Tag, "stable private lookup tags must not be published")
+		p.require.NotEqual(p.expected.ValueCommitment, r.ValueCommitment, "stable private value commitments must not be published")
+	}
 	p.require.Empty(settled.Logs, "write publication must preserve projected log positions")
+	return expected
 }

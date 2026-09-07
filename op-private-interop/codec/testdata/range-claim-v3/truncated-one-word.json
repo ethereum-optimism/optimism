@@ -1,0 +1,11 @@
+{
+  "name": "truncated-one-word",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "invalid",
+  "description": "A valid encoding with its last 32-byte word removed — the proof's length word. The shortest thing that is still shaped like a claim and is not one.",
+  "bin": "truncated-one-word.bin",
+  "bytes": 416,
+  "keccak": "0x576f4ef6d6dcd76fcec4614a6e11a7cd4571736880d309489aade6df487a0af8",
+  "proofHex": "0x",
+  "refusal": "truncated"
+}
