@@ -2734,19 +2734,27 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(_input, bytes4(0));
     }
 
-    /// @notice Helper function to execute a migration with a revert selector.
+    /// @notice Helper function to execute a migration, asserting the revert selector when one is
+    ///         given. Reports separately whether migrate unexpectedly succeeded or reverted with a
+    ///         different error.
     /// @param _input The input to the migration function.
-    /// @param _revertSelector The selector of the revert to expect.
+    /// @param _revertSelector The selector of the revert to expect, or bytes4(0) to expect success.
     function _doMigration(IOPContractsManagerMigrator.MigrateInput memory _input, bytes4 _revertSelector) internal {
         // Set the proxy admin owner to be a delegate caller.
         address proxyAdminOwner = chainContracts1.proxyAdmin.owner();
 
+        if (_revertSelector != bytes4(0)) {
+            prankDelegateCall(proxyAdminOwner);
+            (bool reverted, bytes memory returnData) =
+                address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (_input)));
+            assertFalse(reverted, "expected migrate to revert, but it succeeded");
+            assertEq(bytes4(returnData), _revertSelector, "migrate reverted with an unexpected selector");
+            return;
+        }
+
         // Execute a delegatecall to the OPCM migration function.
         // Check gas usage of the migration function.
         uint256 gasBefore = gasleft();
-        if (_revertSelector != bytes4(0)) {
-            vm.expectRevert(_revertSelector);
-        }
         prankDelegateCall(proxyAdminOwner);
         (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (_input)));
         assertTrue(success, "migrate failed");
