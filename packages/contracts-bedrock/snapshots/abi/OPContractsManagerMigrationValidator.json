@@ -19,6 +19,72 @@
             "type": "address[]"
           },
           {
+            "internalType": "contract IETHLockbox[]",
+            "name": "legacyEthLockboxes",
+            "type": "address[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IAnchorStateRegistry",
+                "name": "anchorStateRegistry",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IETHLockbox",
+                "name": "ethLockbox",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "delayedWETH",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerMigrationValidator.ExpectedSharedContracts",
+            "name": "expectedShared",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "GameType",
+                "name": "gameType",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "initBond",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerMigrationValidator.ExpectedInitBond[]",
+            "name": "expectedInitBonds",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Hash",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "l2SequenceNumber",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Proposal",
+            "name": "startingAnchorRoot",
+            "type": "tuple"
+          },
+          {
+            "internalType": "GameType",
+            "name": "startingRespectedGameType",
+            "type": "uint32"
+          },
+          {
             "internalType": "bytes32",
             "name": "cannonPrestate",
             "type": "bytes32"
@@ -142,6 +208,72 @@
             "internalType": "contract IDisputeGameFactory[]",
             "name": "legacyDisputeGameFactories",
             "type": "address[]"
+          },
+          {
+            "internalType": "contract IETHLockbox[]",
+            "name": "legacyEthLockboxes",
+            "type": "address[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IAnchorStateRegistry",
+                "name": "anchorStateRegistry",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IETHLockbox",
+                "name": "ethLockbox",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "delayedWETH",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerMigrationValidator.ExpectedSharedContracts",
+            "name": "expectedShared",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "GameType",
+                "name": "gameType",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "initBond",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerMigrationValidator.ExpectedInitBond[]",
+            "name": "expectedInitBonds",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Hash",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "l2SequenceNumber",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Proposal",
+            "name": "startingAnchorRoot",
+            "type": "tuple"
+          },
+          {
+            "internalType": "GameType",
+            "name": "startingRespectedGameType",
+            "type": "uint32"
           },
           {
             "internalType": "bytes32",

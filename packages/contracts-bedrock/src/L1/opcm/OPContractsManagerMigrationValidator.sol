@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Features } from "src/libraries/Features.sol";
-import { GameType, GameTypes, Claim } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Claim, Proposal } from "src/dispute/lib/Types.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
@@ -131,7 +131,11 @@ contract OPContractsManagerMigrationValidator {
                 "MIG-SASR-RGT",
                 _errors
             );
+            _errors = assertValidAnchorStateIntent(_errors, IAnchorStateRegistry(_sharedContracts.asr), _input);
+            _errors = assertExpectedSharedContracts(_errors, _input, _sharedContracts);
         }
+
+        _errors = assertValidInitBonds(_errors, _input.dgf, _input.expectedInitBonds);
 
         ISystemConfig firstCfg =
             _input.chainSystemConfigs.length > 0 ? _input.chainSystemConfigs[0] : ISystemConfig(address(0));
@@ -173,7 +177,7 @@ contract OPContractsManagerMigrationValidator {
         }
 
         // Per-chain invariants (portal points at shared ASR/lockbox, legacy game types cleared).
-        _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs, _input.legacyDisputeGameFactories);
+        _errors = assertValidPerChainMigration(_errors, _input);
 
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("OPContractsManagerMigrationValidator: ", _errors));
@@ -454,19 +458,24 @@ contract OPContractsManagerMigrationValidator {
     /// @notice Validates per-chain migration state: portal ASR, per-chain DGF cleared, lockbox auth.
     function assertValidPerChainMigration(
         string memory _errors,
-        ISystemConfig[] memory _chainSystemConfigs,
-        IDisputeGameFactory[] memory _dgfs
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input
     )
         internal
         view
         returns (string memory)
     {
+        ISystemConfig[] memory _chainSystemConfigs = _input.chainSystemConfigs;
+
         if (_chainSystemConfigs.length == 0) {
             return internalRequire(false, "MIG-CHAIN-EMPTY", _errors);
         }
 
-        if (_chainSystemConfigs.length != _dgfs.length) {
+        if (_chainSystemConfigs.length != _input.legacyDisputeGameFactories.length) {
             return internalRequire(false, "MIG-CHAIN-DGF-MISMATCH", _errors);
+        }
+
+        if (_chainSystemConfigs.length != _input.legacyEthLockboxes.length) {
+            return internalRequire(false, "MIG-CHAIN-LOCKBOX-MISMATCH", _errors);
         }
 
         // Derive shared ASR, DGF, and lockbox from first chain.
@@ -490,7 +499,7 @@ contract OPContractsManagerMigrationValidator {
                 address(portal.anchorStateRegistry()) == sharedASR, string.concat("MIG-CHAIN-", idx, "-10"), _errors
             );
 
-            _errors = assertLegacyGamesCleared(_errors, _dgfs[i], idx);
+            _errors = assertLegacyGamesCleared(_errors, _input.legacyDisputeGameFactories[i], idx);
 
             _errors = internalRequire(
                 sharedLockbox.authorizedPortals(portal), string.concat("MIG-CHAIN-", idx, "-80"), _errors
@@ -519,8 +528,137 @@ contract OPContractsManagerMigrationValidator {
                 string.concat("MIG-CHAIN-", idx, "-130"),
                 _errors
             );
+
+            _errors = assertRetiredContractsClean(_errors, _input, i, sharedLockbox, idx);
         }
 
+        return _errors;
+    }
+
+    /// @notice Asserts that migration left single chain's retired contracts empty and unpaused.
+    /// @param _errors The accumulated error string.
+    /// @param _input The validation input.
+    /// @param _i The chain's index.
+    /// @param _sharedLockbox The shared lockbox, which is never treated as retired.
+    /// @param _idx The chain's index as a string, used to build the error codes.
+    /// @return The accumulated error string.
+    function assertRetiredContractsClean(
+        string memory _errors,
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        uint256 _i,
+        IETHLockbox _sharedLockbox,
+        string memory _idx
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IOptimismPortal2 portal = IOptimismPortal2(payable(_input.chainSystemConfigs[_i].optimismPortal()));
+        IETHLockbox legacyLockbox = _input.legacyEthLockboxes[_i];
+
+        // Read the SuperchainConfig from chain 0, which is the one that governs the set.
+        ISuperchainConfig superchainConfig = _input.chainSystemConfigs[0].superchainConfig();
+
+        _errors = internalRequire(address(portal).balance == 0, string.concat("MIG-CHAIN-", _idx, "-150"), _errors);
+
+        // A chain that never had its own lockbox, or one that kept the shared lockbox, retires
+        // nothing here.
+        bool hasRetiredLockbox = address(legacyLockbox) != address(0) && legacyLockbox != _sharedLockbox;
+        if (hasRetiredLockbox) {
+            _errors =
+                internalRequire(address(legacyLockbox).balance == 0, string.concat("MIG-CHAIN-", _idx, "-160"), _errors);
+        }
+        _errors = internalRequire(
+            !superchainConfig.paused(address(portal)), string.concat("MIG-CHAIN-", _idx, "-170"), _errors
+        );
+        if (hasRetiredLockbox) {
+            _errors = internalRequire(
+                !superchainConfig.paused(address(legacyLockbox)), string.concat("MIG-CHAIN-", _idx, "-180"), _errors
+            );
+        }
+        return _errors;
+    }
+
+    /// @notice Asserts the shared contracts are the ones the migration was meant to
+    ///         produce, and that the factory the caller asked us to inspect is the one the
+    ///         migrated portals actually route to.
+    /// @param _errors The accumulated error string.
+    /// @param _input The validation input.
+    /// @param _shared The shared contracts discovered from chain 0.
+    /// @return The accumulated error string.
+    function assertExpectedSharedContracts(
+        string memory _errors,
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        SharedContracts memory _shared
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errors =
+            internalRequire(_shared.asr == address(_input.expectedShared.anchorStateRegistry), "MIG-SHARED-10", _errors);
+        _errors = internalRequire(
+            address(_shared.lockbox) == address(_input.expectedShared.ethLockbox), "MIG-SHARED-20", _errors
+        );
+        _errors = internalRequire(_shared.weth == _input.expectedShared.delayedWETH, "MIG-SHARED-30", _errors);
+
+        if (_shared.asr != address(0)) {
+            _errors = internalRequire(
+                address(_input.dgf) == address(IAnchorStateRegistry(_shared.asr).disputeGameFactory()),
+                "MIG-SHARED-40",
+                _errors
+            );
+        }
+        return _errors;
+    }
+
+    /// @notice Asserts the shared AnchorStateRegistry carries the intended starting anchor and
+    ///         respected game type.
+    /// @param _errors The accumulated error string.
+    /// @param _asr The shared AnchorStateRegistry.
+    /// @param _input The validation input.
+    /// @return The accumulated error string.
+    function assertValidAnchorStateIntent(
+        string memory _errors,
+        IAnchorStateRegistry _asr,
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        Proposal memory anchor = _asr.getStartingAnchorRoot();
+        _errors = internalRequire(anchor.root.raw() == _input.startingAnchorRoot.root.raw(), "MIG-SASR-10", _errors);
+        _errors = internalRequire(
+            anchor.l2SequenceNumber == _input.startingAnchorRoot.l2SequenceNumber, "MIG-SASR-20", _errors
+        );
+        _errors = internalRequire(
+            _asr.respectedGameType().raw() == _input.startingRespectedGameType.raw(), "MIG-SASR-30", _errors
+        );
+        return _errors;
+    }
+
+    /// @notice Asserts every intended init bond is registered on the shared DisputeGameFactory.
+    /// @param _errors The accumulated error string.
+    /// @param _dgf The shared DisputeGameFactory.
+    /// @param _bonds The intended init bonds.
+    /// @return The accumulated error string.
+    function assertValidInitBonds(
+        string memory _errors,
+        IDisputeGameFactory _dgf,
+        IOPContractsManagerMigrationValidator.ExpectedInitBond[] memory _bonds
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        for (uint256 i = 0; i < _bonds.length; i++) {
+            _errors = internalRequire(
+                _dgf.initBonds(_bonds[i].gameType) == _bonds[i].initBond,
+                string.concat("MIG-BOND-", LibString.toString(i)),
+                _errors
+            );
+        }
         return _errors;
     }
 

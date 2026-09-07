@@ -2596,20 +2596,7 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
 {
     /// @notice Tests that validateMigratedChain succeeds with no errors on a valid post-migration state.
     function test_validateMigratedChain_succeeds() public view {
-        ISystemConfig[] memory chains = new ISystemConfig[](2);
-        chains[0] = chainContracts1.systemConfig;
-        chains[1] = chainContracts2.systemConfig;
-        string memory errors = standardValidator.validateMigratedChain(
-            IOPContractsManagerMigrationValidator.MigrationValidationInput({
-                dgf: sharedDGF,
-                chainSystemConfigs: chains,
-                legacyDisputeGameFactories: _legacyDGFs(),
-                cannonPrestate: cannonPrestate.raw(),
-                cannonKonaPrestate: cannonKonaPrestate.raw(),
-                proposer: proposer
-            }),
-            false
-        );
+        string memory errors = standardValidator.validateMigratedChain(_defaultInput(), false);
         assertEq(errors, "");
     }
 
@@ -2619,24 +2606,7 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         view
         returns (IOPContractsManagerMigrationValidator.MigrationValidationInput memory)
     {
-        ISystemConfig[] memory chains = new ISystemConfig[](2);
-        chains[0] = chainContracts1.systemConfig;
-        chains[1] = chainContracts2.systemConfig;
-        return IOPContractsManagerMigrationValidator.MigrationValidationInput({
-            dgf: sharedDGF,
-            chainSystemConfigs: chains,
-            legacyDisputeGameFactories: _legacyDGFs(),
-            cannonPrestate: cannonPrestate.raw(),
-            cannonKonaPrestate: cannonKonaPrestate.raw(),
-            proposer: proposer
-        });
-    }
-
-    /// @notice The two chains' pre-migration factories, in chainSystemConfigs order.
-    function _legacyDGFs() internal view returns (IDisputeGameFactory[] memory dgfs_) {
-        dgfs_ = new IDisputeGameFactory[](2);
-        dgfs_[0] = legacyDGFs[0];
-        dgfs_[1] = legacyDGFs[1];
+        return _defaultInput();
     }
 
     /// @notice Tests that validateMigratedChainWithOverrides with l1PAOMultisig override succeeds
