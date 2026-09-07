@@ -18,6 +18,13 @@ parser.add_argument("root", type=Path)
 parser.add_argument("node", type=int, choices=(23, 30))
 parser.add_argument("--check-only", action="store_true")
 args = parser.parse_args()
+# Canonical hashes of both returned CTerms from the original requests in pipeline 133965.
+expected_branches = {
+    23: ["78aab78d0bf4e927aaabb094991948d0f12a879f83269d1ec9146ad02aea7c82",
+         "96453ee2c68495327fd3ea505839ff5fd84f1c9aa2622faadca6be3607c3ee2c"],
+    30: ["c0c20523632bb15694b45efd84e51b51d9248276c4f8b33e50cd051f2c26d671",
+         "cae37a9b62a4e825c5bce014925724d379c36dd2d4085cd0e6b53b81073d8023"],
+}
 target, depth = {23: (25, 40), 30: (33, 381)}[args.node]
 proof_dir, = args.root.glob("proofs/*WithdrawalAuthorizationKontrol.prove_checkWithdrawal_equivalence*")
 graph = json.loads((proof_dir / "kcfg/kcfg.json").read_text())
@@ -40,6 +47,7 @@ manifest = dict(
     target=target,
     depth=depth,
     request_depth=10000,
+    fallback_on=["Stuck", "Aborted"],
     cut_point_rules=cut_points,
     input_sha256=hashlib.sha256(node_file.read_bytes()).hexdigest(),
 )
@@ -53,6 +61,7 @@ kevm = KEVM(args.root / "kompiled")
 command = [
     "kore-rpc-booster", "--no-post-exec-simplify",
     "--equation-max-recursion", "100", "--equation-max-iterations", "1000",
+    "--fallback-on", "Stuck,Aborted",
     "--log-level", "Timing", "--log-timestamps", "--log-format", "json",
     "--solver-transcript", str(output / "smt.log"),
 ]
@@ -72,16 +81,26 @@ with legacy_explore(
         source, depth=10000, cut_point_rules=cut_points,
         terminal_rules=["EVM.halt"], haskell_logging=False,
     )
+    elapsed = time.monotonic() - started
+    branches = [n.state.to_dict() for n in result.next_states]
+    branch_hashes = sorted(
+        hashlib.sha256(json.dumps(n, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        for n in branches
+    )
     manifest.update(
-        replay_seconds=time.monotonic() - started,
+        replay_seconds=elapsed,
         actual_depth=result.depth,
         vacuous=result.vacuous,
         next_states=len(result.next_states),
         exact_saved_target_match=result.state == expected,
+        branch_comparison_pipeline=133965,
+        branch_hashes=branch_hashes,
+        exact_saved_branches_match=branch_hashes == expected_branches[args.node],
     )
     (output / "result.json").write_text(json.dumps(manifest, indent=2))
     (output / "state.json").write_text(json.dumps(result.state.to_dict()))
-    (output / "next-states.json").write_text(json.dumps([n.state.to_dict() for n in result.next_states]))
+    (output / "next-states.json").write_text(json.dumps(branches))
     print(json.dumps(manifest), flush=True)
     assert result.depth == depth and not result.vacuous and len(result.next_states) == 2
     assert result.state == expected, "Replay endpoint differs; inspect before drawing performance conclusions"
+    assert manifest["exact_saved_branches_match"], "Branch states differ; inspect before changing the prover"

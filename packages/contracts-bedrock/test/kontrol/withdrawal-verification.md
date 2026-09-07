@@ -68,7 +68,9 @@ The current branch temporarily runs `scripts/profile-withdrawal.sh` in CI instea
 the checksum of pipeline 133962's archive, reuses its compiled model and unchanged symbolic nodes,
 and replays the original requests from nodes 23 and 30 sequentially with separate 20-minute limits.
 Compact timing logs, SMT transcripts and endpoint comparisons are retained; detailed term capture
-is disabled. Requests keep the original depth limit and cut points through the symbolic branch. A successful replay is a diagnostic result,
+is disabled. Requests keep the original depth limit and cut points through the symbolic branch.
+The current comparison returns Booster branches directly while retaining fallback for stuck or
+aborted execution, and checks both branch states against the original requests in pipeline 133965. A successful replay is a diagnostic result,
 not completion of the symbolic proof. Remove this temporary diagnostic wiring before a PR and
 restore the full component run and normal suite integration.
 
