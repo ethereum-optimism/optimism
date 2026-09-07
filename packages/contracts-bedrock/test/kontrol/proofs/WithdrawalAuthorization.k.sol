@@ -46,10 +46,10 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         uint64 retiredAt;
         uint64 now;
         uint8 status;
-        bool finalized;
+        uint8 finalized;
         bytes32 registration;
         bool respected;
-        bool blacklisted;
+        uint8 blacklisted;
         bool paused;
     }
 
@@ -82,6 +82,9 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
     /// @notice Acceptance is equivalent to the combined Portal and registry eligibility predicate.
     function prove_checkWithdrawal_equivalence(AuthorizationCase memory _case) external {
         vm.assume(_case.status <= uint8(GameStatus.DEFENDER_WINS));
+        // Preserve the boolean domain without branching to convert flags for storage setup.
+        vm.assume(_case.finalized <= 1);
+        vm.assume(_case.blacklisted <= 1);
         _check(_case);
     }
 
@@ -103,9 +106,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         vm.store(address(factory), registrationSlot, _case.registration);
         vm.store(address(registry), bytes32(uint256(6)), bytes32(uint256(_case.retiredAt) << 32));
         vm.store(
-            address(registry),
-            keccak256(abi.encode(address(game), uint256(5))),
-            bytes32(uint256(_case.blacklisted ? 1 : 0))
+            address(registry), keccak256(abi.encode(address(game), uint256(5))), bytes32(uint256(_case.blacklisted))
         );
         bytes32 recordSlot =
             keccak256(abi.encode(_case.submitter, keccak256(abi.encode(_case.withdrawalHash, uint256(57)))));
@@ -113,23 +114,23 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
             address(portal), recordSlot, bytes32(uint256(uint160(address(game))) | (uint256(_case.provenAt) << 160))
         );
         bytes32 finalizedSlot = keccak256(abi.encode(_case.withdrawalHash, uint256(51)));
-        vm.store(address(portal), finalizedSlot, bytes32(uint256(_case.finalized ? 1 : 0)));
+        vm.store(address(portal), finalizedSlot, bytes32(uint256(_case.finalized)));
         vm.warp(_case.now);
 
-        bool eligible = !_case.finalized && _case.provenAt != 0 && _case.provenAt > _case.createdAt
+        (accepted_,) =
+            address(portal).staticcall(abi.encodeCall(portal.checkWithdrawal, (_case.withdrawalHash, _case.submitter)));
+        bool eligible = _case.finalized == 0 && _case.provenAt != 0 && _case.provenAt > _case.createdAt
             && _case.now >= _case.provenAt && uint256(_case.now) - _case.provenAt > proofDelay
-            && address(uint160(uint256(_case.registration))) == address(game) && !_case.blacklisted
+            && address(uint160(uint256(_case.registration))) == address(game) && _case.blacklisted == 0
             && _case.createdAt > _case.retiredAt && !_case.paused && _case.respected
             && _case.status == uint8(GameStatus.DEFENDER_WINS) && _case.resolvedAt != 0 && _case.now >= _case.resolvedAt
             && uint256(_case.now) - _case.resolvedAt > gameDelay;
-        (accepted_,) =
-            address(portal).staticcall(abi.encodeCall(portal.checkWithdrawal, (_case.withdrawalHash, _case.submitter)));
         assert(accepted_ == eligible);
         // STATICCALL also prevents writes in every dependency, including reverted executions.
         assert(
             vm.load(address(portal), recordSlot)
                 == bytes32(uint256(uint160(address(game))) | (uint256(_case.provenAt) << 160))
         );
-        assert(portal.finalizedWithdrawals(_case.withdrawalHash) == _case.finalized);
+        assert(portal.finalizedWithdrawals(_case.withdrawalHash) == (_case.finalized != 0));
     }
 }

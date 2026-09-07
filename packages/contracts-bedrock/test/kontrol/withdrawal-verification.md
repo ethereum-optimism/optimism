@@ -37,6 +37,9 @@ nonzero game addresses), and `uint64` creation/resolution/proof/retirement/curre
 Future timestamps and equality boundaries remain in the domain. Delay parameters are read from
 the deployment's immutable getters. Both source checks use strict `>` boundaries.
 The Portal specification's maturity prose needs reconciliation before claiming literal compliance.
+The finalized and blacklisted inputs are integers constrained to 0 or 1, equivalent to the
+boolean domain, so seeding storage does not introduce conditional conversions. The independent
+eligibility expression is evaluated after the production call to reduce duplicated exploration.
 
 The game identity is fixed to type 0, root 0, and a 32-byte encoding of sequence number 1. The
 game fixture also supplies the independent pause input. It models normally returning getters;
@@ -50,8 +53,16 @@ component result must not be labeled proof of authentic withdrawals.
 Use pinned Foundry/Kontrol versions and a clean proof output directory. The CI branch runs:
 
 ```sh
-KONTROL_STRICT=true ./test/kontrol/scripts/run-kontrol.sh container 'WithdrawalAuthorizationKontrol.prove_'
+KONTROL_STRICT=true KONTROL_DIAGNOSTICS=true ./test/kontrol/scripts/run-kontrol.sh container \
+  WithdrawalAuthorizationKontrol.prove_checkWithdrawal_eligible_succeeds \
+  WithdrawalAuthorizationKontrol.prove_checkWithdrawal_equivalence
 ```
+
+Use separate selectors: the runner caps workers by selector count, so one selector matching
+both proofs serializes them. This diagnostic CI run caps deployment/build/proving at 45 minutes,
+with a further minute for cleanup. Diagnostics enable plain verbose output, backend timing logs,
+and a checkpoint after each proof iteration. `logs/kontrol-prove.log` preserves the output.
+A timeout is an incomplete result; per-iteration checkpointing can itself add overhead.
 
 Strict fixture mode uses the fresh deployment-state diff and `setUp`, enables stack checks,
 uses CANCUN and abstracts gas. It omits `--assume-defined`. Existing pausability lemmas are imported

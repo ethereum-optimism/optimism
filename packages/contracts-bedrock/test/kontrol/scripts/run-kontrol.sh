@@ -25,8 +25,14 @@ kontrol_build() {
 }
 
 kontrol_prove() {
-  notif "Kontrol Prove"
+  notif "Kontrol Prove: workers=$workers selectors=${test_list[*]} diagnostics=${KONTROL_DIAGNOSTICS:-false}"
   local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
+  local progress_args=(--maintenance-rate 16)
+  local rpc_command='kore-rpc-booster --no-post-exec-simplify --equation-max-recursion 100 --equation-max-iterations 1000'
+  if [ "${KONTROL_DIAGNOSTICS:-false}" = true ]; then
+    progress_args=(--verbose --maintenance-rate 1)
+    rpc_command+=' --log-level Timing --log-timestamps --log-format json'
+  fi
   # Withdrawal fixtures retain production deployment bytecode and stack checks.
   if [ "${KONTROL_STRICT:-false}" = true ]; then
     model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --no-gas)
@@ -43,9 +49,9 @@ kontrol_prove() {
     $break_every_step \
     $tests \
     "${model_args[@]}" \
-    --kore-rpc-command 'kore-rpc-booster --no-post-exec-simplify --equation-max-recursion 100 --equation-max-iterations 1000' \
+    --kore-rpc-command "$rpc_command" \
     --xml-test-report \
-    --maintenance-rate 16 \
+    "${progress_args[@]}" \
     --symbolic-caller \
     --no-log-rewrites \
     --smt-timeout 16000 \
@@ -202,7 +208,12 @@ if [ "${results[0]}" -ne 0 ]; then
 fi
 
 # Run kontrol_prove and store the result
-kontrol_prove
+mkdir -p test/kontrol/logs
+# Only the parent collects artifacts and cleans up when the logging pipeline fails.
+(
+  trap - ERR INT TERM
+  kontrol_prove
+) 2>&1 | tee test/kontrol/logs/kontrol-prove.log
 results[1]=$?
 if [ "${results[1]}" -ne 0 ]; then
   echo "Kontrol Prove Failed"
