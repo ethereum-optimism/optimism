@@ -41,6 +41,21 @@ func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Rec
 	return l2Receipt
 }
 
+// DepositTxWithGas force-includes a call with an explicit execution gas allowance.
+func (d *DepositEOA) DepositTxWithGas(to common.Address, calldata []byte, gas uint64) *ethtypes.Receipt {
+	r := d.sendDepositWithGas(to, calldata, gas, false)
+	d.l2.t.Require().Equal(ethtypes.ReceiptStatusSuccessful, r.Status, "deposit tx failed on L2")
+	return r
+}
+
+// DeployContract force-includes contract creation and returns its derived L2 receipt.
+func (d *DepositEOA) DeployContract(initCode []byte, gas uint64) *ethtypes.Receipt {
+	r := d.sendDepositWithGas(common.Address{}, initCode, gas, true)
+	d.l2.t.Require().Equal(ethtypes.ReceiptStatusSuccessful, r.Status, "deposit creation failed on L2")
+	d.l2.t.Require().NotEqual(common.Address{}, r.ContractAddress)
+	return r
+}
+
 // DepositTxExpectRevert sends a transaction to the given address with the given calldata via
 // OptimismPortal2 on L1 and requires that it reverts on L2 with exactly the given error
 // signature (e.g. "CrossL2Inbox_NoExecutingDeposits()"). It waits for L2 derivation and
@@ -67,6 +82,10 @@ func (d *DepositEOA) DepositTxExpectRevert(to common.Address, calldata []byte, e
 // sendDeposit sends the deposit transaction on L1, waits for L2 derivation, and returns the
 // L2 receipt without asserting the L2 execution status.
 func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte) *ethtypes.Receipt {
+	return d.sendDepositWithGas(to, calldata, 100_000, false)
+}
+
+func (d *DepositEOA) sendDepositWithGas(to common.Address, calldata []byte, gas uint64, creation bool) *ethtypes.Receipt {
 	t := d.l2.t
 	ctx := d.l2.ctx
 
@@ -80,7 +99,7 @@ func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte) *ethtypes.R
 
 	minGas, err := contractio.Read(portal.MinimumGasLimit(uint64(len(calldata))), ctx)
 	t.Require().NoError(err, "failed to read MinimumGasLimit")
-	depositCall := portal.DepositTransaction(to, eth.ZeroWei, max(100_000, minGas), false, calldata)
+	depositCall := portal.DepositTransaction(to, eth.ZeroWei, max(gas, minGas), creation, calldata)
 	l1Receipt, err := contractio.Write(depositCall, ctx, d.l1.Plan())
 	t.Require().NoError(err, "L1 deposit tx failed")
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l1Receipt.Status, "L1 deposit tx reverted")

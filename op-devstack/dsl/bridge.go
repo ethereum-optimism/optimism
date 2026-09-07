@@ -423,10 +423,29 @@ type Withdrawal struct {
 	commonImpl
 	bridge      *StandardBridge
 	initReceipt *types.Receipt
+	// Explicit message for projections which retain outbox storage but suppress deposit logs.
+	message *nodebindings.L2ToL1MessagePasserMessagePassed
 
 	proveParams     ProvenWithdrawalParameters
 	proveReceipt    *types.Receipt
 	finalizeReceipt *types.Receipt
+}
+
+// TrackWithdrawal proves an explicitly known withdrawal against the real outbox. The supplied
+// fields are not trusted: Prove verifies their storage inclusion under a proposed output root.
+func (b *StandardBridge) TrackWithdrawal(receipt *types.Receipt, message bindings.WithdrawalTransaction) *Withdrawal {
+	b.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	ev := &nodebindings.L2ToL1MessagePasserMessagePassed{
+		Nonce: message.Nonce, Sender: message.Sender, Target: message.Target,
+		Value: message.Value, GasLimit: message.GasLimit, Data: message.Data,
+	}
+	hash, err := withdrawals.WithdrawalHash(ev)
+	b.require.NoError(err)
+	ev.WithdrawalHash = hash
+	return &Withdrawal{
+		commonImpl: commonFromT(b.t), bridge: b, initReceipt: receipt,
+		message: ev,
+	}
 }
 
 func (w *Withdrawal) InitiateGasCost() eth.ETH {
@@ -618,8 +637,11 @@ func (w *Withdrawal) proveWithdrawalParameters() ProvenWithdrawalParameters {
 	l2Header, err := w.bridge.l2Client.InfoByNumber(w.ctx, latestGame.L2BlockNumber)
 	w.require.NoErrorf(err, "failed to fetch block header %v", latestGame.L2BlockNumber)
 
-	ev, err := withdrawals.ParseMessagePassed(w.initReceipt)
-	w.require.NoError(err, "failed to parse message passed receipt")
+	ev := w.message
+	if ev == nil {
+		ev, err = withdrawals.ParseMessagePassed(w.initReceipt)
+		w.require.NoError(err, "failed to parse message passed receipt")
+	}
 	return w.proveWithdrawalParametersForEvent(ev, l2Header, latestGame)
 }
 

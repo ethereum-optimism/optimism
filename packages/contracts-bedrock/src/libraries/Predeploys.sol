@@ -120,7 +120,7 @@ library Predeploys {
 
     // ── Private interop predeploys ──────────────────────────────────────────────────────────
     //
-    // These two exist ONLY on the public projection of a private interop chain -- the rendering
+    // These contracts exist ONLY on the public projection of a private interop chain -- the rendering
     // that is the private chain's identity in the dependency set -- and never on a Superchain
     // chain. They are deliberately NOT entries in `getAllRecords()` below, which is the one place
     // this file departs from its own checklist, so the reason is worth stating.
@@ -145,6 +145,9 @@ library Predeploys {
 
     /// @notice Address of the EventReplayer predeploy. Public projection only.
     address internal constant EVENT_REPLAYER = 0x420000000000000000000000000000000000002F;
+
+    /// @notice Reserved for the public projection; inactive on the private chain.
+    address internal constant PROJECTION_EVENT_EXPORTER = 0x4200000000000000000000000000000000000030;
 
     /// @notice Implementation variant selector.
     /// @dev Values are array indexes into `PredeployRecord.variants`.

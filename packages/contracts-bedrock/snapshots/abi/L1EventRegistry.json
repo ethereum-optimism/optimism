@@ -355,6 +355,11 @@
   },
   {
     "inputs": [],
+    "name": "L1EventRegistry_UnauthorizedMessenger",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "L1EventRegistry_UnauthorizedPortal",
     "type": "error"
   },

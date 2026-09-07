@@ -11,6 +11,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 interface IL1EventRegistry is ISemver {
     error L1EventRegistry_InvalidLockbox();
     error L1EventRegistry_UnauthorizedPortal();
+    error L1EventRegistry_UnauthorizedMessenger();
     error L1EventRegistry_UnauthorizedL2Sender();
     error L1EventRegistry_WrongSourceChain();
     error L1EventRegistry_EventNotRegistered();

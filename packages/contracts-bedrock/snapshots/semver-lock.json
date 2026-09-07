@@ -16,8 +16,8 @@
     "sourceCodeHash": "0xfd4d13c09f30072475e2286457a35abaa122223c26ae40398524ad77d5dbb9e1"
   },
   "src/L1/L1EventRegistry.sol:L1EventRegistry": {
-    "initCodeHash": "0x6ba1835f5bb54c52dd485ec9829905dc97776fee49555da46e2a42e8f66cbbe4",
-    "sourceCodeHash": "0x416e00aa9139a5f3f9274a39d799947a66499500d8fc5b697513c248b23cb11f"
+    "initCodeHash": "0x1e98d69a22936bd48b14e80dd43b75f0aa63b76c8fcb49357e0688327f549255",
+    "sourceCodeHash": "0x497c98fedb63fa08256ca665bd2aa7a961ae2ab82c1d756e3f271d5712e77c8a"
   },
   "src/L1/L1StandardBridge.sol:L1StandardBridge": {
     "initCodeHash": "0x75b07cd638ef34349da3478aeab051472c1cba8c8074d3df48af3d7fbd97fd49",
@@ -52,8 +52,8 @@
     "sourceCodeHash": "0x7c83a95f65cfd963af0caf90579e8f8544e3f883a48bc803720ec251c72aeffe"
   },
   "src/L2/CrossL2Inbox.sol:CrossL2Inbox": {
-    "initCodeHash": "0x257569d32b24f03015e611dbd10a5b66878895b9bee319962e49b2923c39181a",
-    "sourceCodeHash": "0x63d5ee495c3fbb22d3cd58ce37e538fe946d374cd3d33cb0f7799e5795a17697"
+    "initCodeHash": "0xbae971a94687a0d8b8ad1dca3b0fa02422bc51a3829b3723d2d6fd760dd315ae",
+    "sourceCodeHash": "0x0c32fbac04c818bd6e65b9b5e64a9cd859a7463c328f95dd7a6801bce59a0999"
   },
   "src/L2/ETHLiquidity.sol:ETHLiquidity": {
     "initCodeHash": "0x3c32ddabff34450afd940aa8cf852783576c3ae2d453b66386c3ed3baa0d7a57",
@@ -203,6 +203,10 @@
     "initCodeHash": "0x0dd679c6e955a4bf4af7d98da8c42ac7fd48c5c28af4c61eaeddb782690d6223",
     "sourceCodeHash": "0x24fe77ae2b0dacad1f61f6dd65026ce3a34df7c4d0331eadc661b2e062d6bb54"
   },
+  "src/private-interop/AttestedEventVerifier.sol:AttestedEventVerifier": {
+    "initCodeHash": "0x0b23475682e1220bca64e3f0a6120219adccf6009cd72a9e2a741f031eaaa48d",
+    "sourceCodeHash": "0x029650b0298a1c488e2f356c68ed721fb6b7181f0a3c6d5ea92739a1d7c5a51b"
+  },
   "src/private-interop/ClaimRegistry.sol:ClaimRegistry": {
     "initCodeHash": "0x629bb75d91c32d4da51d346acb2276c9460c20e1f376598c3cb24de7db793fa3",
     "sourceCodeHash": "0x621e3b3e7fc5d6aa2999d858500141a87eff82c5a5ab49ffa65969d5bfc53281"
@@ -214,6 +218,10 @@
   "src/private-interop/L2ToL2CrossDomainMessengerReplay.sol:L2ToL2CrossDomainMessengerReplay": {
     "initCodeHash": "0x1e6d48e0f0a619078f1656fade5e8f678f084b72b36b211cff303bdf7cb487da",
     "sourceCodeHash": "0x40f68758a960e9ed3cb82d4e6ebe28d3daad499ff1b90167326a9dcc2162968d"
+  },
+  "src/private-interop/ProjectionEventExporter.sol:ProjectionEventExporter": {
+    "initCodeHash": "0xc01ec7e841272e4f404574df12461ffa3471938d3350344605003a1dd69c5991",
+    "sourceCodeHash": "0x3f3e934e5a49fd870fc69a9dfade36e7cdce47d90925c145616e327a914cf66d"
   },
   "src/safe/DeputyPauseModule.sol:DeputyPauseModule": {
     "initCodeHash": "0x18422b48c4901ed6fd9338d76d3c5aecfff9a7add34b05c6e21c23d0011ed6bf",

@@ -35,6 +35,7 @@ const (
 	ConditionalDeployer           = "0x420000000000000000000000000000000000002C"
 	L2DevFeatureFlags             = "0x420000000000000000000000000000000000002d"
 	ClaimRegistry                 = "0x420000000000000000000000000000000000002E"
+	ProjectionEventExporter       = "0x4200000000000000000000000000000000000030"
 	EventReplayer                 = "0x420000000000000000000000000000000000002F"
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
 	MultiCall3                    = "0xcA11bde05977b3631167028862bE2a173976CA11"
@@ -81,6 +82,7 @@ var (
 	ConditionalDeployerAddr           = common.HexToAddress(ConditionalDeployer)
 	L2DevFeatureFlagsAddr             = common.HexToAddress(L2DevFeatureFlags)
 	ClaimRegistryAddr                 = common.HexToAddress(ClaimRegistry)
+	ProjectionEventExporterAddr       = common.HexToAddress(ProjectionEventExporter)
 	EventReplayerAddr                 = common.HexToAddress(EventReplayer)
 	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
 	MultiCall3Addr                    = common.HexToAddress(MultiCall3)
