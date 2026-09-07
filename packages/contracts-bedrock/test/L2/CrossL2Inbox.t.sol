@@ -9,13 +9,21 @@ import { VmSafe } from "forge-std/Vm.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { IL1EventRegistry } from "interfaces/L1/IL1EventRegistry.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 import { ILocalLogOracle } from "interfaces/L2/ILocalLogOracle.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { Proxy } from "src/universal/Proxy.sol";
+import { ProjectionEventExporter } from "src/private-interop/ProjectionEventExporter.sol";
+import { AttestedEventVerifier } from "src/private-interop/AttestedEventVerifier.sol";
 
 /// @title CrossL2Inbox_ValidateMessageRelayer_Harness
 /// @notice For test contract used to validate multiple messages in a single tx.
@@ -74,7 +82,7 @@ abstract contract CrossL2Inbox_CertifiedEvent_TestInit is CrossL2Inbox_TestInit 
     Identifier internal id;
     bytes32 internal payloadHash = keccak256("payload");
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         vm.prank(IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
@@ -102,24 +110,90 @@ contract CrossL2Inbox_ExportEvent_Test is CrossL2Inbox_CertifiedEvent_TestInit {
         vm.mockCall(Predeploys.LOCAL_LOG_ORACLE, oracleCall, abi.encode(true));
 
         bytes memory registryCall = abi.encodeCall(IL1EventRegistry.registerEvent, (id, payloadHash));
-        bytes memory withdrawalCall = abi.encodeCall(
-            IL2ToL1MessagePasser.initiateWithdrawal,
-            (l1EventRegistry, crossL2Inbox.REGISTER_EVENT_GAS_LIMIT(), registryCall)
+        ICrossDomainMessenger messenger = ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        IL2ToL1MessagePasser passer = IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
+        uint256 withdrawalNonce = passer.messageNonce();
+        bytes memory relayCall = abi.encodeCall(
+            ICrossDomainMessenger.relayMessage,
+            (
+                messenger.messageNonce(),
+                Predeploys.CROSS_L2_INBOX,
+                l1EventRegistry,
+                0,
+                uint256(crossL2Inbox.REGISTER_EVENT_GAS_LIMIT()),
+                registryCall
+            )
         );
-        vm.mockCall(Predeploys.L2_TO_L1_MESSAGE_PASSER, withdrawalCall, bytes(""));
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
+            Types.WithdrawalTransaction({
+                nonce: withdrawalNonce,
+                sender: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                target: address(messenger.otherMessenger()),
+                value: 0,
+                gasLimit: messenger.baseGas(registryCall, crossL2Inbox.REGISTER_EVENT_GAS_LIMIT()),
+                data: relayCall
+            })
+        );
         vm.expectCall(Predeploys.LOCAL_LOG_ORACLE, oracleCall);
-        vm.expectCall(Predeploys.L2_TO_L1_MESSAGE_PASSER, withdrawalCall);
 
         bytes32 checksum = crossL2Inbox.calculateChecksum(id, payloadHash);
         vm.expectEmit(address(crossL2Inbox));
         emit EventExported(checksum, payloadHash, id);
         crossL2Inbox.exportEvent(id, payloadHash);
+        assertTrue(passer.sentMessages(withdrawalHash));
+        assertEq(passer.messageNonce(), withdrawalNonce + 1);
+        // This is the exact slot the standard portal proves, not merely an emitted log.
+        assertEq(vm.load(address(passer), keccak256(abi.encode(withdrawalHash, uint256(0)))), bytes32(uint256(1)));
     }
 
     function test_exportEvent_tooOld_reverts() external {
         id.timestamp = block.timestamp - crossL2Inbox.EVENT_LOOKUP_WINDOW() - 1;
 
         vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_EventTooOld.selector);
+        crossL2Inbox.exportEvent(id, payloadHash);
+    }
+
+    function test_exportEvent_oracleRejects_reverts() external {
+        vm.mockCall(
+            Predeploys.LOCAL_LOG_ORACLE,
+            abi.encodeCall(ILocalLogOracle.containsLog, (id, payloadHash)),
+            abi.encode(false)
+        );
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_EventNotFound.selector);
+        crossL2Inbox.exportEvent(id, payloadHash);
+    }
+
+    function test_exportEvent_oracleReverts_reverts() external {
+        vm.mockCallRevert(
+            Predeploys.LOCAL_LOG_ORACLE,
+            abi.encodeCall(ILocalLogOracle.containsLog, (id, payloadHash)),
+            bytes("unavailable")
+        );
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_EventNotFound.selector);
+        crossL2Inbox.exportEvent(id, payloadHash);
+    }
+
+    function test_exportEvent_oracleMissing_reverts() external {
+        vm.etch(Predeploys.LOCAL_LOG_ORACLE, bytes(""));
+        vm.expectRevert();
+        crossL2Inbox.exportEvent(id, payloadHash);
+    }
+
+    function test_exportEvent_wrongChain_reverts() external {
+        id.chainId++;
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_EventFromAnotherChain.selector);
+        crossL2Inbox.exportEvent(id, payloadHash);
+    }
+
+    function test_exportEvent_currentBlock_reverts() external {
+        id.blockNumber = block.number;
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_EventNotInPreviousBlock.selector);
+        crossL2Inbox.exportEvent(id, payloadHash);
+    }
+
+    function test_exportEvent_futureTimestamp_reverts() external {
+        id.timestamp = block.timestamp + 1;
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_EventNotInPreviousBlock.selector);
         crossL2Inbox.exportEvent(id, payloadHash);
     }
 }
@@ -141,6 +215,188 @@ contract CrossL2Inbox_ImportEvent_Test is CrossL2Inbox_CertifiedEvent_TestInit {
     function test_importEvent_untrustedSender_reverts() external {
         vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_NotEventRegistry.selector);
         crossL2Inbox.importEvent(id, payloadHash);
+    }
+
+    function test_importEvent_unaliasedRegistry_reverts() external {
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_NotEventRegistry.selector);
+        vm.prank(l1EventRegistry);
+        crossL2Inbox.importEvent(id, payloadHash);
+    }
+}
+
+/// @notice Tests governance control over the pluggable proof policy.
+contract CrossL2Inbox_SetEventProofVerifier_Test is CrossL2Inbox_TestInit {
+    function test_setEventProofVerifier_unauthorized_reverts() external {
+        vm.prank(makeAddr("unauthorized"));
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+        crossL2Inbox.setEventProofVerifier(address(0));
+    }
+
+    function test_setEventProofVerifier_noCode_reverts() external {
+        vm.prank(IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_InvalidEventProofVerifier.selector);
+        crossL2Inbox.setEventProofVerifier(makeAddr("noCode"));
+    }
+
+    function test_setEventProofVerifier_disable_succeeds() external {
+        AttestedEventVerifier verifier = new AttestedEventVerifier(makeAddr("signer"), address(crossL2Inbox));
+        vm.startPrank(IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        crossL2Inbox.setEventProofVerifier(address(verifier));
+        crossL2Inbox.setEventProofVerifier(address(0));
+        vm.stopPrank();
+        assertEq(crossL2Inbox.eventProofVerifier(), address(0));
+    }
+}
+
+/// @notice Tests pluggable proof exports, persistent consumption and rollback on export failure.
+contract CrossL2Inbox_ExportProvenEvent_Test is CrossL2Inbox_CertifiedEvent_TestInit {
+    uint256 internal signerKey = 123;
+    AttestedEventVerifier internal verifier;
+
+    function setUp() public virtual override {
+        super.setUp();
+        vm.etch(Predeploys.PROJECTION_EVENT_EXPORTER, address(new ProjectionEventExporter()).code);
+        verifier = new AttestedEventVerifier(vm.addr(signerKey), address(crossL2Inbox));
+        _configure(verifier);
+    }
+
+    function _configure(AttestedEventVerifier _verifier) internal {
+        vm.prank(IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        crossL2Inbox.setEventProofVerifier(address(_verifier));
+    }
+
+    function _proof() internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, verifier.eventDigest(id, payloadHash));
+        return abi.encodePacked(r, s, v);
+    }
+
+    function test_exportProvenEvent_privateProxyRevertsProjectionProxyExports_succeeds() external {
+        bytes32 implementationSlot = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
+        address exporter = Predeploys.PROJECTION_EVENT_EXPORTER;
+        vm.etch(exporter, address(new Proxy(Predeploys.PROXY_ADMIN)).code);
+        vm.store(exporter, implementationSlot, bytes32(0));
+        bytes memory proof = _proof();
+        uint256 nonce = IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).messageNonce();
+        vm.expectRevert("Proxy: implementation not initialized");
+        ProjectionEventExporter(exporter).exportProvenEvent(id, payloadHash, proof);
+        assertFalse(crossL2Inbox.provenEvents(keccak256(abi.encode(id))));
+        assertFalse(verifier.consumedEvents(keccak256(abi.encode(id))));
+        assertEq(IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).messageNonce(), nonce);
+        vm.store(exporter, implementationSlot, bytes32(uint256(uint160(address(new ProjectionEventExporter())))));
+        ProjectionEventExporter(exporter).exportProvenEvent(id, payloadHash, proof);
+        assertTrue(crossL2Inbox.provenEvents(keccak256(abi.encode(id))));
+        assertEq(IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).messageNonce(), nonce + 1);
+    }
+
+    function test_exportProvenEvent_directInboxCall_reverts() external {
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_NotProjectionEventExporter.selector);
+        crossL2Inbox.exportProvenEvent(id, payloadHash, bytes(""));
+    }
+
+    function test_exportProvenEvent_withoutLocalOracle_succeeds() external {
+        id.timestamp = block.timestamp - 8 days;
+        vm.etch(Predeploys.LOCAL_LOG_ORACLE, bytes(""));
+        uint256 nonce = IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).messageNonce();
+        ProjectionEventExporter(Predeploys.PROJECTION_EVENT_EXPORTER).exportProvenEvent(id, payloadHash, _proof());
+        assertTrue(crossL2Inbox.provenEvents(keccak256(abi.encode(id))));
+        assertEq(IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).messageNonce(), nonce + 1);
+    }
+
+    function test_exportProvenEvent_changedPayload_reverts() external {
+        bytes memory proof = _proof();
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_InvalidEventProof.selector);
+        ProjectionEventExporter(Predeploys.PROJECTION_EVENT_EXPORTER).exportProvenEvent(id, bytes32(uint256(1)), proof);
+        assertFalse(crossL2Inbox.provenEvents(keccak256(abi.encode(id))));
+    }
+
+    function test_exportProvenEvent_afterVerifierReplacement_reverts() external {
+        ProjectionEventExporter(Predeploys.PROJECTION_EVENT_EXPORTER).exportProvenEvent(id, payloadHash, _proof());
+        verifier = new AttestedEventVerifier(vm.addr(signerKey), address(crossL2Inbox));
+        _configure(verifier);
+        payloadHash = keccak256("conflicting event");
+        bytes memory proof = _proof();
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_EventAlreadyExported.selector);
+        ProjectionEventExporter(Predeploys.PROJECTION_EVENT_EXPORTER).exportProvenEvent(id, payloadHash, proof);
+    }
+
+    function test_exportProvenEvent_exportFailureDoesNotConsume_succeeds() external {
+        bytes memory proof = _proof();
+        vm.mockCallRevert(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeWithSelector(ICrossDomainMessenger.sendMessage.selector),
+            bytes("messenger unavailable")
+        );
+        vm.expectRevert(bytes("messenger unavailable"));
+        ProjectionEventExporter(Predeploys.PROJECTION_EVENT_EXPORTER).exportProvenEvent(id, payloadHash, proof);
+        assertFalse(verifier.consumedEvents(keccak256(abi.encode(id))));
+        assertFalse(crossL2Inbox.provenEvents(keccak256(abi.encode(id))));
+        vm.clearMockedCalls();
+        ProjectionEventExporter(Predeploys.PROJECTION_EVENT_EXPORTER).exportProvenEvent(id, payloadHash, proof);
+        assertTrue(crossL2Inbox.provenEvents(keccak256(abi.encode(id))));
+    }
+}
+
+/// @title CrossL2Inbox_CertificateReceiver_Harness
+/// @notice Recipient used to test atomic certificate import and retry after application failure.
+contract CrossL2Inbox_CertificateReceiver_Harness {
+    error ApplicationFailure();
+
+    bool public shouldFail = true;
+    uint256 public calls;
+
+    function allowCalls() external {
+        shouldFail = false;
+    }
+
+    function receiveMessage() external {
+        if (shouldFail) revert ApplicationFailure();
+        calls++;
+    }
+}
+
+/// @title CrossL2Inbox_ImportAndExecute_Test
+/// @notice Tests real messenger execution, rollback and duplicate protection for certified deposits.
+contract CrossL2Inbox_ImportAndExecute_Test is CrossL2Inbox_CertifiedEvent_TestInit {
+    function test_importAndExecute_retryAfterApplicationFailure_succeeds() external {
+        CrossL2Inbox_CertificateReceiver_Harness receiver = new CrossL2Inbox_CertificateReceiver_Harness();
+        id.origin = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+        id.chainId = block.chainid + 1;
+        bytes memory callData = abi.encodeCall(receiver.receiveMessage, ());
+        address sender = makeAddr("privateSender");
+        bytes memory sentMessage = bytes.concat(
+            abi.encode(
+                keccak256("SentMessage(uint256,address,uint256,address,bytes)"),
+                block.chainid,
+                address(receiver),
+                uint256(0)
+            ),
+            abi.encode(sender, callData)
+        );
+        bytes32 checksum = crossL2Inbox.calculateChecksum(id, keccak256(sentMessage));
+        bytes32 messageHash =
+            Hashing.hashL2toL2CrossDomainMessage(block.chainid, id.chainId, 0, sender, address(receiver), callData);
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
+        vm.fee(1);
+        vm.txGasPrice(0);
+        vm.expectRevert(CrossL2Inbox_CertificateReceiver_Harness.ApplicationFailure.selector);
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(l1EventRegistry));
+        crossL2Inbox.importAndExecute(id, sentMessage);
+        assertFalse(crossL2Inbox.certifiedMessages(checksum));
+        assertFalse(messenger.successfulMessages(messageHash));
+        assertEq(receiver.calls(), 0);
+
+        receiver.allowCalls();
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(l1EventRegistry));
+        crossL2Inbox.importAndExecute(id, sentMessage);
+        assertTrue(crossL2Inbox.certifiedMessages(checksum));
+        assertTrue(messenger.successfulMessages(messageHash));
+        assertEq(receiver.calls(), 1);
+
+        vm.expectRevert(IL2ToL2CrossDomainMessenger.MessageAlreadyRelayed.selector);
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(l1EventRegistry));
+        crossL2Inbox.importAndExecute(id, sentMessage);
+        assertEq(receiver.calls(), 1);
     }
 }
 

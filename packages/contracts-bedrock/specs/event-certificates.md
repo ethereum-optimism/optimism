@@ -19,7 +19,8 @@ source export and destination execution through the relevant portals.
 
 - `LocalLogOracle` is a consensus-critical precompile at `0x4200000000000000000000000000000000000026`. It only proves
   logs from previous blocks of the chain on which it is called and only while they are at most seven days old.
-- `CrossL2Inbox` exports a locally proven event through `L2ToL1MessagePasser`, imports an L1 certificate, and validates
+- `CrossL2Inbox` exports a locally proven event through the standard L2 cross-domain messenger and message passer,
+  imports an L1 certificate, and validates
   cached certificates without an EIP-2930 access-list entry.
 - `L1EventRegistry` authenticates finalized exports and stores durable certificates. Its immutable `ETHLockbox`
   identifies the portals in one interop cluster.
@@ -48,11 +49,13 @@ keccak256(abi.encode(identifier, payloadHash))
    `CrossL2Inbox.exportEvent(identifier, payloadHash)` on the source L2.
 2. `CrossL2Inbox` requires the source chain ID, a previous block, and an in-window timestamp, then asks
    `LocalLogOracle.containsLog` to verify the exact local log.
-3. `CrossL2Inbox` creates a zero-value withdrawal targeting `L1EventRegistry.registerEvent`.
-4. Anyone proves and finalizes that withdrawal using the ordinary portal mechanism.
-5. `L1EventRegistry` accepts the certificate only when the calling portal is currently authorized by its immutable
-   `ETHLockbox`, the portal uses that lockbox, `portal.l2Sender()` is the canonical `CrossL2Inbox`, and the chain ID
-   derived from `portal.systemConfig()` matches the identifier.
+3. `CrossL2Inbox` calls the standard `L2CrossDomainMessenger.sendMessage` with zero value, targeting
+   `L1EventRegistry.registerEvent`. The messenger creates a normal message-passer withdrawal to its L1 counterpart.
+4. Anyone proves and finalizes that withdrawal using the ordinary portal mechanism. The L1 messenger authenticates
+   the portal delivery and calls the registry with `xDomainMessageSender() == CrossL2Inbox`.
+5. `L1EventRegistry` accepts the certificate only when the messenger's portal is currently authorized by its immutable
+   `ETHLockbox`, the portal uses that lockbox, and the portal's `SystemConfig.l1CrossDomainMessenger()` identifies the
+   caller. It then checks the cross-domain sender and the chain ID derived from the portal's `SystemConfig`.
 6. Anyone calls `relayEvent` or `relayMessage` with an authorized destination portal. The registry deposits a fixed
    call to the destination `CrossL2Inbox`; the registry becomes the aliased L2 caller.
 7. The destination inbox authenticates the alias, stores the checksum, and either leaves generic consumption to the
@@ -60,6 +63,12 @@ keccak256(abi.encode(identifier, payloadHash))
 
 Certificates and imports are idempotent. Messenger replay protection remains the authority for whether a particular
 interop message has executed successfully.
+
+If L1 registration fails, the standard L1 messenger records a failed message that anyone can retry. The registry is
+deliberately not the direct portal withdrawal target: a direct target failure would consume the finalized withdrawal
+without providing a retry. Retrying the messenger delivery does not repeat the L2 log lookup, so its seven-day window
+may expire in the meantime. Permanent removal of a source portal or replacement of its canonical messenger still
+requires draining pending exports or an explicit migration policy; retry does not override revoked authorization.
 
 ## Consensus separation
 
@@ -72,7 +81,8 @@ be rejected by current supervisors even though the EVM call succeeded locally.
 
 ## Security properties
 
-- Calldata cannot forge source identity. L1 derives it from the calling portal and `portal.l2Sender()`.
+- Calldata cannot forge source identity. The registry binds the calling messenger to the authorized portal's
+  `SystemConfig` before trusting its cross-domain sender. A fake messenger that merely reports a real portal is rejected.
 - Certificates cannot cross ETHLockbox clusters unless a destination cluster explicitly trusts the registry.
 - Destination imports accept only the configured registry's standard L1-to-L2 address alias.
 - A failed one-shot message execution reverts the import deposit, but the L1 certificate remains registered and can be
@@ -80,27 +90,44 @@ be rejected by current supervisors even though the EVM call succeeded locally.
 - The mechanism is censorship-resistant under the same L1 inclusion and portal force-inclusion assumptions as an
   ordinary deposit.
 
-## Limitations
+## Private projection proof path
 
-The mechanism does not recover an event that was never exported before its seven-day local lookup window closed.
-Protocols requiring unconditional eventual recovery should export eagerly, allow a keeper to export, or batch recent
-event certificates. Withdrawal finality can then complete after ordinary interop expiry without losing the event.
+An ordinary L1 deposit may target the reserved `ProjectionEventExporter` at
+`0x4200000000000000000000000000000000000030`. Its proxy is active only in projection genesis and
+uninitialized on the private chain. The latter still derives the deposit but reverts its call.
+The exporter is the only caller accepted by `CrossL2Inbox.exportProvenEvent`. The inbox delegates
+opaque proof verification to a governance-configured `IEventProofVerifier`, consumes the full event
+identifier once, and sends the same standard messenger export described above. All state changes
+roll back on rejection or failed export; consumption survives verifier replacement.
 
-The registry establishes that a log existed. It does not establish application-specific absence, non-execution, or
-refund eligibility. An ETH bridge using certificates for recovery must still bind a unique transfer identifier and
-enforce a single terminal outcome across relay and refund paths.
+The initial `AttestedEventVerifier` checks a trusted ECDSA signer, binding the chain ID, verifier,
+inbox, full identifier and payload hash. Its signer is responsible for canonical private history,
+projected positions and execution validity. This is not an independently verified execution proof.
+A TEE or ZK provider can implement the interface later. No local receipt oracle or seven-day lookup
+limit applies to this proof path, but a user must already have a valid proof when its provider goes
+offline.
 
-## Required follow-up work
+The projection really executes the zero-value message-passer write. Receipt logs for the deposit
+remain suppressed; a private receipt cannot supply the projection withdrawal hash. The superroot
+still commits the projection output root, so only that outbox can settle through the source portal.
+See [private integration](../../../op-private-interop/docs/EVENT-CERTIFICATES.md).
 
-1. Specify `LocalLogOracle` gas, receipt encoding, pruning behavior, and exact boundary behavior.
-2. Make historical receipt access deterministic in op-geth, op-reth, Kona, and fault-proof re-execution. Reading an
-   execution client's optional archival database is insufficient. The final design needs either a state-committed
-   rolling receipt-root/history structure or explicit receipt and ancestry witnesses anchored to consensus state.
-3. Teach interop clients to recognize `ExecutingCertifiedMessage` as L1-certified rather than as an ordinary
-   executing-message dependency.
-4. Deploy `L1EventRegistry`, configure it in each participating `CrossL2Inbox`, and add genesis/NUT wiring and standard
-   validation checks.
-5. Add end-to-end tests for forced source export, withdrawal proving/finalization, destination deposit derivation,
-   one-shot execution, retries, reorgs, and the exact seven-day boundary.
-6. Define batching before production use; one withdrawal and one deposit per event is deliberately the simplest base
-   case, not the most economical form.
+## Limitations and remaining work
+
+The local-oracle path still needs deterministic consensus implementation across clients and fault
+proofs. Its seven-day window applies to source lookup, not to later messenger retry. The proof path
+is usable without this oracle; registry and verifier configuration remain governance operations.
+
+A certificate establishes an event only under its configured proof policy. It does not establish
+application-specific absence, non-execution or refund eligibility. Asset recovery requires separate
+accounting with a single terminal outcome. Ordinary private asset withdrawals are outside this work.
+
+Private raw and projected log indices can differ. Signers and future proof systems must authenticate
+the projected identifier, and must not treat suppressed deposit logs as published initiating events.
+Incoming certified execution on a private projection is unsupported: its replay messenger rejects
+`relayMessage`.
+
+Migrations must preserve or drain the old registry and canonical messenger routes. Export consumption
+prevents reexporting an identifier to a replacement registry. Retries do not override revoked cluster
+authorization. Reorg testing, production proof-provider integration, deployment/upgrade automation,
+and batching remain required before production deployment.

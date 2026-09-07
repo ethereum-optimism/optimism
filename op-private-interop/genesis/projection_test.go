@@ -28,8 +28,8 @@ import (
 // was hand-written; regenerate it with a stock op-deployer when the contract release moves and
 // update StockL2ToL2CrossDomainMessengerCodeHash alongside it.
 const (
-	goldenPublicProjectionStateRoot = "0x88e65cf29ff2b1143db9167bf9ffcb52002722154f500a048855f4f2beacf1a0"
-	goldenPublicProjectionBlockHash = "0xc581fb8dd0b9faf6bdc2352a57aa1b36a34f3e81863449118d9a85d107b04cbc"
+	goldenPublicProjectionStateRoot = "0x19fd47675c5ac5e23d8001f34b38ecde60d1afe4169456c681823836755fc025"
+	goldenPublicProjectionBlockHash = "0x3ef5ff231bb4260905c2fe4f5f613598464ad7393e2c4a5f727b327609bb4947"
 )
 
 func TestProjectGenesisFromIsPureAndDeterministic(t *testing.T) {
@@ -81,6 +81,7 @@ func TestProjectGenesisFromRewritesOnlyThePublicProjectionState(t *testing.T) {
 		predeploys.L2toL2CrossDomainMessengerAddr,
 		predeploys.ClaimRegistryAddr,
 		predeploys.EventReplayerAddr,
+		predeploys.ProjectionEventExporterAddr,
 	} {
 		require.Equal(t, common.BytesToHash(codeNamespace(proxy).Bytes()), public.Alloc[proxy].Storage[implementationSlot])
 		require.Equal(t, publicProjectionCode[codeNamespace(proxy)], public.Alloc[codeNamespace(proxy)].Code)
@@ -240,4 +241,27 @@ func genesisJSON(t *testing.T, g *core.Genesis) string {
 
 func maxUint128() *big.Int {
 	return new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
+}
+
+func TestProjectionExporterAddressIsReserved(t *testing.T) {
+	private := loadPrivateChainGenesis(t)
+	addr := predeploys.ProjectionEventExporterAddr
+	require.NotEmpty(t, private.Alloc[addr].Code)
+	require.Equal(t, common.Hash{}, private.Alloc[addr].Storage[implementationSlot])
+	projection, err := ProjectGenesisFrom(private)
+	require.NoError(t, err)
+	require.Equal(t, private.Alloc[addr].Code, projection.Alloc[addr].Code)
+	require.NotEqual(t, common.Hash{}, projection.Alloc[addr].Storage[implementationSlot])
+	for _, code := range [][]byte{nil, {0x00}} {
+		occupied := cloneGenesis(private)
+		account := occupied.Alloc[addr]
+		account.Code = code
+		occupied.Alloc[addr] = account
+		_, err := ProjectGenesisFrom(occupied)
+		require.ErrorIs(t, err, ErrExporterNotReserved)
+	}
+	occupied := cloneGenesis(private)
+	activateProxy(occupied.Alloc, addr, []byte{0x00})
+	_, err = ProjectGenesisFrom(occupied)
+	require.ErrorIs(t, err, ErrAlreadyProjected)
 }

@@ -7,20 +7,24 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 // Interfaces
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title L1EventRegistry
 /// @notice Records recent L2 events finalized through standard withdrawal proofs and relays their
 ///         certificates to other chains in the same ETHLockbox cluster.
-/// @dev This contract is intentionally immutable. A new registry requires updating CrossL2Inbox
-///      through the L2 ProxyAdmin on each participating chain.
+/// @notice This contract is intentionally immutable. A new registry requires updating CrossL2Inbox
+///         through the L2 ProxyAdmin on each participating chain.
 contract L1EventRegistry is ISemver {
     /// @notice Thrown when constructed with a zero ETHLockbox address.
     error L1EventRegistry_InvalidLockbox();
 
     /// @notice Thrown when a source or destination portal is not in the registry's cluster.
     error L1EventRegistry_UnauthorizedPortal();
+
+    /// @notice Thrown when the caller is not the source portal's configured L1 messenger.
+    error L1EventRegistry_UnauthorizedMessenger();
 
     /// @notice Thrown when a source withdrawal was not initiated by CrossL2Inbox.
     error L1EventRegistry_UnauthorizedL2Sender();
@@ -38,7 +42,7 @@ contract L1EventRegistry is ISemver {
     event EventRelayed(bytes32 indexed certificate, address indexed portal, bool executeMessage);
 
     /// @notice Shared ETHLockbox defining the set of source and destination portals.
-    IETHLockbox public immutable ethLockbox;
+    IETHLockbox internal immutable ETH_LOCKBOX;
 
     /// @notice Registered event certificates.
     mapping(bytes32 => bool) public registeredEvents;
@@ -50,16 +54,26 @@ contract L1EventRegistry is ISemver {
     /// @param _ethLockbox Shared ETHLockbox for the interop cluster.
     constructor(IETHLockbox _ethLockbox) {
         if (address(_ethLockbox) == address(0)) revert L1EventRegistry_InvalidLockbox();
-        ethLockbox = _ethLockbox;
+        ETH_LOCKBOX = _ethLockbox;
     }
 
-    /// @notice Records an event exported from an authorized L2 CrossL2Inbox.
-    /// @dev This function is the target of a zero-value L2 withdrawal. The portal authenticates
-    ///      the source CrossL2Inbox through l2Sender while the lockbox authenticates cluster membership.
+    /// @notice Returns the shared lockbox defining this registry's portal cluster.
+    function ethLockbox() public view returns (IETHLockbox) {
+        return ETH_LOCKBOX;
+    }
+
+    /// @notice Records an event delivered by the source chain's canonical L1 messenger. Using
+    ///         the messenger preserves retries if registration fails after withdrawal finalization.
+    ///         A messenger's self-reported portal alone is insufficient authentication: the portal's
+    ///         SystemConfig must identify that same messenger before its sender context is trusted.
     function registerEvent(Identifier calldata _id, bytes32 _payloadHash) external {
-        IOptimismPortal2 portal = IOptimismPortal2(payable(msg.sender));
+        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(msg.sender);
+        IOptimismPortal2 portal = messenger.portal();
         _assertAuthorizedPortal(portal);
-        if (portal.l2Sender() != Predeploys.CROSS_L2_INBOX) {
+        if (portal.systemConfig().l1CrossDomainMessenger() != msg.sender) {
+            revert L1EventRegistry_UnauthorizedMessenger();
+        }
+        if (messenger.xDomainMessageSender() != Predeploys.CROSS_L2_INBOX) {
             revert L1EventRegistry_UnauthorizedL2Sender();
         }
         if (portal.systemConfig().l2ChainId() != _id.chainId) revert L1EventRegistry_WrongSourceChain();
@@ -115,7 +129,7 @@ contract L1EventRegistry is ISemver {
 
     /// @notice Returns whether a portal is a current member of this registry's ETHLockbox cluster.
     function _portalIsAuthorized(IOptimismPortal2 _portal) internal view returns (bool) {
-        return ethLockbox.authorizedPortals(_portal) && _portal.ethLockbox() == ethLockbox;
+        return ETH_LOCKBOX.authorizedPortals(_portal) && _portal.ethLockbox() == ETH_LOCKBOX;
     }
 
     /// @notice Verifies and returns the certificate for an event and payload hash.
