@@ -47,7 +47,9 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         uint64 now;
         uint8 status;
         uint8 finalized;
-        bytes32 registration;
+        uint32 registrationType;
+        uint64 registrationTimestamp;
+        address registeredGame;
         bool respected;
         uint8 blacklisted;
         bool paused;
@@ -96,14 +98,19 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         example.resolvedAt = 3 days;
         example.now = 30 days;
         example.status = uint8(GameStatus.DEFENDER_WINS);
-        example.registration = bytes32(uint256(uint160(address(game))));
+        example.registeredGame = address(game);
         example.respected = true;
         assert(_check(example));
     }
 
     function _check(AuthorizationCase memory _case) internal returns (bool accepted_) {
         game.configure(_case.createdAt, _case.resolvedAt, GameStatus(_case.status), _case.respected, _case.paused);
-        vm.store(address(factory), registrationSlot, _case.registration);
+        // Independent 32/64/160-bit fields span every possible packed registration word.
+        bytes32 registration = bytes32(
+            (uint256(_case.registrationType) << 224) | (uint256(_case.registrationTimestamp) << 160)
+                | uint256(uint160(_case.registeredGame))
+        );
+        vm.store(address(factory), registrationSlot, registration);
         vm.store(address(registry), bytes32(uint256(6)), bytes32(uint256(_case.retiredAt) << 32));
         vm.store(
             address(registry), keccak256(abi.encode(address(game), uint256(5))), bytes32(uint256(_case.blacklisted))
@@ -121,10 +128,9 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
             address(portal).staticcall(abi.encodeCall(portal.checkWithdrawal, (_case.withdrawalHash, _case.submitter)));
         bool eligible = _case.finalized == 0 && _case.provenAt != 0 && _case.provenAt > _case.createdAt
             && _case.now >= _case.provenAt && uint256(_case.now) - _case.provenAt > proofDelay
-            && address(uint160(uint256(_case.registration))) == address(game) && _case.blacklisted == 0
-            && _case.createdAt > _case.retiredAt && !_case.paused && _case.respected
-            && _case.status == uint8(GameStatus.DEFENDER_WINS) && _case.resolvedAt != 0 && _case.now >= _case.resolvedAt
-            && uint256(_case.now) - _case.resolvedAt > gameDelay;
+            && _case.registeredGame == address(game) && _case.blacklisted == 0 && _case.createdAt > _case.retiredAt
+            && !_case.paused && _case.respected && _case.status == uint8(GameStatus.DEFENDER_WINS) && _case.resolvedAt != 0
+            && _case.now >= _case.resolvedAt && uint256(_case.now) - _case.resolvedAt > gameDelay;
         assert(accepted_ == eligible);
         // STATICCALL also prevents writes in every dependency, including reverted executions.
         assert(

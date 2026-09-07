@@ -32,8 +32,10 @@ to inclusion verification. These assumptions must remain explicit in any compose
 ## Component scope
 
 `prove_checkWithdrawal_equivalence` quantifies over withdrawal hash, submitter, all three valid
-game statuses, eligibility flags, an arbitrary packed factory registration word (including other
-nonzero game addresses), and `uint64` creation/resolution/proof/retirement/current times.
+game statuses, eligibility flags, every packed factory registration word (including other nonzero
+game addresses), and `uint64` creation/resolution/proof/retirement/current times. The registration
+word is assembled from independent 32-bit type, 64-bit timestamp and 160-bit address inputs. Their
+disjoint bit ranges cover all 256 bits, so this representation includes every possible word.
 Future timestamps and equality boundaries remain in the domain. Delay parameters are read from
 the deployment's immutable getters. Both source checks use strict `>` boundaries.
 At proof-age equality, the implementation rejects, while the pinned Portal specification's
