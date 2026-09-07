@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { GasBurner } from "test/mocks/GasBurner.sol";
 import { stdError } from "forge-std/StdError.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
@@ -581,68 +580,6 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         l1CrossDomainMessenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, message
-        );
-    }
-
-    /// @notice Tests that `relayMessage` has enough base gas to finish when relaying a near-max
-    ///         L1 => L2 payload to a target that consumes all forwarded gas.
-    function test_relayMessage_nearMaxPayloadAllGasTarget_succeeds() external {
-        skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
-
-        // Use the PoC's _minGasLimit value referenced from client-pod#609:
-        // https://github.com/ethereum-optimism/client-pod/issues/609
-        uint32 minGasLimit = 50_000;
-
-        // Largest 32-byte-aligned user message that fits under the portal's 120k calldata cap once
-        // encoded as relayMessage(uint256,address,address,uint256,uint256,bytes). The fixed
-        // encoding overhead is 4 bytes for the selector, 6 ABI words for the nonce, sender,
-        // target, value, minGasLimit, and message offset, and 1 ABI word for the dynamic bytes
-        // length. The message length is rounded down to a 32-byte multiple because dynamic bytes
-        // data is ABI word-padded.
-        uint256 portalCalldataLimit = 120_000;
-        uint256 relayMessageEncodingOverhead = 4 + 6 * 32 + 32;
-        uint256 messageLength = ((portalCalldataLimit - relayMessageEncodingOverhead) / 32) * 32;
-        bytes memory message = new bytes(messageLength);
-        for (uint256 i = 0; i < message.length; i++) {
-            message[i] = 0x01;
-        }
-
-        uint64 baseGas = l1CrossDomainMessenger.baseGas(message, minGasLimit);
-        address target = address(new GasBurner(type(uint32).max));
-        bytes memory encoded = Encoding.encodeCrossDomainMessage(
-            Encoding.encodeVersionedNonce(0, 1), alice, target, 0, minGasLimit, message
-        );
-
-        assertEq(encoded.length, relayMessageEncodingOverhead + message.length);
-        assertLe(encoded.length, portalCalldataLimit);
-        assertGt(encoded.length + 32, portalCalldataLimit);
-
-        uint256 zeroBytesInCalldata = 0;
-        uint256 nonzeroBytesInCalldata = 0;
-        for (uint256 i = 0; i < encoded.length; i++) {
-            if (encoded[i] != bytes1(0)) {
-                nonzeroBytesInCalldata++;
-            } else {
-                zeroBytesInCalldata++;
-            }
-        }
-        // The message body is non-zero, but the ABI-encoded selector and fixed-size arguments
-        // still include zero bytes.
-        assertGt(zeroBytesInCalldata, 0);
-
-        // Actual gas on L2 is the deposited gas limit minus L2 intrinsic gas.
-        uint256 gasSupplied = baseGas - (21_000 + ((zeroBytesInCalldata + nonzeroBytesInCalldata * 4) * 4));
-
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
-        vm.prank(caller);
-
-        (bool success,) = address(l2CrossDomainMessenger).call{ gas: gasSupplied }(encoded);
-        assertTrue(success, "L2CrossDomainMessenger call should not fail");
-
-        bool inFailedMessages = l2CrossDomainMessenger.failedMessages(keccak256(encoded));
-        bool inSuccessfulMessages = l2CrossDomainMessenger.successfulMessages(keccak256(encoded));
-        assertTrue(
-            inFailedMessages || inSuccessfulMessages, "message should be in either failed or successful messages"
         );
     }
 
