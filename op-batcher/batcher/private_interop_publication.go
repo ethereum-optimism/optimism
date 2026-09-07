@@ -54,6 +54,9 @@ func (l *BatchSubmitter) publicationCursor(ctx context.Context, status *eth.Sync
 	if head.Number > status.UnsafeL2.Number {
 		return cursor, id, reset, fmt.Errorf("private head %d has not caught up to projection %d", status.UnsafeL2.Number, head.Number)
 	}
+	if head.Number > status.LocalSafeL2.Number {
+		return cursor, id, reset, fmt.Errorf("private canonical execution %d has not reconciled projection %d", status.LocalSafeL2.Number, head.Number)
+	}
 	if head.Number != cursor.Number {
 		source, err := l.EndpointProvider.PayloadSource(ctx)
 		if err != nil {

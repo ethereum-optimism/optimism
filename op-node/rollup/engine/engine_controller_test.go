@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	mrand "math/rand"
 	"testing"
@@ -963,6 +964,53 @@ type recordingOriginResetter struct{ resets int }
 
 func (r *recordingOriginResetter) ResetOrigins() { r.resets++ }
 
+func TestFollowSource_RewindToExistingAncestor(t *testing.T) {
+	for _, contradictFinality := range []bool{false, true} {
+		t.Run(fmt.Sprintf("contradict_finality_%t", contradictFinality), func(t *testing.T) {
+			block := func(n byte) eth.L2BlockRef {
+				return eth.L2BlockRef{Hash: common.Hash{n}, ParentHash: common.Hash{n - 1}, Number: uint64(n)}
+			}
+			finalized, ancestor, safe, unsafe := block(2), block(3), block(4), block(5)
+			mockEngine := &testutils.MockEngine{}
+			emitter := &testutils.MockEmitter{}
+			emitter.Mock.On("Emit", mock.Anything).Maybe()
+			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+				metrics.NoopMetrics, &rollup.Config{}, &sync.Config{L2FollowSourceEndpoint: "http://localhost"},
+				&testutils.MockL1Source{}, emitter, nil)
+			resetter := &recordingOriginResetter{}
+			ec.SetOriginSelectorResetter(resetter)
+			ec.SetUnsafeHead(unsafe)
+			ec.SetLocalSafeHead(safe)
+			ec.SetDeprecatedSafeHead(safe)
+			ec.SetFinalizedHead(finalized)
+			if !contradictFinality {
+				mockEngine.ExpectL2BlockRefByNumber(ancestor.Number, ancestor, nil)
+			}
+			externalFinalized := finalized
+			if contradictFinality {
+				externalFinalized.Hash = common.Hash{0xff}
+			} else {
+				mockEngine.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
+					HeadBlockHash: ancestor.Hash, SafeBlockHash: ancestor.Hash, FinalizedBlockHash: finalized.Hash,
+				}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
+			}
+			ec.FollowSource(ancestor, ancestor, externalFinalized)
+			if contradictFinality {
+				require.Equal(t, unsafe, ec.UnsafeL2Head())
+				require.Equal(t, safe, ec.localSafeHead)
+				require.Zero(t, resetter.resets)
+			} else {
+				require.Equal(t, ancestor, ec.UnsafeL2Head())
+				require.Equal(t, ancestor, ec.localSafeHead)
+				require.Equal(t, ancestor, ec.SafeL2Head())
+				require.Equal(t, 1, resetter.resets)
+			}
+			require.Equal(t, finalized, ec.FinalizedHead())
+			mockEngine.AssertExpectations(t)
+		})
+	}
+}
+
 // TestFollowSource_SequencerDivergenceForcesReset verifies a follow-mode SEQUENCER reorgs
 // decisively onto the upstream chain on divergence (forceReset, resetting origins). Regression
 // guard for #21119, where the pre-fix soft update oscillated (see FollowSource).
@@ -1449,4 +1497,28 @@ func TestTryUpdateEngine_SyncingInELSyncModeIsAccepted(t *testing.T) {
 	// Call tryUpdateEngineInternal - should succeed in EL-sync mode
 	err := ec.tryUpdateEngineInternal(context.Background())
 	require.NoError(t, err)
+}
+
+func TestFollowSourceRevokesCrossSafetyWithoutReexecuting(t *testing.T) {
+	block := func(n byte) eth.L2BlockRef { return eth.L2BlockRef{Hash: common.Hash{n}, Number: uint64(n)} }
+	finalized, cross, local, unsafe := block(1), block(2), block(3), block(4)
+	el := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	emitter.Mock.On("Emit", mock.Anything).Maybe()
+	ec := NewEngineController(t.Context(), el, testlog.Logger(t, 0), metrics.NoopMetrics,
+		&rollup.Config{}, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, emitter, nil)
+	ec.SetUnsafeHead(unsafe)
+	ec.SetLocalSafeHead(local)
+	ec.SetPendingSafeL2Head(local)
+	ec.SetDeprecatedSafeHead(local)
+	ec.SetFinalizedHead(finalized)
+	el.ExpectL2BlockRefByNumber(local.Number, local, nil)
+	el.ExpectForkchoiceUpdate(&eth.ForkchoiceState{HeadBlockHash: unsafe.Hash, SafeBlockHash: cross.Hash, FinalizedBlockHash: finalized.Hash}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
+	ec.FollowSource(cross, local, finalized)
+	require.Equal(t, cross, ec.SafeL2Head())
+	require.Equal(t, local, ec.localSafeHead)
+	require.Equal(t, local, ec.PendingSafeL2Head())
+	require.Equal(t, unsafe, ec.UnsafeL2Head())
+	el.AssertExpectations(t)
 }

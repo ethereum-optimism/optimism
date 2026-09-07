@@ -2,24 +2,16 @@ package claimfollow
 
 import (
 	"context"
+	"fmt"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
-// API is the served surface, and it is one method wide.
-//
-// The follow protocol is `optimism_syncStatus` and nothing else — verified against both op-node's
-// follow source and kona's — so this type deliberately does not grow the rest of the optimism
-// namespace. A route that answered outputAtBlock or safeHeadAtL1Block would be impersonating a node
-// with state it does not have; the private chain's own LightCL, sitting in front of this, serves
-// the real optimism namespace to every other consumer from the claim-driven safe head this feeds
-// it.
-//
-// It is mounted at the chain's SIBLING route (`<base>/<chainID>/claimed`) and never on the chain's
-// own route. The distinction is load-bearing: `<base>/<chainID>` is the RENDERING chain's honest
-// public view and must stay that, and a consumer pointed at the wrong one of the two gets an
-// obviously different answer instead of plausible-looking refs of the wrong chain — which a
-// sequencing LightCL would force-reset onto.
+// API serves private checkpoints and canonical recovery inputs on the sibling
+// <chainID>/claimed route. The chain's ordinary route remains its public projection.
 type API struct {
 	m *Module
 }
@@ -29,4 +21,77 @@ func NewAPI(m *Module) *API { return &API{m: m} }
 
 // SyncStatus serves optimism_syncStatus. See Module.SyncStatus for the field population, and the
 // package comment for why an error before the first claim is the right answer rather than a gap.
-func (a *API) SyncStatus(_ context.Context) (*eth.SyncStatus, error) { return a.m.SyncStatus() }
+func (a *API) SyncStatus(_ context.Context) (*sources.FollowSyncStatus, error) {
+	a.m.mu.RLock()
+	defer a.m.mu.RUnlock()
+	status, err := a.m.syncStatusLocked()
+	if err != nil {
+		return nil, err
+	}
+	out := &sources.FollowSyncStatus{SyncStatus: *status}
+	if a.m.recoveryTarget != (eth.L2BlockRef{}) && a.m.recoveryTarget.Number >= a.m.localSafe.Number {
+		out.Recovery = &sources.FollowRecoveryStatus{Anchor: a.m.localSafe, Target: a.m.recoveryTarget, Safe: a.m.recoverySafe, Finalized: a.m.recoveryFinalized}
+		for _, c := range a.m.pending {
+			if c.invalidFrom != 0 && c.prefixRef.Number > out.Recovery.Anchor.Number && c.prefixRef.Number <= out.Recovery.Target.Number &&
+				(out.Recovery.Prefix == nil || c.prefixRef.Number > out.Recovery.Prefix.Last.Number) {
+				out.Recovery.Prefix = &sources.FollowRecoveryPrefix{
+					Terminal: eth.BlockID{Hash: c.terminal, Number: c.last}, TerminalParent: c.parent, Last: c.prefixRef,
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+// RecoveryBlock supplies only canonical deposit-only projection inputs. It never
+// returns a private block hash or treats an unavailable claim as an empty block.
+func (a *API) RecoveryBlock(ctx context.Context, number uint64, target eth.BlockID) (eth.L2BlockRef, error) {
+	src, err := a.m.source()
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	a.m.mu.RLock()
+	anchor, frontier, generation := a.m.localSafe, a.m.recoveryTarget, a.m.generation
+	a.m.mu.RUnlock()
+	if number <= anchor.Number || number > target.Number || target.Number > frontier.Number {
+		return eth.L2BlockRef{}, fmt.Errorf("block %d is outside the available recovery suffix", number)
+	}
+	checkTarget := func() error {
+		env, err := src.PayloadByNumber(ctx, target.Number)
+		if err != nil {
+			return err
+		}
+		if env == nil || env.ExecutionPayload == nil || env.ExecutionPayload.ID() != target {
+			return fmt.Errorf("projection recovery target changed")
+		}
+		return nil
+	}
+	if err := checkTarget(); err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	env, err := src.PayloadByNumber(ctx, number)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	if env == nil || env.ExecutionPayload == nil {
+		return eth.L2BlockRef{}, fmt.Errorf("projection block %d is unavailable", number)
+	}
+	for _, tx := range env.ExecutionPayload.Transactions {
+		if len(tx) == 0 || (tx[0] != optypes.DepositTxType && tx[0] != optypes.PostExecTxType) {
+			return eth.L2BlockRef{}, fmt.Errorf("projection block %d contains sequencer transactions", number)
+		}
+	}
+	ref, err := derive.PayloadToBlockRef(a.m.rollupCfg, env.ExecutionPayload)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	if err := checkTarget(); err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	a.m.mu.RLock()
+	defer a.m.mu.RUnlock()
+	if a.m.generation != generation || a.m.recoveryTarget.Number < target.Number || a.m.localSafe.Number >= number {
+		return eth.L2BlockRef{}, fmt.Errorf("projection recovery snapshot was revoked")
+	}
+	return ref, nil
+}

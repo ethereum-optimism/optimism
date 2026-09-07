@@ -78,13 +78,8 @@ func (a *Activity) Stop(_ context.Context) error {
 	return nil
 }
 
-// Reset drops everything the module learned above an invalidated block, for the chain it follows.
-//
-// It is a defensive echo of the module's own reorg handling rather than the primary mechanism: the
-// scan only ever reads at or below the chain's SAFE view, and an interop invalidation rewinds
-// blocks above it, so in practice there is nothing above the cursor to drop. Rewinding anyway costs
-// a rescan and cannot lower a served label — the module's refs are high-water marks — which makes
-// this the cheap half of a cheap/expensive pair.
+// Reset revokes the affected claim suffix immediately. The next poll rescans
+// canonical projection history and reconstructs any surviving private prefix.
 func (a *Activity) Reset(chainID eth.ChainID, _ uint64, invalidatedBlock eth.BlockRef) {
 	if chainID != a.chainID || invalidatedBlock.Number == 0 {
 		return

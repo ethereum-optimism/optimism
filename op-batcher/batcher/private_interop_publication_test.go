@@ -34,6 +34,10 @@ func TestPrivatePublicationCursor(t *testing.T) {
 
 	follower := &fakeFollower{safe: piRenderedBlock(143), blocks: map[uint64]*PublicProjectionBlock{143: piRenderedBlock(143)}}
 	bs.PublicProjection = follower
+	_, _, _, err = bs.publicationCursor(t.Context(), &status)
+	require.ErrorContains(t, err, "has not reconciled")
+	require.Equal(t, original, status, "an unsafe private suffix does not authorize publication after fallback")
+	status.LocalSafeL2 = eth.L2BlockRef{Hash: common.Hash{144}, Number: 144}
 	l1InfoTx, err := derive.L1InfoDepositBytes(bs.RollupConfig, params.MergedTestChainConfig,
 		eth.SystemConfig{}, 3, testutils.RandomBlockInfo(rand.New(rand.NewSource(789))), 1000)
 	require.NoError(t, err)

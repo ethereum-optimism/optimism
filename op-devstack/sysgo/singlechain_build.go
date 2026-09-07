@@ -277,8 +277,6 @@ type l2CLNodeStartConfig struct {
 	// SequencerStopped starts the sequencer in the stopped state (it must be
 	// activated later via the StartSequencer RPC). Only meaningful when IsSequencer.
 	SequencerStopped bool
-	// SequencerConfDepth overrides the default two-block L1 origin delay.
-	SequencerConfDepth *uint64
 }
 
 func startL2CLNode(
@@ -362,10 +360,6 @@ func startL2CLNode(
 	// multichain devstack (see newDevstackP2PConfig) by loosening to 1 hour.
 	p2pConfig.GossipTimestampThreshold = time.Hour
 
-	sequencerConfDepth := uint64(2)
-	if startCfg.SequencerConfDepth != nil {
-		sequencerConfDepth = *startCfg.SequencerConfDepth
-	}
 	nodeCfg := &config.Config{
 		L1: &config.L1EndpointConfig{
 			L1NodeAddr:       l1EL.UserRPC(),
@@ -391,7 +385,7 @@ func startL2CLNode(
 		Driver: driver.Config{
 			SequencerEnabled:    cfg.IsSequencer,
 			SequencerStopped:    startCfg.SequencerStopped,
-			SequencerConfDepth:  sequencerConfDepth,
+			SequencerConfDepth:  2,
 			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
 		},
 		Rollup:        *l2Net.rollupCfg,
