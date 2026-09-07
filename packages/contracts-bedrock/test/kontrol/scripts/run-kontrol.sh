@@ -36,6 +36,8 @@ kontrol_prove() {
   # Withdrawal fixtures retain production deployment bytecode and stack checks.
   if [ "${KONTROL_STRICT:-false}" = true ]; then
     model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --no-gas)
+    # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
+    rpc_command+=' --fallback-on Stuck,Aborted'
   fi
   # shellcheck disable=SC2086
   run kontrol prove \
@@ -62,11 +64,11 @@ kontrol_prove() {
 
 get_log_results() {
   RESULTS_FILE="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
-  LOG_PATH="test/kontrol/logs"
+  LOG_PATH="${KONTROL_LOG_DIR:-test/kontrol/logs}"
   RESULTS_LOG="$LOG_PATH/$RESULTS_FILE"
 
   if [ ! -d $LOG_PATH ]; then
-    mkdir $LOG_PATH
+    mkdir -p "$LOG_PATH"
   fi
 
   notif "Generating Results Log: $RESULTS_LOG"
@@ -208,12 +210,13 @@ if [ "${results[0]}" -ne 0 ]; then
 fi
 
 # Run kontrol_prove and store the result
-mkdir -p test/kontrol/logs
+LOG_PATH="${KONTROL_LOG_DIR:-test/kontrol/logs}"
+mkdir -p "$LOG_PATH"
 # Only the parent collects artifacts and cleans up when the logging pipeline fails.
 (
   trap - ERR INT TERM
   kontrol_prove
-) 2>&1 | tee test/kontrol/logs/kontrol-prove.log
+) 2>&1 | tee "$LOG_PATH/kontrol-prove.log"
 results[1]=$?
 if [ "${results[1]}" -ne 0 ]; then
   echo "Kontrol Prove Failed"

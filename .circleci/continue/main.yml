@@ -2216,7 +2216,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: Run Kontrol Tests
-          command: timeout --signal=TERM --kill-after=60s 45m bash test/kontrol/scripts/profile-withdrawal.sh
+          command: timeout --signal=TERM --kill-after=60s 45m env KONTROL_DIAGNOSTICS=true just build-go-ffi kontrol-summary-full test-withdrawal-authorization
           working_directory: ./packages/contracts-bedrock
           no_output_timeout: 50m
       - run:

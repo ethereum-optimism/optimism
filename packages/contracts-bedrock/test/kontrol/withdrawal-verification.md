@@ -53,26 +53,21 @@ component result must not be labeled proof of authentic withdrawals.
 Use pinned Foundry/Kontrol versions and a clean proof output directory. Run the component proofs with:
 
 ```sh
-KONTROL_STRICT=true KONTROL_DIAGNOSTICS=true ./test/kontrol/scripts/run-kontrol.sh container \
-  WithdrawalAuthorizationKontrol.prove_checkWithdrawal_eligible_succeeds \
-  WithdrawalAuthorizationKontrol.prove_checkWithdrawal_equivalence
+just build-go-ffi kontrol-summary-full test-withdrawal-authorization
 ```
 
-Use separate selectors: the runner caps workers by selector count, so one selector matching
-both proofs serializes them. This diagnostic CI run caps deployment/build/proving at 45 minutes,
-with a further minute for cleanup. Diagnostics enable plain verbose output, backend timing logs,
-and a checkpoint after each proof iteration. `logs/kontrol-prove.log` preserves the output.
-A timeout is an incomplete result; per-iteration checkpointing can itself add overhead.
+The normal `test-kontrol-no-build` recipe runs the existing pausability proofs and then these
+component proofs. Their logs, JUnit report and proof archive go into `test/kontrol/logs/withdrawal`
+to preserve both suites' results. Separate selectors allow the witness to run alongside equivalence.
+The branch currently runs the component alone in CI with a 45-minute limit plus cleanup; restore
+the normal suite command before a PR. A timeout is incomplete, never a proof pass.
 
-The current branch temporarily runs `scripts/profile-withdrawal.sh` in CI instead. It verifies
-the checksum of pipeline 133962's archive, reuses its compiled model and unchanged symbolic nodes,
-and replays the original requests from nodes 23 and 30 sequentially with separate 20-minute limits.
-Compact timing logs, SMT transcripts and endpoint comparisons are retained; detailed term capture
-is disabled. Requests keep the original depth limit and cut points through the symbolic branch.
-The current comparison returns Booster branches directly while retaining fallback for stuck or
-aborted execution, and checks both branch states against the original requests in pipeline 133965. A successful replay is a diagnostic result,
-not completion of the symbolic proof. Remove this temporary diagnostic wiring before a PR and
-restore the full component run and normal suite integration.
+Strict mode returns Booster's symbolic branches directly and retains legacy fallback for stuck
+or aborted execution. This avoids an expensive legacy reconfirmation of each branch. The pinned
+backend checks branch applicability, definedness and remainder coverage before returning branches.
+An isolated comparison found equal parent states and equivalent branch states after collection
+ordering, Boolean representation and explicit-equality substitution were accounted for. That
+comparison is diagnostic evidence; acceptance still requires the fresh complete proof graphs.
 
 Strict fixture mode uses the fresh deployment-state diff and `setUp`, enables stack checks,
 uses CANCUN and abstracts gas. It omits `--assume-defined`. Existing pausability lemmas are imported

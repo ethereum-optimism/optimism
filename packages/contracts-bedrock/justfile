@@ -185,6 +185,11 @@ test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
 # Run Kontrol tests without dependencies.
 test-kontrol-no-build:
   ./test/kontrol/scripts/run-kontrol.sh script
+  just test-withdrawal-authorization
+
+# Check withdrawal eligibility with production bytecode and stack checks.
+test-withdrawal-authorization:
+  KONTROL_STRICT=true KONTROL_LOG_DIR=test/kontrol/logs/withdrawal ./test/kontrol/scripts/run-kontrol.sh container WithdrawalAuthorizationKontrol.prove_checkWithdrawal_eligible_succeeds WithdrawalAuthorizationKontrol.prove_checkWithdrawal_equivalence
 
 # Runs contract coverage.
 coverage: build-go-ffi
