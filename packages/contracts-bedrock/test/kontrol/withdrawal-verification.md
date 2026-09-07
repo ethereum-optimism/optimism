@@ -59,8 +59,9 @@ just build-go-ffi kontrol-summary-full test-withdrawal-authorization
 The normal `test-kontrol-no-build` recipe runs the existing pausability proofs and then these
 component proofs. Their logs, JUnit report and proof archive go into `test/kontrol/logs/withdrawal`
 to preserve both suites' results. Separate selectors allow the witness to run alongside equivalence.
-The branch currently runs the component alone in CI with a 45-minute limit plus cleanup; restore
-the normal suite command before a PR. A timeout is incomplete, never a proof pass.
+Strict mode limits proving to 60 minutes inside the container so the host can collect saved graphs
+after a timeout. The branch currently runs the component alone in CI with a 90-minute overall limit;
+restore the normal suite command before a PR. A timeout is incomplete, never a proof pass.
 
 Strict mode returns Booster's symbolic branches directly and retains legacy fallback for stuck
 or aborted execution. This avoids an expensive legacy reconfirmation of each branch. The pinned

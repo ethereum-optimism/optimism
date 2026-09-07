@@ -28,19 +28,21 @@ kontrol_prove() {
   notif "Kontrol Prove: workers=$workers selectors=${test_list[*]} diagnostics=${KONTROL_DIAGNOSTICS:-false}"
   local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
   local progress_args=(--maintenance-rate 16)
+  local prove_command=(kontrol prove)
   local rpc_command='kore-rpc-booster --no-post-exec-simplify --equation-max-recursion 100 --equation-max-iterations 1000'
   if [ "${KONTROL_DIAGNOSTICS:-false}" = true ]; then
-    progress_args=(--verbose --maintenance-rate 1)
-    rpc_command+=' --log-level Timing --log-timestamps --log-format json'
+    progress_args=(--verbose --maintenance-rate 16)
   fi
   # Withdrawal fixtures retain production deployment bytecode and stack checks.
   if [ "${KONTROL_STRICT:-false}" = true ]; then
     model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --no-gas)
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
     rpc_command+=' --fallback-on Stuck,Aborted'
+    # Bound proving inside the container so the host can still collect its saved graphs.
+    prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove)
   fi
   # shellcheck disable=SC2086
-  run kontrol prove \
+  run "${prove_command[@]}" \
     --max-depth $max_depth \
     --max-iterations $max_iterations \
     --smt-timeout $smt_timeout \
