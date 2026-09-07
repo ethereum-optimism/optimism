@@ -94,12 +94,32 @@ For each affected path, determine:
 Compare each implementation with the applicable specification first.
 Then compare implementation accept sets and outputs with each other.
 
+Record the stage at which each implementation rejects an input.
+Two implementations can reject the same input at different stages.
+The stage decides how much surrounding work survives.
+An early failure can discard a whole unit of input, and a later failure can discard one item inside it.
+Both return an error, so a shallow comparison reports parity.
+
 ### Generate candidates
 
 Apply the domain checks from the area guide.
 Search boundaries and semantic siblings around changed behavior.
 Retain possible issues for verification even when evidence is incomplete.
 Do not publish the candidate list.
+
+Diff each rule list against its sibling paths.
+One protocol rule often has more than one implementation in a single client.
+A rule can enter one list and never reach the other.
+
+Compare these pairs:
+
+- Two encodings of the same content, where each has its own validation path.
+- Two fork-gated code paths that handle the same wire format.
+- The same rule list in each implementation.
+
+Report any rule that one path applies and a sibling path does not.
+Do not assume a shared helper reaches both paths.
+Prove which path calls it.
 
 ### Verify each candidate
 

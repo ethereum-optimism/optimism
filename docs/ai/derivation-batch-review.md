@@ -90,34 +90,18 @@ Report the input class that a difference covers, not one example input.
 Name the first byte range, the field, or the failure mode that produces the same outcome.
 A single example hides the reach of the difference from the reader.
 
-## Rule-set parity between related paths
+## Sibling paths in derivation
 
-The same protocol rule often has two implementations in one client.
-A singular batch and a span batch each apply their own rule list.
-A rule can enter one list and never reach the other.
-
-Build the rule list for each path, then diff the lists:
+The shared guide requires a rule-list diff against sibling paths.
+In this area the sibling pairs are:
 
 - Singular-batch validity against span-batch validity, in the same client.
 - Pre-Holocene stage behavior against Holocene stage behavior, for the same wire format.
 - The same rule list in op-node against the matching list in Kona.
 
-Report any rule that one path applies and a sibling path does not.
-Do not assume a shared helper applies the rule to both paths.
-Prove which path calls it.
-
-## Stage of rejection
-
-Two clients can reject the same input at different stages.
-The stage decides how much surrounding data survives.
-
+The shared guide also requires the rejection stage for each input.
 A structural decode failure can discard a whole channel.
 A later derivation failure can discard one batch and keep the channel.
-Both produce an error, so a shallow comparison reports parity.
-
-Record the stage for every rejection that the two clients share.
-Report a stage difference as a candidate.
-Dismiss it only when the surviving data is provably identical.
 
 ## Shared decoder limits
 
