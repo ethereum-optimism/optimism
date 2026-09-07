@@ -15,6 +15,7 @@ contract L1CrossDomainMessenger_BaseGas_Test is CommonTest {
     /// @notice Tests that the `relayMessage` function on L2 will always succeed for any potential
     ///         message, regardless of the size of the message, the minimum gas limit, or the
     ///         amount of gas used by the target contract.
+    /// forge-config: default.isolate = true
     function testFuzz_relayMessage_baseGasSufficient_succeeds(
         uint24 _messageLength,
         uint32 _minGasLimit,
@@ -22,10 +23,6 @@ contract L1CrossDomainMessenger_BaseGas_Test is CommonTest {
     )
         external
     {
-        // TODO(#14609): Update this test to use default.isolate = true once a new stable Foundry
-        // release is available that includes #9904. That will allow us to use this test to check
-        // for changes to the EVM itself that might cause our gas formula to be incorrect.
-
         // Skip if this is a fork test, won't work.
         skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
 
