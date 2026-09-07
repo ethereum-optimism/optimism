@@ -2,14 +2,16 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { Proxy } from "src/universal/Proxy.sol";
+import { DeploymentSummaryFaultProofs } from "./utils/DeploymentSummaryFaultProofs.sol";
 import { KontrolUtils } from "./utils/KontrolUtils.sol";
 
 // Libraries
 import { Claim, GameStatus, GameType, Timestamp } from "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 
 /// @notice Game reports and pause input, not a proof of game resolution or pause administration.
 contract WithdrawalGame_Harness {
@@ -34,7 +36,7 @@ contract WithdrawalGame_Harness {
 
 /// @notice Authorization through production proxies, Portal, registry and factory lookup code.
 ///         Records are seeded preconditions; inclusion and history preservation remain separate.
-contract WithdrawalAuthorizationKontrol is KontrolUtils {
+contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, KontrolUtils {
     struct AuthorizationCase {
         bytes32 withdrawalHash;
         address submitter;
@@ -51,22 +53,25 @@ contract WithdrawalAuthorizationKontrol is KontrolUtils {
         bool paused;
     }
 
-    OptimismPortal2 internal portal;
-    AnchorStateRegistry internal registry;
-    DisputeGameFactory internal factory;
+    IOptimismPortal2 internal portal;
+    IAnchorStateRegistry internal registry;
+    IDisputeGameFactory internal factory;
     WithdrawalGame_Harness internal game;
     bytes32 internal registrationSlot;
+    uint256 internal proofDelay;
+    uint256 internal gameDelay;
 
     function setUp() public {
-        portal = OptimismPortal2(payable(_proxy(address(new OptimismPortal2(7 days)))));
-        registry = AnchorStateRegistry(_proxy(address(new AnchorStateRegistry(3.5 days))));
-        factory = DisputeGameFactory(_proxy(address(new DisputeGameFactory())));
+        portal = IOptimismPortal2(payable(optimismPortalProxyAddress));
+        registry = portal.anchorStateRegistry();
+        factory = registry.disputeGameFactory();
+        proofDelay = portal.proofMaturityDelaySeconds();
+        gameDelay = registry.disputeGameFinalityDelaySeconds();
         game = new WithdrawalGame_Harness();
 
         // Slots/packing follow snapshots/storageLayout; assertions detect incorrect setup.
-        vm.store(address(portal), bytes32(uint256(62)), bytes32(uint256(uint160(address(registry)))));
-        vm.store(address(registry), bytes32(0), bytes32(uint256(uint160(address(game))) << 16));
-        vm.store(address(registry), bytes32(uint256(1)), bytes32(uint256(uint160(address(factory)))));
+        bytes32 initialized = vm.load(address(registry), bytes32(0)) & bytes32(uint256(0xffff));
+        vm.store(address(registry), bytes32(0), initialized | bytes32(uint256(uint160(address(game))) << 16));
         bytes32 uuid = keccak256(abi.encode(GameType.wrap(0), Claim.wrap(bytes32(0)), abi.encode(uint256(1))));
         registrationSlot = keccak256(abi.encode(uuid, uint256(103)));
         assert(address(portal.anchorStateRegistry()) == address(registry));
@@ -112,10 +117,10 @@ contract WithdrawalAuthorizationKontrol is KontrolUtils {
         vm.warp(_case.now);
 
         bool eligible = !_case.finalized && _case.provenAt != 0 && _case.provenAt > _case.createdAt
-            && _case.now >= _case.provenAt && uint256(_case.now) - _case.provenAt > 7 days && _case.registered
+            && _case.now >= _case.provenAt && uint256(_case.now) - _case.provenAt > proofDelay && _case.registered
             && !_case.blacklisted && _case.createdAt > _case.retiredAt && !_case.paused && _case.respected
             && _case.status == uint8(GameStatus.DEFENDER_WINS) && _case.resolvedAt != 0 && _case.now >= _case.resolvedAt
-            && uint256(_case.now) - _case.resolvedAt > 3.5 days;
+            && uint256(_case.now) - _case.resolvedAt > gameDelay;
         (accepted_,) =
             address(portal).staticcall(abi.encodeCall(portal.checkWithdrawal, (_case.withdrawalHash, _case.submitter)));
         assert(accepted_ == eligible);
@@ -125,11 +130,5 @@ contract WithdrawalAuthorizationKontrol is KontrolUtils {
                 == bytes32(uint256(uint160(address(game))) | (uint256(_case.provenAt) << 160))
         );
         assert(portal.finalizedWithdrawals(_case.withdrawalHash) == _case.finalized);
-    }
-
-    function _proxy(address _implementation) internal returns (address) {
-        Proxy proxy = new Proxy(address(this));
-        proxy.upgradeTo(_implementation);
-        return address(proxy);
     }
 }

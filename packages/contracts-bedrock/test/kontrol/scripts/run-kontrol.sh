@@ -27,9 +27,9 @@ kontrol_build() {
 kontrol_prove() {
   notif "Kontrol Prove"
   local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
-  # Independent fixtures start from setUp and retain stack checks.
+  # Withdrawal fixtures retain production deployment bytecode and stack checks.
   if [ "${KONTROL_STRICT:-false}" = true ]; then
-    model_args=(--reinit --schedule CANCUN --no-gas)
+    model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --no-gas)
   fi
   # shellcheck disable=SC2086
   run kontrol prove \

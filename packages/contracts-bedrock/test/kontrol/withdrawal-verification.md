@@ -1,10 +1,12 @@
 # Withdrawal authorization
 
 Work in progress: no end-to-end theft-prevention or arbitrary-history theorem is complete.
-The current obligations exercise production `OptimismPortal2`, `AnchorStateRegistry`, and
-`DisputeGameFactory` implementations behind production proxies. No implementation is subclassed
-or given additional setters. External storage setup establishes component preconditions, not
-reachable-state provenance or correct initialization.
+The current obligations exercise `OptimismPortal2`, `AnchorStateRegistry`, and `DisputeGameFactory`
+behind their proxies in the freshly generated fault-proof deployment. The normal deployment build
+supplies bytecode through the repository's existing state-diff mechanism. Importing only interfaces
+avoids recompiling dependencies with the fixture's optimizer settings. No implementation is
+subclassed or given additional setters. External storage setup establishes component preconditions,
+not reachable-state provenance or correct initialization.
 
 ## Trust boundary
 
@@ -31,8 +33,8 @@ to inclusion verification. These assumptions must remain explicit in any compose
 
 `prove_checkWithdrawal_equivalence` quantifies over withdrawal hash, submitter, all three valid
 game statuses, eligibility flags, and `uint64` creation/resolution/proof/retirement/current times.
-Future timestamps and equality boundaries remain in the domain. Proof maturity is seven days;
-game finality delay is three and a half days. Both source checks use strict `>` boundaries.
+Future timestamps and equality boundaries remain in the domain. Delay parameters are read from
+the deployment's immutable getters. Both source checks use strict `>` boundaries.
 The Portal specification's maturity prose needs reconciliation before claiming literal compliance.
 
 The game identity is fixed to type 0, root 0, and a 32-byte encoding of sequence number 1. The
@@ -50,8 +52,8 @@ Use pinned Foundry/Kontrol versions and a clean proof output directory. The CI b
 KONTROL_STRICT=true ./test/kontrol/scripts/run-kontrol.sh container 'WithdrawalAuthorizationKontrol.prove_'
 ```
 
-Strict fixture mode starts from `setUp`, enables stack checks, uses CANCUN and abstracts gas.
-It omits the deployment-state diff and `--assume-defined`. Existing pausability lemmas are imported
+Strict fixture mode uses the fresh deployment-state diff and `setUp`, enables stack checks,
+uses CANCUN and abstracts gas. It omits `--assume-defined`. Existing pausability lemmas are imported
 only into their original proof contract. Gas adequacy is not established by these obligations.
 Kontrol's hash/storage-separation assumptions still apply. Record artifact/compiler identities
 with results; the production source classes alone do not identify any particular live deployment.
