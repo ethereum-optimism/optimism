@@ -2216,15 +2216,9 @@ jobs:
       - setup_remote_docker
       - run:
           name: Run Kontrol Tests
-          command: |
-            timeout --signal=TERM --kill-after=60s 45m bash -c '
-              just build-go-ffi kontrol-summary-full &&
-              KONTROL_STRICT=true KONTROL_DIAGNOSTICS=true ./test/kontrol/scripts/run-kontrol.sh container \
-                WithdrawalAuthorizationKontrol.prove_checkWithdrawal_eligible_succeeds \
-                WithdrawalAuthorizationKontrol.prove_checkWithdrawal_equivalence
-            '
+          command: timeout --signal=TERM --kill-after=60s 30m bash test/kontrol/scripts/profile-withdrawal.sh
           working_directory: ./packages/contracts-bedrock
-          no_output_timeout: 50m
+          no_output_timeout: 35m
       - run:
           name: Remove duplicate proof archives
           when: always

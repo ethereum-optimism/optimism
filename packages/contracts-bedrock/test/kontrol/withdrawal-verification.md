@@ -50,7 +50,7 @@ component result must not be labeled proof of authentic withdrawals.
 
 ## Reproduction
 
-Use pinned Foundry/Kontrol versions and a clean proof output directory. The CI branch runs:
+Use pinned Foundry/Kontrol versions and a clean proof output directory. Run the component proofs with:
 
 ```sh
 KONTROL_STRICT=true KONTROL_DIAGNOSTICS=true ./test/kontrol/scripts/run-kontrol.sh container \
@@ -63,6 +63,13 @@ both proofs serializes them. This diagnostic CI run caps deployment/build/provin
 with a further minute for cleanup. Diagnostics enable plain verbose output, backend timing logs,
 and a checkpoint after each proof iteration. `logs/kontrol-prove.log` preserves the output.
 A timeout is an incomplete result; per-iteration checkpointing can itself add overhead.
+
+The current branch temporarily runs `scripts/profile-withdrawal.sh` in CI instead. It verifies
+the checksum of pipeline 133962's archive, reuses its compiled model and unchanged symbolic nodes,
+and replays only edges 23→25 and 30→33 with separate 20-minute limits. It captures backend profiles,
+SMT transcripts, request logs and endpoint comparisons. A successful replay is a diagnostic result,
+not completion of the symbolic proof. Remove this temporary diagnostic wiring before a PR and
+restore the full component run and normal suite integration.
 
 Strict fixture mode uses the fresh deployment-state diff and `setUp`, enables stack checks,
 uses CANCUN and abstracts gas. It omits `--assume-defined`. Existing pausability lemmas are imported
