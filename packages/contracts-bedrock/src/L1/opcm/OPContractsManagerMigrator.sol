@@ -57,6 +57,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
 
+    /// @notice Thrown when a chain is already in an interop set.
+    error OPContractsManagerMigrator_ChainAlreadyMigrated();
+
     /// @notice Thrown when a chain's SystemConfig reports an l2ChainId of zero.
     error OPContractsManagerMigrator_ZeroL2ChainId();
 
@@ -103,9 +106,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      look or function like all of the other functions in OPCMv2.
     /// @dev NOTE: This function is designed exclusively for the case of N independent pre-interop
     ///      chains merging into a single interop set. It does NOT support partial migration (i.e.,
-    ///      migrating a subset of chains that share a lockbox), re-migration of already-migrated
-    ///      chains, or any other migration scenario. Re-calling this function on already-migrated
-    ///      portals will corrupt the shared DisputeGameFactory used by all migrated chains.
+    ///      migrating a subset of chains that share a lockbox) or any other migration scenario.
+    ///      Re-migration is rejected: any chain that already has Features.INTEROP enabled is
+    ///      refused, because re-migrating it would corrupt the shared DisputeGameFactory and
+    ///      ETHLockbox used by every chain in its set.
     /// @dev NOTE: Unlike deploy/upgrade, this function does not enforce a SuperchainConfig
     ///      version floor. The caller is responsible for ensuring the SuperchainConfig is
     ///      upgraded to the current OPCM release version before calling migrate.
@@ -273,6 +277,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             // Each chain must have the same SuperchainConfig.
             if (_chainSystemConfigs[i].superchainConfig() != _chainSystemConfigs[0].superchainConfig()) {
                 revert OPContractsManagerMigrator_SuperchainConfigMismatch();
+            }
+
+            // migrate() is the only thing that sets INTEROP on L1, so the flag means this chain is
+            // already in an interop set. Re-migrating it would drain that set's ETHLockbox into a
+            // fresh one and clear every game implementation from its shared DisputeGameFactory,
+            // for every chain sharing them.
+            if (_chainSystemConfigs[i].isFeatureEnabled(Features.INTEROP)) {
+                revert OPContractsManagerMigrator_ChainAlreadyMigrated();
             }
 
             // The shared super-root dispute game system keys output roots by l2ChainId, so a
@@ -484,14 +496,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         _newLockbox.authorizePortal(portal);
 
         // Enable the features required by portal liquidity migration and shared game migration.
-        // ETH_LOCKBOX must be on so SystemConfig.paused() keys against the portal's lockbox; INTEROP
-        // must be on for the post-migration cross-chain message paths. Both are idempotent.
+        // ETH_LOCKBOX must be on so SystemConfig.paused() keys against the portal's lockbox; a
+        // chain may already have it from deploy/upgrade, and setFeature reverts on a no-op change.
         if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
             _systemConfig.setFeature(Features.ETH_LOCKBOX, true);
         }
-        if (!_systemConfig.isFeatureEnabled(Features.INTEROP)) {
-            _systemConfig.setFeature(Features.INTEROP, true);
-        }
+
+        // INTEROP is guaranteed to be off by _validateChainSystemConfigs.
+        _systemConfig.setFeature(Features.INTEROP, true);
 
         // Attach the portal directly to the shared ETHLockbox before migrating portal-held ETH.
         _upgrade(

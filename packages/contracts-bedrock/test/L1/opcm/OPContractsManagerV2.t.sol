@@ -3175,9 +3175,41 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         _doMigration(input);
 
-        prankDelegateCall(chainContracts1.proxyAdmin.owner());
-        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (input)));
-        assertFalse(success, "second migration should revert");
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainAlreadyMigrated.selector);
+    }
+
+    /// @notice A second migration in a later block is rejected. The salt mixes block.timestamp, so
+    ///         moving forward one second gives the shared proxies fresh addresses and CREATE2 no
+    ///         longer collide.
+    function test_migrate_calledTwiceInLaterBlock_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _enableEthLockboxes();
+
+        _doMigration(input);
+        vm.warp(block.timestamp + 1);
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainAlreadyMigrated.selector);
+    }
+
+    /// @notice The guard is per-chain, so an input mixing a migrated chain with a fresh one is
+    ///         rejected.
+    function test_migrate_oneChainAlreadyMigrated_reverts() public {
+        _enableEthLockboxes();
+
+        // Migrate chain 1 on its own.
+        IOPContractsManagerMigrator.MigrateInput memory firstInput = _getDefaultMigrateInput();
+        ISystemConfig[] memory onlyChain1 = new ISystemConfig[](1);
+        onlyChain1[0] = chainContracts1.systemConfig;
+        firstInput.chainSystemConfigs = onlyChain1;
+        _doMigration(firstInput);
+
+        vm.warp(block.timestamp + 1);
+
+        // Try to migrate both chains together
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainAlreadyMigrated.selector
+        );
     }
 
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are mismatched.

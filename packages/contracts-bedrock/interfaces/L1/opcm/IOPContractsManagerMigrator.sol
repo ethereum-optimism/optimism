@@ -40,6 +40,8 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
 
+    error OPContractsManagerMigrator_ChainAlreadyMigrated();
+
     /// @notice Thrown when a chain's SystemConfig reports an l2ChainId of zero.
     error OPContractsManagerMigrator_ZeroL2ChainId();
 
