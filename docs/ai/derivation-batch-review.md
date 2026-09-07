@@ -185,19 +185,3 @@ These decoder cases extend them:
 - Callers prove the internal invariant behind a suspected panic.
 - The path is encoder-only.
 
-## Calibration cases
-
-Use historical fixes to test the reviewer method, not as protocol authority.
-A useful reviewer should identify each original failure without seeing the fix:
-
-- `ethereum-optimism/optimism#19361`: truncated fixed-width span fields reached unchecked slices.
-- `ethereum-optimism/optimism#20000`: an unknown batch type reached a panic.
-- `ethereum-optimism/optimism#22126`: Kona rejected valid non-minimal protobuf `uvarint` encodings.
-- `ethereum-optimism/optimism#21808`: span decoding lost transaction type prefixes.
-- `ethereum-optimism/optimism#20625`: the span path never applied an activation-block rule that the singular path applied.
-- `ethereum-optimism/optimism#21793`: the two brotli libraries disagreed about which channels are valid.
-
-The last two cases test the rule-set parity check and the shared decoder limit.
-
-Also test recent clean changes.
-A reviewer that reports every unusual decoder operation has not met the shared evidence contract.
