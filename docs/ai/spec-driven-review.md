@@ -111,7 +111,7 @@ Reject a candidate when:
 - An earlier guard makes the operation unreachable.
 - Another rule or explicit exception resolves the difference.
 - The path is test-only or outside the area boundary.
-- The difference changes only an internal name.
+- The difference changes only an internal name, and both implementations reject at the same stage.
 - The specification permits every observed outcome.
 - The evidence does not prove an observable effect.
 

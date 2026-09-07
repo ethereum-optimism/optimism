@@ -179,15 +179,12 @@ Protocol authors can add such guidance later if they want an explicit totality r
 
 ## Derivation dismissal checks
 
-Try to dismiss each decoder candidate with these checks:
+Apply the shared dismissal checks first.
+These decoder cases extend them:
 
-- An earlier length guard makes the operation unreachable.
 - A decoded count is bounded before conversion or allocation.
-- Callers prove the internal invariant used by the suspected panic.
-- The path is encoder-only, test-only, or outside consensus derivation.
-- The difference changes only an internal error name, and both clients reject at the same stage.
-- A fork condition makes the compared behaviors inapplicable.
-- The specification explicitly permits both outcomes.
+- Callers prove the internal invariant behind a suspected panic.
+- The path is encoder-only.
 
 ## Calibration cases
 
