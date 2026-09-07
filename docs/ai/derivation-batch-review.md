@@ -86,6 +86,49 @@ Compare both implementations with the specification first.
 Then compare their accept sets and outputs with each other.
 Follow [derivation.md](derivation.md#cross-client-wire-format-parity) before proposing either behavior as correct.
 
+Report the input class that a difference covers, not one example input.
+Name the first byte range, the field, or the failure mode that produces the same outcome.
+A single example hides the reach of the difference from the reader.
+
+## Rule-set parity between related paths
+
+The same protocol rule often has two implementations in one client.
+A singular batch and a span batch each apply their own rule list.
+A rule can enter one list and never reach the other.
+
+Build the rule list for each path, then diff the lists:
+
+- Singular-batch validity against span-batch validity, in the same client.
+- Pre-Holocene stage behavior against Holocene stage behavior, for the same wire format.
+- The same rule list in op-node against the matching list in Kona.
+
+Report any rule that one path applies and a sibling path does not.
+Do not assume a shared helper applies the rule to both paths.
+Prove which path calls it.
+
+## Stage of rejection
+
+Two clients can reject the same input at different stages.
+The stage decides how much surrounding data survives.
+
+A structural decode failure can discard a whole channel.
+A later derivation failure can discard one batch and keep the channel.
+Both produce an error, so a shallow comparison reports parity.
+
+Record the stage for every rejection that the two clients share.
+Report a stage difference as a candidate.
+Dismiss it only when the surviving data is provably identical.
+
+## Shared decoder limits
+
+Both clients depend on third-party decoders for compression and RLP.
+A static trace compares the calling code, not the library behind it.
+Two libraries can disagree about which byte strings are valid.
+
+Name the library on each side when a review touches these paths.
+State in the review receipt that the library accept sets were not compared.
+Differential testing owns that comparison.
+
 ## Adversarial boundaries
 
 Batcher-provided bytes are adversarial input.
@@ -142,7 +185,7 @@ Try to dismiss each decoder candidate with these checks:
 - A decoded count is bounded before conversion or allocation.
 - Callers prove the internal invariant used by the suspected panic.
 - The path is encoder-only, test-only, or outside consensus derivation.
-- The difference changes only an internal error name.
+- The difference changes only an internal error name, and both clients reject at the same stage.
 - A fork condition makes the compared behaviors inapplicable.
 - The specification explicitly permits both outcomes.
 
@@ -155,6 +198,10 @@ A useful reviewer should identify each original failure without seeing the fix:
 - `ethereum-optimism/optimism#20000`: an unknown batch type reached a panic.
 - `ethereum-optimism/optimism#22126`: Kona rejected valid non-minimal protobuf `uvarint` encodings.
 - `ethereum-optimism/optimism#21808`: span decoding lost transaction type prefixes.
+- `ethereum-optimism/optimism#20625`: the span path never applied an activation-block rule that the singular path applied.
+- `ethereum-optimism/optimism#21793`: the two brotli libraries disagreed about which channels are valid.
+
+The last two cases test the rule-set parity check and the shared decoder limit.
 
 Also test recent clean changes.
 A reviewer that reports every unusual decoder operation has not met the shared evidence contract.

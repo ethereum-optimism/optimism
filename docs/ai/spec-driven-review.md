@@ -134,6 +134,24 @@ Use these classes:
 Do not assign a new protocol rule in a specification-gap finding.
 Protocol authors own that decision.
 
+### Divergence without a specification answer
+
+A cross-client divergence can have no clear specification answer.
+The specification then permits both outcomes, or names no outcome for the case.
+
+Publish a specification-gap finding beside the divergence finding.
+Link the two findings.
+
+State which client can change, and at what cost:
+
+- A client that produces the canonical chain sets what derivation accepts today.
+- A change to that client alters derivation of data that L1 already holds.
+- Such a change needs a fork gate.
+- A client that must reproduce the canonical chain can change without a fork gate.
+
+Name this constraint. Do not name the client that must change.
+Protocol authors and client owners own that decision.
+
 ## Evidence contract
 
 Publish a semantic finding only when it includes every applicable item:
