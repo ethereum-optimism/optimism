@@ -6,7 +6,7 @@ It pairs with the [`derivation-batch-reviewer`](../../.claude/agents/derivation-
 Read [spec-driven-review.md](spec-driven-review.md) in full before this guide.
 Read [derivation.md](derivation.md) for the pipeline model and general derivation rules.
 
-This guide owns derivation scope, code navigation, domain checks, and calibration cases.
+This guide owns derivation scope, code navigation, and domain checks.
 The shared guide owns the review process, evidence contract, output, and mapping validation.
 Neither guide defines protocol behavior.
 
