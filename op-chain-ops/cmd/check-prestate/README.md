@@ -6,7 +6,7 @@ its type, and the underlying superchain-registry commit.
 It then also checks for each specified chain if the included chain configuration has changed
 compared to the latest changes in the superchain-registry.
 
-Only kona prestates (type `cannon64-kona`) are supported.
+Only kona prestates (types `cannon64-kona` and `cannon64-kona-interop`) are supported.
 
 ## Usage
 

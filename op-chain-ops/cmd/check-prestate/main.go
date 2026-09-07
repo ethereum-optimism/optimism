@@ -85,7 +85,9 @@ func main() {
 	}
 	log.Info("Found prestate", "version", prestateVersion, "type", prestateType)
 
-	if prestateType != "cannon64-kona" {
+	// Both kona variants are built from the same kona-client tag, so they share a
+	// superchain-registry pin and chain configs. Only the build features differ.
+	if prestateType != "cannon64-kona" && prestateType != "cannon64-kona-interop" {
 		log.Crit("Unsupported prestate type; only kona prestates are supported", "type", prestateType)
 	}
 	elCommitInfo, fppCommitInfo, commit, prestateConfigs := prestate.NewKonaPrestate().FindVersions(log, prestateVersion)

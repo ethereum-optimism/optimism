@@ -87,7 +87,9 @@ func fetchSuperchainRegistryCommit(ref string) (string, error) {
 // gitlinkCommit returns the commit a submodule gitlink points to at ref, if path
 // is a gitlink (mode 160000 / type commit) in that tree.
 func gitlinkCommit(ref, path string) (string, bool) {
-	stdout, _, err := runGit("ls-tree", ref, "--", path)
+	// --full-tree keeps path resolution relative to the repo root, so the lookup works
+	// from any working directory, including the cmd directory the README says to use.
+	stdout, _, err := runGit("ls-tree", "--full-tree", ref, "--", path)
 	if err != nil {
 		return "", false
 	}
