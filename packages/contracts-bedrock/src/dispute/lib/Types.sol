@@ -95,6 +95,21 @@ library GameTypes {
     /// @notice A dispute game type that uses RISC Zero's Kailua
     GameType internal constant KAILUA = GameType.wrap(1337);
 
+    /// @notice The game types migration clears from a chain's pre-migration DisputeGameFactory.
+    ///         It might include other games than the valid game types an OPCM accepts as
+    ///         it also covers retired types, which are never valid config but may still be
+    ///         registered on an old factory.
+    function clearedGameTypes() internal pure returns (GameType[] memory types_) {
+        types_ = new GameType[](7);
+        types_[0] = CANNON;
+        types_[1] = PERMISSIONED_CANNON;
+        types_[2] = CANNON_KONA;
+        types_[3] = SUPER_CANNON;
+        types_[4] = SUPER_PERMISSIONED;
+        types_[5] = SUPER_CANNON_KONA;
+        types_[6] = ZK_DISPUTE_GAME;
+    }
+
     /// @notice Returns true if the game type uses super roots.
     function isSuperGame(GameType _gameType) internal pure returns (bool) {
         uint32 raw = _gameType.raw();

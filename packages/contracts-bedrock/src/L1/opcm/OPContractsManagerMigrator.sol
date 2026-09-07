@@ -515,17 +515,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
 
         // Clear out any implementations that might exist in the old DisputeGameFactory proxy.
-        // We clear out all potential game types to be safe. These game types are intentionally
-        // hardcoded rather than sourced from a shared utility. When new game types are added,
-        // this list and the corresponding list in OPCMv2's _assertValidFullConfig must both
-        // be updated.
-        existingDGF.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), hex"");
-        existingDGF.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
-        existingDGF.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
-        existingDGF.setImplementation(GameTypes.SUPER_PERMISSIONED, IDisputeGame(address(0)), hex"");
-        existingDGF.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)), hex"");
-        existingDGF.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)), hex"");
-        existingDGF.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(address(0)), hex"");
+        GameType[] memory clearedGameTypes = GameTypes.clearedGameTypes();
+        for (uint256 i = 0; i < clearedGameTypes.length; i++) {
+            existingDGF.setImplementation(clearedGameTypes[i], IDisputeGame(address(0)), hex"");
+        }
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
         portal.migrateToSharedDisputeGame(_newLockbox, _newASR);

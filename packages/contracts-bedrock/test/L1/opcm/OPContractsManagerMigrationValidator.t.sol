@@ -1221,4 +1221,34 @@ contract OPContractsManagerMigrationValidator_MigrationIntent_Test is OPContract
         input.legacyEthLockboxes = new IETHLockbox[](1);
         assertEq("MIG-CHAIN-LOCKBOX-MISMATCH", _validateWithInput(input));
     }
+
+    /// @notice The validator reports every game type in the canonical clearing list.
+    function test_validate_everyClearedGameTypeIsChecked_succeeds() public {
+        GameType[] memory gameTypes = GameTypes.clearedGameTypes();
+
+        string[] memory expectedCodes = new string[](7);
+        expectedCodes[0] = "MIG-CHAIN-1-20"; // CANNON
+        expectedCodes[1] = "MIG-CHAIN-1-30"; // PERMISSIONED_CANNON
+        expectedCodes[2] = "MIG-CHAIN-1-40"; // CANNON_KONA
+        expectedCodes[3] = "MIG-CHAIN-1-50"; // SUPER_CANNON
+        expectedCodes[4] = "MIG-CHAIN-1-60"; // SUPER_PERMISSIONED
+        expectedCodes[5] = "MIG-CHAIN-1-70"; // SUPER_CANNON_KONA
+        expectedCodes[6] = "MIG-CHAIN-1-140"; // ZK_DISPUTE_GAME
+        assertEq(gameTypes.length, expectedCodes.length, "clearing list changed without choosing a code");
+
+        IDisputeGameFactory legacyDGF = chainContracts2.disputeGameFactory;
+        address dgfOwner = legacyDGF.owner();
+
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            // Set the legacy DGF to return a non zero address for this game type.
+            // Validator should report the corresponding code for that game type.
+            vm.prank(dgfOwner);
+            legacyDGF.setImplementation(gameTypes[i], IDisputeGame(address(0xdead)), hex"");
+
+            assertEq(expectedCodes[i], _validateMigration(true));
+
+            vm.prank(dgfOwner);
+            legacyDGF.setImplementation(gameTypes[i], IDisputeGame(address(0)), hex"");
+        }
+    }
 }

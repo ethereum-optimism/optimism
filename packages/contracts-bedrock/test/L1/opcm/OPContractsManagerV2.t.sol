@@ -2911,6 +2911,24 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     }
 
     /// @notice Tests that the migration function succeeds and liquidity is migrated.
+    function test_migrate_clearsEveryCanonicalGameType_succeeds() public {
+        _doMigration(_getDefaultMigrateInput());
+
+        GameType[] memory gameTypes = GameTypes.clearedGameTypes();
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            assertEq(
+                address(chainContracts1.disputeGameFactory.gameImpls(gameTypes[i])),
+                address(0),
+                "chain 1 game type not cleared"
+            );
+            assertEq(
+                address(chainContracts2.disputeGameFactory.gameImpls(gameTypes[i])),
+                address(0),
+                "chain 2 game type not cleared"
+            );
+        }
+    }
+
     function test_migrate_succeeds() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
 

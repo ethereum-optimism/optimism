@@ -677,40 +677,30 @@ contract OPContractsManagerMigrationValidator {
         view
         returns (string memory)
     {
-        _errors = internalRequire(
-            address(_dgf.gameImpls(GameTypes.CANNON)) == address(0), string.concat("MIG-CHAIN-", _idx, "-20"), _errors
-        );
-        _errors = internalRequire(
-            address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0),
-            string.concat("MIG-CHAIN-", _idx, "-30"),
-            _errors
-        );
-        _errors = internalRequire(
-            address(_dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0),
-            string.concat("MIG-CHAIN-", _idx, "-40"),
-            _errors
-        );
-        _errors = internalRequire(
-            address(_dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0),
-            string.concat("MIG-CHAIN-", _idx, "-50"),
-            _errors
-        );
-        _errors = internalRequire(
-            address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) == address(0),
-            string.concat("MIG-CHAIN-", _idx, "-60"),
-            _errors
-        );
-        _errors = internalRequire(
-            address(_dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0),
-            string.concat("MIG-CHAIN-", _idx, "-70"),
-            _errors
-        );
-        _errors = internalRequire(
-            address(_dgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0),
-            string.concat("MIG-CHAIN-", _idx, "-140"),
-            _errors
-        );
+        GameType[] memory gameTypes = GameTypes.clearedGameTypes();
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            _errors = internalRequire(
+                address(_dgf.gameImpls(gameTypes[i])) == address(0),
+                string.concat("MIG-CHAIN-", _idx, _clearedGameTypeCode(gameTypes[i])),
+                _errors
+            );
+        }
         return _errors;
+    }
+
+    /// @notice Maps a cleared game type to its error code suffix.
+    /// @param _gameType The game type to map.
+    /// @return The error code suffix.
+    function _clearedGameTypeCode(GameType _gameType) private pure returns (string memory) {
+        uint32 raw = _gameType.raw();
+        if (raw == GameTypes.CANNON.raw()) return "-20";
+        if (raw == GameTypes.PERMISSIONED_CANNON.raw()) return "-30";
+        if (raw == GameTypes.CANNON_KONA.raw()) return "-40";
+        if (raw == GameTypes.SUPER_CANNON.raw()) return "-50";
+        if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return "-60";
+        if (raw == GameTypes.SUPER_CANNON_KONA.raw()) return "-70";
+        if (raw == GameTypes.ZK_DISPUTE_GAME.raw()) return "-140";
+        return "-UNKNOWN";
     }
 
     /// @notice Internal function to require a condition to be true, otherwise append an error message.
