@@ -10,6 +10,7 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 /// @title OPContractsManagerUtilsCaller
 /// @notice OPContractsManagerUtilsCaller is an abstract contract that exists to hide all of the
@@ -45,6 +46,28 @@ abstract contract OPContractsManagerUtilsCaller {
         return abi.decode(
             _staticcall(abi.encodeCall(IOPContractsManagerUtils.computeSalt, (_l2ChainId, _saltMixer, _contractName))),
             (bytes32)
+        );
+    }
+
+    /// @notice Helper for checking whether a chain may be upgraded by this OPCM.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @param _opcm The OPCM performing the upgrade.
+    /// @return True if the upgrade sequence is permitted.
+    function _isPermittedUpgradeSequence(ISystemConfig _systemConfig, address _opcm) internal view returns (bool) {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.isPermittedUpgradeSequence, (_systemConfig, _opcm))),
+            (bool)
+        );
+    }
+
+    /// @notice Helper for checking whether a chain is on this OPCM's release and may be migrated.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @param _opcm The OPCM performing the migration.
+    /// @return True if the chain may be migrated.
+    function _isPermittedMigrateSequence(ISystemConfig _systemConfig, address _opcm) internal view returns (bool) {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.isPermittedMigrateSequence, (_systemConfig, _opcm))),
+            (bool)
         );
     }
 

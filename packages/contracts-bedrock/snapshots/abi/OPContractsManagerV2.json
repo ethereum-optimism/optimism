@@ -447,7 +447,7 @@
         "type": "address"
       }
     ],
-    "name": "isMigratableRelease",
+    "name": "isPermittedMigrateSequence",
     "outputs": [
       {
         "internalType": "bool",

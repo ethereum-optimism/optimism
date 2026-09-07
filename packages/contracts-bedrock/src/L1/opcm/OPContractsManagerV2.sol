@@ -1069,35 +1069,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _systemConfig The SystemConfig contract to check the upgrade sequence for.
     /// @return True if the upgrade sequence is permitted, false otherwise.
     function isPermittedUpgradeSequence(ISystemConfig _systemConfig) public view returns (bool) {
-        // If the SystemConfig is not initialized, this is an initial deployment, which is always
-        // permitted. Initial deployments can use any OPCM version.
-        if (address(_systemConfig) == address(0)) {
-            return true;
-        }
-
-        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
-        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
-        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
-        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
-        // 8.0.0 and later will always have this function available.
-        if (SemverComp.lt(_version(), "8.0.0")) {
-            return true;
-        }
-
-        ISemver lastUsedOPCM = ISemver(address(_systemConfig.lastUsedOPCM()));
-        SemverComp.Semver memory lastUsedSemver = SemverComp.parse(lastUsedOPCM.version());
-        SemverComp.Semver memory thisSemver = SemverComp.parse(_version());
-
-        // We have three permitted cases:
-        // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
-        // 2. This OPCM version is the same major version but a greater minor version (patch).
-        // 3. This OPCM version is the next major version (sequential upgrade).
-        bool isSameOPCM = address(lastUsedOPCM) == address(opcmV2);
-        bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
-        bool isSameMajorHigherMinor =
-            thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
-
-        return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+        return _isPermittedUpgradeSequence(_systemConfig, address(opcmV2));
     }
 
     /// @notice Returns whether a chain is on this OPCM's release and may be migrated.
@@ -1105,28 +1077,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _systemConfig The SystemConfig of the chain to check.
     /// @return True if the chain may be migrated by this OPCM.
     function isPermittedMigrateSequence(ISystemConfig _systemConfig) public view returns (bool) {
-        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
-        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
-        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
-        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
-        // 8.0.0 and later will always have this function available.
-        if (SemverComp.lt(_version(), "8.0.0")) {
-            return true;
-        }
-
-        ISemver lastUsedOPCM = ISemver(address(_systemConfig.lastUsedOPCM()));
-        SemverComp.Semver memory lastUsedSemver = SemverComp.parse(lastUsedOPCM.version());
-        SemverComp.Semver memory thisSemver = SemverComp.parse(_version());
-
-        // Two permitted cases:
-        // 1. This is the same OPCM that last touched the chain.
-        // 2. A replacement OPCM for the same release. The minor must be at least as new, so an
-        //    older OPCM cannot migrate a chain that a newer one already upgraded.
-        bool isSameOPCM = address(lastUsedOPCM) == address(opcmV2);
-        bool isSameMajorAndAtLeastMinor =
-            thisSemver.major == lastUsedSemver.major && thisSemver.minor >= lastUsedSemver.minor;
-
-        return isSameOPCM || isSameMajorAndAtLeastMinor;
+        return _isPermittedMigrateSequence(_systemConfig, address(opcmV2));
     }
 
     /// @notice Returns the blueprint contract addresses.

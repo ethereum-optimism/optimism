@@ -15,6 +15,7 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -504,5 +505,88 @@ contract OPContractsManagerUtils {
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }
+    }
+
+    /// @notice Reads a chain's last used OPCM and parses it alongside the calling OPCM's version.
+    ///         Shared by the upgrade and migrate sequence checks.
+    /// @param _systemConfig The SystemConfig of the chain to compare.
+    /// @param _opcm The OPCM performing the action.
+    /// @return isSameOPCM_ Whether _opcm is the OPCM that last touched the chain.
+    /// @return lastUsedSemver_ The parsed version of the chain's last used OPCM.
+    /// @return thisSemver_ The parsed version of _opcm.
+    function _compareToLastUsedOPCM(
+        ISystemConfig _systemConfig,
+        address _opcm
+    )
+        private
+        view
+        returns (bool isSameOPCM_, SemverComp.Semver memory lastUsedSemver_, SemverComp.Semver memory thisSemver_)
+    {
+        ISemver lastUsedOPCM = ISemver(address(_systemConfig.lastUsedOPCM()));
+        isSameOPCM_ = address(lastUsedOPCM) == _opcm;
+        lastUsedSemver_ = SemverComp.parse(lastUsedOPCM.version());
+        thisSemver_ = SemverComp.parse(ISemver(_opcm).version());
+    }
+
+    /// @notice Returns whether a chain may be upgraded by the given OPCM.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @param _opcm The OPCM performing the upgrade.
+    /// @return True if the upgrade sequence is permitted.
+    function isPermittedUpgradeSequence(ISystemConfig _systemConfig, address _opcm) external view returns (bool) {
+        // If the SystemConfig is not initialized, this is an initial deployment, which is always
+        // permitted. Initial deployments can use any OPCM version.
+        if (address(_systemConfig) == address(0)) {
+            return true;
+        }
+
+        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
+        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
+        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
+        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
+        // 8.0.0 and later will always have this function available.
+        if (SemverComp.lt(ISemver(_opcm).version(), "8.0.0")) {
+            return true;
+        }
+
+        (bool isSameOPCM, SemverComp.Semver memory lastUsedSemver, SemverComp.Semver memory thisSemver) =
+            _compareToLastUsedOPCM(_systemConfig, _opcm);
+
+        // We have three permitted cases:
+        // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
+        // 2. This OPCM version is the same major version but a greater minor version (patch).
+        // 3. This OPCM version is the next major version (sequential upgrade).
+        bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
+        bool isSameMajorHigherMinor =
+            thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
+
+        return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+    }
+
+    /// @notice Returns whether a chain is on the given OPCM's release and may be
+    ///         migrated. Unlike isPermittedUpgradeSequence this refuses the next-major case.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @param _opcm The OPCM performing the migration.
+    /// @return True if the chain may be migrated.
+    function isPermittedMigrateSequence(ISystemConfig _systemConfig, address _opcm) external view returns (bool) {
+        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
+        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
+        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
+        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
+        // 8.0.0 and later will always have this function available.
+        if (SemverComp.lt(ISemver(_opcm).version(), "8.0.0")) {
+            return true;
+        }
+
+        (bool isSameOPCM, SemverComp.Semver memory lastUsedSemver, SemverComp.Semver memory thisSemver) =
+            _compareToLastUsedOPCM(_systemConfig, _opcm);
+
+        // Two permitted cases:
+        // 1. This is the same OPCM that last touched the chain.
+        // 2. A replacement OPCM for the same release. The minor must be at least as new, so an
+        //    older OPCM cannot migrate a chain that a newer one already upgraded.
+        bool isSameMajorAndAtLeastMinor =
+            thisSemver.major == lastUsedSemver.major && thisSemver.minor >= lastUsedSemver.minor;
+
+        return isSameOPCM || isSameMajorAndAtLeastMinor;
     }
 }
