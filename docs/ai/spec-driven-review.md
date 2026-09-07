@@ -141,16 +141,11 @@ The specification then permits both outcomes, or names no outcome for the case.
 
 Publish a specification-gap finding beside the divergence finding.
 Link the two findings.
+State the exact question that protocol authors must answer.
 
-State which client can change, and at what cost:
-
-- A client that produces the canonical chain sets what derivation accepts today.
-- A change to that client alters derivation of data that L1 already holds.
-- Such a change needs a fork gate.
-- A client that must reproduce the canonical chain can change without a fork gate.
-
-Name this constraint. Do not name the client that must change.
-Protocol authors and client owners own that decision.
+Do not name the client that must change.
+Do not state what a repair requires.
+Client owners and protocol authors own both decisions.
 
 ## Evidence contract
 
