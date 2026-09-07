@@ -26,6 +26,11 @@ kontrol_build() {
 
 kontrol_prove() {
   notif "Kontrol Prove"
+  local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
+  # Independent fixtures start from setUp and retain stack checks.
+  if [ "${KONTROL_STRICT:-false}" = true ]; then
+    model_args=(--reinit --schedule CANCUN --no-gas)
+  fi
   # shellcheck disable=SC2086
   run kontrol prove \
     --max-depth $max_depth \
@@ -37,16 +42,14 @@ kontrol_prove() {
     $break_on_calls \
     $break_every_step \
     $tests \
-    --init-node-from-diff $state_diff \
+    "${model_args[@]}" \
     --kore-rpc-command 'kore-rpc-booster --no-post-exec-simplify --equation-max-recursion 100 --equation-max-iterations 1000' \
     --xml-test-report \
     --maintenance-rate 16 \
     --symbolic-caller \
-    --assume-defined \
     --no-log-rewrites \
     --smt-timeout 16000 \
     --smt-retry-limit 0 \
-    --no-stack-checks \
     --remove-old-proofs
   return $?
 }
