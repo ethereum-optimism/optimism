@@ -868,16 +868,28 @@ contract OPContractsManagerStandardValidator_OptimismPortal_Test is OPContractsM
 /// @title OPContractsManagerStandardValidator_ETHLockbox_Test
 /// @notice Tests validation of `ETHLockbox` configuration
 contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManagerStandardValidator_TestInit {
+    /// @notice Tests that the ETHLockbox feature must be enabled.
+    function test_validate_ethLockboxFeatureDisabled_succeeds() public {
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
+            abi.encode(false)
+        );
+        assertEq("LOCKBOX-00", _validate(true));
+    }
+
+    /// @notice Tests that the portal must reference an ETHLockbox.
+    function test_validate_ethLockboxMissing_succeeds() public {
+        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(address(0)));
+        assertEq("LOCKBOX-05", _validate(true));
+    }
+
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         ETHLockbox version is invalid.
     function test_validate_ethLockboxInvalidVersion_succeeds() public {
         vm.mockCall(address(ethLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-10", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -889,11 +901,7 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
             abi.encode(address(0xbad))
         );
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-20", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-20", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -903,11 +911,7 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
             address(ethLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-30", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-30", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -915,11 +919,7 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
     function test_validate_ethLockboxInvalidSystemConfig_succeeds() public {
         vm.mockCall(address(ethLockbox), abi.encodeCall(IETHLockbox.systemConfig, ()), abi.encode(address(0xbad)));
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-40", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-40", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -929,11 +929,7 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
             address(ethLockbox), abi.encodeCall(IETHLockbox.authorizedPortals, (optimismPortal2)), abi.encode(false)
         );
 
-        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            assertEq("LOCKBOX-50", _validate(true));
-        } else {
-            assertEq("", _validate(true));
-        }
+        assertEq("LOCKBOX-50", _validate(true));
     }
 }
 
@@ -1885,6 +1881,16 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
 contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
     OPContractsManagerStandardValidator_SuperMode_TestInit
 {
+    /// @notice Tests that the ETHLockbox feature must be enabled.
+    function test_validate_ethLockboxFeatureDisabled_succeeds() public {
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
+            abi.encode(false)
+        );
+        assertEq("LOCKBOX-00", _validate(true));
+    }
+
     /// @notice Tests that the validate function succeeds in super mode with all games configured.
     function test_validate_succeeds() public view {
         string memory errors = _validate(false);

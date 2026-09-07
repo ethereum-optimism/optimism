@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { VmSafe } from "forge-std/Vm.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 import { PastUpgrades } from "test/setup/PastUpgrades.sol";
@@ -259,6 +260,12 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         address initialChallengerForV2 = DisputeGames.permissionedGameChallenger(disputeGameFactory);
         address initialProposerForV2 = DisputeGames.permissionedGameProposer(disputeGameFactory);
         v2UpgradeInput.systemConfig = systemConfig;
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+                data: bytes("ETHLockbox")
+            })
+        );
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -534,8 +541,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
     }
 
-    /// @notice Tests that upgrade does not perform one-off interop activation.
-    function test_upgrade_doesNotActivateInterop_succeeds() public {
+    /// @notice Tests upgrading a chain without ETHLockbox enabled.
+    function test_upgrade_activatesLockboxWithoutActivatingInterop_succeeds() public {
         bool interopEnabledBefore = systemConfig.isFeatureEnabled(Features.INTEROP);
         bool lockboxEnabledBefore = systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
         uint256 portalBalanceBefore = 1 ether;
@@ -547,11 +554,17 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
 
         assertEq(systemConfig.isFeatureEnabled(Features.INTEROP), interopEnabledBefore, "INTEROP activation changed");
-        assertEq(
-            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), lockboxEnabledBefore, "ETH_LOCKBOX activation changed"
-        );
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore, "portal liquidity migrated during upgrade");
-        assertEq(address(lockboxBefore).balance, lockboxBalanceBefore, "lockbox balance changed during upgrade");
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "ETH_LOCKBOX was not activated");
+
+        IETHLockbox lockboxAfter = optimismPortal2.ethLockbox();
+        assertNotEq(address(lockboxAfter), address(0), "portal has no ETHLockbox");
+        if (lockboxEnabledBefore) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore, "existing lockbox remigrated liquidity");
+            assertEq(address(lockboxAfter).balance, lockboxBalanceBefore, "existing lockbox balance changed");
+        } else {
+            assertEq(address(optimismPortal2).balance, 0, "legacy portal liquidity not migrated");
+            assertEq(address(lockboxAfter).balance, portalBalanceBefore, "new lockbox did not receive portal liquidity");
+        }
     }
 
     /// @notice Tests that the upgrade function reverts when not delegatecalled.
@@ -675,8 +688,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that the V2 upgrade function reverts if a permitted proxy deployment is
     ///         required but missing.
     function test_upgrade_missingPermittedProxyDeployment_reverts() public {
-        delete v2UpgradeInput.extraInstructions;
-
         // Simulate a missing DelayedWETH proxy so the upgrade path would need to deploy it.
         // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCallRevert(address(systemConfig), abi.encodeWithSelector(ISystemConfig.delayedWETH.selector), "");
@@ -1778,6 +1789,8 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
 /// @title OPContractsManagerV2_Deploy_Test
 /// @notice Tests OPContractsManagerV2.deploy
 contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
+    using stdStorage for StdStorage;
+
     /// @notice Default deploy config.
     IOPContractsManagerV2.FullConfig deployConfig;
 
@@ -1941,6 +1954,72 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         });
     }
 
+    /// @notice Recreates the legacy disabled-lockbox storage state for upgrade tests.
+    function _setLegacyLockboxState(ISystemConfig _systemConfig, IOptimismPortal2 _portal) internal {
+        stdstore.target(address(_systemConfig)).sig("isFeatureEnabled(bytes32)").with_key(Features.ETH_LOCKBOX)
+            .checked_write(false);
+        stdstore.target(address(_systemConfig)).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+            .checked_write(false);
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
+        vm.store(address(_portal), bytes32(slot.slot), bytes32(0));
+        assertFalse(_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+        assertEq(address(_portal.ethLockbox()), address(0));
+    }
+
+    /// @notice Tests lockbox deployment permission and first activation without requiring a fork.
+    function test_upgrade_missingLockbox_succeeds() public {
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        _setLegacyLockboxState(cts.systemConfig, cts.optimismPortal);
+        vm.deal(address(cts.optimismPortal), 1 ether);
+
+        IOPContractsManagerV2.UpgradeInput memory input;
+        input.systemConfig = cts.systemConfig;
+        input.disputeGameConfigs = deployConfig.disputeGameConfigs;
+        address pao = cts.proxyAdmin.owner();
+
+        // Without the instruction, the upgrade must stop before changing any chain state.
+        prankDelegateCall(pao);
+        (bool success, bytes memory reason) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+        assertFalse(success);
+        // nosemgrep: sol-style-use-abi-encodecall
+        assertEq(
+            reason,
+            abi.encodeWithSelector(
+                IOPContractsManagerUtils.OPContractsManagerUtils_ProxyMustLoad.selector, "ETHLockbox"
+            )
+        );
+        assertEq(address(cts.optimismPortal.ethLockbox()), address(0));
+        assertFalse(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+        assertEq(address(cts.optimismPortal).balance, 1 ether);
+
+        input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
+        input.extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+            data: bytes("ETHLockbox")
+        });
+        prankDelegateCall(pao);
+        (success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+        assertTrue(success, "upgrade failed");
+
+        IETHLockbox lockbox = cts.optimismPortal.ethLockbox();
+        assertNotEq(address(lockbox), address(0));
+        assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+        assertFalse(cts.systemConfig.isFeatureEnabled(Features.INTEROP));
+        assertTrue(lockbox.authorizedPortals(cts.optimismPortal));
+        assertEq(address(cts.optimismPortal).balance, 0);
+        assertEq(address(lockbox).balance, 1 ether);
+
+        // Repeating the upgrade reuses the lockbox and does not migrate portal liquidity again.
+        vm.deal(address(cts.optimismPortal), 2 ether);
+        prankDelegateCall(pao);
+        (success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+        assertTrue(success, "repeat upgrade failed");
+        assertEq(address(cts.optimismPortal.ethLockbox()), address(lockbox));
+        assertEq(address(cts.optimismPortal).balance, 2 ether);
+        assertEq(address(lockbox).balance, 1 ether);
+    }
+
     /// @notice Tests that the deploy function succeeds and passes standard validation.
     function test_deploy_succeeds() public {
         // Run the deploy and standard validator checks.
@@ -1953,6 +2032,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertTrue(address(cts.systemConfig) != address(0), "systemConfig not deployed");
         assertTrue(address(cts.proxyAdmin) != address(0), "proxyAdmin not deployed");
         assertTrue(address(cts.optimismPortal) != address(0), "optimismPortal not deployed");
+        assertTrue(address(cts.ethLockbox) != address(0), "ethLockbox not deployed");
         assertTrue(address(cts.disputeGameFactory) != address(0), "disputeGameFactory not deployed");
         assertTrue(address(cts.anchorStateRegistry) != address(0), "anchorStateRegistry not deployed");
         assertTrue(address(cts.delayedWETH) != address(0), "delayedWETH not deployed");
@@ -1960,6 +2040,37 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // Verify ownership is transferred to proxyAdminOwner.
         assertEq(cts.proxyAdmin.owner(), deployConfig.proxyAdminOwner, "proxyAdmin owner mismatch");
         assertEq(cts.disputeGameFactory.owner(), deployConfig.proxyAdminOwner, "disputeGameFactory owner mismatch");
+        assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "ETH_LOCKBOX not enabled");
+        assertEq(address(cts.optimismPortal.ethLockbox()), address(cts.ethLockbox), "portal lockbox mismatch");
+    }
+
+    /// @notice Tests deploying a custom gas token chain.
+    function test_deploy_customGasTokenUsesLockboxPauseSource_succeeds() public {
+        deployConfig.useCustomGasToken = true;
+
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
+
+        assertTrue(cts.systemConfig.isCustomGasToken(), "CGT not enabled");
+        assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "ETH_LOCKBOX not enabled");
+        assertEq(address(cts.optimismPortal.ethLockbox()), address(cts.ethLockbox), "portal lockbox mismatch");
+
+        uint256 portalBalance = address(cts.optimismPortal).balance;
+        uint256 lockboxBalance = address(cts.ethLockbox).balance;
+        uint64 gasLimit = cts.optimismPortal.minimumGasLimit(0);
+        vm.deal(address(this), 1 ether);
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_NotAllowedOnCGTMode.selector);
+        cts.optimismPortal.depositTransaction{ value: 1 ether }(address(this), 0, gasLimit, false, bytes(""));
+        assertEq(address(cts.optimismPortal).balance, portalBalance, "CGT portal ETH balance changed");
+        assertEq(address(cts.ethLockbox).balance, lockboxBalance, "CGT lockbox received ETH");
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(cts.ethLockbox));
+        assertTrue(cts.ethLockbox.paused(), "lockbox not paused");
+        assertTrue(cts.systemConfig.paused(), "SystemConfig not paused");
+        assertTrue(cts.optimismPortal.paused(), "portal not paused");
+        assertTrue(cts.anchorStateRegistry.paused(), "ASR not paused");
     }
 
     /// @notice Tests that deploy reverts when the superchainConfig needs upgrade.

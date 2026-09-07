@@ -230,6 +230,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// is enabled
     error OptimismPortal_NotUsingInterop();
 
+    /// @notice Thrown when calling a function that requires an active ETHLockbox.
+    error OptimismPortal_NotUsingLockbox();
+
     /// @notice Thrown when a withdrawal has not been proven for long enough.
     error OptimismPortal_ProofNotOldEnough();
 
@@ -249,9 +252,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_DisputeGameNotInvalidated();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.9.0
+    /// @custom:semver 5.10.0
     function version() public pure virtual returns (string memory) {
-        return "5.9.0";
+        return "5.10.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -491,10 +494,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Migrates the total ETH balance of this contract to the ETHLockbox.
+    ///         Custom gas token chains use the lockbox only as a pause source and cannot migrate ETH.
     function migrateLiquidity() public {
-        if (!_isUsingInterop()) revert OptimismPortal_NotUsingInterop();
+        if (!_isUsingLockbox()) revert OptimismPortal_NotUsingLockbox();
         // Liquidity migration can only be triggered by the ProxyAdmin owner.
         _assertOnlyProxyAdminOwner();
+
+        if (_isUsingCustomGasToken()) revert OptimismPortal_NotAllowedOnCGTMode();
 
         // Migrate the liquidity.
         uint256 ethBalance = address(this).balance;
@@ -809,12 +815,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
     }
 
-    /// @notice Asserts that the ETHLockbox is set/unset correctly depending on the feature flag.
+    /// @notice Asserts that the ETHLockbox is configured.
     function _assertValidLockboxState() internal view {
-        if (
-            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) == address(0)
-                || !systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) != address(0)
-        ) {
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(ethLockbox) == address(0)) {
             revert OptimismPortal_InvalidLockboxState();
         }
     }

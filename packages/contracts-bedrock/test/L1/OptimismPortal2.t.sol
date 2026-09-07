@@ -684,10 +684,15 @@ contract OptimismPortal2_DonateETH_Test is OptimismPortal2_TestInit {
 /// @title OptimismPortal2_MigrateLiquidity_Test
 /// @notice Test contract for OptimismPortal2 `migrateLiquidity` function.
 contract OptimismPortal2_MigrateLiquidity_Test is OptimismPortal2_TestInit {
-    function setUp() public virtual override {
-        super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-        forceEnableInterop();
+    /// @notice Tests that liquidity migration requires a configured lockbox.
+    function test_migrateLiquidity_noLockbox_reverts() external {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+        address proxyAdminOwner = optimismPortal2.proxyAdminOwner();
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotUsingLockbox.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.migrateLiquidity();
     }
 
     /// @notice Tests the liquidity migration from the portal to the lockbox reverts if not called
@@ -701,6 +706,7 @@ contract OptimismPortal2_MigrateLiquidity_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that the liquidity migration from the portal to the lockbox succeeds.
     function test_migrateLiquidity_succeeds(uint256 _portalBalance) external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         _portalBalance = uint256(bound(_portalBalance, 0, type(uint256).max - address(ethLockbox).balance));
         vm.deal(address(optimismPortal2), _portalBalance);
 
@@ -717,6 +723,23 @@ contract OptimismPortal2_MigrateLiquidity_Test is OptimismPortal2_TestInit {
 
         assertEq(address(optimismPortal2).balance, 0);
         assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _portalBalance);
+    }
+
+    /// @notice Tests that the ProxyAdmin owner cannot migrate ETH on a custom gas token chain.
+    function test_migrateLiquidity_customGasToken_reverts() external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+        assertTrue(ethLockbox.authorizedPortals(optimismPortal2));
+        vm.deal(address(optimismPortal2), 1 ether);
+        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
+        address proxyAdminOwner = optimismPortal2.proxyAdminOwner();
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotAllowedOnCGTMode.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.migrateLiquidity();
+
+        assertEq(address(optimismPortal2).balance, 1 ether);
+        assertEq(address(ethLockbox).balance, lockboxBalanceBefore);
     }
 }
 
@@ -1624,11 +1647,8 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the target reverts when
     ///         using the ETHLockbox.
     function test_finalizeWithdrawalTransaction_lockboxAndTargetFails_fails() external {
-        // Enable the ETHLockbox.
-        address dummyLockbox = address(0xdeadbeef);
-        forceEnableLockbox(dummyLockbox);
-        vm.deal(address(dummyLockbox), 0xFFFFFFFF);
-        vm.deal(address(optimismPortal2), _defaultTx.value);
+        vm.deal(address(ethLockbox), 0xFFFFFFFF);
+        vm.deal(address(optimismPortal2), 0);
 
         uint256 bobBalanceBefore = address(bob).balance;
         vm.etch(bob, hex"fe"); // Contract with just the invalid opcode.

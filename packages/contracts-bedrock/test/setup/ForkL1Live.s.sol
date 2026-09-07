@@ -20,6 +20,7 @@ import { GameType, GameTypes, Claim, Proposal, Hash } from "src/dispute/lib/Type
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -346,8 +347,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // Migration needs 2 extra instructions: anchor root + game type overrides.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](2);
+            // Anchor root and game type overrides, plus the lockbox deployment permission below.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](3);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingAnchorRoot",
                 data: abi.encode(
@@ -415,9 +416,15 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // The standard upgrade path deploys no proxies, so it needs no extra instructions.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](0);
+            // The standard upgrade path only needs the lockbox deployment permission below.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
         }
+
+        // Chains without a lockbox need permission to deploy one. Existing lockboxes are reused.
+        extraInstructions[extraInstructions.length - 1] = IOPContractsManagerUtils.ExtraInstruction({
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+            data: bytes("ETHLockbox")
+        });
 
         vm.prank(_delegateCaller, true);
         (bool upgradeSuccess,) = address(_opcm).delegatecall(

@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 3.5.0
-    string public constant version = "3.5.0";
+    /// @custom:semver 3.6.0
+    string public constant version = "3.6.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -440,8 +440,10 @@ contract OPContractsManagerStandardValidator is ISemver {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
         IETHLockbox _lockbox = IETHLockbox(_portal.ethLockbox());
 
-        // If this chain isn't using the ETHLockbox, skip the validation.
-        if (!_sysCfg.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+        // Validate the chain's ETHLockbox configuration.
+        _errors = internalRequire(_sysCfg.isFeatureEnabled(Features.ETH_LOCKBOX), "LOCKBOX-00", _errors);
+        _errors = internalRequire(address(_lockbox) != address(0), "LOCKBOX-05", _errors);
+        if (address(_lockbox) == address(0)) {
             return _errors;
         }
 

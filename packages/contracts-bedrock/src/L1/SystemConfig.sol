@@ -175,9 +175,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 4.0.0
+    /// @custom:semver 4.1.0
     function version() public pure virtual returns (string memory) {
-        return "4.0.0";
+        return "4.1.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -541,26 +541,13 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         // Handle feature-specific safety logic here.
         if (_feature == Features.ETH_LOCKBOX) {
-            // It would probably better to check that the ETHLockbox contract is set inside the
-            // OptimismPortal2 contract before you're allowed to enable the feature here, but the
-            // portal checks that the feature is set before allowing you to set the lockbox, so
-            // these checks are good enough.
-
-            // Lockbox shouldn't be unset if the ethLockbox address is still configured in the
-            // OptimismPortal2 contract. Doing so would cause the system to start keeping ETH in
-            // the portal. This check means there's no way to stop using ETHLockbox at the moment
-            // after it's been configured (which is expected).
-            if (
-                isFeatureEnabled[_feature] && !_enabled
-                    && address(IOptimismPortal2(payable(optimismPortal())).ethLockbox()) != address(0)
-            ) {
+            // ETHLockbox cannot be disabled.
+            if (!_enabled) {
                 revert SystemConfig_InvalidFeatureState();
             }
 
-            // Lockbox can't be set or unset if the system is currently paused because it would
-            // change the pause identifier which would potentially cause the system to become
-            // unpaused unexpectedly.
-            if (paused()) {
+            // Do not change the pause key while the legacy key is paused.
+            if (superchainConfig.paused(optimismPortal())) {
                 revert SystemConfig_InvalidFeatureState();
             }
         }
