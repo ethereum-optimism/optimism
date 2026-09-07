@@ -22,10 +22,10 @@ import (
 // Public derivation and its counterparty advance after expiry without a private node or batcher.
 func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	const cadence = uint64(4)
+	const maxCatchupLag = uint64(8)
 	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0,
 		presets.WithDeployerOptions(sysgo.WithSequencingWindow(10)),
-		presets.WithPrivateInteropChain(sysgo.WithoutRenderingInvariantCheck(), sysgo.WithPrivateInteropCadence(cadence)),
+		presets.WithPrivateInteropChain(sysgo.WithoutRenderingInvariantCheck()),
 	)
 	require := t.Require()
 	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
@@ -102,7 +102,7 @@ func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
 	privateReceipt := sys.L2ELB.WaitForReceipt(missed.TxHash)
 	require.Len(privateReceipt.Logs, 1, "the forced send must exist in private state after recovery")
 	// Execution can reach the live head before the batcher drains its backlog.
-	// Require accepted private claims within two ranges of the current head;
+	// Require accepted private claims within eight blocks of the current head;
 	// otherwise even a freshly executed resend can expire behind old batches.
 	require.Eventually(func() bool {
 		private, err := sys.L2BCL.Escape().RollupAPI().SyncStatus(t.Ctx())
@@ -112,7 +112,7 @@ func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
 		counterparty, err := sys.L2ASupernodeCL.Escape().RollupAPI().SyncStatus(t.Ctx())
 		return err == nil && private.UnsafeL2.Time >= counterparty.UnsafeL2.Time &&
 			private.LocalSafeL2.Number <= private.UnsafeL2.Number &&
-			private.UnsafeL2.Number-private.LocalSafeL2.Number <= 2*cadence
+			private.UnsafeL2.Number-private.LocalSafeL2.Number <= maxCatchupLag
 	}, 3*time.Minute, time.Second, "private execution and accepted publication must catch up before resending")
 	resent := resendPrivateMessage(t, resender, privateReceipt)
 	relayPrivateMessage(t, receiver, sys.L2ELB, sys.L2ASupernodeCL, resent)

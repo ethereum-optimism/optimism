@@ -181,7 +181,7 @@ func assertClaimedRouteIsTheModule(t devtest.T, logger log.Logger, url string, p
 	var cfg any
 	require.Error(rpcCl.CallContext(t.Ctx(), &cfg, "optimism_rollupConfig"),
 		"%s answered optimism_rollupConfig, so it is the RENDERING chain's handler and not the claim follow module: "+
-			"the module serves optimism_syncStatus and nothing else. Pointing the private sequencer here would feed it "+
+			"the module serves checkpoint and recovery RPCs, not rollupConfig. Pointing the private sequencer here would feed it "+
 			"refs of the wrong chain", url)
 
 	var status eth.SyncStatus
@@ -426,16 +426,13 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	// preset's answer to reorging onto a supernode replacement over EL p2p, and this chain has
 	// neither a peer to sync from nor a replacement to reorg onto.
 	privateCL := startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, privateEL, jwtSecret, l2CLNodeStartConfig{
-		// Origin-copy recovery must not trail the fallback projection's eager
-		// L1 origins, or every resumed range can already be expired on arrival.
-		SequencerConfDepth: ptr.New(uint64(0)),
-		Key:                "sequencer",
-		IsSequencer:        true,
-		NoDiscovery:        true,
-		EnableReqResp:      true,
-		DependencySet:      runtimeDepSet,
-		L2FollowSource:     followSource,
-		L2CLOptions:        cfg.GlobalL2CLOptions,
+		Key:            "sequencer",
+		IsSequencer:    true,
+		NoDiscovery:    true,
+		EnableReqResp:  true,
+		DependencySet:  runtimeDepSet,
+		L2FollowSource: followSource,
+		L2CLOptions:    cfg.GlobalL2CLOptions,
 	})
 	// No connectL2CLPeers and no connectL2ELPeers across the pair. This absence is the severance.
 

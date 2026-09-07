@@ -1,105 +1,17 @@
-// Package claimfollow is THE SUPERNODE FOLLOW MODULE: it tells a private chain's stock LightCL
-// what its own safe head is, computed ENTIRELY from public data the supernode already has.
+// Package claimfollow translates accepted projection claims into private-chain
+// safety checkpoints. It reads only public projection data; private hashes come
+// from accepted terminal commitments, while block scheduling comes from the
+// corresponding projection blocks.
 //
-// The architecture is op-private-interop/docs/DESIGN.md, section "The supernode follow module".
-// It replaces the standalone claim-follower sidecar, and the thing that made the replacement
-// possible is that a private chain's forkchoice refs are now fully derivable from public data:
+// The claimed RPC route serves checkpoints and a fully scanned recovery frontier.
+// A private LightCL executes deposit-only replacement inputs against its own state
+// using the ordinary attributes handler. Projection hashes never become private
+// forkchoice hashes. Reorgs revoke affected checkpoints; only finality is monotonic.
+// Surviving partial ranges are authenticated through their original private
+// terminal commitment and the projection's persisted replacement history.
 //
-//  1. ORIGIN-COPY. The batcher's rendering transformation reuses each private block's OWN L1
-//     origin as the rendering block's epoch, so private and rendering origins — and therefore
-//     sequence numbers — are EQUAL BY CONSTRUCTION at every height.
-//  2. The range claim publishes privateTerminalParentHash alongside privateTerminalBlockHash.
-//
-// Together those give every field of the six-field L2BlockRef the follow protocol demands: hash and
-// parentHash come from the claim, and number, timestamp, l1origin and sequenceNumber come from the
-// supernode's own RENDERING block at the same height. Nothing here holds a private credential,
-// dials a private endpoint, or reads anything but the chain the supernode already drives.
-//
-// # The protocol is one method
-//
-// op-node's follow source (op-service/sources/follow_client.go, op-node/rollup/driver/driver.go)
-// polls exactly `optimism_syncStatus` over plain HTTP and reads exactly FOUR fields of the
-// response: local_safe_l2, safe_l2, finalized_l2 and current_l1. Everything else in eth.SyncStatus
-// is ignored, so this module populates nothing else. A failed fetch, a malformed response or a
-// status that violates the ordering invariants is a WARN and a SKIPPED TICK on the consumer — never
-// a fault — which is what makes "I have nothing to say yet" a safe answer here.
-//
-// # Snap-to-commitment: served verbatim, no withhold latch
-//
-// The deleted sidecar compared each claim against the operator's private EL and LATCHED a fail-stop
-// on a mismatch. This module cannot do that and must not want to: it has no private EL, and the
-// ratified posture is that the CLAIM IS THE OPERATOR'S BINDING STATEMENT, so a diverged sequencer
-// force-resetting onto the publicly claimed chain is automatic recovery TO the truth rather than
-// away from it. A claim naming a block that exists nowhere fail-stops on its own, as a loud
-// unfindable-hash sync stall in the consumer. "The chain diverged from its claims" is a MONITORING
-// alert now, not a serving gate.
-//
-// One consequence is worth stating plainly, because it is the one place this differs from the
-// sidecar's rules rather than merely dropping them: a REVERTED postClaim is a SKIP with a metric,
-// not a latch. A reverted call never entered the registry's record, so there is nothing to serve
-// from it; the sidecar latched because advancing past it broke recoverability, and recoverability
-// is not this module's job.
-//
-// # Monotonicity is the contract
-//
-// A sequencing follower FORCE-RESETS onto whatever local-safe ref it is told
-// (op-node/rollup/engine/engine_controller.go), so a served ref that went backwards would drag a
-// chain backwards with it. Every served label is therefore a HIGH-WATER MARK: a rendering reorg
-// rewinds the scan cursor and re-derives what is above the rewind point, but it never unsays what
-// was already said.
-//
-// # Before the first claim: the private chain's GENESIS ref
-//
-// The not-yet state serves local_safe = safe = finalized = the private chain's genesis ref, exactly
-// as the deleted sidecar did. The sidecar read that ref from the private EL; this module has no
-// private EL, so it reads the same local private-chain genesis artifact used to derive the public
-// projection and derives the other five fields from what it already holds:
-//
-//	number         = the rendering rollup config's genesis L2 number   (block-for-block)
-//	parentHash     = zero                                              (definition of a genesis block)
-//	timestamp      = the rendering rollup config's genesis L2 time     (block-for-block)
-//	l1origin       = the rendering rollup config's genesis L1          (same L1 start block, pinned)
-//	sequenceNumber = 0                                                 (definition of a genesis block)
-//
-// Only the HASH is unknowable from public data; every other field of a genesis ref is a definition
-// or a value the pair's block-for-block construction already makes equal. Requiring the genesis at
-// startup makes a missing artifact a startup failure rather than a bootstrap that hangs.
-//
-// # Why erroring here was WRONG, and the lesson worth keeping
-//
-// An earlier version of this module errored until the first claim. The analysis behind that was
-// correct as far as it went, and it is still worth stating, because it is what makes the genesis
-// ref safe rather than merely convenient: a follow-mode SEQUENCER's initial engine reset does not
-// read the follow source at all. It comes from sync.FindL2Heads over real L1 and the sequencer's
-// OWN EL (engine_controller.TryInitialResetEngineForSequencer -> sync.FindL2Heads), retried every
-// step and never fatal. A sequencer can start and sequence with this source erroring forever.
-//
-// WHAT THAT MISSED IS THAT THE SEQUENCER IS NOT THE ONLY CONSUMER OF THE op-node IT FEEDS. The
-// operator's BATCHER polls the same op-node, and in follow mode that op-node's reported CurrentL1
-// has exactly one writer: the driver forwards this source's `current_l1` verbatim
-// (op-node/rollup/driver/driver.go:311-313), because derivation, the only other thing that could
-// set it, is off. While this module errors, op-node is handed nothing and its CurrentL1 stays zero
-// — and op-batcher's very first sync check rejects a zero CurrentL1 outright
-// (op-batcher/batcher/sync_actions.go:75-81, "empty BlockRef in sync status") and loads no blocks
-// at all. No blocks, no batch; no batch, no claim; no claim, the not-yet state never ends.
-//
-// That is a bootstrap deadlock, and it was measured rather than argued: a devstack pair sequenced
-// the private chain to block 126 while its batcher logged "empty BlockRef in sync status" 486 times
-// and the rendering never left block 0. The lesson generalises past this module — REASONING ABOUT A
-// FOLLOW SOURCE ONE CONSUMER AT A TIME IS NOT ENOUGH, because everything downstream of the op-node
-// it feeds inherits whatever it does or does not say.
-//
-// The remaining operational caveat is unchanged: `--sequencer.max-safe-lag` (default 0, disabled)
-// stalls block production once the unsafe head runs that far ahead of a safe head that is not
-// moving, so an operator who sets it must set it above one claim cadence.
-//
-// # What it reads, and how reorgs are handled
-//
-// Claims are ordinary transactions to the ClaimRegistry on the rendering chain, and the registry
-// emits no log by design (see op-private-interop/codec), so this scans TRANSACTIONS rather than
-// filtering logs. It only ever reads at or below the chain's own SAFE view, which means L1-reorg
-// handling is INHERITED from the supernode's derivation rather than reimplemented here: a cursor
-// that re-checks its own block hash each poll and rewinds when the chain moved under it.
+// Before the first claim, the configured private genesis and projection L1 view
+// let the sequencer and batcher bootstrap without waiting on their own first batch.
 package claimfollow
 
 import (
@@ -134,8 +46,7 @@ var (
 	ErrNoGenesisRef = errors.New("claim follow module has no genesis ref and has not read a claim yet")
 
 	// ErrInvariant is returned instead of a status that would violate the consumer's ordering
-	// rules. It cannot happen — the advance guards are monotone — and it is checked anyway, because
-	// the failure mode it guards against is a follow source silently corrupting a chain.
+	// rules or contradicts retained finalized history.
 	ErrInvariant = errors.New("claim follow module computed a status violating finalized <= safe <= local_safe")
 )
 
@@ -192,13 +103,17 @@ type Config struct {
 // `carrier` (see promote). What carrier is for is the rewind: a reorg that reaches the block a
 // claim arrived in is what un-reads that claim.
 type claim struct {
-	carrier   uint64
-	first     uint64
-	last      uint64
-	terminal  common.Hash
-	parent    common.Hash
-	ref       eth.L2BlockRef
-	completed bool
+	carrier         uint64
+	invalidFrom     uint64
+	revokedTip      eth.BlockID // previously observed suffix, retained across temporary revocation
+	replacementFrom uint64      // persisted denial confirms a replacement
+	prefixRef       eth.L2BlockRef
+	first           uint64
+	last            uint64
+	terminal        common.Hash
+	parent          common.Hash
+	ref             eth.L2BlockRef
+	completed       bool
 }
 
 // Module is the follow module's state machine. Step drives it; SyncStatus reads it.
@@ -213,24 +128,30 @@ type Module struct {
 
 	mu sync.RWMutex
 
-	// safe is what both local_safe_l2 and safe_l2 report: the highest COMPLETED claim's private ref,
-	// or the private chain's genesis ref before the first one. haveSafe is false only when the
-	// module was built without a genesis hash and has read no claim, which Check makes unreachable
-	// for an operator.
-	safe     eth.L2BlockRef
-	haveSafe bool
+	// Local and cross-safe claims are tracked separately. haveSafe indicates
+	// that the initial private genesis checkpoint is available.
+	safe      eth.L2BlockRef
+	localSafe eth.L2BlockRef
+	haveSafe  bool
 	// finalized is the highest completed claim whose TERMINAL rendering block is finalized — see
 	// promote for why the terminal block and not the carrier.
 	finalized eth.L2BlockRef
-	// currentL1 is the rendering's own current L1, forwarded verbatim and never regressed.
+	// currentL1 is the rendering's own current L1, forwarded with canonical reorgs.
 	currentL1 eth.L1BlockRef
+	// recoveryTarget is a fully scanned local-safe projection frontier. Blocks
+	// after the last completed claim still require private deposit execution.
+	recoveryTarget    eth.L2BlockRef
+	recoverySafe      eth.L2BlockRef
+	recoveryFinalized eth.L2BlockRef
 
 	// next is the next rendering block number to scan. anchored and lastHash anchor the reorg check
-	// on block next-1; anchored is false immediately after a rewind, when nothing above the rewind
-	// point is trusted any more.
-	next     uint64
-	lastHash common.Hash
-	anchored bool
+	// on block next-1, including the surviving ancestor after a rewind.
+	next         uint64
+	lastHash     common.Hash
+	anchored     bool
+	history      map[uint64]eth.L2BlockRef
+	generation   uint64
+	invariantErr error
 
 	// pending holds claims that are not yet BOTH completed and finalized, in ascending carrier
 	// order. A claim leaves it once its ref has been served as finalized.
@@ -256,6 +177,7 @@ func New(cfg Config, rollupCfg *rollup.Config, lgr gethlog.Logger, m Metrics) *M
 		log:       lgr,
 		metrics:   m,
 		next:      cfg.StartBlock,
+		history:   make(map[uint64]eth.L2BlockRef),
 	}
 	// The not-yet state, seeded at construction so the module answers from its very first tick.
 	// Serving from t=0 is the point: everything downstream of the op-node this feeds — the
@@ -263,7 +185,7 @@ func New(cfg Config, rollupCfg *rollup.Config, lgr gethlog.Logger, m Metrics) *M
 	// block until it is told a current_l1. See the package comment on the bootstrap deadlock.
 	if cfg.GenesisHash != (common.Hash{}) {
 		ref := genesisRef(cfg.GenesisHash, rollupCfg)
-		mod.safe, mod.finalized, mod.haveSafe = ref, ref, true
+		mod.safe, mod.localSafe, mod.finalized, mod.haveSafe = ref, ref, ref, true
 		lgr.Info("Claim follow module will serve the private chain's genesis ref until the first claim", "genesis", ref)
 	}
 	return mod
@@ -315,26 +237,24 @@ func (m *Module) source() (Rendering, error) {
 	return m.rendering, nil
 }
 
-// SyncStatus is the served state: the whole protocol, as one cached read.
-//
-// EXACTLY four fields are populated and every other field of eth.SyncStatus is left at its zero
-// value, because the follow consumer reads no others and a field this module has no honest answer
-// for is a field nothing should come to depend on. local_safe_l2 and safe_l2 are the same ref: a
-// claim landing on the public chain is simultaneously the local-safe fact (it is L1-derived) and
-// the cross-safe fact (attested mode makes cross-safety unconditional at that point), so the two
-// labels have nothing to differ about.
-//
-// Before the first claim all three L2 labels are the private chain's genesis ref, which is a
-// complete and true status rather than a placeholder — and serving one from t=0 is what keeps the
-// operator's own batcher, downstream of the op-node this feeds, from refusing to load a block.
+// SyncStatus returns private local-safe, cross-safe and finalized checkpoints,
+// plus the projection's current L1 view. Before the first claim, all private
+// checkpoints are genesis, allowing the sequencer and batcher to bootstrap.
 func (m *Module) SyncStatus() (*eth.SyncStatus, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	return m.syncStatusLocked()
+}
+
+func (m *Module) syncStatusLocked() (*eth.SyncStatus, error) {
+	if m.invariantErr != nil {
+		return nil, m.invariantErr
+	}
 	if !m.haveSafe {
 		return nil, ErrNoGenesisRef
 	}
 	out := &eth.SyncStatus{
-		LocalSafeL2: m.safe,
+		LocalSafeL2: m.localSafe,
 		SafeL2:      m.safe,
 		FinalizedL2: m.finalized,
 		CurrentL1:   m.currentL1,
@@ -354,7 +274,7 @@ func (m *Module) SyncStatus() (*eth.SyncStatus, error) {
 // rendering has finalized.
 //
 // It returns an error for the caller to log; the poll loop never exits on one. A returned error
-// means "nothing advanced this tick", which is always a safe outcome for a follow source.
+// leaves unprocessed blocks available for a later retry.
 func (m *Module) Step(ctx context.Context) error {
 	src, err := m.source()
 	if err != nil {
@@ -369,16 +289,68 @@ func (m *Module) Step(ctx context.Context) error {
 	}
 	m.observeCurrentL1(status.CurrentL1)
 	renderSafe, renderFinalized := status.SafeL2.Number, status.FinalizedL2.Number
-	if err := m.reanchor(ctx, src, renderSafe, renderFinalized); err != nil {
+	local := status.LocalSafeL2
+	if local == (eth.L2BlockRef{}) {
+		local = status.SafeL2
+	}
+	renderLocal := local.Number
+	if err := m.reanchor(ctx, src, renderLocal, renderFinalized); err != nil {
 		return err
 	}
-	if err := m.scan(ctx, src, renderSafe); err != nil {
+	m.mu.RLock()
+	generation := m.generation
+	m.mu.RUnlock()
+	if err := m.scan(ctx, src, renderLocal); err != nil {
 		return err
 	}
-	if err := m.complete(ctx, src, renderSafe); err != nil {
+	// A status read can race an engine reset before our generation was sampled.
+	// Bind completion and safety promotion to the identities actually scanned.
+	m.mu.RLock()
+	scannedThrough := m.next
+	scannedLocal := m.history[renderLocal]
+	m.mu.RUnlock()
+	if scannedThrough <= renderLocal {
+		return nil
+	}
+	if scannedLocal != local {
+		return fmt.Errorf("projection frontier changed while scanning claims")
+	}
+	for _, expected := range []eth.L2BlockRef{status.SafeL2, status.FinalizedL2} {
+		env, err := src.PayloadByNumber(ctx, expected.Number)
+		if err != nil {
+			return err
+		}
+		if env == nil || env.ExecutionPayload == nil {
+			return fmt.Errorf("projection safety block is unavailable")
+		}
+		actual, err := derive.PayloadToBlockRef(m.rollupCfg, env.ExecutionPayload)
+		if err != nil {
+			return err
+		}
+		if actual != expected {
+			return fmt.Errorf("projection safety snapshot changed while scanning claims")
+		}
+	}
+	if err := m.complete(ctx, src, renderLocal); err != nil {
 		return err
 	}
-	m.promote(renderFinalized)
+	m.mu.Lock()
+	if generation != m.generation {
+		m.mu.Unlock()
+		return fmt.Errorf("claim history changed during scan")
+	}
+	m.promoteLocked(renderSafe, renderFinalized)
+	if m.next > renderLocal {
+		m.recoveryTarget = local
+		m.recoverySafe = status.SafeL2
+		m.recoveryFinalized = status.FinalizedL2
+	}
+	for n := range m.history {
+		if n < min(renderFinalized, m.next-1) {
+			delete(m.history, n)
+		}
+	}
+	m.mu.Unlock()
 	return nil
 }
 
@@ -389,83 +361,108 @@ func (m *Module) Step(ctx context.Context) error {
 // anchored to", because a private range becomes safe exactly when its claim lands in an L1 batch
 // the rendering derived, and it is what keeps a downstream reader (op-batcher rejects a zero
 // CurrentL1 outright) from being told silence. A zero from the chain is held rather than forwarded,
-// and a regression is held rather than served: the value is a view, not a commitment.
+// and canonical regressions are forwarded: the value is a view, not a commitment.
 func (m *Module) observeCurrentL1(current eth.L1BlockRef) {
 	if current == (eth.L1BlockRef{}) {
 		return
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if current.Number < m.currentL1.Number {
-		return
-	}
 	m.currentL1 = current
 }
 
-// reanchor detects that the rendering chain moved under the cursor and rewinds if it did.
-//
-// Two ways it can move: the chain's safe head can REGRESS below the cursor, which an L1 reorg deep
-// enough to unwind derived blocks produces; and the block at the cursor can keep its number while
-// changing its hash. Either way the rewind target is the chain's own FINALIZED height, the deepest
-// point an L1 reorg can still reach — everything above it is rescanned from scratch rather than
-// reasoned about.
-func (m *Module) reanchor(ctx context.Context, src Rendering, renderSafe, renderFinalized uint64) error {
+// reanchor finds the last common projection ancestor within retained history.
+func (m *Module) reanchor(ctx context.Context, src Rendering, renderSafe, _ uint64) error {
 	m.mu.RLock()
-	anchored, next, lastHash := m.anchored, m.next, m.lastHash
+	anchored, next := m.anchored, m.next
 	m.mu.RUnlock()
 	if !anchored {
-		// Nothing scanned yet, or a rewind just discarded the anchor: there is nothing to compare
-		// against, and the first block of the coming scan re-establishes it.
 		return nil
 	}
-	last := next - 1
-	if last > renderSafe {
-		m.log.Warn("The rendering chain's safe head regressed below the claim follow module's cursor; rewinding",
-			"cursor", last, "renderingSafe", renderSafe)
-		m.metrics.RecordRenderingReorg()
-		m.rewind(min(renderSafe, renderFinalized))
-		return nil
+	for n := min(next-1, renderSafe); ; n-- {
+		m.mu.RLock()
+		old, known := m.history[n]
+		m.mu.RUnlock()
+		if !known {
+			return fmt.Errorf("%w: projection reorg passed retained finalized history", ErrInvariant)
+		}
+		env, err := src.PayloadByNumber(ctx, n)
+		if err != nil {
+			return err
+		}
+		if env == nil || env.ExecutionPayload == nil {
+			return fmt.Errorf("missing projection block %d", n)
+		}
+		if env.ExecutionPayload.BlockHash == old.Hash {
+			if n != next-1 {
+				m.metrics.RecordRenderingReorg()
+				m.rewind(n)
+			}
+			return nil
+		}
+		if n == 0 {
+			return fmt.Errorf("%w: projection genesis changed", ErrInvariant)
+		}
 	}
-	env, err := src.PayloadByNumber(ctx, last)
-	if err != nil {
-		return fmt.Errorf("re-reading rendering block %d to anchor the cursor: %w", last, err)
-	}
-	if env == nil || env.ExecutionPayload == nil {
-		return fmt.Errorf("rendering block %d came back without a payload", last)
-	}
-	if env.ExecutionPayload.BlockHash == lastHash {
-		return nil
-	}
-	m.log.Warn("The rendering chain reorged under the claim follow module's cursor; rewinding to its finalized height",
-		"cursor", last, "was", lastHash, "now", env.ExecutionPayload.BlockHash, "rewindTo", renderFinalized)
-	m.metrics.RecordRenderingReorg()
-	m.rewind(renderFinalized)
-	return nil
 }
 
-// rewind drops everything the module learned above height h and restarts scanning at h+1.
-//
-// It does NOT lower the served refs. Monotonicity is the contract with the consumer: reporting a
-// lower local-safe ref makes a sequencing follower force-reset its chain backwards, so a rewind
-// here means "re-derive what is above h", never "unsay what was already said". In practice the
-// rescan re-reads the same operator claims.
+// rewind revokes the affected suffix while retaining finalized checkpoints and
+// any surviving claim carrier needed to authenticate a partial private prefix.
 func (m *Module) rewind(h uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.generation++
+	// A reset notification may arrive before the poller has read the affected
+	// range. It must never advance the scan past an unread claim carrier.
+	if m.next == 0 {
+		m.recoveryTarget = eth.L2BlockRef{}
+		return
+	}
+	oldTip := m.next - 1
+	h = min(h, oldTip)
+	if h < m.finalized.Number {
+		m.invariantErr = fmt.Errorf("%w: rewind below private finality", ErrInvariant)
+		return
+	}
+	m.localSafe, m.safe = m.finalized, m.finalized
 	next := h + 1
 	if next < m.cfg.StartBlock {
 		next = m.cfg.StartBlock
 	}
 	m.next = next
-	m.anchored = false
-	m.lastHash = common.Hash{}
+	ref, known := m.history[h]
+	m.anchored = known
+	m.lastHash = ref.Hash
+	m.recoveryTarget = eth.L2BlockRef{}
 	kept := m.pending[:0]
 	for _, c := range m.pending {
 		if c.carrier <= h {
+			if c.last > h {
+				if c.revokedTip == (eth.BlockID{}) {
+					if c.replacementFrom != 0 {
+						c.revokedTip = c.prefixRef.ID()
+					} else {
+						c.revokedTip = m.history[min(c.last, oldTip)].ID()
+					}
+				}
+				c.completed = false
+				if c.invalidFrom == 0 || h+1 < c.invalidFrom {
+					c.invalidFrom, c.prefixRef = h+1, m.history[h]
+				}
+			} else if c.completed {
+				if c.ref.Number > m.localSafe.Number {
+					m.localSafe = c.ref
+				}
+			}
 			kept = append(kept, c)
 		}
 	}
 	m.pending = kept
+	for n := range m.history {
+		if n > h {
+			delete(m.history, n)
+		}
+	}
 }
 
 // scan walks new rendering blocks up to the chain's safe head, recording every claim it finds.
@@ -474,7 +471,7 @@ func (m *Module) rewind(h uint64) {
 // that block to be re-scanned next poll rather than skipped.
 func (m *Module) scan(ctx context.Context, src Rendering, renderSafe uint64) error {
 	m.mu.RLock()
-	next, budget := m.next, m.cfg.MaxBlocksPerPoll
+	next, budget, generation := m.next, m.cfg.MaxBlocksPerPoll, m.generation
 	m.mu.RUnlock()
 
 	for n := next; n <= renderSafe && budget > 0; n, budget = n+1, budget-1 {
@@ -497,10 +494,32 @@ func (m *Module) scan(ctx context.Context, src Rendering, renderSafe uint64) err
 			m.metrics.RecordRenderingReorg()
 			return nil
 		}
-		if err := m.applyBlock(ctx, src, n, payload); err != nil {
+		if err := m.applyBlock(ctx, src, n, payload, generation); err != nil {
+			return err
+		}
+		if err := m.checkReplacement(ctx, src, payload, generation); err != nil {
 			return err
 		}
 		m.mu.Lock()
+		if generation != m.generation {
+			m.mu.Unlock()
+			return fmt.Errorf("claim history changed during scan")
+		}
+		ref, err := derive.PayloadToBlockRef(m.rollupCfg, payload)
+		if err != nil {
+			m.mu.Unlock()
+			return err
+		}
+		m.history[n] = ref
+		for _, c := range m.pending {
+			if c.invalidFrom != 0 && c.revokedTip == ref.ID() {
+				// Restore temporary revocation, preserving a confirmed denial.
+				c.invalidFrom, c.prefixRef, c.revokedTip = c.replacementFrom, eth.L2BlockRef{}, eth.BlockID{}
+				if c.replacementFrom != 0 {
+					c.prefixRef = m.history[c.replacementFrom-1]
+				}
+			}
+		}
 		m.next, m.anchored, m.lastHash = n+1, true, payload.BlockHash
 		m.mu.Unlock()
 	}
@@ -508,7 +527,7 @@ func (m *Module) scan(ctx context.Context, src Rendering, renderSafe uint64) err
 }
 
 // applyBlock records one rendering block's claims.
-func (m *Module) applyBlock(ctx context.Context, src Rendering, num uint64, payload *eth.ExecutionPayload) error {
+func (m *Module) applyBlock(ctx context.Context, src Rendering, num uint64, payload *eth.ExecutionPayload, generation uint64) error {
 	type candidate struct {
 		hash  common.Hash
 		claim *codec.RangeClaim
@@ -543,6 +562,9 @@ func (m *Module) applyBlock(ctx context.Context, src Rendering, num uint64, payl
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if generation != m.generation {
+		return fmt.Errorf("claim history changed while reading receipts")
+	}
 	for _, c := range candidates {
 		if !succeeded[c.hash] {
 			// A REVERTED postClaim never entered the registry's record, so there is no claim here
@@ -620,11 +642,12 @@ func (m *Module) complete(ctx context.Context, src Rendering, renderSafe uint64)
 		m.mu.RLock()
 		var next *claim
 		for _, c := range m.pending {
-			if !c.completed && c.last <= renderSafe {
+			if !c.completed && c.invalidFrom == 0 && c.last <= renderSafe && c.last < m.next {
 				next = c
 				break
 			}
 		}
+		generation := m.generation
 		m.mu.RUnlock()
 		if next == nil {
 			return nil
@@ -638,9 +661,13 @@ func (m *Module) complete(ctx context.Context, src Rendering, renderSafe uint64)
 			return err
 		}
 		m.mu.Lock()
+		if generation != m.generation || next.invalidFrom != 0 {
+			m.mu.Unlock()
+			return fmt.Errorf("claim history changed during completion")
+		}
 		next.ref, next.completed = ref, true
-		if !m.haveSafe || ref.Number > m.safe.Number {
-			m.safe, m.haveSafe = ref, true
+		if !m.haveSafe || ref.Number > m.localSafe.Number {
+			m.localSafe, m.haveSafe = ref, true
 			m.metrics.RecordSafe(ref.Number)
 			m.log.Info("Claim completed; advancing the private chain's safe head",
 				"renderingBlock", next.carrier, "range", fmt.Sprintf("%d-%d", next.first, next.last), "safe", ref)
@@ -667,6 +694,12 @@ func (m *Module) completeRef(ctx context.Context, src Rendering, c *claim) (eth.
 	}
 	if env == nil || env.ExecutionPayload == nil {
 		return eth.L2BlockRef{}, fmt.Errorf("rendering block %d came back without a payload", c.last)
+	}
+	m.mu.RLock()
+	ref, scanned := m.history[c.last]
+	m.mu.RUnlock()
+	if !scanned || ref.Hash != env.ExecutionPayload.BlockHash {
+		return eth.L2BlockRef{}, fmt.Errorf("claim terminal changed since its range was scanned")
 	}
 	renderRef, err := derive.PayloadToBlockRef(m.rollupCfg, env.ExecutionPayload)
 	if err != nil {
@@ -700,12 +733,18 @@ func (m *Module) completeRef(ctx context.Context, src Rendering, c *claim) (eth.
 //
 // It costs nothing in ordering: a claim leads its own range, so carrier == firstBlock <= lastBlock,
 // and this gate strictly implies the carrier's own finality.
-func (m *Module) promote(renderFinalized uint64) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (m *Module) promoteLocked(renderSafe, renderFinalized uint64) {
+	// Cross-safety can retreat while the same locally derived chain remains.
+	m.safe = m.finalized
 	kept := m.pending[:0]
 	for _, c := range m.pending {
+		if c.completed && c.last <= renderSafe && c.ref.Number > m.safe.Number {
+			m.safe = c.ref
+		}
 		if !c.completed || c.last > renderFinalized {
+			if c.invalidFrom != 0 && c.last <= m.finalized.Number {
+				continue
+			}
 			kept = append(kept, c)
 			continue
 		}

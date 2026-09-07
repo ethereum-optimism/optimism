@@ -276,6 +276,31 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSequencerRecoveryPausePreservesActiveSetting(t *testing.T) {
+	seq, deps := createSequencer(testlog.Logger(t, log.LevelInfo))
+	seq.active.Store(true)
+	deps.seqState.active = true
+	seq.unsafeHead = eth.L2BlockRef{Hash: common.Hash{1}, Number: 1, Time: 100}
+	seq.lastSealed = eth.L2BlockRef{Hash: common.Hash{2}, Number: 2}
+	seq.building.Info.ID = eth.PayloadID{3}
+	deps.asyncGossip.payload = &eth.ExecutionPayloadEnvelope{}
+	seq.SetRecoveryPaused(true)
+	require.True(t, seq.Active())
+	require.True(t, deps.seqState.active, "recovery must not persist a stopped sequencer")
+	require.Zero(t, seq.lastSealed, "Stop must not wait for a discarded sealed block")
+	require.Zero(t, seq.building)
+	require.Nil(t, deps.asyncGossip.payload)
+	seq.nextActionArmed = true // A queued forkchoice can attempt to re-arm it.
+	seq.RunAction()
+	require.False(t, seq.nextActionArmed)
+	seq.SetRecoveryPaused(false)
+	require.True(t, seq.nextActionArmed)
+	seq.active.Store(false)
+	seq.SetRecoveryPaused(true)
+	seq.SetRecoveryPaused(false)
+	require.False(t, seq.nextActionArmed, "do not start a sequencer the operator stopped")
+}
+
 // TestSequencer_NoActionAfterStop verifies that a sequencer action that fires
 // after Stop() (because the loop's timer was already armed before we deactivated)
 // is ignored, rather than starting a new block-building job. Acting on that stale

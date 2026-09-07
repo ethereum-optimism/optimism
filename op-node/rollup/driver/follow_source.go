@@ -40,3 +40,7 @@ func (fs *L2FollowSource) GetFollowStatus(ctx context.Context) (*sources.FollowS
 func (fs *L2FollowSource) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
 	return fs.l1Source.L1BlockRefByNumber(ctx, num)
 }
+
+func (fs *L2FollowSource) RecoveryBlock(ctx context.Context, number uint64, target eth.BlockID) (eth.L2BlockRef, error) {
+	return fs.l2Source.RecoveryBlock(ctx, number, target)
+}

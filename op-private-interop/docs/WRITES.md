@@ -76,26 +76,43 @@ candidate new values and ordering resets.
 
 ## Outage recovery
 
-The supported origin-copy recovery configuration uses `--sequencer.l1-confs=0` on the
-private sequencer; devstack sets this only for the private half. A deliberate origin delay
-can leave every resumed batch behind the fallback projection's origin or sequencing window.
-Zero confirmation depth removes that fixed delay but still assumes timely L1 observations.
-Repairing an already sequenced suffix with incompatible historical origins requires a separate
-origin-alignment or resequencing design; the publication cursor does not provide that repair.
+The private LightCL retains normal L1 confirmation settings. Its claimed follow endpoint
+provides a private checkpoint and the projection's fully scanned local-safe frontier.
+After fallback or replacement, the LightCL pauses sequencing and uses the ordinary
+attributes handler to execute canonical deposit-only inputs against private state. It
+checks the projection's timestamp, L1 origin and sequence number; projection hashes
+identify inputs and are never used as private forkchoice hashes.
+
+Local-safe execution, cross-safety and finality remain separate. The adapter maps the
+projection's safety frontiers through the authenticated private ancestry. A projection
+reorg revokes affected private checkpoints; finalized private history cannot be revoked.
+For a claim whose carrier survives but whose suffix is replaced, the original private
+terminal commitment authenticates the surviving prefix by hash-linked ancestry. The
+supernode's durable deny list and retained denied headers reconstruct that information
+after restart. Missing headers or private state stop recovery.
 
 Private batchers require `--private-interop.public-projection-rollup-rpc` alongside the
-projection execution RPC. The batching cursor uses the projection's local-safe head, which
-advances at complete span boundaries, and checks its hash against the execution endpoint.
-After an outage, already-derived fallback positions are skipped before private write extraction.
-The private chain's safety references are unchanged. Projection reorgs reopen skipped positions;
-partly expired queued ranges are rebuilt with a fresh claim and projection parent.
+projection execution RPC. The publication cursor uses the projection's local-safe head
+and waits until private canonical execution has reconciled it. A surviving claim carrier
+still reserves its original range, so recovery executes actual canonical replacements
+through that range before publication resumes. If canonical derivation drops the
+remaining span, those positions wait for ordinary sequencing-window expiry. Range publication currently waits for the
+previous projection parent. Catch-up therefore requires enough blocks per range to
+outpace L1 inclusion plus follow polling; undersized ranges can remain at the expiry
+frontier even when reconciliation is correct. The outage test retains an eight-block
+catch-up limit and uses the devstack/op-up default of twelve-block ranges with its
+accelerated L1.
 
-Skipped private blocks leave a publication gap. As elsewhere, a gap cannot prove that a user's
-state was unchanged. This recovery mechanism resumes publication; it does not recover withheld
-state or provide write coverage for the missed interval. A live private execution head alone
-does not mean publication has caught up: ordinary transactions admitted while batches remain
-backlogged can still miss the sequencing window. The recovery test waits for accepted private
-claims to approach the live head before resending.
+An invalidated range's aggregate write records do not provide freshness coverage for its
+surviving prefix: aggregation may have discarded earlier writes to a key. Missing or
+invalidated coverage cannot prove that a user's state was unchanged. This mechanism also
+does not recover withheld values or prove a new forced withdrawal's state transition.
+
+Recovery consumes replacements produced by canonical derivation and cross-safety checks.
+A reverted ClaimRegistry call alone does not invalidate its block or suppress separate
+replay calls; adding a new proof verifier requires a consensus rule or atomic replay
+authorization that makes invalid proof handling effective. This adapter does not provide
+that rule.
 
 ## Capacity and activation
 

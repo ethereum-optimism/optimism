@@ -78,7 +78,9 @@ func NewDriver(
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, l1ChainConfig)
 
 	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline)
-	sys.Register("pipeline", pipelineDeriver)
+	if !syncCfg.FollowSourceEnabled() {
+		sys.Register("pipeline", pipelineDeriver)
+	}
 
 	// Connect components that need force reset notifications to the engine controller
 	ec.SetAttributesResetter(attrHandler)
@@ -121,6 +123,16 @@ func NewDriver(
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
 	}
+	var recovery *followRecovery
+	if source, ok := upstreamFollowSource.(recoverySource); ok && syncCfg.FollowSourceEnabled() {
+		pause := func(bool) {}
+		if seq, ok := sequencer.(*sequencing.Sequencer); ok {
+			pause = seq.SetRecoveryPaused
+		}
+		recovery = &followRecovery{source: source, l2: l2, engine: ec, pause: pause,
+			builder: derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, l2)}
+		sys.Register("follow-recovery", recovery)
+	}
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
@@ -139,6 +151,7 @@ func NewDriver(
 		sequencer:            sequencer,
 		metrics:              metrics,
 		upstreamFollowSource: upstreamFollowSource,
+		followRecovery:       recovery,
 	}
 
 	return driver
@@ -177,6 +190,7 @@ type Driver struct {
 	driverCancel context.CancelFunc
 
 	upstreamFollowSource UpstreamFollowSource
+	followRecovery       *followRecovery
 }
 
 // Start starts up the state loop.
@@ -313,7 +327,13 @@ func (s *Driver) eventLoop() {
 					s.emitter.Emit(s.driverCtx, derive.DeriverL1StatusEvent{Origin: status.CurrentL1})
 				}
 				s.metrics.RecordFollowSourceRequest("success")
-				s.SyncDeriver.Engine.FollowSource(status.SafeL2, status.LocalSafeL2, status.FinalizedL2)
+				if s.followRecovery != nil {
+					if err := s.followRecovery.update(s.driverCtx, status); err != nil {
+						s.log.Warn("Follow recovery is waiting for consistent canonical inputs", "err", err)
+					}
+				} else {
+					s.SyncDeriver.Engine.FollowSource(status.SafeL2, status.LocalSafeL2, status.FinalizedL2)
+				}
 			}
 		case <-s.sched.NextDelayedStep():
 			s.sched.AttemptStep(s.driverCtx)

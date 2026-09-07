@@ -84,6 +84,9 @@ type Sequencer struct {
 	stalledByMaxSafeLag bool
 
 	recoverMode atomic.Bool
+	// recoveryPaused suspends production while a follow source supplies canonical
+	// replacement attributes. It does not change the persisted active setting.
+	recoveryPaused bool
 
 	// active identifies whether the sequencer is running.
 	// This is an atomic value, so it can be read without locking the whole sequencer.
@@ -381,7 +384,7 @@ func (s *Sequencer) RunAction() {
 	}()
 
 	s.log.Debug("Sequencer action")
-	if !s.active.Load() {
+	if !s.active.Load() || s.recoveryPaused {
 		s.log.Debug("Ignoring stale sequencer action while inactive")
 		// Every exit must leave the schedule changed or disarmed, so the loop
 		// never re-fires an unchanged deadline. Start/Stop normally keep these
@@ -884,6 +887,26 @@ func (s *Sequencer) Building() BuildingState {
 
 func (s *Sequencer) Active() bool {
 	return s.active.Load()
+}
+
+// SetRecoveryPaused fences sequencer builds while the existing derivation build
+// path reconciles canonical inputs. Acquiring mu waits for any current action.
+func (s *Sequencer) SetRecoveryPaused(paused bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.recoveryPaused == paused {
+		return
+	}
+	s.recoveryPaused = paused
+	if paused {
+		s.building = BuildingState{}
+		s.lastSealed = eth.L2BlockRef{}
+		s.asyncGossip.Clear()
+		s.nextActionArmed = false
+	} else if s.active.Load() && !s.awaitingResetConfirm {
+		s.scheduleNextAction(s.unsafeHead)
+	}
+	s.wake()
 }
 
 func (s *Sequencer) Start(ctx context.Context, head common.Hash) error {

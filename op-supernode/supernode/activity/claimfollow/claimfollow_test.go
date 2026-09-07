@@ -101,18 +101,21 @@ type fakeRendering struct {
 	t *testing.T
 
 	safe      uint64
+	localSafe uint64
 	finalized uint64
 	currentL1 eth.L1BlockRef
 	statusErr error
 
 	blocks     map[uint64]*fakeBlock
 	payloadErr map[uint64]error
+	denied     map[uint64][]common.Hash
+	byHash     map[common.Hash]*eth.ExecutionPayloadEnvelope
 }
 
 var _ Rendering = (*fakeRendering)(nil)
 
 func newFakeRendering(t *testing.T) *fakeRendering {
-	f := &fakeRendering{t: t, blocks: map[uint64]*fakeBlock{}, payloadErr: map[uint64]error{}}
+	f := &fakeRendering{t: t, blocks: map[uint64]*fakeBlock{}, payloadErr: map[uint64]error{}, denied: map[uint64][]common.Hash{}, byHash: map[common.Hash]*eth.ExecutionPayloadEnvelope{}}
 	f.set(0, "a", 0)
 	return f
 }
@@ -160,6 +163,17 @@ func (f *fakeRendering) set(num uint64, fork string, forkAt uint64, txs ...*type
 		userTxs:  txs,
 		reverted: map[common.Hash]bool{},
 	}
+	f.byHash[f.blocks[num].env.ExecutionPayload.BlockHash] = f.blocks[num].env
+}
+
+func (f *fakeRendering) DeniedBlocksAtHeight(n uint64) ([]common.Hash, error) {
+	return f.denied[n], nil
+}
+func (f *fakeRendering) PayloadByHash(_ context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	if env, ok := f.byHash[hash]; ok {
+		return env, nil
+	}
+	return nil, fmt.Errorf("no block %s", hash)
 }
 
 // fill writes plain blocks over an inclusive height range.
@@ -177,10 +191,21 @@ func (f *fakeRendering) SyncStatus(context.Context) (*eth.SyncStatus, error) {
 	if f.statusErr != nil {
 		return nil, f.statusErr
 	}
+	refAt := func(n uint64) eth.L2BlockRef {
+		if block := f.blocks[n]; block != nil {
+			ref, err := derive.PayloadToBlockRef(testRollupCfg(), block.env.ExecutionPayload)
+			if err == nil {
+				return ref
+			}
+		}
+		return eth.L2BlockRef{Number: n}
+	}
+	local := f.localSafe
+	if local == 0 {
+		local = f.safe
+	}
 	return &eth.SyncStatus{
-		SafeL2:      eth.L2BlockRef{Number: f.safe},
-		FinalizedL2: eth.L2BlockRef{Number: f.finalized},
-		CurrentL1:   f.currentL1,
+		SafeL2: refAt(f.safe), LocalSafeL2: refAt(local), FinalizedL2: refAt(f.finalized), CurrentL1: f.currentL1,
 	}, nil
 }
 
@@ -288,10 +313,8 @@ func (h *harness) status() *eth.SyncStatus {
 	h.t.Helper()
 	st, err := h.f.SyncStatus()
 	require.NoError(h.t, err)
-	require.Equal(h.t, st.LocalSafeL2, st.SafeL2, "this design serves safe == local_safe")
 	require.LessOrEqual(h.t, st.FinalizedL2.Number, st.SafeL2.Number, "finalized must not exceed safe")
 	require.LessOrEqual(h.t, st.SafeL2.Number, st.LocalSafeL2.Number, "safe must not exceed local safe")
-	require.GreaterOrEqual(h.t, st.SafeL2.Number, h.highestSafe, "served safe must never regress")
 	require.GreaterOrEqual(h.t, st.FinalizedL2.Number, h.highestFinal, "served finalized must never regress")
 	h.highestSafe, h.highestFinal = st.SafeL2.Number, st.FinalizedL2.Number
 
@@ -525,7 +548,7 @@ func TestFinalizedNeverBorrowsFromABlockAboveTheFinalizedView(t *testing.T) {
 
 // The contract with a sequencing follower: a rendering reorg re-derives what is above the rewind
 // point, and never unsays what was already said.
-func TestServedSafeIsMonotoneAcrossAReorg(t *testing.T) {
+func TestServedSafeRevokesAReplacedClaimSuffix(t *testing.T) {
 	h := newHarness(t)
 	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
 	h.r.fill(2, 8, "a", 0)
@@ -536,13 +559,13 @@ func TestServedSafeIsMonotoneAcrossAReorg(t *testing.T) {
 	// Blocks 2..8 are replaced on a new fork. Everything at or below the finalized height (1) is
 	// untouched, which is what makes the claim itself survive.
 	for n := uint64(2); n <= 8; n++ {
-		h.r.set(n, "b", 1)
+		h.r.set(n, "b", 2)
 	}
 	h.r.safe = 8
 	require.NoError(t, h.step())
 
 	st := h.status()
-	require.Equal(t, wantRef(8), st.SafeL2, "the served ref did not move and did not regress")
+	require.Equal(t, wantGenesisRef(), st.SafeL2, "a surviving carrier cannot authorize a replaced suffix")
 	require.Positive(t, h.m.reorgs)
 	// The rewind target is the chain's own FINALIZED height, so a claim carried at or below it is
 	// kept rather than re-read: an L1 reorg cannot reach it, and re-reading it could only produce
@@ -551,7 +574,7 @@ func TestServedSafeIsMonotoneAcrossAReorg(t *testing.T) {
 }
 
 // Even a rendering that reorgs into a chain with NO claim at all cannot lower the served head.
-func TestAReorgThatErasesAClaimStillCannotRegress(t *testing.T) {
+func TestAReorgThatErasesAClaimRevokesItsHead(t *testing.T) {
 	h := newHarness(t)
 	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
 	h.r.fill(2, 8, "a", 0)
@@ -560,13 +583,13 @@ func TestAReorgThatErasesAClaimStillCannotRegress(t *testing.T) {
 	require.Equal(t, wantRef(8), h.status().SafeL2)
 
 	// A deep reorg replaces block 1 itself, claim and all.
-	h.r.fill(1, 8, "b", 0)
+	h.r.fill(1, 8, "b", 1)
 	h.r.safe = 8
 	require.NoError(t, h.step())
 	require.NoError(t, h.step())
 
 	st := h.status()
-	require.Equal(t, wantRef(8), st.SafeL2, "monotone: a served ref is never withdrawn")
+	require.Equal(t, wantGenesisRef(), st.SafeL2, "erased claims must revoke served heads")
 	require.Positive(t, h.m.reorgs)
 }
 
@@ -633,7 +656,7 @@ func TestOnlyScansAtOrBelowSafe(t *testing.T) {
 
 // current_l1 is forwarded from the chain's own view, and never regressed: a consumer that saw it go
 // backwards would read it as a sequencer restart, and the value is a view rather than a commitment.
-func TestCurrentL1IsForwardedAndNeverRegresses(t *testing.T) {
+func TestCurrentL1FollowsCanonicalRewinds(t *testing.T) {
 	h := newHarness(t)
 	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
 	h.r.fill(2, 8, "a", 0)
@@ -647,11 +670,11 @@ func TestCurrentL1IsForwardedAndNeverRegresses(t *testing.T) {
 
 	h.r.currentL1 = eth.L1BlockRef{Hash: l1Hash(3), Number: 3}
 	require.NoError(t, h.step())
-	require.Equal(t, uint64(5), h.status().CurrentL1.Number, "held, not served backwards")
+	require.Equal(t, uint64(3), h.status().CurrentL1.Number, "a canonical L1 rewind must replace the old view")
 
 	h.r.currentL1 = eth.L1BlockRef{}
 	require.NoError(t, h.step())
-	require.Equal(t, uint64(5), h.status().CurrentL1.Number, "a silent chain is not forwarded as silence")
+	require.Equal(t, uint64(3), h.status().CurrentL1.Number, "a silent chain is not forwarded as silence")
 }
 
 // Every failure is a skipped tick: the module reports the error to its caller, changes nothing, and
@@ -733,9 +756,7 @@ func TestClaimsAreServedVerbatim(t *testing.T) {
 
 // A scan bigger than one poll's budget makes progress incrementally rather than in one stall.
 //
-// Note what completion does NOT wait for: the ref for a claim read at block 1 is read straight from
-// block 8, because the chain's safe head already vouches for block 8. The cursor's job is to find
-// claims, not to walk to their refs.
+// Completion waits for the entire claimed range to be scanned for replacements.
 func TestScanIsBounded(t *testing.T) {
 	h := newHarnessWithConfig(t, Config{Registry: registryAddr, GenesisHash: privateGenesisHash(), MaxBlocksPerPoll: 3})
 	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
@@ -745,16 +766,19 @@ func TestScanIsBounded(t *testing.T) {
 	h.r.safe = 16
 
 	require.Equal(t, wantGenesisRef(), h.status().SafeL2)
-	// Blocks 0,1,2: the first claim is found and completed at once.
+	// Blocks 0,1,2: the carrier is found, but its range is not checked yet.
 	require.NoError(t, h.step())
-	require.Equal(t, wantRef(8), h.status().SafeL2)
+	require.Equal(t, wantGenesisRef(), h.status().SafeL2)
 
 	// Blocks 3-5 and 6-8: still nothing new, because the second claim is at block 9.
 	require.NoError(t, h.step())
 	require.NoError(t, h.step())
-	require.Equal(t, wantRef(8), h.status().SafeL2)
+	require.Equal(t, wantGenesisRef(), h.status().SafeL2)
 
-	// Blocks 9-11: the second claim is reached.
+	// Blocks 9-11: the second carrier is reached, but not its terminal.
 	require.NoError(t, h.step())
+	require.Equal(t, wantGenesisRef(), h.status().SafeL2)
+	require.NoError(t, h.step()) // 12-14
+	require.NoError(t, h.step()) // 15-16
 	require.Equal(t, wantRef(16), h.status().SafeL2)
 }

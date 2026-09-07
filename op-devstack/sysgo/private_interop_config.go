@@ -37,7 +37,9 @@ type PrivateInteropOption func(cfg *PrivateInteropConfig)
 // DefaultPrivateInteropConfig is the devstack pair every preset gets unless a test says otherwise.
 func DefaultPrivateInteropConfig() PrivateInteropConfig {
 	return PrivateInteropConfig{
-		MaxBlocksPerRange: 4,
+		// Twelve blocks can amortize L1 inclusion and follow polling during
+		// recovery; four-block ranges can remain at the expiry frontier.
+		MaxBlocksPerRange: 12,
 	}
 }
 

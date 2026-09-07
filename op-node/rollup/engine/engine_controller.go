@@ -1511,6 +1511,14 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	finalized := e.FinalizedHead()
+	if eFinalizedRef.Number < finalized.Number ||
+		(finalized != (eth.L2BlockRef{}) && eFinalizedRef.Number == finalized.Number && eFinalizedRef.Hash != finalized.Hash) ||
+		eSafeBlockRef.Number < eFinalizedRef.Number || eLocalSafeRef.Number < eSafeBlockRef.Number {
+		e.log.Error("Follow Source: refusing snapshot that contradicts finalized history or safety ordering")
+		return
+	}
+
 	followExternalRefs := func(updateUnsafe bool) {
 		// Assume the sanity of external safe and finalized are checked
 		if updateUnsafe {
@@ -1520,7 +1528,8 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 		e.tryUpdateLocalSafe(e.ctx, eLocalSafeRef, true, eth.L1BlockRef{})
 		// Inject external cross-safe. Must happen before promoteFinalized
 		// (which rejects finalized > SafeL2Head).
-		if eth.L2BlockRefAdvances(e.deprecatedSafeHead, eSafeBlockRef) {
+		// Cross-safety may be revoked without changing local execution.
+		if e.deprecatedSafeHead != eSafeBlockRef {
 			e.PromoteSafe(e.ctx, eSafeBlockRef, eth.L1BlockRef{})
 		}
 		// Directly update the Engine Controller state, bypassing finalizer
@@ -1563,6 +1572,14 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 	}
 
 	if fetchedSafe == eLocalSafeRef {
+		// A canonical source can rewind to an ancestor already present in the EL.
+		// The ordinary consolidation helpers only advance labels, so they cannot
+		// revoke a previously accepted suffix. Reset explicitly in that case.
+		if eLocalSafeRef.Number < e.localSafeHead.Number {
+			logger.Warn("Follow Source: canonical local safe rewound to an existing ancestor")
+			e.forceReset(e.ctx, eLocalSafeRef, eLocalSafeRef, eSafeBlockRef, eFinalizedRef, false)
+			return
+		}
 		// External local safe is found locally and matches.
 		logger.Debug("Follow Source: Consolidation")
 		followExternalRefs(false)
