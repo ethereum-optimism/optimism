@@ -30,7 +30,8 @@ type PrivateInteropCLIConfig struct {
 	// or an http(s) URL.
 	PrivateChainGenesisPath string
 	// PublicProjectionRPC is the execution client following the public projection.
-	PublicProjectionRPC string
+	PublicProjectionRPC       string
+	PublicProjectionRollupRPC string
 
 	// MaxBlocksPerRange is the cadence.
 	MaxBlocksPerRange uint64
@@ -55,17 +56,18 @@ type PrivateInteropCLIConfig struct {
 // ReadPrivateInteropCLIConfig parses the flag group.
 func ReadPrivateInteropCLIConfig(ctx *cli.Context) PrivateInteropCLIConfig {
 	return PrivateInteropCLIConfig{
-		PrivateChainGenesisPath: ctx.String(flags.PrivateInteropGenesisFlag.Name),
-		PublicProjectionRPC:     ctx.String(flags.PrivateInteropPublicProjectionRPCFlag.Name),
-		MaxBlocksPerRange:       ctx.Uint64(flags.PrivateInteropMaxBlocksPerRangeFlag.Name),
-		MaxRangeBytes:           ctx.Uint64(flags.PrivateInteropMaxRangeBytesFlag.Name),
-		ExtraEmitters:           ctx.StringSlice(flags.PrivateInteropExtraEmittersFlag.Name),
-		RollupConfigHash:        ctx.String(flags.PrivateInteropRollupConfigHashFlag.Name),
-		DepSetHash:              ctx.String(flags.PrivateInteropDepSetHashFlag.Name),
-		GasLimitExport:          ctx.Uint64(flags.PrivateInteropGasLimitExportFlag.Name),
-		GasLimitImport:          ctx.Uint64(flags.PrivateInteropGasLimitImportFlag.Name),
-		GasLimitEvent:           ctx.Uint64(flags.PrivateInteropGasLimitEventFlag.Name),
-		GasLimitClaim:           ctx.Uint64(flags.PrivateInteropGasLimitClaimFlag.Name),
+		PrivateChainGenesisPath:   ctx.String(flags.PrivateInteropGenesisFlag.Name),
+		PublicProjectionRPC:       ctx.String(flags.PrivateInteropPublicProjectionRPCFlag.Name),
+		PublicProjectionRollupRPC: ctx.String(flags.PrivateInteropPublicProjectionRollupRPCFlag.Name),
+		MaxBlocksPerRange:         ctx.Uint64(flags.PrivateInteropMaxBlocksPerRangeFlag.Name),
+		MaxRangeBytes:             ctx.Uint64(flags.PrivateInteropMaxRangeBytesFlag.Name),
+		ExtraEmitters:             ctx.StringSlice(flags.PrivateInteropExtraEmittersFlag.Name),
+		RollupConfigHash:          ctx.String(flags.PrivateInteropRollupConfigHashFlag.Name),
+		DepSetHash:                ctx.String(flags.PrivateInteropDepSetHashFlag.Name),
+		GasLimitExport:            ctx.Uint64(flags.PrivateInteropGasLimitExportFlag.Name),
+		GasLimitImport:            ctx.Uint64(flags.PrivateInteropGasLimitImportFlag.Name),
+		GasLimitEvent:             ctx.Uint64(flags.PrivateInteropGasLimitEventFlag.Name),
+		GasLimitClaim:             ctx.Uint64(flags.PrivateInteropGasLimitClaimFlag.Name),
 	}
 }
 
@@ -89,6 +91,9 @@ const minProjectionTxGas = 21_000
 func (c *PrivateInteropCLIConfig) Check() error {
 	if c.PrivateChainGenesisPath == "" {
 		return errors.New("private interop: --private-interop.genesis is required")
+	}
+	if c.PublicProjectionRollupRPC == "" {
+		return errors.New("private interop: --private-interop.public-projection-rollup-rpc is required")
 	}
 	if c.PublicProjectionRPC == "" {
 		return errors.New("private interop: --private-interop.public-projection-rpc is required")
@@ -131,11 +136,12 @@ func (c *PrivateInteropCLIConfig) Check() error {
 
 // PrivateInteropSettings is the group in its typed form.
 type PrivateInteropSettings struct {
-	PrivateChainGenesisPath string
-	PublicProjectionRPC     string
-	MaxBlocksPerRange       uint64
-	MaxRangeBytes           uint64
-	ExtraEmitters           []common.Address
+	PrivateChainGenesisPath   string
+	PublicProjectionRPC       string
+	PublicProjectionRollupRPC string
+	MaxBlocksPerRange         uint64
+	MaxRangeBytes             uint64
+	ExtraEmitters             []common.Address
 
 	ClaimRegistry    common.Address
 	EventReplayer    common.Address
@@ -156,16 +162,17 @@ func (c *PrivateInteropCLIConfig) Resolve() (*PrivateInteropSettings, error) {
 	depSetHash, _ := parseOptionalHash(flags.PrivateInteropDepSetHashFlag.Name, c.DepSetHash)
 	emitters, _ := parseEmitters(c.ExtraEmitters)
 	return &PrivateInteropSettings{
-		PrivateChainGenesisPath: c.PrivateChainGenesisPath,
-		PublicProjectionRPC:     c.PublicProjectionRPC,
-		MaxBlocksPerRange:       c.MaxBlocksPerRange,
-		MaxRangeBytes:           c.MaxRangeBytes,
-		ExtraEmitters:           emitters,
-		ClaimRegistry:           predeploys.ClaimRegistryAddr,
-		EventReplayer:           predeploys.EventReplayerAddr,
-		ReplayMessenger:         predeploys.L2toL2CrossDomainMessengerAddr,
-		RollupConfigHash:        rollupConfigHash,
-		DepSetHash:              depSetHash,
+		PrivateChainGenesisPath:   c.PrivateChainGenesisPath,
+		PublicProjectionRPC:       c.PublicProjectionRPC,
+		PublicProjectionRollupRPC: c.PublicProjectionRollupRPC,
+		MaxBlocksPerRange:         c.MaxBlocksPerRange,
+		MaxRangeBytes:             c.MaxRangeBytes,
+		ExtraEmitters:             emitters,
+		ClaimRegistry:             predeploys.ClaimRegistryAddr,
+		EventReplayer:             predeploys.EventReplayerAddr,
+		ReplayMessenger:           predeploys.L2toL2CrossDomainMessengerAddr,
+		RollupConfigHash:          rollupConfigHash,
+		DepSetHash:                depSetHash,
 		Gas: render.GasPolicy{
 			GasLimitExport: c.GasLimitExport,
 			GasLimitImport: c.GasLimitImport,

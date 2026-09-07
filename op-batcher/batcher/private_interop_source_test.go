@@ -42,6 +42,16 @@ func piRenderedBlock(number uint64) *PublicProjectionBlock {
 type fakeFollower struct {
 	blocks map[uint64]*PublicProjectionBlock
 	nonces map[uint64]uint64
+	safe   *PublicProjectionBlock
+}
+
+func (f *fakeFollower) Close() {}
+
+func (f *fakeFollower) SafeBlock(context.Context) (*PublicProjectionBlock, error) {
+	if f.safe == nil {
+		return nil, fmt.Errorf("no safe block")
+	}
+	return f.safe, nil
 }
 
 func (f *fakeFollower) BlockByNumber(_ context.Context, number uint64) (*PublicProjectionBlock, error) {

@@ -74,6 +74,29 @@ per-key block numbers are optional for freshness alone: a complete set of range-
 sufficient to conservatively invalidate an old witness. They are retained to support checking
 candidate new values and ordering resets.
 
+## Outage recovery
+
+The supported origin-copy recovery configuration uses `--sequencer.l1-confs=0` on the
+private sequencer; devstack sets this only for the private half. A deliberate origin delay
+can leave every resumed batch behind the fallback projection's origin or sequencing window.
+Zero confirmation depth removes that fixed delay but still assumes timely L1 observations.
+Repairing an already sequenced suffix with incompatible historical origins requires a separate
+origin-alignment or resequencing design; the publication cursor does not provide that repair.
+
+Private batchers require `--private-interop.public-projection-rollup-rpc` alongside the
+projection execution RPC. The batching cursor uses the projection's local-safe head, which
+advances at complete span boundaries, and checks its hash against the execution endpoint.
+After an outage, already-derived fallback positions are skipped before private write extraction.
+The private chain's safety references are unchanged. Projection reorgs reopen skipped positions;
+partly expired queued ranges are rebuilt with a fresh claim and projection parent.
+
+Skipped private blocks leave a publication gap. As elsewhere, a gap cannot prove that a user's
+state was unchanged. This recovery mechanism resumes publication; it does not recover withheld
+state or provide write coverage for the missed interval. A live private execution head alone
+does not mean publication has caught up: ordinary transactions admitted while batches remain
+backlogged can still miss the sequencing window. The recovery test waits for accepted private
+claims to approach the live head before resending.
+
 ## Capacity and activation
 
 Production closes a range before adding a block would exceed 128 KiB of write records (1,820

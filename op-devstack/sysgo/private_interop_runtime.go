@@ -211,7 +211,7 @@ func privateInteropBatcherOption(
 	cfg PrivateInteropConfig,
 	renderingRollup *rollup.Config,
 	privateGenesisPath string,
-	renderingRPC string,
+	renderingRPC, renderingRollupRPC string,
 	depSetHash common.Hash,
 ) BatcherOption {
 	rollupConfigHash := hashOfJSON(t, renderingRollup, "the rendering's rollup config")
@@ -226,10 +226,11 @@ func privateInteropBatcherOption(
 		// Zero disables the duration check entirely (op-batcher/batcher/channel_config.go:24).
 		c.MaxChannelDuration = 0
 		c.PrivateInterop = bss.PrivateInteropCLIConfig{
-			PrivateChainGenesisPath: privateGenesisPath,
-			PublicProjectionRPC:     renderingRPC,
-			MaxBlocksPerRange:       cfg.MaxBlocksPerRange,
-			MaxRangeBytes:           batcherFlags.DefaultPrivateInteropMaxRangeBytes,
+			PrivateChainGenesisPath:   privateGenesisPath,
+			PublicProjectionRPC:       renderingRPC,
+			PublicProjectionRollupRPC: renderingRollupRPC,
+			MaxBlocksPerRange:         cfg.MaxBlocksPerRange,
+			MaxRangeBytes:             batcherFlags.DefaultPrivateInteropMaxRangeBytes,
 			// No L1 confirmation depth, and no L1 view at all: under origin-copy the transformation
 			// reuses each private block's OWN L1 origin as the rendering block's epoch, so there is
 			// no origin to choose and nothing for a shallow L1 reorg to orphan.
@@ -425,20 +426,23 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	// preset's answer to reorging onto a supernode replacement over EL p2p, and this chain has
 	// neither a peer to sync from nor a replacement to reorg onto.
 	privateCL := startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, privateEL, jwtSecret, l2CLNodeStartConfig{
-		Key:            "sequencer",
-		IsSequencer:    true,
-		NoDiscovery:    true,
-		EnableReqResp:  true,
-		DependencySet:  runtimeDepSet,
-		L2FollowSource: followSource,
-		L2CLOptions:    cfg.GlobalL2CLOptions,
+		// Origin-copy recovery must not trail the fallback projection's eager
+		// L1 origins, or every resumed range can already be expired on arrival.
+		SequencerConfDepth: ptr.New(uint64(0)),
+		Key:                "sequencer",
+		IsSequencer:        true,
+		NoDiscovery:        true,
+		EnableReqResp:      true,
+		DependencySet:      runtimeDepSet,
+		L2FollowSource:     followSource,
+		L2CLOptions:        cfg.GlobalL2CLOptions,
 	})
 	// No connectL2CLPeers and no connectL2ELPeers across the pair. This absence is the severance.
 
 	// Construct-last edge 3: the batchers, which read both chains.
 	depSetHash := hashOfJSON(t, runtimeDepSet, "the dependency set")
 	piBatcherOpt := privateInteropBatcherOption(
-		t, pi, renderingNet.rollupCfg, privateGenesisPath, renderingEL.UserRPC(),
+		t, pi, renderingNet.rollupCfg, privateGenesisPath, renderingEL.UserRPC(), renderingCL.UserRPC(),
 		depSetHash,
 	)
 
