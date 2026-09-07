@@ -47,7 +47,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         uint64 now;
         uint8 status;
         bool finalized;
-        bool registered;
+        bytes32 registration;
         bool respected;
         bool blacklisted;
         bool paused;
@@ -93,14 +93,14 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         example.resolvedAt = 3 days;
         example.now = 30 days;
         example.status = uint8(GameStatus.DEFENDER_WINS);
-        example.registered = true;
+        example.registration = bytes32(uint256(uint160(address(game))));
         example.respected = true;
         assert(_check(example));
     }
 
     function _check(AuthorizationCase memory _case) internal returns (bool accepted_) {
         game.configure(_case.createdAt, _case.resolvedAt, GameStatus(_case.status), _case.respected, _case.paused);
-        vm.store(address(factory), registrationSlot, bytes32(uint256(_case.registered ? uint160(address(game)) : 0)));
+        vm.store(address(factory), registrationSlot, _case.registration);
         vm.store(address(registry), bytes32(uint256(6)), bytes32(uint256(_case.retiredAt) << 32));
         vm.store(
             address(registry),
@@ -117,8 +117,9 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         vm.warp(_case.now);
 
         bool eligible = !_case.finalized && _case.provenAt != 0 && _case.provenAt > _case.createdAt
-            && _case.now >= _case.provenAt && uint256(_case.now) - _case.provenAt > proofDelay && _case.registered
-            && !_case.blacklisted && _case.createdAt > _case.retiredAt && !_case.paused && _case.respected
+            && _case.now >= _case.provenAt && uint256(_case.now) - _case.provenAt > proofDelay
+            && address(uint160(uint256(_case.registration))) == address(game) && !_case.blacklisted
+            && _case.createdAt > _case.retiredAt && !_case.paused && _case.respected
             && _case.status == uint8(GameStatus.DEFENDER_WINS) && _case.resolvedAt != 0 && _case.now >= _case.resolvedAt
             && uint256(_case.now) - _case.resolvedAt > gameDelay;
         (accepted_,) =

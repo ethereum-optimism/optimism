@@ -32,7 +32,8 @@ to inclusion verification. These assumptions must remain explicit in any compose
 ## Component scope
 
 `prove_checkWithdrawal_equivalence` quantifies over withdrawal hash, submitter, all three valid
-game statuses, eligibility flags, and `uint64` creation/resolution/proof/retirement/current times.
+game statuses, eligibility flags, an arbitrary packed factory registration word (including other
+nonzero game addresses), and `uint64` creation/resolution/proof/retirement/current times.
 Future timestamps and equality boundaries remain in the domain. Delay parameters are read from
 the deployment's immutable getters. Both source checks use strict `>` boundaries.
 The Portal specification's maturity prose needs reconciliation before claiming literal compliance.
