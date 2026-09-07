@@ -36,7 +36,10 @@ game statuses, eligibility flags, an arbitrary packed factory registration word 
 nonzero game addresses), and `uint64` creation/resolution/proof/retirement/current times.
 Future timestamps and equality boundaries remain in the domain. Delay parameters are read from
 the deployment's immutable getters. Both source checks use strict `>` boundaries.
-The Portal specification's maturity prose needs reconciliation before claiming literal compliance.
+At proof-age equality, the implementation rejects, while the pinned Portal specification's
+`Finalized Withdrawal` definition says "at least" the maturity delay and `checkWithdrawal` requires
+rejection below it. This theorem uses the implementation's stricter `>` boundary: it covers the
+required rejection below the delay but does not claim equality with that prose at the boundary.
 The finalized and blacklisted inputs are integers constrained to 0 or 1, equivalent to the
 boolean domain, so seeding storage does not introduce conditional conversions. The independent
 eligibility expression is evaluated after the production call to reduce duplicated exploration.
@@ -64,8 +67,10 @@ after a timeout. The branch currently runs the component alone in CI with a 90-m
 restore the normal suite command before a PR. A timeout is incomplete, never a proof pass.
 
 Strict mode returns Booster's symbolic branches directly and retains legacy fallback for stuck
-or aborted execution. This avoids an expensive legacy reconfirmation of each branch. The pinned
-backend checks branch applicability, definedness and remainder coverage before returning branches.
+or aborted execution. It retains post-execution simplification, including elimination of branches
+the simplifier establishes as impossible. This avoids an expensive legacy reconfirmation of each
+branch. The pinned backend checks branch applicability, definedness and remainder coverage before
+returning branches.
 An isolated comparison found equal parent states and equivalent branch states after collection
 ordering, Boolean representation and explicit-equality substitution were accounted for. That
 comparison is diagnostic evidence; acceptance still requires the fresh complete proof graphs.
