@@ -6,7 +6,6 @@ import { Test } from "test/setup/Test.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { Config } from "scripts/libraries/Config.sol";
 
 // Interfaces
 import { IL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
@@ -98,40 +97,10 @@ contract L1ChugSplashProxy_SetCode_Test is L1ChugSplashProxy_TestInit {
 
     /// @notice Tests that when the owner calls `setCode` with insufficient gas to complete the
     ///         implementation contract's deployment, it reverts.
-    /// @dev    If this solc version/settings change and modifying this proves time consuming, we
-    ///         can just remove it.
     function test_setCode_whenOwnerAndDeployOutOfGas_reverts() public {
-        // The values below are best gotten by removing the gas limit parameter from the call and
-        // running the test with a verbosity of `-vvvv` then setting the value to a few thousand
-        // gas lower than the gas used by the call. A faster way to do this for forge coverage
-        // cases, is to comment out the optimizer and optimizer runs in the foundry.toml file and
-        // then run forge test. This is faster because forge test only compiles modified contracts
-        // unlike forge coverage.
-        uint256 gasLimit;
-
-        // Because forge coverage always runs with the optimizer disabled,
-        // if forge coverage is run before testing this with forge test or forge snapshot, forge
-        // clean should be run first so that it recompiles the contracts using the foundry.toml
-        // optimizer settings.
-        bool isUnoptimized = Config.isUnoptimized();
-        if (isUnoptimized) {
-            gasLimit = 95_000;
-        } else {
-            gasLimit = 65_000;
-        }
-
         vm.prank(owner);
-        if (isUnoptimized) {
-            // Under unoptimized compilation, the larger proxy bytecode leaves insufficient
-            // retained gas (1/64 rule) for the require message after the inner CREATE OOGs.
-            // The call still reverts (OOG), just without the specific error string.
-            vm.expectRevert();
-        } else {
-            vm.expectRevert(bytes("L1ChugSplashProxy: code was not correctly deployed"));
-        }
-        proxy.setCode{ gas: gasLimit }(
-            hex"fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefe"
-        );
+        vm.expectRevert(bytes("L1ChugSplashProxy: code was not correctly deployed"));
+        proxy.setCode{ gas: 500_000 }(new bytes(264));
     }
 }
 
