@@ -7,6 +7,7 @@ import { KontrolUtils } from "./utils/KontrolUtils.sol";
 
 // Libraries
 import { Claim, GameStatus, GameType, Timestamp } from "src/dispute/lib/Types.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
@@ -83,16 +84,62 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
 
     /// @notice Acceptance is equivalent to the combined Portal and registry eligibility predicate.
     function prove_checkWithdrawal_equivalence(AuthorizationCase memory _case) external {
-        vm.assume(_case.status <= uint8(GameStatus.DEFENDER_WINS));
-        // Preserve the boolean domain without branching to convert flags for storage setup.
-        vm.assume(_case.finalized <= 1);
-        vm.assume(_case.blacklisted <= 1);
         _check(_case);
     }
 
     /// @notice A concrete eligible witness prevents an always-reverting fixture from passing.
     function prove_checkWithdrawal_eligible_succeeds() external {
-        AuthorizationCase memory example;
+        assert(_check(_eligibleCase()));
+    }
+
+    /// @notice Neither finalizer can commit when the exact withdrawal's selected record is ineligible.
+    ///         The dynamic bytes field has symbolic length; no concrete length annotation is used.
+    function prove_finalizeWithdrawal_ineligible_reverts(
+        AuthorizationCase memory _case,
+        Types.WithdrawalTransaction memory _tx,
+        address _caller,
+        bool _externalProof
+    )
+        external
+    {
+        _case.withdrawalHash = _withdrawalHash(_tx);
+        if (!_externalProof) _case.submitter = _caller;
+        // This is the rejection premise, checked against the independent eligibility expression in _check.
+        vm.assume(!_check(_case));
+        assert(!_finalize(_tx, _case.submitter, _caller, _externalProof));
+    }
+
+    /// @notice Both entry points admit an eligible example, so an always-reverting fixture is insufficient.
+    function prove_finalizeWithdrawal_eligible_succeeds(bool _externalProof) external {
+        AuthorizationCase memory example = _eligibleCase();
+        Types.WithdrawalTransaction memory withdrawal;
+        withdrawal.sender = address(0x1234);
+        withdrawal.target = address(0x5678);
+        withdrawal.gasLimit = 100_000;
+        example.submitter = address(0x9ABC);
+        example.withdrawalHash = _withdrawalHash(withdrawal);
+        assert(_check(example));
+        assert(_finalize(withdrawal, example.submitter, example.submitter, _externalProof));
+        assert(portal.finalizedWithdrawals(example.withdrawalHash));
+    }
+
+    function _finalize(
+        Types.WithdrawalTransaction memory _tx,
+        address _submitter,
+        address _caller,
+        bool _externalProof
+    )
+        internal
+        returns (bool accepted_)
+    {
+        bytes memory callData = _externalProof
+            ? abi.encodeCall(portal.finalizeWithdrawalTransactionExternalProof, (_tx, _submitter))
+            : abi.encodeCall(portal.finalizeWithdrawalTransaction, (_tx));
+        vm.prank(_caller);
+        (accepted_,) = address(portal).call(callData);
+    }
+
+    function _eligibleCase() internal view returns (AuthorizationCase memory example) {
         example.createdAt = 1 days;
         example.provenAt = 2 days;
         example.resolvedAt = 3 days;
@@ -100,10 +147,17 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         example.status = uint8(GameStatus.DEFENDER_WINS);
         example.registeredGame = address(game);
         example.respected = true;
-        assert(_check(example));
+    }
+
+    function _withdrawalHash(Types.WithdrawalTransaction memory _tx) internal pure returns (bytes32) {
+        return keccak256(abi.encode(_tx.nonce, _tx.sender, _tx.target, _tx.value, _tx.gasLimit, _tx.data));
     }
 
     function _check(AuthorizationCase memory _case) internal returns (bool accepted_) {
+        vm.assume(_case.status <= uint8(GameStatus.DEFENDER_WINS));
+        // Preserve the boolean domain without branching to convert flags for storage setup.
+        vm.assume(_case.finalized <= 1);
+        vm.assume(_case.blacklisted <= 1);
         game.configure(_case.createdAt, _case.resolvedAt, GameStatus(_case.status), _case.respected, _case.paused);
         // Independent 32/64/160-bit fields span every possible packed registration word.
         bytes32 registration = bytes32(
