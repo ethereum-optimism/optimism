@@ -62,6 +62,13 @@ no fixed-length annotation is used. `prove_finalizeWithdrawal_eligible_succeeds`
 example for both entry points. These obligations retain the fixture's deployment and dependency
 scope; they do not establish proof-record provenance or the later execution/accounting guarantees.
 
+`prove_deleteProvenWithdrawal_equivalence`, also under development, checks deletion eligibility and
+the selected record's removal or preservation. It seeds an arbitrary, distinct withdrawal/submitter
+record and an independently chosen finalized flag, and asserts both are unchanged. The observed
+withdrawal hash may equal the deleted record's hash when the submitters differ. A blacklisted-record
+witness checks that deletion is possible. This covers deletion's local preservation obligation;
+the authenticity of newly proven or re-proven records remains separate and unfinished.
+
 ## Reproduction
 
 Use pinned Foundry/Kontrol versions and a clean proof output directory. From `packages/contracts-bedrock`, run:

@@ -123,6 +123,46 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         assert(portal.finalizedWithdrawals(example.withdrawalHash));
     }
 
+    /// @notice Deletion removes exactly an eligible record and preserves an unrelated record and finalized status.
+    function prove_deleteProvenWithdrawal_equivalence(
+        AuthorizationCase memory _case,
+        bytes32 _otherHash,
+        address _otherSubmitter,
+        bytes32 _otherRecord,
+        bool _otherFinalized,
+        address _caller
+    )
+        external
+    {
+        vm.assume(_otherHash != _case.withdrawalHash || _otherSubmitter != _case.submitter);
+        bytes32 recordSlot = _seed(_case);
+        bytes32 beforeRecord = vm.load(address(portal), recordSlot);
+        bytes32 otherSlot = keccak256(abi.encode(_otherSubmitter, keccak256(abi.encode(_otherHash, uint256(57)))));
+        vm.store(address(portal), otherSlot, _otherRecord);
+        bytes32 finalizedSlot = keccak256(abi.encode(_otherHash, uint256(51)));
+        bytes32 beforeFinalized = bytes32(uint256(_otherFinalized ? 1 : 0));
+        vm.store(address(portal), finalizedSlot, beforeFinalized);
+
+        vm.prank(_caller);
+        (bool deleted,) =
+            address(portal).call(abi.encodeCall(portal.deleteProvenWithdrawal, (_case.withdrawalHash, _case.submitter)));
+        bool eligible =
+            _case.provenAt != 0 && (_case.status == uint8(GameStatus.CHALLENGER_WINS) || _case.blacklisted != 0);
+        assert(deleted == eligible);
+        assert(vm.load(address(portal), recordSlot) == (deleted ? bytes32(0) : beforeRecord));
+        assert(vm.load(address(portal), otherSlot) == _otherRecord);
+        assert(vm.load(address(portal), finalizedSlot) == beforeFinalized);
+    }
+
+    /// @notice A blacklisted proven record can be deleted.
+    function prove_deleteProvenWithdrawal_eligible_succeeds() external {
+        AuthorizationCase memory example = _eligibleCase();
+        example.blacklisted = 1;
+        bytes32 recordSlot = _seed(example);
+        portal.deleteProvenWithdrawal(example.withdrawalHash, example.submitter);
+        assert(vm.load(address(portal), recordSlot) == bytes32(0));
+    }
+
     function _finalize(
         Types.WithdrawalTransaction memory _tx,
         address _submitter,
@@ -153,7 +193,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         return keccak256(abi.encode(_tx.nonce, _tx.sender, _tx.target, _tx.value, _tx.gasLimit, _tx.data));
     }
 
-    function _check(AuthorizationCase memory _case) internal returns (bool accepted_) {
+    function _seed(AuthorizationCase memory _case) internal returns (bytes32 recordSlot) {
         vm.assume(_case.status <= uint8(GameStatus.DEFENDER_WINS));
         // Preserve the boolean domain without branching to convert flags for storage setup.
         vm.assume(_case.finalized <= 1);
@@ -169,15 +209,17 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         vm.store(
             address(registry), keccak256(abi.encode(address(game), uint256(5))), bytes32(uint256(_case.blacklisted))
         );
-        bytes32 recordSlot =
-            keccak256(abi.encode(_case.submitter, keccak256(abi.encode(_case.withdrawalHash, uint256(57)))));
+        recordSlot = keccak256(abi.encode(_case.submitter, keccak256(abi.encode(_case.withdrawalHash, uint256(57)))));
         vm.store(
             address(portal), recordSlot, bytes32(uint256(uint160(address(game))) | (uint256(_case.provenAt) << 160))
         );
         bytes32 finalizedSlot = keccak256(abi.encode(_case.withdrawalHash, uint256(51)));
         vm.store(address(portal), finalizedSlot, bytes32(uint256(_case.finalized)));
         vm.warp(_case.now);
+    }
 
+    function _check(AuthorizationCase memory _case) internal returns (bool accepted_) {
+        bytes32 recordSlot = _seed(_case);
         (accepted_,) =
             address(portal).staticcall(abi.encodeCall(portal.checkWithdrawal, (_case.withdrawalHash, _case.submitter)));
         bool eligible = _case.finalized == 0 && _case.provenAt != 0 && _case.provenAt > _case.createdAt
