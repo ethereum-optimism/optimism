@@ -58,7 +58,7 @@ abstract contract ClaimRegistry_TestInit is Test {
     ///         accident on two fields that happen to hold the same value.
     function _claim(uint64 _firstBlock, uint64 _lastBlock) internal pure returns (RangeClaim memory claim_) {
         claim_ = RangeClaim({
-            version: 1,
+            version: 2,
             firstBlock: _firstBlock,
             lastBlock: _lastBlock,
             privateTerminalBlockHash: keccak256(abi.encode("privateTerminal", _lastBlock)),
@@ -67,6 +67,7 @@ abstract contract ClaimRegistry_TestInit is Test {
             rollupConfigHash: keccak256("rollupConfig"),
             depSetHash: keccak256("depSet"),
             privateDataHash: keccak256(abi.encode("privateData", _firstBlock, _lastBlock)),
+            writes: hex"",
             proof: hex""
         });
     }
@@ -75,6 +76,47 @@ abstract contract ClaimRegistry_TestInit is Test {
 /// @title ClaimRegistry_PostClaim_Test
 /// @notice Tests the `postClaim` function of the `ClaimRegistry` contract.
 contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
+    /// @notice Pins the nonempty Go claim vector, including dynamic ABI padding and record version.
+    function test_postClaim_sharedWriteHash_succeeds() external {
+        RangeClaim memory claim;
+        claim.version = 2;
+        claim.firstBlock = 1;
+        claim.lastBlock = 300;
+        claim.writes =
+            hex"553edd4740eaea36a2cf849bcc22965a478b512a0d367a953922e75550100d8849421ad7da62422768a157a5ac729ae6970e507a9fe100a989ccd0bf53dfd1ce000000000000002a";
+        vm.prank(operator);
+        registry.postClaim(claim);
+        assertEq(registry.lastClaimHash(), bytes32(0x21b1a788003f7fdee4125b0c8e92f5c318fbf73374423d3a77bd984d2774c93e));
+    }
+
+    function test_postClaim_writesAreCommitted_succeeds() external {
+        RangeClaim memory claim = _claim(100, 399);
+        claim.writes = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(7)), uint64(123));
+        vm.recordLogs();
+        vm.prank(operator);
+        registry.postClaim(claim);
+        assertEq(vm.getRecordedLogs().length, 0);
+        assertEq(registry.lastClaimHash(), keccak256(abi.encode(bytes32(0), abi.encode(claim))));
+    }
+
+    function test_postClaim_malformedWrites_reverts() external {
+        RangeClaim memory claim = _claim(100, 399);
+        bytes memory one = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(7)), uint64(123));
+        bytes[] memory invalid = new bytes[](5);
+        invalid[0] = hex"01";
+        invalid[1] = bytes.concat(one, one);
+        invalid[2] = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(7)), uint64(99));
+        invalid[3] = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(7)), uint64(400));
+        invalid[4] = bytes.concat(abi.encodePacked(bytes32(uint256(2)), bytes32(uint256(7)), uint64(123)), one);
+        for (uint256 i; i < invalid.length; ++i) {
+            claim.writes = invalid[i];
+            vm.expectRevert(IClaimRegistry.ClaimRegistry_InvalidWrites.selector);
+            vm.prank(operator);
+            registry.postClaim(claim);
+            assertEq(registry.rangeCount(), 0);
+        }
+    }
+
     /// @notice An unrelated forced sender cannot poison the cursor and block subsequent claims.
     function test_postClaim_notBatcher_reverts() external {
         vm.expectRevert(IClaimRegistry.ClaimRegistry_NotBatcher.selector);
@@ -238,7 +280,7 @@ contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
 
     /// @notice Tests that a claim of an unsupported version is refused.
     function testFuzz_postClaim_unsupportedVersion_reverts(uint8 _version) external {
-        vm.assume(_version != 1);
+        vm.assume(_version != 2);
 
         RangeClaim memory claim = _claim(100, 399);
         claim.version = _version;

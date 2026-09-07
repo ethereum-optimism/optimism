@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-private-interop/builder"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
+	"github.com/ethereum-optimism/optimism/op-private-interop/writes"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -110,6 +111,10 @@ func (f *failingClaimTxs) ClaimTx(claim *codec.RangeClaim) (*types.Transaction, 
 // fixedReceipts is the private EL's receipt source: one export, one import, one private log per
 // block, so every block exercises the filter and the interleaving.
 type fixedReceipts struct{ calls int }
+
+func (f *fixedReceipts) FetchWrites(context.Context, common.Hash) ([]writes.Record, error) {
+	return nil, nil
+}
 
 func (f *fixedReceipts) FetchReceipts(_ context.Context, hash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {
 	f.calls++
@@ -230,6 +235,7 @@ func piEncoderWithTxs(t *testing.T, txs render.ReplayTxBuilder) (*PrivateInterop
 		RollupConfigHash:  common.Hash{0x1b},
 		DepSetHash:        common.Hash{0x1c},
 		Receipts:          receipts,
+		Writes:            receipts,
 		Ranges:            ranges,
 		Txs:               txs,
 	})
@@ -391,9 +397,8 @@ func TestPrivateInteropSeamStopsAtTheRangeByteBudget(t *testing.T) {
 	p := piPayload(t, 901)
 	require.NoError(t, enc.PrepareBlock(context.Background(), p))
 	_, err = out.AddBlock(cfg, p)
-	require.NoError(t, err)
-	require.ErrorIs(t, out.FullErr(), derive.ErrCompressorFull)
-	require.Greater(t, out.InputBytes(), 1, "the budget counts estimated serialized bytes, not actions")
+	require.ErrorContains(t, err, "cannot fit a claim")
+	require.Zero(t, out.InputBytes(), "oversized block must not enter the channel")
 }
 
 func TestPrivateInteropSeamNeedsReceipts(t *testing.T) {
@@ -552,4 +557,44 @@ func decodeRenderTx(t *testing.T, raw hexutil.Bytes) *types.Transaction {
 	var tx types.Transaction
 	require.NoError(t, tx.UnmarshalBinary(raw))
 	return &tx
+}
+
+type blockWriteFixture map[common.Hash][]writes.Record
+
+func (f blockWriteFixture) FetchWrites(_ context.Context, hash common.Hash) ([]writes.Record, error) {
+	return f[hash], nil
+}
+
+func TestPrivateWriteOverflowPreservesNextBlock(t *testing.T) {
+	enc, _, _ := piEncoder(t)
+	enc.cfg.Rollup.Genesis.SystemConfig.GasLimit = 120_000_000
+	p1, p2 := piPayload(t, 901), piPayload(t, 902)
+	fixture := blockWriteFixture{}
+	for j, p := range []*eth.ExecutionPayload{p1, p2} {
+		for i := 0; i < 950; i++ {
+			fixture[p.BlockHash] = append(fixture[p.BlockHash], writes.Record{Tag: common.BigToHash(big.NewInt(int64(1 + j*950 + i))), ValueCommitment: common.Hash{7}, BlockNumber: uint64(p.BlockNumber)})
+		}
+	}
+	enc.cfg.Writes = fixture
+	cfg := ChannelConfig{MaxFrameSize: 100_000, CompressorConfig: compressor.Config{CompressionAlgo: derive.Zlib}}
+	out, err := enc.ChannelOut(cfg, enc.cfg.Rollup)
+	require.NoError(t, err)
+	require.NoError(t, enc.PrepareBlock(context.Background(), p1))
+	require.NoError(t, enc.PrepareBlock(context.Background(), p2))
+	_, err = out.AddBlock(enc.cfg.Rollup, p1)
+	require.NoError(t, err)
+	before := out.InputBytes()
+	_, err = out.AddBlock(enc.cfg.Rollup, p2)
+	require.ErrorIs(t, err, derive.ErrCompressorFull)
+	require.Equal(t, before, out.InputBytes())
+	require.NoError(t, out.Close())
+	require.Equal(t, fixture[p1.BlockHash], out.(*renderChannelOut).built.Claim.Writes)
+	_, ok := enc.take(p2.BlockHash)
+	require.True(t, ok, "overflow block remains prepared")
+	next, err := enc.ChannelOut(cfg, enc.cfg.Rollup)
+	require.NoError(t, err)
+	_, err = next.AddBlock(enc.cfg.Rollup, p2)
+	require.NoError(t, err)
+	require.NoError(t, next.Close())
+	require.Equal(t, fixture[p2.BlockHash], next.(*renderChannelOut).built.Claim.Writes)
 }

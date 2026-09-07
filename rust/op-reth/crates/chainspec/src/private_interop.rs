@@ -293,9 +293,9 @@ mod tests {
         "../../../../../op-private-interop/genesis/testdata/private-chain-genesis.json"
     );
     const PUBLIC_PROJECTION_STATE_ROOT: B256 =
-        b256!("19fd47675c5ac5e23d8001f34b38ecde60d1afe4169456c681823836755fc025");
+        b256!("2ac4cb670f0c21a367460999e8056d22b95719b2c1451813c31e8a2305931177");
     const PUBLIC_PROJECTION_BLOCK_HASH: B256 =
-        b256!("3ef5ff231bb4260905c2fe4f5f613598464ad7393e2c4a5f727b327609bb4947");
+        b256!("833a13a05a2af97ca25fd376b0da01b71a2632bcddc4ecad08128edf67c49a01");
 
     const SUPERCHAIN_ETH_BRIDGE: Address = address!("4200000000000000000000000000000000000024");
     const ETH_LIQUIDITY: Address = address!("4200000000000000000000000000000000000025");
@@ -365,11 +365,11 @@ mod tests {
         let spec = OpChainSpec::from_genesis(project_genesis_from(&private).unwrap());
         assert_eq!(
             spec.genesis_hash(),
-            b256!("aef6ed75bc945d55abf332fe67026c63064e8650bd4c14f2668899f5248383ba")
+            b256!("5381683e5df412f9303872d883035c99d1d6ce7a5c7e6f87aa9a2aeae9a395cc")
         );
         assert_eq!(
             spec.genesis_header().state_root,
-            b256!("ce1ac6defc264a3c8c735a1f25e9b72fcd7d702e54642f42a72d50bf80b59434")
+            b256!("a3f149d3497a9122a52673eed9e814e3076ed6c6a6230a189846947cfc4730dd")
         );
     }
 

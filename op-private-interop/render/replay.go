@@ -218,7 +218,13 @@ func (b *BatcherTxBuilder) ClaimTx(claim *codec.RangeClaim) (*types.Transaction,
 	if err != nil {
 		return nil, err
 	}
-	return b.sendTx(b.registry, data, nil, b.gas.GasLimitClaim)
+	// Budget calldata, its EIP-7623 floor, hashing, and per-record validation.
+	// The base covers the fixed registry work. The builder checks the total block budget.
+	gas := b.gas.GasLimitClaim + uint64(len(data))*64
+	if gas < b.gas.GasLimitClaim {
+		return nil, fmt.Errorf("claim gas overflow")
+	}
+	return b.sendTx(b.registry, data, nil, gas)
 }
 
 func (b *BatcherTxBuilder) sendTx(to common.Address, data []byte, al types.AccessList, gasLimit uint64) (*types.Transaction, error) {

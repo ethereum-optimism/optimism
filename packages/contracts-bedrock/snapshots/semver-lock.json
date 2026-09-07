@@ -208,8 +208,8 @@
     "sourceCodeHash": "0x029650b0298a1c488e2f356c68ed721fb6b7181f0a3c6d5ea92739a1d7c5a51b"
   },
   "src/private-interop/ClaimRegistry.sol:ClaimRegistry": {
-    "initCodeHash": "0x629bb75d91c32d4da51d346acb2276c9460c20e1f376598c3cb24de7db793fa3",
-    "sourceCodeHash": "0x621e3b3e7fc5d6aa2999d858500141a87eff82c5a5ab49ffa65969d5bfc53281"
+    "initCodeHash": "0xf0ae440f192eab12a77331ca908bfa04f75f5b168901d3d39d952b311f1cf26b",
+    "sourceCodeHash": "0x26bdaa011fd7c49d0b7537503ea1fa885482b00690457d880c404ea1105898bd"
   },
   "src/private-interop/EventReplayer.sol:EventReplayer": {
     "initCodeHash": "0xa08f2db694bab338b051353dac7d2c1a113bea024000de22519fb4880272652d",

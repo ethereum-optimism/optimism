@@ -15,6 +15,7 @@ pub mod eth;
 pub mod historical;
 pub mod metrics;
 pub mod miner;
+pub mod private_writes;
 pub mod sdm_admin;
 pub mod sequencer;
 pub mod state;

@@ -1,5 +1,6 @@
 //! Support for optimism specific witness RPCs.
 
+use crate::private_writes::{BlockWrites, collect_writes};
 use alloy_consensus::{Block as AlloyBlock, BlockHeader};
 use alloy_eips::BlockId;
 use alloy_primitives::{B256, Sealed};
@@ -7,7 +8,8 @@ use alloy_rpc_types_debug::ExecutionWitness;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, async_trait};
 use op_alloy_consensus::TxPostExec;
-use reth_chainspec::ChainSpecProvider;
+use reth_chainspec::{ChainSpecProvider, EthChainSpec};
+use reth_evm::execute::Executor;
 use reth_node_api::{BuildNextEnv, NodePrimitives};
 use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_optimism_forks::OpHardforks;
@@ -20,6 +22,7 @@ use reth_optimism_txpool::OpPooledTx;
 use reth_primitives_traits::{RecoveredBlock, SealedHeader, TxTy};
 use reth_revm::database::StateProviderDatabase;
 use reth_rpc_server_types::{ToRpcResult, result::internal_rpc_err};
+use reth_storage_api::{HashedPostStateProvider, StateRootProvider};
 
 /// Trait for the `debug_executePayload` endpoint, which re-executes a payload and returns the
 /// resulting execution witness.
@@ -56,6 +59,10 @@ use tokio::sync::{Semaphore, oneshot};
 #[cfg_attr(not(test), rpc(server, namespace = "debug"))]
 #[cfg_attr(test, rpc(server, client, namespace = "debug"))]
 pub trait OpDebugPostExecApi {
+    /// Reexecutes an exact block and returns opaque net writes after checking its state root.
+    #[method(name = "privateBlockWrites")]
+    async fn private_block_writes(&self, block_hash: B256) -> RpcResult<BlockWrites>;
+
     /// Counterfactually replay a historical block with post-exec enabled.
     ///
     /// Replays one block per call; callers driving a block range are responsible for
@@ -219,6 +226,53 @@ where
         + 'static,
     Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>>,
 {
+    async fn private_block_writes(&self, block_hash: B256) -> RpcResult<BlockWrites> {
+        let permit = self
+            .inner
+            .semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|err| internal_rpc_err(err.to_string()))?;
+        let block = self
+            .replay_block_by_request(ReplayPostExecBlockRequest::Hash(block_hash))
+            .to_rpc_result()?;
+        let (tx, rx) = oneshot::channel();
+        let this = self.clone();
+        self.inner.task_spawner.spawn_blocking_task(async move {
+            let _permit = permit;
+            let result = || {
+                let provider = this
+                    .inner
+                    .provider
+                    .state_by_block_hash(block.header().parent_hash())
+                    .to_rpc_result()?;
+                let output = this
+                    .inner
+                    .evm_config
+                    .executor(StateProviderDatabase::new(&provider))
+                    .execute(&block)
+                    .map_err(|err| internal_rpc_err(err.to_string()))?;
+                let root = provider
+                    .state_root(provider.hashed_post_state(&output.state))
+                    .to_rpc_result()?;
+                if root != block.header().state_root() {
+                    return Err(internal_rpc_err("private write extraction state root mismatch"));
+                }
+                Ok(BlockWrites {
+                    block_hash,
+                    writes: collect_writes(
+                        this.inner.provider.chain_spec().chain_id(),
+                        block.header().number(),
+                        &output.state,
+                    ),
+                })
+            };
+            let _ = tx.send(result());
+        });
+        rx.await.map_err(|err| internal_rpc_err(err.to_string()))?
+    }
+
     async fn replay_post_exec_block(
         &self,
         request: ReplayPostExecBlockRequest,
