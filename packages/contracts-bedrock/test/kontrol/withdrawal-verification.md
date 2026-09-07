@@ -1,6 +1,6 @@
 # Withdrawal authorization
 
-Work in progress: no end-to-end theft-prevention or arbitrary-history theorem is complete.
+These component proofs do not establish end-to-end theft prevention or arbitrary-history safety.
 The current obligations exercise `OptimismPortal2`, `AnchorStateRegistry`, and `DisputeGameFactory`
 behind their proxies in the freshly generated fault-proof deployment. The normal deployment build
 supplies bytecode through the repository's existing state-diff mechanism. Importing only interfaces
@@ -55,28 +55,23 @@ component result must not be labeled proof of authentic withdrawals.
 
 ## Reproduction
 
-Use pinned Foundry/Kontrol versions and a clean proof output directory. Run the component proofs with:
+Use pinned Foundry/Kontrol versions and a clean proof output directory. From `packages/contracts-bedrock`, run:
 
 ```sh
-just build-go-ffi kontrol-summary-full test-withdrawal-authorization
+mise x -- just build-go-ffi kontrol-summary-full test-withdrawal-authorization
 ```
 
 The normal `test-kontrol-no-build` recipe runs the existing pausability proofs and then these
 component proofs. Their logs, JUnit report and proof archive go into `test/kontrol/logs/withdrawal`
 to preserve both suites' results. Separate selectors allow the witness to run alongside equivalence.
 Strict mode limits proving to 60 minutes inside the container so the host can collect saved graphs
-after a timeout. The branch currently runs the component alone in CI with a 90-minute overall limit;
-restore the normal suite command before a PR. A timeout is incomplete, never a proof pass.
+after a timeout. A timeout is incomplete, never a proof pass.
 
 Strict mode returns Booster's symbolic branches directly and retains legacy fallback for stuck
 or aborted execution. It retains post-execution simplification, including elimination of branches
 the simplifier establishes as impossible. This avoids an expensive legacy reconfirmation of each
 branch. The pinned backend checks branch applicability, definedness and remainder coverage before
 returning branches.
-An isolated comparison found equal parent states and equivalent branch states after collection
-ordering, Boolean representation and explicit-equality substitution were accounted for. That
-comparison is diagnostic evidence; acceptance still requires the fresh complete proof graphs.
-
 Strict fixture mode uses the fresh deployment-state diff and `setUp`, enables stack checks,
 uses CANCUN and abstracts gas. It omits `--assume-defined` and builds without the repository's
 pausability lemmas. The pinned compiler flattens contract-qualified imports into a shared main

@@ -2216,9 +2216,9 @@ jobs:
       - setup_remote_docker
       - run:
           name: Run Kontrol Tests
-          command: timeout --signal=TERM --kill-after=60s 90m env KONTROL_DIAGNOSTICS=true just build-go-ffi kontrol-summary-full test-withdrawal-authorization
+          command: timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-full test-kontrol-no-build
           working_directory: ./packages/contracts-bedrock
-          no_output_timeout: 95m
+          no_output_timeout: 185m
       - run:
           name: Remove duplicate proof archives
           when: always

@@ -28,14 +28,10 @@ kontrol_build() {
 }
 
 kontrol_prove() {
-  notif "Kontrol Prove: workers=$workers selectors=${test_list[*]} diagnostics=${KONTROL_DIAGNOSTICS:-false}"
+  notif "Kontrol Prove: workers=$workers selectors=${test_list[*]}"
   local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
-  local progress_args=(--maintenance-rate 16)
   local prove_command=(kontrol prove)
   local rpc_command='kore-rpc-booster --equation-max-recursion 100 --equation-max-iterations 1000'
-  if [ "${KONTROL_DIAGNOSTICS:-false}" = true ]; then
-    progress_args=(--verbose --maintenance-rate 16)
-  fi
   # Withdrawal fixtures retain production deployment bytecode and stack checks.
   if [ "${KONTROL_STRICT:-false}" = true ]; then
     model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --no-gas)
@@ -61,7 +57,7 @@ kontrol_prove() {
     "${model_args[@]}" \
     --kore-rpc-command "$rpc_command" \
     --xml-test-report \
-    "${progress_args[@]}" \
+    --maintenance-rate 16 \
     --symbolic-caller \
     --no-log-rewrites \
     --smt-timeout 16000 \
