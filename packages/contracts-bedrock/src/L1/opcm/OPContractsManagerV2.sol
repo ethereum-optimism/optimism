@@ -286,6 +286,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     function migrate(IOPContractsManagerMigrator.MigrateInput calldata _input) public {
         _onlyDelegateCall();
 
+        // Migration assumes every chain is already on this OPCM's release.
+        for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
+            if (!isPermittedMigrateSequence(_input.chainSystemConfigs[i])) {
+                revert OPContractsManagerV2_InvalidUpgradeSequence(
+                    _input.chainSystemConfigs[i].lastUsedOPCMVersion(), _version()
+                );
+            }
+        }
+
         // Delegatecall to the migrator contract.
         (bool success, bytes memory result) =
             address(opcmMigrator).delegatecall(abi.encodeCall(IOPContractsManagerMigrator.migrate, (_input)));
@@ -1089,6 +1098,35 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
 
         return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+    }
+
+    /// @notice Returns whether a chain is on this OPCM's release and may be migrated.
+    ///         Unlike isPermittedUpgradeSequence this refuses the next major version case.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @return True if the chain may be migrated by this OPCM.
+    function isPermittedMigrateSequence(ISystemConfig _systemConfig) public view returns (bool) {
+        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
+        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
+        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
+        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
+        // 8.0.0 and later will always have this function available.
+        if (SemverComp.lt(_version(), "8.0.0")) {
+            return true;
+        }
+
+        ISemver lastUsedOPCM = ISemver(address(_systemConfig.lastUsedOPCM()));
+        SemverComp.Semver memory lastUsedSemver = SemverComp.parse(lastUsedOPCM.version());
+        SemverComp.Semver memory thisSemver = SemverComp.parse(_version());
+
+        // Two permitted cases:
+        // 1. This is the same OPCM that last touched the chain.
+        // 2. A replacement OPCM for the same release. The minor must be at least as new, so an
+        //    older OPCM cannot migrate a chain that a newer one already upgraded.
+        bool isSameOPCM = address(lastUsedOPCM) == address(opcmV2);
+        bool isSameMajorAndAtLeastMinor =
+            thisSemver.major == lastUsedSemver.major && thisSemver.minor >= lastUsedSemver.minor;
+
+        return isSameOPCM || isSameMajorAndAtLeastMinor;
     }
 
     /// @notice Returns the blueprint contract addresses.

@@ -447,6 +447,25 @@
         "type": "address"
       }
     ],
+    "name": "isMigratableRelease",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      }
+    ],
     "name": "isPermittedUpgradeSequence",
     "outputs": [
       {

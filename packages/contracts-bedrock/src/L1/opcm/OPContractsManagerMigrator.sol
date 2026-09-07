@@ -9,6 +9,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -16,6 +17,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
@@ -59,6 +61,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
     /// @notice Thrown when a chain is already in an interop set.
     error OPContractsManagerMigrator_ChainAlreadyMigrated();
+
+    /// @notice Thrown when the SuperchainConfig is older than this release's implementation.
+    error OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade();
 
     /// @notice Thrown when a chain's SystemConfig reports an l2ChainId of zero.
     error OPContractsManagerMigrator_ZeroL2ChainId();
@@ -110,9 +115,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      Re-migration is rejected: any chain that already has Features.INTEROP enabled is
     ///      refused, because re-migrating it would corrupt the shared DisputeGameFactory and
     ///      ETHLockbox used by every chain in its set.
-    /// @dev NOTE: Unlike deploy/upgrade, this function does not enforce a SuperchainConfig
-    ///      version floor. The caller is responsible for ensuring the SuperchainConfig is
-    ///      upgraded to the current OPCM release version before calling migrate.
     /// @dev NOTE: OPContractsManagerV2.upgrade() only performs standard chain upgrades. This
     ///      function performs the one-off interop activation by enabling required features,
     ///      connecting each portal to the shared ETHLockbox, migrating liquidity, and moving each
@@ -142,6 +144,15 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // zero l2ChainId, that no two chains share the same l2ChainId, and that l2ChainIds are
         // provided in ascending order.
         _validateChainSystemConfigs(_input.chainSystemConfigs);
+
+        if (
+            SemverComp.lt(
+                _input.chainSystemConfigs[0].superchainConfig().version(),
+                ISuperchainConfig(contractsContainer().implementations().superchainConfigImpl).version()
+            )
+        ) {
+            revert OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade();
+        }
 
         // Check that every supplied dispute game config is valid and that the starting respected
         // game type is one of them.

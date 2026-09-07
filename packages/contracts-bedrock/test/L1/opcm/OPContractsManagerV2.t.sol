@@ -3176,6 +3176,56 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertEq(bytes4(returnData), IOPContractsManagerMigrator.OPContractsManagerMigrator_SystemPaused.selector);
     }
 
+    /// @notice Migration is refused when the SuperchainConfig is behind this release's
+    ///         implementation.
+    function test_migrate_superchainConfigNeedsUpgrade_reverts() public {
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("0.0.0"));
+
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade.selector
+        );
+    }
+
+    /// @notice Migration is refused for a chain still on the previous release.
+    function test_migrate_chainOnPreviousRelease_reverts() public {
+        address oldOPCM = makeAddr("previousReleaseOPCM");
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.1.17"));
+        vm.mockCall(
+            address(chainContracts1.systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM)
+        );
+
+        _doMigration(
+            _getDefaultMigrateInput(), IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeSequence.selector
+        );
+    }
+
+    /// @notice A different OPCM address on the same major is accepted.
+    function test_migrate_replacementOpcmSameRelease_succeeds() public {
+        address replacedOPCM = makeAddr("replacedSameReleaseOPCM");
+        vm.mockCall(replacedOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.0.0"));
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.lastUsedOPCM, ()),
+            abi.encode(replacedOPCM)
+        );
+
+        _doMigration(_getDefaultMigrateInput());
+    }
+
+    /// @notice A chain last touched by a *newer* minor of this release is refused.
+    function test_migrate_chainOnNewerMinor_reverts() public {
+        address newerOPCM = makeAddr("newerMinorOPCM");
+        vm.mockCall(newerOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.9.0"));
+        vm.mockCall(
+            address(chainContracts1.systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(newerOPCM)
+        );
+
+        _doMigration(
+            _getDefaultMigrateInput(), IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeSequence.selector
+        );
+    }
+
     /// @notice Tests that migration cannot be rerun.
     function test_migrate_calledTwice_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();

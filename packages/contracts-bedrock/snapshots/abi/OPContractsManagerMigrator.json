@@ -172,6 +172,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_SystemPaused",
     "type": "error"
   },
@@ -183,6 +188,11 @@
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_ZeroL2ChainId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
     "type": "error"
   }
 ]

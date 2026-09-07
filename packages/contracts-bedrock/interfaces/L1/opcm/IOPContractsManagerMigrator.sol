@@ -42,6 +42,8 @@ interface IOPContractsManagerMigrator {
 
     error OPContractsManagerMigrator_ChainAlreadyMigrated();
 
+    error OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade();
+
     /// @notice Thrown when a chain's SystemConfig reports an l2ChainId of zero.
     error OPContractsManagerMigrator_ZeroL2ChainId();
 
