@@ -109,7 +109,7 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "DelayedWETHImpl",
                 target: EIP1967Helper.getImplementation(address(delayedWeth)),
-                initCalldata: abi.encodeCall(delayedWeth.initialize, (ISystemConfig(address(0))))
+                initCalldata: abi.encodeCall(delayedWeth.initialize, (IETHLockbox(payable(address(0)))))
             })
         );
         // DelayedWETHProxy
@@ -117,7 +117,7 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "DelayedWETHProxy",
                 target: address(delayedWeth),
-                initCalldata: abi.encodeCall(delayedWeth.initialize, (ISystemConfig(address(0))))
+                initCalldata: abi.encodeCall(delayedWeth.initialize, (IETHLockbox(payable(address(0)))))
             })
         );
 
@@ -309,7 +309,7 @@ contract Initializer_Test is CommonTest {
                 initCalldata: abi.encodeCall(
                     IAnchorStateRegistry.initialize,
                     (
-                        ISystemConfig(address(0)),
+                        IETHLockbox(payable(address(0))),
                         IDisputeGameFactory(address(0)),
                         Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
                         GameType.wrap(uint32(deploy.cfg().respectedGameType()))
@@ -325,7 +325,7 @@ contract Initializer_Test is CommonTest {
                 initCalldata: abi.encodeCall(
                     IAnchorStateRegistry.initialize,
                     (
-                        ISystemConfig(address(0)),
+                        IETHLockbox(payable(address(0))),
                         IDisputeGameFactory(address(0)),
                         Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
                         GameType.wrap(uint32(deploy.cfg().respectedGameType()))
@@ -339,7 +339,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "ETHLockboxImpl",
                 target: EIP1967Helper.getImplementation(address(ethLockbox)),
-                initCalldata: abi.encodeCall(ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0)))
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISuperchainConfig(address(0)), new IOptimismPortal2[](0))
+                )
             })
         );
 
@@ -348,7 +350,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "ETHLockboxProxy",
                 target: address(ethLockbox),
-                initCalldata: abi.encodeCall(ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0)))
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISuperchainConfig(address(0)), new IOptimismPortal2[](0))
+                )
             })
         );
     }

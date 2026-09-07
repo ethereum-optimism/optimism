@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 3.6.0
-    string public constant version = "3.6.0";
+    /// @custom:semver 3.7.0
+    string public constant version = "3.7.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -453,7 +453,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors =
             internalRequire(getProxyImplementation(_admin, address(_lockbox)) == ethLockboxImpl, "LOCKBOX-20", _errors);
         _errors = internalRequire(getProxyAdmin(address(_lockbox)) == _admin, "LOCKBOX-30", _errors);
-        _errors = internalRequire(_lockbox.systemConfig() == _sysCfg, "LOCKBOX-40", _errors);
+        _errors = internalRequire(_lockbox.superchainConfig() == _sysCfg.superchainConfig(), "LOCKBOX-40", _errors);
         _errors = internalRequire(_lockbox.authorizedPortals(_portal), "LOCKBOX-50", _errors);
         return _errors;
     }

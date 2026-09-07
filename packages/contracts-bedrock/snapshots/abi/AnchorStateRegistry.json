@@ -107,6 +107,19 @@
   },
   {
     "inputs": [],
+    "name": "ethLockbox",
+    "outputs": [
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "getAnchorRoot",
     "outputs": [
       {
@@ -164,8 +177,8 @@
   {
     "inputs": [
       {
-        "internalType": "contract ISystemConfig",
-        "name": "_systemConfig",
+        "internalType": "contract IETHLockbox",
+        "name": "_ethLockbox",
         "type": "address"
       },
       {
@@ -450,19 +463,6 @@
     "outputs": [
       {
         "internalType": "contract ISuperchainConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "systemConfig",
-    "outputs": [
-      {
-        "internalType": "contract ISystemConfig",
         "name": "",
         "type": "address"
       }

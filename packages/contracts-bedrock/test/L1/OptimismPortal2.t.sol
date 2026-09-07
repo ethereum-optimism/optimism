@@ -765,7 +765,9 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         if (_authorizePortal) portals[0] = IOptimismPortal(payable(address(optimismPortal2)));
 
         vm.prank(proxyAdminAddr);
-        Proxy(payable(newProxy)).upgradeToAndCall(impl, abi.encodeCall(IETHLockbox.initialize, (systemConfig, portals)));
+        Proxy(payable(newProxy)).upgradeToAndCall(
+            impl, abi.encodeCall(IETHLockbox.initialize, (superchainConfig, portals))
+        );
 
         lockbox_ = IETHLockbox(payable(newProxy));
     }
@@ -787,7 +789,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
             impl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (systemConfig, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
+                (ethLockbox, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
             )
         );
 

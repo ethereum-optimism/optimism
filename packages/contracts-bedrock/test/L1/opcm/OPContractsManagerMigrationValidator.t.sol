@@ -526,7 +526,7 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(chainContracts1.systemConfig));
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(sharedLockbox));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(sharedProxyAdmin));
         assertEq("MIG-SCKDG-GARGS-30,MIG-SCKDG-DWETH-70", _validateMigration(true));
     }
@@ -635,7 +635,9 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
             abi.encodeCall(IOptimismPortal2.ethLockbox, ()),
             abi.encode(address(0))
         );
-        assertEq("MIG-LOCKBOX-MISSING", _validateMigration(true));
+        assertEq(
+            "MIG-SPDG-ANCHORP-40,MIG-SCKDG-DWETH-50,MIG-SCKDG-ANCHORP-40,MIG-LOCKBOX-MISSING", _validateMigration(true)
+        );
     }
 
     /// @notice MIG-CHAIN-0-100: INTEROP feature not enabled.
@@ -666,6 +668,16 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
             abi.encode(address(0xbadDE1a4ed))
         );
         assertEq("MIG-CHAIN-1-120", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-1-130: SuperchainConfig does not match the shared lockbox.
+    function test_validate_chain1130SuperchainConfigMismatch_succeeds() public {
+        vm.mockCall(
+            address(chainContracts2.systemConfig),
+            abi.encodeCall(ISystemConfig.superchainConfig, ()),
+            abi.encode(address(0xbad))
+        );
+        assertEq("MIG-CHAIN-1-130", _validateMigration(true));
     }
 }
 
@@ -759,7 +771,7 @@ contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManag
 }
 
 /// @title OPContractsManagerMigrationValidator_SharedLockbox_Test
-/// @notice Negative tests for MIG-SLOCKBOX-10 through MIG-SLOCKBOX-30.
+/// @notice Tests shared ETHLockbox validation.
 contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-SLOCKBOX-10: Lockbox version doesn't match impl version.
     function test_validate_sharedLockbox10WrongVersion_succeeds() public {
@@ -783,6 +795,14 @@ contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsM
             address(sharedLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
         assertEq("MIG-SLOCKBOX-30", _validateMigration(true));
+    }
+
+    /// @notice MIG-SLOCKBOX-40: Lockbox pause authority doesn't match the chains.
+    function test_validate_sharedLockbox40WrongSuperchainConfig_succeeds() public {
+        vm.mockCall(
+            address(sharedLockbox), abi.encodeCall(IETHLockbox.superchainConfig, ()), abi.encode(address(0xbad))
+        );
+        assertEq("MIG-SLOCKBOX-40", _validateMigration(true));
     }
 }
 

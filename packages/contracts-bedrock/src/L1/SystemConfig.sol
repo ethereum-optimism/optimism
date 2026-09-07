@@ -175,9 +175,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 4.1.0
+    /// @custom:semver 4.2.0
     function version() public pure virtual returns (string memory) {
-        return "4.1.0";
+        return "4.2.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -561,20 +561,12 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit FeatureSet(_feature, _enabled);
     }
 
-    /// @notice Returns the current pause state for this network. If the network is using
-    ///         ETHLockbox, the system is paused if either the global pause is active or the pause
-    ///         is active where the ETHLockbox address is used as the identifier. If the network is
-    ///         not using ETHLockbox, the system is paused if either the global pause is active or
-    ///         the pause is active where the OptimismPortal address is used as the identifier.
+    /// @notice Returns the current pause state for this network. The pause state is resolved
+    ///         through the ETHLockbox, which is paused if either the global pause is active or the
+    ///         pause is active where the ETHLockbox address is used as the identifier.
     /// @return bool True if the system is paused, false otherwise.
     function paused() public view returns (bool) {
-        // Determine the appropriate chain identifier based on the feature flags.
-        address identifier = isFeatureEnabled[Features.ETH_LOCKBOX]
-            ? address(IOptimismPortal2(payable(optimismPortal())).ethLockbox())
-            : address(optimismPortal());
-
-        // Check if either global or local pause is active.
-        return superchainConfig.paused(address(0)) || superchainConfig.paused(identifier);
+        return IOptimismPortal2(payable(optimismPortal())).ethLockbox().paused();
     }
 
     /// @notice Returns the guardian address of the SuperchainConfig.

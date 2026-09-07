@@ -63,8 +63,10 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @param amount The amount of ETH received.
     event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
 
-    /// @notice The address of the SystemConfig contract.
-    ISystemConfig public systemConfig;
+    /// @custom:legacy
+    /// @custom:spacer systemConfig
+    /// @notice Spacer taking up the legacy `systemConfig` address slot.
+    address private spacer_0_2_20;
 
     /// @notice Mapping of authorized portals.
     mapping(IOptimismPortal => bool) public authorizedPortals;
@@ -72,10 +74,13 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @notice Mapping of authorized lockboxes.
     mapping(IETHLockbox => bool) public authorizedLockboxes;
 
+    /// @notice The SuperchainConfig contract.
+    ISuperchainConfig public superchainConfig;
+
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1
+    /// @custom:semver 2.0.0
     function version() public view virtual returns (string memory) {
-        return "1.3.1";
+        return "2.0.0";
     }
 
     /// @notice Constructs the ETHLockbox contract.
@@ -84,14 +89,10 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     }
 
     /// @notice Initializer.
-    /// @param _systemConfig The address of the SystemConfig contract.
+    /// @param _superchainConfig The SuperchainConfig contract.
     /// @param _portals The addresses of the portals to authorize.
-    /// @dev Note: Multiple chains can share an ETHLockbox contract. In this case, all SystemConfig
-    ///      contracts will point to the same pause identifier (the lockbox itself). Therefore, it
-    ///      doesn't matter which SystemConfig is used here as long as it belongs to one of the
-    ///      chains that share the lockbox.
     function initialize(
-        ISystemConfig _systemConfig,
+        ISuperchainConfig _superchainConfig,
         IOptimismPortal[] calldata _portals
     )
         external
@@ -101,7 +102,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
         // Now perform initialization logic.
-        systemConfig = _systemConfig;
+        superchainConfig = _superchainConfig;
         for (uint256 i; i < _portals.length; i++) {
             _authorizePortal(_portals[i]);
         }
@@ -109,13 +110,13 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
-        return systemConfig.paused();
+        return superchainConfig.isPaused(address(this));
     }
 
-    /// @notice Returns the SuperchainConfig contract.
-    /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
+    /// @notice Returns the guardian.
+    /// @return The guardian address.
+    function guardian() public view returns (address) {
+        return superchainConfig.guardian();
     }
 
     /// @notice Authorizes a portal to lock and unlock ETH.
@@ -220,8 +221,11 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
         // Check that the portal has the same proxy admin owner.
         _assertSharedProxyAdminOwner(address(_portal));
 
-        // Check that the portal has the same superchain config.
-        if (_portal.superchainConfig() != superchainConfig()) revert ETHLockbox_DifferentSuperchainConfig();
+        // Check that the portal's chain uses the same SuperchainConfig. Read it through the
+        // portal's SystemConfig: the portal's own superchainConfig() is served by its lockbox, so
+        // once the portal points at this lockbox it would compare the stored value with itself.
+        ISuperchainConfig portalSuperchainConfig = ISystemConfig(_portal.systemConfig()).superchainConfig();
+        if (portalSuperchainConfig != superchainConfig) revert ETHLockbox_DifferentSuperchainConfig();
 
         // Authorize the portal.
         authorizedPortals[_portal] = true;

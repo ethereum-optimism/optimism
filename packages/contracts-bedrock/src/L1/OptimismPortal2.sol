@@ -252,9 +252,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_DisputeGameNotInvalidated();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.10.0
+    /// @custom:semver 5.11.0
     function version() public pure virtual returns (string memory) {
-        return "5.10.0";
+        return "5.11.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -300,7 +300,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
-        return systemConfig.paused();
+        return ethLockbox.paused();
     }
 
     /// @notice Getter for the proof maturity delay.
@@ -316,13 +316,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Returns the SuperchainConfig contract.
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function superchainConfig() external view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
+        return ethLockbox.superchainConfig();
     }
 
     /// @custom:legacy
     /// @notice Getter function for the address of the guardian.
     function guardian() external view returns (address) {
-        return systemConfig.guardian();
+        return ethLockbox.guardian();
     }
 
     /// @custom:legacy

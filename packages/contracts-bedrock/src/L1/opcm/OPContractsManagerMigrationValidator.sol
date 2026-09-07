@@ -11,6 +11,7 @@ import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -164,9 +165,11 @@ contract OPContractsManagerMigrationValidator {
             _cfg
         );
 
-        // Shared lockbox proxy/impl/admin (only if discovery surfaced one).
+        // Shared ETHLockbox invariants.
         if (_foundSharedContracts && address(_sharedContracts.lockbox) != address(0)) {
-            _errors = assertValidSharedLockbox(_errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _impls);
+            _errors = assertValidSharedLockbox(
+                _errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, firstCfg.superchainConfig(), _impls
+            );
         }
 
         // Per-chain invariants (portal points at shared ASR/lockbox, legacy game types cleared).
@@ -417,11 +420,12 @@ contract OPContractsManagerMigrationValidator {
         });
     }
 
-    /// @notice Validates the shared ETHLockbox: version, proxy impl, ProxyAdmin.
+    /// @notice Validates the shared ETHLockbox.
     function assertValidSharedLockbox(
         string memory _errors,
         IETHLockbox _lockbox,
         IProxyAdmin _proxyAdmin,
+        ISuperchainConfig _superchainConfig,
         IOPContractsManagerMigrationValidator.SharedImplementations memory _impls
     )
         internal
@@ -440,6 +444,9 @@ contract OPContractsManagerMigrationValidator {
             address(IProxyAdminOwnedBase(address(_lockbox)).proxyAdmin()) == address(_proxyAdmin),
             "MIG-SLOCKBOX-30",
             _errors
+        );
+        _errors = internalRequire(
+            address(_lockbox.superchainConfig()) == address(_superchainConfig), "MIG-SLOCKBOX-40", _errors
         );
         return _errors;
     }
@@ -463,6 +470,7 @@ contract OPContractsManagerMigrationValidator {
         IETHLockbox sharedLockbox = firstPortal.ethLockbox();
         IDisputeGameFactory sharedDGF = IDisputeGameFactory(_chainSystemConfigs[0].disputeGameFactory());
         address sharedWETH = _chainSystemConfigs[0].delayedWETH();
+        ISuperchainConfig sharedSuperchainConfig = _chainSystemConfigs[0].superchainConfig();
 
         // Guard against missing lockbox — would revert on authorizedPortals call.
         if (address(sharedLockbox) == address(0)) {
@@ -533,6 +541,11 @@ contract OPContractsManagerMigrationValidator {
 
             _errors = internalRequire(
                 _chainSystemConfigs[i].delayedWETH() == sharedWETH, string.concat("MIG-CHAIN-", idx, "-120"), _errors
+            );
+            _errors = internalRequire(
+                _chainSystemConfigs[i].superchainConfig() == sharedSuperchainConfig,
+                string.concat("MIG-CHAIN-", idx, "-130"),
+                _errors
             );
         }
 

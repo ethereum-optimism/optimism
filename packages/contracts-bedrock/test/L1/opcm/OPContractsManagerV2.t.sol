@@ -2007,6 +2007,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
         assertFalse(cts.systemConfig.isFeatureEnabled(Features.INTEROP));
         assertTrue(lockbox.authorizedPortals(cts.optimismPortal));
+        assertEq(address(cts.anchorStateRegistry.ethLockbox()), address(lockbox));
+        assertEq(address(cts.delayedWETH.ethLockbox()), address(lockbox));
         assertEq(address(cts.optimismPortal).balance, 0);
         assertEq(address(lockbox).balance, 1 ether);
 
@@ -2042,6 +2044,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(cts.disputeGameFactory.owner(), deployConfig.proxyAdminOwner, "disputeGameFactory owner mismatch");
         assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "ETH_LOCKBOX not enabled");
         assertEq(address(cts.optimismPortal.ethLockbox()), address(cts.ethLockbox), "portal lockbox mismatch");
+        assertEq(address(cts.anchorStateRegistry.ethLockbox()), address(cts.ethLockbox), "ASR ETHLockbox mismatch");
+        assertEq(address(cts.delayedWETH.ethLockbox()), address(cts.ethLockbox), "WETH ETHLockbox mismatch");
     }
 
     /// @notice Tests deploying a custom gas token chain. The ETHLockbox is enabled but the portal
@@ -2056,6 +2060,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertTrue(cts.systemConfig.isCustomGasToken(), "CGT not enabled");
         assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "ETH_LOCKBOX not enabled");
         assertEq(address(cts.optimismPortal.ethLockbox()), address(cts.ethLockbox), "portal lockbox mismatch");
+        assertEq(address(cts.anchorStateRegistry.ethLockbox()), address(cts.ethLockbox), "ASR ETHLockbox mismatch");
+        assertEq(address(cts.delayedWETH.ethLockbox()), address(cts.ethLockbox), "WETH ETHLockbox mismatch");
 
         uint256 portalBalance = address(cts.optimismPortal).balance;
         uint256 lockboxBalance = address(cts.ethLockbox).balance;
@@ -2065,6 +2071,13 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         cts.optimismPortal.depositTransaction{ value: 1 ether }(address(this), 0, gasLimit, false, bytes(""));
         assertEq(address(cts.optimismPortal).balance, portalBalance, "CGT portal ETH balance changed");
         assertEq(address(cts.ethLockbox).balance, lockboxBalance, "CGT lockbox received ETH");
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(cts.ethLockbox));
+        assertTrue(cts.ethLockbox.paused(), "lockbox not paused");
+        assertTrue(cts.systemConfig.paused(), "SystemConfig not paused");
+        assertTrue(cts.optimismPortal.paused(), "portal not paused");
+        assertTrue(cts.anchorStateRegistry.paused(), "ASR not paused");
     }
 
     /// @notice Tests that deploy reverts when the superchainConfig needs upgrade.
@@ -3029,6 +3042,94 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertTrue(newLockbox.authorizedLockboxes(oldLockbox1), "Old lockbox should be authorized on new lockbox");
     }
 
+    /// @notice Tests that the old per-chain AnchorStateRegistry and DelayedWETH follow the shared lockbox pause.
+    function test_migrate_oldContractsFollowSharedPause_succeeds() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+        _enableEthLockboxes();
+        IAnchorStateRegistry oldASR = portal2.anchorStateRegistry();
+        IDelayedWETH oldWETH = IDelayedWETH(payable(chainContracts2.systemConfig.delayedWETH()));
+        Proposal memory oldRoot = oldASR.getStartingAnchorRoot();
+
+        _doMigration(input);
+
+        IETHLockbox newLockbox = portal2.ethLockbox();
+        assertEq(address(oldASR.ethLockbox()), address(newLockbox), "Old ASR should point at shared lockbox");
+        assertEq(address(oldWETH.ethLockbox()), address(newLockbox), "Old DelayedWETH should point at shared lockbox");
+        assertEq(
+            oldASR.getStartingAnchorRoot().root.raw(), oldRoot.root.raw(), "Old ASR anchor root should be unchanged"
+        );
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(newLockbox));
+        assertTrue(oldASR.paused(), "Old ASR should be paused by shared lockbox");
+        assertTrue(oldWETH.ethLockbox().paused(), "Old DelayedWETH should be paused by shared lockbox");
+    }
+
+    /// @notice Migration preserves pending withdrawals in the second chain's retired DelayedWETH.
+    function test_migrate_pendingWethWithdrawal_succeeds() public {
+        _enableEthLockboxes();
+        IDelayedWETH oldWETH = IDelayedWETH(payable(chainContracts2.systemConfig.delayedWETH()));
+        address depositor = makeAddr("depositor");
+        vm.deal(depositor, 1 ether);
+        vm.startPrank(depositor);
+        oldWETH.deposit{ value: 1 ether }();
+        oldWETH.unlock(depositor, 1 ether);
+        vm.stopPrank();
+        (uint256 amount, uint256 timestamp) = oldWETH.withdrawals(depositor, depositor);
+
+        _doMigration(_getDefaultMigrateInput());
+
+        assertNotEq(chainContracts2.systemConfig.delayedWETH(), address(oldWETH));
+        assertEq(oldWETH.balanceOf(depositor), 1 ether);
+        (uint256 migratedAmount, uint256 migratedTimestamp) = oldWETH.withdrawals(depositor, depositor);
+        assertEq(migratedAmount, amount);
+        assertEq(migratedTimestamp, timestamp);
+        vm.warp(timestamp + oldWETH.delay());
+        vm.prank(depositor);
+        oldWETH.withdraw(depositor, 1 ether);
+        assertEq(depositor.balance, 1 ether);
+    }
+
+    /// @notice Upgrading SystemConfig after portal migration preserves its per-chain configuration.
+    function test_migrate_preservesSystemConfig_succeeds() public {
+        ISystemConfig config = chainContracts2.systemConfig;
+        bytes memory initArgs = abi.encode(
+            config.owner(),
+            config.basefeeScalar(),
+            config.blobbasefeeScalar(),
+            config.batcherHash(),
+            config.gasLimit(),
+            config.unsafeBlockSigner(),
+            config.resourceConfig(),
+            config.l2ChainId(),
+            config.superchainConfig()
+        );
+        ISystemConfig.Addresses memory expectedAddresses = config.getAddresses();
+        expectedAddresses.delayedWETH = chainContracts1.systemConfig.delayedWETH();
+
+        _doMigration(_getDefaultMigrateInput());
+
+        assertEq(abi.encode(config.getAddresses()), abi.encode(expectedAddresses));
+        assertEq(
+            abi.encode(
+                config.owner(),
+                config.basefeeScalar(),
+                config.blobbasefeeScalar(),
+                config.batcherHash(),
+                config.gasLimit(),
+                config.unsafeBlockSigner(),
+                config.resourceConfig(),
+                config.l2ChainId(),
+                config.superchainConfig()
+            ),
+            initArgs
+        );
+        assertTrue(config.isFeatureEnabled(Features.ETH_LOCKBOX));
+        assertTrue(config.isFeatureEnabled(Features.INTEROP));
+    }
+
     /// @notice Tests that migration respects a pause keyed to an existing per-chain lockbox.
     function test_migrate_oldLockboxPaused_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
@@ -3491,16 +3592,15 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             "shared DisputeGameFactory should be administered by the first chain's ProxyAdmin"
         );
 
-        // Sanity: the shared contracts are bound to the FIRST chain's SystemConfig, which is not
-        // the SystemConfig a chain-2 upgrade is driven by.
+        // Shared contracts use the shared ETHLockbox.
         assertTrue(
             address(chainContracts1.systemConfig) != address(chainContracts2.systemConfig),
             "member chains should have distinct SystemConfigs"
         );
         assertEq(
-            address(sharedAsr.systemConfig()),
-            address(chainContracts1.systemConfig),
-            "shared AnchorStateRegistry should be bound to the first chain's SystemConfig"
+            address(sharedAsr.ethLockbox()),
+            address(sharedLockbox),
+            "shared AnchorStateRegistry should be bound to the shared ETHLockbox"
         );
 
         // The common ProxyAdmin owner owns both chains' ProxyAdmins.
@@ -3535,22 +3635,21 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             "shared DelayedWETH not at target impl"
         );
 
-        // Upgrading a non-first member must not re-point the shared contracts at that member's
-        // SystemConfig — they stay bound to the first chain's SystemConfig set up by migrate().
+        // Upgrading another member preserves the shared contracts.
         assertEq(
-            address(sharedAsr.systemConfig()),
-            address(chainContracts1.systemConfig),
-            "shared AnchorStateRegistry re-pointed to another chain's SystemConfig"
+            address(sharedAsr.ethLockbox()),
+            address(sharedLockbox),
+            "shared AnchorStateRegistry re-pointed away from the shared ETHLockbox"
         );
         assertEq(
-            address(sharedLockbox.systemConfig()),
-            address(chainContracts1.systemConfig),
-            "shared ETHLockbox re-pointed to another chain's SystemConfig"
+            address(sharedLockbox.superchainConfig()),
+            address(chainContracts1.systemConfig.superchainConfig()),
+            "shared ETHLockbox re-pointed to a different SuperchainConfig"
         );
         assertEq(
-            address(sharedWeth.systemConfig()),
-            address(chainContracts1.systemConfig),
-            "shared DelayedWETH re-pointed to another chain's SystemConfig"
+            address(sharedWeth.ethLockbox()),
+            address(sharedLockbox),
+            "shared DelayedWETH re-pointed away from the shared ETHLockbox"
         );
 
         // Per-chain contracts remain bound to their own chain's SystemConfig.
