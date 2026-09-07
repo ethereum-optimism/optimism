@@ -14,10 +14,13 @@ parse_args "$@"
 #############
 kontrol_build() {
   notif "Kontrol Build"
+  local build_command=(kontrol build)
+  # Kontrol flattens contract-qualified imports into its shared main module.
+  if [ "${KONTROL_STRICT:-false}" != true ]; then
+    build_command+=(--require "$lemmas" --module-import "$module")
+  fi
   # shellcheck disable=SC2086
-  run kontrol build \
-    --require $lemmas \
-    --module-import $module \
+  run "${build_command[@]}" \
     --no-metadata \
     ${rekompile} \
     ${regen}

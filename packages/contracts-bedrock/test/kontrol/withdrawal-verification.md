@@ -76,8 +76,10 @@ ordering, Boolean representation and explicit-equality substitution were account
 comparison is diagnostic evidence; acceptance still requires the fresh complete proof graphs.
 
 Strict fixture mode uses the fresh deployment-state diff and `setUp`, enables stack checks,
-uses CANCUN and abstracts gas. It omits `--assume-defined`. Existing pausability lemmas are imported
-only into their original proof contract. Gas adequacy is not established by these obligations.
+uses CANCUN and abstracts gas. It omits `--assume-defined` and builds without the repository's
+pausability lemmas. The pinned compiler flattens contract-qualified imports into a shared main
+module, so each suite is rebuilt separately; only the existing suite imports those lemmas.
+Gas adequacy is not established by these obligations.
 Kontrol's hash/storage-separation assumptions still apply. Record artifact/compiler identities
 with results; the production source classes alone do not identify any particular live deployment.
 Accept a result only when all selected proof graphs pass without pending, failing, or admitted
