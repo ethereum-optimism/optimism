@@ -11,6 +11,8 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @title OPContractsManagerUtilsCaller
 /// @notice OPContractsManagerUtilsCaller is an abstract contract that exists to hide all of the
@@ -21,6 +23,42 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 ///      identical to an "external library" contract. You could use a real external library, but
 ///      this is much easier for humans to read and for us to validate offchain.
 abstract contract OPContractsManagerUtilsCaller {
+    /// @notice Arguments for SystemConfig.initialize, mirroring that function's signature so the
+    ///         encoding lives in one place.
+    struct SystemConfigInitArgs {
+        address owner;
+        uint32 basefeeScalar;
+        uint32 blobbasefeeScalar;
+        bytes32 batcherHash;
+        uint64 gasLimit;
+        address unsafeBlockSigner;
+        IResourceMetering.ResourceConfig resourceConfig;
+        ISystemConfig.Addresses addrs;
+        uint256 l2ChainId;
+        ISuperchainConfig superchainConfig;
+    }
+
+    /// @notice Builds SystemConfig.initialize calldata.
+    /// @param _args The initializer arguments.
+    /// @return Calldata for SystemConfig.initialize.
+    function _encodeSystemConfigInit(SystemConfigInitArgs memory _args) internal pure returns (bytes memory) {
+        return abi.encodeCall(
+            ISystemConfig.initialize,
+            (
+                _args.owner,
+                _args.basefeeScalar,
+                _args.blobbasefeeScalar,
+                _args.batcherHash,
+                _args.gasLimit,
+                _args.unsafeBlockSigner,
+                _args.resourceConfig,
+                _args.addrs,
+                _args.l2ChainId,
+                _args.superchainConfig
+            )
+        );
+    }
+
     /// @notice Address of the OPContractsManagerUtils contract.
     IOPContractsManagerUtils public immutable opcmUtils;
 

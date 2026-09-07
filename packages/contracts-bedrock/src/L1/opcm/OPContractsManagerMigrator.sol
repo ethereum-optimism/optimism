@@ -446,36 +446,19 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             _systemConfig.proxyAdmin(),
             address(_systemConfig),
             _systemConfigImpl,
-            _makeSystemConfigInitArgs(_systemConfig, addrs)
-        );
-    }
-
-    /// @notice Builds SystemConfig initialize calldata from the chain's current values.
-    /// @dev Kept separate from _updateSystemConfigDelayedWETH to avoid stack-too-deep errors.
-    /// @param _systemConfig The system config to read existing values from.
-    /// @param _addrs The L1 contract address set to write.
-    /// @return Calldata for SystemConfig.initialize.
-    function _makeSystemConfigInitArgs(
-        ISystemConfig _systemConfig,
-        ISystemConfig.Addresses memory _addrs
-    )
-        internal
-        view
-        returns (bytes memory)
-    {
-        return abi.encodeCall(
-            ISystemConfig.initialize,
-            (
-                _systemConfig.owner(),
-                _systemConfig.basefeeScalar(),
-                _systemConfig.blobbasefeeScalar(),
-                _systemConfig.batcherHash(),
-                _systemConfig.gasLimit(),
-                _systemConfig.unsafeBlockSigner(),
-                _systemConfig.resourceConfig(),
-                _addrs,
-                _systemConfig.l2ChainId(),
-                _systemConfig.superchainConfig()
+            _encodeSystemConfigInit(
+                SystemConfigInitArgs({
+                    owner: _systemConfig.owner(),
+                    basefeeScalar: _systemConfig.basefeeScalar(),
+                    blobbasefeeScalar: _systemConfig.blobbasefeeScalar(),
+                    batcherHash: _systemConfig.batcherHash(),
+                    gasLimit: _systemConfig.gasLimit(),
+                    unsafeBlockSigner: _systemConfig.unsafeBlockSigner(),
+                    resourceConfig: _systemConfig.resourceConfig(),
+                    addrs: addrs,
+                    l2ChainId: _systemConfig.l2ChainId(),
+                    superchainConfig: _systemConfig.superchainConfig()
+                })
             )
         );
     }

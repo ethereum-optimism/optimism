@@ -843,10 +843,32 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Update the SystemConfig.
-        // SystemConfig initializer is the only one large enough to require a separate function to
-        // avoid stack-too-deep errors.
         _upgrade(
-            _cts.proxyAdmin, address(_cts.systemConfig), impls.systemConfigImpl, _makeSystemConfigInitArgs(_cfg, _cts)
+            _cts.proxyAdmin,
+            address(_cts.systemConfig),
+            impls.systemConfigImpl,
+            _encodeSystemConfigInit(
+                SystemConfigInitArgs({
+                    owner: _cfg.systemConfigOwner,
+                    basefeeScalar: _cfg.basefeeScalar,
+                    blobbasefeeScalar: _cfg.blobBasefeeScalar,
+                    batcherHash: bytes32(uint256(uint160(_cfg.batcher))),
+                    gasLimit: _cfg.gasLimit,
+                    unsafeBlockSigner: _cfg.unsafeBlockSigner,
+                    resourceConfig: _cfg.resourceConfig,
+                    addrs: ISystemConfig.Addresses({
+                        l1CrossDomainMessenger: address(_cts.l1CrossDomainMessenger),
+                        l1ERC721Bridge: address(_cts.l1ERC721Bridge),
+                        l1StandardBridge: address(_cts.l1StandardBridge),
+                        optimismPortal: address(_cts.optimismPortal),
+                        optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
+                        delayedWETH: address(_cts.delayedWETH),
+                        opcm: address(opcmV2)
+                    }),
+                    l2ChainId: _cfg.l2ChainId,
+                    superchainConfig: _cfg.superchainConfig
+                })
+            )
         );
 
         // Enable ETHLockbox before updating the portal.
@@ -1014,48 +1036,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Return contracts as the execution output.
         return _cts;
-    }
-
-    /// @notice Helper for making the SystemConfig initializer arguments. This is the only
-    ///         initializer that needs a helper function because we get stack-too-deep.
-    /// @param _cfg The full config.
-    /// @param _cts The chain contracts.
-    /// @return The SystemConfig initializer arguments.
-    function _makeSystemConfigInitArgs(
-        FullConfig memory _cfg,
-        ChainContracts memory _cts
-    )
-        internal
-        view
-        returns (bytes memory)
-    {
-        // Generate the SystemConfig addresses input.
-        ISystemConfig.Addresses memory addrs = ISystemConfig.Addresses({
-            l1CrossDomainMessenger: address(_cts.l1CrossDomainMessenger),
-            l1ERC721Bridge: address(_cts.l1ERC721Bridge),
-            l1StandardBridge: address(_cts.l1StandardBridge),
-            optimismPortal: address(_cts.optimismPortal),
-            optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
-            delayedWETH: address(_cts.delayedWETH),
-            opcm: address(opcmV2)
-        });
-
-        // Generate the initializer arguments.
-        return abi.encodeCall(
-            ISystemConfig.initialize,
-            (
-                _cfg.systemConfigOwner,
-                _cfg.basefeeScalar,
-                _cfg.blobBasefeeScalar,
-                bytes32(uint256(uint160(_cfg.batcher))),
-                _cfg.gasLimit,
-                _cfg.unsafeBlockSigner,
-                _cfg.resourceConfig,
-                addrs,
-                _cfg.l2ChainId,
-                _cfg.superchainConfig
-            )
-        );
     }
 
     ///////////////////////////////////////////////////////////////////////////
