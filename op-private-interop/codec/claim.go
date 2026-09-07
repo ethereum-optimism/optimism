@@ -1,7 +1,7 @@
-// Package codec defines the version-2 private range claim. Its canonical ABI
+// Package codec defines the version-3 private range claim. Its canonical ABI
 // encoding binds private block identity, derivation inputs, proof bytes, and the
 // publicly available opaque write records. Attested mode requires an empty proof.
-// Old version-1 encodings are deliberately rejected; activation requires a new
+// Old version-1 and stable-tag version-2 encodings are deliberately rejected; activation requires a new
 // projection genesis and matching producer/readers.
 package codec
 
@@ -22,7 +22,7 @@ const (
 	// It is a field of the ABI struct rather than a byte in front of it, so a consumer that got
 	// hold of the value without its framing — out of a log, out of a trace, out of a proof's
 	// public inputs — still knows what it is holding.
-	ClaimVersion uint8 = 2
+	ClaimVersion uint8 = 3
 
 	// EncodedSizeEmptyProof is the minimum encoding with empty proof and writes:
 	// the outer offset, eleven head words, and two dynamic length words.
@@ -135,11 +135,11 @@ type RangeClaim struct {
 	// the public record — which is what makes the claim the read-side authority for every object:
 	// there is no second commitment anywhere that a reader could resolve instead.
 	PrivateDataHash common.Hash
-	// Proof fills the proof slot. It is EMPTY under attested mode (v2), where a non-empty slot is
+	// Proof fills the proof slot. It is EMPTY under attested mode (v3), where a non-empty slot is
 	// refused outright rather than carried. The slot itself is unconditional and is the upgrade
 	// path: a proving system fills it, and nothing else about the wire changes.
 	Proof []byte
-	// Writes is a canonical sorted set of opaque writes, including their last-write block.
+	// Writes is a canonical sorted set of range-scoped public writes, including their last-write block.
 	Writes []writes.Record
 }
 
@@ -147,7 +147,7 @@ type RangeClaim struct {
 type Mode uint8
 
 const (
-	// ModeAttested is the v2 posture: the claim's authority is the operator's signature on the
+	// ModeAttested is the v3 posture: the claim's authority is the operator's signature on the
 	// carrying transaction, there is no proof system, and a non-empty proof slot is therefore a
 	// claim this verifier cannot evaluate. It refuses it. See the package comment.
 	ModeAttested Mode = iota
@@ -273,8 +273,8 @@ func encodeAtVersion(e *RangeClaim, version uint8) ([]byte, error) {
 	return out, nil
 }
 
-// Decode parses a claim in attested mode: exactly version 2, a non-inverted range, canonical
-// ABI form, and an empty proof slot. It is the decoder a v2 verifier wants, and it is what the
+// Decode parses a claim in attested mode: exactly version 3, a non-inverted range, canonical
+// ABI form, and an empty proof slot. It is the decoder a v3 verifier wants, and it is what the
 // zero value of Mode selects.
 func Decode(data []byte) (*RangeClaim, error) { return DecodeMode(data, ModeAttested) }
 

@@ -23,7 +23,7 @@ import (
 // Regenerate with `go test ./op-private-interop/codec -run TestFixtures -update`. Treat any
 // resulting diff in a `valid` case's bytes as a WIRE CHANGE needing a version bump, not as a test
 // fixture that drifted.
-const fixtureDir = "testdata/range-claim-v2"
+const fixtureDir = "testdata/range-claim-v3"
 
 var updateFixtures = flag.Bool("update", false, "regenerate the range-claim fixture corpus")
 
@@ -251,7 +251,7 @@ func buildFixtures(t *testing.T) []fixtureFile {
 		{
 			name: "cadence-300-blocks", kind: kindValid, claim: cadence,
 			desc: "The operating point: one 10-minute cadence at 2 s block time, 300 public blocks, " +
-				"mid-chain. Note it is the same 448 bytes as every other empty-proof claim — v2 " +
+				"mid-chain. Note it is the same 448 bytes as every other empty-proof claim — v3 " +
 				"carries no per-block data, so claim size is independent of range size.",
 		},
 		{
@@ -271,7 +271,7 @@ func buildFixtures(t *testing.T) []fixtureFile {
 			desc: "Well-formed bytes carrying a 65-byte proof slot (the bytes 0x00..0x40, a placeholder " +
 				"for a real proof; 65 is deliberately not a multiple of 32, so this also pins the ABI " +
 				"tail padding). ModeProven decodes it; ModeAttested REFUSES it, which is the standing " +
-				"v2 rule: a verifier with no proof system must not accept a claim whose central " +
+				"v3 rule: a verifier with no proof system must not accept a claim whose central " +
 				"claim it is not equipped to evaluate.",
 		},
 	}
@@ -307,6 +307,7 @@ func buildFixtures(t *testing.T) []fixtureFile {
 		{0x01, "Version 1: the retired version without write records. Forwards-leniency is how a " +
 			"future field addition gets silently misread out of the wrong offsets by something that " +
 			"reports success, so an unrecognised successor is refused as firmly as anything else."},
+		{0x02, "Version 2: retired stable write tags; accepting these would silently miss freshness conflicts."},
 		{0xff, "Version 255: the top of the field. Refused like any other unrecognised version; " +
 			"present so the gate is pinned at both ends of uint8 rather than only near 1."},
 	} {
@@ -363,10 +364,10 @@ func buildFixtures(t *testing.T) []fixtureFile {
 		},
 		{
 			name: "dirty-version-word",
-			desc: "The version word is 0x...0101 instead of 0x...01: correct in its low byte, junk in " +
+			desc: "The version word is 0x...0103 instead of 0x...03: correct in its low byte, junk in " +
 				"the bits above a uint8. Refused, because two readers agreeing on the VALUE while " +
 				"disagreeing about the BYTES is how one transaction becomes two facts. A decoder that " +
-				"masked to the low byte would read this as a perfectly good version 2. (go-ethereum " +
+				"masked to the low byte would read this as a perfectly good version 3. (go-ethereum " +
 				"happens to reject it inside abi.Unpack rather than at the re-encode comparison, which " +
 				"is why the corpus states a refusal CATEGORY and not an error string.)",
 			refusal: refusalNonCanonical,
@@ -573,7 +574,7 @@ func writeFixtures(t *testing.T, cases []fixtureFile) {
 		EncodedBytesEmptyProof: EncodedSizeEmptyProof,
 		MaxProofBytes:          MaxProofSize,
 		MaxEncodedBytes:        MaxEncodedSize,
-		RefusedVersions:        []uint16{0x00, 0x01, 0xff},
+		RefusedVersions:        []uint16{0x00, 0x01, 0x02, 0xff},
 	}
 	for _, c := range cases {
 		index.Cases = append(index.Cases, fixtureCase{

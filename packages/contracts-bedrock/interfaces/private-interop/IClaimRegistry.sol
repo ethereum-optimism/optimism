@@ -13,7 +13,7 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 ///         and the rest of the reference is already derivable from public data; the parent hash was
 ///         the one remaining piece that was not, so it is published rather than derived.
 ///
-/// @custom:field version                   Claim format version. Must be 2 for this registry.
+/// @custom:field version                   Claim format version. Must be 3 for this registry.
 /// @custom:field firstBlock                First public block covered by the range.
 /// @custom:field lastBlock                 Last public block covered by the range.
 /// @custom:field privateTerminalBlockHash  The private chain's block hash at `lastBlock`.
