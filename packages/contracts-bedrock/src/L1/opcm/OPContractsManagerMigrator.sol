@@ -168,12 +168,20 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             saltMixer: "interop salt mixer"
         });
 
-        // Set up the extra instructions to allow all proxy deployments.
+        // Permit deployment of exactly the three proxies this function creates.
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
-            new IOPContractsManagerUtils.ExtraInstruction[](1);
+            new IOPContractsManagerUtils.ExtraInstruction[](3);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
             key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-            data: bytes(Constants.PERMIT_ALL_CONTRACTS_INSTRUCTION)
+            data: bytes("ETHLockbox")
+        });
+        extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+            data: bytes("DisputeGameFactory")
+        });
+        extraInstructions[2] = IOPContractsManagerUtils.ExtraInstruction({
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+            data: bytes("AnchorStateRegistry")
         });
 
         // Deploy the new ETHLockbox.
