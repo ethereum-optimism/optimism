@@ -1120,3 +1120,26 @@ func TestDenyList_MaxDeniedHeight(t *testing.T) {
 	require.True(t, any)
 	require.Equal(t, uint64(100), maxHeight)
 }
+
+func TestDenyListBlocksInRange(t *testing.T) {
+	dl, err := OpenDenyList(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, dl.Close()) })
+	for _, n := range []uint64{1, 10, 1000000} {
+		for _, hash := range []common.Hash{{1}, {2}} {
+			require.NoError(t, dl.Add(n, hash, 0, eth.Bytes32{}, eth.Bytes32{}))
+		}
+	}
+	ids, err := dl.BlocksInRange(10, 1000000)
+	require.NoError(t, err)
+	require.Equal(t, []eth.BlockID{
+		{Number: 10, Hash: common.Hash{1}}, {Number: 10, Hash: common.Hash{2}},
+		{Number: 1000000, Hash: common.Hash{1}}, {Number: 1000000, Hash: common.Hash{2}},
+	}, ids)
+	ids, err = dl.BlocksInRange(11, 999999)
+	require.NoError(t, err)
+	require.Empty(t, ids)
+	ids, err = dl.BlocksInRange(10, 1)
+	require.NoError(t, err)
+	require.Empty(t, ids)
+}

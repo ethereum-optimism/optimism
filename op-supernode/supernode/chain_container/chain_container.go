@@ -713,13 +713,12 @@ func (c *simpleChainContainer) PayloadByNumber(ctx context.Context, number uint6
 	return c.engine.PayloadByNumber(ctx, number)
 }
 
-// DeniedBlocksAtHeight exposes all persisted invalidation identities, rather
-// than selecting an arbitrary latest denial when a height was replaced twice.
-func (c *simpleChainContainer) DeniedBlocksAtHeight(height uint64) ([]common.Hash, error) {
+// DeniedBlocksInRange exposes every persisted denial in an inclusive height range.
+func (c *simpleChainContainer) DeniedBlocksInRange(first, last uint64) ([]eth.BlockID, error) {
 	if c.denyList == nil {
 		return nil, nil
 	}
-	return c.denyList.GetDeniedHashes(height)
+	return c.denyList.BlocksInRange(first, last)
 }
 
 func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, optypes.Receipts, error) {

@@ -276,6 +276,31 @@ func (d *DenyList) GetDeniedHashes(height uint64) ([]common.Hash, error) {
 	return hashes, err
 }
 
+// BlocksInRange returns the sparse denial identities in an inclusive height range.
+func (d *DenyList) BlocksInRange(first, last uint64) ([]eth.BlockID, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var out []eth.BlockID
+	err := d.db.View(func(tx *bolt.Tx) error {
+		cursor := tx.Bucket(denyListBucketName).Cursor()
+		for key, value := cursor.Seek(heightToKey(first)); key != nil; key, value = cursor.Next() {
+			n := binary.BigEndian.Uint64(key)
+			if n > last {
+				break
+			}
+			records, err := decodeDenyRecords(value)
+			if err != nil {
+				return err
+			}
+			for _, record := range records {
+				out = append(out, eth.BlockID{Hash: record.PayloadHash, Number: n})
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
 // GetDeniedRecords returns all denied records at the given block height.
 func (d *DenyList) GetDeniedRecords(height uint64) ([]DenyRecord, error) {
 	d.mu.RLock()

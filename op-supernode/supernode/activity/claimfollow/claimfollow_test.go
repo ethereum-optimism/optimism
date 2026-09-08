@@ -166,8 +166,16 @@ func (f *fakeRendering) set(num uint64, fork string, forkAt uint64, txs ...*type
 	f.byHash[f.blocks[num].env.ExecutionPayload.BlockHash] = f.blocks[num].env
 }
 
-func (f *fakeRendering) DeniedBlocksAtHeight(n uint64) ([]common.Hash, error) {
-	return f.denied[n], nil
+func (f *fakeRendering) DeniedBlocksInRange(first, last uint64) ([]eth.BlockID, error) {
+	var out []eth.BlockID
+	for n, hashes := range f.denied {
+		if n >= first && n <= last {
+			for _, hash := range hashes {
+				out = append(out, eth.BlockID{Hash: hash, Number: n})
+			}
+		}
+	}
+	return out, nil
 }
 func (f *fakeRendering) PayloadByHash(_ context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
 	if env, ok := f.byHash[hash]; ok {

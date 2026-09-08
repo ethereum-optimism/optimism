@@ -91,6 +91,17 @@ the accepted private terminal commitment authenticates the surviving prefix by a
 supernode's durable deny list and retained denied headers reconstruct that information
 after restart. Missing headers or private state stop recovery.
 
+The supernode keeps each claim's observed branch tip and recomputes its surviving
+prefix from canonical history at every completed scan. It does not maintain separate
+revocation, completion or restoration flags. One sparse read of the durable deny list
+also caps recovery before any still-canonical denied block, including a denied claim
+carrier or an ancestor of a later claim, while engine rewind is pending. Denials added after that read become visible on the
+next poll or reset; this RPC is a polled snapshot. A temporary
+safety-label retreat preserves the scan journal so the same branch can advance again.
+LightCL uses the engine controller's local-safe head as its execution cursor and only
+tracks the corresponding public input and any pending build.
+
+
 The replay interval is `(surviving private parent, recovery frontier]`. LightCL
 walks backward from the committed terminal parent to resolve the surviving private
 parent locally. An offset from an older checkpoint alone cannot identify the private
