@@ -20,9 +20,6 @@ const NATIVE_ASSET_LIQUIDITY: Address = address!("420000000000000000000000000000
 const LIQUIDITY_CONTROLLER: Address = address!("420000000000000000000000000000000000002a");
 const PROXY_ADMIN: Address = address!("4200000000000000000000000000000000000018");
 const CLAIM_REGISTRY: Address = address!("420000000000000000000000000000000000002e");
-const PROJECTION_EVENT_EXPORTER: Address = address!("4200000000000000000000000000000000000030");
-const PROJECTION_EVENT_EXPORTER_CODE: &str =
-    include_str!("../../../../../op-private-interop/genesis/bytecode/ProjectionEventExporter.hex");
 const EVENT_REPLAYER: Address = address!("420000000000000000000000000000000000002f");
 const L2_DEV_FEATURE_FLAGS: Address = address!("420000000000000000000000000000000000002d");
 
@@ -73,14 +70,11 @@ pub enum GenesisProjectionError {
     MessengerNotStock,
     /// The projection predeploys are already active: this is a public projection, not a source.
     AlreadyProjected,
-    /// Reserved exporter address is missing its inactive proxy code.
-    ExporterNotReserved,
 }
 
 impl fmt::Display for GenesisProjectionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ExporterNotReserved => f.write_str("projection event exporter address is not an inactive reserved proxy"),
             Self::InteropInactive => {
                 f.write_str("genesis is not a private chain: interop is not active at genesis")
             }
@@ -136,12 +130,6 @@ pub fn project_genesis_from(
     activate_proxy(&mut projected, CLAIM_REGISTRY, bytecode(CLAIM_REGISTRY_CODE));
     activate_proxy(&mut projected, EVENT_REPLAYER, bytecode(EVENT_REPLAYER_CODE));
 
-    activate_proxy(
-        &mut projected,
-        PROJECTION_EVENT_EXPORTER,
-        bytecode(PROJECTION_EVENT_EXPORTER_CODE),
-    );
-
     Ok(projected)
 }
 
@@ -176,18 +164,10 @@ fn validate_private_chain_genesis(genesis: &Genesis) -> Result<(), GenesisProjec
     {
         return Err(GenesisProjectionError::MessengerNotStock);
     }
-    for proxy in [CLAIM_REGISTRY, EVENT_REPLAYER, PROJECTION_EVENT_EXPORTER] {
+    for proxy in [CLAIM_REGISTRY, EVENT_REPLAYER] {
         if storage_at(genesis, proxy, IMPLEMENTATION_SLOT) != B256::ZERO {
             return Err(GenesisProjectionError::AlreadyProjected);
         }
-    }
-    let exporter = genesis.alloc.get(&PROJECTION_EVENT_EXPORTER).and_then(|a| a.code.as_ref());
-    let inbox = genesis
-        .alloc
-        .get(&address!("4200000000000000000000000000000000000022"))
-        .and_then(|a| a.code.as_ref());
-    if exporter.is_none_or(|code| code.is_empty()) || exporter != inbox {
-        return Err(GenesisProjectionError::ExporterNotReserved);
     }
     Ok(())
 }
@@ -293,9 +273,9 @@ mod tests {
         "../../../../../op-private-interop/genesis/testdata/private-chain-genesis.json"
     );
     const PUBLIC_PROJECTION_STATE_ROOT: B256 =
-        b256!("bd33082d50db2285ad57536b8d483d5bab7d5ee73624745a5669aaa49bd09d9f");
+        b256!("88e65cf29ff2b1143db9167bf9ffcb52002722154f500a048855f4f2beacf1a0");
     const PUBLIC_PROJECTION_BLOCK_HASH: B256 =
-        b256!("c13747f1d150fcb8757a00736f81544b6e4543021450717f05b84076ddb2253e");
+        b256!("c581fb8dd0b9faf6bdc2352a57aa1b36a34f3e81863449118d9a85d107b04cbc");
 
     const SUPERCHAIN_ETH_BRIDGE: Address = address!("4200000000000000000000000000000000000024");
     const ETH_LIQUIDITY: Address = address!("4200000000000000000000000000000000000025");
@@ -365,11 +345,11 @@ mod tests {
         let spec = OpChainSpec::from_genesis(project_genesis_from(&private).unwrap());
         assert_eq!(
             spec.genesis_hash(),
-            b256!("8975c07414fd326a8bbe566eab79950453aeac080408e1d9e8b89c7c69c70e7d")
+            b256!("f460f40066130af21bdaf2fcc3d732572c7e5cf225bc9a306342d75773986e04")
         );
         assert_eq!(
             spec.genesis_header().state_root,
-            b256!("cde0070e5ac05fc1a7a1512bf2bb1e1501b5775e35db6b3969dc9a29d34276b4")
+            b256!("d69dd9061d84611d2868393b68813314b2b01027cf6924ceb85ce872530cf9cc")
         );
     }
 
@@ -386,51 +366,13 @@ mod tests {
     }
 
     #[test]
-    fn exporter_address_must_be_an_inactive_reserved_proxy() {
-        let private = private_chain_genesis();
-        assert!(
-            private.alloc[&PROJECTION_EVENT_EXPORTER].code.as_ref().is_some_and(|c| !c.is_empty())
-        );
-        assert_eq!(
-            storage_at(&private, PROJECTION_EVENT_EXPORTER, IMPLEMENTATION_SLOT),
-            B256::ZERO
-        );
-        for code in [None, Some(Bytes::new()), Some(Bytes::from_static(&[0x00]))] {
-            let mut occupied = private.clone();
-            occupied.alloc.get_mut(&PROJECTION_EVENT_EXPORTER).unwrap().code = code;
-            assert_eq!(
-                project_genesis_from(&occupied),
-                Err(GenesisProjectionError::ExporterNotReserved)
-            );
-        }
-        let mut missing = private.clone();
-        missing.alloc.remove(&PROJECTION_EVENT_EXPORTER);
-        assert_eq!(
-            project_genesis_from(&missing),
-            Err(GenesisProjectionError::ExporterNotReserved)
-        );
-        let mut occupied = private;
-        activate_proxy(
-            &mut occupied,
-            PROJECTION_EVENT_EXPORTER,
-            bytecode(PROJECTION_EVENT_EXPORTER_CODE),
-        );
-        assert_eq!(project_genesis_from(&occupied), Err(GenesisProjectionError::AlreadyProjected));
-    }
-
-    #[test]
     fn projection_rewrites_only_the_public_projection_state() {
         let private = private_chain_genesis();
         let projected = project_genesis_from(&private).unwrap();
 
-        for proxy in [
-            L1_BLOCK,
-            L2_TO_L1_MESSAGE_PASSER,
-            L2_TO_L2_MESSENGER,
-            CLAIM_REGISTRY,
-            EVENT_REPLAYER,
-            PROJECTION_EVENT_EXPORTER,
-        ] {
+        for proxy in
+            [L1_BLOCK, L2_TO_L1_MESSAGE_PASSER, L2_TO_L2_MESSENGER, CLAIM_REGISTRY, EVENT_REPLAYER]
+        {
             assert_eq!(
                 storage_at(&projected, proxy, IMPLEMENTATION_SLOT),
                 address_word(code_namespace(proxy))

@@ -1,9 +1,16 @@
 [
   {
+    "bytes": "20",
+    "label": "_lockbox",
+    "offset": 0,
+    "slot": "0",
+    "type": "contract IETHLockbox"
+  },
+  {
     "bytes": "32",
     "label": "registeredEvents",
     "offset": 0,
-    "slot": "0",
+    "slot": "1",
     "type": "mapping(bytes32 => bool)"
   }
 ]

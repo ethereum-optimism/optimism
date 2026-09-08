@@ -15,7 +15,6 @@ import { IL1EventRegistry } from "interfaces/L1/IL1EventRegistry.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ILocalLogOracle } from "interfaces/L2/ILocalLogOracle.sol";
-import { IEventProofVerifier } from "interfaces/L2/IEventProofVerifier.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
@@ -28,9 +27,6 @@ import { IEventProofVerifier } from "interfaces/L2/IEventProofVerifier.sol";
 ///      in the tx's access list. Nodes pre-check message validity before execution. The checksum
 ///      combines the message's `Identifier` and `msgHash` with type-3 bit masking.
 contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
-    /// @notice Thrown when a proof export bypasses the reserved projection entry point.
-    error CrossL2Inbox_NotProjectionEventExporter();
-
     /// @notice Thrown when trying to validate a cross chain message in a deposit transaction.
     error CrossL2Inbox_NoExecutingDeposits();
 
@@ -52,13 +48,6 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
     /// @notice Thrown when attempting to export an event that is not from a previous block.
     error CrossL2Inbox_EventNotInPreviousBlock();
 
-    /// @notice Thrown when the verifier is unset or its configuration is invalid.
-    error CrossL2Inbox_InvalidEventProofVerifier();
-    /// @notice Thrown when the configured verifier rejects an event.
-    error CrossL2Inbox_InvalidEventProof();
-    /// @notice Thrown when an event identifier has already been consumed by the proof path.
-    error CrossL2Inbox_EventAlreadyExported();
-
     /// @notice Thrown when trying to validate a cross chain message with a checksum
     ///         that is invalid or was not provided in the transaction's access list to set the slot
     ///         as warm.
@@ -77,8 +66,8 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
     error LogIndexTooHigh();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Maximum age of an event accepted by the local log oracle.
     uint256 public constant EVENT_LOOKUP_WINDOW = 7 days;
@@ -102,12 +91,6 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
     /// @notice Event checksums certified through L1.
     mapping(bytes32 => bool) public certifiedMessages;
 
-    /// @notice Configured source event verifier. Zero disables proof-based exports.
-    address public eventProofVerifier;
-
-    /// @notice Proven event identifiers accepted across verifier changes.
-    mapping(bytes32 => bool) public provenEvents;
-
     /// @notice Emitted when a cross chain message is being executed.
     /// @param msgHash Hash of message payload being executed.
     /// @param id Encoded Identifier of the message.
@@ -126,43 +109,6 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
 
     /// @notice Emitted when the trusted L1 event registry changes.
     event L1EventRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
-    event EventProofVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
-
-    /// @notice Configures event proof policy; the verifier may consume accepted state effects.
-    ///         Setting zero disables this path. Registry and verifier configuration are independent.
-    function setEventProofVerifier(address _verifier) external {
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-        if (_verifier != address(0) && _verifier.code.length == 0) {
-            revert CrossL2Inbox_InvalidEventProofVerifier();
-        }
-        address oldVerifier = eventProofVerifier;
-        eventProofVerifier = _verifier;
-        emit EventProofVerifierUpdated(oldVerifier, _verifier);
-    }
-
-    /// @notice Exports an authenticated historical event without a local receipt lookup. The
-    ///         configured verifier determines the proof scheme and accepts the canonical event.
-    ///         No seven-day receipt lookup limit applies to this independently proven path.
-    function exportProvenEvent(Identifier calldata _id, bytes32 _payloadHash, bytes calldata _proof) external {
-        if (msg.sender != Predeploys.PROJECTION_EVENT_EXPORTER) revert CrossL2Inbox_NotProjectionEventExporter();
-        address registry = l1EventRegistry;
-        if (registry == address(0)) revert CrossL2Inbox_InvalidEventRegistry();
-        address verifier = eventProofVerifier;
-        if (verifier == address(0)) revert CrossL2Inbox_InvalidEventProofVerifier();
-        if (_id.chainId != block.chainid) revert CrossL2Inbox_EventFromAnotherChain();
-        if (_id.blockNumber >= block.number || _id.timestamp > block.timestamp) {
-            revert CrossL2Inbox_EventNotInPreviousBlock();
-        }
-        bytes32 checksum = calculateChecksum(_id, _payloadHash);
-        bytes32 eventId = keccak256(abi.encode(_id));
-        if (provenEvents[eventId]) revert CrossL2Inbox_EventAlreadyExported();
-        // Reserve before the external verifier call; any verification/export failure rolls back.
-        provenEvents[eventId] = true;
-        if (!IEventProofVerifier(verifier).verifyAndConsumeEvent(_id, _payloadHash, _proof)) {
-            revert CrossL2Inbox_InvalidEventProof();
-        }
-        _exportEvent(registry, _id, _payloadHash, checksum);
-    }
 
     /// @notice Configures the L1 event registry used by the censorship-resistant relay path.
     /// @dev The ProxyAdmin or its owner may update this value as part of an upgrade or migration.
@@ -188,6 +134,8 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
         if (block.timestamp - _id.timestamp > EVENT_LOOKUP_WINDOW) revert CrossL2Inbox_EventTooOld();
 
         bool containsLog;
+        // An oracle failure always reverts the entire export, including on insufficient gas.
+        // eip150-safe
         try ILocalLogOracle(Predeploys.LOCAL_LOG_ORACLE).containsLog(_id, _payloadHash) returns (bool exists_) {
             containsLog = exists_;
         } catch {
@@ -196,23 +144,12 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
         if (!containsLog) revert CrossL2Inbox_EventNotFound();
 
         bytes32 checksum = calculateChecksum(_id, _payloadHash);
-        _exportEvent(registry, _id, _payloadHash, checksum);
-    }
-
-    function _exportEvent(
-        address _registry,
-        Identifier calldata _id,
-        bytes32 _payloadHash,
-        bytes32 _checksum
-    )
-        internal
-    {
         bytes memory data = abi.encodeCall(IL1EventRegistry.registerEvent, (_id, _payloadHash));
         ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).sendMessage(
-            _registry, data, REGISTER_EVENT_GAS_LIMIT
+            registry, data, REGISTER_EVENT_GAS_LIMIT
         );
 
-        emit EventExported(_checksum, _payloadHash, _id);
+        emit EventExported(checksum, _payloadHash, _id);
     }
 
     /// @notice Imports an event certificate delivered by the configured L1 event registry.

@@ -1,8 +1,6 @@
-> **Current wire update:** [Write publication](WRITES.md) defines claim format version 3,
-> which appends public write records while retaining operator-attested verification.
-> Historical references below to “v2 proven mode” describe a future proof mode, not this wire version.
-
 # Private Interop — the design
+
+Current batch/deposit behavior is described in [BATCHES.md](BATCHES.md).
 
 **Status:** Historical design (2026-08-30 through 2026-09-01). The current ETH funding, native
 bridge permissions, messenger deposit policy and NetChef artifact flow are specified in

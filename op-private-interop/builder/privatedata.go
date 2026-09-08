@@ -30,8 +30,9 @@ import (
 // derivation version byte, then stock channel frames over one span batch of the private blocks,
 // with the private chain's own transactions in them. Not a bespoke archive format. The private
 // chain is a real OP Stack chain, so the one description of it that stock software can consume is
-// the one stock software writes, and a reader holding this object plus the private genesis can
-// reproduce the private chain with no code of ours at all.
+// the one stock software writes. A reader holding this object, the private genesis/configuration
+// and canonical L1 headers and receipts can reproduce the private chain with stock derivation.
+// Deposit payloads come from L1; they are not encoded in the span-batch object.
 //
 //	object = 0x00 ‖ frame₀ ‖ frame₁ ‖ …
 //

@@ -91,7 +91,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
-	"github.com/ethereum-optimism/optimism/op-private-interop/writes"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -188,11 +187,9 @@ type ClaimInput struct {
 	// COMMITMENT, not a pointer. Nothing publishes the object — the bytes are hashed and dropped,
 	// and they reach every legitimate reader over the operator's private p2p network.
 	PrivateDataHash common.Hash
-	// Proof is empty in attested mode, where the registry refuses a non-empty slot. In proven mode it attests
+	// Proof is empty in v1, where the registry refuses a non-empty slot. In proven mode it attests
 	// the claim series that follows it in the same block.
 	Proof []byte
-	// Writes contains stable private RPC records; Build scopes them to the public range.
-	Writes []writes.Record
 }
 
 // BuiltRange is everything the batcher needs to post one cadence.
@@ -263,7 +260,6 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 		DepSetHash:       r.Claim.DepSetHash,
 		PrivateDataHash:  r.Claim.PrivateDataHash,
 		Proof:            r.Claim.Proof,
-		Writes:           writes.Publish(first.Number, last.Number, r.Claim.Writes),
 	}
 	if claim.PrivateTerminalBlockHash == (common.Hash{}) {
 		// A zero hash means the range's blocks were built without their private identity, which

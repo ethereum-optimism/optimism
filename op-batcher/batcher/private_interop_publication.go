@@ -78,7 +78,7 @@ func (l *BatchSubmitter) publicationCursor(ctx context.Context, status *eth.Sync
 }
 
 // These helpers run under channelMgrMutex, like the channel encoder. Discard
-// prepared receipts/writes when their blocks are pruned without being encoded.
+// prepared receipts when their blocks are pruned without being encoded.
 func (l *BatchSubmitter) forgetPreparedBlocks(blocks []SizedBlock) {
 	if encoder, ok := l.BlockEnricher.(*PrivateInteropEncoder); ok {
 		hashes := make([]common.Hash, len(blocks))
