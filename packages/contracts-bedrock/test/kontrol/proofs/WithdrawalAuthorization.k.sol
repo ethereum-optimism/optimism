@@ -43,15 +43,19 @@ contract WithdrawalGame_Harness {
 
 /// @notice Normal game reports for proving obligations; game resolution itself remains upstream.
 contract WithdrawalProofGame_Harness {
-    Claim public immutable rootClaim;
-    GameType public immutable gameType;
-    Claim private immutable perChainRoot;
-    uint256 private immutable chainId;
+    Claim public rootClaim;
+    GameType public gameType;
+    Claim private perChainRoot;
+    uint256 private chainId;
+    bool private configured;
     Timestamp public resolvedAt;
     GameStatus public status;
     bool public constant wasRespectedGameTypeWhenCreated = true;
 
-    constructor(Claim _outputRoot, uint256 _chainId, uint32 _gameType) {
+    /// @notice Configure once immediately after deployment, keeping symbolic values out of code.
+    function configure(Claim _outputRoot, uint256 _chainId, uint32 _gameType) external {
+        require(!configured);
+        configured = true;
         perChainRoot = _outputRoot;
         chainId = _chainId;
         gameType = GameType.wrap(_gameType);
@@ -402,7 +406,8 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         returns (WithdrawalProofGame_Harness candidate)
     {
         vm.warp(1 days);
-        candidate = new WithdrawalProofGame_Harness(Claim.wrap(_claim), _candidateChainId, _gameType);
+        candidate = new WithdrawalProofGame_Harness();
+        candidate.configure(Claim.wrap(_claim), _candidateChainId, _gameType);
         bytes32 uuid = keccak256(abi.encode(candidate.gameType(), candidate.rootClaim(), abi.encode(uint256(1))));
         bytes32 registration = bytes32(
             (uint256(GameType.unwrap(candidate.gameType())) << 224) | (uint256(1 days) << 160)
