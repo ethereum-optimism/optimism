@@ -50,14 +50,14 @@ module WITHDRAWAL-COPY-LOOP
       <program> {literal} </program>
       <jumpDests> #computeValidJumpDests({literal}) </jumpDests>
       <pc> {head} => {end} </pc>
-      <wordStack> (I => END) : SRC : DEST : LENGTH : WS </wordStack>
+      <wordStack> (I => ?FINALINDEX) : SRC : DEST : LENGTH : WS </wordStack>
       <localMem>
         LM [ DEST := #range(LM, SRC, I) ]
-          => LM [ DEST := #range(LM, SRC, END) ]
+          => LM [ DEST := #range(LM, SRC, ?FINALINDEX) ]
       </localMem>
       <memoryUsed>
         (#if I ==Int 0 #then MU #else maxInt(MU, (DEST +Int I +Int 31) /Int 32) #fi)
-          => (#if END ==Int 0 #then MU #else maxInt(MU, (DEST +Int END +Int 31) /Int 32) #fi)
+          => (#if ?FINALINDEX ==Int 0 #then MU #else maxInt(MU, (DEST +Int ?FINALINDEX +Int 31) /Int 32) #fi)
       </memoryUsed>
       <gas> #gas(G) => #gas(?FINALGAS) </gas>
       <useGas> true </useGas>
@@ -78,6 +78,7 @@ module WITHDRAWAL-COPY-LOOP
        andBool #sizeWordStack(WS, 4) <Int 1024
        andBool #sizeWordStack(WS, 5) <Int 1024
        andBool #sizeWordStack(WS, 6) <Int 1024
+      ensures END <=Int ?FINALINDEX andBool ?FINALINDEX <=Int END
       [circularity]
 endmodule
 ''')
