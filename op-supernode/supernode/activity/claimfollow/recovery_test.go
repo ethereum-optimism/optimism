@@ -58,7 +58,7 @@ func TestPartialClaimRecoverySurvivesRestart(t *testing.T) {
 				} else {
 					require.NotNil(t, status.Recovery.Prefix)
 					require.Equal(t, invalidated-1, status.Recovery.Prefix.Last.Number)
-					require.Equal(t, privHash(8), status.Recovery.Prefix.Terminal.Hash)
+					require.Equal(t, eth.BlockID{Hash: privHash(7), Number: 7}, status.Recovery.Prefix.Parent)
 				}
 			}
 			check(h.f)

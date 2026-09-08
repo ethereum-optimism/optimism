@@ -86,10 +86,23 @@ identify inputs and are never used as private forkchoice hashes.
 Local-safe execution, cross-safety and finality remain separate. The adapter maps the
 projection's safety frontiers through the authenticated private ancestry. A projection
 reorg revokes affected private checkpoints; finalized private history cannot be revoked.
-For a claim whose carrier survives but whose suffix is replaced, the original private
-terminal commitment authenticates the surviving prefix by hash-linked ancestry. The
+For a claim whose carrier survives but whose suffix is replaced, the parent hash in
+the accepted private terminal commitment authenticates the surviving prefix by ancestry. The
 supernode's durable deny list and retained denied headers reconstruct that information
 after restart. Missing headers or private state stop recovery.
+
+The replay interval is `(surviving private parent, recovery frontier]`. LightCL
+walks backward from the committed terminal parent to resolve the surviving private
+parent locally. An offset from an older checkpoint alone cannot identify the private
+branch. The invalidated terminal header is unnecessary: the parent hash is itself
+part of the operator's attestation, under the same trust policy as the rest of the
+claim. A future proof verifier must bind that parent to the proven private execution.
+Offsets are implicit in the endpoint heights, so no separate offset field is needed.
+
+The experimental claimed-follow RPC prefix now carries `parent` (the committed private
+terminal parent's block ID) and `last` (the surviving projection reference), replacing
+`terminal` and `terminal_parent`. Run matching supernode and LightCL builds when upgrading;
+the batch commitment format is unchanged.
 
 Private batchers require `--private-interop.public-projection-rollup-rpc` alongside the
 projection execution RPC. The publication cursor uses the projection's local-safe head
