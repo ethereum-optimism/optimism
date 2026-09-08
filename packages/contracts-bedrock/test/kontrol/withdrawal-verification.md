@@ -139,6 +139,10 @@ both inequalities. The exact byte-copy and memory-expansion postconditions use t
 The final memory-size counter is bound before checking both inequalities against its exact
 expansion formula. This avoids matching two conditional expressions as cell patterns; it does
 not permit a different counter value or omit the memory-expansion obligation.
+For a nonempty prefix, the counter uses KEVM's native memory-expansion function at the
+last copied word. Its end offset is `DEST + I`, so the definition gives the same maximum
+of the original counter and `ceil((DEST + I) / 32)`. The empty prefix retains the original
+counter. This representation allows KEVM's existing nested-update rules to combine writes.
 Its specification and native graph are archived under `kout-proofs/copy-loop`.
 The runner also stops after basic-block bookkeeping, exposing the claim's plain `#execute`
 state at loop entry and exit; jump-only cut points stop before that bookkeeping finishes.

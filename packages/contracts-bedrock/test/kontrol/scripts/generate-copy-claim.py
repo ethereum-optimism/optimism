@@ -51,13 +51,15 @@ def render_claim(name, step=False):
     # The real decoder must reach this entry; JUMPDEST still executes normally.
     control = "(#next [ JUMPDEST ] ~> #execute => #execute)" if step else "#execute => #execute"
     final_index = "I +Int 32" if step else "?FINALINDEX"
-    memory_before = "MU" if step else "(#if I ==Int 0 #then MU #else maxInt(MU, (DEST +Int I +Int 31) /Int 32) #fi)"
+    # The last copied word has the greatest accessed end offset. Keeping its
+    # native expansion term permits the existing nested-update rules to apply.
+    memory_before = "MU" if step else "(#if I ==Int 0 #then MU #else #memoryUsageUpdate(MU, DEST +Int I -Int 32, 32) #fi)"
     memory_after = "#memoryUsageUpdate(MU, I +Int DEST, 32)" if step else "?FINALMEMORYUSED"
     extra_requires = "       andBool I <Int LENGTH\n" if step else ""
     ensures = "" if step else """      ensures END <=Int ?FINALINDEX andBool ?FINALINDEX <=Int END
        andBool ?FINALMEMORYUSED <=Int
-         (#if ?FINALINDEX ==Int 0 #then MU #else maxInt(MU, (DEST +Int ?FINALINDEX +Int 31) /Int 32) #fi)
-       andBool (#if ?FINALINDEX ==Int 0 #then MU #else maxInt(MU, (DEST +Int ?FINALINDEX +Int 31) /Int 32) #fi)
+         (#if ?FINALINDEX ==Int 0 #then MU #else #memoryUsageUpdate(MU, DEST +Int ?FINALINDEX -Int 32, 32) #fi)
+       andBool (#if ?FINALINDEX ==Int 0 #then MU #else #memoryUsageUpdate(MU, DEST +Int ?FINALINDEX -Int 32, 32) #fi)
          <=Int ?FINALMEMORYUSED
 """
     attributes = "" if step else (
