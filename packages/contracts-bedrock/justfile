@@ -193,16 +193,16 @@ test-withdrawal-authorization:
     WithdrawalAuthorizationKontrol.prove_checkWithdrawal_eligible_succeeds \
     WithdrawalAuthorizationKontrol.prove_checkWithdrawal_equivalence \
     WithdrawalAuthorizationKontrol.prove_finalizeWithdrawal_eligible_succeeds \
-    WithdrawalAuthorizationKontrol.prove_finalizeWithdrawal_ineligible_reverts \
+    WithdrawalAuthorizationKontrol.prove_finalize_ineligible \
     WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_eligible_succeeds \
     WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_equivalence \
     WithdrawalAuthorizationKontrol.prove_proveAndFinalize_eligible_succeeds \
-    WithdrawalAuthorizationKontrol.prove_proveWithdrawal_recordTransition_succeeds
+    WithdrawalAuthorizationKontrol.prove_record
 
 # Temporary focused caller diagnostic; does not validate the full suite.
 test-withdrawal-authorization-caller:
   KONTROL_STRICT=true KONTROL_CALLER_ONLY=true KONTROL_LOG_DIR=test/kontrol/logs/withdrawal ./test/kontrol/scripts/run-kontrol.sh container \
-    WithdrawalAuthorizationKontrol.prove_proveWithdrawal_recordTransition_succeeds
+    WithdrawalAuthorizationKontrol.prove_record
 
 # Runs contract coverage.
 coverage: build-go-ffi

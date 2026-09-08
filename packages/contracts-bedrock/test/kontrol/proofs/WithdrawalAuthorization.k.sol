@@ -147,7 +147,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
 
     /// @notice Neither finalizer can commit when the exact withdrawal's selected record is ineligible.
     ///         The dynamic bytes field has symbolic length; no concrete length annotation is used.
-    function prove_finalizeWithdrawal_ineligible_reverts(
+    function prove_finalize_ineligible(
         AuthorizationCase memory _case,
         Types.WithdrawalTransaction memory _tx,
         address _caller,
@@ -272,7 +272,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
     /// @notice Proving binds the output tuple and replaces only the selected record after acceptance.
     ///         Arbitrary encoded bytes avoid Kontrol's fixed default length for bytes[] inputs.
     ///         Trie membership soundness is a separate obligation, not assumed here.
-    function prove_proveWithdrawal_recordTransition_succeeds(
+    function prove_record(
         ProvingCase memory _case,
         Types.WithdrawalTransaction memory _tx,
         Types.OutputRootProof memory _outputRoot,

@@ -54,7 +54,7 @@ control. The factory mapping and Portal proof record are installed directly at d
 component result must not be labeled proof of authentic withdrawals.
 
 The finalizer obligations under development connect this component to both finalization entry points.
-`prove_finalizeWithdrawal_ineligible_reverts` uses the canonical hash of every withdrawal field,
+`prove_finalize_ineligible` uses the canonical hash of every withdrawal field,
 an arbitrary caller and proof submitter, and a symbolic choice of entry point. Its rejection premise
 uses the independent eligibility expression above; the finalizer executes its actual checks.
 The separate equivalence obligation compares `checkWithdrawal` with that same expression, avoiding
@@ -82,7 +82,7 @@ Game reports and factory registration remain fixture preconditions. The single-n
 concrete acceptance example, not a bound on the required universal inclusion theorem or a proof
 of protocol-wide history safety. This obligation has no proof result yet.
 
-`prove_proveWithdrawal_recordTransition_succeeds` is the general record-update obligation under
+`prove_record` is the general record-update obligation under
 the registered game-report fixture above. The withdrawal tuple, output tuple, candidate output claim,
 submitter, prior record, full `uint256` proving time, `uint32` game type and encoded witness are symbolic.
 The fixture independently classifies types 4, 5, 7, 9 and 10 as super games; other types use legacy roots.
