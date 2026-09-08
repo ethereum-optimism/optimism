@@ -197,7 +197,9 @@ test-withdrawal-authorization:
     WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_eligible_succeeds \
     WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_equivalence \
     WithdrawalAuthorizationKontrol.prove_proveAndFinalize_eligible_succeeds \
-    WithdrawalAuthorizationKontrol.prove_record
+    WithdrawalAuthorizationKontrol.prove_record \
+    WithdrawalFactorySelectionKontrol.prove_factorySelection_witness_succeeds \
+    WithdrawalFactorySelectionKontrol.prove_factorySelection_equivalence
 
 # Temporary focused caller diagnostic; does not validate the full suite.
 test-withdrawal-authorization-caller:

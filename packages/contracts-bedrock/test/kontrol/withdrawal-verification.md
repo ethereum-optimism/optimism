@@ -112,6 +112,20 @@ stay within the pinned compiler's stack limit. Earlier proof results do not vali
 This obligation is unproved and does not establish trie-verifier soundness: acceptance-to-membership
 and composition across repeated proving/deletion transitions remain required separately.
 
+`WithdrawalFactorySelectionKontrol` checks the actual factory proxy's `gameAtIndex` over
+an arbitrary `uint256` index and symbolic application storage, with its deployed implementation
+pointer restored. It reads the array length and selected packed word from that same state,
+using modular slot addition. The call must succeed exactly for an index below the length and
+return the word's independent 32/64/160-bit field decomposition. It uses `STATICCALL`, which
+prevents storage writes through the proxy and its dependencies. A concrete-gas witness selects
+index one from two distinct entries and rejects index two.
+
+No candidate address or index bound is assumed. Restoring the current implementation after
+`symbolicStorage` does not restore the original-storage map; this read-only theorem makes no
+claim about write refunds or upgrades. Native symbolic-storage and input constraints still need
+auditing. These obligations are unproved. They do not establish the Portal's use of that selected
+candidate, factory append preservation, or the record fixture's correspondence beyond index zero.
+
 ## Reproduction
 
 Use pinned Foundry/Kontrol versions and a clean proof output directory. From `packages/contracts-bedrock`, run:
