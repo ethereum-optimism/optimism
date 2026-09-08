@@ -77,13 +77,13 @@ kontrol_prove() {
         --no-log-rewrites --kore-rpc-command "$rpc_command"
       )
       run "${copy_command[@]}" --reinit --fast-check-subsumption \
-        --claim WITHDRAWAL-COPY-LOOP.word-copy-step || copy_status=$?
+        --claim WITHDRAWAL-COPY-LOOP.word-copy-append-step || copy_status=$?
       if [ "$copy_status" -eq 0 ]; then
         run python3 test/kontrol/scripts/check-copy-steps.py kout-proofs/copy-loop || copy_status=$?
       fi
       if [ "$copy_status" -eq 0 ]; then
         # Reuse only the just-verified step; --reinit here would invalidate the gate.
-        run "${copy_command[@]}" --claim WITHDRAWAL-COPY-LOOP.word-copy \
+        run "${copy_command[@]}" --claim WITHDRAWAL-COPY-LOOP.word-copy-append \
           --direct-subproof-rules || copy_status=$?
       fi
       if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then

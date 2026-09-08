@@ -7,7 +7,7 @@ from pyk.kast.prelude.ml import is_bottom, is_top
 from pyk.proof.reachability import APRProof
 
 root = Path(sys.argv[1])
-expected = {"WITHDRAWAL-COPY-LOOP.word-copy-step"}
+expected = {"WITHDRAWAL-COPY-LOOP.word-copy-append-step"}
 metadata = list(root.rglob("proof.json"))
 if len(metadata) != 1 or {path.parent.name for path in metadata} != expected:
     raise SystemExit("Expected exactly one independent copy-step graph")

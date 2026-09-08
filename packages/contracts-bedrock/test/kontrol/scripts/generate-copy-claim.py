@@ -1,4 +1,4 @@
-"""Generate an unproved word-copy claim from the exact compiled runtime.
+"""Generate an unproved append-copy claim from the exact compiled runtime.
 
 This emits a claim, never a rewrite rule. Its applicability conditions must be
 established by any caller before an independently proved result can be used.
@@ -61,7 +61,7 @@ def render_claim(name, step=False):
          <=Int ?FINALMEMORYUSED
 """
     attributes = "" if step else (
-        "      [circularity, depends(WITHDRAWAL-COPY-LOOP.word-copy-step)]\n"
+        "      [circularity, depends(WITHDRAWAL-COPY-LOOP.word-copy-append-step)]\n"
     )
     return f'''    claim [{name}]:
       <k> {control} ... </k>
@@ -70,8 +70,8 @@ def render_claim(name, step=False):
       <pc> {head} => {head if step else end} </pc>
       <wordStack> (I => {final_index}) : SRC : DEST : LENGTH : WS </wordStack>
       <localMem>
-        LM [ DEST := #range(LM, SRC, I) ]
-          => LM [ DEST := #range(LM, SRC, {final_index}) ]
+        LM +Bytes #range(LM, SRC, I)
+          => LM +Bytes #range(LM, SRC, {final_index})
       </localMem>
       <memoryUsed>
         {memory_before}
@@ -89,7 +89,7 @@ def render_claim(name, step=False):
        andBool 0 <=Int DEST andBool DEST <Int 2 ^Int 256
        andBool SRC +Int END <=Int DEST
        andBool DEST +Int END <=Int 2 ^Int 256
-       andBool DEST <=Int lengthBytes(LM)
+       andBool DEST ==Int lengthBytes(LM)
        andBool 0 <=Int MU
        andBool #sizeWordStack(WS) <=Int 1017
        andBool #sizeWordStack(WS, 3) <Int 1024
@@ -98,10 +98,10 @@ def render_claim(name, step=False):
        andBool #sizeWordStack(WS, 6) <Int 1024
 {extra_requires}{ensures}{attributes}'''
 
-# Keep the step's initial memory in the same form as the full loop. Case-specific
-# normalization into concatenations obstructs matching the completed summary.
-args.output.write_text(header + render_claim("word-copy") + "\n" +
-                       render_claim("word-copy-step", step=True) +
+# Both claims append to the same original buffer. Callers must establish this
+# layout; this helper does not cover copies that overwrite existing memory.
+args.output.write_text(header + render_claim("word-copy-append") + "\n" +
+                       render_claim("word-copy-append-step", step=True) +
                        "endmodule\n")
 print(json.dumps({"artifact": str(args.artifact), "claim": str(args.output),
                   "head": head, "exit": end, "jumpBytes": width,

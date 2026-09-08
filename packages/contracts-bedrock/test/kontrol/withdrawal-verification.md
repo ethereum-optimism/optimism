@@ -121,7 +121,7 @@ initialization or unfinished first step may still leave no graph; absence is not
 Before these methods, strict mode proves an independent word-copy step, checks its native
 graph, then attempts the full loop with that completed dependency. Each phase has a 15-minute
 timeout and uses the exact fixture runtime. The generator requires the complete opcode loop and its matching
-jump destinations. The claim covers a symbolic prefix copied into disjoint memory, tracks memory
+jump destinations. The claim covers a symbolic prefix appended to the original memory buffer, tracks memory
 expansion, and stops before tail clearing. It uses symbolic infinite gas and leaves the final gas
 formula unspecified, so it supplies no gas bound and cannot apply to the concrete-gas witnesses.
 It explicitly enables stack checks, matching the strict caller model and the EVM stack limit;
@@ -170,22 +170,26 @@ with results; the production source classes alone do not identify any particular
 Accept a result only when all selected proof graphs pass without pending, failing, or admitted
 obligations and the acceptance witness passes. Compilation and JUnit alone are insufficient.
 
-The current branch temporarily dispatches `test-withdrawal-authorization-caller` to capture
+The caller diagnostic `test-withdrawal-authorization-caller` captures
 the record-transition caller's actual frontier and memory layout. `KONTROL_CALLER_ONLY=true`
 requires strict mode, excludes copy-only mode, skips helper proofs and bounds the selected
 Solidity proof plus setup to 15 minutes. It adds no lemma or input assumption. Expected native
 coverage is the record-transition method and its setup; this is not full-suite evidence.
 
-The separate copy-loop diagnostic uses `KONTROL_COPY_ONLY=true`. It first selects an independent, non-circular one-iteration claim
-covering every continuing iteration, without a memory-size case restriction. It requires the
-exact merged byte copy and one-step memory expansion, with no dependency on the full loop.
-Keeping the initial memory expression unspecialized avoids case-specific concatenation patterns
-in the generated summary. The step starts after decoding the loop's `JUMPDEST`, before its
+The current branch temporarily dispatches the copy-loop diagnostic using `KONTROL_COPY_ONLY=true`.
+It first selects the independent, non-circular `word-copy-append-step` claim. Both this step and
+the full `word-copy-append` claim require `DEST == lengthBytes(LM)`: each iteration appends to
+the original buffer plus the already-copied prefix. They require the exact merged byte copy
+and memory expansion. The step has no dependency on the full loop.
+The saved caller graph shows this layout at its first copy, but machine-checked composition
+must still establish it and every other helper premise. Other layouts remain separate obligations;
+the withdrawal theorem's inputs must not be restricted to make the helper apply.
+The step starts after decoding the loop's `JUMPDEST`, before its
 checks, gas charge and execution.
 The diagnostic enables KEVM's optional fast subsumption filter: a different control cell skips
 the full target comparison and continues execution; it does not establish a successful cover.
 Later composition must reach this entry through the actual decoder and discharge every premise.
-The full-loop entry, all input bounds, and all exact memory and index postconditions are unchanged.
+The full-loop entry, length and index bounds, and exact copying requirement are retained.
 The step memory counter spells the offset as `I + DEST`, matching the executed term; this is
 integer addition, so commuting the operands preserves the exact counter requirement.
 This mode requires strict mode and preserves failure status. It uses one worker and a
@@ -196,7 +200,7 @@ digests and saved graphs, without `--reinit`. Verify that it reuses the passing 
 Dependency scheduling alone does not check success and cannot replace this explicit gate.
 The expected final coverage is the completed step plus the full-loop graph. A missing or
 unfinished graph is incomplete. This diagnostic does not run the Solidity methods.
-The full-loop logical body is unchanged; its dependency must apply through the real
-decoder and satisfy all their premises. Step passes alone are not full-loop or full-suite evidence.
+The full loop's dependency must apply through the real decoder and satisfy all its premises.
+Step passes alone are not full-loop or full-suite evidence.
 Before PR readiness, restore the CI command to `test-kontrol-no-build` without that variable
 and verify the original suite, every withdrawal obligation, and the independent helper.
