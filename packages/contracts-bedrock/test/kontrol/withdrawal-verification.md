@@ -169,10 +169,15 @@ with results; the production source classes alone do not identify any particular
 Accept a result only when all selected proof graphs pass without pending, failing, or admitted
 obligations and the acceptance witness passes. Compilation and JUnit alone are insufficient.
 
-The current branch temporarily dispatches a copy-loop-only CI diagnostic with
-`KONTROL_COPY_ONLY=true` to publish its graph before the longer Solidity phase. This mode
-requires strict mode and preserves the helper's failure status. It is not full-suite evidence.
-The helper-only run uses the same 10,000-iteration budget and 15-minute timeout as the integrated
-helper attempt. A passed exit implication or a partially explored loop is not a completed helper.
+The current branch temporarily dispatches a copy-step CI diagnostic with
+`KONTROL_COPY_ONLY=true`. It selects three independent, non-circular one-iteration claims,
+covering writes after, across, or within the original memory buffer's end. These disjoint cases
+cover the full continuing-iteration domain. Each requires the exact merged byte copy and
+one-step memory expansion. No claim is imported as a summary or dependency.
+This mode requires strict mode and preserves failure status. It uses three workers with a shared
+15-minute timeout and a 10,000-iteration budget per claim. Its expected coverage is exactly three
+step graphs; it does not run the full loop or Solidity methods. The integrated mode still selects
+the unchanged full-loop claim with one worker. Passing steps must be audited and composed before
+they can support the full loop; step passes alone are not a completed helper or full-suite evidence.
 Before PR readiness, restore the CI command to `test-kontrol-no-build` without that variable
 and verify the original suite, every withdrawal obligation, and the independent helper.
