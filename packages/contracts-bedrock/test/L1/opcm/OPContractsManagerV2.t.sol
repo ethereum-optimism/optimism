@@ -1968,8 +1968,21 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests lockbox deployment permission and first activation without requiring a fork.
     function test_upgrade_missingLockbox_succeeds() public {
+        _testUpgradeMissingLockbox(false);
+    }
+
+    /// @notice Tests that a CGT chain without a lockbox can upgrade without migrating portal ETH.
+    function test_upgrade_missingLockboxCGT_succeeds() public {
+        _testUpgradeMissingLockbox(true);
+    }
+
+    /// @notice Tests first lockbox activation and repeat upgrades for ETH and CGT chains.
+    /// @param _useCustomGasToken Whether the chain uses a custom gas token.
+    function _testUpgradeMissingLockbox(bool _useCustomGasToken) internal {
+        deployConfig.useCustomGasToken = _useCustomGasToken;
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
         _setLegacyLockboxState(cts.systemConfig, cts.optimismPortal);
+        assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
         vm.deal(address(cts.optimismPortal), 1 ether);
 
         IOPContractsManagerV2.UpgradeInput memory input;
@@ -2006,9 +2019,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertNotEq(address(lockbox), address(0));
         assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
         assertFalse(cts.systemConfig.isFeatureEnabled(Features.INTEROP));
+        assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
         assertTrue(lockbox.authorizedPortals(cts.optimismPortal));
-        assertEq(address(cts.optimismPortal).balance, 0);
-        assertEq(address(lockbox).balance, 1 ether);
+        assertEq(address(cts.optimismPortal).balance, _useCustomGasToken ? 1 ether : 0);
+        assertEq(address(lockbox).balance, _useCustomGasToken ? 0 : 1 ether);
 
         // Repeating the upgrade reuses the lockbox and does not migrate portal liquidity again.
         vm.deal(address(cts.optimismPortal), 2 ether);
@@ -2016,8 +2030,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         (success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
         assertTrue(success, "repeat upgrade failed");
         assertEq(address(cts.optimismPortal.ethLockbox()), address(lockbox));
+        assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
         assertEq(address(cts.optimismPortal).balance, 2 ether);
-        assertEq(address(lockbox).balance, 1 ether);
+        assertEq(address(lockbox).balance, _useCustomGasToken ? 0 : 1 ether);
     }
 
     /// @notice Tests that the deploy function succeeds and passes standard validation.
