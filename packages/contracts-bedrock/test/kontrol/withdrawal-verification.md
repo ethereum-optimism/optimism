@@ -126,6 +126,8 @@ formula unspecified, so it supplies no gas bound and cannot apply to the concret
 It explicitly enables stack checks, matching the strict caller model and the EVM stack limit;
 the proof does not quantify over Kontrol's optional stack-check disabling configuration.
 Its specification and native graph are archived under `kout-proofs/copy-loop`.
+The runner also stops after basic-block bookkeeping, exposing the claim's plain `#execute`
+state at loop entry and exit; jump-only cut points stop before that bookkeeping finishes.
 CI attempts both this claim and the Solidity methods; either failure fails the job.
 This claim is under development and is not imported as an execution summary. Any later composition
 must audit the native guarded circularity: the induction hypothesis becomes available only after

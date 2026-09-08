@@ -62,7 +62,8 @@ kontrol_prove() {
       --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop \
       --spec-module WITHDRAWAL-COPY-LOOP -I "$foundry_include" --reinit --workers 1 \
       --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0 \
-      --break-on-jump --break-on-jumpi --no-log-rewrites --kore-rpc-command "$rpc_command" || copy_status=$?
+      --break-on-jump --break-on-jumpi --break-on-basic-blocks \
+      --no-log-rewrites --kore-rpc-command "$rpc_command" || copy_status=$?
     if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then
       notif "COPY-ONLY DIAGNOSTIC: exit=$copy_status; Solidity obligations were not run"
       return "$copy_status"
