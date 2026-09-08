@@ -128,31 +128,36 @@ after a timeout. A timeout is incomplete, never a proof pass.
 Strict mode saves after each completed proof step and logs initialization stages. An interrupted
 initialization or unfinished first step may still leave no graph; absence is not evidence of a pass.
 
-Before these methods, strict mode proves an independent word-copy step, checks its native
-graph, then attempts the full loop with that completed dependency. Each phase has a 15-minute
-timeout and uses the exact fixture runtime. The generator requires the complete opcode loop and its matching
-jump destinations. The claim covers a symbolic prefix appended to the original memory buffer, tracks memory
-expansion, and stops before tail clearing. It uses symbolic infinite gas and leaves the final gas
-formula unspecified, so it supplies no gas bound and cannot apply to the concrete-gas witnesses.
-It explicitly enables stack checks, matching the strict caller model and the EVM stack limit;
-the proof does not quantify over Kontrol's optional stack-check disabling configuration.
+Before these methods, strict mode proves three copy obligations in dependency order:
+
+1. An independent iteration, with an arbitrary integer memory-size counter.
+2. A guarded induction for a positive copied prefix, using the completed iteration.
+3. A non-circular zero-entry theorem, using the two completed results and covering empty input.
+
+Each phase has a 15-minute timeout and uses the exact fixture runtime. A native graph gate
+checks all preceding results before reuse and all three results before reporting success.
+The generator requires the complete opcode loop and its matching jump destinations.
+The claims cover memory appended to the original buffer and stop before tail clearing.
+They use symbolic infinite gas and leave the final gas formula unspecified, so they supply
+no gas bound and cannot apply to the concrete-gas witnesses. Stack checks remain enabled.
 The helper states stack space at prefix sizes 3 through 6 explicitly: KEVM's symbolic
 stack-count accumulator does not automatically relate those counts to the tail-length bound.
-Prefix 3 is the tail after the final `ADD` consumes its operands, as checked by KEVM's optimized rule.
-Callers must establish these conditions from their actual stack; no withdrawal-input assumption
-or unchecked stack configuration is permitted to force applicability.
-The endpoint is the unique multiple of 32 in `[LENGTH, LENGTH + 32)`, equivalently
-`32 * ceil(LENGTH / 32)`. Stating its range and alignment keeps the endpoint symbolic
-instead of substituting a quotient throughout the memory and stack postconditions.
-The target binds the observed final index and requires it to equal this endpoint through
-both inequalities. The exact byte-copy and memory-expansion postconditions use that same index.
-The final memory-size counter is bound before checking both inequalities against its exact
-expansion formula. This avoids matching two conditional expressions as cell patterns; it does
-not permit a different counter value or omit the memory-expansion obligation.
-For a nonempty prefix, the counter uses KEVM's native memory-expansion function at the
-last copied word. Its end offset is `DEST + I`, so the definition gives the same maximum
-of the original counter and `ceil((DEST + I) / 32)`. The empty prefix retains the original
-counter. This representation allows KEVM's existing nested-update rules to combine writes.
+Callers must establish all these conditions from their actual state without restricting
+withdrawal inputs or disabling checks.
+
+The rounded endpoint is `((LENGTH + 31) / 32) * 32`, the unique multiple of 32 in
+`[LENGTH, LENGTH + 32)`. The destination is `lengthBytes(LM)`. Both are written as expressions
+in the claims, avoiding auxiliary variables that occur only in rule conditions.
+The final index is bound and required to equal the endpoint through both inequalities.
+The exact byte-copy result and memory-size counter use that same index.
+For a positive prefix, the counter is KEVM's native expansion at the last copied word;
+the zero-entry theorem retains the original counter when the input is empty.
+The independent step quantifies over every integer counter, a stronger obligation than
+requiring a nonnegative counter. The full theorems still start with a nonnegative base counter.
+This lets the step match a native expansion expression without assuming its nonnegativity.
+Separating zero entry from positive-prefix induction removes the conditional counter from
+the induction pattern. The zero and positive cases together retain the previous domain
+and exact result; none of these changes is an assumed rewrite or a proof of completion.
 Its specification and native graph are archived under `kout-proofs/copy-loop`.
 The runner also stops after basic-block bookkeeping, exposing the claim's plain `#execute`
 state at loop entry and exit; jump-only cut points stop before that bookkeeping finishes.
@@ -191,30 +196,22 @@ Solidity proof plus setup to 15 minutes. It adds no lemma or input assumption. E
 coverage is the record-transition method and its setup; this is not full-suite evidence.
 
 The current branch temporarily dispatches the copy-loop diagnostic using `KONTROL_COPY_ONLY=true`.
-It first selects the independent, non-circular `word-copy-append-step` claim. Both this step and
-the full `word-copy-append` claim require `DEST == lengthBytes(LM)`: each iteration appends to
-the original buffer plus the already-copied prefix. They require the exact merged byte copy
-and memory expansion. The step has no dependency on the full loop.
-The saved caller graph shows this layout at its first copy, but machine-checked composition
-must still establish it and every other helper premise. Other layouts remain separate obligations;
-the withdrawal theorem's inputs must not be restricted to make the helper apply.
-The step starts after decoding the loop's `JUMPDEST`, before its
-checks, gas charge and execution.
-The diagnostic enables KEVM's optional fast subsumption filter: a different control cell skips
-the full target comparison and continues execution; it does not establish a successful cover.
-Later composition must reach this entry through the actual decoder and discharge every premise.
-The full-loop entry, length and index bounds, and exact copying requirement are retained.
-The step memory counter spells the offset as `I + DEST`, matching the executed term; this is
-integer addition, so commuting the operands preserves the exact counter requirement.
-This mode requires strict mode and preserves failure status. It uses one worker and a
-10,000-iteration budget per claim. A fresh helper directory and `--reinit` establish the
-step graph first. A nonzero exit or incomplete native graph prevents the full-loop invocation.
-The separate full-loop invocation uses `--direct-subproof-rules` and the same file, definition,
-digests and saved graphs, without `--reinit`. Verify that it reuses the passing step.
-Dependency scheduling alone does not check success and cannot replace this explicit gate.
-The expected final coverage is the completed step plus the full-loop graph. A missing or
-unfinished graph is incomplete. This diagnostic does not run the Solidity methods.
-The full loop's dependency must apply through the real decoder and satisfy all its premises.
-Step passes alone are not full-loop or full-suite evidence.
+The independent `word-copy-append-step` starts after decoding the loop's `JUMPDEST`, before
+its checks, gas charge and execution. It uses the optional fast subsumption filter, which skips
+a full target comparison when the control cell differs; the filter does not establish a cover.
+`word-copy-append-positive` is the only circular claim. `word-copy-append` starts at zero
+and has no circularity. Actual decoder transitions must reach each dependency's entry.
+The saved caller graph shows the append layout at its first copy, but machine-checked
+composition must still establish it and every other premise. Other layouts remain separate
+obligations; withdrawal inputs must not be restricted to make the helper apply.
+
+The diagnostic uses one worker and a 10,000-iteration budget per claim. A fresh helper
+directory and `--reinit` establish the step graph first. A nonzero exit or incomplete native
+graph prevents dependency reuse. Later phases use `--direct-subproof-rules`, the same file,
+definition, digests and saved graphs, without `--reinit`. The gate checks exact graph sets,
+completion, nondegenerate endpoints, and the expected dependency/circularity structure.
+Dependency scheduling alone does not check success and cannot replace this gate.
+All three graphs must complete; a helper pass is not withdrawal proof evidence.
+This diagnostic does not run the Solidity methods.
 Before PR readiness, restore the CI command to `test-kontrol-no-build` without that variable
 and verify the original suite, every withdrawal obligation, and the independent helper.

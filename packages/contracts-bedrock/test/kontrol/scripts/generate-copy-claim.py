@@ -47,52 +47,56 @@ module WITHDRAWAL-COPY-LOOP
 
 '''
 
-def render_claim(name, step=False):
-    # The real decoder must reach this entry; JUMPDEST still executes normally.
-    control = "(#next [ JUMPDEST ] ~> #execute => #execute)" if step else "#execute => #execute"
+def render_claim(name, kind):
+    step, entry = kind == "step", kind == "entry"
+    # No requires-only endpoint/address aliases: both are expressions in the state.
+    extent = "(((LENGTH +Int 31) /Int 32) *Int 32)"
+    dest = "lengthBytes(LM)"
+    index = "0" if entry else "I"
     final_index = "I +Int 32" if step else "?FINALINDEX"
-    # The last copied word has the greatest accessed end offset. Keeping its
-    # native expansion term permits the existing nested-update rules to apply.
-    memory_before = "MU" if step else "(#if I ==Int 0 #then MU #else #memoryUsageUpdate(MU, DEST +Int I -Int 32, 32) #fi)"
-    memory_after = "#memoryUsageUpdate(MU, I +Int DEST, 32)" if step else "?FINALMEMORYUSED"
-    extra_requires = "       andBool I <Int LENGTH\n" if step else ""
-    ensures = "" if step else """      ensures END <=Int ?FINALINDEX andBool ?FINALINDEX <=Int END
-       andBool ?FINALMEMORYUSED <=Int
-         (#if ?FINALINDEX ==Int 0 #then MU #else #memoryUsageUpdate(MU, DEST +Int ?FINALINDEX -Int 32, 32) #fi)
-       andBool (#if ?FINALINDEX ==Int 0 #then MU #else #memoryUsageUpdate(MU, DEST +Int ?FINALINDEX -Int 32, 32) #fi)
-         <=Int ?FINALMEMORYUSED
+    control = "(#next [ JUMPDEST ] ~> #execute => #execute)" if step else "#execute => #execute"
+    memory_before = "MU" if step or entry else f"#memoryUsageUpdate(MU, {dest} +Int I -Int 32, 32)"
+    memory_after = f"#memoryUsageUpdate(MU, I +Int {dest}, 32)" if step else "?FINALMEMORYUSED"
+    final_memory = f"#memoryUsageUpdate(MU, {dest} +Int ?FINALINDEX -Int 32, 32)"
+    if entry:
+        final_memory = f"(#if ?FINALINDEX ==Int 0 #then MU #else {final_memory} #fi)"
+    # The independent step is stronger: MU is any integer. In particular it can
+    # match the native counter expression of the positive-prefix invariant.
+    extra_requires = "       andBool I <Int LENGTH\n" if step else "       andBool 0 <=Int MU\n"
+    if kind == "positive":
+        extra_requires += "       andBool 0 <Int I\n"
+    ensures = "" if step else f"""      ensures {extent} <=Int ?FINALINDEX andBool ?FINALINDEX <=Int {extent}
+       andBool ?FINALMEMORYUSED <=Int {final_memory}
+       andBool {final_memory} <=Int ?FINALMEMORYUSED
 """
-    attributes = "" if step else (
-        "      [circularity, depends(WITHDRAWAL-COPY-LOOP.word-copy-append-step)]\n"
-    )
+    attributes = {
+        "step": "",
+        "positive": "      [circularity, depends(WITHDRAWAL-COPY-LOOP.word-copy-append-step)]\n",
+        "entry": "      [depends(WITHDRAWAL-COPY-LOOP.word-copy-append-step,WITHDRAWAL-COPY-LOOP.word-copy-append-positive)]\n",
+    }[kind]
     return f'''    claim [{name}]:
       <k> {control} ... </k>
       <program> {literal} </program>
       <jumpDests> #computeValidJumpDests({literal}) </jumpDests>
       <pc> {head} => {head if step else end} </pc>
-      <wordStack> (I => {final_index}) : SRC : DEST : LENGTH : WS </wordStack>
+      <wordStack> ({index} => {final_index}) : SRC : {dest} : LENGTH : WS </wordStack>
       <localMem>
-        LM +Bytes #range(LM, SRC, I)
+        LM +Bytes #range(LM, SRC, {index})
           => LM +Bytes #range(LM, SRC, {final_index})
       </localMem>
-      <memoryUsed>
-        {memory_before}
-          => {memory_after}
-      </memoryUsed>
+      <memoryUsed> {memory_before} => {memory_after} </memoryUsed>
       <gas> #gas(G) => #gas(?FINALGAS) </gas>
       <useGas> true </useGas>
       <stackChecks> true </stackChecks>
       <schedule> CANCUN </schedule>
       requires 0 <=Int LENGTH andBool LENGTH <Int 2 ^Int 64
-       andBool LENGTH <=Int END andBool END <Int LENGTH +Int 32
-       andBool END modInt 32 ==Int 0
-       andBool 0 <=Int I andBool I <=Int END andBool I modInt 32 ==Int 0
+       andBool LENGTH <=Int {extent} andBool {extent} <Int LENGTH +Int 32
+       andBool {extent} modInt 32 ==Int 0
+       andBool 0 <=Int {index} andBool {index} <=Int {extent} andBool {index} modInt 32 ==Int 0
        andBool 0 <=Int SRC andBool SRC <Int 2 ^Int 256
-       andBool 0 <=Int DEST andBool DEST <Int 2 ^Int 256
-       andBool SRC +Int END <=Int DEST
-       andBool DEST +Int END <=Int 2 ^Int 256
-       andBool DEST ==Int lengthBytes(LM)
-       andBool 0 <=Int MU
+       andBool 0 <=Int {dest} andBool {dest} <Int 2 ^Int 256
+       andBool SRC +Int {extent} <=Int {dest}
+       andBool {dest} +Int {extent} <=Int 2 ^Int 256
        andBool #sizeWordStack(WS) <=Int 1017
        andBool #sizeWordStack(WS, 3) <Int 1024
        andBool #sizeWordStack(WS, 4) <Int 1024
@@ -100,11 +104,13 @@ def render_claim(name, step=False):
        andBool #sizeWordStack(WS, 6) <Int 1024
 {extra_requires}{ensures}{attributes}'''
 
-# Both claims append to the same original buffer. Callers must establish this
-# layout; this helper does not cover copies that overwrite existing memory.
-args.output.write_text(header + render_claim("word-copy-append") + "\n" +
-                       render_claim("word-copy-append-step", step=True) +
-                       "endmodule\n")
+# Separate zero entry from positive-prefix induction; together they retain the
+# previous domain and exact counter result without a conditional invariant cell.
+args.output.write_text(header + "\n".join((
+    render_claim("word-copy-append-step", "step"),
+    render_claim("word-copy-append-positive", "positive"),
+    render_claim("word-copy-append", "entry"),
+)) + "endmodule\n")
 print(json.dumps({"artifact": str(args.artifact), "claim": str(args.output),
                   "head": head, "exit": end, "jumpBytes": width,
                   "runtimeSha256": hashlib.sha256(code).hexdigest()}))

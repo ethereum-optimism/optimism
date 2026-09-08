@@ -60,7 +60,7 @@ kontrol_prove() {
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
     rpc_command+=' --fallback-on Stuck,Aborted'
     if [ "${KONTROL_CALLER_ONLY:-false}" != true ]; then
-      # Fresh independent steps must pass before the separate full-loop invocation.
+      # Prove the step, positive-prefix induction, then zero entry in dependency order.
       run rm -rf kout-proofs/copy-loop
       run mkdir -p kout-proofs/copy-loop
       run python3 test/kontrol/scripts/generate-copy-claim.py \
@@ -78,13 +78,18 @@ kontrol_prove() {
       )
       run "${copy_command[@]}" --reinit --fast-check-subsumption \
         --claim WITHDRAWAL-COPY-LOOP.word-copy-append-step || copy_status=$?
-      if [ "$copy_status" -eq 0 ]; then
-        run python3 test/kontrol/scripts/check-copy-steps.py kout-proofs/copy-loop || copy_status=$?
-      fi
-      if [ "$copy_status" -eq 0 ]; then
-        # Reuse only the just-verified step; --reinit here would invalidate the gate.
-        run "${copy_command[@]}" --claim WITHDRAWAL-COPY-LOOP.word-copy-append \
+      local phase=1 suffix
+      for suffix in -positive ""; do
+        if [ "$copy_status" -ne 0 ]; then break; fi
+        run python3 test/kontrol/scripts/check-copy-steps.py kout-proofs/copy-loop "$phase" || copy_status=$?
+        if [ "$copy_status" -ne 0 ]; then break; fi
+        # Reuse only just-verified graphs; --reinit here would invalidate the gate.
+        run "${copy_command[@]}" --claim "WITHDRAWAL-COPY-LOOP.word-copy-append$suffix" \
           --direct-subproof-rules || copy_status=$?
+        phase=$((phase + 1))
+      done
+      if [ "$copy_status" -eq 0 ]; then
+        run python3 test/kontrol/scripts/check-copy-steps.py kout-proofs/copy-loop 3 || copy_status=$?
       fi
       if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then
         notif "COPY-LOOP DIAGNOSTIC: exit=$copy_status; Solidity obligations were not run"
