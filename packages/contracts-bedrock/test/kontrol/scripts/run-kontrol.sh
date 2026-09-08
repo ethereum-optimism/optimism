@@ -58,11 +58,9 @@ kontrol_prove() {
       kout-proofs/copy-loop/claim.k
     local foundry_include
     foundry_include=$(run python3 -c 'from importlib.resources import files; print(files("kontrol") / "kdist")')
-    local copy_workers=1
     local copy_claims=(--claim WITHDRAWAL-COPY-LOOP.word-copy)
     if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then
       # Independent finite steps: no circularity or dependency import between claims.
-      copy_workers=3
       copy_claims=(
         --claim WITHDRAWAL-COPY-LOOP.word-copy-step-after-end
         --claim WITHDRAWAL-COPY-LOOP.word-copy-step-across-end
@@ -72,7 +70,7 @@ kontrol_prove() {
     run timeout --signal=INT --kill-after=30s 15m kevm prove --verbose kout-proofs/copy-loop/claim.k \
       --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop \
       --spec-module WITHDRAWAL-COPY-LOOP "${copy_claims[@]}" \
-      -I "$foundry_include" --reinit --workers "$copy_workers" \
+      -I "$foundry_include" --reinit --workers 1 \
       --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0 \
       --break-on-jump --break-on-jumpi --break-on-basic-blocks \
       --no-log-rewrites --kore-rpc-command "$rpc_command" || copy_status=$?

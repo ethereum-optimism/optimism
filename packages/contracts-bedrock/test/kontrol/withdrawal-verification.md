@@ -174,10 +174,11 @@ The current branch temporarily dispatches a copy-step CI diagnostic with
 covering writes after, across, or within the original memory buffer's end. These disjoint cases
 cover the full continuing-iteration domain. Each requires the exact merged byte copy and
 one-step memory expansion. No claim is imported as a summary or dependency.
-This mode requires strict mode and preserves failure status. It uses three workers with a shared
+This mode requires strict mode and preserves failure status. It uses one worker with a shared
 15-minute timeout and a 10,000-iteration budget per claim. Its expected coverage is exactly three
-step graphs; it does not run the full loop or Solidity methods. The integrated mode still selects
-the unchanged full-loop claim with one worker. Passing steps must be audited and composed before
+step graphs; a timeout before all cases run is incomplete. It does not run the full loop or Solidity
+methods. The integrated mode still selects the unchanged full-loop claim with one worker.
+Passing steps must be audited and composed before
 they can support the full loop; step passes alone are not a completed helper or full-suite evidence.
 Before PR readiness, restore the CI command to `test-kontrol-no-build` without that variable
 and verify the original suite, every withdrawal obligation, and the independent helper.
