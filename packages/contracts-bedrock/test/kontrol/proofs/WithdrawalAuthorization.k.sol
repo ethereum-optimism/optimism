@@ -14,6 +14,11 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 
+/// @notice Existing Kontrol backend cheatcode; the vendored interface predates this method.
+interface WithdrawalSymbolicBytes {
+    function freshBytes(uint256 _length) external returns (bytes memory);
+}
+
 /// @notice Game reports and pause input, not a proof of game resolution or pause administration.
 contract WithdrawalGame_Harness {
     Timestamp public createdAt;
@@ -86,7 +91,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         uint64 resolvedAt;
         uint64 provenAt;
         uint64 retiredAt;
-        uint64 now;
+        uint256 now;
         uint8 status;
         uint8 finalized;
         uint32 registrationType;
@@ -97,7 +102,18 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         bool paused;
     }
 
+    struct WithdrawalInput {
+        uint256 nonce;
+        address sender;
+        address target;
+        uint256 value;
+        uint256 gasLimit;
+        uint64 dataLength;
+    }
+
     struct ProvingCase {
+        uint256 configuredChainId;
+        uint256 candidateChainId;
         bytes32 outputClaim;
         address submitter;
         uint256 now;
@@ -146,15 +162,16 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
     }
 
     /// @notice Neither finalizer can commit when the exact withdrawal's selected record is ineligible.
-    ///         The dynamic bytes field has symbolic length; no concrete length annotation is used.
+    ///         Fresh symbolic bytes avoid the frontend ABI encoder's implicit length cap.
     function prove_finalize_ineligible(
         AuthorizationCase memory _case,
-        Types.WithdrawalTransaction memory _tx,
+        WithdrawalInput memory _input,
         address _caller,
         bool _externalProof
     )
         external
     {
+        Types.WithdrawalTransaction memory _tx = _withdrawalInput(_input);
         _case.withdrawalHash = _withdrawalHash(_tx);
         if (!_externalProof) _case.submitter = _caller;
         _seed(_case);
@@ -250,7 +267,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
                     outputRoot.latestBlockhash
                 )
             );
-            candidate = _registerProofGame(commitment, _superGame ? 4 : 0);
+            candidate = _registerProofGame(commitment, _superGame ? 4 : 0, portal.systemConfig().l2ChainId());
             // A wrong root getter must not accidentally satisfy the acceptance witness.
             assert(!_superGame || Claim.unwrap(candidate.rootClaim()) != commitment);
             assert(vm.load(address(portal), recordSlot) == bytes32(0));
@@ -270,15 +287,31 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
     }
 
     /// @notice Proving binds the output tuple and replaces only the selected record after acceptance.
-    ///         Arbitrary encoded bytes avoid Kontrol's fixed default length for bytes[] inputs.
+    ///         Symbolic contents and uint64 lengths avoid fixed arrays and the frontend byte cap.
     ///         Trie membership soundness is a separate obligation, not assumed here.
     function prove_record(
+        ProvingCase memory _case,
+        WithdrawalInput memory _input,
+        Types.OutputRootProof memory _outputRoot,
+        uint64 _encodedProofLength
+    )
+        external
+    {
+        _proveRecord(
+            _case,
+            _withdrawalInput(_input),
+            _outputRoot,
+            WithdrawalSymbolicBytes(address(kevm)).freshBytes(_encodedProofLength)
+        );
+    }
+
+    function _proveRecord(
         ProvingCase memory _case,
         Types.WithdrawalTransaction memory _tx,
         Types.OutputRootProof memory _outputRoot,
         bytes memory _encodedProof
     )
-        external
+        internal
     {
         bytes[] memory proof;
         try this.decodeProof(_encodedProof) returns (bytes[] memory decoded) {
@@ -286,7 +319,9 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         } catch {
             return;
         }
-        WithdrawalProofGame_Harness candidate = _registerProofGame(_case.outputClaim, _case.gameType);
+        vm.store(address(portal.systemConfig()), bytes32(uint256(107)), bytes32(_case.configuredChainId));
+        WithdrawalProofGame_Harness candidate =
+            _registerProofGame(_case.outputClaim, _case.gameType, _case.candidateChainId);
         bytes32 withdrawalHash = _withdrawalHash(_tx);
         vm.assume(_case.otherHash != withdrawalHash || _case.otherSubmitter != _case.submitter);
         bytes32 recordSlot = keccak256(abi.encode(_case.submitter, keccak256(abi.encode(withdrawalHash, uint256(57)))));
@@ -304,6 +339,12 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
             address(portal).call(abi.encodeCall(portal.proveWithdrawalTransaction, (_tx, 0, _outputRoot, proof)));
         bytes32 expected = _case.previousRecord;
         if (accepted) {
+            if (
+                _case.gameType == 4 || _case.gameType == 5 || _case.gameType == 7 || _case.gameType == 9
+                    || _case.gameType == 10
+            ) {
+                assert(_case.configuredChainId == _case.candidateChainId);
+            }
             assert(
                 _case.outputClaim
                     == keccak256(
@@ -331,13 +372,14 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
 
     function _registerProofGame(
         bytes32 _claim,
-        uint32 _gameType
+        uint32 _gameType,
+        uint256 _candidateChainId
     )
         internal
         returns (WithdrawalProofGame_Harness candidate)
     {
         vm.warp(1 days);
-        candidate = new WithdrawalProofGame_Harness(Claim.wrap(_claim), portal.systemConfig().l2ChainId(), _gameType);
+        candidate = new WithdrawalProofGame_Harness(Claim.wrap(_claim), _candidateChainId, _gameType);
         bytes32 uuid = keccak256(abi.encode(candidate.gameType(), candidate.rootClaim(), abi.encode(uint256(1))));
         bytes32 registration = bytes32(
             (uint256(GameType.unwrap(candidate.gameType())) << 224) | (uint256(1 days) << 160)
@@ -373,6 +415,17 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         example.status = uint8(GameStatus.DEFENDER_WINS);
         example.registeredGame = address(game);
         example.respected = true;
+    }
+
+    function _withdrawalInput(WithdrawalInput memory _input) internal returns (Types.WithdrawalTransaction memory) {
+        return Types.WithdrawalTransaction({
+            nonce: _input.nonce,
+            sender: _input.sender,
+            target: _input.target,
+            value: _input.value,
+            gasLimit: _input.gasLimit,
+            data: WithdrawalSymbolicBytes(address(kevm)).freshBytes(_input.dataLength)
+        });
     }
 
     function _withdrawalHash(Types.WithdrawalTransaction memory _tx) internal pure returns (bytes32) {
