@@ -172,13 +172,6 @@ func (r *MultiChainRuntime) StartZKProposer(t devtest.T) *ZKProposerRuntime {
 	return proposer
 }
 
-// ZKProposer returns the running kona-sp1-proposer.
-func (r *MultiChainRuntime) ZKProposer(t devtest.T) *ZKProposerRuntime {
-	proposer, err := r.zkProposerRuntime()
-	t.Require().NoError(err)
-	return proposer
-}
-
 func (r *MultiChainRuntime) startZKProposerRuntime() (*ZKProposerRuntime, error) {
 	if r.startZKProposerFn == nil {
 		if r.zkProposer != nil {
@@ -190,14 +183,4 @@ func (r *MultiChainRuntime) startZKProposerRuntime() (*ZKProposerRuntime, error)
 	r.startZKProposerFn = nil
 	r.zkProposer = start()
 	return r.zkProposer, nil
-}
-
-func (r *MultiChainRuntime) zkProposerRuntime() (*ZKProposerRuntime, error) {
-	if r.zkProposer != nil {
-		return r.zkProposer, nil
-	}
-	if r.startZKProposerFn != nil {
-		return nil, errors.New("ZK proposer is configured but not started; call StartZKProposer")
-	}
-	return nil, errors.New("ZK proposer is not configured")
 }

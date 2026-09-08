@@ -73,12 +73,6 @@ func (s *SingleChainInterop) StartZKProposer() *zkproposer.ZKProposer {
 	return zkproposer.New(s.T, s.sysgoRuntime.StartZKProposer(s.T))
 }
 
-// ZKProposer returns the already-running kona-sp1-proposer.
-func (s *SingleChainInterop) ZKProposer() *zkproposer.ZKProposer {
-	s.T.Require().NotNil(s.sysgoRuntime, "ZK proposer controls require a sysgo-backed preset")
-	return zkproposer.New(s.T, s.sysgoRuntime.ZKProposer(s.T))
-}
-
 // ZKChallengerSuperRootRPCProxy returns the proxy in front of the live ZK
 // challenger's super-root RPC.
 func (s *SingleChainInterop) ZKChallengerSuperRootRPCProxy() *sysgo.StallableProxy {

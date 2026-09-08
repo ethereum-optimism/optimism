@@ -3,18 +3,46 @@ package proofs
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
 type claimReadResult struct {
 	claim ZKClaimData
 	err   error
+}
+
+type claimDataClient struct {
+	apis.EthClient
+	read func(context.Context) (ZKClaimData, error)
+}
+
+func (c *claimDataClient) InfoByLabel(context.Context, eth.BlockLabel) (eth.BlockInfo, error) {
+	return eth.HeaderBlockInfo(&types.Header{Number: big.NewInt(1)}), nil
+}
+
+func (c *claimDataClient) Call(ctx context.Context, _ ethereum.CallMsg, _ rpc.BlockNumber) ([]byte, error) {
+	claim, err := c.read(ctx)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := bindings.ABIEncoder("", claim)
+	if err != nil {
+		return nil, err
+	}
+	return encoded[4:], nil // Return data excludes the function selector.
 }
 
 func challengedClaim(prover common.Address) ZKClaimData {
@@ -26,11 +54,7 @@ func newTestZKGame(t *testing.T, read func(context.Context) (ZKClaimData, error)
 }
 
 func newTestZKGameWithT(t devtest.T, read func(context.Context) (ZKClaimData, error)) *ZKGame {
-	return &ZKGame{
-		t:             t,
-		Address:       common.HexToAddress("0x1234"),
-		claimDataRead: read,
-	}
+	return newZKGame(t, require.New(t), &claimDataClient{read: read}, common.HexToAddress("0x1234"))
 }
 
 func sequenceClaimReader(results ...claimReadResult) func(context.Context) (ZKClaimData, error) {
@@ -40,46 +64,6 @@ func sequenceClaimReader(results ...claimReadResult) func(context.Context) (ZKCl
 		next++
 		return results[index].claim, results[index].err
 	}
-}
-
-func TestVerifyUnproven(t *testing.T) {
-	t.Run("challenged without prover", func(t *testing.T) {
-		game := newTestZKGame(t, sequenceClaimReader(claimReadResult{claim: challengedClaim(common.Address{})}))
-
-		claim, err := game.verifyUnproven(context.Background())
-
-		require.NoError(t, err)
-		require.Equal(t, challengedClaim(common.Address{}), claim)
-	})
-
-	t.Run("status changed", func(t *testing.T) {
-		claim := challengedClaim(common.Address{})
-		claim.Status = uint8(ZKProposalChallengedAndValidProofProvided)
-		game := newTestZKGame(t, sequenceClaimReader(claimReadResult{claim: claim}))
-
-		_, err := game.verifyUnproven(context.Background())
-
-		require.ErrorContains(t, err, "expected proposal status")
-		require.ErrorContains(t, err, "observed")
-	})
-
-	t.Run("prover appeared", func(t *testing.T) {
-		prover := common.HexToAddress("0xbeef")
-		game := newTestZKGame(t, sequenceClaimReader(claimReadResult{claim: challengedClaim(prover)}))
-
-		_, err := game.verifyUnproven(context.Background())
-
-		require.ErrorContains(t, err, prover.Hex())
-	})
-
-	t.Run("read failed", func(t *testing.T) {
-		readErr := errors.New("RPC unavailable")
-		game := newTestZKGame(t, sequenceClaimReader(claimReadResult{err: readErr}))
-
-		_, err := game.verifyUnproven(context.Background())
-
-		require.ErrorIs(t, err, readErr)
-	})
 }
 
 func TestReadClaimDataBoundsIndividualRead(t *testing.T) {

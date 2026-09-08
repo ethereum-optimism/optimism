@@ -170,20 +170,51 @@ func TestVerifyStateRejectsDisabledMetricsBeforeFetching(t *testing.T) {
 		"ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset")
 }
 
-func TestVerifyStateLogsExpectationsAndObservations(t *testing.T) {
-	proposer, logs := newTestProposer(t, func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
-		return metricsResponse(metricsPayload(2, 0)), nil
+func TestVerifyStateLogsOnlyObservationChanges(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		missing := fmt.Sprintf("# TYPE %s gauge\n%s 0\n", defenseTasksSpawnedMetric, defenseTasksSpawnedMetric)
+		wrongType := missing + fmt.Sprintf("# TYPE %s counter\n%s 0\n", gameProvingFailuresMetric, gameProvingFailuresMetric)
+		payloads := []string{
+			metricsPayload(0, 0), metricsPayload(0, 0),
+			missing, missing,
+			wrongType, wrongType,
+			metricsPayload(0, 0), metricsPayload(0, 0),
+			metricsPayload(0, 1), metricsPayload(0, 1),
+			metricsPayload(0, 2),
+		}
+		fetches := 0
+		proposer, logs := newTestProposer(t, func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
+			payload := payloads[min(fetches, len(payloads)-1)]
+			fetches++
+			return metricsResponse(payload), nil
+		})
+
+		err := proposer.verifyState(context.Background(), DefenseTasksSpawned(0), ProvingFailures(2))
+
+		require.NoError(t, err)
+		require.Equal(t, len(payloads), fetches)
+		spawnedLogs := logs.FindLogs(testlog.NewAttributesFilter("expectation", "defense tasks spawned"))
+		require.Len(t, spawnedLogs, 1, "unchanged successful observations should not repeat either")
+		require.Equal(t, float64(0), spawnedLogs[0].AttrValue("observed"))
+		failureLogs := logs.FindLogs(testlog.NewAttributesFilter("expectation", "proving failures"))
+		require.Len(t, failureLogs, 6)
+		require.Equal(t, float64(0), failureLogs[0].AttrValue("observed"))
+		require.NotNil(t, failureLogs[1].AttrValue("err"))
+		require.NotNil(t, failureLogs[2].AttrValue("err"))
+		require.NotEqual(t, fmt.Sprint(failureLogs[1].AttrValue("err")), fmt.Sprint(failureLogs[2].AttrValue("err")))
+		require.Equal(t, float64(0), failureLogs[3].AttrValue("observed"), "recovery should be logged even at the previous value")
+		require.Equal(t, float64(1), failureLogs[4].AttrValue("observed"))
+		require.Equal(t, float64(2), failureLogs[5].AttrValue("observed"))
+		for _, record := range failureLogs {
+			require.EqualValues(t, 2, record.AttrValue("expected"))
+		}
+
+		logs.Clear()
+		err = proposer.verifyState(context.Background(), DefenseTasksSpawned(0), ProvingFailures(2))
+		require.NoError(t, err)
+		require.Len(t, logs.FindLogs(testlog.NewAttributesFilter("expectation", "defense tasks spawned")), 1)
+		require.Len(t, logs.FindLogs(testlog.NewAttributesFilter("expectation", "proving failures")), 1)
 	})
-
-	err := proposer.verifyState(context.Background(), DefenseTasksSpawned(2))
-
-	require.NoError(t, err)
-	require.NotNil(t, logs.FindLog(
-		testlog.NewMessageFilter("Observed ZK proposer state"),
-		testlog.NewAttributesFilter("expectation", "defense tasks spawned"),
-		testlog.NewAttributesFilter("expected", "2"),
-		testlog.NewAttributesFilter("observed", "2"),
-	))
 }
 
 func TestVerifyStateFailureIncludesLastMetricsPayload(t *testing.T) {

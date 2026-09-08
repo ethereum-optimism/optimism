@@ -76,13 +76,12 @@ type zkDisputeGameBinding struct {
 // ZKGame is a deployed ZK dispute-game instance. It exposes the contract calls
 // used to exercise the game lifecycle in acceptance tests.
 type ZKGame struct {
-	t             devtest.T
-	require       *require.Assertions
-	ethClient     apis.EthClient
-	contract      *zkDisputeGameBinding
-	claimDataRead func(context.Context) (ZKClaimData, error)
-	Address       common.Address
-	factoryIndex  uint32
+	t            devtest.T
+	require      *require.Assertions
+	ethClient    apis.EthClient
+	contract     *zkDisputeGameBinding
+	Address      common.Address
+	factoryIndex uint32
 }
 
 func newZKGame(t devtest.T, require *require.Assertions, client apis.EthClient, addr common.Address) *ZKGame {
@@ -158,24 +157,7 @@ func (g *ZKGame) ClaimData() ZKClaimData {
 func (g *ZKGame) readClaimData(ctx context.Context) (ZKClaimData, error) {
 	readCtx, cancel := context.WithTimeout(ctx, claimDataReadTimeout)
 	defer cancel()
-	if g.claimDataRead != nil {
-		return g.claimDataRead(readCtx)
-	}
 	return contractio.Read(g.contract.ClaimData(), readCtx)
-}
-
-// VerifyUnproven checks that a challenged game has no accepted proof.
-func (g *ZKGame) VerifyUnproven() {
-	claim, err := g.verifyUnproven(g.t.Ctx())
-	g.require.NoErrorf(err, "ZK game %v must remain challenged and unproven; last observation: %+v", g.Address, claim)
-}
-
-func (g *ZKGame) verifyUnproven(ctx context.Context) (ZKClaimData, error) {
-	claim, err := g.readClaimData(ctx)
-	if err != nil {
-		return claim, fmt.Errorf("read claim data: %w", err)
-	}
-	return claim, challengedUnproven(claim)
 }
 
 func challengedUnproven(claim ZKClaimData) error {

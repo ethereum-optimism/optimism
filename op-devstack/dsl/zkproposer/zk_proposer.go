@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -85,21 +86,37 @@ func (p *ZKProposer) verifyState(ctx context.Context, expectations ...*StateExpe
 		}
 	}
 
+	type observation struct {
+		value uint64
+		err   string
+		seen  bool
+	}
+	last := make([]observation, len(expectations))
 	p.log.Info("Waiting for ZK proposer state", "expectations", len(expectations))
 	_, err := p.metrics.WaitForSnapshot(ctx, metricPollInterval, func(snapshot *devtestmetrics.Snapshot) error {
-		for _, expectation := range expectations {
+		for i, expectation := range expectations {
 			observed, err := snapshot.Gauge(expectation.metric, nil)
+			current := observation{value: math.Float64bits(observed), seen: true}
 			if err != nil {
-				p.log.Info("ZK proposer state observation unavailable",
-					"expectation", expectation.description,
-					"expected", expectation.expected,
-					"err", err)
+				current.err = err.Error()
+			}
+			if current != last[i] {
+				last[i] = current
+				if err != nil {
+					p.log.Info("ZK proposer state observation unavailable",
+						"expectation", expectation.description,
+						"expected", expectation.expected,
+						"err", err)
+				} else {
+					p.log.Info("Observed ZK proposer state",
+						"expectation", expectation.description,
+						"expected", expectation.expected,
+						"observed", observed)
+				}
+			}
+			if err != nil {
 				return fmt.Errorf("%s: %w", expectation.description, err)
 			}
-			p.log.Info("Observed ZK proposer state",
-				"expectation", expectation.description,
-				"expected", expectation.expected,
-				"observed", observed)
 			if observed != float64(expectation.expected) {
 				return fmt.Errorf("%s expected %d but observed %v", expectation.description, expectation.expected, observed)
 			}

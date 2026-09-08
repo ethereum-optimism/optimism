@@ -69,9 +69,7 @@ func TestZKProposerRuntimeLifecycle(t *testing.T) {
 	t.Run("not configured", func(t *testing.T) {
 		runtime := &MultiChainRuntime{}
 
-		_, err := runtime.zkProposerRuntime()
-		require.EqualError(t, err, "ZK proposer is not configured")
-		_, err = runtime.startZKProposerRuntime()
+		_, err := runtime.startZKProposerRuntime()
 		require.EqualError(t, err, "ZK proposer is not configured")
 	})
 
@@ -85,17 +83,10 @@ func TestZKProposerRuntimeLifecycle(t *testing.T) {
 			},
 		}
 
-		_, err := runtime.zkProposerRuntime()
-		require.EqualError(t, err, "ZK proposer is configured but not started; call StartZKProposer")
-
 		started, err := runtime.startZKProposerRuntime()
 		require.NoError(t, err)
 		require.Same(t, handle, started)
 		require.Equal(t, 1, starts)
-
-		running, err := runtime.zkProposerRuntime()
-		require.NoError(t, err)
-		require.Same(t, handle, running)
 
 		_, err = runtime.startZKProposerRuntime()
 		require.EqualError(t, err, "ZK proposer is already started")
@@ -106,8 +97,7 @@ func TestZKProposerRuntimeLifecycle(t *testing.T) {
 		handle := &ZKProposerRuntime{}
 		runtime := &MultiChainRuntime{zkProposer: handle}
 
-		running, err := runtime.zkProposerRuntime()
-		require.NoError(t, err)
-		require.Same(t, handle, running)
+		_, err := runtime.startZKProposerRuntime()
+		require.EqualError(t, err, "ZK proposer is already started")
 	})
 }
