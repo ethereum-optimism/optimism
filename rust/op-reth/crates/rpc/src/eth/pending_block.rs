@@ -5,6 +5,7 @@ use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use reth_chain_state::BlockState;
 use reth_optimism_flashblocks::PendingFlashBlock;
+use reth_primitives_traits::AlloyBlockHeader;
 use reth_rpc_eth_api::{
     FromEvmError, RpcConvert, RpcNodeCore, RpcNodeCoreExt,
     helpers::{LoadPendingBlock, SpawnBlocking, pending_block::PendingEnvBuilder},
@@ -14,12 +15,51 @@ use reth_rpc_eth_types::{
     error::FromEthApiError,
 };
 use reth_storage_api::{BlockReaderIdExt, StateProviderBox, StateProviderFactory};
+use tracing::debug;
 
 #[inline]
 const fn pending_state_history_lookup_hash<N: reth_primitives_traits::NodePrimitives>(
     pending_block: &PendingFlashBlock<N>,
 ) -> B256 {
     pending_block.canonical_anchor_hash
+}
+
+/// Returns the pending flashblock only while the canonical chain has not caught up with it.
+///
+/// A flashblocks upstream can stop delivering without closing its connection, which leaves the
+/// last flashblock in place indefinitely while the node keeps importing canonical blocks. Once
+/// the canonical tip reaches that height the flashblock only describes a block that is already
+/// sealed, and answering `pending` from its partial state reports *behind* `latest` - an
+/// `eth_getTransactionCount(addr, "pending")` below the same call against `latest`, which is not
+/// a legal result and hands callers an already-consumed nonce. Dropping it makes those reads fall
+/// back to `latest`, which is complete and self-consistent.
+///
+/// The test is against the canonical tip rather than against the flashblock's age on purpose: a
+/// flashblock that is merely old but still ahead of the tip is the best answer available, and
+/// discarding it would *lower* the nonce that `pending` had already reported - the very failure
+/// this guards against.
+///
+/// See <https://github.com/ethereum-optimism/optimism/issues/22816>.
+pub(super) fn unsuperseded_pending_flashblock<N: reth_primitives_traits::NodePrimitives>(
+    pending_block: Option<&PendingFlashBlock<N>>,
+    latest_block_number: u64,
+) -> Option<PendingFlashBlock<N>> {
+    let pending_block = pending_block?;
+    let pending_block_number = pending_block.pending.block().header().number();
+
+    if pending_block_number <= latest_block_number {
+        debug!(
+            target: "flashblocks",
+            pending_block_number,
+            latest_block_number,
+            flashblock_index = pending_block.last_flashblock_index,
+            "Pending flashblock superseded by the canonical chain, falling back to latest"
+        );
+
+        return None;
+    }
+
+    Some(pending_block.clone())
 }
 
 impl<N, Rpc> LoadPendingBlock for OpEthApi<N, Rpc>
@@ -88,13 +128,70 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::pending_state_history_lookup_hash;
+    use super::{pending_state_history_lookup_hash, unsuperseded_pending_flashblock};
+    use alloy_consensus::Header;
     use alloy_primitives::B256;
     use reth_chain_state::ExecutedBlock;
     use reth_optimism_flashblocks::PendingFlashBlock;
     use reth_optimism_primitives::OpPrimitives;
+    use reth_primitives_traits::RecoveredBlock;
     use reth_rpc_eth_types::PendingBlock;
-    use std::time::Instant;
+    use std::{sync::Arc, time::Instant};
+
+    fn pending_flashblock(block_number: u64) -> PendingFlashBlock<OpPrimitives> {
+        let block = alloy_consensus::Block::new(
+            Header { number: block_number, ..Default::default() },
+            Default::default(),
+        );
+        let executed_block = ExecutedBlock::<OpPrimitives> {
+            recovered_block: Arc::new(RecoveredBlock::new_unhashed(block, Vec::new())),
+            ..Default::default()
+        };
+
+        PendingFlashBlock::new(
+            PendingBlock::<OpPrimitives>::with_executed_block(Instant::now(), executed_block),
+            B256::ZERO,
+            0,
+            B256::ZERO,
+            false,
+        )
+    }
+
+    #[test]
+    fn pending_flashblock_ahead_of_the_canonical_tip_is_served() {
+        let pending = pending_flashblock(101);
+
+        assert!(
+            unsuperseded_pending_flashblock(Some(&pending), 100).is_some(),
+            "a flashblock building the next block is exactly what `pending` is for"
+        );
+    }
+
+    #[test]
+    fn pending_flashblock_at_the_canonical_tip_is_not_served() {
+        let pending = pending_flashblock(100);
+
+        assert!(
+            unsuperseded_pending_flashblock(Some(&pending), 100).is_none(),
+            "once the block is sealed canonically its partial flashblock state is behind `latest`"
+        );
+    }
+
+    #[test]
+    fn pending_flashblock_behind_the_canonical_tip_is_not_served() {
+        // The frozen-feed case: the flashblock stopped advancing while the chain kept importing.
+        let pending = pending_flashblock(100);
+
+        assert!(
+            unsuperseded_pending_flashblock(Some(&pending), 4_000).is_none(),
+            "a flashblock the chain has long passed must not answer `pending`"
+        );
+    }
+
+    #[test]
+    fn missing_pending_flashblock_stays_missing() {
+        assert!(unsuperseded_pending_flashblock::<OpPrimitives>(None, 100).is_none());
+    }
 
     #[test]
     fn pending_state_prefers_canonical_anchor_over_parent_hash() {

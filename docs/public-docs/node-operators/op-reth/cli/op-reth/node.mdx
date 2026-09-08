@@ -1276,6 +1276,13 @@ Rollup:
 
           When enabled, the flashblock consensus client will process flashblock sequences and submit them to the engine API to advance the chain. Requires `flashblocks_url` to be set.
 
+      --flashblocks-idle-timeout <DURATION>
+          How long the flashblocks websocket subscription may stay silent - not even a websocket ping - before the connection is torn down and re-established.
+
+          An upstream that stops sending without closing the connection otherwise parks the subscription indefinitely, freezing the `pending` block while the node keeps importing canonical blocks. Must exceed the chain's flashblock interval, or a healthy connection is reconnected on every gap between flashblocks; `0` disables the check.
+
+          [default: 5]
+
       --proofs-history
           If true, initialize external-proofs exex to save and serve trie nodes to provide proofs faster
 

@@ -41,6 +41,7 @@ metrics.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-optimism-evm = { workspace = true, features = ["std", "rpc"] }
 reth-optimism-rpc.workspace = true
+reth-optimism-flashblocks.workspace = true
 reth-optimism-storage.workspace = true
 reth-optimism-txpool.workspace = true
 reth-optimism-chainspec.workspace = true
@@ -77,6 +78,7 @@ tokio.workspace = true
 
 # misc
 clap.workspace = true
+reth-cli-util.workspace = true
 serde.workspace = true
 eyre.workspace = true
 url.workspace = true

@@ -8,14 +8,24 @@ use std::{
     future::Future,
     pin::Pin,
     task::{Context, Poll, ready},
+    time::Duration,
 };
-use tokio::net::TcpStream;
+use tokio::{
+    net::TcpStream,
+    time::{Instant, Sleep, sleep},
+};
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async,
     tungstenite::{Bytes, Error, Message, protocol::CloseFrame},
 };
 use tracing::debug;
 use url::Url;
+
+/// Default period of upstream silence after which the connection is considered dead.
+///
+/// Flashblocks arrive every few hundred milliseconds, so several seconds without a single frame -
+/// not even a websocket ping - means the connection is no longer delivering.
+pub const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// An asynchronous stream of [`FlashBlock`] from a websocket connection.
 ///
@@ -31,6 +41,12 @@ pub struct WsFlashBlockStream<Stream, Sink, Connector> {
     connect: ConnectFuture<Sink, Stream>,
     stream: Option<Stream>,
     sink: Option<Sink>,
+    /// How long the upstream may stay silent before the connection is torn down and rebuilt.
+    ///
+    /// `None` disables the check, which leaves a half-open connection undetectable.
+    idle_timeout: Option<Duration>,
+    /// Fires once [`Self::idle_timeout`] has elapsed without a single frame from the upstream.
+    idle_deadline: Option<Pin<Box<Sleep>>>,
 }
 
 impl WsFlashBlockStream<WsStream, WsSink, WsConnector> {
@@ -44,6 +60,8 @@ impl WsFlashBlockStream<WsStream, WsSink, WsConnector> {
             connect: Box::pin(async move { Err(Error::ConnectionClosed)? }),
             stream: None,
             sink: None,
+            idle_timeout: Some(DEFAULT_IDLE_TIMEOUT),
+            idle_deadline: None,
         }
     }
 
@@ -64,7 +82,52 @@ impl<Stream, S, C> WsFlashBlockStream<Stream, S, C> {
             connect: Box::pin(async move { Err(Error::ConnectionClosed)? }),
             stream: None,
             sink: None,
+            idle_timeout: Some(DEFAULT_IDLE_TIMEOUT),
+            idle_deadline: None,
         }
+    }
+
+    /// Sets how long the upstream may stay silent before the connection is torn down and
+    /// re-established. `None` disables the check.
+    pub fn with_idle_timeout(self, idle_timeout: Option<Duration>) -> Self {
+        Self { idle_timeout, ..self }
+    }
+
+    /// Arms the idle deadline, giving the connection a full [`Self::idle_timeout`] of silence
+    /// before it is considered dead.
+    fn reset_idle(&mut self) {
+        let Some(idle_timeout) = self.idle_timeout else { return };
+
+        match self.idle_deadline.as_mut() {
+            Some(deadline) => deadline.as_mut().reset(Instant::now() + idle_timeout),
+            None => self.idle_deadline = Some(Box::pin(sleep(idle_timeout))),
+        }
+    }
+
+    /// Polls the idle deadline, registering the current task's waker with the timer, and yields
+    /// the elapsed timeout once the upstream has been silent for that long.
+    ///
+    /// Registering the timer is what makes a silent upstream recoverable at all: a websocket read
+    /// that never yields returns `Poll::Pending` without scheduling a wake-up of its own, so the
+    /// timer is the only thing that gets this task polled again.
+    fn poll_idle(&mut self, cx: &mut Context<'_>) -> Poll<Duration> {
+        let (Some(deadline), Some(idle_timeout)) = (self.idle_deadline.as_mut(), self.idle_timeout)
+        else {
+            return Poll::Pending;
+        };
+
+        deadline.as_mut().poll(cx).map(|()| idle_timeout)
+    }
+
+    /// Tears the connection down so that the next poll reconnects.
+    ///
+    /// Dropping both halves closes the socket; leaving them in place would hold a file descriptor
+    /// open for a connection we have already given up on.
+    fn disconnect(&mut self) {
+        self.stream = None;
+        self.sink = None;
+        self.idle_deadline = None;
+        self.state = State::Initial;
     }
 }
 
@@ -85,21 +148,48 @@ where
             }
 
             if this.state == State::Connect {
+                // A handshake can hang just as silently as an established connection: a peer that
+                // completes the TCP connect and then answers neither the TLS `ClientHello` nor
+                // the HTTP upgrade leaves this future pending with nothing to wake it.
+                if let Poll::Ready(idle_timeout) = this.poll_idle(cx) {
+                    this.disconnect();
+
+                    return Poll::Ready(Some(Err(eyre::eyre!(
+                        "Connection attempt made no progress for {idle_timeout:?}"
+                    ))));
+                }
+
                 match ready!(this.connect.poll_unpin(cx)) {
                     Ok((sink, stream)) => this.stream(sink, stream),
                     Err(err) => {
-                        this.state = State::Initial;
+                        this.disconnect();
 
                         return Poll::Ready(Some(Err(err)));
                     }
                 }
             }
 
-            while let State::Stream(msg) = &mut this.state {
-                if msg.is_some() {
-                    let mut sink = Pin::new(this.sink.as_mut().unwrap());
+            while matches!(this.state, State::Stream(_)) {
+                // Arm the idle deadline before anything below can return `Poll::Pending`. An
+                // upstream that stops sending without closing the connection yields neither
+                // `None` nor `Err`, so the timer is the only thing that gets this task polled
+                // again. See <https://github.com/ethereum-optimism/optimism/issues/22816>.
+                if let Poll::Ready(idle_timeout) = this.poll_idle(cx) {
+                    this.disconnect();
+
+                    return Poll::Ready(Some(Err(eyre::eyre!(
+                        "Connection idle for {idle_timeout:?} without a single frame"
+                    ))));
+                }
+
+                if matches!(this.state, State::Stream(Some(_))) {
+                    let mut sink = Pin::new(
+                        this.sink.as_mut().expect("Stream state is unreachable without sink"),
+                    );
                     let _ = ready!(sink.as_mut().poll_ready(cx));
-                    if let Some(pong) = msg.take() {
+                    if let State::Stream(queued) = &mut this.state &&
+                        let Some(pong) = queued.take()
+                    {
                         let _ = sink.as_mut().start_send(pong);
                     }
                     let _ = ready!(sink.as_mut().poll_flush(cx));
@@ -111,10 +201,14 @@ where
                         .expect("Stream state should be unreachable without stream")
                         .poll_next_unpin(cx)
                 ) else {
-                    this.state = State::Initial;
+                    this.disconnect();
 
                     continue 'start;
                 };
+
+                // Any frame, a websocket ping or pong included, proves the connection is still
+                // alive, so the idle deadline restarts from here.
+                this.reset_idle();
 
                 match msg {
                     Ok(Message::Binary(bytes)) => {
@@ -144,6 +238,7 @@ where
         let mut connector = self.connector.clone();
 
         Pin::new(&mut self.connect).set(Box::pin(async move { connector.connect(ws_url).await }));
+        self.reset_idle();
 
         self.state = State::Connect;
     }
@@ -151,6 +246,7 @@ where
     fn stream(&mut self, sink: S, stream: Stream) {
         self.sink.replace(sink);
         self.stream.replace(stream);
+        self.reset_idle();
 
         self.state = State::Stream(None);
     }
@@ -176,6 +272,7 @@ impl<Stream: Debug, S: Debug, C: Debug> Debug for WsFlashBlockStream<Stream, S, 
             .field("connector", &self.connector)
             .field("connect", &"Pin<Box<dyn Future<..>>>")
             .field("stream", &self.stream)
+            .field("idle_timeout", &self.idle_timeout)
             .finish()
     }
 }
@@ -268,6 +365,7 @@ mod tests {
     use alloy_primitives::bytes::Bytes;
     use brotli::enc::BrotliEncoderParams;
     use std::{future, iter};
+    use tokio::time;
     use tokio_tungstenite::tungstenite::{
         Error,
         protocol::frame::{Frame, coding::CloseCode},
@@ -414,6 +512,114 @@ mod tests {
             _cx: &mut Context<'_>,
         ) -> Poll<Result<(), Self::Error>> {
             Poll::Ready(Ok(()))
+        }
+    }
+
+    /// Simulates an upstream that delivers `messages` and then goes silent *without* closing the
+    /// connection: it yields no further item and never wakes the task again.
+    ///
+    /// This is the half-open socket from <https://github.com/ethereum-optimism/optimism/issues/22816>.
+    #[derive(Clone)]
+    struct SilentStream(Vec<Message>);
+
+    impl SilentStream {
+        fn new(mut messages: Vec<Message>) -> Self {
+            messages.reverse();
+
+            Self(messages)
+        }
+    }
+
+    impl Stream for SilentStream {
+        type Item = Result<Message, Error>;
+
+        fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            self.get_mut().0.pop().map_or(Poll::Pending, |msg| Poll::Ready(Some(Ok(msg))))
+        }
+    }
+
+    /// Simulates an upstream that delivers one message every `interval` and then goes silent.
+    struct HeartbeatStream {
+        messages: Vec<Message>,
+        interval: Duration,
+        next: Pin<Box<Sleep>>,
+    }
+
+    impl HeartbeatStream {
+        fn new(mut messages: Vec<Message>, interval: Duration) -> Self {
+            messages.reverse();
+
+            Self { messages, interval, next: Box::pin(sleep(interval)) }
+        }
+    }
+
+    impl Stream for HeartbeatStream {
+        type Item = Result<Message, Error>;
+
+        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            let this = self.get_mut();
+
+            ready!(this.next.as_mut().poll(cx));
+
+            let Some(msg) = this.messages.pop() else { return Poll::Pending };
+            this.next.as_mut().reset(Instant::now() + this.interval);
+
+            Poll::Ready(Some(Ok(msg)))
+        }
+    }
+
+    /// Creates [`HeartbeatStream`]s.
+    #[derive(Clone)]
+    struct HeartbeatConnector {
+        messages: Vec<Message>,
+        interval: Duration,
+    }
+
+    impl WsConnect for HeartbeatConnector {
+        type Stream = HeartbeatStream;
+        type Sink = NoopSink;
+
+        fn connect(
+            &mut self,
+            _ws_url: Url,
+        ) -> impl Future<Output = eyre::Result<(Self::Sink, Self::Stream)>> + Send {
+            future::ready(Ok((
+                NoopSink,
+                HeartbeatStream::new(self.messages.clone(), self.interval),
+            )))
+        }
+    }
+
+    /// Simulates a peer that accepts the connection attempt and then never completes the
+    /// handshake, leaving the connect future pending with nothing to wake it.
+    #[derive(Clone)]
+    struct HangingConnector;
+
+    impl WsConnect for HangingConnector {
+        type Stream = FakeStream;
+        type Sink = NoopSink;
+
+        fn connect(
+            &mut self,
+            _ws_url: Url,
+        ) -> impl Future<Output = eyre::Result<(Self::Sink, Self::Stream)>> + Send {
+            future::pending()
+        }
+    }
+
+    /// Creates [`SilentStream`]s.
+    #[derive(Clone)]
+    struct SilentConnector(SilentStream);
+
+    impl WsConnect for SilentConnector {
+        type Stream = SilentStream;
+        type Sink = NoopSink;
+
+        fn connect(
+            &mut self,
+            _ws_url: Url,
+        ) -> impl Future<Output = eyre::Result<(Self::Sink, Self::Stream)>> + Send {
+            future::ready(Ok((NoopSink, self.0.clone())))
         }
     }
 
@@ -589,5 +795,66 @@ mod tests {
 
         assert!(actual_buffer.is_none(), "buffer not flushed: {actual_buffer:#?}");
         assert_eq!(actual_response, expected_response);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_stream_reconnects_when_the_upstream_goes_silent() {
+        let flashblock = flashblock();
+        let connector =
+            SilentConnector(SilentStream::new(vec![to_json_binary_message(&flashblock).unwrap()]));
+        let ws_url = "http://localhost".parse().unwrap();
+        let mut stream = WsFlashBlockStream::with_connector(ws_url, connector);
+
+        assert_eq!(stream.next().await.expect("stream should not end").unwrap(), flashblock);
+
+        // The upstream is now silent while the connection stays open, so the inner websocket read
+        // parks without ever waking us again. Only the idle deadline can recover from this.
+        let received = time::timeout(Duration::from_secs(60), stream.next())
+            .await
+            .expect("a silent upstream should not park the stream forever");
+        let err = received.expect("stream should not end").unwrap_err();
+
+        assert!(err.to_string().contains("idle"), "unexpected error: {err}");
+        assert!(stream.stream.is_none(), "the dead connection should be dropped, not held open");
+        assert_eq!(stream.state, State::Initial, "the next poll should reconnect");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_stream_gives_up_on_a_handshake_that_never_completes() {
+        let ws_url = "http://localhost".parse().unwrap();
+        let mut stream = WsFlashBlockStream::with_connector(ws_url, HangingConnector)
+            .with_idle_timeout(Some(Duration::from_secs(5)));
+
+        let received = time::timeout(Duration::from_secs(60), stream.next())
+            .await
+            .expect("a handshake that never completes should not park the stream forever");
+        let err = received.expect("stream should not end").unwrap_err();
+
+        assert!(err.to_string().contains("no progress"), "unexpected error: {err}");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_idle_deadline_restarts_on_every_frame() {
+        let flashblock = flashblock();
+        let connector = HeartbeatConnector {
+            // The flashblock only arrives after 9s, well past the idle timeout, but each pong in
+            // front of it restarts the deadline.
+            messages: vec![
+                Message::Pong(Bytes::from_static(b"1")),
+                Message::Pong(Bytes::from_static(b"2")),
+                to_json_binary_message(&flashblock).unwrap(),
+            ],
+            interval: Duration::from_secs(3),
+        };
+        let ws_url = "http://localhost".parse().unwrap();
+        let mut stream = WsFlashBlockStream::with_connector(ws_url, connector)
+            .with_idle_timeout(Some(Duration::from_secs(5)));
+
+        let received = stream.next().await.expect("stream should not end").unwrap();
+
+        assert_eq!(
+            received, flashblock,
+            "traffic within the idle timeout should keep the connection alive"
+        );
     }
 }

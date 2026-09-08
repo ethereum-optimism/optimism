@@ -4,8 +4,10 @@
 
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
+use reth_cli_util::parsers::{format_duration_as_secs_or_ms, parse_duration_from_secs_or_ms};
+use reth_optimism_flashblocks::DEFAULT_IDLE_TIMEOUT;
 use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 use url::Url;
 
 /// Storage schema version for the proofs-history database.
@@ -258,6 +260,22 @@ pub struct RollupArgs {
     )]
     pub flashblock_consensus: bool,
 
+    /// How long the flashblocks websocket subscription may stay silent - not even a websocket
+    /// ping - before the connection is torn down and re-established.
+    ///
+    /// An upstream that stops sending without closing the connection otherwise parks the
+    /// subscription indefinitely, freezing the `pending` block while the node keeps importing
+    /// canonical blocks. Must exceed the chain's flashblock interval, or a healthy connection is
+    /// reconnected on every gap between flashblocks; `0` disables the check.
+    #[arg(
+        long = "flashblocks-idle-timeout",
+        alias = "subblocks-idle-timeout",
+        value_name = "DURATION",
+        value_parser = parse_duration_from_secs_or_ms,
+        default_value = format_duration_as_secs_or_ms(DEFAULT_IDLE_TIMEOUT)
+    )]
+    pub flashblocks_idle_timeout: Duration,
+
     /// If true, initialize external-proofs exex to save and serve trie nodes to provide proofs
     /// faster.
     #[arg(
@@ -296,6 +314,19 @@ pub struct RollupArgs {
     pub proofs_history_verification_interval: u64,
 }
 
+impl RollupArgs {
+    /// Returns the flashblocks websocket idle timeout these arguments ask for.
+    ///
+    /// A zero timeout is taken as "no check", the only way to express that on the CLI.
+    pub const fn flashblocks_idle_timeout(&self) -> Option<Duration> {
+        if self.flashblocks_idle_timeout.is_zero() {
+            None
+        } else {
+            Some(self.flashblocks_idle_timeout)
+        }
+    }
+}
+
 impl Default for RollupArgs {
     fn default() -> Self {
         Self {
@@ -315,6 +346,7 @@ impl Default for RollupArgs {
             max_uncompressed_block_size: None,
             flashblocks_url: None,
             flashblock_consensus: false,
+            flashblocks_idle_timeout: DEFAULT_IDLE_TIMEOUT,
             proofs_history: false,
             history: ProofsHistoryStorageArgs {
                 storage_path: None,
@@ -452,6 +484,41 @@ mod tests {
         ])
         .args;
         assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_flashblocks_idle_timeout() {
+        let expected_args = RollupArgs {
+            flashblocks_idle_timeout: Duration::from_millis(1500),
+            ..Default::default()
+        };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--flashblocks-idle-timeout",
+            "1500ms",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+
+        assert_eq!(args.flashblocks_idle_timeout(), Some(Duration::from_millis(1500)));
+    }
+
+    #[test]
+    fn test_zero_flashblocks_idle_timeout_disables_the_check() {
+        let args =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--flashblocks-idle-timeout", "0"])
+                .args;
+
+        assert_eq!(args.flashblocks_idle_timeout(), None);
+    }
+
+    #[test]
+    fn test_flashblocks_idle_timeout_is_enabled_by_default() {
+        assert_eq!(
+            RollupArgs::default().flashblocks_idle_timeout(),
+            Some(DEFAULT_IDLE_TIMEOUT),
+            "the idle timeout guards against a silent upstream and must be on by default"
+        );
     }
 
     #[test]
