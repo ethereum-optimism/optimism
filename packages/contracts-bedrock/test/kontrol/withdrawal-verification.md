@@ -56,7 +56,9 @@ component result must not be labeled proof of authentic withdrawals.
 The finalizer obligations under development connect this component to both finalization entry points.
 `prove_finalizeWithdrawal_ineligible_reverts` uses the canonical hash of every withdrawal field,
 an arbitrary caller and proof submitter, and a symbolic choice of entry point. Its rejection premise
-is checked against the eligibility expression above before the production finalizer is called.
+uses the independent eligibility expression above; the finalizer executes its actual checks.
+The separate equivalence obligation compares `checkWithdrawal` with that same expression, avoiding
+a duplicate production eligibility call inside the general finalizer obligation.
 The calldata bytes have symbolic length within Kontrol's compiler-compatible `uint64` length domain;
 no fixed-length annotation is used. `prove_finalizeWithdrawal_eligible_succeeds` supplies an eligible
 example for both entry points. These obligations retain the fixture's deployment and dependency

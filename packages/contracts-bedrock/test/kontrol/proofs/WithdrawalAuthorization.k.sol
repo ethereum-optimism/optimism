@@ -157,8 +157,9 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
     {
         _case.withdrawalHash = _withdrawalHash(_tx);
         if (!_externalProof) _case.submitter = _caller;
-        // This is the rejection premise, checked against the independent eligibility expression in _check.
-        vm.assume(!_check(_case));
+        _seed(_case);
+        // The independent rejection premise; the finalizer executes the actual eligibility checks.
+        vm.assume(!_eligible(_case));
         assert(!_finalize(_tx, _case.submitter, _caller, _externalProof));
     }
 
@@ -407,17 +408,20 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         bytes32 recordSlot = _seed(_case);
         (accepted_,) =
             address(portal).staticcall(abi.encodeCall(portal.checkWithdrawal, (_case.withdrawalHash, _case.submitter)));
-        bool eligible = _case.finalized == 0 && _case.provenAt != 0 && _case.provenAt > _case.createdAt
-            && _case.now >= _case.provenAt && uint256(_case.now) - _case.provenAt > proofDelay
-            && _case.registeredGame == address(game) && _case.blacklisted == 0 && _case.createdAt > _case.retiredAt
-            && !_case.paused && _case.respected && _case.status == uint8(GameStatus.DEFENDER_WINS) && _case.resolvedAt != 0
-            && _case.now >= _case.resolvedAt && uint256(_case.now) - _case.resolvedAt > gameDelay;
-        assert(accepted_ == eligible);
+        assert(accepted_ == _eligible(_case));
         // STATICCALL also prevents writes in every dependency, including reverted executions.
         assert(
             vm.load(address(portal), recordSlot)
                 == bytes32(uint256(uint160(address(game))) | (uint256(_case.provenAt) << 160))
         );
         assert(portal.finalizedWithdrawals(_case.withdrawalHash) == (_case.finalized != 0));
+    }
+
+    function _eligible(AuthorizationCase memory _case) internal view returns (bool) {
+        return _case.finalized == 0 && _case.provenAt != 0 && _case.provenAt > _case.createdAt
+            && _case.now >= _case.provenAt && uint256(_case.now) - _case.provenAt > proofDelay
+            && _case.registeredGame == address(game) && _case.blacklisted == 0 && _case.createdAt > _case.retiredAt
+            && !_case.paused && _case.respected && _case.status == uint8(GameStatus.DEFENDER_WINS) && _case.resolvedAt != 0
+            && _case.now >= _case.resolvedAt && uint256(_case.now) - _case.resolvedAt > gameDelay;
     }
 }
