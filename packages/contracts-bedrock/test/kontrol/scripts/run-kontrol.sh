@@ -11,6 +11,14 @@ case "${KONTROL_COPY_ONLY:-false}" in
   true) [ "${KONTROL_STRICT:-false}" = true ] || { echo "KONTROL_COPY_ONLY requires strict mode" >&2; exit 1; } ;;
   *) echo "KONTROL_COPY_ONLY must be true or false" >&2; exit 1 ;;
 esac
+case "${KONTROL_CALLER_ONLY:-false}" in
+  false) ;;
+  true)
+    [ "${KONTROL_STRICT:-false}" = true ] && [ "${KONTROL_COPY_ONLY:-false}" = false ] || {
+      echo "KONTROL_CALLER_ONLY requires strict mode and excludes KONTROL_COPY_ONLY" >&2; exit 1;
+    } ;;
+  *) echo "KONTROL_CALLER_ONLY must be true or false" >&2; exit 1 ;;
+esac
 if [ "${KONTROL_STRICT:-false}" = true ]; then
   # The previous suite's auto-removal can still hold its container name.
   export CONTAINER_NAME="${CONTAINER_NAME}-withdrawal-$$"
@@ -51,38 +59,46 @@ kontrol_prove() {
     # Keep post-execution simplification to eliminate infeasible symbolic dispatch branches.
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
     rpc_command+=' --fallback-on Stuck,Aborted'
-    # Fresh independent steps must pass before the separate full-loop invocation.
-    run rm -rf kout-proofs/copy-loop
-    run mkdir -p kout-proofs/copy-loop
-    run python3 test/kontrol/scripts/generate-copy-claim.py \
-      kout-proofs/WithdrawalAuthorization.k.sol/WithdrawalAuthorizationKontrol.json \
-      kout-proofs/copy-loop/claim.k
-    local foundry_include
-    foundry_include=$(run python3 -c 'from importlib.resources import files; print(files("kontrol") / "kdist")')
-    local copy_command=(
-      timeout --signal=INT --kill-after=30s 15m kevm prove --verbose kout-proofs/copy-loop/claim.k
-      --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop
-      --spec-module WITHDRAWAL-COPY-LOOP -I "$foundry_include" --workers 1
-      --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0
-      --break-on-jump --break-on-jumpi --break-on-basic-blocks
-      --no-log-rewrites --kore-rpc-command "$rpc_command"
-    )
-    run "${copy_command[@]}" --reinit --fast-check-subsumption \
-      --claim WITHDRAWAL-COPY-LOOP.word-copy-step || copy_status=$?
-    if [ "$copy_status" -eq 0 ]; then
-      run python3 test/kontrol/scripts/check-copy-steps.py kout-proofs/copy-loop || copy_status=$?
-    fi
-    if [ "$copy_status" -eq 0 ]; then
-      # Reuse only the just-verified step; --reinit here would invalidate the gate.
-      run "${copy_command[@]}" --claim WITHDRAWAL-COPY-LOOP.word-copy \
-        --direct-subproof-rules || copy_status=$?
-    fi
-    if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then
-      notif "COPY-LOOP DIAGNOSTIC: exit=$copy_status; Solidity obligations were not run"
-      return "$copy_status"
+    if [ "${KONTROL_CALLER_ONLY:-false}" != true ]; then
+      # Fresh independent steps must pass before the separate full-loop invocation.
+      run rm -rf kout-proofs/copy-loop
+      run mkdir -p kout-proofs/copy-loop
+      run python3 test/kontrol/scripts/generate-copy-claim.py \
+        kout-proofs/WithdrawalAuthorization.k.sol/WithdrawalAuthorizationKontrol.json \
+        kout-proofs/copy-loop/claim.k
+      local foundry_include
+      foundry_include=$(run python3 -c 'from importlib.resources import files; print(files("kontrol") / "kdist")')
+      local copy_command=(
+        timeout --signal=INT --kill-after=30s 15m kevm prove --verbose kout-proofs/copy-loop/claim.k
+        --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop
+        --spec-module WITHDRAWAL-COPY-LOOP -I "$foundry_include" --workers 1
+        --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0
+        --break-on-jump --break-on-jumpi --break-on-basic-blocks
+        --no-log-rewrites --kore-rpc-command "$rpc_command"
+      )
+      run "${copy_command[@]}" --reinit --fast-check-subsumption \
+        --claim WITHDRAWAL-COPY-LOOP.word-copy-step || copy_status=$?
+      if [ "$copy_status" -eq 0 ]; then
+        run python3 test/kontrol/scripts/check-copy-steps.py kout-proofs/copy-loop || copy_status=$?
+      fi
+      if [ "$copy_status" -eq 0 ]; then
+        # Reuse only the just-verified step; --reinit here would invalidate the gate.
+        run "${copy_command[@]}" --claim WITHDRAWAL-COPY-LOOP.word-copy \
+          --direct-subproof-rules || copy_status=$?
+      fi
+      if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then
+        notif "COPY-LOOP DIAGNOSTIC: exit=$copy_status; Solidity obligations were not run"
+        return "$copy_status"
+      fi
     fi
     # Bound proving inside the container so the host can still collect its saved graphs.
-    prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove --verbose)
+    local proof_timeout=60m
+    if [ "${KONTROL_CALLER_ONLY:-false}" = true ]; then
+      proof_timeout=15m
+      max_depth=1000
+      model_args+=(--break-on-jump --break-on-jumpi --break-on-basic-blocks)
+    fi
+    prove_command=(timeout --signal=INT --kill-after=30s "$proof_timeout" kontrol prove --verbose)
   else
     rpc_command+=' --no-post-exec-simplify'
   fi
@@ -106,6 +122,10 @@ kontrol_prove() {
     --smt-timeout 16000 \
     --smt-retry-limit 0 \
     --remove-old-proofs || methods_status=$?
+  if [ "${KONTROL_CALLER_ONLY:-false}" = true ]; then
+    notif "CALLER DIAGNOSTIC: exit=$methods_status; copy helpers and the full suite were not run"
+    return "$methods_status"
+  fi
   # Collect evidence for both independent obligations, but require both to pass.
   notif "Proof exit codes: copy-loop=$copy_status methods=$methods_status"
   if [ "$copy_status" -ne 0 ]; then return "$copy_status"; fi

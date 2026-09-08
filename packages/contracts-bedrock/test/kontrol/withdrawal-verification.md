@@ -170,8 +170,13 @@ with results; the production source classes alone do not identify any particular
 Accept a result only when all selected proof graphs pass without pending, failing, or admitted
 obligations and the acceptance witness passes. Compilation and JUnit alone are insufficient.
 
-The current branch temporarily dispatches a copy-loop CI diagnostic with
-`KONTROL_COPY_ONLY=true`. It first selects an independent, non-circular one-iteration claim
+The current branch temporarily dispatches `test-withdrawal-authorization-caller` to capture
+the record-transition caller's actual frontier and memory layout. `KONTROL_CALLER_ONLY=true`
+requires strict mode, excludes copy-only mode, skips helper proofs and bounds the selected
+Solidity proof plus setup to 15 minutes. It adds no lemma or input assumption. Expected native
+coverage is the record-transition method and its setup; this is not full-suite evidence.
+
+The separate copy-loop diagnostic uses `KONTROL_COPY_ONLY=true`. It first selects an independent, non-circular one-iteration claim
 covering every continuing iteration, without a memory-size case restriction. It requires the
 exact merged byte copy and one-step memory expansion, with no dependency on the full loop.
 Keeping the initial memory expression unspecialized avoids case-specific concatenation patterns
