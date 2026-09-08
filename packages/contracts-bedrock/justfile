@@ -207,6 +207,11 @@ test-withdrawal-authorization-caller:
   KONTROL_STRICT=true KONTROL_CALLER_ONLY=true KONTROL_LOG_DIR=test/kontrol/logs/withdrawal ./test/kontrol/scripts/run-kontrol.sh container \
     WithdrawalAuthorizationKontrol.prove_record
 
+# Temporary initializer diagnostic; does not validate withdrawal authorization.
+test-withdrawal-authorization-initializer:
+  KONTROL_STRICT=true KONTROL_LOG_DIR=test/kontrol/logs/withdrawal ./test/kontrol/scripts/run-kontrol.sh container \
+    WithdrawalAuthorizationKontrol.prove_prepareRecord
+
 # Runs contract coverage.
 coverage: build-go-ffi
   forge coverage
