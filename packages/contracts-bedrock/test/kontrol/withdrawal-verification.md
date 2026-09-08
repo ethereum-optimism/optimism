@@ -83,6 +83,14 @@ to preserve both suites' results. Separate selectors allow the witness to run al
 Strict mode limits proving to 60 minutes inside the container so the host can collect saved graphs
 after a timeout. A timeout is incomplete, never a proof pass.
 
+Before these methods, strict mode separately attempts a word-copy loop claim for the exact fixture
+runtime, with a 15-minute timeout. The generator requires the complete opcode loop and its matching
+jump destinations. The claim covers a symbolic prefix copied into disjoint memory and stops before
+tail clearing. Its specification and native graph are archived under `kout-proofs/copy-loop`.
+This claim is under development and is not imported as an execution summary. Any later composition
+must first verify its completed graph and establish all its memory, stack and arithmetic premises
+at the caller; those premises must not become restrictions on the parent theorem's inputs.
+
 Strict mode returns Booster's symbolic branches directly and retains legacy fallback for stuck
 or aborted execution. It retains post-execution simplification, including elimination of branches
 the simplifier establishes as impossible. This avoids an expensive legacy reconfirmation of each

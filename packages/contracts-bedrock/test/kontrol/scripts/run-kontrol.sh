@@ -42,6 +42,18 @@ kontrol_prove() {
     # Keep post-execution simplification to eliminate infeasible symbolic dispatch branches.
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
     rpc_command+=' --fallback-on Stuck,Aborted'
+    # Prove the generated claim independently; do not import it as a rewrite.
+    run mkdir -p kout-proofs/copy-loop
+    run python3 test/kontrol/scripts/generate-copy-claim.py \
+      kout-proofs/WithdrawalAuthorization.k.sol/WithdrawalAuthorizationKontrol.json \
+      kout-proofs/copy-loop/claim.k
+    local foundry_include
+    foundry_include=$(run python3 -c 'from importlib.resources import files; print(files("kontrol") / "kdist")')
+    run timeout --signal=INT --kill-after=30s 15m kevm prove kout-proofs/copy-loop/claim.k \
+      --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop \
+      --spec-module WITHDRAWAL-COPY-LOOP -I "$foundry_include" --reinit --workers 1 \
+      --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0 \
+      --break-on-jump --break-on-jumpi --no-log-rewrites --kore-rpc-command "$rpc_command"
     # Bound proving inside the container so the host can still collect its saved graphs.
     prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove)
   else
