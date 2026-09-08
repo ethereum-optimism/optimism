@@ -135,6 +135,9 @@ The endpoint is the unique multiple of 32 in `[LENGTH, LENGTH + 32)`, equivalent
 instead of substituting a quotient throughout the memory and stack postconditions.
 The target binds the observed final index and requires it to equal this endpoint through
 both inequalities. The exact byte-copy and memory-expansion postconditions use that same index.
+The final memory-size counter is bound before checking both inequalities against its exact
+expansion formula. This avoids matching two conditional expressions as cell patterns; it does
+not permit a different counter value or omit the memory-expansion obligation.
 Its specification and native graph are archived under `kout-proofs/copy-loop`.
 The runner also stops after basic-block bookkeeping, exposing the claim's plain `#execute`
 state at loop entry and exit; jump-only cut points stop before that bookkeeping finishes.

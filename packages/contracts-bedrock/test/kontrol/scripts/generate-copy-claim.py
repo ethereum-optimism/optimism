@@ -57,7 +57,7 @@ module WITHDRAWAL-COPY-LOOP
       </localMem>
       <memoryUsed>
         (#if I ==Int 0 #then MU #else maxInt(MU, (DEST +Int I +Int 31) /Int 32) #fi)
-          => (#if ?FINALINDEX ==Int 0 #then MU #else maxInt(MU, (DEST +Int ?FINALINDEX +Int 31) /Int 32) #fi)
+          => ?FINALMEMORYUSED
       </memoryUsed>
       <gas> #gas(G) => #gas(?FINALGAS) </gas>
       <useGas> true </useGas>
@@ -79,6 +79,10 @@ module WITHDRAWAL-COPY-LOOP
        andBool #sizeWordStack(WS, 5) <Int 1024
        andBool #sizeWordStack(WS, 6) <Int 1024
       ensures END <=Int ?FINALINDEX andBool ?FINALINDEX <=Int END
+       andBool ?FINALMEMORYUSED <=Int
+         (#if ?FINALINDEX ==Int 0 #then MU #else maxInt(MU, (DEST +Int ?FINALINDEX +Int 31) /Int 32) #fi)
+       andBool (#if ?FINALINDEX ==Int 0 #then MU #else maxInt(MU, (DEST +Int ?FINALINDEX +Int 31) /Int 32) #fi)
+         <=Int ?FINALMEMORYUSED
       [circularity]
 endmodule
 ''')
