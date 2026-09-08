@@ -4,7 +4,16 @@ use kona_preimage::{
     HintReaderServer, PreimageOracleServer, PreimageServerBackend, errors::PreimageOracleError,
 };
 use std::sync::Arc;
+use tokio::{spawn, task::JoinHandle};
 use tracing::{error, info};
+
+struct AbortOnDrop<T>(JoinHandle<T>);
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
 
 /// The [`PreimageServer`] is responsible for waiting for incoming preimage requests and
 /// serving them to the client.
@@ -27,6 +36,9 @@ pub enum PreimageServerError {
     /// An error when failed to serve route hint.
     #[error("Failed to route hint: {0}")]
     RouteHintFailed(PreimageOracleError),
+    /// Task failed to execute to completion.
+    #[error("Join error: {0}")]
+    ExecutionError(#[from] tokio::task::JoinError),
 }
 
 impl<P, H, B> PreimageServer<P, H, B>
@@ -43,10 +55,15 @@ where
 
     /// Starts the [`PreimageServer`] and waits for incoming requests.
     pub async fn start(self) -> Result<(), PreimageServerError> {
+        let mut server =
+            AbortOnDrop(spawn(Self::start_oracle_server(self.oracle_server, self.backend.clone())));
+        let mut hint_router =
+            AbortOnDrop(spawn(Self::start_hint_router(self.hint_reader, self.backend.clone())));
+
         // Race the two futures to completion, returning the result of the first one to finish.
         tokio::select! {
-            result = Self::start_oracle_server(self.oracle_server, self.backend.clone()) => result,
-            result = Self::start_hint_router(self.hint_reader, self.backend.clone()) => result,
+            result = &mut server.0 => result?,
+            result = &mut hint_router.0 => result?,
         }
     }
 
@@ -95,9 +112,10 @@ mod tests {
     use std::{
         future::pending,
         sync::{
-            Arc,
+            Arc, Condvar, Mutex,
             atomic::{AtomicUsize, Ordering},
         },
+        time::Duration,
     };
 
     use async_trait::async_trait;
@@ -165,6 +183,75 @@ mod tests {
         async fn route_hint(&self, _hint: String) -> PreimageOracleResult<()> {
             unreachable!("pending server never routes a hint")
         }
+    }
+
+    #[derive(Default)]
+    struct BlockingWorkerState {
+        started: usize,
+        released: bool,
+    }
+
+    #[derive(Clone)]
+    struct BlockingWorker(Arc<(Mutex<BlockingWorkerState>, Condvar)>);
+
+    impl BlockingWorker {
+        fn block(&self) -> PreimageOracleResult<()> {
+            let (state, state_changed) = self.0.as_ref();
+            let mut state = state.lock().unwrap();
+            state.started += 1;
+            state_changed.notify_all();
+            while !state.released {
+                state = state_changed.wait(state).unwrap();
+            }
+            Err(PreimageOracleError::Other("worker released".into()))
+        }
+    }
+
+    #[async_trait]
+    impl PreimageOracleServer for BlockingWorker {
+        async fn next_preimage_request<F>(&self, _get_preimage: &F) -> PreimageOracleResult<()>
+        where
+            F: PreimageFetcher + Send + Sync,
+        {
+            self.block()
+        }
+    }
+
+    #[async_trait]
+    impl HintReaderServer for BlockingWorker {
+        async fn next_hint<R>(&self, _route_hint: &R) -> PreimageOracleResult<()>
+        where
+            R: HintRouter + Send + Sync,
+        {
+            self.block()
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn blocking_channel_workers_run_concurrently() {
+        let state = Arc::new((Mutex::new(BlockingWorkerState::default()), Condvar::new()));
+        let worker = BlockingWorker(state.clone());
+        let server = PreimageServer::new(worker.clone(), worker, Arc::new(UnusedBackend));
+        let server_task = tokio::spawn(server.start());
+
+        let wait_state = state.clone();
+        let both_started = tokio::task::spawn_blocking(move || {
+            let (state, state_changed) = wait_state.as_ref();
+            let state = state.lock().unwrap();
+            let (state, _) = state_changed
+                .wait_timeout_while(state, Duration::from_secs(2), |state| state.started < 2)
+                .unwrap();
+            state.started == 2
+        })
+        .await
+        .unwrap();
+
+        let (worker_state, state_changed) = state.as_ref();
+        worker_state.lock().unwrap().released = true;
+        state_changed.notify_all();
+        let _ = server_task.await;
+
+        assert!(both_started, "oracle and hint workers did not run concurrently");
     }
 
     #[tokio::test]
