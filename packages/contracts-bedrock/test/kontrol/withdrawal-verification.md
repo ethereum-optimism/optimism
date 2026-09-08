@@ -123,6 +123,8 @@ runtime, with a 15-minute timeout. The generator requires the complete opcode lo
 jump destinations. The claim covers a symbolic prefix copied into disjoint memory, tracks memory
 expansion, and stops before tail clearing. It uses symbolic infinite gas and leaves the final gas
 formula unspecified, so it supplies no gas bound and cannot apply to the concrete-gas witnesses.
+It explicitly enables stack checks, matching the strict caller model and the EVM stack limit;
+the proof does not quantify over Kontrol's optional stack-check disabling configuration.
 Its specification and native graph are archived under `kout-proofs/copy-loop`.
 CI attempts both this claim and the Solidity methods; either failure fails the job.
 This claim is under development and is not imported as an execution summary. Any later composition

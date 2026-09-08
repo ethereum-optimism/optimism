@@ -61,6 +61,7 @@ module WITHDRAWAL-COPY-LOOP
       </memoryUsed>
       <gas> #gas(G) => #gas(?FINALGAS) </gas>
       <useGas> true </useGas>
+      <stackChecks> true </stackChecks>
       <schedule> CANCUN </schedule>
       requires 0 <=Int LENGTH andBool LENGTH <Int 2 ^Int 64
        andBool END ==Int ((LENGTH +Int 31) /Int 32) *Int 32
