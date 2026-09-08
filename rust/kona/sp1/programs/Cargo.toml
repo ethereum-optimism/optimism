@@ -117,6 +117,7 @@ too_long_first_doc_paragraph = "allow"
 [workspace.dependencies]
 # Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
 kona-proof = { path = "../../crates/proof/proof", version = "0.3.0", default-features = false }
+kona-sp1-build-info = { path = "../crates/build-info" }
 kona-sp1-client-utils = { path = "../crates/client" }
 kona-sp1-ethereum-client-utils = { path = "../crates/ethereum/client" }
 kona-sp1-range-vkeys = { path = "../crates/range-vkeys" }

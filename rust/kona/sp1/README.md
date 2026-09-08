@@ -23,6 +23,7 @@ zkVM programs that execute inside the SP1 prover:
 
 Supporting libraries for the SP1 fault proof system:
 
+- **`build-info`**: Compile-time build marker embedding the monorepo commit into both guests
 - **`client`**: Client-side utilities and types for witness execution in the zkVM
 - **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum/client`**: Ethereum-specific client-side data availability utilities
@@ -58,6 +59,34 @@ artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails 
 infrastructure error. Release automation will eventually pin per-version vkeys from the generated
 manifest into `superchain-registry/validation/standard/standard-prestates.toml` and verify
 reproducible builds.
+
+#### Build provenance
+
+Both guests embed the commit they were built from, so a guest ELF identifies its own source
+without a manifest, a lookup table, or executing it:
+
+```bash
+grep -aoE 'KONA_SP1_BUILD\{git_sha=[^}]*\}' elf/super-aggregation-elf
+```
+
+The guests also print the marker at startup, which surfaces wherever the executor runs it —
+`kona-sp1-super-range-executor` locally and in the acceptance smoke tests, where a bare
+`println!` arrives as a WARN `Invalid JSON` line carrying the marker. Proving on the Succinct
+network sends guest output to the remote prover, so the ELF scan is the reliable path there.
+
+The commit is part of the compiled image, so it is part of the vkey: two builds from different
+commits produce different vkeys even when the program logic is identical. Range proofs are
+verified against the `SUPER_RANGE_VKEY` embedded in `super-aggregation`, so a range prover and an
+aggregator must come from the same commit, not merely the same code. The marker is recoverable,
+not attested: it records what an honest build embedded and proves nothing against a rewritten
+artifact.
+
+`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so both
+guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
+`KONA_CUSTOM_CONFIGS_DIR` build, whose guest is compiled from configs the commit does not
+describe. Set `KONA_SP1_GIT_SHA` to override it. Builds outside the justfile record `unknown`.
+Each build recipe checks its own ELF; CI (`kona-build-sp1-elfs`) additionally pins the natively
+built ELFs to the commit under test.
 
 Custom chains and devnets can compile separate SP1 artifacts with custom kona
 registry inputs:

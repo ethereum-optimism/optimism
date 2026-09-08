@@ -15,6 +15,7 @@ build-super-range-executor:
 build-elfs:
     #!/usr/bin/env bash
     set -euo pipefail
+    export KONA_SP1_GIT_SHA="${KONA_SP1_GIT_SHA:-$(just _git-sha)}"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
     just build-super-range-elf
@@ -75,11 +76,20 @@ _build-elf NAME MODE:
       fi
     fi
 
+    # Commit for kona-sp1-build-info's marker, resolved by the calling recipe so both guests
+    # carry the same one; see crates/build-info/build.rs for the two channels.
+    : "${KONA_SP1_GIT_SHA:?resolve it via build-elfs or build-elfs-native}"
+    export KONA_SP1_GIT_SHA
+
     # --locked appears to be a no-op in upstream cargo-prove (regenerates the lock anyway).
     args=(--locked --ignore-rust-version --elf-name "{{NAME}}-elf" --workspace-directory "$root" --output-directory "{{justfile_directory()}}/elf")
     if [[ "{{MODE}}" == "docker" ]]; then
       mkdir -p "{{justfile_directory()}}/programs/target/elf-compilation/docker"
       args=(--docker --tag "{{SP1_TAG}}" "${args[@]}")
+      args+=(
+        --rustflags=--cfg
+        "--rustflags=kona_sp1_git_sha=\"${KONA_SP1_GIT_SHA}\""
+      )
       if [[ -n "${docker_configs_dir:-}" ]]; then
         args+=(
           --rustflags=--cfg
@@ -93,12 +103,38 @@ _build-elf NAME MODE:
     cd "{{justfile_directory()}}/programs/{{NAME}}"
     cargo prove build "${args[@]}"
 
+    # Nothing fails at compile time if the marker literal is dropped or an injection channel
+    # stops working, so check the artifact on every build path rather than only the one CI runs.
+    elf="{{justfile_directory()}}/elf/{{NAME}}-elf"
+    found=$(grep -m1 -aoE 'KONA_SP1_BUILD\{git_sha=[^}]*\}' "$elf" || true)
+    found=${found%%$'\n'*}
+    if [[ "$found" != "KONA_SP1_BUILD{git_sha=${KONA_SP1_GIT_SHA}}" ]]; then
+      echo "ERROR: {{NAME}}-elf carries build marker '${found}'" >&2
+      echo "       expected KONA_SP1_BUILD{git_sha=${KONA_SP1_GIT_SHA}}" >&2
+      exit 1
+    fi
+
+# Commit recorded in the guest build marker. Resolved once per build so both guests agree.
+# `-custom` marks a KONA_CUSTOM_CONFIGS_DIR build: those compile chain configs from outside the
+# repo into the guest, so the commit alone does not describe the artifact.
+[private]
+_git-sha:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="$(cd "{{justfile_directory()}}/../../.." && pwd)"
+    sha="$(git -C "$root" rev-parse HEAD)"
+    git -C "$root" diff --quiet HEAD || sha="${sha}-dirty"
+    [[ -z "${KONA_CUSTOM_CONFIGS_DIR:-}" ]] || sha="${sha}-custom"
+    echo "$sha"
+
 [private]
 _vkeys-header:
     #!/usr/bin/env bash
+    set -euo pipefail
     echo '# Generated SP1 guest verification-key hashes (bytes32).'
     echo '# Regenerate on linux/amd64 via "just build-elfs".'
     echo 'sp1_toolchain_tag = "{{SP1_TAG}}"'
+    echo "git_sha = \"${KONA_SP1_GIT_SHA:-$(just _git-sha)}\""
     echo ''
 
 [private]
@@ -113,6 +149,7 @@ _append-vkey NAME MANIFEST:
 build-elfs-native:
     #!/usr/bin/env bash
     set -euo pipefail
+    export KONA_SP1_GIT_SHA="${KONA_SP1_GIT_SHA:-$(just _git-sha)}"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
     for name in super-range super-aggregation; do

@@ -301,6 +301,28 @@ jobs:
           # acceptance tests with stub artifacts.
           name: Check vkeys manifest names expected by consumers
           command: grep -q '^super-aggregation = "0x' rust/kona/sp1/elf/vkeys.toml
+      - run:
+          # The build recipe checks each ELF against the commit it injected; this pins that
+          # commit to the one under test. Scans permissively so a marker reading `unknown`
+          # reports as `unknown` rather than as a dropped literal.
+          name: Check guest ELFs embed the build commit
+          command: |
+            set -euo pipefail
+            EXPECTED=$(git rev-parse HEAD)
+            for ELF in super-range-elf super-aggregation-elf; do
+              PATH_TO_ELF="rust/kona/sp1/elf/${ELF}"
+              set +e
+              FOUND=$(grep -m1 -aoE 'KONA_SP1_BUILD\{git_sha=[^}]*\}' "${PATH_TO_ELF}")
+              RC=$?
+              set -e
+              [ "${RC}" -le 1 ] || { echo "ERROR: grep failed on ${PATH_TO_ELF} (exit ${RC})" >&2; exit 1; }
+              FOUND=${FOUND%%$'\n'*}
+              if [ "${FOUND}" != "KONA_SP1_BUILD{git_sha=${EXPECTED}}" ]; then
+                echo "ERROR: ${ELF} build marker is '${FOUND}'; expected KONA_SP1_BUILD{git_sha=${EXPECTED}}" >&2
+                exit 1
+              fi
+              echo "${ELF}: ${FOUND}"
+            done
       - store_artifacts:
           path: rust/kona/sp1/elf
       - persist_to_workspace:
