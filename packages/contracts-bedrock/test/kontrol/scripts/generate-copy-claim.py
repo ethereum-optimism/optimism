@@ -52,7 +52,7 @@ def render_claim(name, step_case=None):
     control = "(#next [ JUMPDEST ] ~> #execute => #execute)" if step_case else "#execute => #execute"
     final_index = "I +Int 32" if step_case else "?FINALINDEX"
     memory_before = "MU" if step_case else "(#if I ==Int 0 #then MU #else maxInt(MU, (DEST +Int I +Int 31) /Int 32) #fi)"
-    memory_after = "#memoryUsageUpdate(MU, DEST +Int I, 32)" if step_case else "?FINALMEMORYUSED"
+    memory_after = "#memoryUsageUpdate(MU, I +Int DEST, 32)" if step_case else "?FINALMEMORYUSED"
     extra_requires = f"       andBool I <Int LENGTH\n       andBool {step_case}\n" if step_case else ""
     ensures = "" if step_case else """      ensures END <=Int ?FINALINDEX andBool ?FINALINDEX <=Int END
        andBool ?FINALMEMORYUSED <=Int
