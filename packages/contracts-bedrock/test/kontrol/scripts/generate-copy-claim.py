@@ -48,6 +48,8 @@ module WITHDRAWAL-COPY-LOOP
 '''
 
 def render_claim(name, step_case=None):
+    # The real decoder must reach this entry; JUMPDEST still executes normally.
+    control = "(#next [ JUMPDEST ] ~> #execute => #execute)" if step_case else "#execute => #execute"
     final_index = "I +Int 32" if step_case else "?FINALINDEX"
     memory_before = "MU" if step_case else "(#if I ==Int 0 #then MU #else maxInt(MU, (DEST +Int I +Int 31) /Int 32) #fi)"
     memory_after = "#memoryUsageUpdate(MU, DEST +Int I, 32)" if step_case else "?FINALMEMORYUSED"
@@ -60,7 +62,7 @@ def render_claim(name, step_case=None):
 """
     attributes = "" if step_case else "      [circularity]\n"
     return f'''    claim [{name}]:
-      <k> #execute => #execute ... </k>
+      <k> {control} ... </k>
       <program> {literal} </program>
       <jumpDests> #computeValidJumpDests({literal}) </jumpDests>
       <pc> {head} => {head if step_case else end} </pc>

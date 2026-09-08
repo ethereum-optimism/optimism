@@ -174,6 +174,11 @@ The current branch temporarily dispatches a copy-step CI diagnostic with
 covering writes after, across, or within the original memory buffer's end. These disjoint cases
 cover the full continuing-iteration domain. Each requires the exact merged byte copy and
 one-step memory expansion. No claim is imported as a summary or dependency.
+The steps start after decoding the loop's `JUMPDEST`, before its checks, gas charge and execution.
+The diagnostic enables KEVM's optional fast subsumption filter: a different control cell skips
+the full target comparison and continues execution; it does not establish a successful cover.
+Later composition must reach this entry through the actual decoder and discharge every premise.
+The full-loop entry, all input bounds, and all exact memory and index postconditions are unchanged.
 This mode requires strict mode and preserves failure status. It uses one worker with a shared
 15-minute timeout and a 10,000-iteration budget per claim. Its expected coverage is exactly three
 step graphs; a timeout before all cases run is incomplete. It does not run the full loop or Solidity

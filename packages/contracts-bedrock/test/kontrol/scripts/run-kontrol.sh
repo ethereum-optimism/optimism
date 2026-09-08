@@ -65,6 +65,7 @@ kontrol_prove() {
         --claim WITHDRAWAL-COPY-LOOP.word-copy-step-after-end
         --claim WITHDRAWAL-COPY-LOOP.word-copy-step-across-end
         --claim WITHDRAWAL-COPY-LOOP.word-copy-step-within-buffer
+        --fast-check-subsumption
       )
     fi
     run timeout --signal=INT --kill-after=30s 15m kevm prove --verbose kout-proofs/copy-loop/claim.k \
