@@ -73,6 +73,9 @@ module WITHDRAWAL-COPY-LOOP
        andBool DEST <=Int lengthBytes(LM)
        andBool 0 <=Int MU
        andBool #sizeWordStack(WS) <=Int 1017
+       andBool #sizeWordStack(WS, 4) <Int 1024
+       andBool #sizeWordStack(WS, 5) <Int 1024
+       andBool #sizeWordStack(WS, 6) <Int 1024
       [circularity]
 endmodule
 ''')

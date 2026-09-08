@@ -125,6 +125,10 @@ expansion, and stops before tail clearing. It uses symbolic infinite gas and lea
 formula unspecified, so it supplies no gas bound and cannot apply to the concrete-gas witnesses.
 It explicitly enables stack checks, matching the strict caller model and the EVM stack limit;
 the proof does not quantify over Kontrol's optional stack-check disabling configuration.
+The helper states space for each push at prefix sizes 4, 5 and 6 explicitly: KEVM's symbolic
+stack-count accumulator does not automatically relate those counts to the tail-length bound.
+Callers must establish these conditions from their actual stack; no withdrawal-input assumption
+or unchecked stack configuration is permitted to force applicability.
 Its specification and native graph are archived under `kout-proofs/copy-loop`.
 The runner also stops after basic-block bookkeeping, exposing the claim's plain `#execute`
 state at loop entry and exit; jump-only cut points stop before that bookkeeping finishes.
