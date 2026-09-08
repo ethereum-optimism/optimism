@@ -25,7 +25,7 @@ use kona_sp1_client_utils::{
         SuperOptimisticBlock, SuperRangeInputs, SuperRangeOutputs, SuperRangeTransition,
         hash_super_root_proof,
     },
-    witness::executor::WitnessExecutor,
+    witness::executor::{BlockClaim, SegmentClaims, WitnessExecutor},
 };
 
 use crate::executor::ETHDAWitnessExecutor;
@@ -287,9 +287,8 @@ where
     O: CommsClient + FlushableCache + Send + Sync + Debug + 'static,
     B: BlobProvider + Send + Sync + Debug + Clone + 'static,
 {
-    let mut boots = Vec::new();
+    let mut segment: Option<(SegmentClaims, Sealed<Header>)> = None;
     let mut boot_infos = Vec::with_capacity(transitions.len());
-    let mut initial_safe_head = None;
     for transition in transitions {
         let transition_boot = build_super_range_transition_boot(
             inputs,
@@ -302,18 +301,27 @@ where
         match transition_boot {
             RangeTransitionBoot::NoOp { boot } => boot_infos.push(BootInfoStruct::from(boot)),
             RangeTransitionBoot::Progress { boot, safe_head_hash, safe_head } => {
-                initial_safe_head
-                    .get_or_insert_with(|| Sealed::new_unchecked(safe_head, safe_head_hash));
-                boot_infos.push(BootInfoStruct::from(boot.clone()));
-                boots.push(boot);
+                if let Some((claims, _)) = &mut segment {
+                    claims.following.push(BlockClaim {
+                        block_number: boot.claimed_l2_block_number,
+                        output_root: boot.claimed_l2_output_root,
+                    });
+                    boot_infos.push(BootInfoStruct::from(boot));
+                } else {
+                    boot_infos.push(BootInfoStruct::from(boot.clone()));
+                    segment = Some((
+                        SegmentClaims { first: boot, following: Vec::new() },
+                        Sealed::new_unchecked(safe_head, safe_head_hash),
+                    ));
+                }
             }
         }
     }
 
-    let Some(safe_head) = initial_safe_head else {
+    let Some((claims, safe_head)) = segment else {
         return Ok(boot_infos);
     };
-    let boot = &boots[0];
+    let boot = &claims.first;
 
     let rollup_config = Arc::new(boot.rollup_config.clone());
     let l1_config = Arc::new(boot.l1_config.clone());
@@ -344,7 +352,7 @@ where
             l2_provider.clone(),
         )
         .await?;
-    executor.run(&boots, pipeline, cursor, l2_provider).await?;
+    executor.run(&claims, pipeline, cursor, l2_provider).await?;
 
     Ok(boot_infos)
 }
