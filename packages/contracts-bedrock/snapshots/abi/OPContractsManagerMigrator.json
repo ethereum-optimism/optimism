@@ -152,6 +152,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidStartingAnchorRoot",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_InvalidStartingRespectedGameType",
     "type": "error"
   },

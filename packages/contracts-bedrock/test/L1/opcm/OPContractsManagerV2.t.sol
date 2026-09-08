@@ -2815,6 +2815,40 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         opcmV2.migrate(input);
     }
 
+    /// @notice Tests that migrate reverts when the starting anchor root is zero.
+    function test_migrate_zeroStartingAnchorRoot_reverts() public {
+        _enableEthLockboxes();
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.startingAnchorRoot.root = Hash.wrap(bytes32(0));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingAnchorRoot.selector);
+    }
+
+    /// @notice Tests that migrate reverts when the starting anchor root leaves no room for a
+    ///         successor.
+    function test_migrate_startingAnchorRootSequenceTooLarge_reverts() public {
+        _enableEthLockboxes();
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.startingAnchorRoot.l2SequenceNumber = type(uint64).max;
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingAnchorRoot.selector);
+    }
+
+    function test_migrate_maxValidStartingAnchorRootSequence_succeeds() public {
+        _enableEthLockboxes();
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.startingAnchorRoot.l2SequenceNumber = uint256(type(uint64).max) - 1;
+
+        _doMigration(input);
+
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        (, uint256 anchorSeq) = portal1.anchorStateRegistry().getAnchorRoot();
+        assertEq(anchorSeq, uint256(type(uint64).max) - 1, "starting anchor sequence number mismatch");
+    }
+
     /// @notice Tests that upgrade re-points the shared dispute games of a migrated interop set.
     ///         The shared contracts are reachable from every chain in the set, so upgrading a
     ///         single chain applies the new dispute game config to the whole set.

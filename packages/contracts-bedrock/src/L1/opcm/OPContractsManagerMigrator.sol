@@ -92,6 +92,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///         it is given, so a disabled config would be registered anyway.
     error OPContractsManagerMigrator_DisputeGameNotEnabled();
 
+    /// @notice Thrown when the starting anchor root is zero or leaves no room for a uint64
+    ///         successor.
+    error OPContractsManagerMigrator_InvalidStartingAnchorRoot();
+
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
@@ -138,6 +142,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 && _input.startingRespectedGameType.raw() != GameTypes.SUPER_PERMISSIONED.raw()
         ) {
             revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
+        }
+
+        // Check that the starting anchor root is non-zero and leaves room for a successor.
+        if (
+            _input.startingAnchorRoot.root.raw() == bytes32(0)
+                || _input.startingAnchorRoot.l2SequenceNumber >= type(uint64).max
+        ) {
+            revert OPContractsManagerMigrator_InvalidStartingAnchorRoot();
         }
 
         // Check that all of the chains have the same core contracts, that no chain reports a

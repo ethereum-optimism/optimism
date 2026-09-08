@@ -71,6 +71,8 @@ interface IOPContractsManagerMigrator {
     ///         it is given, so a disabled config would be registered anyway.
     error OPContractsManagerMigrator_DisputeGameNotEnabled();
 
+    error OPContractsManagerMigrator_InvalidStartingAnchorRoot();
+
     error SemverComp_InvalidSemverParts();
 
     /// @notice Returns the container of blueprint and implementation contract addresses.
