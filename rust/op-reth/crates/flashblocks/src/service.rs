@@ -310,13 +310,17 @@ where
                             while let Some(result) = self.incoming_flashblock_rx.next().now_or_never().flatten() {
                                 match result {
                                     Ok(fb) => self.process_flashblock(fb),
-                                    Err(err) => warn!(target: "flashblocks", %err, "Error receiving flashblock"),
+                                    Err(err) => {
+                                        self.metrics.stream_errors.increment(1);
+                                        warn!(target: "flashblocks", %err, "Error receiving flashblock");
+                                    }
                                 }
                             }
 
                             self.try_start_build_job();
                         }
                         Some(Err(err)) => {
+                            self.metrics.stream_errors.increment(1);
                             warn!(
                                 target: "flashblocks",
                                 %err,
@@ -522,6 +526,11 @@ struct FlashBlockServiceMetrics {
     current_block_height: Gauge,
     /// Current flashblock index.
     current_index: Gauge,
+    /// Number of errors received from the flashblock stream.
+    ///
+    /// This covers connection failures, decoding failures and idle-timeout reconnects, so a
+    /// stalled subscription shows up here rather than passing silently.
+    stream_errors: Counter,
     /// Number of reorgs detected during canonical block reconciliation.
     reorg_count: Counter,
     /// Number of build results discarded due to state invalidation (reorg during build).
