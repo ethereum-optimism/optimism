@@ -21,7 +21,7 @@ use url::Url;
 use crate::artifact::ArtifactConfig;
 
 const ENV_PREFIX: &str = "KONA_ZKVM_CANARY_";
-pub(crate) const MAX_SPAN_LENGTH: u8 = 128;
+pub(crate) const MAX_SPAN_LENGTH: u64 = 1800;
 const MAX_CONFIGURED_CHAINS: usize = 256;
 const MAX_CONFIG_FILE_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -70,7 +70,7 @@ pub struct CanaryConfig {
     /// Optional dependency-set override with exact L2 endpoint coverage.
     pub dependency_set_path: Option<PathBuf>,
     /// Number of finalized timestamps selected per attempt.
-    pub span_length: NonZeroU8,
+    pub span_length: NonZeroU64,
     /// Wait after a completed attempt.
     pub cadence: Duration,
     /// Maximum random addition to the cadence.
@@ -139,7 +139,7 @@ impl CanaryConfig {
         let dependency_set_path = optional_path(values, "DEPENDENCY_SET_PATH");
         validate_dependency_set(dependency_set_path.as_deref(), &configured_chain_ids)?;
 
-        let span_length = parse_nonzero_or(values, "FINALIZED_SPAN", 1u8)?;
+        let span_length = parse_nonzero_or(values, "FINALIZED_SPAN", 1u64)?;
         ensure!(
             span_length.get() <= MAX_SPAN_LENGTH,
             "{} must be in 1..={MAX_SPAN_LENGTH}",

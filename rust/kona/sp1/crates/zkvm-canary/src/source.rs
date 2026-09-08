@@ -161,7 +161,7 @@ impl SnapshotSource {
             superroot_client: client(config.superroot_rpc.as_str(), "super-root")?,
             l1_client: client(config.l1_rpc.as_str(), "L1")?,
             l2_clients,
-            span_length: u64::from(config.span_length.get()),
+            span_length: config.span_length.get(),
             configured_chain_ids: config.chain_ids().collect(),
             max_entries: config.max_parent_response_entries.get(),
             host_inputs: config.host_inputs(),
@@ -212,7 +212,7 @@ impl SnapshotSource {
             .checked_sub(first)
             .and_then(|distance| distance.checked_add(1))
             .ok_or_else(|| FetchFailure(anyhow!("invalid response range {first}..={last}")))?;
-        let max_count = u64::from(MAX_SPAN_LENGTH) + 1;
+        let max_count = MAX_SPAN_LENGTH + 1;
         if count > max_count {
             return Err(FetchFailure(anyhow!(
                 "agreed-through-target response count {count} exceeds the canary maximum of \
@@ -974,7 +974,7 @@ fn bounded_detail(detail: &str) -> String {
 mod tests {
     use std::{
         collections::BTreeMap,
-        num::{NonZeroU8, NonZeroU32, NonZeroU64, NonZeroUsize},
+        num::{NonZeroU32, NonZeroU64, NonZeroUsize},
         time::Duration,
     };
 
@@ -1141,7 +1141,7 @@ mod tests {
             rollup_config_paths: None,
             l1_config_path: None,
             dependency_set_path: None,
-            span_length: NonZeroU8::new(2).unwrap(),
+            span_length: NonZeroU64::new(2).unwrap(),
             cadence: Duration::from_secs(1),
             max_jitter: Duration::ZERO,
             attempt_deadline: Duration::from_secs(60),
