@@ -112,6 +112,13 @@ stay within the pinned compiler's stack limit. Earlier proof results do not vali
 This obligation is unproved and does not establish trie-verifier soundness: acceptance-to-membership
 and composition across repeated proving/deletion transitions remain required separately.
 
+The independent definitions in `specs/withdrawal-calldata.k` describe direct Portal calldata from
+withdrawal fields and a list of arbitrary witness bytes, using explicit ABI offsets and padding.
+They avoid the backend's bounded dynamic-byte encoder and add no production execution summary.
+Strict builds compile these definitions, but no current theorem uses them to initialize a native
+Portal call. ABI correspondence and state initialization remain unproved; these definitions do
+not resolve the current harness's input-allocation failures by themselves.
+
 `WithdrawalFactorySelectionKontrol` checks the actual factory proxy's `gameAtIndex` over
 an arbitrary `uint256` index and symbolic application storage, with its deployed implementation
 pointer restored. It reads the array length and selected packed word from that same state,
@@ -139,6 +146,8 @@ component proofs. Their logs, JUnit report and proof archive go into `test/kontr
 to preserve both suites' results. Separate selectors allow the witness to run alongside equivalence.
 Strict mode limits proving to 60 minutes inside the container so the host can collect saved graphs
 after a timeout. A timeout is incomplete, never a proof pass.
+Strict mode defaults to two workers to leave memory headroom on the 32 GiB CI runner; one diagnostic
+reached 10 GiB. `KONTROL_WORKERS` can override the worker limit. Legacy concurrency is unchanged.
 Strict mode saves after each completed proof step and logs initialization stages. An interrupted
 initialization or unfinished first step may still leave no graph; absence is not evidence of a pass.
 
@@ -182,7 +191,5 @@ The diagnostic continues exploring after a failing branch while retaining that f
 nonzero result. Strict mode disables counterexample model reporting; saved symbolic graphs remain
 available for inspection. Neither option changes the required postcondition or permits a failed proof to pass.
 
-The current branch temporarily dispatches `test-withdrawal-authorization-caller`, selecting the
-record-transition method and its setup. This is a diagnostic, not full-suite evidence.
-Before PR readiness, restore the CI command to `test-kontrol-no-build` and verify the original
-suite and every withdrawal and factory-selection obligation, including their acceptance witnesses.
+CI dispatches `test-kontrol-no-build`. Before PR readiness, verify the original suite and every
+withdrawal and factory-selection obligation, including their acceptance witnesses and input domains.

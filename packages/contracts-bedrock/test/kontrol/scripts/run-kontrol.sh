@@ -30,6 +30,10 @@ kontrol_build() {
   # Kontrol flattens contract-qualified imports into its shared main module.
   if [ "${KONTROL_STRICT:-false}" != true ]; then
     build_command+=(--require "$lemmas" --module-import "$module")
+  else
+    # Independent calldata definitions; no execution summaries or assumed results.
+    build_command+=(--require test/kontrol/specs/withdrawal-calldata.k
+      --module-import WithdrawalAuthorizationKontrol:WITHDRAWAL-CALLDATA)
   fi
   # shellcheck disable=SC2086
   run "${build_command[@]}" \
@@ -201,6 +205,10 @@ max_depth=10000
 max_iterations=10000
 smt_timeout=100000
 max_workers=${KONTROL_WORKERS:-16}
+if [ "${KONTROL_STRICT:-false}" = true ]; then
+  # One diagnostic reached 10 GiB; keep headroom on the 32 GiB CI runner.
+  max_workers=${KONTROL_WORKERS:-2}
+fi
 if ! [[ "$max_workers" =~ ^[1-9][0-9]*$ ]]; then
   echo "KONTROL_WORKERS must be a positive integer" >&2
   exit 1

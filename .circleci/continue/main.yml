@@ -2216,10 +2216,8 @@ jobs:
       - setup_remote_docker
       - run:
           name: Run Kontrol Tests
-          # Temporary diagnostic: restore test-kontrol-no-build before PR readiness.
           command: |
-            echo "WITHDRAWAL CALLER DIAGNOSTIC: record-transition proof and setup; this run does not validate the full suite"
-            timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-full test-withdrawal-authorization-caller
+            timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-full test-kontrol-no-build
           working_directory: ./packages/contracts-bedrock
           no_output_timeout: 185m
       - run:
