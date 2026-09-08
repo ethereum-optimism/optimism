@@ -47,28 +47,27 @@ module WITHDRAWAL-COPY-LOOP
 
 '''
 
-def render_claim(name, step_case=None):
+def render_claim(name, step=False):
     # The real decoder must reach this entry; JUMPDEST still executes normally.
-    control = "(#next [ JUMPDEST ] ~> #execute => #execute)" if step_case else "#execute => #execute"
-    final_index = "I +Int 32" if step_case else "?FINALINDEX"
-    memory_before = "MU" if step_case else "(#if I ==Int 0 #then MU #else maxInt(MU, (DEST +Int I +Int 31) /Int 32) #fi)"
-    memory_after = "#memoryUsageUpdate(MU, I +Int DEST, 32)" if step_case else "?FINALMEMORYUSED"
-    extra_requires = f"       andBool I <Int LENGTH\n       andBool {step_case}\n" if step_case else ""
-    ensures = "" if step_case else """      ensures END <=Int ?FINALINDEX andBool ?FINALINDEX <=Int END
+    control = "(#next [ JUMPDEST ] ~> #execute => #execute)" if step else "#execute => #execute"
+    final_index = "I +Int 32" if step else "?FINALINDEX"
+    memory_before = "MU" if step else "(#if I ==Int 0 #then MU #else maxInt(MU, (DEST +Int I +Int 31) /Int 32) #fi)"
+    memory_after = "#memoryUsageUpdate(MU, I +Int DEST, 32)" if step else "?FINALMEMORYUSED"
+    extra_requires = "       andBool I <Int LENGTH\n" if step else ""
+    ensures = "" if step else """      ensures END <=Int ?FINALINDEX andBool ?FINALINDEX <=Int END
        andBool ?FINALMEMORYUSED <=Int
          (#if ?FINALINDEX ==Int 0 #then MU #else maxInt(MU, (DEST +Int ?FINALINDEX +Int 31) /Int 32) #fi)
        andBool (#if ?FINALINDEX ==Int 0 #then MU #else maxInt(MU, (DEST +Int ?FINALINDEX +Int 31) /Int 32) #fi)
          <=Int ?FINALMEMORYUSED
 """
-    attributes = "" if step_case else (
-        "      [circularity, depends(WITHDRAWAL-COPY-LOOP.word-copy-step-after-end,"
-        "WITHDRAWAL-COPY-LOOP.word-copy-step-across-end,WITHDRAWAL-COPY-LOOP.word-copy-step-within-buffer)]\n"
+    attributes = "" if step else (
+        "      [circularity, depends(WITHDRAWAL-COPY-LOOP.word-copy-step)]\n"
     )
     return f'''    claim [{name}]:
       <k> {control} ... </k>
       <program> {literal} </program>
       <jumpDests> #computeValidJumpDests({literal}) </jumpDests>
-      <pc> {head} => {head if step_case else end} </pc>
+      <pc> {head} => {head if step else end} </pc>
       <wordStack> (I => {final_index}) : SRC : DEST : LENGTH : WS </wordStack>
       <localMem>
         LM [ DEST := #range(LM, SRC, I) ]
@@ -99,14 +98,10 @@ def render_claim(name, step_case=None):
        andBool #sizeWordStack(WS, 6) <Int 1024
 {extra_requires}{ensures}{attributes}'''
 
-# Each finite step is independent until its completed native graph is verified.
-cases = {
-    "after-end": "lengthBytes(LM) <=Int DEST +Int I",
-    "across-end": "DEST +Int I <Int lengthBytes(LM) andBool lengthBytes(LM) <=Int DEST +Int I +Int 32",
-    "within-buffer": "DEST +Int I +Int 32 <Int lengthBytes(LM)",
-}
+# Keep the step's initial memory in the same form as the full loop. Case-specific
+# normalization into concatenations obstructs matching the completed summary.
 args.output.write_text(header + render_claim("word-copy") + "\n" +
-                       "\n".join(render_claim("word-copy-step-" + name, case) for name, case in cases.items()) +
+                       render_claim("word-copy-step", step=True) +
                        "endmodule\n")
 print(json.dumps({"artifact": str(args.artifact), "claim": str(args.output),
                   "head": head, "exit": end, "jumpBytes": width,

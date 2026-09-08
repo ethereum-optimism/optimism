@@ -7,13 +7,10 @@ from pyk.kast.prelude.ml import is_bottom, is_top
 from pyk.proof.reachability import APRProof
 
 root = Path(sys.argv[1])
-expected = {
-    "WITHDRAWAL-COPY-LOOP.word-copy-step-" + case
-    for case in ("after-end", "across-end", "within-buffer")
-}
+expected = {"WITHDRAWAL-COPY-LOOP.word-copy-step"}
 metadata = list(root.rglob("proof.json"))
-if len(metadata) != 3 or {path.parent.name for path in metadata} != expected:
-    raise SystemExit("Expected exactly three independent copy-step graphs")
+if len(metadata) != 1 or {path.parent.name for path in metadata} != expected:
+    raise SystemExit("Expected exactly one independent copy-step graph")
 for path in metadata:
     record = json.loads(path.read_text())
     proof = APRProof.read_proof_data(root, path.parent.name)
@@ -31,4 +28,4 @@ for path in metadata:
         term = proof.kcfg.node(node).cterm.kast
         if is_bottom(term, weak=True) or is_top(term, weak=True):
             raise SystemExit(f"Degenerate step endpoint: {proof.id}:{node}")
-print("Verified three completed independent copy-step graphs")
+print("Verified the completed independent copy-step graph")
