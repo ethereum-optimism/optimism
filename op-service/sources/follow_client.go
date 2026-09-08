@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -33,11 +31,14 @@ type FollowRecoveryStatus struct {
 }
 
 // FollowRecoveryPrefix authenticates a surviving private prefix by ancestry of
-// an accepted terminal commitment, without canonizing the invalidated terminal.
+// the parent hash in an accepted terminal commitment. Last identifies the
+// surviving projection parent. The backwards offset is Parent.Number - Last.Number;
+// replacement starts at Last.Number + 1. The parent is attested by the operator
+// under the same policy as the rest of the claim; a future verifier must bind it
+// to the proven private execution.
 type FollowRecoveryPrefix struct {
-	Terminal       eth.BlockID    `json:"terminal"`
-	TerminalParent common.Hash    `json:"terminal_parent"`
-	Last           eth.L2BlockRef `json:"last"`
+	Parent eth.BlockID    `json:"parent"`
+	Last   eth.L2BlockRef `json:"last"`
 }
 
 // FollowSyncStatus extends the ordinary follow response without changing the

@@ -104,7 +104,7 @@ func (l *prefixL2) L2BlockRefByHash(_ context.Context, hash common.Hash) (eth.L2
 }
 
 func TestFollowRecoveryAuthenticatesPrefixByPrivateAncestry(t *testing.T) {
-	for _, scenario := range []string{"valid", "missing ancestor", "wrong terminal parent", "wrong public schedule", "conflicting checkpoint", "below finality"} {
+	for _, scenario := range []string{"valid", "zero offset", "checkpoint boundary", "missing terminal", "missing ancestor", "wrong parent hash", "wrong parent number", "broken ancestry", "wrong public schedule", "conflicting checkpoint", "below finality", "negative offset"} {
 		t.Run(scenario, func(t *testing.T) {
 			l2 := &prefixL2{refs: make(map[common.Hash]eth.L2BlockRef)}
 			chain := make([]eth.L2BlockRef, 9)
@@ -116,13 +116,28 @@ func TestFollowRecoveryAuthenticatesPrefixByPrivateAncestry(t *testing.T) {
 				l2.refs[chain[n].Hash] = chain[n]
 			}
 			base := chain[0]
-			prefix := &sources.FollowRecoveryPrefix{Terminal: chain[8].ID(), TerminalParent: chain[7].Hash, Last: chain[3]}
+			prefix := &sources.FollowRecoveryPrefix{Parent: chain[7].ID(), Last: chain[3]}
+			want := chain[3]
 			prefix.Last.Hash = common.Hash{0xff} // Public hash is deliberately different.
 			switch scenario {
+			case "zero offset":
+				prefix.Last, want = chain[7], chain[7]
+			case "checkpoint boundary":
+				prefix.Last, want = base, base
+			case "missing terminal":
+				delete(l2.refs, chain[8].Hash)
 			case "missing ancestor":
 				delete(l2.refs, chain[5].Hash)
-			case "wrong terminal parent":
-				prefix.TerminalParent = common.Hash{0xff}
+			case "wrong parent hash":
+				prefix.Parent.Hash = common.Hash{0xff}
+			case "wrong parent number":
+				prefix.Parent.Number++
+			case "broken ancestry":
+				broken := chain[5]
+				broken.Number--
+				l2.refs[broken.Hash] = broken
+			case "negative offset":
+				prefix.Last = chain[8]
 			case "wrong public schedule":
 				prefix.Last.Time++
 			case "conflicting checkpoint":
@@ -132,9 +147,9 @@ func TestFollowRecoveryAuthenticatesPrefixByPrivateAncestry(t *testing.T) {
 			}
 			f := &followRecovery{l2: l2}
 			anchor, err := f.prefixAnchor(t.Context(), base, prefix)
-			if scenario == "valid" {
+			if scenario == "valid" || scenario == "zero offset" || scenario == "checkpoint boundary" || scenario == "missing terminal" {
 				require.NoError(t, err)
-				require.Equal(t, chain[3], anchor)
+				require.Equal(t, want, anchor)
 			} else {
 				require.Error(t, err)
 			}
@@ -208,4 +223,37 @@ func TestFollowRecoveryRestoresKnownBranchAndKeepsEventContext(t *testing.T) {
 			el.AssertExpectations(t)
 		})
 	}
+}
+
+func TestFollowRecoveryWaitsForWholeReplacementInterval(t *testing.T) {
+	plan := &sources.FollowRecoveryStatus{
+		Target: eth.L2BlockRef{Number: 6},
+		Prefix: &sources.FollowRecoveryPrefix{Parent: eth.BlockID{Number: 7}, Last: eth.L2BlockRef{Number: 3}},
+	}
+	f := &followRecovery{status: &sources.FollowStatus{Recovery: plan}, mapped: eth.L2BlockRef{Number: 6}}
+	require.False(t, f.canResume(), "a surviving claim still reserves block 8 while fallback has only reached 6")
+	plan.Target.Number, f.mapped.Number = 7, 7
+	require.False(t, f.canResume(), "the committed parent is still before the final replacement position")
+	plan.Target.Number, f.mapped.Number = 8, 8
+	require.True(t, f.canResume(), "resume after executing the whole reserved range")
+	plan.Target.Number = 9
+	require.False(t, f.canResume(), "also execute any later canonical fallback")
+	f.mapped.Number = 9
+	require.True(t, f.canResume())
+}
+
+func TestFollowRecoveryRejectsLegacyPrefixBeforeReset(t *testing.T) {
+	// An old source's terminal/terminal_parent fields do not populate Parent.
+	// Reject this even when private finality could otherwise skip prefix lookup.
+	status := &sources.FollowStatus{
+		CurrentL1: eth.L1BlockRef{Number: 10},
+		Recovery: &sources.FollowRecoveryStatus{
+			Target: eth.L2BlockRef{Number: 8},
+			Prefix: &sources.FollowRecoveryPrefix{Last: eth.L2BlockRef{Number: 3}},
+		},
+	}
+	paused := false
+	f := &followRecovery{pause: func(value bool) { paused = value }}
+	require.ErrorContains(t, f.update(t.Context(), status), "invalid surviving prefix bounds")
+	require.True(t, paused)
 }

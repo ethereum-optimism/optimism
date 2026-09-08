@@ -35,7 +35,7 @@ func (a *API) SyncStatus(_ context.Context) (*sources.FollowSyncStatus, error) {
 			if c.invalidFrom != 0 && c.prefixRef.Number > out.Recovery.Anchor.Number && c.prefixRef.Number <= out.Recovery.Target.Number &&
 				(out.Recovery.Prefix == nil || c.prefixRef.Number > out.Recovery.Prefix.Last.Number) {
 				out.Recovery.Prefix = &sources.FollowRecoveryPrefix{
-					Terminal: eth.BlockID{Hash: c.terminal, Number: c.last}, TerminalParent: c.parent, Last: c.prefixRef,
+					Parent: eth.BlockID{Hash: c.parent, Number: c.last - 1}, Last: c.prefixRef,
 				}
 			}
 		}

@@ -61,6 +61,9 @@ func (f *followRecovery) update(ctx context.Context, status *sources.FollowStatu
 		f.pause(true)
 		return fmt.Errorf("inconsistent private recovery snapshot")
 	}
+	if p := plan.Prefix; p != nil && (p.Last.Number <= plan.Anchor.Number || p.Last.Number > plan.Target.Number || p.Last.Number > p.Parent.Number) {
+		return fmt.Errorf("invalid surviving prefix bounds")
+	}
 	if f.projection.Number > plan.Target.Number || f.inflight.Number > plan.Target.Number {
 		f.pause(true)
 		f.status, f.inflight = nil, eth.L2BlockRef{}
@@ -205,35 +208,26 @@ func (f *followRecovery) ancestorAt(ctx context.Context, ref eth.L2BlockRef, num
 }
 
 func (f *followRecovery) prefixAnchor(ctx context.Context, base eth.L2BlockRef, prefix *sources.FollowRecoveryPrefix) (eth.L2BlockRef, error) {
-	if prefix.Last.Number < base.Number || prefix.Last.Number >= prefix.Terminal.Number {
+	if prefix.Last.Number < base.Number || prefix.Last.Number > prefix.Parent.Number {
 		return eth.L2BlockRef{}, fmt.Errorf("invalid surviving prefix bounds")
 	}
-	ref, err := f.l2.L2BlockRefByHash(ctx, prefix.Terminal.Hash)
+	ref, err := f.l2.L2BlockRefByHash(ctx, prefix.Parent.Hash)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
-	if ref.ID() != prefix.Terminal || ref.ParentHash != prefix.TerminalParent {
-		return eth.L2BlockRef{}, fmt.Errorf("private terminal does not match the accepted claim")
+	if ref.ID() != prefix.Parent {
+		return eth.L2BlockRef{}, fmt.Errorf("private terminal parent does not match the accepted claim")
 	}
-	var anchor eth.L2BlockRef
-	for ref.Number > base.Number {
-		if ref.Number == prefix.Last.Number {
-			anchor = ref
-		}
-		parent, err := f.l2.L2BlockRefByHash(ctx, ref.ParentHash)
-		if err != nil {
-			return eth.L2BlockRef{}, err
-		}
-		if parent.Hash != ref.ParentHash || parent.Number+1 != ref.Number {
-			return eth.L2BlockRef{}, fmt.Errorf("private prefix ancestry is inconsistent")
-		}
-		ref = parent
+	anchor, err := f.ancestorAt(ctx, ref, prefix.Last.Number)
+	if err != nil {
+		return eth.L2BlockRef{}, err
 	}
-	if ref != base {
+	retained, err := f.ancestorAt(ctx, anchor, base.Number)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	if retained != base {
 		return eth.L2BlockRef{}, fmt.Errorf("private prefix does not descend from the retained checkpoint")
-	}
-	if prefix.Last.Number == base.Number {
-		anchor = base
 	}
 	if anchor.Time != prefix.Last.Time || anchor.L1Origin != prefix.Last.L1Origin || anchor.SequenceNumber != prefix.Last.SequenceNumber {
 		return eth.L2BlockRef{}, fmt.Errorf("private prefix disagrees with surviving projection inputs")
@@ -283,7 +277,7 @@ func (f *followRecovery) canResume() bool {
 	// for actual canonical replacements through that range before publishing a
 	// new claim; the reservation itself is never evidence of empty execution.
 	return f.mapped.Number >= plan.Target.Number &&
-		(plan.Prefix == nil || f.mapped.Number >= plan.Prefix.Terminal.Number)
+		(plan.Prefix == nil || f.mapped.Number > plan.Prefix.Parent.Number)
 }
 
 // Map each projection safety frontier through the privately executed ancestry.
