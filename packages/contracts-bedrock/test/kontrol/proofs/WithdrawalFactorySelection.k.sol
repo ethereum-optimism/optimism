@@ -58,9 +58,9 @@ contract WithdrawalFactorySelectionKontrol is DeploymentSummaryFaultProofs, Kont
         if (accepted_) {
             (GameType kind, Timestamp created, IDisputeGame candidate) =
                 abi.decode(result, (GameType, Timestamp, IDisputeGame));
-            assert(GameType.unwrap(kind) == uint32(packed >> 224));
-            assert(Timestamp.unwrap(created) == uint64(packed >> 160));
-            assert(address(candidate) == address(uint160(packed)));
+            assert(uint256(GameType.unwrap(kind)) == (packed >> 224));
+            assert(uint256(Timestamp.unwrap(created)) == ((packed >> 160) & type(uint64).max));
+            assert(uint256(uint160(address(candidate))) == (packed & type(uint160).max));
         }
     }
 }
