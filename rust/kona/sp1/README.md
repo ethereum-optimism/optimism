@@ -179,6 +179,44 @@ A restart loses all progress and re-detects games that still need proofs. A
 pre-flight check prevents duplicate `prove()` submissions. Fast finality also
 re-detects unproven, signer-created games after restart.
 
+### Terminal proof retry
+
+`Unexecutable` and local `ValidationFailed` requests are sticky. For unchanged
+attempt inputs, the proposer rejects the attempt before collecting witnesses
+or submitting another SPN request. Scheduler tasks may still run and check
+inputs. A change to the full attempt identity permits a new attempt.
+
+SIGUSR1 is a Unix signal: a message you send to a running program. Send it to
+the proposer to retry terminal proof requests without restarting it. This
+applies to all tracked games. The proposer keeps pending requests, finished
+proofs, and completed chunks. Normal scheduling decides when retries run.
+
+Check that the running build supports SIGUSR1 and has logged `kona-sp1-proposer started`.
+Older builds may exit when they receive this signal.
+
+Find the proposer's process ID (PID):
+
+```bash
+pgrep -fl kona-sp1-proposer
+```
+
+Replace `12345` below with that PID. Check that it is the right process before
+running `kill`:
+
+```bash
+ps -p 12345 -o pid=,command=
+kill -USR1 12345
+```
+
+Look for `Processed terminal proof retry` in the proposer logs:
+
+- `reset_games`: games cleared for another try.
+- `busy_games`: games with active proving tasks. These games were not reset.
+  Wait for them to finish, then send another signal to retry them.
+
+If a retry fails terminally, send another signal to try again. Several signals
+sent together may count as one request.
+
 ### Operator alarms
 
 `kona_sp1_proposer_game_proving_error` counts failed proving tasks. A sustained
