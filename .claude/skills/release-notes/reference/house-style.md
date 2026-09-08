@@ -4,7 +4,8 @@ The target is a **curated change list**, as in
 [`op-challenger/v1.9.4`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.4)
 and
 [`op-contracts/v8.0.0-rc.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv8.0.0-rc.2).
-Read those two before drafting.
+Read those two before drafting for how entries are written — but take the section layout
+from the Shape below, not from them. Every published release predates it.
 
 A curated note is not the git-cliff list with prose bolted on top: the PR list is *replaced*
 by grouped, self-contained entries. Because each entry explains itself, the stack of
@@ -18,16 +19,22 @@ convention from one release.
 ```markdown
 ## Overview
 
-> [!NOTE]
-> This is a <patch|minor|major> release of <component> containing <what kind of changes>. It is an <recommendation> upgrade for all users.
-
-Note: <feature> is not yet live in production. Changes to those code paths in this release are preparation for future functionality and do not affect operators today.
+<!-- block type follows the recommendation: NOTE / IMPORTANT / CAUTION -->
+> [!IMPORTANT]
+> This is a <recommendation> release <for whom>. It contains <what kind of changes>.
 
 ## Breaking changes            <!-- only when there are any -->
 
 - **<Short name>** (#NNNNN). What changed, and what the operator must do before upgrading.
 
-## What's Changed
+## Chain Configuration         <!-- only when a chain's embedded config moved -->
+
+- **<Short name>** (#NNNNN). Which chains, which values, and what happens to a node that upgrades late.
+
+## Other changes
+
+### Derivation                 <!-- op-node or kona derivation changes, first -->
+- <Self-contained description> (#NNNNN)
 
 ### Features
 - <Self-contained description> (#NNNNN)
@@ -35,10 +42,10 @@ Note: <feature> is not yet live in production. Changes to those code paths in th
 ### Bug fixes
 - <Self-contained description> (#NNNNN, #NNNNN)
 
-### <Domain grouping, e.g. "Super dispute games (not yet in production)">
+### <Domain grouping, e.g. "Sequencer">
 - ...
 
-### Other
+### Miscellaneous
 - ...
 
 **Full Changelog**: https://github.com/ethereum-optimism/optimism/compare/<prev-finalized>...<this-finalized>
@@ -51,36 +58,31 @@ Note: <feature> is not yet live in production. Changes to those code paths in th
 ## The Overview sentence
 
 One standard sentence carries the upgrade recommendation, in a callout at the top of
-`## Overview`. Sentence one names the release type and what it contains; sentence two gives
-the recommendation.
+`## Overview`. Sentence one says what kind of release this is and for whom; sentence two
+says what it contains.
 
-Pick the release type from **what is in the diff**, not by comparing version numbers — our
-tags are not strict semver, so the numbers do not tell you this:
+**Never name a semver release type.** "This is a minor release" tells the reader nothing —
+our tags are not strict semver, so the version numbers do not carry that meaning. The
+recommendation is the classification.
 
-| Type | Use when |
-| --- | --- |
-| patch | No new features — fixes, dependency work, internal change |
-| minor | Small feature work alongside the fixes |
-| major | Something significant, or a large volume of change |
-
-Then exactly one of:
+Exactly one of:
 
 | Recommendation | Use when |
 | --- | --- |
-| `It is an optional upgrade for all users.` | Nothing operator-visible |
-| `It is an optional but recommended upgrade for all users.` | Fixes or features worth having, none urgent |
-| `It is a recommended upgrade for all users.` | A fix operators are likely to want |
-| `It is a required upgrade for <scope>.` | Not upgrading risks a halt, consensus divergence, or stalled safe-head progression. Name the scope, and say who is unaffected |
+| `This is an optional release ...` | Nothing operator-visible |
+| `This is a recommended release ...` | Fixes or features worth having, none urgent |
+| `This is a strongly recommended release ...` | A fix operators are likely to want |
+| `This is a required release for <scope> ...` | Not upgrading risks a halt, consensus divergence, or stalled safe-head progression. Name the scope, and say who is unaffected |
 
-Scope it to a role when only that role benefits — "It is an optional upgrade, but
-recommended for sequencers" — rather than recommending it to everyone on the strength of
-something most operators never see.
+Scope it to a role when only that role benefits — "a required release for World Chain
+operators running the built-in `--network` configs, and a strongly recommended one for
+everyone else" — rather than pitching it at everyone on the strength of something most
+operators never see.
 
-**The callout is always `> [!NOTE]`**, the one exception being `required`, which uses
-`> [!CAUTION]`. Holding the block type constant is the point: urgency comes from the
-sentence's fixed vocabulary, and the block only makes that sentence findable. Varying the
-block with severity is how a routine recommended upgrade ended up flagged as `[!WARNING]`,
-which overstates it and makes the recommendation harder to read.
+**The callout type follows the recommendation**: `> [!NOTE]` for `optional`,
+`> [!IMPORTANT]` for either recommended level, `> [!CAUTION]` for `required`. Nothing else —
+`[!WARNING]` is not in the vocabulary, and reaching for it is how a routine recommended
+upgrade once ended up overstated.
 
 ## Impact, not implementation
 
@@ -143,20 +145,27 @@ chain has explicitly set it.
 For anything expressed neither as a hardfork nor a DevFeature — dispute game types, say —
 there is no equivalent lookup, so ask the release manager rather than guessing.
 
-- If the change does nothing for *this component*, and only matters to another consumer of
-  the shared code, **cut it entirely**.
-- If it affects the component but only once the feature activates, give it one line under a
-  `### <Feature> (not yet in production)` heading and add the standard Note paragraph to the
-  Overview.
+**A change confined to an unreleased feature is cut entirely.** No `(not yet in production)`
+heading, no explanatory Note in the Overview — a reader upgrading today cannot act on it, and
+it competes for attention with the changes they can.
+
+The test is whether the change reaches a live path, not what motivated it. A fix written for
+an interop scenario that also alters pre-interop derivation stays in, described by its live
+effect; the same fix, if it only fires once the fork activates, does not. So read what the
+change does, not the feature name in its PR title.
 
 **Do not narrate an attack the code path cannot currently suffer.** State what the fix aligns
 or corrects; leave the exploit narrative out until the path is live.
 
 ## Curating the change list
 
-**Group by domain or change type.** `### Features` / `### Bug fixes` / `### Other` is the
-default spine; add domain headings where they carry more meaning. Drop any heading that would
-be empty, and use a flat list for a short release.
+**Group by domain or change type.** `### Features` / `### Bug fixes` / `### Miscellaneous`
+is the default spine under `## Other changes`; add domain headings where they carry more
+meaning. Drop any heading that would be empty, and use a flat list for a short release.
+
+**Derivation changes get `### Derivation`, listed first.** This holds for op-node and kona
+alike: derivation is the part of a release most likely to change what a node computes, so it
+is not left to fall into `### Bug fixes` among unrelated entries.
 
 **Group PRs that are one logical change** into one entry with all their numbers:
 `... are no longer required when only permissioned game types are configured (#21270, #21681)`.
@@ -166,9 +175,16 @@ the raw list is being replaced. Say what changed and why an operator cares:
 
 > - Tear down the whole VM process group when `--vm-timeout` is hit, preventing orphaned VM processes from lingering after a timeout (#21268)
 
-**Omit pure internal churn.** A reader gains nothing from being told that something they
-cannot observe was rearranged. The one exception is a release that would otherwise have an
-empty change list, where one summarising line is more honest than publishing nothing.
+**A change with no user-visible impact does not appear at all.** Not under
+`### Miscellaneous`, not as a summarising line — a reader gains nothing from being told that
+something they cannot observe was rearranged. The one exception is a release that would
+otherwise have an empty change list, where one summarising line is more honest than
+publishing nothing.
+
+Importability of the monorepo **as a Go module is not user impact**. We do not maintain
+releases of it as a Go module, so a change that only unblocks downstream importers — moving
+a symbol to a leaf package, shrinking a build closure — is cut like any other internal
+churn, however much work it was.
 
 **Only mention a PR more than once** if it included multiple logical changes worth
 describing separately.
@@ -181,8 +197,8 @@ in the release.
 
 ## Breaking changes
 
-When a change requires operator action before upgrading, it gets its own section above
-`## What's Changed`, with a bold short name and the required action stated plainly:
+When a change requires operator action before upgrading, it gets its own section directly
+below `## Overview`, with a bold short name and the required action stated plainly:
 
 ```markdown
 ## Breaking changes
@@ -190,8 +206,34 @@ When a change requires operator action before upgrading, it gets its own section
 - **`--cannon-kona-experimental-witness-endpoint` flag removed** (#20498). The `debug_executePayload`-based witness path is now the default for kona-cannon games. Operators passing this flag must remove it before upgrading — op-challenger will reject it as unknown.
 ```
 
-Go-API-only changes are **not** breaking changes for this purpose. They affect downstream
-importers, not operators; mention them under `### Other` if they are worth mentioning at all.
+**State the action, not why the old behaviour was wrong.** The entry exists so an operator
+knows what to do before upgrading; the history of the flag or field belongs in the PR.
+
+Go-API-only changes are **not** breaking changes for this purpose, and are not entries
+anywhere else either — see "A change with no user-visible impact" above.
+
+## Chain Configuration
+
+A release that moves a chain's embedded config gets its own `## Chain Configuration` section,
+after `## Breaking changes` when there is one and directly below `## Overview` when there is
+not — most often a new hardfork activation time arriving with a superchain-registry pin bump.
+It stands alone rather than nesting under breaking changes, because a registry bump
+frequently ships without one. Name the chains and the exact values, and say what happens to a
+node that upgrades late, since that is the whole reason the section exists:
+
+```markdown
+## Chain Configuration
+
+- **New World Chain Karst activation times** (#22624). The embedded superchain registry gains:
+
+  - `sepolia/worldchain` — `karst_time = 1788868800` (Tue 8 Sep 2026 12:00:00 UTC)
+  - `mainnet/worldchain` — `karst_time = 1789992000` (Mon 21 Sep 2026 12:00:00 UTC)
+
+  A World Chain node on an earlier release, running the built-in `--network` config rather than an explicit rollup config, will not activate Karst and will diverge from the chain. No other chain's activation times change in this release.
+```
+
+Saying which chains are *not* affected matters as much as which are: most readers of the
+note operate a different chain and should be able to stop reading at that sentence.
 
 ## Callouts
 
