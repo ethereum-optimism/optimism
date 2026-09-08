@@ -64,7 +64,8 @@ module WITHDRAWAL-COPY-LOOP
       <stackChecks> true </stackChecks>
       <schedule> CANCUN </schedule>
       requires 0 <=Int LENGTH andBool LENGTH <Int 2 ^Int 64
-       andBool END ==Int ((LENGTH +Int 31) /Int 32) *Int 32
+       andBool LENGTH <=Int END andBool END <Int LENGTH +Int 32
+       andBool END modInt 32 ==Int 0
        andBool 0 <=Int I andBool I <=Int END andBool I modInt 32 ==Int 0
        andBool 0 <=Int SRC andBool SRC <Int 2 ^Int 256
        andBool 0 <=Int DEST andBool DEST <Int 2 ^Int 256
@@ -73,6 +74,7 @@ module WITHDRAWAL-COPY-LOOP
        andBool DEST <=Int lengthBytes(LM)
        andBool 0 <=Int MU
        andBool #sizeWordStack(WS) <=Int 1017
+       andBool #sizeWordStack(WS, 3) <Int 1024
        andBool #sizeWordStack(WS, 4) <Int 1024
        andBool #sizeWordStack(WS, 5) <Int 1024
        andBool #sizeWordStack(WS, 6) <Int 1024

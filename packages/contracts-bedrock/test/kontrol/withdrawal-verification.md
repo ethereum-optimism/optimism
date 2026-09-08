@@ -125,10 +125,14 @@ expansion, and stops before tail clearing. It uses symbolic infinite gas and lea
 formula unspecified, so it supplies no gas bound and cannot apply to the concrete-gas witnesses.
 It explicitly enables stack checks, matching the strict caller model and the EVM stack limit;
 the proof does not quantify over Kontrol's optional stack-check disabling configuration.
-The helper states space for each push at prefix sizes 4, 5 and 6 explicitly: KEVM's symbolic
+The helper states stack space at prefix sizes 3 through 6 explicitly: KEVM's symbolic
 stack-count accumulator does not automatically relate those counts to the tail-length bound.
+Prefix 3 is the tail after the final `ADD` consumes its operands, as checked by KEVM's optimized rule.
 Callers must establish these conditions from their actual stack; no withdrawal-input assumption
 or unchecked stack configuration is permitted to force applicability.
+The endpoint is the unique multiple of 32 in `[LENGTH, LENGTH + 32)`, equivalently
+`32 * ceil(LENGTH / 32)`. Stating its range and alignment keeps the endpoint symbolic
+instead of substituting a quotient throughout the memory and stack postconditions.
 Its specification and native graph are archived under `kout-proofs/copy-loop`.
 The runner also stops after basic-block bookkeeping, exposing the claim's plain `#execute`
 state at loop entry and exit; jump-only cut points stop before that bookkeeping finishes.
