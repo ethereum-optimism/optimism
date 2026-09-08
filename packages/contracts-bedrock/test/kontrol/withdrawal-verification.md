@@ -80,6 +80,26 @@ Game reports and factory registration remain fixture preconditions. The single-n
 concrete acceptance example, not a bound on the required universal inclusion theorem or a proof
 of protocol-wide history safety. This obligation has no proof result yet.
 
+`prove_proveWithdrawal_recordTransition_succeeds` is the general record-update obligation under
+the registered game-report fixture above. The withdrawal tuple, output tuple, candidate output claim,
+submitter, prior record, full `uint256` proving time, `uint32` game type and encoded witness are symbolic.
+The fixture independently classifies types 4, 5, 7, 9 and 10 as super games; other types use legacy roots.
+A successful production proving
+call must bind the entire output tuple to the candidate's per-chain claim and write that candidate's
+address and the timestamp cast to `uint64` together. A reverted call must preserve the old record. Both outcomes
+must preserve an arbitrary distinct withdrawal/submitter record and an observed finalized flag.
+The prior and observed record words range over all 256 bits; the expected successful write retains
+the prior slot's unused high 32 bits. No authenticity premise is attached to a seeded prior record.
+
+The witness input is `bytes`, decoded by the fixture's `decodeProof` adapter into `bytes[]`; malformed
+ABI encodings return before the proving call. This avoids Kontrol's one-element default for a direct
+`bytes[]` parameter. It imposes no RLP, path, node-count or membership assumptions on the decoded
+witness. The input-domain correspondence still requires auditing generated symbolic byte constraints
+and the adapter's coverage of compiler-supported ABI encodings. The acceptance sequence also exercises
+the adapter. The frame premise selects a distinct record, not a restricted subset of withdrawals.
+This obligation is unproved and does not establish trie-verifier soundness: acceptance-to-membership
+and composition across repeated proving/deletion transitions remain required separately.
+
 ## Reproduction
 
 Use pinned Foundry/Kontrol versions and a clean proof output directory. From `packages/contracts-bedrock`, run:

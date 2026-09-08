@@ -35,7 +35,7 @@ contract WithdrawalGame_Harness {
     }
 }
 
-/// @notice Normal game reports for an acceptance witness; game resolution itself remains upstream.
+/// @notice Normal game reports for proving obligations; game resolution itself remains upstream.
 contract WithdrawalProofGame_Harness {
     Claim public immutable rootClaim;
     GameType public immutable gameType;
@@ -45,12 +45,14 @@ contract WithdrawalProofGame_Harness {
     GameStatus public status;
     bool public constant wasRespectedGameTypeWhenCreated = true;
 
-    constructor(Claim _outputRoot, uint256 _chainId, bool _superGame) {
+    constructor(Claim _outputRoot, uint256 _chainId, uint32 _gameType) {
         perChainRoot = _outputRoot;
         chainId = _chainId;
-        gameType = GameType.wrap(_superGame ? 4 : 0);
+        gameType = GameType.wrap(_gameType);
+        // Independent expected classification; do not call the production selector helper.
+        bool superGame = _gameType == 4 || _gameType == 5 || _gameType == 7 || _gameType == 9 || _gameType == 10;
         // Single-chain Super Root v1: version, timestamp, chain ID, output root.
-        rootClaim = _superGame
+        rootClaim = superGame
             ? Claim.wrap(keccak256(abi.encodePacked(bytes1(0x01), uint64(1), _chainId, Claim.unwrap(_outputRoot))))
             : _outputRoot;
     }
@@ -93,6 +95,18 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         bool respected;
         uint8 blacklisted;
         bool paused;
+    }
+
+    struct ProvingCase {
+        bytes32 outputClaim;
+        address submitter;
+        uint256 now;
+        uint32 gameType;
+        bytes32 previousRecord;
+        bytes32 otherHash;
+        address otherSubmitter;
+        bytes32 otherRecord;
+        bool otherFinalized;
     }
 
     IOptimismPortal2 internal portal;
@@ -224,6 +238,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
             bytes[] memory witness = new bytes[](1);
             // Canonical RLP leaf: [hex-prefix(complete 32-byte key, leaf), storage value 0x01].
             witness[0] = abi.encodePacked(hex"e3a120", secureKey, hex"01");
+            witness = this.decodeProof(abi.encode(witness));
             Types.OutputRootProof memory outputRoot;
             outputRoot.messagePasserStorageRoot = keccak256(witness[0]);
             bytes32 commitment = keccak256(
@@ -234,21 +249,9 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
                     outputRoot.latestBlockhash
                 )
             );
-            vm.warp(1 days);
-            candidate =
-                new WithdrawalProofGame_Harness(Claim.wrap(commitment), portal.systemConfig().l2ChainId(), _superGame);
+            candidate = _registerProofGame(commitment, _superGame ? 4 : 0);
             // A wrong root getter must not accidentally satisfy the acceptance witness.
             assert(!_superGame || Claim.unwrap(candidate.rootClaim()) != commitment);
-            bytes32 uuid = keccak256(abi.encode(candidate.gameType(), candidate.rootClaim(), abi.encode(uint256(1))));
-            bytes32 registration = bytes32(
-                (uint256(GameType.unwrap(candidate.gameType())) << 224) | (uint256(1 days) << 160)
-                    | uint256(uint160(address(candidate)))
-            );
-            vm.store(address(factory), keccak256(abi.encode(uuid, uint256(103))), registration);
-            vm.store(address(factory), bytes32(uint256(104)), bytes32(uint256(1)));
-            vm.store(address(factory), keccak256(abi.encode(uint256(104))), registration);
-            vm.store(address(registry), bytes32(uint256(6)), bytes32(0));
-
             assert(vm.load(address(portal), recordSlot) == bytes32(0));
             vm.warp(2 days);
             vm.prank(submitter);
@@ -263,6 +266,86 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         vm.warp(3 days + proofDelay + gameDelay + 1);
         assert(_finalize(withdrawal, submitter, _externalProof ? address(0xBEEF) : submitter, _externalProof));
         assert(portal.finalizedWithdrawals(withdrawalHash));
+    }
+
+    /// @notice Proving binds the output tuple and replaces only the selected record after acceptance.
+    ///         Arbitrary encoded bytes avoid Kontrol's fixed default length for bytes[] inputs.
+    ///         Trie membership soundness is a separate obligation, not assumed here.
+    function prove_proveWithdrawal_recordTransition_succeeds(
+        ProvingCase memory _case,
+        Types.WithdrawalTransaction memory _tx,
+        Types.OutputRootProof memory _outputRoot,
+        bytes memory _encodedProof
+    )
+        external
+    {
+        bytes[] memory proof;
+        try this.decodeProof(_encodedProof) returns (bytes[] memory decoded) {
+            proof = decoded;
+        } catch {
+            return;
+        }
+        WithdrawalProofGame_Harness candidate = _registerProofGame(_case.outputClaim, _case.gameType);
+        bytes32 withdrawalHash = _withdrawalHash(_tx);
+        vm.assume(_case.otherHash != withdrawalHash || _case.otherSubmitter != _case.submitter);
+        bytes32 recordSlot = keccak256(abi.encode(_case.submitter, keccak256(abi.encode(withdrawalHash, uint256(57)))));
+        bytes32 otherSlot =
+            keccak256(abi.encode(_case.otherSubmitter, keccak256(abi.encode(_case.otherHash, uint256(57)))));
+        vm.store(address(portal), recordSlot, _case.previousRecord);
+        vm.store(address(portal), otherSlot, _case.otherRecord);
+        bytes32 finalizedSlot = keccak256(abi.encode(_case.otherHash, uint256(51)));
+        bytes32 beforeFinalized = bytes32(uint256(_case.otherFinalized ? 1 : 0));
+        vm.store(address(portal), finalizedSlot, beforeFinalized);
+        vm.warp(_case.now);
+
+        vm.prank(_case.submitter);
+        (bool accepted,) =
+            address(portal).call(abi.encodeCall(portal.proveWithdrawalTransaction, (_tx, 0, _outputRoot, proof)));
+        bytes32 expected = _case.previousRecord;
+        if (accepted) {
+            assert(
+                _case.outputClaim
+                    == keccak256(
+                        abi.encode(
+                            _outputRoot.version,
+                            _outputRoot.stateRoot,
+                            _outputRoot.messagePasserStorageRoot,
+                            _outputRoot.latestBlockhash
+                        )
+                    )
+            );
+            // Solidity preserves the unused high bits of this packed storage slot.
+            expected = (_case.previousRecord & ~bytes32(uint256(type(uint224).max)))
+                | bytes32(uint256(uint160(address(candidate))) | (uint256(uint64(_case.now)) << 160));
+        }
+        assert(vm.load(address(portal), recordSlot) == expected);
+        assert(vm.load(address(portal), otherSlot) == _case.otherRecord);
+        assert(vm.load(address(portal), finalizedSlot) == beforeFinalized);
+    }
+
+    /// @notice Input adapter only; malformed ABI encodings are handled before the proving call.
+    function decodeProof(bytes memory _encoded) external pure returns (bytes[] memory) {
+        return abi.decode(_encoded, (bytes[]));
+    }
+
+    function _registerProofGame(
+        bytes32 _claim,
+        uint32 _gameType
+    )
+        internal
+        returns (WithdrawalProofGame_Harness candidate)
+    {
+        vm.warp(1 days);
+        candidate = new WithdrawalProofGame_Harness(Claim.wrap(_claim), portal.systemConfig().l2ChainId(), _gameType);
+        bytes32 uuid = keccak256(abi.encode(candidate.gameType(), candidate.rootClaim(), abi.encode(uint256(1))));
+        bytes32 registration = bytes32(
+            (uint256(GameType.unwrap(candidate.gameType())) << 224) | (uint256(1 days) << 160)
+                | uint256(uint160(address(candidate)))
+        );
+        vm.store(address(factory), keccak256(abi.encode(uuid, uint256(103))), registration);
+        vm.store(address(factory), bytes32(uint256(104)), bytes32(uint256(1)));
+        vm.store(address(factory), keccak256(abi.encode(uint256(104))), registration);
+        vm.store(address(registry), bytes32(uint256(6)), bytes32(0));
     }
 
     function _finalize(
