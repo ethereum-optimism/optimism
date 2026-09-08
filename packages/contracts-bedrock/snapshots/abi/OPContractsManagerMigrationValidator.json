@@ -14,14 +14,31 @@
             "type": "address[]"
           },
           {
-            "internalType": "contract IDisputeGameFactory[]",
-            "name": "legacyDisputeGameFactories",
-            "type": "address[]"
-          },
-          {
-            "internalType": "contract IETHLockbox[]",
-            "name": "legacyEthLockboxes",
-            "type": "address[]"
+            "components": [
+              {
+                "internalType": "contract IDisputeGameFactory",
+                "name": "disputeGameFactory",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IETHLockbox",
+                "name": "ethLockbox",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IDelayedWETH",
+                "name": "delayedWETH",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IAnchorStateRegistry",
+                "name": "anchorStateRegistry",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerMigrationValidator.LegacyChainContracts[]",
+            "name": "legacyChainContracts",
+            "type": "tuple[]"
           },
           {
             "components": [
@@ -205,14 +222,31 @@
             "type": "address[]"
           },
           {
-            "internalType": "contract IDisputeGameFactory[]",
-            "name": "legacyDisputeGameFactories",
-            "type": "address[]"
-          },
-          {
-            "internalType": "contract IETHLockbox[]",
-            "name": "legacyEthLockboxes",
-            "type": "address[]"
+            "components": [
+              {
+                "internalType": "contract IDisputeGameFactory",
+                "name": "disputeGameFactory",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IETHLockbox",
+                "name": "ethLockbox",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IDelayedWETH",
+                "name": "delayedWETH",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IAnchorStateRegistry",
+                "name": "anchorStateRegistry",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerMigrationValidator.LegacyChainContracts[]",
+            "name": "legacyChainContracts",
+            "type": "tuple[]"
           },
           {
             "components": [

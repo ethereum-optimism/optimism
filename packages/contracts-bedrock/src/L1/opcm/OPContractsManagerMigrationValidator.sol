@@ -470,12 +470,8 @@ contract OPContractsManagerMigrationValidator {
             return internalRequire(false, "MIG-CHAIN-EMPTY", _errors);
         }
 
-        if (_chainSystemConfigs.length != _input.legacyDisputeGameFactories.length) {
-            return internalRequire(false, "MIG-CHAIN-DGF-MISMATCH", _errors);
-        }
-
-        if (_chainSystemConfigs.length != _input.legacyEthLockboxes.length) {
-            return internalRequire(false, "MIG-CHAIN-LOCKBOX-MISMATCH", _errors);
+        if (_chainSystemConfigs.length != _input.legacyChainContracts.length) {
+            return internalRequire(false, "MIG-CHAIN-LEGACY-MISMATCH", _errors);
         }
 
         // Derive shared ASR, DGF, and lockbox from first chain.
@@ -499,7 +495,7 @@ contract OPContractsManagerMigrationValidator {
                 address(portal.anchorStateRegistry()) == sharedASR, string.concat("MIG-CHAIN-", idx, "-10"), _errors
             );
 
-            _errors = assertLegacyGamesCleared(_errors, _input.legacyDisputeGameFactories[i], idx);
+            _errors = assertLegacyGamesCleared(_errors, _input.legacyChainContracts[i].disputeGameFactory, idx);
 
             _errors = internalRequire(
                 sharedLockbox.authorizedPortals(portal), string.concat("MIG-CHAIN-", idx, "-80"), _errors
@@ -530,6 +526,7 @@ contract OPContractsManagerMigrationValidator {
             );
 
             _errors = assertRetiredContractsClean(_errors, _input, i, sharedLockbox, idx);
+            _errors = assertLegacyPauseRouting(_errors, _input, i, sharedLockbox, idx);
         }
 
         return _errors;
@@ -554,7 +551,7 @@ contract OPContractsManagerMigrationValidator {
         returns (string memory)
     {
         IOptimismPortal2 portal = IOptimismPortal2(payable(_input.chainSystemConfigs[_i].optimismPortal()));
-        IETHLockbox legacyLockbox = _input.legacyEthLockboxes[_i];
+        IETHLockbox legacyLockbox = _input.legacyChainContracts[_i].ethLockbox;
 
         // Read the SuperchainConfig from chain 0, which is the one that governs the set.
         ISuperchainConfig superchainConfig = _input.chainSystemConfigs[0].superchainConfig();
@@ -609,6 +606,57 @@ contract OPContractsManagerMigrationValidator {
                 _errors
             );
         }
+        return _errors;
+    }
+
+    /// @notice Asserts a chain's own DelayedWETH and AnchorStateRegistry were re-pointed at the
+    ///         shared ETHLockbox. Migration ditches both from the chain's own config but leaves
+    ///         them reachable to games created before the migration, which resolve pause,
+    ///         SuperchainConfig and guardian through whatever lockbox these still point to.
+    /// @param _errors The accumulated error string.
+    /// @param _input The validation input.
+    /// @param _i The chain's index.
+    /// @param _sharedLockbox The shared lockbox both contracts must now name.
+    /// @param _idx The chain's index as a string, used to build the error codes.
+    /// @return The accumulated error string.
+    function assertLegacyPauseRouting(
+        string memory _errors,
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        uint256 _i,
+        IETHLockbox _sharedLockbox,
+        string memory _idx
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IDelayedWETH legacyWETH = _input.legacyChainContracts[_i].delayedWETH;
+        IAnchorStateRegistry legacyASR = _input.legacyChainContracts[_i].anchorStateRegistry;
+        IProxyAdmin chainProxyAdmin = _input.chainSystemConfigs[_i].proxyAdmin();
+
+        bool wethPresent = address(legacyWETH) != address(0);
+        _errors = internalRequire(
+            wethPresent && address(legacyWETH.ethLockbox()) == address(_sharedLockbox),
+            string.concat("MIG-CHAIN-", _idx, "-190"),
+            _errors
+        );
+        _errors = internalRequire(
+            wethPresent && IProxyAdminOwnedBase(address(legacyWETH)).proxyAdmin() == chainProxyAdmin,
+            string.concat("MIG-CHAIN-", _idx, "-200"),
+            _errors
+        );
+
+        bool asrPresent = address(legacyASR) != address(0);
+        _errors = internalRequire(
+            asrPresent && address(legacyASR.ethLockbox()) == address(_sharedLockbox),
+            string.concat("MIG-CHAIN-", _idx, "-210"),
+            _errors
+        );
+        _errors = internalRequire(
+            asrPresent && IProxyAdminOwnedBase(address(legacyASR)).proxyAdmin() == chainProxyAdmin,
+            string.concat("MIG-CHAIN-", _idx, "-220"),
+            _errors
+        );
         return _errors;
     }
 

@@ -66,11 +66,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     /// @notice The shared lockbox created by migration (NOT ethLockbox from CommonTest).
     IETHLockbox sharedLockbox;
 
-    /// @notice Each chain's pre-migration DisputeGameFactory, in chainSystemConfigs order.
-    IDisputeGameFactory[] legacyDGFs;
-
-    /// @notice Each chain's pre-migration ETHLockbox, in chainSystemConfigs order.
-    IETHLockbox[] legacyLockboxes;
+    /// @notice Each chain's pre-migration contracts, in chainSystemConfigs order.
+    IOPContractsManagerMigrationValidator.LegacyChainContracts[] legacyContracts;
 
     /// @notice The StandardValidator instance (used to read impl addresses for refs).
     IOPContractsManagerStandardValidator standardValidator;
@@ -99,11 +96,9 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         standardValidator = opcmV2.opcmStandardValidator();
         migrationValidator = standardValidator.migrationValidator();
 
-        // Capture each chain's own factory before migration.
-        legacyDGFs.push(chainContracts1.disputeGameFactory);
-        legacyDGFs.push(chainContracts2.disputeGameFactory);
-        legacyLockboxes.push(chainContracts1.ethLockbox);
-        legacyLockboxes.push(chainContracts2.ethLockbox);
+        // Capture each chain's own contracts before migration.
+        legacyContracts.push(_legacyContractsOf(chainContracts1));
+        legacyContracts.push(_legacyContractsOf(chainContracts2));
 
         // Set proposer before building migration input.
         proposer = makeAddr("superProposer");
@@ -292,6 +287,20 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         return _validateMigrationCustomChains(chains, _allowFailure);
     }
 
+    /// @notice Snapshots a chain's own contracts, to be taken before migration re-points them.
+    function _legacyContractsOf(IOPContractsManagerV2.ChainContracts memory _c)
+        internal
+        pure
+        returns (IOPContractsManagerMigrationValidator.LegacyChainContracts memory)
+    {
+        return IOPContractsManagerMigrationValidator.LegacyChainContracts({
+            disputeGameFactory: _c.disputeGameFactory,
+            ethLockbox: _c.ethLockbox,
+            delayedWETH: _c.delayedWETH,
+            anchorStateRegistry: _c.anchorStateRegistry
+        });
+    }
+
     /// @notice Builds MigrationValidationInput with custom chain list.
     function _validateMigrationCustomChains(
         ISystemConfig[] memory _chains,
@@ -302,8 +311,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         returns (string memory)
     {
         IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](_chains.length);
-        for (uint256 i = 0; i < _chains.length && i < legacyDGFs.length; i++) {
-            dgfs[i] = legacyDGFs[i];
+        for (uint256 i = 0; i < _chains.length && i < legacyContracts.length; i++) {
+            dgfs[i] = legacyContracts[i].disputeGameFactory;
         }
         return _validateMigrationCustomDGFs(_chains, dgfs, _allowFailure);
     }
@@ -347,15 +356,18 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         view
         returns (IOPContractsManagerMigrationValidator.MigrationValidationInput memory)
     {
-        IETHLockbox[] memory lockboxes = new IETHLockbox[](_chains.length);
-        for (uint256 i = 0; i < _chains.length && i < legacyLockboxes.length; i++) {
-            lockboxes[i] = legacyLockboxes[i];
+        IOPContractsManagerMigrationValidator.LegacyChainContracts[] memory legacy =
+            new IOPContractsManagerMigrationValidator.LegacyChainContracts[](_chains.length);
+        for (uint256 i = 0; i < _chains.length && i < legacyContracts.length; i++) {
+            legacy[i] = legacyContracts[i];
+        }
+        for (uint256 i = 0; i < legacy.length && i < _dgfs.length; i++) {
+            legacy[i].disputeGameFactory = _dgfs[i];
         }
         return IOPContractsManagerMigrationValidator.MigrationValidationInput({
             dgf: sharedDGF,
             chainSystemConfigs: _chains,
-            legacyDisputeGameFactories: _dgfs,
-            legacyEthLockboxes: lockboxes,
+            legacyChainContracts: legacy,
             expectedShared: _expectedShared(),
             expectedInitBonds: _expectedInitBonds(),
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"ABBA")), l2SequenceNumber: 1234 }),
@@ -376,8 +388,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         chains[0] = chainContracts1.systemConfig;
         chains[1] = chainContracts2.systemConfig;
         IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](2);
-        dgfs[0] = legacyDGFs[0];
-        dgfs[1] = legacyDGFs[1];
+        dgfs[0] = legacyContracts[0].disputeGameFactory;
+        dgfs[1] = legacyContracts[1].disputeGameFactory;
         return _buildInput(chains, dgfs);
     }
 
@@ -946,7 +958,7 @@ contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is
     /// @notice MIG-SCKDG-DWETH-60: DelayedWETH proxyAdmin doesn't match shared ProxyAdmin.
     function test_validate_sharedDweth60WrongProxyAdmin_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad)));
-        assertEq("MIG-SCKDG-DWETH-60", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-60,MIG-CHAIN-0-200", _validateMigration(true));
     }
 }
 
@@ -1014,7 +1026,7 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
         chains[0] = chainContracts1.systemConfig;
         chains[1] = chainContracts2.systemConfig;
         IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](2);
-        dgfs[0] = legacyDGFs[0];
+        dgfs[0] = legacyContracts[0].disputeGameFactory;
         dgfs[1] = IDisputeGameFactory(fakeDGF);
         return _validateMigrationCustomDGFs(chains, dgfs, true);
     }
@@ -1175,7 +1187,7 @@ contract OPContractsManagerMigrationValidator_MigrationIntent_Test is OPContract
     ///         migrated portals actually route to.
     function test_validate_shared40DgfNotBoundToChains_succeeds() public view {
         IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
-        input.dgf = legacyDGFs[0];
+        input.dgf = legacyContracts[0].disputeGameFactory;
         assertEq("MIG-DGF-10,MIG-DGF-20,MIG-SHARED-40,MIG-BOND-1", _validateWithInput(input));
     }
 
@@ -1197,7 +1209,7 @@ contract OPContractsManagerMigrationValidator_MigrationIntent_Test is OPContract
 
     /// @notice MIG-CHAIN-0-160: a retired lockbox still holds ETH.
     function test_validate_chain160LegacyLockboxHoldsEth_succeeds() public {
-        vm.deal(address(legacyLockboxes[0]), 1 ether);
+        vm.deal(address(legacyContracts[0].ethLockbox), 1 ether);
         assertEq("MIG-CHAIN-0-160", _validateMigration(true));
     }
 
@@ -1211,15 +1223,51 @@ contract OPContractsManagerMigrationValidator_MigrationIntent_Test is OPContract
     /// @notice MIG-CHAIN-0-180: a pause is active on the retired lockbox identifier.
     function test_validate_chain180StaleLockboxPause_succeeds() public {
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(legacyLockboxes[0]));
+        superchainConfig.pause(address(legacyContracts[0].ethLockbox));
         assertEq("MIG-CHAIN-0-180", _validateMigration(true));
     }
 
-    /// @notice MIG-CHAIN-LOCKBOX-MISMATCH: the legacy lockbox list does not pair with the chains.
-    function test_validate_lockboxArrayLengthMismatch_succeeds() public view {
+    /// @notice MIG-CHAIN-1-190: the chain's own DelayedWETH was not re-pointed at the shared
+    ///         lockbox, so games created before the migration read a stale pause from it.
+    function test_validate_chain190LegacyWethWrongLockbox_succeeds() public {
+        vm.mockCall(
+            address(legacyContracts[1].delayedWETH),
+            abi.encodeCall(IDelayedWETH.ethLockbox, ()),
+            abi.encode(IETHLockbox(makeAddr("staleLockbox")))
+        );
+        assertEq("MIG-CHAIN-1-190", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-200: the supplied legacy DelayedWETH belongs to another chain.
+    function test_validate_chain200LegacyWethFromOtherChain_succeeds() public view {
         IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
-        input.legacyEthLockboxes = new IETHLockbox[](1);
-        assertEq("MIG-CHAIN-LOCKBOX-MISMATCH", _validateWithInput(input));
+        input.legacyChainContracts[0].delayedWETH = legacyContracts[1].delayedWETH;
+        assertEq("MIG-CHAIN-0-200", _validateWithInput(input));
+    }
+
+    /// @notice MIG-CHAIN-0-210: the chain's old AnchorStateRegistry was not re-pointed at the
+    ///         shared lockbox, so games created before the migration read a stale pause from it.
+    function test_validate_chain210LegacyAsrWrongLockbox_succeeds() public {
+        vm.mockCall(
+            address(legacyContracts[0].anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.ethLockbox, ()),
+            abi.encode(IETHLockbox(makeAddr("staleLockbox")))
+        );
+        assertEq("MIG-CHAIN-0-210", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-220: the supplied legacy AnchorStateRegistry belongs to another chain.
+    function test_validate_chain220LegacyAsrFromOtherChain_succeeds() public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.legacyChainContracts[0].anchorStateRegistry = legacyContracts[1].anchorStateRegistry;
+        assertEq("MIG-CHAIN-0-220", _validateWithInput(input));
+    }
+
+    /// @notice MIG-CHAIN-LEGACY-MISMATCH: the legacy contract list does not pair with the chains.
+    function test_validate_legacyArrayLengthMismatch_succeeds() public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.legacyChainContracts = new IOPContractsManagerMigrationValidator.LegacyChainContracts[](1);
+        assertEq("MIG-CHAIN-LEGACY-MISMATCH", _validateWithInput(input));
     }
 
     /// @notice The validator reports every game type in the canonical clearing list.

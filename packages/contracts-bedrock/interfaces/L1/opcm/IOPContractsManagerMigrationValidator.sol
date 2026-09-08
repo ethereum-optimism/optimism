@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
@@ -12,6 +13,14 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 interface IOPContractsManagerMigrationValidator {
     error InvalidGameArgsLength();
+
+    /// @notice A chain's pre-migration contracts.
+    struct LegacyChainContracts {
+        IDisputeGameFactory disputeGameFactory;
+        IETHLockbox ethLockbox;
+        IDelayedWETH delayedWETH;
+        IAnchorStateRegistry anchorStateRegistry;
+    }
 
     /// @notice Addresses of the shared contracts the migration was meant to produce.
     struct ExpectedSharedContracts {
@@ -29,10 +38,8 @@ interface IOPContractsManagerMigrationValidator {
     struct MigrationValidationInput {
         IDisputeGameFactory dgf;
         ISystemConfig[] chainSystemConfigs;
-        /// @notice Each chain's pre-migration DisputeGameFactory
-        IDisputeGameFactory[] legacyDisputeGameFactories;
-        /// @notice Each chain's pre-migration ETHLockbox
-        IETHLockbox[] legacyEthLockboxes;
+        /// @notice Each chain's pre-migration contracts, must be in the same order as chainSystemConfigs.
+        LegacyChainContracts[] legacyChainContracts;
         ExpectedSharedContracts expectedShared;
         ExpectedInitBond[] expectedInitBonds;
         Proposal startingAnchorRoot;
