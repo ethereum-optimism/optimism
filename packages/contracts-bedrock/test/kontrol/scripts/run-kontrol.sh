@@ -238,6 +238,12 @@ trap on_failure ERR INT TERM
 trap clean_docker EXIT
 conditionally_start_docker
 
+if [ "${KONTROL_STRICT:-false}" = true ] && [ "$LOCAL" = false ]; then
+  # The copied workspace can contain the previous suite's graphs and test report.
+  # Clear only this fresh container's outputs so failed builds cannot report stale proofs.
+  run rm -rf -- kout-proofs kontrol_prove_report.xml
+fi
+
 results=()
 
 # Run kontrol_build and store the result

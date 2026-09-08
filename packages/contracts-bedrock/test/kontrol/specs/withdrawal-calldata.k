@@ -20,9 +20,9 @@ module WITHDRAWAL-CALLDATA
     rule #wDynamicBytes(DATA) => #wordBytes(lengthBytes(DATA)) +Bytes #wPaddedBytes(DATA)
 
     // Tuple offsets start at the tuple, not at the outer call's argument head.
-    rule #wTuple(NONCE, SENDER, TARGET, VALUE, GAS, DATA)
+    rule #wTuple(NONCE, SENDER, TARGET, VALUE, WITHDRAWALGAS, DATA)
       => #wordBytes(NONCE) +Bytes #wordBytes(SENDER) +Bytes #wordBytes(TARGET)
-       +Bytes #wordBytes(VALUE) +Bytes #wordBytes(GAS) +Bytes #wordBytes(192)
+       +Bytes #wordBytes(VALUE) +Bytes #wordBytes(WITHDRAWALGAS) +Bytes #wordBytes(192)
        +Bytes #wDynamicBytes(DATA)
 
     // Dynamic-array element offsets are relative to the first offset word,
@@ -38,9 +38,9 @@ module WITHDRAWAL-CALLDATA
     rule #wProofTails(ListItem(NODE:Bytes) REST)
       => #wDynamicBytes(NODE) +Bytes #wProofTails(REST)
 
-    rule #wProveCalldata(NONCE, SENDER, TARGET, VALUE, GAS, DATA,
+    rule #wProveCalldata(NONCE, SENDER, TARGET, VALUE, WITHDRAWALGAS, DATA,
                         INDEX, VERSION, STATE, STORAGE, BLOCK, PROOF)
-      => #wProveEncoded(#wTuple(NONCE, SENDER, TARGET, VALUE, GAS, DATA), INDEX,
+      => #wProveEncoded(#wTuple(NONCE, SENDER, TARGET, VALUE, WITHDRAWALGAS, DATA), INDEX,
                        #wordBytes(VERSION) +Bytes #wordBytes(STATE)
                        +Bytes #wordBytes(STORAGE) +Bytes #wordBytes(BLOCK), PROOF)
     // Seven head words: dynamic tuple, index, four output words, dynamic proof.
