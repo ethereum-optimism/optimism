@@ -56,7 +56,7 @@ kontrol_prove() {
       --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0 \
       --break-on-jump --break-on-jumpi --no-log-rewrites --kore-rpc-command "$rpc_command" || copy_status=$?
     # Bound proving inside the container so the host can still collect its saved graphs.
-    prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove)
+    prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove --verbose)
   else
     rpc_command+=' --no-post-exec-simplify'
   fi
