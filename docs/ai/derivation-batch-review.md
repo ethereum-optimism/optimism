@@ -84,7 +84,7 @@ For each affected path, determine:
 
 Compare both implementations with the specification first.
 Then compare their accept sets and outputs with each other.
-Follow [derivation.md](derivation.md#cross-client-wire-format-parity) before proposing either behavior as correct.
+Follow [derivation.md](derivation.md#cross-client-wire-format-parity) for wire-format parity and codec-testing guidance. For specification-driven reviews, the [shared authority policy](spec-driven-review.md#authority) takes precedence over that section's op-node tie-breaker: report unresolved divergences with a specification-gap finding rather than selecting a client as correct.
 
 Report the input class that a difference covers, not one example input.
 Name the first byte range, the field, or the failure mode that produces the same outcome.
