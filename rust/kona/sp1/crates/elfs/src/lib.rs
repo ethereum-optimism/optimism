@@ -41,14 +41,9 @@ pub fn load_elf_from(dir: &Path, name: &str) -> io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// Load a guest ELF by base file name (for example, `range-elf`) from `KONA_SP1_ELF_DIR`.
+/// Load a guest ELF by base file name (for example, `super-range-elf`) from `KONA_SP1_ELF_DIR`.
 pub fn load_elf(name: &str) -> io::Result<Vec<u8>> {
     load_elf_from(&elf_dir()?, name)
-}
-
-/// Load the `range` guest ELF.
-pub fn range_elf() -> io::Result<Vec<u8>> {
-    load_elf("range-elf")
 }
 
 #[cfg(test)]
@@ -64,7 +59,7 @@ mod tests {
         let directory = test_directory("missing");
         let _ = fs::remove_dir_all(&directory);
 
-        let err = load_elf_from(&directory, "range-elf").expect_err("missing ELF must fail");
+        let err = load_elf_from(&directory, "super-range-elf").expect_err("missing ELF must fail");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
     }
 
@@ -73,9 +68,9 @@ mod tests {
         let directory = test_directory("empty");
         let _ = fs::remove_dir_all(&directory);
         fs::create_dir_all(&directory).expect("test directory is created");
-        fs::write(directory.join("range-elf"), []).expect("empty test ELF is written");
+        fs::write(directory.join("super-range-elf"), []).expect("empty test ELF is written");
 
-        let err = load_elf_from(&directory, "range-elf").expect_err("empty ELF must fail");
+        let err = load_elf_from(&directory, "super-range-elf").expect_err("empty ELF must fail");
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
 
         fs::remove_dir_all(directory).expect("test directory is removed");

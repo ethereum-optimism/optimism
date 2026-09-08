@@ -59,7 +59,7 @@ build-release *args='':
 # Build the kona-sp1 crates under the host toolchain.
 build-sp1:
   cargo build -p kona-sp1-host-utils -p kona-sp1-client-utils \
-    -p kona-sp1-ethereum-host-utils -p kona-sp1-ethereum-client-utils \
+    -p kona-sp1-ethereum-client-utils \
     -p kona-sp1-elfs
 
 # Build kona-node
@@ -220,16 +220,14 @@ check-no-self-embed:
   #!/usr/bin/env bash
   set -euo pipefail
   cd kona/sp1
-  # A leaf guest must not depend on the range-vkey crate: it would embed its own vkey
-  # (RANGE_VKEY = f(range ELF)), closing a build cycle. Only aggregation guests may depend on it.
-  # Direct-dep check only; no shared guest crate depends on range-vkeys today.
-  for f in programs/range/Cargo.toml programs/super-range/Cargo.toml; do
-    test -f "$f"
-    if grep -q kona-sp1-range-vkeys "$f"; then
-      echo "error: $f must not depend on kona-sp1-range-vkeys (build cycle)" >&2
-      exit 1
-    fi
-  done
+  # The leaf guest must not depend on the range-vkey crate: it would embed its own vkey
+  # (SUPER_RANGE_VKEY = f(super-range ELF)), closing a build cycle.
+  f=programs/super-range/Cargo.toml
+  test -f "$f"
+  if grep -q kona-sp1-range-vkeys "$f"; then
+    echo "error: $f must not depend on kona-sp1-range-vkeys (build cycle)" >&2
+    exit 1
+  fi
 # Runs before the `--locked` clippy so a kona-only dependency change produces a
 # clear fix hint instead of cargo's cryptic "cannot update the lock file because
 # --locked was passed" error.
@@ -296,13 +294,11 @@ check-sp1-guest-precompile-patches:
     done
   }
 
-  # The range guests execute the L2 EVM, so they must also use the patched
+  # The super-range guest executes the L2 EVM, so it must also use the patched
   # substrate-bn backend selected by revm's `bn` feature.
-  verify_program_patches kona-sp1-range "${common_patches[@]}" "substrate-bn bn"
   verify_program_patches kona-sp1-super-range "${common_patches[@]}" "substrate-bn bn"
 
-  # Aggregation guests verify proofs but do not execute L2 EVM precompiles.
-  verify_program_patches kona-sp1-aggregation "${common_patches[@]}"
+  # The aggregation guest verifies proofs but does not execute L2 EVM precompiles.
   verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}"
 
 # Resolves without --locked (minimal change), so it only touches entries that

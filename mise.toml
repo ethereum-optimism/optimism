@@ -70,7 +70,7 @@ git-cliff = "2.12.0"
 # Put things here if you need to track versions of tools or projects that can't
 # actually be managed by mise (yet). Make sure that anything you put in here is
 # also found inside of disabled_tools or mise will try to install it.
-kontrol = "1.0.90"
+kontrol = "1.0.255"
 binary_signer = "1.0.4"
 
 [tool_alias]

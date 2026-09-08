@@ -8,7 +8,7 @@ import (
 
 	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	metricstest "github.com/ethereum-optimism/optimism/op-service/metrics/test"
 )
 
 func TestFaucetMetrics(t *testing.T) {
@@ -33,7 +33,7 @@ func TestFaucetMetrics(t *testing.T) {
 	onDone = m.RecordFundAction(faucetB, chainY, eth.Ether(1000))
 	onDone(errors.New("test err"))
 
-	c := opmetrics.NewMetricChecker(t, m.Registry())
+	c := metricstest.NewMetricChecker(t, m.Registry())
 
 	prefix := Namespace + "_default_"
 

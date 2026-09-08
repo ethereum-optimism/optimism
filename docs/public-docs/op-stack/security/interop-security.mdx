@@ -21,7 +21,7 @@ Excluding L1 reorgs, this can happen in two ways:
 
     In this case, invalid blocks will be replaced with deposit only blocks by other verifiers.
 
-    <Expandable title="What are deposit only blocks?">
+    <Accordion title="What are deposit only blocks?">
 
       Normally the blocks that make it to the canonical blockchain are those posted to L1 by the sequencer.
       However, when those blocks are missing or invalid (for example because they rely on an initiating message that is missing), they're replaced by *deposit only blocks*, blocks whose content can be calculated from L1 without relying on the sequencer.
@@ -36,7 +36,7 @@ Excluding L1 reorgs, this can happen in two ways:
       A deposit only block only contains the deposit transactions and some internal transactions, not the sequencer transactions.
 
       For more information about this process, [see the technical specifications](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#deriving-the-transaction-list).
-    </Expandable>
+    </Accordion>
 
 ## The latency/security tradeoff
 

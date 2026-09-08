@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-mon/monitor"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	metricstest "github.com/ethereum-optimism/optimism/op-service/metrics/test"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/stretchr/testify/assert"
 )
@@ -52,7 +53,7 @@ func TestInteropMon(gt *testing.T) {
 
 	// Ensure the metrics are generated
 	require.EventuallyWithT(func(t *assert.CollectT) {
-		checker := opmetrics.NewMetricChecker(t, im.Metrics.(opmetrics.RegistryMetricer).Registry())
+		checker := metricstest.NewMetricChecker(t, im.Metrics.(opmetrics.RegistryMetricer).Registry())
 		checker.FindByName("op_interop_mon_default_message_status")
 	}, 2*time.Minute, 100*time.Millisecond)
 	t.Log("op-interop-mon metrics check successful")

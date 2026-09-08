@@ -1383,12 +1383,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "half"
-version = "1.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b43ede17f21864e81be2fa654110bf1e793774238d86ef8555c37e6519c0403"
-
-[[package]]
 name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1821,22 +1815,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kona-sp1-aggregation"
-version = "0.0.1"
-dependencies = [
- "alloy-consensus",
- "alloy-primitives",
- "alloy-sol-types",
- "bincode",
- "kona-sp1-client-utils",
- "kona-sp1-range-vkeys",
- "serde_cbor",
- "sha2",
- "sp1-lib",
- "sp1-zkvm",
-]
-
-[[package]]
 name = "kona-sp1-client-utils"
 version = "0.0.1"
 dependencies = [
@@ -1894,21 +1872,6 @@ dependencies = [
  "revm",
  "serde_json",
  "spin 0.10.0",
-]
-
-[[package]]
-name = "kona-sp1-range"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "kona-proof",
- "kona-sp1-client-utils",
- "kona-sp1-ethereum-client-utils",
- "revm",
- "rkyv",
- "sp1-zkvm",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -3075,16 +3038,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_cbor"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bef2ebfde456fb76bbcf9f59315333decc4fda0b2b44b420243c11e0f5ec1f5"
-dependencies = [
- "half",
- "serde",
-]
-
-[[package]]
 name = "serde_core"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3175,15 +3128,6 @@ source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha3-0.
 dependencies = [
  "digest 0.11.3",
  "keccak",
-]
-
-[[package]]
-name = "sharded-slab"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
-dependencies = [
- "lazy_static",
 ]
 
 [[package]]
@@ -3529,15 +3473,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "thread_local"
-version = "1.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
-dependencies = [
- "cfg-if",
-]
-
-[[package]]
 name = "threadpool"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3621,17 +3556,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "tracing-subscriber"
-version = "0.3.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
-dependencies = [
- "sharded-slab",
- "thread_local",
- "tracing-core",
 ]
 
 [[package]]

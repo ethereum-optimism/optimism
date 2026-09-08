@@ -1200,8 +1200,6 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - apt-install:
-          packages: "lcov"
       - run:
           name: Resolve L1 archive RPC URL
           command: |
@@ -2214,28 +2212,34 @@ jobs:
       - check-changed:
           no_go_deps: "true"
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/OptimismPortal2\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
-      - setup_remote_docker:
-          docker_layer_caching: true
+      - restore-go-mod-cache
+      - setup_remote_docker
       - run:
           name: Run Kontrol Tests
-          command: |
-            curl -X POST \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer $RV_COMPUTE_TOKEN" \
-              https://api.github.com/repos/runtimeverification/optimism-ci/actions/workflows/optimism-ci.yaml/dispatches \
-              -d '{
-                "ref": "master",
-                "inputs": {
-                  "branch_name": "<<pipeline.git.branch>>",
-                  "extra_args": "script",
-                  "statuses_sha": "<< pipeline.git.revision >>",
-                  "org": "ethereum-optimism",
-                  "repository": "optimism"
-                }
-              }'
+          command: timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-full test-kontrol-no-build
           working_directory: ./packages/contracts-bedrock
-      - notify-failures-on-develop:
-          mentions: "@security-oncall"
+          no_output_timeout: 185m
+      - run:
+          name: Remove duplicate proof archives
+          when: always
+          command: |
+            logs=packages/contracts-bedrock/test/kontrol/logs
+            for archive in "$logs"/results-*.tar.gz; do
+              if cmp -s "$archive" "$logs/kontrol-results_latest.tar.gz"; then
+                rm -- "$archive"
+              fi
+            done
+      - store_test_results:
+          path: packages/contracts-bedrock/test/kontrol/logs
+      - store_artifacts:
+          path: packages/contracts-bedrock/test/kontrol/logs
+      - slack/notify:
+          channel: C03N11M0BBN
+          event: fail
+          template: basic_fail_1
+          branch_pattern: develop
+          mentions: "<!subteam^S07K486JEH4>"
+          ignore_errors: false
 
   publish-contract-artifacts:
     docker:
@@ -2815,7 +2819,6 @@ workflows:
       - kontrol-tests:
           context:
             - slack
-            - runtimeverification
             - circleci-repo-readonly-authenticated-github-token
 
   scheduled-cannon-full-tests:

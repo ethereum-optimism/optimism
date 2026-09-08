@@ -300,9 +300,10 @@ impl Decodable2718 for TxDeposit {
         Ok(tx)
     }
 
-    fn fallback_decode(data: &mut &[u8]) -> Eip2718Result<Self> {
-        let tx = Self::decode(data)?;
-        Ok(tx)
+    fn fallback_decode(_data: &mut &[u8]) -> Eip2718Result<Self> {
+        // Deposits have no untyped form: reaching untyped dispatch means the 0x7E tag was absent,
+        // so reject rather than resurrect the type from the body.
+        Err(Eip2718Error::UnexpectedType(OpTxType::Deposit as u8))
     }
 }
 

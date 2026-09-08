@@ -22,8 +22,8 @@ contracts.
 - **Dispute game**: an on-chain bisection game to resolve output root disputes.
 - **Preimage oracle**: the mechanism for the VM to load external data (L1 blocks, L2 state).
 - **Kona-SP1 acceptance boundary**: tests exercise the shipping super-root path through the
-  `super-range` and `super-aggregation` programs. A single chain is represented by a dependency
-  set of size one; the output-root-only programs are not acceptance targets.
+  `super-range` and `super-aggregation` programs. Single-chain coverage uses a dependency set of
+  size one.
 
 ## Invariants
 

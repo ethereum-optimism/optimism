@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -106,7 +107,7 @@ func channelOutByType(b *testing.B, batchType uint, cd compressorDetails) (deriv
 }
 
 func randomBlock(cfg *rollup.Config, rng *rand.Rand, txCount int, timestamp uint64) (*eth.ExecutionPayload, error) {
-	batch := derive.RandomSingularBatch(rng, txCount, cfg.L2ChainID)
+	batch := derivetest.RandomSingularBatch(rng, txCount, cfg.L2ChainID)
 	batch.Timestamp = timestamp
 	block, err := singularBatchToBlock(cfg, batch)
 	if err != nil {
@@ -384,7 +385,7 @@ func BenchmarkGetRawSpanBatch(b *testing.B) {
 		batches := make([]*derive.SingularBatch, tc.BatchCount)
 		t := time.Now()
 		for i := 0; i < tc.BatchCount; i++ {
-			batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
+			batches[i] = derivetest.RandomSingularBatch(rng, tc.txPerBatch, chainID)
 			batches[i].Timestamp = uint64(t.Add(time.Duration(i) * time.Second).Unix())
 		}
 		b.Run(tc.String(), func(b *testing.B) {

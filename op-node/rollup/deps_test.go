@@ -18,3 +18,17 @@ func TestNoSuperchainImport(t *testing.T) {
 	depguard.RequireNoTransitiveImport(t, "./...",
 		"github.com/ethereum-optimism/optimism/op-core/superchain")
 }
+
+// TestNoTestutilsImport keeps op-node/rollup out of op-service/testutils.
+// testutils is a single package whose closure reaches op-service/apis and the
+// libp2p stack, so a production file importing it for one random-data helper
+// links that whole tree into every downstream binary. Test-only helpers that
+// need it belong in a test package such as op-node/rollup/derive/test.
+func TestNoTestutilsImport(t *testing.T) {
+	depguard.RequireNoTransitiveImportExcept(t, "./...",
+		[]string{
+			// A test-helper package, imported only by tests and benchmarks.
+			"github.com/ethereum-optimism/optimism/op-node/rollup/derive/test",
+		},
+		"github.com/ethereum-optimism/optimism/op-service/testutils")
+}

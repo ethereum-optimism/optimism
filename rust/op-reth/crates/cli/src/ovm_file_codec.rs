@@ -278,7 +278,7 @@ impl Decodable2718 for OvmTransactionSigned {
                 TxDeposit::signature(),
             )),
             OpTxType::PostExec => Ok(Self::from_transaction_and_signature(
-                OpTypedTransaction::PostExec(TxPostExec::decode_2718(buf)?),
+                OpTypedTransaction::PostExec(TxPostExec::rlp_decode(buf)?),
                 TxPostExec::signature(),
             )),
         }
@@ -293,10 +293,35 @@ impl Decodable2718 for OvmTransactionSigned {
 mod tests {
     use crate::ovm_file_codec::OvmTransactionSigned;
     use alloy_consensus::Typed2718;
+    use alloy_eips::eip2718::{Decodable2718, Encodable2718};
     use alloy_primitives::{TxKind, U256, address, b256, hex};
-    use op_alloy_consensus::OpTypedTransaction;
+    use op_alloy_consensus::{
+        OpTypedTransaction, POST_EXEC_TX_TYPE_ID, SDMGasEntry, TxPostExec, build_post_exec_tx,
+    };
     const DEPOSIT_FUNCTION_SELECTOR: [u8; 4] = [0xb6, 0xb5, 0x5f, 0x25];
     use alloy_rlp::Decodable;
+
+    /// Regression: `typed_decode` is handed a buffer whose `0x7D` type byte has already been
+    /// consumed, so the post-exec arm must decode the RLP body. Routing back through
+    /// `decode_2718` re-dispatches on the body's first byte and lands in
+    /// `TxPostExec::fallback_decode`, which rejects untyped post-exec bodies.
+    #[test]
+    fn test_roundtrip_post_exec_transaction() {
+        let tx = OvmTransactionSigned::from_transaction_and_signature(
+            OpTypedTransaction::PostExec(build_post_exec_tx(
+                7,
+                vec![SDMGasEntry { index: 1, gas_refund: 21_000 }],
+            )),
+            TxPostExec::signature(),
+        );
+
+        let encoded = tx.encoded_2718();
+        assert_eq!(encoded[0], POST_EXEC_TX_TYPE_ID);
+
+        let decoded =
+            OvmTransactionSigned::decode_2718_exact(&encoded).expect("post-exec tx decodes");
+        assert_eq!(decoded, tx);
+    }
 
     #[test]
     fn test_decode_legacy_transactions() {

@@ -98,7 +98,7 @@ func RunSP1SuperRangeProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L
 
 // runProgram prepares the chain inputs (beacon, configs, L2 endpoints) for a single state
 // transition and dispatches them to the given program runner. allowSP1Options must be true only
-// for runners that honor SP1-only fixture options (currently the SP1 range executor).
+// for runners that honor SP1-only fixture options (currently the SP1 super-range executor).
 func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run ProgramRunner, allowSP1Options bool, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	l1Head := l1.L1Chain().CurrentBlock()
 

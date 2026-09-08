@@ -15,18 +15,15 @@ fn main() {
     let manifest = match fs::read_to_string(&vkeys_path) {
         Ok(manifest) => manifest,
         Err(err) if err.kind() == io::ErrorKind::NotFound => panic!(
-            "elf/vkeys.toml not found — build the leaf ELFs first (cd rust/kona/sp1 && just \
-             build-elfs); required to build the aggregation guests."
+            "elf/vkeys.toml not found — build the super-range ELF first (cd rust/kona/sp1 && just \
+             build-elfs); required to build the super-aggregation guest."
         ),
         Err(err) => panic!("failed to read {}: {err}", vkeys_path.display()),
     };
 
-    let range_vkey = decode_vkey(&manifest, "range");
     let super_range_vkey = decode_vkey(&manifest, "super-range");
     let generated = format!(
-        "/// Verification key of the `range` guest, embedded in the aggregation guest.\n\
-         pub const RANGE_VKEY: [u32; 8] = {range_vkey:?};\n\
-         /// Verification key of the `super-range` guest, embedded in the super-aggregation \
+        "/// Verification key of the `super-range` guest, embedded in the super-aggregation \
          guest.\n\
          pub const SUPER_RANGE_VKEY: [u32; 8] = {super_range_vkey:?};\n"
     );
