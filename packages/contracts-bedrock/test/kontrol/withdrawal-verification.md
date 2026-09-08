@@ -118,8 +118,9 @@ after a timeout. A timeout is incomplete, never a proof pass.
 Strict mode saves after each completed proof step and logs initialization stages. An interrupted
 initialization or unfinished first step may still leave no graph; absence is not evidence of a pass.
 
-Before these methods, strict mode separately attempts a word-copy loop claim for the exact fixture
-runtime, with a 15-minute timeout. The generator requires the complete opcode loop and its matching
+Before these methods, strict mode proves three independent word-copy steps, checks their native
+graphs, then attempts the full loop with those completed dependencies. Each phase has a 15-minute
+timeout and uses the exact fixture runtime. The generator requires the complete opcode loop and its matching
 jump destinations. The claim covers a symbolic prefix copied into disjoint memory, tracks memory
 expansion, and stops before tail clearing. It uses symbolic infinite gas and leaves the final gas
 formula unspecified, so it supplies no gas bound and cannot apply to the concrete-gas witnesses.
@@ -169,11 +170,11 @@ with results; the production source classes alone do not identify any particular
 Accept a result only when all selected proof graphs pass without pending, failing, or admitted
 obligations and the acceptance witness passes. Compilation and JUnit alone are insufficient.
 
-The current branch temporarily dispatches a copy-step CI diagnostic with
-`KONTROL_COPY_ONLY=true`. It selects three independent, non-circular one-iteration claims,
+The current branch temporarily dispatches a copy-loop CI diagnostic with
+`KONTROL_COPY_ONLY=true`. It first selects three independent, non-circular one-iteration claims,
 covering writes after, across, or within the original memory buffer's end. These disjoint cases
 cover the full continuing-iteration domain. Each requires the exact merged byte copy and
-one-step memory expansion. No claim is imported as a summary or dependency.
+one-step memory expansion. The steps have no dependencies on each other or the full loop.
 The steps start after decoding the loop's `JUMPDEST`, before its checks, gas charge and execution.
 The diagnostic enables KEVM's optional fast subsumption filter: a different control cell skips
 the full target comparison and continues execution; it does not establish a successful cover.
@@ -181,11 +182,15 @@ Later composition must reach this entry through the actual decoder and discharge
 The full-loop entry, all input bounds, and all exact memory and index postconditions are unchanged.
 The step memory counter spells the offset as `I + DEST`, matching the executed term; this is
 integer addition, so commuting the operands preserves the exact counter requirement.
-This mode requires strict mode and preserves failure status. It uses one worker with a shared
-15-minute timeout and a 10,000-iteration budget per claim. Its expected coverage is exactly three
-step graphs; a timeout before all cases run is incomplete. It does not run the full loop or Solidity
-methods. The integrated mode still selects the unchanged full-loop claim with one worker.
-Passing steps must be audited and composed before
-they can support the full loop; step passes alone are not a completed helper or full-suite evidence.
+This mode requires strict mode and preserves failure status. It uses one worker and a
+10,000-iteration budget per claim. A fresh helper directory and `--reinit` establish the three
+step graphs first. A nonzero exit or incomplete native graph prevents the full-loop invocation.
+The separate full-loop invocation uses `--direct-subproof-rules` and the same file, definition,
+digests and saved graphs, without `--reinit`. Verify that it reuses all three passing steps.
+Dependency scheduling alone does not check success and cannot replace this explicit gate.
+The expected final coverage is three completed steps plus the full-loop graph. A missing or
+unfinished graph is incomplete. This diagnostic does not run the Solidity methods.
+The full-loop logical body is unchanged; its new dependencies must apply through the real
+decoder and satisfy all their premises. Step passes alone are not full-loop or full-suite evidence.
 Before PR readiness, restore the CI command to `test-kontrol-no-build` without that variable
 and verify the original suite, every withdrawal obligation, and the independent helper.

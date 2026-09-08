@@ -51,32 +51,36 @@ kontrol_prove() {
     # Keep post-execution simplification to eliminate infeasible symbolic dispatch branches.
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
     rpc_command+=' --fallback-on Stuck,Aborted'
-    # Prove the generated claim independently; do not import it as a rewrite.
+    # Fresh independent steps must pass before the separate full-loop invocation.
+    run rm -rf kout-proofs/copy-loop
     run mkdir -p kout-proofs/copy-loop
     run python3 test/kontrol/scripts/generate-copy-claim.py \
       kout-proofs/WithdrawalAuthorization.k.sol/WithdrawalAuthorizationKontrol.json \
       kout-proofs/copy-loop/claim.k
     local foundry_include
     foundry_include=$(run python3 -c 'from importlib.resources import files; print(files("kontrol") / "kdist")')
-    local copy_claims=(--claim WITHDRAWAL-COPY-LOOP.word-copy)
-    if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then
-      # Independent finite steps: no circularity or dependency import between claims.
-      copy_claims=(
-        --claim WITHDRAWAL-COPY-LOOP.word-copy-step-after-end
-        --claim WITHDRAWAL-COPY-LOOP.word-copy-step-across-end
-        --claim WITHDRAWAL-COPY-LOOP.word-copy-step-within-buffer
-        --fast-check-subsumption
-      )
+    local copy_command=(
+      timeout --signal=INT --kill-after=30s 15m kevm prove --verbose kout-proofs/copy-loop/claim.k
+      --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop
+      --spec-module WITHDRAWAL-COPY-LOOP -I "$foundry_include" --workers 1
+      --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0
+      --break-on-jump --break-on-jumpi --break-on-basic-blocks
+      --no-log-rewrites --kore-rpc-command "$rpc_command"
+    )
+    run "${copy_command[@]}" --reinit --fast-check-subsumption \
+      --claim WITHDRAWAL-COPY-LOOP.word-copy-step-after-end \
+      --claim WITHDRAWAL-COPY-LOOP.word-copy-step-across-end \
+      --claim WITHDRAWAL-COPY-LOOP.word-copy-step-within-buffer || copy_status=$?
+    if [ "$copy_status" -eq 0 ]; then
+      run python3 test/kontrol/scripts/check-copy-steps.py kout-proofs/copy-loop || copy_status=$?
     fi
-    run timeout --signal=INT --kill-after=30s 15m kevm prove --verbose kout-proofs/copy-loop/claim.k \
-      --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop \
-      --spec-module WITHDRAWAL-COPY-LOOP "${copy_claims[@]}" \
-      -I "$foundry_include" --reinit --workers 1 \
-      --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0 \
-      --break-on-jump --break-on-jumpi --break-on-basic-blocks \
-      --no-log-rewrites --kore-rpc-command "$rpc_command" || copy_status=$?
+    if [ "$copy_status" -eq 0 ]; then
+      # Reuse only the just-verified steps; --reinit here would invalidate the gate.
+      run "${copy_command[@]}" --claim WITHDRAWAL-COPY-LOOP.word-copy \
+        --direct-subproof-rules || copy_status=$?
+    fi
     if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then
-      notif "COPY-STEP DIAGNOSTIC: exit=$copy_status; full loop and Solidity obligations were not run"
+      notif "COPY-LOOP DIAGNOSTIC: exit=$copy_status; Solidity obligations were not run"
       return "$copy_status"
     fi
     # Bound proving inside the container so the host can still collect its saved graphs.

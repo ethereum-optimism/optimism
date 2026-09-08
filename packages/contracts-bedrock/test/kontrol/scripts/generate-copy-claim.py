@@ -60,7 +60,10 @@ def render_claim(name, step_case=None):
        andBool (#if ?FINALINDEX ==Int 0 #then MU #else maxInt(MU, (DEST +Int ?FINALINDEX +Int 31) /Int 32) #fi)
          <=Int ?FINALMEMORYUSED
 """
-    attributes = "" if step_case else "      [circularity]\n"
+    attributes = "" if step_case else (
+        "      [circularity, depends(WITHDRAWAL-COPY-LOOP.word-copy-step-after-end,"
+        "WITHDRAWAL-COPY-LOOP.word-copy-step-across-end,WITHDRAWAL-COPY-LOOP.word-copy-step-within-buffer)]\n"
+    )
     return f'''    claim [{name}]:
       <k> {control} ... </k>
       <program> {literal} </program>
